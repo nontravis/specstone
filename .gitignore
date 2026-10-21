@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# Secrets and credentials
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.keystore
+key.properties
+google-services.json
+GoogleService-Info.plist
+
+# ---------------------------------------------------------------------------
+# Dart / Flutter
+# ---------------------------------------------------------------------------
+# pubspec.lock at the workspace root is committed: this repo ships the specstone executable.
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+/build/
+coverage/
+**/doc/api/
+.buildlog/
+migrate_working_dir/
+
+# ---------------------------------------------------------------------------
+# Git worktrees
+# ---------------------------------------------------------------------------
+.worktrees/
+
+# ---------------------------------------------------------------------------
+# IDE
+# ---------------------------------------------------------------------------
+.idea/
+.ai/
+*.iml
+*.ipr
+*.iws
+.history/
+
+# ---------------------------------------------------------------------------
+# OS and editor noise
+# ---------------------------------------------------------------------------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+*.log
+*.pyc
+*.class
+.DS_Store?
+.serena
+Thumbs.db
+tmp/
+temp/
+.unlighthouse/
+logs/
+benchmarks/
+
+# ---------------------------------------------------------------------------
+# AI agent artifacts and private docs: never pushed to this public repo
+# ---------------------------------------------------------------------------
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.claude.local.md
+AGENTS.md
+.mcp.local.json
+.superpowers/
+.playwright-mcp/
+/docs
+
+# ---------------------------------------------------------------------------
+# Specstone per-checkout index (SQLite in WAL mode, rebuilt on demand)
+# ---------------------------------------------------------------------------
+.specstone/index.sqlite*
