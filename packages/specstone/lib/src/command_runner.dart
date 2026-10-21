@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:specstone/src/commands/mcp_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Exit status for a usage error (`EX_USAGE` from sysexits), returned when an
@@ -27,6 +28,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       negatable: false,
       help: 'Print the Specstone version.',
     );
+    addCommand(McpCommand());
   }
 
   final StringSink _out;

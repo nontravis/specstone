@@ -31,6 +31,7 @@ void main() {
       expect(await runner.run(['--help']), 0);
       expect(out.toString(), contains(usageLine));
       expect(out.toString(), contains('--version'));
+      expect(out.toString(), contains('mcp'));
     });
 
     test('an unknown command prints usage to stderr and exits 64', () async {
