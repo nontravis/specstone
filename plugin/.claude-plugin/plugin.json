@@ -1,0 +1,10 @@
+{
+  "name": "specstone",
+  "version": "0.1.0",
+  "description": "Spec-driven development skills and agents backed by the specstone CLI.",
+  "author": {
+    "name": "Nonthawit Doungsodsri"
+  },
+  "repository": "https://github.com/nontravis/specstone",
+  "license": "BSD-3-Clause"
+}

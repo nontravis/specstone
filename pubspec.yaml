@@ -1,0 +1,12 @@
+name: specstone_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.5
+
+workspace:
+  - packages/specstone_core
+  - packages/specstone
+
+dev_dependencies:
+  very_good_analysis: ^11.0.0

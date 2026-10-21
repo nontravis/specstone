@@ -1,0 +1,50 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+  errors:
+    always_put_required_named_parameters_first: ignore
+    avoid_redundant_argument_values: ignore
+    prefer_int_literals: ignore
+    library_prefixes: ignore
+    avoid_setters_without_getters: ignore
+    invalid_annotation_target: ignore
+    invalid_use_of_internal_member: warning
+    async_return_with_no_await: ignore
+    prefer_initializing_formals: ignore
+    avoid_positional_boolean_parameters: ignore
+  exclude:
+    - "**/build/**"
+    - "**/tmp/**"
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.gen.dart"
+    - "**/generated/**"
+    - "docs/**"
+    - ".dart_tool/**"
+    - ".worktrees/**"
+    - ".claude/worktrees/**"
+    - "**/coverage/**"
+    - "**/.dart_frog/**"
+    - "**/test/**.mocks.dart"
+    - build/**
+    - tmp/**
+    - android/**
+
+linter:
+
+  rules:
+    constant_identifier_names: false
+    prefer_typing_uninitialized_variables: false
+    avoid_print: true
+    avoid_relative_lib_imports: true
+    prefer_single_quotes: true
+    use_setters_to_change_properties: false
+
+    # Very good analysis
+    file_names: false
+    public_member_api_docs: false
+    prefer_constructors_over_static_methods: false
+    prefer_generic_function_type_aliases: false

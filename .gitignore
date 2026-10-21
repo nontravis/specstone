@@ -80,4 +80,4 @@ AGENTS.md
 # ---------------------------------------------------------------------------
 # Specstone per-checkout index (SQLite in WAL mode, rebuilt on demand)
 # ---------------------------------------------------------------------------
-.specstone/index.sqlite*
+**/.specstone/index.sqlite*

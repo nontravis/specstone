@@ -1,0 +1,16 @@
+{
+  "name": "specstone",
+  "owner": {
+    "name": "Nonthawit Doungsodsri"
+  },
+  "metadata": {
+    "description": "Specstone: spec-driven development skills and agents for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "specstone",
+      "source": "./plugin",
+      "description": "Spec-driven development skills and agents backed by the specstone CLI."
+    }
+  ]
+}
