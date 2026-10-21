@@ -11,7 +11,7 @@ skeleton. No document features exist yet.
 
 - `packages/specstone_core/`: shared library code, starting with the shared version constant.
 - `packages/specstone/`: the `specstone` CLI executable and its MCP server command.
-- `plugin/`: the Claude Code plugin skeleton that ships the specstone skills and agents.
+- `plugin/`: the Claude Code plugin skeleton; its skills and agents are not written yet.
 - `.claude-plugin/marketplace.json`: the marketplace entry that points Claude Code at `plugin/`.
 
 ## Develop
