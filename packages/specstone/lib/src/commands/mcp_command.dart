@@ -13,6 +13,9 @@ class McpCommand extends Command<int> {
   String get description => 'Run the Specstone MCP server over stdio.';
 
   @override
+  bool get takesArguments => false;
+
+  @override
   Future<int> run() async {
     final server = SpecstoneMcpServer(
       stdioChannel(input: stdin, output: stdout),

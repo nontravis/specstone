@@ -49,5 +49,21 @@ void main() {
       );
       expect(out.toString(), isEmpty);
     });
+
+    test('--version with a trailing unknown command exits 64, not 0', () async {
+      expect(await runner.run(['--version', 'nope']), usageExitCode);
+      expect(err.toString(), contains('Could not find a command named "nope"'));
+      expect(out.toString(), isEmpty);
+    });
+
+    test(
+      'mcp with an extra argument exits 64 and never starts the server',
+      () async {
+        expect(await runner.run(['mcp', 'extra']), usageExitCode);
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), isNotEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 10)),
+    );
   });
 }

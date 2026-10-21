@@ -39,7 +39,10 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
 
   @override
   Future<int?> runCommand(ArgResults topLevelResults) async {
-    if (topLevelResults.flag('version')) {
+    if (topLevelResults.flag('version') &&
+        topLevelResults.command == null &&
+        topLevelResults.rest.isEmpty &&
+        !topLevelResults.flag('help')) {
       _out.writeln(specstoneVersion);
       return 0;
     }
