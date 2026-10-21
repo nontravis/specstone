@@ -11,9 +11,7 @@ analyzer:
     library_prefixes: ignore
     avoid_setters_without_getters: ignore
     invalid_annotation_target: ignore
-    depend_on_referenced_packages: ignore
     invalid_use_of_internal_member: warning
-    missing_dependency: ignore
     async_return_with_no_await: ignore
     prefer_initializing_formals: ignore
     avoid_positional_boolean_parameters: ignore
