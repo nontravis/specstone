@@ -14,9 +14,12 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Loads the layers of one project and merges them into a [MergedSet].
 ///
-/// The load order is the config, the pins, the listed shipped and personal
-/// packs, the project templates, and the merge; the first fault in that order
-/// is the one fault raised (one fault per run).
+/// The load runs in stages: the config; every listed pack's manifest read and
+/// its pin, name, and version checked, packs by name in code point order;
+/// each pack's doc-type files parsed in pack load order; the project
+/// templates; the merge. The first fault in that order is the one fault
+/// raised (one fault per run), so no doc-type file parses before every
+/// manifest check passes.
 final class TemplateResolver {
   new({Map<String, Uint8List>? shippedFiles})
     : _shippedFiles = shippedFiles ?? shippedPackFiles;
@@ -34,37 +37,42 @@ final class TemplateResolver {
     required Directory homeDirectory,
   }) {
     final root = findProjectRoot(workingDirectory);
-    if (root == null) {
-      return _merge(_everyShippedPack());
+    final packs = root == null
+        ? _everyShippedPack()
+        : _listedPacks(ProjectConfig.read(root), homeDirectory);
+    for (final pack in packs) {
+      pack.parseDocTypes();
     }
-    final config = ProjectConfig.read(root);
-    final packs = _listedPacks(config, homeDirectory);
-    final projectLayers = loadProjectTemplates(root);
-    return _merge([...packs, ...projectLayers]);
+    final projectLayers = root == null
+        ? <DocTypeLayer>[]
+        : loadProjectTemplates(root);
+    return _merge(packs, projectLayers);
   }
 
-  /// Loads every shipped pack, by name in code point order (INV-22).
-  List<LoadedPack> _everyShippedPack() {
-    final names = _shippedPackNames();
-    return [for (final name in names) loadShippedPack(name, _shippedFiles)];
-  }
+  /// Loads every shipped pack's manifest, by name in code point order
+  /// (INV-22).
+  List<LoadedPack> _everyShippedPack() => [
+    for (final name in _shippedPackNames())
+      loadShippedPackManifest(name, _shippedFiles),
+  ];
 
-  /// Loads the packs [config] lists, checking every pin (INV-8).
+  /// Loads the listed packs' manifests, checking every pin (INV-8).
   ///
-  /// A listed pack ships when its name is a top-level folder of the shipped
-  /// files; its pin must equal its carried version (`pack_pin_older`,
-  /// `pack_pin_newer`). A pack that does not ship loads from the home folder
-  /// (`pack_not_found`, `pack_name_mismatch`,
+  /// Packs load by name in code point order (INV-22), whatever the YAML
+  /// order of `packs:`. A listed pack ships when its name is a top-level
+  /// folder of the shipped files; its pin must equal its carried version
+  /// (`pack_pin_older`, `pack_pin_newer`). A pack that does not ship loads
+  /// from the home folder (`pack_not_found`, `pack_name_mismatch`,
   /// `personal_pack_version_differs`). Unlisted packs never load (INV-9).
   List<LoadedPack> _listedPacks(ProjectConfig config, Directory home) {
+    final names = config.pins.keys.toList()..sort(compareCodePoints);
     return [
-      for (final MapEntry(:key, :value) in config.pins.entries)
-        _listedPack(key, value, home),
+      for (final name in names) _checkedPack(name, config.pins[name]!, home),
     ];
   }
 
   /// Loads the one listed pack [name] pinned at [pin].
-  LoadedPack _listedPack(String name, PackVersion pin, Directory home) {
+  LoadedPack _checkedPack(String name, PackVersion pin, Directory home) {
     if (_shippedPackNames().contains(name)) {
       return _checkedShippedPack(name, pin);
     }
@@ -81,7 +89,7 @@ final class TemplateResolver {
 
   /// Loads the shipped pack [name], checking [pin] against its version.
   LoadedPack _checkedShippedPack(String name, PackVersion pin) {
-    final pack = loadShippedPack(name, _shippedFiles);
+    final pack = loadShippedPackManifest(name, _shippedFiles);
     final carried = pack.manifest.version;
     final compare = pin.compareTo(carried);
     if (compare < 0) {
@@ -121,7 +129,7 @@ final class TemplateResolver {
         key: 'packs.$name',
       );
     }
-    final pack = loadPersonalPack(name, home);
+    final pack = loadPersonalPackManifest(name, home);
     if (pack.manifest.name != name) {
       throw TemplateFault(
         FaultCode.packNameMismatch,
@@ -142,30 +150,28 @@ final class TemplateResolver {
     return pack;
   }
 
-  /// Merges [layers] into a [MergedSet], one doc type per id.
+  /// Merges the [packs] and the [projectLayers] into a [MergedSet].
   ///
   /// Each doc type starts from its built-in base and folds its layers lowest
   /// first (shipped packs by name, personal packs, project templates); the
   /// lowest pack naming a doc type supplies its `pack`.
-  MergedSet _merge(List<Object> layers) {
+  MergedSet _merge(List<LoadedPack> packs, List<DocTypeLayer> projectLayers) {
     const merger = DocTypeMerger();
     final docTypes = <String, MergedDocType>{};
     final packOf = <String, String>{};
-    for (final layer in layers) {
-      switch (layer) {
-        case final LoadedPack pack:
-          for (final MapEntry(:key, :value) in pack.docTypes.entries) {
-            final base = docTypes[key] ?? merger.builtInBase(key);
-            docTypes[key] = merger
-                .apply(base, value)
-                .copyWith(pack: packOf[key] ?? pack.manifest.name);
-            packOf.putIfAbsent(key, () => pack.manifest.name);
-          }
-        case final DocTypeLayer projectLayer:
-          final id = projectLayer.docTypeId;
-          final base = docTypes[id] ?? merger.builtInBase(id);
-          docTypes[id] = merger.apply(base, projectLayer);
+    for (final pack in packs) {
+      for (final MapEntry(:key, :value) in pack.docTypes!.entries) {
+        final base = docTypes[key] ?? merger.builtInBase(key);
+        docTypes[key] = merger
+            .apply(base, value)
+            .copyWith(pack: packOf[key] ?? pack.manifest.name);
+        packOf.putIfAbsent(key, () => pack.manifest.name);
       }
+    }
+    for (final layer in projectLayers) {
+      final id = layer.docTypeId;
+      final base = docTypes[id] ?? merger.builtInBase(id);
+      docTypes[id] = merger.apply(base, layer);
     }
     return MergedSet(docTypes: docTypes.values.toList());
   }

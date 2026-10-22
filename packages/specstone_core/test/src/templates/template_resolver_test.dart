@@ -280,59 +280,55 @@ void main() {
       },
     );
 
-    test(
-      'a personal pack reference to a nested file resolves against disk',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        });
-        final home = await writeTree({
-          '.specstone/packs/nont-software/pack.yaml':
-              'name: nont-software\nversion: 1.0.0\n',
-          '.specstone/packs/nont-software/runbook.yaml': '''
+    test('f03/us03/fr03: a personal pack reference to a nested file resolves '
+        'against disk', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-software/pack.yaml':
+            'name: nont-software\nversion: 1.0.0\n',
+        '.specstone/packs/nont-software/runbook.yaml': '''
 description: Runbook
 reference:
   - title: H
     file: refs/handbook.md
 ''',
-          '.specstone/packs/nont-software/refs/handbook.md': '# Handbook\n',
-        });
-        final resolver = TemplateResolver(shippedFiles: shipped());
+        '.specstone/packs/nont-software/refs/handbook.md': '# Handbook\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        final merged = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
 
-        expect(merged.lookup('runbook')!.reference!.single.file, isNotNull);
-      },
-    );
+      expect(merged.lookup('runbook')!.reference!.single.file, isNotNull);
+    });
 
-    test(
-      'a shipped pack reference to a nested file resolves against the map',
-      () async {
-        final files = shipped()
-          ..['prd-core/refs/handbook.md'] = _bytes('# Handbook\n');
-        files['prd-core/feature.yaml'] = _bytes('''
+    test('f03/us03/fr03: a shipped pack reference to a nested file resolves '
+        'against the map', () async {
+      final files = shipped()
+        ..['prd-core/refs/handbook.md'] = _bytes('# Handbook\n');
+      files['prd-core/feature.yaml'] = _bytes('''
 description: A feature
 reference:
   - title: H
     file: refs/handbook.md
 ''');
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: files);
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: files);
 
-        final merged = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
 
-        expect(merged.lookup('feature')!.reference!.single.file, isNotNull);
-      },
-    );
+      expect(merged.lookup('feature')!.reference!.single.file, isNotNull);
+    });
 
     test(
       'f03/us05/fr02/e04: a template fault in the project layer is thrown',
@@ -412,24 +408,27 @@ reference:
       );
     });
 
-    test('non-doc-type project files are ignored as doc types', () async {
-      final project = await writeTree({
-        _configPath: 'packs:\n  prd-core: 1.1.0\n',
-        '.specstone/templates/notes.md': 'notes\n',
-        '.specstone/templates/refs/x.yaml': 'x\n',
-      });
-      final home = await writeTree({});
-      final resolver = TemplateResolver(shippedFiles: shipped());
+    test(
+      'f03/us03/fr01: non-doc-type project files are ignored as doc types',
+      () async {
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/notes.md': 'notes\n',
+          '.specstone/templates/refs/x.yaml': 'x\n',
+        });
+        final home = await writeTree({});
+        final resolver = TemplateResolver(shippedFiles: shipped());
 
-      final merged = resolver.resolve(
-        workingDirectory: project,
-        homeDirectory: home,
-      );
+        final merged = resolver.resolve(
+          workingDirectory: project,
+          homeDirectory: home,
+        );
 
-      expect(merged.lookup('notes'), isNull);
-      expect(merged.lookup('x'), isNull);
-      expect(merged.lookup('refs'), isNull);
-    });
+        expect(merged.lookup('notes'), isNull);
+        expect(merged.lookup('x'), isNull);
+        expect(merged.lookup('refs'), isNull);
+      },
+    );
 
     test('f03/us03/fr03/e03: a project reference to a missing file is '
         'reference_file_missing', () async {
@@ -466,5 +465,99 @@ reference:
         ),
       );
     });
+
+    test('f03/us05/fr02/e01: a shipped pin fault wins over a bad doc-type file '
+        'in the same pack', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.0.0\n',
+      });
+      final home = await writeTree({});
+      final files = shipped(prdCoreVersion: '1.1.0')
+        ..['prd-core/feature.yaml'] = _bytes('bogus: x\n');
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packPinOlder)
+              .having((f) => f.key, 'key', 'packs.prd-core'),
+        ),
+      );
+    });
+
+    test('f03/us04/fr01/e07: a personal pack_name_mismatch wins over a bad '
+        'doc-type file', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-software/pack.yaml':
+            'name: nont-sw\nversion: 1.0.0\n',
+        '.specstone/packs/nont-software/runbook.yaml': 'bogus: x\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packNameMismatch)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-software/pack.yaml',
+              ),
+        ),
+      );
+    });
+
+    test('f03/s03/inv22: a pin fault wins over a doc-type fault in the other '
+        'pack whatever the YAML order', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  software-tech: 1.0.0\n  prd-core: 2.0.0\n',
+      });
+      final home = await writeTree({});
+      final files = shipped()
+        ..['software-tech/architecture.yaml'] = _bytes('bogus: x\n');
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packPinNewer)
+              .having((f) => f.key, 'key', 'packs.prd-core'),
+        ),
+      );
+    });
+
+    test(
+      'f03/us04/fr01/e04: an absent personal pack.yaml is missing_key',
+      () async {
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
+        });
+        final home = await writeTree({
+          '.specstone/packs/nont-software/runbook.yaml': 'description: R\n',
+        });
+        final resolver = TemplateResolver(shippedFiles: shipped());
+
+        expect(
+          () =>
+              resolver.resolve(workingDirectory: project, homeDirectory: home),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.missingKey)
+                .having(
+                  (f) => f.file,
+                  'file',
+                  '~/.specstone/packs/nont-software/pack.yaml',
+                )
+                .having((f) => f.key, 'key', 'name'),
+          ),
+        );
+      },
+    );
   });
 }
