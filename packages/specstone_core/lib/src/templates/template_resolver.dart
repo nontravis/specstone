@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -158,24 +159,246 @@ final class TemplateResolver {
   /// layers `_docTypeLayers` collects for it, lowest first (pack layers in
   /// load order, then the project layer); the lowest pack naming a doc type
   /// supplies its `pack`. A project template over a pack-defined id is an
-  /// override, never a duplicate.
+  /// override, never a duplicate. The defining layer, the lowest, of a new
+  /// doc type needs `id` and `path`, plus `description` without `extends`
+  /// (INV-12); with `extends` the doc type starts from the merged target
+  /// with every key kept but `id` and `path` (F3-D49), and no layer above
+  /// the defining layer may write `extends` (INV-4). The merged set is
+  /// checked as one set after every merge.
   MergedSet _merge(
     List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
     List<DocTypeLayer> projectLayers,
   ) {
     const merger = DocTypeMerger();
     final layerLists = _docTypeLayers(packs, projectLayers);
-    final docTypes = <String, MergedDocType>{};
-    for (final MapEntry(key: id, value: layers) in layerLists.entries) {
-      var merged = merger.builtInBase(id);
-      String? packName;
-      for (final (:layer, :pack) in layers) {
-        merged = merger.apply(merged, layer);
-        packName ??= pack?.manifest.name;
-      }
-      docTypes[id] = merged.copyWith(pack: packName);
-    }
+    _checkExtendsInOverride(layerLists);
+    final docTypes = _resolveInDependencyOrder(layerLists, merger);
+    checkMergedSet(docTypes.values.toList(), layerLists);
     return MergedSet(docTypes: docTypes.values.toList());
+  }
+
+  /// Throws `extends_in_override` for the first layer above a doc type's
+  /// defining layer that writes `extends`, in load order (INV-4).
+  ///
+  /// One fault per run: layers run pack load order first, then the project
+  /// layer, and within one list the layers sit lowest first, so a layer at
+  /// index above the defining layer writes `extends` only in override.
+  void _checkExtendsInOverride(
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+  ) {
+    for (final layers in layerLists.values) {
+      for (final entry in layers.skip(1)) {
+        if (entry.layer.extendsId == null) continue;
+        throw TemplateFault(
+          FaultCode.extendsInOverride,
+          'Write `extends` only in the file that first defines the doc type',
+          file: entry.layer.file,
+          key: 'extends',
+        );
+      }
+    }
+  }
+
+  /// Merges every doc type, extending ones after their targets (INV-4).
+  Map<String, MergedDocType> _resolveInDependencyOrder(
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+    DocTypeMerger merger,
+  ) {
+    final docTypes = <String, MergedDocType>{};
+    for (final id in _dependencyOrder(layerLists)) {
+      docTypes[id] = _mergeOne(id, layerLists[id]!, merger, docTypes);
+    }
+    return docTypes;
+  }
+
+  /// The doc type ids ordered so every `extends` target precedes its
+  /// extending doc type, or throws `extends_target_unknown` or
+  /// `extends_cycle`.
+  ///
+  /// The defining layer of a doc type names its `extends`; ids without one
+  /// merge in code point order (INV-22).
+  List<String> _dependencyOrder(
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+  ) {
+    String? extendsOf(String id) {
+      for (final entry in layerLists[id]!) {
+        final extendsId = entry.layer.extendsId;
+        if (extendsId != null) return extendsId;
+      }
+      return null;
+    }
+
+    final order = <String>[];
+    final done = <String>{};
+    final sorted = layerLists.keys.toList()..sort(compareCodePoints);
+    for (final id in sorted) {
+      _visit(id, extendsOf, layerLists, done, order);
+    }
+    return order;
+  }
+
+  /// Visits [id] for the dependency order, walking its `extends` chain.
+  void _visit(
+    String id,
+    String? Function(String) extendsOf,
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+    Set<String> done,
+    List<String> order,
+  ) {
+    if (done.contains(id)) return;
+    final walked = <String>[];
+    var current = id;
+    while (true) {
+      if (done.contains(current)) break;
+      final target = extendsOf(current);
+      if (target == null) break;
+      if (walked.contains(target)) {
+        final cycle = [...walked.sublist(walked.indexOf(target)), current];
+        _throwExtendsCycle(cycle, layerLists);
+      }
+      if (!layerLists.containsKey(target)) {
+        _throwExtendsTargetUnknown(current, target, layerLists);
+      }
+      walked.add(current);
+      current = target;
+    }
+    if (!done.contains(current)) walked.add(current);
+    // The chain merges root-first; emit the root and up.
+    for (final member in walked.reversed) {
+      if (done.add(member)) order.add(member);
+    }
+  }
+
+  Never _throwExtendsTargetUnknown(
+    String id,
+    String target,
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+  ) {
+    throw TemplateFault(
+      FaultCode.extendsTargetUnknown,
+      'the key extends names no loaded doc type: $target',
+      file: _extendsWriter(id, layerLists),
+      key: 'extends',
+    );
+  }
+
+  /// Throws the `extends_cycle` fault for [cycle], walked in chain order.
+  ///
+  /// `file` holds the later-loaded file of the cycle in id order (INV-22);
+  /// `relatedFiles` holds the other cycle files in that order.
+  Never _throwExtendsCycle(
+    List<String> cycle,
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+  ) {
+    final members = [...cycle]..sort(compareCodePoints);
+    final walkedPath = [...cycle, cycle.first].join(', ');
+    throw TemplateFault(
+      FaultCode.extendsCycle,
+      'extends chain returns to its start: $walkedPath',
+      file: _extendsWriter(members.last, layerLists),
+      relatedFiles: [
+        for (final member in members.where((m) => m != members.last))
+          ?_extendsWriter(member, layerLists),
+      ],
+    );
+  }
+
+  /// The file of the layer writing `extends` for the doc type [id].
+  String? _extendsWriter(
+    String id,
+    Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> layerLists,
+  ) {
+    final layers = layerLists[id];
+    if (layers == null) return null;
+    for (final entry in layers) {
+      final extendsId = entry.layer.extendsId;
+      if (extendsId != null) return entry.layer.file;
+    }
+    return null;
+  }
+
+  /// Merges the layers of one doc type [id] onto its base.
+  ///
+  /// A doc type whose defining layer writes `extends` starts from the
+  /// merged target with every key kept but `id` and `path` (F3-D49); the
+  /// base is frozen as merged. The defining layer must carry `id` and
+  /// `path`, plus `description` without `extends` (INV-12).
+  MergedDocType _mergeOne(
+    String id,
+    List<({LoadedPack? pack, DocTypeLayer layer})> layers,
+    DocTypeMerger merger,
+    Map<String, MergedDocType> merged,
+  ) {
+    final defining = layers.first.layer;
+    final target = defining.extendsId;
+    final base = target == null
+        ? merger.builtInBase(id)
+        : _extendsBase(id, target, merged);
+    _checkNewDocTypeKeys(defining, target);
+    String? packName;
+    var mergedType = base;
+    for (final (:layer, :pack) in layers) {
+      mergedType = merger.apply(mergedType, layer);
+      packName ??= pack?.manifest.name;
+    }
+    return mergedType.copyWith(pack: packName);
+  }
+
+  /// Throws `missing_key` when the defining layer of a new doc type misses
+  /// `id`, `path`, or `description` without `extends` (INV-12).
+  void _checkNewDocTypeKeys(DocTypeLayer defining, String? target) {
+    if (defining.id == null) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key id is required',
+        file: defining.file,
+        key: 'id',
+      );
+    }
+    if (defining.path == null) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key path is required',
+        file: defining.file,
+        key: 'path',
+      );
+    }
+    if (target == null && defining.description == null) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key description is required without extends',
+        file: defining.file,
+        key: 'description',
+      );
+    }
+  }
+
+  /// The base of the doc type [id] extending [targetId]: every key of the
+  /// merged target kept but `id` and `path` (F3-D49).
+  ///
+  /// `pack` and `files` restart with the defining layer; `extendsId` holds
+  /// the target. Every list is unmodifiable, so the base is frozen as
+  /// merged.
+  MergedDocType _extendsBase(
+    String id,
+    String targetId,
+    Map<String, MergedDocType> merged,
+  ) {
+    final target = merged[targetId]!;
+    return MergedDocType(
+      id: id,
+      description: target.description,
+      parent: target.parent,
+      extendsId: targetId,
+      path: null,
+      fields: List.unmodifiable(target.fields),
+      sections: List.unmodifiable(target.sections),
+      lint: target.lint,
+      reference: target.reference == null
+          ? null
+          : List.unmodifiable(target.reference!),
+      files: const [],
+    );
   }
 
   /// The ordered layers each doc type id folds, lowest first (INV-5).

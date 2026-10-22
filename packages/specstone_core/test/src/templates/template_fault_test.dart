@@ -16,6 +16,7 @@ void main() {
     'extends_cycle',
     'parent_cycle',
     'extends_target_unknown',
+    'extends_in_override',
     'doc_type_duplicate',
     'locked_field_disabled',
     'reference_link_conflict',
@@ -35,9 +36,9 @@ void main() {
   ];
 
   group('FaultCode', () {
-    test('s05 catalog: wire codes equal the 29 catalog codes in order', () {
+    test('s05 catalog: wire codes equal the 30 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
-      expect(FaultCode.values, hasLength(29));
+      expect(FaultCode.values, hasLength(30));
     });
 
     test('s05 catalog: only docTypeUnknown exits 64, the rest 78', () {

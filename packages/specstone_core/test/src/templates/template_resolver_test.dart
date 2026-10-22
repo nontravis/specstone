@@ -16,9 +16,15 @@ Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
 /// `architecture`.
 Map<String, Uint8List> shipped({String prdCoreVersion = '1.1.0'}) => {
   'prd-core/pack.yaml': _bytes('name: prd-core\nversion: $prdCoreVersion\n'),
-  'prd-core/feature.yaml': _bytes('description: A feature\n'),
+  'prd-core/feature.yaml': _bytes(
+    'id: feature\ndescription: A feature\npath: '
+    'features/f{nn}_{slug}/FEATURE.md\n',
+  ),
   'software-tech/pack.yaml': _bytes('name: software-tech\nversion: 1.0.0\n'),
-  'software-tech/architecture.yaml': _bytes('description: Architecture\n'),
+  'software-tech/architecture.yaml': _bytes(
+    'id: architecture\ndescription: Architecture\npath: '
+    'architecture/{slug}.md\n',
+  ),
 };
 
 /// True when an ancestor of the system temp folder holds a project config.
@@ -266,7 +272,8 @@ void main() {
           '.specstone/packs/nont-software/pack.yaml':
               'name: nont-software\nversion: 1.0.0\n',
           '.specstone/packs/nont-software/runbook.yaml':
-              'description: Runbook\n',
+              'id: runbook\ndescription: Runbook\n'
+              'path: ops/runbooks/{slug}/RUNBOOK.md\n',
         });
         final resolver = TemplateResolver(shippedFiles: shipped());
 
@@ -289,7 +296,9 @@ void main() {
         '.specstone/packs/nont-software/pack.yaml':
             'name: nont-software\nversion: 1.0.0\n',
         '.specstone/packs/nont-software/runbook.yaml': '''
+id: runbook
 description: Runbook
+path: ops/runbooks/{slug}/RUNBOOK.md
 reference:
   - title: H
     file: refs/handbook.md
@@ -311,7 +320,9 @@ reference:
       final files = shipped()
         ..['prd-core/refs/handbook.md'] = _bytes('# Handbook\n');
       files['prd-core/feature.yaml'] = _bytes('''
+id: feature
 description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
 reference:
   - title: H
     file: refs/handbook.md
@@ -608,7 +619,9 @@ sections:
       });
       final files = shipped()
         ..['prd-core/feature.yaml'] = _bytes('''
+id: feature
 description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
 sections:
   - id: goal
     header: Feature goal
@@ -644,7 +657,9 @@ sections:
       final home = await writeTree({
         '.specstone/packs/nont-software/pack.yaml':
             'name: nont-software\nversion: 1.0.0\nextends: software-tech\n',
-        '.specstone/packs/nont-software/runbook.yaml': 'description: Runbook\n',
+        '.specstone/packs/nont-software/runbook.yaml':
+            'id: runbook\ndescription: Runbook\n'
+            'path: ops/runbooks/{slug}/RUNBOOK.md\n',
         '.specstone/packs/nont-flutter/pack.yaml':
             'name: nont-flutter\nversion: 1.0.0\nextends: nont-software\n',
         '.specstone/packs/nont-flutter/architecture.yaml':
@@ -652,7 +667,8 @@ sections:
       });
       final files = shipped()
         ..['software-tech/architecture.yaml'] = _bytes(
-          'description: Architecture\n',
+          'id: architecture\ndescription: Architecture\n'
+          'path: architecture/{slug}.md\n',
         );
       final resolver = TemplateResolver(shippedFiles: files);
 
@@ -693,7 +709,9 @@ sections:
       });
       final files = shipped()
         ..['prd-core/feature.yaml'] = _bytes('''
+id: feature
 description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
 sections:
   - id: goal
     header: Feature goal
@@ -831,6 +849,822 @@ sections:
 
       expect(merged.lookup('feature')!.description, 'Project feature');
       expect(merged.lookup('architecture'), isNull);
+    });
+
+    test('f03/us03/s1, f03/us03/fr02: a project template with a new id '
+        'adds a doc type', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: How to run the system
+path: ops/runbooks/{slug}/RUNBOOK.md
+sections:
+  - id: steps
+    header: Steps
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final runbook = merged.lookup('runbook')!;
+      expect(runbook.pack, isNull);
+      expect(runbook.path, 'ops/runbooks/{slug}/RUNBOOK.md');
+      expect(runbook.description, 'How to run the system');
+      expect(runbook.fields.map((f) => f.id).toList(), [
+        'slug',
+        'status',
+        'draft',
+        'reference',
+      ]);
+      expect(runbook.sections.single.id, 'steps');
+    });
+
+    test(
+      'f03/us03/s9, f03/us03/fr02/e04, f03/us03/fr01/e07: a new doc type '
+      'without path, or without description and extends, is missing_key',
+      () async {
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: How to run the system
+sections:
+  - id: steps
+    header: Steps
+''',
+        });
+        final home = await writeTree({});
+        final resolver = TemplateResolver(shippedFiles: shipped());
+
+        expect(
+          () =>
+              resolver.resolve(workingDirectory: project, homeDirectory: home),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.missingKey)
+                .having((f) => f.key, 'key', 'path')
+                .having(
+                  (f) => f.file,
+                  'file',
+                  '.specstone/templates/runbook.yaml',
+                ),
+          ),
+        );
+
+        final bare = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/runbook.yaml': '''
+id: runbook
+path: ops/runbooks/{slug}/RUNBOOK.md
+''',
+        });
+
+        expect(
+          () => resolver.resolve(workingDirectory: bare, homeDirectory: home),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.missingKey)
+                .having((f) => f.key, 'key', 'description'),
+          ),
+        );
+      },
+    );
+
+    test('f03/us03/fr01/e08, f03/us03/fr04/e05, f03/us03/fr02/e03: a new '
+        'doc type with extends inherits every key of the target except id '
+        'and path (F3-D49)', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+lint:
+  max_lines: 300
+  banned_words: [fast]
+reference:
+  - title: A
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final feature = merged.lookup('feature')!;
+      final adr = merged.lookup('adr')!;
+      expect(adr.description, feature.description);
+      expect(adr.parent, 'project');
+      expect(adr.fields, feature.fields);
+      expect(adr.sections, feature.sections);
+      expect(adr.lint.maxLines, 300);
+      expect(adr.lint.bannedWords, ['fast']);
+      expect(adr.reference!.map((r) => r.title), ['A']);
+      expect(adr.id, 'adr');
+      expect(adr.path, 'adr/{slug}.md');
+      expect(adr.extendsId, 'feature');
+      expect(adr.pack, isNull);
+    });
+
+    test('f03/us03/fr04/e05: an extending doc type writes its own parent and '
+        'lint, the target keeps its own', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/epic.yaml': '''
+id: epic
+description: An epic
+path: epics/{slug}/EPIC.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+lint:
+  max_lines: 300
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+parent: epic
+lint:
+  max_lines: 120
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final adr = merged.lookup('adr')!;
+      final feature = merged.lookup('feature')!;
+      expect(adr.parent, 'epic');
+      expect(adr.lint.maxLines, 120);
+      expect(feature.parent, 'project');
+      expect(feature.lint.maxLines, 300);
+    });
+
+    test('f03/us03/fr04: an extending doc type changes inherited lists by '
+        'add and remove', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+lint:
+  banned_words: [fast]
+reference:
+  - title: A
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+lint:
+  banned_words:
+    add: [simply]
+reference:
+  remove: [A]
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final adr = merged.lookup('adr')!;
+      final feature = merged.lookup('feature')!;
+      expect(adr.lint.bannedWords, ['fast', 'simply']);
+      expect(adr.reference, isEmpty);
+      expect(feature.lint.bannedWords, ['fast']);
+      expect(feature.reference!.map((r) => r.title), ['A']);
+    });
+
+    test('f03/us02/fr03/e06, f03/us02/fr05/e04: a plain list over an '
+        'inherited list is list_override_needs_add_remove', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+lint:
+  banned_words: [fast]
+reference:
+  - title: A
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+lint:
+  banned_words: [x]
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                FaultCode.listOverrideNeedsAddRemove,
+              )
+              .having((f) => f.key, 'key', 'lint.banned_words')
+              .having((f) => f.file, 'file', '.specstone/templates/adr.yaml'),
+        ),
+      );
+
+      final plainReference = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+reference:
+  - title: A
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+reference:
+  - title: B
+''',
+      });
+
+      expect(
+        () => resolver.resolve(
+          workingDirectory: plainReference,
+          homeDirectory: home,
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                FaultCode.listOverrideNeedsAddRemove,
+              )
+              .having((f) => f.key, 'key', 'reference'),
+        ),
+      );
+    });
+
+    test('f03/us03/fr01/e07: an extending doc type without path is '
+        'missing_key; path is never inherited', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+description: An architecture decision
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.missingKey)
+              .having((f) => f.key, 'key', 'path')
+              .having((f) => f.file, 'file', '.specstone/templates/adr.yaml'),
+        ),
+      );
+    });
+
+    test('f03/us03/s2, f03/us03/fr04: an extending doc type adds a section '
+        'after the inherited ones', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Goal
+  - id: scope
+    header: Scope
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+sections:
+  - id: decision
+    header: Decision
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('adr')!.sections.map((s) => s.id).toList(), [
+        'goal',
+        'scope',
+        'decision',
+      ]);
+    });
+
+    test('f03/us03/fr04/e03: an extending doc type changes a section of its '
+        'target, the target keeps its own', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Goal
+    description: What the feature wants
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+sections:
+  - id: goal
+    description: What the decision changes
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(
+        merged.lookup('adr')!.sections.single.description,
+        'What the decision changes',
+      );
+      expect(
+        merged.lookup('feature')!.sections.single.description,
+        'What the feature wants',
+      );
+    });
+
+    test('f03/us03/fr04/e04: an extending entry whose id the target lacks '
+        'is override_id_not_found', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+sections:
+  - id: nope
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.overrideIdNotFound)
+              .having((f) => f.key, 'key', 'sections.nope')
+              .having((f) => f.file, 'file', '.specstone/templates/adr.yaml'),
+        ),
+      );
+    });
+
+    test('f03/us03/fr04/e06, s03/inv4: a layer above the defining layer '
+        'writes extends is extends_in_override', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+description: Project feature
+extends: feature
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsInOverride)
+              .having((f) => f.key, 'key', 'extends')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/feature.yaml',
+              )
+              .having(
+                (f) => f.message,
+                'message',
+                contains(
+                  'Write `extends` only in the file that first defines '
+                  'the doc type',
+                ),
+              ),
+        ),
+      );
+    });
+
+    test('f03/us03/fr04/e06, s03/inv4: several layers above the defining '
+        'layer fault the first in load order', () async {
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/feature.yaml': '''
+extends: feature
+''',
+      });
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+        '.specstone/templates/feature.yaml': '''
+extends: feature
+''',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsInOverride)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-x/feature.yaml',
+              ),
+        ),
+      );
+    });
+
+    test('f03/us03/s7, f03/us03/fr04/e02: an extends naming no doc type is '
+        'extends_target_unknown', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/adr.yaml': '''
+extends: nothing
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsTargetUnknown)
+              .having((f) => f.key, 'key', 'extends')
+              .having((f) => f.file, 'file', '.specstone/templates/adr.yaml'),
+        ),
+      );
+    });
+
+    test('f03/us03/s6, f03/us03/fr04/e01: a doc-type extends loop is '
+        'extends_cycle', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/a.yaml': '''
+extends: b
+path: a/{slug}.md
+''',
+        '.specstone/templates/b.yaml': '''
+extends: a
+path: b/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsCycle)
+              .having((f) => f.file, 'file', '.specstone/templates/b.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '.specstone/templates/a.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('f03/us03/fr02/e05: a new doc type with no parent is a top-level '
+        'doc type', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: How to run the system
+path: ops/runbooks/{slug}/RUNBOOK.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('runbook')!.parent, isNull);
+    });
+
+    test('f03/us03/fr01/e11, f03/us03/fr02/e06: two doc types with one path '
+        'are doc_type_path_conflict', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/playbook.yaml': '''
+id: playbook
+description: A playbook
+path: ops/{slug}/RUNBOOK.md
+''',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: A runbook
+path: ops/{slug}/RUNBOOK.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.key, 'key', 'path')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/runbook.yaml',
+              )
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '.specstone/templates/playbook.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('f03/us03/fr01/e12, f03/us02/fr04/e05: a parent naming no id is '
+        'unknown_value', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: A runbook
+path: ops/{slug}/RUNBOOK.md
+parent: nope
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'parent')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/runbook.yaml',
+              ),
+        ),
+      );
+    });
+
+    test('f03/us02/fr04/e04: overriding parent with an existing id is '
+        'accepted', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: A runbook
+path: ops/{slug}/RUNBOOK.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: runbook
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature')!.parent, 'runbook');
+    });
+
+    test('f03/us03/fr01/e13: a parent loop is parent_cycle; a self parent '
+        'names one file', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/epic.yaml': '''
+id: epic
+description: An epic
+path: epics/{slug}/EPIC.md
+parent: story
+''',
+        '.specstone/templates/story.yaml': '''
+id: story
+description: A story
+path: stories/{slug}/STORY.md
+parent: epic
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.parentCycle)
+              .having((f) => f.key, 'key', 'parent')
+              .having((f) => f.file, 'file', '.specstone/templates/story.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '.specstone/templates/epic.yaml',
+              ]),
+        ),
+      );
+
+      final selfParent = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/self.yaml': '''
+id: self
+description: A self
+path: selfs/{slug}/SELF.md
+parent: self
+''',
+      });
+
+      expect(
+        () =>
+            resolver.resolve(workingDirectory: selfParent, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.parentCycle)
+              .having((f) => f.file, 'file', '.specstone/templates/self.yaml'),
+        ),
+      );
+    });
+
+    test('f03/us03/fr01/e14: a doc_types entry naming no id is '
+        'unknown_value', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: A runbook
+path: ops/{slug}/RUNBOOK.md
+fields:
+  - id: up
+    type: doc_ref
+    doc_types: [nope]
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'fields.up.doc_types')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/runbook.yaml',
+              ),
+        ),
+      );
+    });
+
+    test('f03/us04/fr02/e04: a project adr extends a pack-defined feature '
+        'with no doc_type_duplicate', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final adr = merged.lookup('adr')!;
+      expect(adr.extendsId, 'feature');
+      expect(adr.description, 'A feature');
+      expect(merged.lookup('feature'), isNotNull);
+    });
+
+    test('ruling 2026-10-22: every list of an extends-built doc type throws '
+        'UnsupportedError on add', () async {
+      final files = shipped()
+        ..['prd-core/feature.yaml'] = _bytes('''
+id: feature
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Feature goal
+reference:
+  - title: A
+''');
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final adr = merged.lookup('adr')!;
+      expect(
+        () => adr.fields.add(adr.fields.first),
+        throwsUnsupportedError,
+        reason: 'fields of an extends-built doc type are unmodifiable',
+      );
+      expect(
+        () => adr.sections.add(adr.sections.first),
+        throwsUnsupportedError,
+      );
+      expect(() => adr.files.add('x'), throwsUnsupportedError);
+      expect(
+        () => adr.reference!.add(adr.reference!.first),
+        throwsUnsupportedError,
+      );
     });
   });
 }

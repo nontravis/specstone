@@ -16,6 +16,7 @@ enum FaultCode {
   extendsCycle('extends_cycle', 78),
   parentCycle('parent_cycle', 78),
   extendsTargetUnknown('extends_target_unknown', 78),
+  extendsInOverride('extends_in_override', 78),
   docTypeDuplicate('doc_type_duplicate', 78),
   lockedFieldDisabled('locked_field_disabled', 78),
   referenceLinkConflict('reference_link_conflict', 78),
