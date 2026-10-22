@@ -46,6 +46,7 @@ void main() {
     test('help mcp prints the mcp usage to out and exits 0', () async {
       expect(await runner.run(['help', 'mcp']), 0);
       expect(out.toString(), contains('Usage: specstone mcp'));
+      expect(err.toString(), isEmpty);
     });
 
     test('an unknown command prints usage to stderr and exits 64', () async {
