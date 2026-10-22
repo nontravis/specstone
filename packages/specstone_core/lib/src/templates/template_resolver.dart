@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -15,11 +16,11 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// Loads the layers of one project and merges them into a [MergedSet].
 ///
 /// The load runs in stages: the config; every listed pack's manifest read and
-/// its pin, name, and version checked, packs by name in code point order;
-/// each pack's doc-type files parsed in pack load order; the project
-/// templates; the merge. The first fault in that order is the one fault
-/// raised (one fault per run), so no doc-type file parses before every
-/// manifest check passes.
+/// its pin, name, and version checked, packs by name in code point order; the
+/// packs ordered by their `extends` chains; each pack's doc-type files parsed
+/// in pack load order; the project templates; the merge. The first fault in
+/// that order is the one fault raised (one fault per run), so no chain fault
+/// or doc-type file fault surfaces before every manifest check passes.
 final class TemplateResolver {
   new({Map<String, Uint8List>? shippedFiles})
     : _shippedFiles = shippedFiles ?? shippedPackFiles;
@@ -40,8 +41,9 @@ final class TemplateResolver {
     final packs = root == null
         ? _everyShippedPack()
         : _listedPacks(ProjectConfig.read(root), homeDirectory);
+    final ordered = orderPacks(packs, configFile: projectConfigPath);
     final parsed = [
-      for (final pack in packs) (pack: pack, layers: pack.parseDocTypes()),
+      for (final pack in ordered) (pack: pack, layers: pack.parseDocTypes()),
     ];
     final projectLayers = root == null
         ? <DocTypeLayer>[]
@@ -152,30 +154,71 @@ final class TemplateResolver {
 
   /// Merges the [packs] and the [projectLayers] into a [MergedSet].
   ///
-  /// Each doc type starts from its built-in base and folds its layers lowest
-  /// first (shipped packs by name, personal packs, project templates); the
-  /// lowest pack naming a doc type supplies its `pack`.
+  /// Each doc type starts from its built-in base and folds the ordered
+  /// layers `_docTypeLayers` collects for it, lowest first (pack layers in
+  /// load order, then the project layer); the lowest pack naming a doc type
+  /// supplies its `pack`. A project template over a pack-defined id is an
+  /// override, never a duplicate.
   MergedSet _merge(
     List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
     List<DocTypeLayer> projectLayers,
   ) {
     const merger = DocTypeMerger();
+    final layerLists = _docTypeLayers(packs, projectLayers);
     final docTypes = <String, MergedDocType>{};
-    final packOf = <String, String>{};
+    for (final MapEntry(key: id, value: layers) in layerLists.entries) {
+      var merged = merger.builtInBase(id);
+      String? packName;
+      for (final (:layer, :pack) in layers) {
+        merged = merger.apply(merged, layer);
+        packName ??= pack?.manifest.name;
+      }
+      docTypes[id] = merged.copyWith(pack: packName);
+    }
+    return MergedSet(docTypes: docTypes.values.toList());
+  }
+
+  /// The ordered layers each doc type id folds, lowest first (INV-5).
+  ///
+  /// Pack layers come in `orderPacks` order, then the project layer, whose
+  /// `pack` is null. Two packs defining one id where neither reaches the
+  /// other are `doc_type_duplicate`: `file` holds the upper or later pack's
+  /// file, `relatedFiles` the other's, and the message names the id.
+  Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> _docTypeLayers(
+    List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
+    List<DocTypeLayer> projectLayers,
+  ) {
+    final lists = <String, List<({LoadedPack? pack, DocTypeLayer layer})>>{};
+    final extendsOf = {
+      for (final (:pack, layers: _) in packs)
+        pack.manifest.name: pack.manifest.extendsPack,
+    };
     for (final (:pack, :layers) in packs) {
-      for (final MapEntry(:key, :value) in layers.entries) {
-        final base = docTypes[key] ?? merger.builtInBase(key);
-        docTypes[key] = merger
-            .apply(base, value)
-            .copyWith(pack: packOf[key] ?? pack.manifest.name);
-        packOf.putIfAbsent(key, () => pack.manifest.name);
+      for (final MapEntry(key: id, value: layer) in layers.entries) {
+        final list = lists.putIfAbsent(id, () => []);
+        for (final prior in list) {
+          final priorPack = prior.pack;
+          if (priorPack == null) continue;
+          final upper = reaches(pack, priorPack, extendsOf: extendsOf);
+          final lower = reaches(priorPack, pack, extendsOf: extendsOf);
+          if (!upper && !lower) {
+            throw TemplateFault(
+              FaultCode.docTypeDuplicate,
+              'two loaded packs define one doc type id: $id',
+              file: layer.file,
+              relatedFiles: [prior.layer.file],
+            );
+          }
+        }
+        list.add((pack: pack, layer: layer));
       }
     }
     for (final layer in projectLayers) {
-      final id = layer.docTypeId;
-      final base = docTypes[id] ?? merger.builtInBase(id);
-      docTypes[id] = merger.apply(base, layer);
+      lists.putIfAbsent(layer.docTypeId, () => []).add((
+        pack: null,
+        layer: layer,
+      ));
     }
-    return MergedSet(docTypes: docTypes.values.toList());
+    return lists;
   }
 }

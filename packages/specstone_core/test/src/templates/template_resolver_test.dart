@@ -559,5 +559,278 @@ reference:
         );
       },
     );
+
+    test('f03/us04/s6, f03/us04/fr02/e01, f03/us02/fr01/e08: a personal pack '
+        'and a shipped pack with one doc type id, no extends, are '
+        'doc_type_duplicate', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml': 'name: nont-x\nversion: 1.0.0\n',
+        '.specstone/packs/nont-x/feature.yaml': 'description: Mine\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypeDuplicate)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-x/feature.yaml',
+              )
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                'packs/prd-core/feature.yaml',
+              ])
+              .having((f) => f.message, 'message', contains('feature')),
+        ),
+      );
+    });
+
+    test('f03/us04/s1, f03/us04/fr02/e02, f03/us04/fr01, f03/us03/fr04: an '
+        'extending personal pack layers its same-id doc type over the shipped '
+        'one', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/feature.yaml': '''
+description: Mine
+sections:
+  - id: goal
+    description: What the personal pack wants
+''',
+      });
+      final files = shipped()
+        ..['prd-core/feature.yaml'] = _bytes('''
+description: A feature
+sections:
+  - id: goal
+    header: Feature goal
+''');
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final feature = merged.lookup('feature')!;
+      expect(feature.description, 'Mine');
+      expect(feature.pack, 'prd-core');
+      final goal = feature.sections.singleWhere((s) => s.id == 'goal');
+      expect(goal.description, 'What the personal pack wants');
+      expect(feature.files, [
+        'packs/prd-core/feature.yaml',
+        '~/.specstone/packs/nont-x/feature.yaml',
+      ]);
+    });
+
+    test('f03/us04/fr02/e05, f03/us02/fr01/e09, f03/us04/fr01/e10: a chain '
+        'three packs deep layers top down', () async {
+      final project = await writeTree({
+        _configPath:
+            'packs:\n'
+            '  prd-core: 1.1.0\n'
+            '  software-tech: 1.0.0\n'
+            '  nont-software: 1.0.0\n'
+            '  nont-flutter: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-software/pack.yaml':
+            'name: nont-software\nversion: 1.0.0\nextends: software-tech\n',
+        '.specstone/packs/nont-software/runbook.yaml': 'description: Runbook\n',
+        '.specstone/packs/nont-flutter/pack.yaml':
+            'name: nont-flutter\nversion: 1.0.0\nextends: nont-software\n',
+        '.specstone/packs/nont-flutter/architecture.yaml':
+            'description: Flutter architecture\n',
+      });
+      final files = shipped()
+        ..['software-tech/architecture.yaml'] = _bytes(
+          'description: Architecture\n',
+        );
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('runbook')!.description, 'Runbook');
+      final architecture = merged.lookup('architecture')!;
+      expect(architecture.description, 'Flutter architecture');
+      expect(architecture.files, [
+        'packs/software-tech/architecture.yaml',
+        '~/.specstone/packs/nont-flutter/architecture.yaml',
+      ]);
+    });
+
+    test('f03/us04/s3, f03/us04/fr01/e05: the project layer wins over the '
+        'personal pack', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+        '.specstone/templates/feature.yaml': '''
+description: Project feature
+sections:
+  - id: goal
+    description: What the project wants
+''',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/feature.yaml': '''
+description: Mine
+sections:
+  - id: goal
+    description: What the personal pack wants
+''',
+      });
+      final files = shipped()
+        ..['prd-core/feature.yaml'] = _bytes('''
+description: A feature
+sections:
+  - id: goal
+    header: Feature goal
+''');
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final feature = merged.lookup('feature')!;
+      expect(feature.description, 'Project feature');
+      final goal = feature.sections.singleWhere((s) => s.id == 'goal');
+      expect(goal.description, 'What the project wants');
+    });
+
+    test('f03/us04/fr01/e09: two personal packs extending one pack are '
+        'personal_pack_conflict', () async {
+      final project = await writeTree({
+        _configPath:
+            'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n'
+            '  nont-b: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-a/pack.yaml':
+            'name: nont-a\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-b/pack.yaml':
+            'name: nont-b\nversion: 1.0.0\nextends: prd-core\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.personalPackConflict)
+              .having((f) => f.file, 'file', _configPath)
+              .having((f) => f.key, 'key', 'packs'),
+        ),
+      );
+    });
+
+    test('f03/us03/fr04/e02: an extends naming no loaded pack is '
+        'extends_target_unknown', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-a/pack.yaml':
+            'name: nont-a\nversion: 1.0.0\nextends: missing-pack\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsTargetUnknown)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-a/pack.yaml',
+              )
+              .having((f) => f.key, 'key', 'extends'),
+        ),
+      );
+    });
+
+    test('f03/us03/fr04/e01: a pack chain back to its start is '
+        'extends_cycle', () async {
+      final project = await writeTree({
+        _configPath:
+            'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n  nont-b: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-a/pack.yaml':
+            'name: nont-a\nversion: 1.0.0\nextends: nont-b\n',
+        '.specstone/packs/nont-b/pack.yaml':
+            'name: nont-b\nversion: 1.0.0\nextends: nont-a\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsCycle)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-b/pack.yaml',
+              )
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '~/.specstone/packs/nont-a/pack.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('f03/us04/fr02/e03, f03/us03/fr02/e01: a project template with a '
+        'pack-defined id is an override, not a duplicate', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': 'description: Project feature\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature')!.description, 'Project feature');
+    });
+
+    test('f03/us04/s2, f03/us04/s6, f03/us04/fr02: resolve end to end '
+        'layers chain, project, and duplicates', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+        '.specstone/templates/feature.yaml': 'description: Project feature\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/feature.yaml': 'description: Mine\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature')!.description, 'Project feature');
+      expect(merged.lookup('architecture'), isNull);
+    });
   });
 }
