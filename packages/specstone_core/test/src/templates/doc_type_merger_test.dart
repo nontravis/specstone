@@ -177,6 +177,83 @@ void main() {
       expect(merged.sections.last.required, isTrue);
     });
 
+    test('f03/us02/s3, f03/us02/fr02: an added section lands right after the '
+        'section its after names', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: risks, header: Risks, after: goal}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'risks', 'scope']);
+    });
+
+    test('f03/us02/fr02/e02: an added section with no after goes last', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: risks, header: Risks}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'scope', 'risks']);
+    });
+
+    test('f03/us02/fr02/e03: after on a held section moves it and keeps '
+        'merging its other properties', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, after: scope, description: D}]',
+      );
+
+      expect(ids(merged.sections), ['scope', 'goal']);
+      final goal = merged.sections.last;
+      expect(goal.description, 'D');
+      expect(goal.header, 'Feature goal');
+    });
+
+    test('f03/us02/fr02/e03: after naming the section itself leaves it in '
+        'place', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, after: goal, description: D}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'scope']);
+      expect(merged.sections.first.description, 'D');
+    });
+
+    test('f03/us02/s8, f03/us02/fr02/e01: an added section after a missing '
+        'id is after_id_not_found', () {
+      expect(
+        () => project(
+          shipped(),
+          'sections: [{id: risks, header: Risks, after: nope}]',
+        ),
+        throwsA(fault(FaultCode.afterIdNotFound, 'sections.risks.after')),
+      );
+    });
+
+    test('f03/us02/fr02/e01: a held section moved after a missing id is '
+        'after_id_not_found', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal, after: nope}]'),
+        throwsA(fault(FaultCode.afterIdNotFound, 'sections.goal.after')),
+      );
+    });
+
+    test('f03/us02/fr02: entries of one layer place in file order, so a '
+        'later entry may follow an earlier one', () {
+      final merged = project(shipped(), '''
+sections:
+  - id: risks
+    header: Risks
+    after: goal
+  - id: notes
+    header: Notes
+    after: risks
+''');
+
+      expect(ids(merged.sections), ['goal', 'risks', 'notes', 'scope']);
+    });
+
     test('f03/us02/s4, f03/us02/fr01/e03: an override changes only the '
         'properties it writes', () {
       final merged = project(

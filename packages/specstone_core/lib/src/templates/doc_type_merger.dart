@@ -27,11 +27,12 @@ final class DocTypeMerger {
     files: const [],
   );
 
-  /// Returns [base] with [layer] applied on top.
+  /// Returns [base] with [layer] applied on top, entries in file order.
   ///
   /// Throws `override_id_not_found` for an entry that cannot add or override,
-  /// and `locked_field_disabled` for a layer that breaks a built-in field or
-  /// clears a parent the base has.
+  /// `after_id_not_found` for a section whose `after:` names an id the base
+  /// built so far lacks, and `locked_field_disabled` for a layer that breaks a
+  /// built-in field or clears a parent the base has.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
     return base.copyWith(
@@ -110,7 +111,9 @@ final class DocTypeMerger {
         if (entry.disabled || header == null) {
           throw _notFound(layer, 'sections.${entry.id}');
         }
-        sections.add(
+        final position = _positionAfter(sections, entry, layer);
+        sections.insert(
+          position,
           MergedSection(
             id: entry.id,
             header: header,
@@ -128,7 +131,7 @@ final class DocTypeMerger {
         sections.removeAt(index);
         continue;
       }
-      sections[index] = sections[index].copyWith(
+      final merged = sections[index].copyWith(
         header: entry.header,
         prefixId: entry.prefixId,
         required: entry.required,
@@ -137,8 +140,35 @@ final class DocTypeMerger {
         maxChars: entry.lint?.maxChars,
         maxLines: entry.lint?.maxLines,
       );
+      if (entry.after == null || entry.after == entry.id) {
+        sections[index] = merged;
+        continue;
+      }
+      sections.removeAt(index);
+      sections.insert(_positionAfter(sections, entry, layer), merged);
     }
     return sections;
+  }
+
+  /// Returns the index right after the section [entry] names, else the end.
+  ///
+  /// Throws `after_id_not_found` when [entry] names an id [sections] lacks.
+  int _positionAfter(
+    List<MergedSection> sections,
+    SectionEntry entry,
+    DocTypeLayer layer,
+  ) {
+    final after = entry.after;
+    if (after == null) return sections.length;
+    final index = sections.indexWhere((s) => s.id == after);
+    if (index != -1) return index + 1;
+    throw TemplateFault(
+      FaultCode.afterIdNotFound,
+      'the section ${entry.id} follows $after, which the lower layers and '
+      'earlier entries do not define',
+      file: layer.file,
+      key: 'sections.${entry.id}.after',
+    );
   }
 
   bool _isBuiltIn(String id) => _builtInFields.any((f) => f.id == id);
