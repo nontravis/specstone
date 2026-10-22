@@ -7,6 +7,23 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// The layers the resolver folded for one doc type, lowest first.
 typedef DocTypeLayers = List<({LoadedPack? pack, DocTypeLayer layer})>;
 
+/// The top-most layer of [layers] for which [wrote] holds, or null.
+///
+/// The one scan that finds the layer which wrote a key; `extends` writers
+/// use it through [wroteExtends].
+DocTypeLayer? topMostWriter(
+  DocTypeLayers layers,
+  bool Function(DocTypeLayer layer) wrote,
+) {
+  for (var i = layers.length - 1; i >= 0; i--) {
+    if (wrote(layers[i].layer)) return layers[i].layer;
+  }
+  return null;
+}
+
+/// Whether [layer] writes `extends`.
+bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
+
 /// Checks the merged [docTypes] as one set, throwing the first fault.
 ///
 /// [layerLists] holds, per doc type id, the folded layers, lowest first; a
@@ -159,17 +176,9 @@ String? _writerOf(
   while (visited.add(id)) {
     final layers = layerLists[id];
     if (layers == null) return null;
-    for (var i = layers.length - 1; i >= 0; i--) {
-      if (wrote(layers[i].layer)) return layers[i].layer.file;
-    }
-    String? target;
-    for (final entry in layers) {
-      final extendsId = entry.layer.extendsId;
-      if (extendsId != null) {
-        target = extendsId;
-        break;
-      }
-    }
+    final own = topMostWriter(layers, wrote);
+    if (own != null) return own.file;
+    final target = topMostWriter(layers, wroteExtends)?.extendsId;
     if (target == null) return null;
     id = target;
   }

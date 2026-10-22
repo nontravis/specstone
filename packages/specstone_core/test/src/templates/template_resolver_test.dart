@@ -1349,6 +1349,62 @@ extends: feature
       );
     });
 
+    test('f03/us03/fr04/e06, s03/inv4: extends_in_override faults the first '
+        'offender in load order across doc types', () async {
+      final files = shipped()
+        ..['prd-core/z.yaml'] = _bytes(
+          'id: z\ndescription: Z\npath: z/{slug}.md\n',
+        );
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/z.yaml': 'extends: z\n',
+      });
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+        '.specstone/templates/feature.yaml': 'extends: feature\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsInOverride)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-x/z.yaml',
+              ),
+        ),
+      );
+    });
+
+    test('f03/us03/s6, f03/us03/fr04/e01: a doc type extending itself is '
+        'extends_cycle naming it once', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/a.yaml': 'id: a\nextends: a\npath: a/{slug}.md\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsCycle)
+              .having((f) => f.file, 'file', '.specstone/templates/a.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', isEmpty)
+              .having(
+                (f) => f.message,
+                'message',
+                'extends chain returns to its start: a, a',
+              ),
+        ),
+      );
+    });
+
     test('f03/us03/s7, f03/us03/fr04/e02: an extends naming no doc type is '
         'extends_target_unknown', () async {
       final project = await writeTree({
