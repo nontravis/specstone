@@ -14,8 +14,7 @@ const packManifestName = 'pack.yaml';
 /// A pack whose manifest is read and checked but whose files are not parsed.
 ///
 /// The parse step runs later, after every listed pack's manifest check, so no
-/// doc-type file of any pack parses before every check passes. `docTypes` is
-/// null until then.
+/// doc-type file of any pack parses before every check passes.
 final class LoadedPack {
   new _({
     required this.manifest,
@@ -34,9 +33,6 @@ final class LoadedPack {
   /// Whether the pack is shipped or personal.
   final LayerKind kind;
 
-  /// The pack's doc-type layers, keyed by doc type id; null until parsed.
-  Map<String, DocTypeLayer>? docTypes;
-
   /// The pack's folder as faults print it.
   final String displayFolder;
 
@@ -49,22 +45,21 @@ final class LoadedPack {
   /// The layer's byte reader.
   final Uint8List Function(String path) _read;
 
-  /// Parses the pack's doc-type files, in code point order (INV-22).
+  /// Returns the pack's doc-type layers, keyed by id, in code point order
+  /// (INV-22).
   ///
   /// Every YAML file is read as bytes through `decodeYamlBytes` (F3-D50).
   /// Throws a [TemplateFault] for any format fault.
-  void parseDocTypes() {
-    docTypes = {
-      for (final path in _docTypeNames(_paths))
-        path.substring(0, path.length - '.yaml'.length): DocTypeLayer.parse(
-          decodeYamlBytes(_read(path), file: '$displayFolder/$path'),
-          file: '$displayFolder/$path',
-          docTypeId: path.substring(0, path.length - '.yaml'.length),
-          kind: kind,
-          files: _files,
-        ),
-    };
-  }
+  Map<String, DocTypeLayer> parseDocTypes() => {
+    for (final path in _docTypeNames(_paths))
+      path.substring(0, path.length - '.yaml'.length): DocTypeLayer.parse(
+        decodeYamlBytes(_read(path), file: '$displayFolder/$path'),
+        file: '$displayFolder/$path',
+        docTypeId: path.substring(0, path.length - '.yaml'.length),
+        kind: kind,
+        files: _files,
+      ),
+  };
 }
 
 /// A [LayerFiles] view over an in-memory file map.

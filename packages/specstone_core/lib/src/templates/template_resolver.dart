@@ -40,13 +40,13 @@ final class TemplateResolver {
     final packs = root == null
         ? _everyShippedPack()
         : _listedPacks(ProjectConfig.read(root), homeDirectory);
-    for (final pack in packs) {
-      pack.parseDocTypes();
-    }
+    final parsed = [
+      for (final pack in packs) (pack: pack, layers: pack.parseDocTypes()),
+    ];
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
-    return _merge(packs, projectLayers);
+    return _merge(parsed, projectLayers);
   }
 
   /// Loads every shipped pack's manifest, by name in code point order
@@ -155,12 +155,15 @@ final class TemplateResolver {
   /// Each doc type starts from its built-in base and folds its layers lowest
   /// first (shipped packs by name, personal packs, project templates); the
   /// lowest pack naming a doc type supplies its `pack`.
-  MergedSet _merge(List<LoadedPack> packs, List<DocTypeLayer> projectLayers) {
+  MergedSet _merge(
+    List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
+    List<DocTypeLayer> projectLayers,
+  ) {
     const merger = DocTypeMerger();
     final docTypes = <String, MergedDocType>{};
     final packOf = <String, String>{};
-    for (final pack in packs) {
-      for (final MapEntry(:key, :value) in pack.docTypes!.entries) {
+    for (final (:pack, :layers) in packs) {
+      for (final MapEntry(:key, :value) in layers.entries) {
         final base = docTypes[key] ?? merger.builtInBase(key);
         docTypes[key] = merger
             .apply(base, value)
