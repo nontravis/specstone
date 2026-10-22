@@ -27,14 +27,14 @@ LoadIndex loadIndexOf(Iterable<DocTypeLayer> loadOrder) => {
 ///
 /// `file` is the file with the highest [index], the upper layer's or the
 /// later-loaded one; `relatedFiles` holds the rest, ascending. A null file is
-/// dropped and a repeated file counts once; a file missing from [index] ranks
-/// lowest.
+/// dropped and a repeated file counts once. Every file comes from a layer of
+/// the load sequence, so [index] holds it.
 ({String? file, List<String> related}) rankFaultFiles(
   Iterable<String?> files,
   LoadIndex index,
 ) {
   final ranked = <String>{for (final file in files) ?file}.toList()
-    ..sort((a, b) => (index[a] ?? -1).compareTo(index[b] ?? -1));
+    ..sort((a, b) => index[a]!.compareTo(index[b]!));
   if (ranked.isEmpty) return (file: null, related: const []);
   return (file: ranked.last, related: ranked.sublist(0, ranked.length - 1));
 }

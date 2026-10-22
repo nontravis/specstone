@@ -1823,11 +1823,9 @@ path: adr/{slug}.md
       expect(merged.lookup('feature'), isNotNull);
     });
 
-    test(
-      's03/inv4: every list of an extends-built doc type is unmodifiable',
-      () async {
-        final files = shipped()
-          ..['prd-core/feature.yaml'] = _bytes('''
+    test('every list of an extends-built doc type is unmodifiable', () async {
+      final files = shipped()
+        ..['prd-core/feature.yaml'] = _bytes('''
 id: feature
 description: A feature
 path: features/f{nn}_{slug}/FEATURE.md
@@ -1837,38 +1835,37 @@ sections:
 reference:
   - title: A
 ''');
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/adr.yaml': '''
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/adr.yaml': '''
 id: adr
 extends: feature
 path: adr/{slug}.md
 ''',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: files);
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: files);
 
-        final merged = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
 
-        final adr = merged.lookup('adr')!;
-        expect(
-          () => adr.fields.add(adr.fields.first),
-          throwsUnsupportedError,
-          reason: 'fields of an extends-built doc type are unmodifiable',
-        );
-        expect(
-          () => adr.sections.add(adr.sections.first),
-          throwsUnsupportedError,
-        );
-        expect(() => adr.files.add('x'), throwsUnsupportedError);
-        expect(
-          () => adr.reference!.add(adr.reference!.first),
-          throwsUnsupportedError,
-        );
-      },
-    );
+      final adr = merged.lookup('adr')!;
+      expect(
+        () => adr.fields.add(adr.fields.first),
+        throwsUnsupportedError,
+        reason: 'fields of an extends-built doc type are unmodifiable',
+      );
+      expect(
+        () => adr.sections.add(adr.sections.first),
+        throwsUnsupportedError,
+      );
+      expect(() => adr.files.add('x'), throwsUnsupportedError);
+      expect(
+        () => adr.reference!.add(adr.reference!.first),
+        throwsUnsupportedError,
+      );
+    });
   });
 }
