@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
@@ -188,18 +189,21 @@ final class DocTypeLayer {
     required this.fields,
     required this.sections,
     required this.lint,
+    required this.reference,
   });
 
   /// Parses one doc-type file; [docTypeId] is the file name without `.yaml`.
   ///
-  /// [folder] is the layer folder the file sits in, kept for M2-T6. Throws a
-  /// [TemplateFault] for any format fault; `reference` is read past here.
+  /// [folder] is the layer folder the file sits in; [files] answers whether
+  /// the layer holds a file at a layer-relative path, for `reference` checks.
+  /// Throws a [TemplateFault] for any format fault.
   static DocTypeLayer parse(
     String text, {
     required String file,
     required String docTypeId,
     required LayerKind kind,
     required String folder,
+    required LayerFiles files,
   }) {
     final map = readYamlMap(text, file: file);
     checkKeys(map, _topKeys, file: file, format: 'doc-type');
@@ -228,6 +232,7 @@ final class DocTypeLayer {
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
+      reference: _parseReference(map, file: file, kind: kind, files: files),
     );
   }
 
@@ -269,6 +274,93 @@ final class DocTypeLayer {
 
   /// The doc-level lint block, when written.
   final LintLayer? lint;
+
+  /// The reference list this layer writes, when written.
+  final ListWrite<ReferenceEntry>? reference;
+}
+
+/// Reads the `reference` key of [map] as a [ListWrite] of entries.
+///
+/// A doc-type file sits at the top of its layer folder, so its entries
+/// resolve `file` links against an empty template folder.
+ListWrite<ReferenceEntry>? _parseReference(
+  YamlMap map, {
+  required String file,
+  required LayerKind kind,
+  required LayerFiles files,
+}) {
+  final value = map['reference'];
+  return switch (value) {
+    null => null,
+    final YamlList list => PlainList<ReferenceEntry>([
+      for (var i = 0; i < list.length; i++)
+        ReferenceEntry.parse(
+          _entryMap(list[i], 'reference[$i]', file: file),
+          file: file,
+          key: 'reference[$i]',
+          kind: kind,
+          templateFolder: '',
+          files: files,
+        ),
+    ]),
+    final YamlMap changeMap => _referenceChange(
+      changeMap,
+      file: file,
+      kind: kind,
+      files: files,
+    ),
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key reference must be a list or a mapping of add and remove',
+      file: file,
+      key: 'reference',
+    ),
+  };
+}
+
+ListChange<ReferenceEntry> _referenceChange(
+  YamlMap map, {
+  required String file,
+  required LayerKind kind,
+  required LayerFiles files,
+}) {
+  checkKeys(
+    map,
+    const {'add', 'remove'},
+    file: file,
+    format: 'doc-type',
+    prefix: 'reference.',
+  );
+  final add = optionalValue<YamlList>(
+    map,
+    'add',
+    file: file,
+    prefix: 'reference.',
+  );
+  final remove = optionalValue<YamlList>(
+    map,
+    'remove',
+    file: file,
+    prefix: 'reference.',
+  );
+  return ListChange<ReferenceEntry>(
+    add == null
+        ? <ReferenceEntry>[]
+        : [
+            for (var i = 0; i < add.length; i++)
+              ReferenceEntry.parse(
+                _entryMap(add[i], 'reference.add[$i]', file: file),
+                file: file,
+                key: 'reference.add[$i]',
+                kind: kind,
+                templateFolder: '',
+                files: files,
+              ),
+          ],
+    remove == null
+        ? <String>[]
+        : _stringsOf(remove, 'remove', file: file, prefix: 'reference.'),
+  );
 }
 
 /// Whether [name] is a doc-type file: a top-level `<id>.yaml`, not `pack.yaml`.

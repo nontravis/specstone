@@ -1,9 +1,19 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 const _file = '.specstone/templates/feature.yaml';
 const _folder = '/p/.specstone/templates';
+
+final class _FakeFiles implements LayerFiles {
+  const new(this.paths);
+
+  final Set<String> paths;
+
+  @override
+  bool exists(String layerRelativePath) => paths.contains(layerRelativePath);
+}
 
 DocTypeLayer _parse(String text) => DocTypeLayer.parse(
   text,
@@ -11,6 +21,7 @@ DocTypeLayer _parse(String text) => DocTypeLayer.parse(
   docTypeId: 'feature',
   kind: LayerKind.project,
   folder: _folder,
+  files: const _FakeFiles({'refs/handbook.md'}),
 );
 
 TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
@@ -278,6 +289,48 @@ lint:
       final layer = _parse('reference: [{title: Specstone}]');
       expect(layer.id, isNull);
     });
+
+    test('f03/us03/fr03: a plain reference list parses into entries', () {
+      final layer = _parse(
+        'reference: [{title: T, url: https://example.com/a}, '
+        '{title: Book}]',
+      );
+      final plain = switch (layer.reference) {
+        final PlainList<ReferenceEntry> list => list,
+        _ => fail('reference is not a PlainList'),
+      };
+      expect(plain.items, hasLength(2));
+      expect(plain.items.first.url, 'https://example.com/a');
+      expect(plain.items.last.toJson(), {'title': 'Book'});
+    });
+
+    test(
+      'f03/us02/fr05, us03/fr03/e09: a reference add map parses entries',
+      () {
+        final layer = _parse(
+          'reference: {add: [{title: T, file: refs/handbook.md}], '
+          'remove: [Book]}',
+        );
+        final change = switch (layer.reference) {
+          final ListChange<ReferenceEntry> listChange => listChange,
+          _ => fail('reference is not a ListChange'),
+        };
+        expect(change.add.single.file, 'refs/handbook.md');
+        expect(change.remove, ['Book']);
+      },
+    );
+
+    test(
+      'f03/us03/fr03/e02: a link conflict inside parse keeps its index key',
+      () {
+        expect(
+          () => _parse(
+            'reference: [{title: T}, {title: U, url: https://x, doc: d}]',
+          ),
+          throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[1]')),
+        );
+      },
+    );
   });
 
   group('isDocTypeFileName', () {
