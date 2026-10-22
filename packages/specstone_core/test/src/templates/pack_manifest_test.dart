@@ -32,26 +32,42 @@ void main() {
       expect(manifest.extendsPack, 'software-tech');
     });
 
-    test('f03/us04/fr01/e04: a manifest without version is missing_key', () {
-      expect(
-        () => _parse('name: x\n'),
-        throwsA(_fault(FaultCode.missingKey, key: 'version')),
-      );
-    });
+    test(
+      'f03/us04/fr01/e04, s03/inv10: a manifest without version is missing_key',
+      () {
+        expect(
+          () => _parse('name: x\n'),
+          throwsA(_fault(FaultCode.missingKey, key: 'version')),
+        );
+      },
+    );
 
-    test('f03/us04/fr01/e04: a manifest without name is missing_key', () {
-      expect(
-        () => _parse('version: 1.0.0\n'),
-        throwsA(_fault(FaultCode.missingKey, key: 'name')),
-      );
-    });
+    test(
+      'f03/us04/fr01/e04, s03/inv10: a manifest without name is missing_key',
+      () {
+        expect(
+          () => _parse('version: 1.0.0\n'),
+          throwsA(_fault(FaultCode.missingKey, key: 'name')),
+        );
+      },
+    );
 
-    test('f03/us04/fr01/e06: a leading zero in version is invalid', () {
+    test('f03/us04/fr01/e06, s03/inv16: a list version is invalid', () {
       expect(
-        () => _parse('name: x\nversion: 01.2.0\n'),
+        () => _parse('name: x\nversion: [1.0.0]\n'),
         throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
       );
     });
+
+    test(
+      'f03/us04/fr01/e06, s03/inv16: a leading zero in version is invalid',
+      () {
+        expect(
+          () => _parse('name: x\nversion: 01.2.0\n'),
+          throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
+        );
+      },
+    );
 
     test('f03/us04/fr01/e06: an unquoted double version is invalid', () {
       expect(

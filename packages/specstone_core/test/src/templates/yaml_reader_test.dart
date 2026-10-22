@@ -14,18 +14,21 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
 
 void main() {
   group('readYamlMap', () {
-    test('f03/us03/fr01/e01: invalid YAML is yaml_syntax with the line', () {
-      expect(
-        () => readYamlMap('id: a\nsections: [\n', file: _file),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.yamlSyntax)
-              .having((f) => f.file, 'file', _file)
-              .having((f) => f.line, 'line', isA<int>())
-              .having((f) => f.exitStatus, 'exit', 78),
-        ),
-      );
-    });
+    test(
+      'f03/us03/fr01/e01, s03/inv10: invalid YAML is yaml_syntax with the line',
+      () {
+        expect(
+          () => readYamlMap('id: a\nsections: [\n', file: _file),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.yamlSyntax)
+                .having((f) => f.file, 'file', _file)
+                .having((f) => f.line, 'line', isA<int>())
+                .having((f) => f.exitStatus, 'exit', 78),
+          ),
+        );
+      },
+    );
 
     test('f03/us03/fr01/e01: fault message carries no location prefix', () {
       TemplateFault? caught;
@@ -78,7 +81,7 @@ void main() {
   });
 
   group('checkKeys', () {
-    test('f03/us03/fr01/e02: an unknown key under a prefix is unknown_key', () {
+    test('f03/us03/fr01/e02, s03/inv10: an unknown key under a prefix is unknown_key', () {
       final map = readYamlMap('bogus: 1\n', file: _file);
 
       expect(
@@ -163,7 +166,7 @@ void main() {
       expect(requireValue<String>(map, 'id', file: _file), 'a');
     });
 
-    test('f03/us03/fr01: a missing key is missing_key', () {
+    test('f03/us03/fr01, s03/inv10: a missing key is missing_key', () {
       final map = readYamlMap('id: a\n', file: _file);
 
       expect(

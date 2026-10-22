@@ -46,7 +46,7 @@ void main() {
       },
     );
 
-    test('f03/us05/s5, f03/us05/fr01/e01: packs without prd-core is '
+    test('f03/us05/s5, f03/us05/fr01/e01, s03/inv7: packs without prd-core is '
         'prd_core_missing', () async {
       final root = await _withConfig('packs:\n  software-tech: 1.0.0\n');
 
@@ -57,7 +57,7 @@ void main() {
     });
 
     test(
-      'f03/us05/fr01/e02: a syntax error is yaml_syntax with line 1',
+      'f03/us05/fr01/e02, s03/inv10: a syntax error is yaml_syntax with line 1',
       () async {
         final root = await _withConfig('packs: [');
 
@@ -69,7 +69,7 @@ void main() {
     );
 
     test(
-      'f03/us05/fr01/e03: an unknown top-level key is unknown_key',
+      'f03/us05/fr01/e03, s03/inv10: an unknown top-level key is unknown_key',
       () async {
         final root = await _withConfig('spec_packs: [x]\n');
 
@@ -80,28 +80,36 @@ void main() {
       },
     );
 
-    test('f03/us05/fr01: a config without packs is missing_key', () async {
-      final root = await _withConfig('# empty\n');
+    test(
+      'f03/us05/fr01, s03/inv10: a config without packs is missing_key',
+      () async {
+        final root = await _withConfig('# empty\n');
 
-      expect(
-        () => ProjectConfig.read(root),
-        throwsA(_fault(FaultCode.missingKey, key: 'packs')),
-      );
-    });
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(_fault(FaultCode.missingKey, key: 'packs')),
+        );
+      },
+    );
 
     for (final (label, pin) in [
       ('an unquoted double', '1.2'),
       ('a quoted two-part version', "'1.2'"),
       ('a pre-release tag', '1.2.0-beta'),
     ]) {
-      test('f03/us05/fr01/e06: $label pin is pack_version_invalid', () async {
-        final root = await _withConfig('packs:\n  prd-core: $pin\n');
+      test(
+        'f03/us05/fr01/e06, s03/inv16: $label pin is pack_version_invalid',
+        () async {
+          final root = await _withConfig('packs:\n  prd-core: $pin\n');
 
-        expect(
-          () => ProjectConfig.read(root),
-          throwsA(_fault(FaultCode.packVersionInvalid, key: 'packs.prd-core')),
-        );
-      });
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(FaultCode.packVersionInvalid, key: 'packs.prd-core'),
+            ),
+          );
+        },
+      );
     }
   });
 

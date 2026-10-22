@@ -42,51 +42,48 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('ReferenceEntry.parse', () {
-    test('f03/us03/fr03/e01: an entry with no title is missing_key', () {
-      expect(
-        () => parseRef('{url: https://x}'),
-        throwsA(_fault(FaultCode.missingKey, key: 'reference[0].title')),
-      );
-    });
-
     test(
-      'f03/us03/fr03/e02: two links in one entry is reference_link_conflict',
+      'f03/us03/fr03/e01, s03/inv6: an entry with no title is missing_key',
       () {
         expect(
-          () => parseRef('{title: T, url: https://x, doc: prd/feature}'),
-          throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[0]')),
+          () => parseRef('{url: https://x}'),
+          throwsA(_fault(FaultCode.missingKey, key: 'reference[0].title')),
         );
       },
     );
 
-    test(
-      'f03/us03/s8, us03/fr03/e03: a missing file is reference_file_missing',
-      () {
-        expect(
-          () => parseRef('{title: T, file: refs/none.md}'),
-          throwsA(_fault(FaultCode.referenceFileMissing, key: 'reference[0]')),
-        );
-      },
-    );
-
-    test('f03/us03/fr03/e04: an absolute file is reference_file_outside', () {
+    test('f03/us03/fr03/e02, s03/inv6: two links in one entry is reference_link_conflict', () {
       expect(
-        () => parseRef('{title: T, file: /etc/hosts}'),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+        () => parseRef('{title: T, url: https://x, doc: prd/feature}'),
+        throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[0]')),
+      );
+    });
+
+    test('f03/us03/s8, us03/fr03/e03, s03/inv6: a missing file is reference_file_missing', () {
+      expect(
+        () => parseRef('{title: T, file: refs/none.md}'),
+        throwsA(_fault(FaultCode.referenceFileMissing, key: 'reference[0]')),
       );
     });
 
     test(
-      'f03/us03/fr03/e04: an escaping segment is reference_file_outside',
+      'f03/us03/fr03/e04, s03/inv6: an absolute file is reference_file_outside',
       () {
         expect(
-          () => parseRef('{title: T, file: refs/../../x.md}'),
+          () => parseRef('{title: T, file: /etc/hosts}'),
           throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
         );
       },
     );
 
-    test('f03/us04/s7, us03/fr03/e05, us04/fr01/e11: a doc in a personal layer '
+    test('f03/us03/fr03/e04, s03/inv6: an escaping segment is reference_file_outside', () {
+      expect(
+        () => parseRef('{title: T, file: refs/../../x.md}'),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
+
+    test('f03/us04/s7, us03/fr03/e05, us04/fr01/e11, s03/inv6: a doc in a personal layer '
         'is reference_doc_outside_project', () {
       expect(
         () =>
@@ -97,7 +94,7 @@ void main() {
       );
     });
 
-    test('f03/us04/s7, us03/fr03/e05, us04/fr01/e11: a doc in a shipped layer '
+    test('f03/us04/s7, us03/fr03/e05, us04/fr01/e11, s03/inv6: a doc in a shipped layer '
         'is reference_doc_outside_project', () {
       expect(
         () => parseRef('{title: T, doc: prd/feature}', kind: LayerKind.shipped),
@@ -107,14 +104,14 @@ void main() {
       );
     });
 
-    test('f03/us03/fr03/e06: a url entry is accepted unchanged', () {
+    test('f03/us03/fr03/e06, s03/inv6: a url entry is accepted unchanged', () {
       final entry = parseRef('{title: T, url: https://example.com/a}');
       expect(entry.url, 'https://example.com/a');
       expect(entry.file, isNull);
       expect(entry.doc, isNull);
     });
 
-    test('f03/us03/fr03/e07: a doc entry in the project layer is accepted', () {
+    test('f03/us03/fr03/e07, s03/inv6: a doc entry in the project layer is accepted', () {
       final entry = parseRef('{title: T, doc: prd/feature}');
       expect(entry.doc, 'prd/feature');
     });

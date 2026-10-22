@@ -32,25 +32,19 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('DocTypeLayer.parse', () {
-    test(
-      'f03/us03/fr01/e09: an id unlike the file name is doc_type_id_mismatch',
-      () {
-        expect(
-          () => _parse('id: epic\n'),
-          throwsA(_fault(FaultCode.docTypeIdMismatch, key: 'id')),
-        );
-      },
-    );
+    test('f03/us03/fr01/e09, s03/inv15: an id unlike the file name is doc_type_id_mismatch', () {
+      expect(
+        () => _parse('id: epic\n'),
+        throwsA(_fault(FaultCode.docTypeIdMismatch, key: 'id')),
+      );
+    });
 
-    test(
-      'f03/us03/s4, us03/fr01/e02: a top-level unknown key is unknown_key',
-      () {
-        expect(
-          () => _parse('color: red\n'),
-          throwsA(_fault(FaultCode.unknownKey, key: 'color')),
-        );
-      },
-    );
+    test('f03/us03/s4, us03/fr01/e02, s03/inv10: a top-level unknown key is unknown_key', () {
+      expect(
+        () => _parse('color: red\n'),
+        throwsA(_fault(FaultCode.unknownKey, key: 'color')),
+      );
+    });
 
     test('f03/us03/fr01/e02: an unknown section key is unknown_key with the id path', () {
       expect(
@@ -69,15 +63,12 @@ void main() {
       },
     );
 
-    test(
-      'f03/us03/fr01/e03: a field with no id is missing_key at the index',
-      () {
-        expect(
-          () => _parse('fields: [{type: string}]'),
-          throwsA(_fault(FaultCode.missingKey, key: 'fields[0].id')),
-        );
-      },
-    );
+    test('f03/us03/fr01/e03, s03/inv10: a field with no id is missing_key at the index', () {
+      expect(
+        () => _parse('fields: [{type: string}]'),
+        throwsA(_fault(FaultCode.missingKey, key: 'fields[0].id')),
+      );
+    });
 
     test('f03/us03/s5, us03/fr01/e03: a section with no id is missing_key at the index', () {
       expect(
@@ -86,22 +77,19 @@ void main() {
       );
     });
 
-    test('f03/us03/s10, us03/fr01/e05: a field type outside the seven is unknown_value', () {
+    test('f03/us03/s10, us03/fr01/e05, s03/inv13: a field type outside the seven is unknown_value', () {
       expect(
         () => _parse('fields: [{id: size, type: float}]'),
         throwsA(_fault(FaultCode.unknownValue, key: 'fields.size.type')),
       );
     });
 
-    test(
-      'f03/us03/fr01/e06: an enum field with no enum list is missing_key',
-      () {
-        expect(
-          () => _parse('fields: [{id: kind, type: enum}]'),
-          throwsA(_fault(FaultCode.missingKey, key: 'fields.kind.enum')),
-        );
-      },
-    );
+    test('f03/us03/fr01/e06, s03/inv13: an enum field with no enum list is missing_key', () {
+      expect(
+        () => _parse('fields: [{id: kind, type: enum}]'),
+        throwsA(_fault(FaultCode.missingKey, key: 'fields.kind.enum')),
+      );
+    });
 
     test('f03/us02/fr03/e01: an unknown doc lint key is unknown_key', () {
       expect(

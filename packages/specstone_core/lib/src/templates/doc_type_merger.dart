@@ -45,11 +45,11 @@ final class DocTypeMerger {
       parent: parent,
       extendsId: layer.extendsId,
       path: layer.path,
-      fields: _mergeFields(base.fields, layer),
-      sections: _mergeSections(base.sections, layer),
+      fields: List.unmodifiable(_mergeFields(base.fields, layer)),
+      sections: List.unmodifiable(_mergeSections(base.sections, layer)),
       lint: _mergeLint(base.lint, layer),
       reference: _mergeReference(base.reference, layer),
-      files: [...base.files, layer.file],
+      files: List.unmodifiable([...base.files, layer.file]),
     );
   }
 
@@ -120,7 +120,7 @@ final class DocTypeMerger {
       case null:
         return base;
       case PlainList(:final items):
-        if (base == null) return items;
+        if (base == null) return List.unmodifiable(items);
         throw TemplateFault(
           FaultCode.listOverrideNeedsAddRemove,
           'a lower layer already defines $key; write add and remove to '
@@ -140,11 +140,11 @@ final class DocTypeMerger {
             key: key,
           );
         }
-        return [
+        return List.unmodifiable([
           for (final item in lower)
             if (!remove.contains(nameOf(item))) item,
           ...add,
-        ];
+        ]);
     }
   }
 
@@ -163,8 +163,8 @@ final class DocTypeMerger {
             type: type,
             list: entry.list ?? false,
             required: entry.required ?? false,
-            enumValues: entry.enumValues,
-            docTypes: entry.docTypes,
+            enumValues: _frozen(entry.enumValues),
+            docTypes: _frozen(entry.docTypes),
             description: entry.description,
           ),
         );
@@ -180,8 +180,8 @@ final class DocTypeMerger {
         type: entry.type,
         list: entry.list,
         required: entry.required,
-        enumValues: entry.enumValues,
-        docTypes: entry.docTypes,
+        enumValues: _frozen(entry.enumValues),
+        docTypes: _frozen(entry.docTypes),
         description: entry.description,
       );
     }
@@ -259,6 +259,9 @@ final class DocTypeMerger {
       key: 'sections.${entry.id}.after',
     );
   }
+
+  List<String>? _frozen(List<String>? list) =>
+      list == null ? null : List.unmodifiable(list);
 
   bool _isBuiltIn(String id) => _builtInFields.any((f) => f.id == id);
 
