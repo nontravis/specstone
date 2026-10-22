@@ -5,12 +5,14 @@ import 'package:dart_mcp/client.dart';
 import 'package:dart_mcp/stdio.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/package_root.dart';
+
 void main() {
   group('specstone mcp', () {
     test('serves initialize and zero tools over stdio, then exits 0', () async {
       final process = await Process.start(Platform.resolvedExecutable, [
         'run',
-        'bin/specstone.dart',
+        packageRoot().uri.resolve('bin/specstone.dart').toFilePath(),
         'mcp',
       ]);
       addTearDown(process.kill);
