@@ -111,6 +111,30 @@ void main() {
         },
       );
     }
+
+    test('f03/us05/fr01/e02: non-UTF-8 config bytes are yaml_syntax', () async {
+      final root = await writeTree({});
+      final config = File.fromUri(root.uri.resolve(_configPath));
+      await config.create(recursive: true);
+      await config.writeAsBytes([0xff, 0xfe]);
+
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(
+          _fault(FaultCode.yamlSyntax).having((f) => f.line, 'line', isNull),
+        ),
+      );
+    });
+
+    test('f03/us05/fr01/e02: a CRLF config reads its pins', () async {
+      final root = await _withConfig(
+        'packs:\r\n  prd-core: 1.0.0\r\n  software-tech: 2.1.0\r\n',
+      );
+
+      final config = ProjectConfig.read(root);
+
+      expect(config.pins.keys, ['prd-core', 'software-tech']);
+    });
   });
 
   group('findProjectRoot', () {

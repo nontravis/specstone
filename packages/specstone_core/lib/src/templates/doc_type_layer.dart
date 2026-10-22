@@ -353,7 +353,7 @@ ListChange<ReferenceEntry> _referenceChange(
           ],
     remove == null
         ? <String>[]
-        : _stringsOf(remove, 'remove', file: file, prefix: 'reference.'),
+        : stringsOf(remove, 'remove', file: file, prefix: 'reference.'),
   );
 }
 
@@ -468,10 +468,10 @@ FieldEntry _parseField(
     ),
     enumValues: enumList == null
         ? null
-        : _stringsOf(enumList, 'enum', file: file, prefix: prefix),
+        : stringsOf(enumList, 'enum', file: file, prefix: prefix),
     docTypes: docTypesList == null
         ? null
-        : _stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
+        : stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
     description: optionalValue<String>(
       entry,
       'description',
@@ -608,7 +608,7 @@ ListWrite<String>? _listWrite(
   return switch (value) {
     null => null,
     final YamlList list => PlainList<String>(
-      _stringsOf(list, key, file: file, prefix: prefix),
+      stringsOf(list, key, file: file, prefix: prefix),
     ),
     final YamlMap changeMap => _listChange(
       changeMap,
@@ -653,10 +653,10 @@ ListChange<String> _listChange(
   return ListChange<String>(
     add == null
         ? <String>[]
-        : _stringsOf(add, 'add', file: file, prefix: '$prefix$key.'),
+        : stringsOf(add, 'add', file: file, prefix: '$prefix$key.'),
     remove == null
         ? <String>[]
-        : _stringsOf(remove, 'remove', file: file, prefix: '$prefix$key.'),
+        : stringsOf(remove, 'remove', file: file, prefix: '$prefix$key.'),
   );
 }
 
@@ -669,26 +669,6 @@ YamlMap _entryMap(Object? entry, String keyPath, {required String file}) {
     file: file,
     key: keyPath,
   );
-}
-
-List<String> _stringsOf(
-  YamlList list,
-  String key, {
-  required String file,
-  required String prefix,
-}) {
-  return [
-    for (final element in list)
-      if (element is String)
-        element
-      else
-        throw TemplateFault(
-          FaultCode.unknownValue,
-          'the key $key must hold only strings',
-          file: file,
-          key: '$prefix$key',
-        ),
-  ];
 }
 
 FieldType? _optionalFieldType(

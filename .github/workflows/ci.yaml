@@ -24,6 +24,12 @@ jobs:
         with:
           sdk: 3.13.5
       - run: dart pub get --enforce-lockfile
+      - name: Check the shipped packs constants are current
+        working-directory: packages/specstone_core
+        run: |
+          dart run tool/generate_shipped_packs.dart
+          git diff --exit-code -- lib/src/templates/shipped_packs.g.dart
+          test -z "$(git status --porcelain -- lib/src/templates/)"
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
 

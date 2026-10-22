@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:specstone_core/specstone_core.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:test/test.dart';
@@ -308,6 +310,30 @@ void main() {
             'the key words must hold only strings',
           ),
         ),
+      );
+    });
+  });
+
+  group('decodeYamlBytes', () {
+    test('f03/us03/fr01/e01: non-UTF-8 bytes are yaml_syntax with no line', () {
+      expect(
+        () => decodeYamlBytes([0xff, 0xfe], file: 'packs/alpha/feature.yaml'),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.yamlSyntax)
+              .having((f) => f.file, 'file', 'packs/alpha/feature.yaml')
+              .having((f) => f.line, 'line', isNull),
+        ),
+      );
+    });
+
+    test('f03/us03/fr01/e01: CRLF is normalized to LF', () {
+      expect(
+        decodeYamlBytes(
+          utf8.encode('a: 1\r\nb: 2\r\n'),
+          file: 'packs/alpha/feature.yaml',
+        ),
+        'a: 1\nb: 2\n',
       );
     });
   });

@@ -36,8 +36,10 @@ final class ProjectConfig {
   /// `packs` is absent, `pack_version_invalid` for a bad pin, and
   /// `prd_core_missing` when `packs` pins no `prd-core`.
   static ProjectConfig read(Directory root) {
-    final text = File.fromUri(root.uri.resolve(projectConfigPath))
-        .readAsStringSync();
+    final text = decodeYamlBytes(
+      File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
+      file: projectConfigPath,
+    );
     final map = readYamlMap(text, file: projectConfigPath);
     checkKeys(map, {'packs'}, file: projectConfigPath, format: 'config');
     final packs = requireValue<YamlMap>(map, 'packs', file: projectConfigPath);

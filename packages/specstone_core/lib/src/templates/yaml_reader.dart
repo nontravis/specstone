@@ -1,5 +1,24 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:yaml/yaml.dart';
+
+/// Decodes YAML file [bytes] as UTF-8 with CRLF normalized to LF (F3-D50).
+///
+/// A non-UTF-8 byte sequence is `yaml_syntax` naming [file], with no `line`.
+/// Every YAML file, shipped or on disk, is read as bytes and decoded here.
+String decodeYamlBytes(List<int> bytes, {required String file}) {
+  try {
+    return utf8.decode(bytes).replaceAll('\r\n', '\n');
+  } on FormatException catch (error) {
+    throw TemplateFault(
+      FaultCode.yamlSyntax,
+      error.message,
+      file: file,
+      line: null,
+    );
+  }
+}
 
 /// Parses [text] into a [YamlMap], mapping YAML errors to a [TemplateFault].
 ///
@@ -115,16 +134,27 @@ List<String> stringList(
 }) {
   final list = optionalValue<YamlList>(map, key, file: file, prefix: prefix);
   if (list == null) return <String>[];
-  return [
-    for (final element in list)
-      if (element is String)
-        element
-      else
-        throw TemplateFault(
-          FaultCode.unknownValue,
-          'the key $key must hold only strings',
-          file: file,
-          key: '$prefix$key',
-        ),
-  ];
+  return stringsOf(list, key, file: file, prefix: prefix);
 }
+
+/// Returns the strings held by [list], throwing for the first non-string.
+///
+/// Throws `unknown_value` with the message `the key $key must hold only
+/// strings` and the key `$prefix$key` for an element that is not a [String].
+List<String> stringsOf(
+  YamlList list,
+  String key, {
+  required String file,
+  String prefix = '',
+}) => [
+  for (final element in list)
+    if (element is String)
+      element
+    else
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $key must hold only strings',
+        file: file,
+        key: '$prefix$key',
+      ),
+];
