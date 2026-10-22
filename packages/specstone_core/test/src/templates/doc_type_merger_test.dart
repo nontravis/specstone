@@ -399,4 +399,156 @@ sections:
       expect(merged.fields[2].description, 'Hidden');
     });
   });
+
+  group('DocTypeMerger.apply lint', () {
+    MergedDocType withBannedWords() =>
+        project(shipped(), 'lint: {banned_words: [fast, robust]}');
+
+    test('f03/us02/s5, f03/us02/fr03/e03: add and remove change a lower '
+        'word list', () {
+      final merged = project(
+        withBannedWords(),
+        'lint: {banned_words: {add: [simply], remove: [fast]}}',
+      );
+
+      expect(merged.lint.bannedWords, ['robust', 'simply']);
+    });
+
+    test('f03/us02/fr03/e05: removing a word the base lacks is '
+        'lint_word_not_found', () {
+      expect(
+        () => project(
+          withBannedWords(),
+          'lint: {banned_words: {remove: [quick]}}',
+        ),
+        throwsA(fault(FaultCode.lintWordNotFound, 'lint.banned_words')),
+      );
+    });
+
+    test('f03/us02/fr03/e05: removing an allowed word the base lacks names '
+        'lint.allowed_words', () {
+      expect(
+        () => project(shipped(), 'lint: {allowed_words: {remove: [API]}}'),
+        throwsA(fault(FaultCode.lintWordNotFound, 'lint.allowed_words')),
+      );
+    });
+
+    test('f03/us02/fr03/e06: a plain list over a defined list is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => project(withBannedWords(), 'lint: {banned_words: [x]}'),
+        throwsA(
+          fault(FaultCode.listOverrideNeedsAddRemove, 'lint.banned_words'),
+        ),
+      );
+    });
+
+    test('f03/us02/fr03/e06: a plain allowed_words list over a defined list '
+        'names lint.allowed_words', () {
+      final base = project(shipped(), 'lint: {allowed_words: [API]}');
+
+      expect(
+        () => project(base, 'lint: {allowed_words: [UI]}'),
+        throwsA(
+          fault(FaultCode.listOverrideNeedsAddRemove, 'lint.allowed_words'),
+        ),
+      );
+    });
+
+    test('f03/us02/fr03/e07: a plain list is accepted where no lower layer '
+        'defines it', () {
+      final merged = project(shipped(), 'lint: {allowed_words: [API]}');
+
+      expect(merged.lint.allowedWords, ['API']);
+      expect(merged.lint.bannedWords, isNull);
+    });
+
+    test('f03/us02/fr03/e07: add on an undefined list starts from empty', () {
+      final merged = project(shipped(), 'lint: {banned_words: {add: [fast]}}');
+
+      expect(merged.lint.bannedWords, ['fast']);
+    });
+
+    test('f03/us02/fr03: a layer max_lines replaces the base and keeps the '
+        'other limit', () {
+      final base = project(
+        shipped(),
+        'lint: {max_chars: 12000, max_lines: 300}',
+      );
+
+      final merged = project(base, 'lint: {max_lines: 200}');
+
+      expect(merged.lint.maxChars, 12000);
+      expect(merged.lint.maxLines, 200);
+    });
+
+    test('f03/us02/fr03/e04: a section keeps its own lint and an unwritten '
+        'one stays null', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, lint: {max_lines: 5}}]',
+      );
+
+      expect(merged.sections.firstWhere((s) => s.id == 'goal').maxLines, 5);
+      expect(
+        merged.sections.firstWhere((s) => s.id == 'scope').maxLines,
+        isNull,
+      );
+    });
+
+    test('f03/us02/fr03: a layer with no lint keeps the base lint', () {
+      final base = project(withBannedWords(), 'lint: {max_chars: 100}');
+
+      final merged = project(base, 'description: Other\n');
+
+      expect(merged.lint.maxChars, 100);
+      expect(merged.lint.bannedWords, ['fast', 'robust']);
+    });
+  });
+
+  group('DocTypeMerger.apply reference', () {
+    MergedDocType withReferences() =>
+        project(shipped(), 'reference: [{title: A}, {title: B}]');
+
+    List<String> titles(MergedDocType type) => [
+      for (final entry in type.reference!) entry.title,
+    ];
+
+    test('f03/us02/s10, f03/us02/fr05: add and remove change the lower '
+        'reference list', () {
+      final merged = project(
+        withReferences(),
+        'reference: {add: [{title: C}], remove: [A]}',
+      );
+
+      expect(titles(merged), ['B', 'C']);
+    });
+
+    test('f03/us02/s11, f03/us02/fr05/e01: removing a title the base lacks '
+        'is reference_title_not_found', () {
+      expect(
+        () => project(withReferences(), 'reference: {remove: [Z]}'),
+        throwsA(fault(FaultCode.referenceTitleNotFound, 'reference')),
+      );
+    });
+
+    test('f03/us02/fr05/e02: a layer with no reference keeps the base', () {
+      final merged = project(withReferences(), 'description: Other\n');
+
+      expect(titles(merged), ['A', 'B']);
+    });
+
+    test('f03/us02/fr05/e04: a plain list over a defined list is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => project(withReferences(), 'reference: [{title: D}]'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'reference')),
+      );
+    });
+
+    test('f03/us02/fr05: a plain list is accepted where no lower layer '
+        'defines it', () {
+      expect(titles(withReferences()), ['A', 'B']);
+    });
+  });
 }

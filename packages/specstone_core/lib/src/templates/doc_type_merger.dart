@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The four fields every doc type carries below its lowest layer (INV-20).
@@ -31,8 +32,12 @@ final class DocTypeMerger {
   ///
   /// Throws `override_id_not_found` for an entry that cannot add or override,
   /// `after_id_not_found` for a section whose `after:` names an id the base
-  /// built so far lacks, and `locked_field_disabled` for a layer that breaks a
-  /// built-in field or clears a parent the base has.
+  /// built so far lacks, `locked_field_disabled` for a layer that breaks a
+  /// built-in field or clears a parent the base has,
+  /// `list_override_needs_add_remove` for a plain word or reference list over
+  /// one a lower layer defines, `lint_word_not_found` for a removed word the
+  /// base lacks, and `reference_title_not_found` for a removed title the base
+  /// lacks.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
     return base.copyWith(
@@ -42,6 +47,8 @@ final class DocTypeMerger {
       path: layer.path,
       fields: _mergeFields(base.fields, layer),
       sections: _mergeSections(base.sections, layer),
+      lint: _mergeLint(base.lint, layer),
+      reference: _mergeReference(base.reference, layer),
       files: [...base.files, layer.file],
     );
   }
@@ -57,6 +64,88 @@ final class DocTypeMerger {
       );
     }
     return layer.parent;
+  }
+
+  MergedLint _mergeLint(MergedLint base, DocTypeLayer layer) {
+    final lint = layer.lint;
+    if (lint == null) return base;
+    return base.copyWith(
+      maxChars: lint.maxChars,
+      maxLines: lint.maxLines,
+      bannedWords: _mergeList<String>(
+        base.bannedWords,
+        lint.bannedWords,
+        layer,
+        key: 'lint.banned_words',
+        nameOf: (word) => word,
+        notFound: FaultCode.lintWordNotFound,
+      ),
+      allowedWords: _mergeList<String>(
+        base.allowedWords,
+        lint.allowedWords,
+        layer,
+        key: 'lint.allowed_words',
+        nameOf: (word) => word,
+        notFound: FaultCode.lintWordNotFound,
+      ),
+    );
+  }
+
+  List<ReferenceEntry>? _mergeReference(
+    List<ReferenceEntry>? base,
+    DocTypeLayer layer,
+  ) => _mergeList<ReferenceEntry>(
+    base,
+    layer.reference,
+    layer,
+    key: 'reference',
+    nameOf: (entry) => entry.title,
+    notFound: FaultCode.referenceTitleNotFound,
+  );
+
+  /// Returns [base] with [write] applied, or [base] when [write] is null.
+  ///
+  /// A [PlainList] is accepted only where [base] is null. A [ListChange]
+  /// starts from an empty list when [base] is null and must remove only names
+  /// [base] holds, else it throws the [notFound] fault.
+  List<T>? _mergeList<T>(
+    List<T>? base,
+    ListWrite<T>? write,
+    DocTypeLayer layer, {
+    required String key,
+    required String Function(T) nameOf,
+    required FaultCode notFound,
+  }) {
+    switch (write) {
+      case null:
+        return base;
+      case PlainList(:final items):
+        if (base == null) return items;
+        throw TemplateFault(
+          FaultCode.listOverrideNeedsAddRemove,
+          'a lower layer already defines $key; write add and remove to '
+          'change it',
+          file: layer.file,
+          key: key,
+        );
+      case ListChange(:final add, :final remove):
+        final lower = base ?? <T>[];
+        final names = lower.map(nameOf).toSet();
+        for (final name in remove) {
+          if (names.contains(name)) continue;
+          throw TemplateFault(
+            notFound,
+            'cannot remove $name from $key; no lower layer holds it',
+            file: layer.file,
+            key: key,
+          );
+        }
+        return [
+          for (final item in lower)
+            if (!remove.contains(nameOf(item))) item,
+          ...add,
+        ];
+    }
   }
 
   List<MergedField> _mergeFields(List<MergedField> base, DocTypeLayer layer) {
