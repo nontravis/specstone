@@ -52,6 +52,23 @@ void main() {
       },
     );
 
+    test('s03/inv18: a shipped pack sits above every shipped pack its chain '
+        'reaches, and below every personal pack', () async {
+      final ordered = orderPacks([
+        await personal('nont-a', null),
+        shipped('a-pack', 'b-pack'),
+        shipped('c-pack', null),
+        shipped('b-pack', null),
+      ], configFile: _configFile);
+
+      expect(ordered.map((p) => p.manifest.name), [
+        'b-pack',
+        'a-pack',
+        'c-pack',
+        'nont-a',
+      ]);
+    });
+
     test('f03/us04/fr01/e10: a personal pack sits above every pack its chain '
         'reaches', () async {
       final ordered = orderPacks([
@@ -158,7 +175,7 @@ void main() {
     );
 
     test(
-      'f03/inv4: a loop that never returns to the start ends, not hangs',
+      's03/inv5: a loop that never returns to the start ends, not hangs',
       () async {
         final a = await personal('nont-a', 'nont-b');
         final b = await personal('nont-b', 'nont-c');

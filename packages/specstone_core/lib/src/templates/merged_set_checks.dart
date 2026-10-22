@@ -7,6 +7,38 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// The layers the resolver folded for one doc type, lowest first.
 typedef DocTypeLayers = List<({LoadedPack? pack, DocTypeLayer layer})>;
 
+/// One pack with the doc type layers its folder parsed, by doc type id.
+typedef ParsedPack = ({LoadedPack pack, Map<String, DocTypeLayer> layers});
+
+/// The load index of every layer file: its place in the load sequence.
+///
+/// The load sequence runs the packs in `orderPacks` order, each pack's layers
+/// in parse order, then the project layers (INV-22). A later layer has the
+/// higher index, so layer rank and file order need no second rule.
+typedef LoadIndex = Map<String, int>;
+
+/// The [LoadIndex] of the layers in [loadOrder].
+LoadIndex loadIndexOf(Iterable<DocTypeLayer> loadOrder) => {
+  for (final (index, layer) in loadOrder.indexed) layer.file: index,
+};
+
+/// Splits the [files] a fault names into the one `file` and the
+/// `relatedFiles` (the fault envelope rule).
+///
+/// `file` is the file with the highest [index], the upper layer's or the
+/// later-loaded one; `relatedFiles` holds the rest, ascending. A null file is
+/// dropped and a repeated file counts once; a file missing from [index] ranks
+/// lowest.
+({String? file, List<String> related}) rankFaultFiles(
+  Iterable<String?> files,
+  LoadIndex index,
+) {
+  final ranked = <String>{for (final file in files) ?file}.toList()
+    ..sort((a, b) => (index[a] ?? -1).compareTo(index[b] ?? -1));
+  if (ranked.isEmpty) return (file: null, related: const []);
+  return (file: ranked.last, related: ranked.sublist(0, ranked.length - 1));
+}
+
 /// The top-most layer of [layers] for which [wrote] holds, or null.
 ///
 /// The one scan that finds the layer which wrote a key; `extends` writers
@@ -28,7 +60,8 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 ///
 /// [layerLists] holds, per doc type id, the folded layers, lowest first; a
 /// fault's `file` names the top-most layer that wrote the key, climbed
-/// through `extends` when no own layer wrote it. Runs after every merge
+/// through `extends` when no own layer wrote it. A fault that names several
+/// files ranks them by [loadIndex]. Runs after every merge
 /// (INV-19, INV-21): two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), and every
@@ -36,23 +69,25 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
-  Map<String, DocTypeLayers> layerLists,
-) {
+  Map<String, DocTypeLayers> layerLists, {
+  required LoadIndex loadIndex,
+}) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
-  _checkPaths(sorted, layerLists);
-  _checkParents(sorted, byId, layerLists);
+  _checkPaths(sorted, layerLists, loadIndex);
+  _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
 }
 
 /// Throws `doc_type_path_conflict` for a `path` two doc types share
 /// (INV-19).
 ///
-/// Doc types load in id code point order (INV-22), so `file` holds the
-/// later doc type's `path` writer and `relatedFiles` the earlier ones'.
+/// `file` holds the `path` writer that loads last by [loadIndex], and
+/// `relatedFiles` the other holders' writers, ascending.
 void _checkPaths(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
 ) {
   final byPath = <String, List<MergedDocType>>{};
   for (final docType in docTypes) {
@@ -61,15 +96,16 @@ void _checkPaths(
   }
   for (final MapEntry(key: path, value: holders) in byPath.entries) {
     if (holders.length < 2) continue;
-    final others = holders
-        .take(holders.length - 1)
-        .map((holder) => _writerOf(holder.id, _wrotePath, layerLists));
+    final (:file, :related) = rankFaultFiles([
+      for (final holder in holders)
+        _writerOf(holder.id, _wrotePath, layerLists),
+    ], loadIndex);
     throw TemplateFault(
       FaultCode.docTypePathConflict,
       'two doc types write one path pattern: $path',
-      file: _writerOf(holders.last.id, _wrotePath, layerLists),
+      file: file,
       key: 'path',
-      relatedFiles: [for (final related in others) ?related],
+      relatedFiles: related,
     );
   }
 }
@@ -82,6 +118,7 @@ void _checkParents(
   List<MergedDocType> docTypes,
   Map<String, MergedDocType> byId,
   Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
 ) {
   for (final docType in docTypes) {
     final parent = docType.parent;
@@ -98,7 +135,11 @@ void _checkParents(
     var target = docType.parent;
     while (target != null) {
       if (walked.contains(target)) {
-        _throwParentCycle(walked.sublist(walked.indexOf(target)), layerLists);
+        _throwParentCycle(
+          walked.sublist(walked.indexOf(target)),
+          layerLists,
+          loadIndex,
+        );
       }
       final next = byId[target];
       if (next == null) break;
@@ -112,22 +153,22 @@ bool _wroteParent(DocTypeLayer layer) => layer.writesParent;
 
 /// Throws the `parent_cycle` fault for [cycle], walked in chain order.
 ///
-/// `file` holds the later-loaded file of the cycle in id order (INV-22);
-/// `relatedFiles` holds the other cycle files in that order.
+/// `file` holds the cycle file that loads last by [loadIndex];
+/// `relatedFiles` holds the other cycle files, ascending.
 Never _throwParentCycle(
   List<String> cycle,
   Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
 ) {
-  final members = [...cycle]..sort(compareCodePoints);
-  final others = members
-      .where((member) => member != members.last)
-      .map((member) => _writerOf(member, _wroteParent, layerLists));
+  final (:file, :related) = rankFaultFiles([
+    for (final member in cycle) _writerOf(member, _wroteParent, layerLists),
+  ], loadIndex);
   throw TemplateFault(
     FaultCode.parentCycle,
     'parent chain returns to its start: ${[...cycle, cycle.first].join(', ')}',
-    file: _writerOf(members.last, _wroteParent, layerLists),
+    file: file,
     key: 'parent',
-    relatedFiles: [for (final related in others) ?related],
+    relatedFiles: related,
   );
 }
 

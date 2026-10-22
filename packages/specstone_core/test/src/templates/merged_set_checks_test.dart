@@ -43,6 +43,17 @@ MergedDocType builtIn(String id) => MergedDocType(
   files: const [],
 );
 
+/// [checkMergedSet] over [docTypes], loading [layers] in map order.
+void check(List<MergedDocType> docTypes, Map<String, DocTypeLayers> layers) =>
+    checkMergedSet(
+      docTypes,
+      layers,
+      loadIndex: loadIndexOf([
+        for (final list in layers.values)
+          for (final entry in list) entry.layer,
+      ]),
+    );
+
 void main() {
   group('checkMergedSet', () {
     test('f03/us03/fr02/e06: two doc types with one path are '
@@ -58,7 +69,7 @@ void main() {
         'runbook': [layerOf('runbook', 'path: ops/{slug}/RUNBOOK.md\n')],
       };
       expect(
-        () => checkMergedSet([
+        () => check([
           builtIn('playbook').copyWith(path: 'ops/{slug}/RUNBOOK.md'),
           builtIn('runbook').copyWith(path: 'ops/{slug}/RUNBOOK.md'),
         ], layers),
@@ -78,9 +89,7 @@ void main() {
         'runbook': [layerOf('runbook', 'parent: nope\n')],
       };
       expect(
-        () => checkMergedSet([
-          builtIn('runbook').copyWith(parent: 'nope'),
-        ], layers),
+        () => check([builtIn('runbook').copyWith(parent: 'nope')], layers),
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.unknownValue)
@@ -96,7 +105,7 @@ void main() {
         'story': [layerOf('story', 'parent: epic\n', file: _storyFile)],
       };
       expect(
-        () => checkMergedSet([
+        () => check([
           builtIn('epic').copyWith(parent: 'story'),
           builtIn('story').copyWith(parent: 'epic'),
         ], layers),
@@ -115,8 +124,7 @@ void main() {
         'self': [layerOf('self', 'parent: self\n', file: _selfFile)],
       };
       expect(
-        () =>
-            checkMergedSet([builtIn('self').copyWith(parent: 'self')], layers),
+        () => check([builtIn('self').copyWith(parent: 'self')], layers),
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.parentCycle)
@@ -138,7 +146,7 @@ void main() {
           ],
         };
         expect(
-          () => checkMergedSet([
+          () => check([
             builtIn('runbook').copyWith(
               fields: [
                 const MergedField(
@@ -165,7 +173,7 @@ void main() {
         'feature': [layerOf('feature', 'path: f.md\n')],
       };
       expect(
-        () => checkMergedSet([
+        () => check([
           builtIn('runbook').copyWith(parent: 'feature'),
           builtIn('feature').copyWith(path: 'f.md'),
         ], layers),
@@ -173,7 +181,7 @@ void main() {
       );
     });
 
-    test('ruling 2026-10-22: a parent fault names the upper file when a '
+    test('f03/us03/fr01/e12: a parent fault names the upper file when a '
         'lower layer also wrote it', () {
       final layers = {
         'runbook': [
@@ -186,9 +194,7 @@ void main() {
         ],
       };
       expect(
-        () => checkMergedSet([
-          builtIn('runbook').copyWith(parent: 'nope'),
-        ], layers),
+        () => check([builtIn('runbook').copyWith(parent: 'nope')], layers),
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.unknownValue)

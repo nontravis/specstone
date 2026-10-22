@@ -164,34 +164,30 @@ final class TemplateResolver {
   /// (INV-12); with `extends` the doc type starts from the merged target
   /// with every key kept but `id` and `path` (F3-D49), and no layer above
   /// the defining layer may write `extends` (INV-4). The merged set is
-  /// checked as one set after every merge.
-  MergedSet _merge(
-    List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
-    List<DocTypeLayer> projectLayers,
-  ) {
+  /// checked as one set after every merge. The one [LoadIndex] built here
+  /// ranks every file a fault names.
+  MergedSet _merge(List<ParsedPack> packs, List<DocTypeLayer> projectLayers) {
     const merger = DocTypeMerger();
     final layerLists = _docTypeLayers(packs, projectLayers);
-    _checkExtendsInOverride(packs, projectLayers, layerLists);
-    final docTypes = _resolveInDependencyOrder(layerLists, merger);
-    checkMergedSet(docTypes.values.toList(), layerLists);
-    return MergedSet(docTypes: docTypes.values.toList());
-  }
-
-  /// Throws `extends_in_override` for the first layer, in load order, that
-  /// is not its doc type's defining layer and writes `extends` (INV-4).
-  ///
-  /// Load order runs the [packs] in `orderPacks` order, each pack's layers in
-  /// parse order, then the [projectLayers]. The defining layer of a doc type
-  /// is the lowest in [layerLists].
-  void _checkExtendsInOverride(
-    List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
-    List<DocTypeLayer> projectLayers,
-    Map<String, DocTypeLayers> layerLists,
-  ) {
     final loadOrder = [
       for (final (pack: _, :layers) in packs) ...layers.values,
       ...projectLayers,
     ];
+    final loadIndex = loadIndexOf(loadOrder);
+    _checkExtendsInOverride(loadOrder, layerLists);
+    final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
+    checkMergedSet(docTypes.values.toList(), layerLists, loadIndex: loadIndex);
+    return MergedSet(docTypes: docTypes.values.toList());
+  }
+
+  /// Throws `extends_in_override` for the first layer of [loadOrder] that is
+  /// not its doc type's defining layer and writes `extends` (INV-4).
+  ///
+  /// The defining layer of a doc type is the lowest in [layerLists].
+  void _checkExtendsInOverride(
+    List<DocTypeLayer> loadOrder,
+    Map<String, DocTypeLayers> layerLists,
+  ) {
     for (final layer in loadOrder) {
       final defining = layerLists[layer.docTypeId]!.first.layer;
       if (identical(layer, defining) || !wroteExtends(layer)) continue;
@@ -208,9 +204,10 @@ final class TemplateResolver {
   Map<String, MergedDocType> _resolveInDependencyOrder(
     Map<String, DocTypeLayers> layerLists,
     DocTypeMerger merger,
+    LoadIndex loadIndex,
   ) {
     final docTypes = <String, MergedDocType>{};
-    for (final id in _dependencyOrder(layerLists)) {
+    for (final id in _dependencyOrder(layerLists, loadIndex)) {
       docTypes[id] = _mergeOne(id, layerLists[id]!, merger, docTypes);
     }
     return docTypes;
@@ -222,7 +219,10 @@ final class TemplateResolver {
   ///
   /// The defining layer of a doc type names its `extends`; ids without one
   /// merge in code point order (INV-22).
-  List<String> _dependencyOrder(Map<String, DocTypeLayers> layerLists) {
+  List<String> _dependencyOrder(
+    Map<String, DocTypeLayers> layerLists,
+    LoadIndex loadIndex,
+  ) {
     String? extendsOf(String id) =>
         topMostWriter(layerLists[id]!, wroteExtends)?.extendsId;
 
@@ -230,7 +230,7 @@ final class TemplateResolver {
     final done = <String>{};
     final sorted = layerLists.keys.toList()..sort(compareCodePoints);
     for (final id in sorted) {
-      _visit(id, extendsOf, layerLists, done, order);
+      _visit(id, extendsOf, layerLists, loadIndex, done, order);
     }
     return order;
   }
@@ -240,6 +240,7 @@ final class TemplateResolver {
     String id,
     String? Function(String) extendsOf,
     Map<String, DocTypeLayers> layerLists,
+    LoadIndex loadIndex,
     Set<String> done,
     List<String> order,
   ) {
@@ -252,7 +253,11 @@ final class TemplateResolver {
       if (target == null) break;
       walked.add(current);
       if (walked.contains(target)) {
-        _throwExtendsCycle(walked.sublist(walked.indexOf(target)), layerLists);
+        _throwExtendsCycle(
+          walked.sublist(walked.indexOf(target)),
+          layerLists,
+          loadIndex,
+        );
       }
       if (!layerLists.containsKey(target)) {
         _throwExtendsTargetUnknown(current, target, layerLists);
@@ -281,22 +286,22 @@ final class TemplateResolver {
 
   /// Throws the `extends_cycle` fault for [cycle], walked in chain order.
   ///
-  /// `file` holds the later-loaded file of the cycle in id order (INV-22);
-  /// `relatedFiles` holds the other cycle files in that order.
+  /// `file` holds the cycle file that loads last by [loadIndex];
+  /// `relatedFiles` holds the other cycle files, ascending.
   Never _throwExtendsCycle(
     List<String> cycle,
     Map<String, DocTypeLayers> layerLists,
+    LoadIndex loadIndex,
   ) {
-    final members = [...cycle]..sort(compareCodePoints);
     final walkedPath = [...cycle, cycle.first].join(', ');
+    final (:file, :related) = rankFaultFiles([
+      for (final member in cycle) _extendsWriter(member, layerLists),
+    ], loadIndex);
     throw TemplateFault(
       FaultCode.extendsCycle,
       'extends chain returns to its start: $walkedPath',
-      file: _extendsWriter(members.last, layerLists),
-      relatedFiles: [
-        for (final member in members.where((m) => m != members.last))
-          ?_extendsWriter(member, layerLists),
-      ],
+      file: file,
+      relatedFiles: related,
     );
   }
 
@@ -400,7 +405,7 @@ final class TemplateResolver {
   /// project template over a pack-defined id is an override, never a
   /// duplicate.
   Map<String, DocTypeLayers> _docTypeLayers(
-    List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
+    List<ParsedPack> packs,
     List<DocTypeLayer> projectLayers,
   ) {
     final lists = <String, DocTypeLayers>{};

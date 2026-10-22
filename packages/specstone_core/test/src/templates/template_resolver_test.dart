@@ -1457,6 +1457,60 @@ path: b/{slug}.md
       );
     });
 
+    test('f03/us03/s6, f03/us03/fr04/e01, s03/inv22: a doc-type extends loop '
+        'across layers names the upper layer file', () async {
+      final files = shipped()
+        ..['prd-core/feature.yaml'] = _bytes('''
+id: feature
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+extends: epic
+''');
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/epic.yaml': '''
+id: epic
+extends: feature
+path: epics/{slug}/EPIC.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsCycle)
+              .having((f) => f.file, 'file', '.specstone/templates/epic.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                'packs/prd-core/feature.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('s03/inv5, s03/inv22: a shipped pack extending another shipped pack '
+        'loads above it, so its override resolves', () async {
+      final files = shipped()
+        ..['prd-core/pack.yaml'] = _bytes(
+          'name: prd-core\nversion: 1.1.0\nextends: software-tech\n',
+        )
+        ..['prd-core/architecture.yaml'] = _bytes('description: Overridden\n');
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('architecture')!.description, 'Overridden');
+    });
+
     test('f03/us03/fr02/e05: a new doc type with no parent is a top-level '
         'doc type', () async {
       final project = await writeTree({
@@ -1509,6 +1563,64 @@ path: ops/{slug}/RUNBOOK.md
               )
               .having((f) => f.relatedFiles, 'relatedFiles', [
                 '.specstone/templates/playbook.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('f03/us03/fr02/e06, s03/inv19: a project doc type sharing a shipped '
+        'path faults on the project file', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/epic.yaml': '''
+id: epic
+description: An epic
+path: features/f{nn}_{slug}/FEATURE.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.key, 'key', 'path')
+              .having((f) => f.file, 'file', '.specstone/templates/epic.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                'packs/prd-core/feature.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('f03/us03/fr02/e06, s03/inv22: a path conflict names the file that '
+        'loads later by path, not by doc type id', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/run.yaml': '''
+id: run
+description: A run
+path: ops/{slug}/RUN.md
+''',
+        '.specstone/templates/run-book.yaml': '''
+id: run-book
+description: A run book
+path: ops/{slug}/RUN.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.file, 'file', '.specstone/templates/run.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '.specstone/templates/run-book.yaml',
               ]),
         ),
       );
@@ -1621,6 +1733,40 @@ parent: self
       );
     });
 
+    test('f03/us03/fr01/e13, s03/inv22: a parent loop across layers names the '
+        'upper layer file', () async {
+      final files = shipped()
+        ..['prd-core/feature.yaml'] = _bytes('''
+id: feature
+description: A feature
+path: features/f{nn}_{slug}/FEATURE.md
+parent: epic
+''');
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/epic.yaml': '''
+id: epic
+description: An epic
+path: epics/{slug}/EPIC.md
+parent: feature
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: files);
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.parentCycle)
+              .having((f) => f.file, 'file', '.specstone/templates/epic.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                'packs/prd-core/feature.yaml',
+              ]),
+        ),
+      );
+    });
+
     test('f03/us03/fr01/e14: a doc_types entry naming no id is '
         'unknown_value', () async {
       final project = await writeTree({
@@ -1677,10 +1823,11 @@ path: adr/{slug}.md
       expect(merged.lookup('feature'), isNotNull);
     });
 
-    test('ruling 2026-10-22: every list of an extends-built doc type throws '
-        'UnsupportedError on add', () async {
-      final files = shipped()
-        ..['prd-core/feature.yaml'] = _bytes('''
+    test(
+      's03/inv4: every list of an extends-built doc type is unmodifiable',
+      () async {
+        final files = shipped()
+          ..['prd-core/feature.yaml'] = _bytes('''
 id: feature
 description: A feature
 path: features/f{nn}_{slug}/FEATURE.md
@@ -1690,37 +1837,38 @@ sections:
 reference:
   - title: A
 ''');
-      final project = await writeTree({
-        _configPath: 'packs:\n  prd-core: 1.1.0\n',
-        '.specstone/templates/adr.yaml': '''
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/adr.yaml': '''
 id: adr
 extends: feature
 path: adr/{slug}.md
 ''',
-      });
-      final home = await writeTree({});
-      final resolver = TemplateResolver(shippedFiles: files);
+        });
+        final home = await writeTree({});
+        final resolver = TemplateResolver(shippedFiles: files);
 
-      final merged = resolver.resolve(
-        workingDirectory: project,
-        homeDirectory: home,
-      );
+        final merged = resolver.resolve(
+          workingDirectory: project,
+          homeDirectory: home,
+        );
 
-      final adr = merged.lookup('adr')!;
-      expect(
-        () => adr.fields.add(adr.fields.first),
-        throwsUnsupportedError,
-        reason: 'fields of an extends-built doc type are unmodifiable',
-      );
-      expect(
-        () => adr.sections.add(adr.sections.first),
-        throwsUnsupportedError,
-      );
-      expect(() => adr.files.add('x'), throwsUnsupportedError);
-      expect(
-        () => adr.reference!.add(adr.reference!.first),
-        throwsUnsupportedError,
-      );
-    });
+        final adr = merged.lookup('adr')!;
+        expect(
+          () => adr.fields.add(adr.fields.first),
+          throwsUnsupportedError,
+          reason: 'fields of an extends-built doc type are unmodifiable',
+        );
+        expect(
+          () => adr.sections.add(adr.sections.first),
+          throwsUnsupportedError,
+        );
+        expect(() => adr.files.add('x'), throwsUnsupportedError);
+        expect(
+          () => adr.reference!.add(adr.reference!.first),
+          throwsUnsupportedError,
+        );
+      },
+    );
   });
 }

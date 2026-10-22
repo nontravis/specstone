@@ -5,9 +5,9 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Orders [packs] by their `extends` chains (INV-4, INV-18).
 ///
-/// Shipped packs come first by name, then personal packs so each sits above
-/// every pack its chain reaches; personal packs outside one chain keep name
-/// order (INV-22). Every `extends` must name a loaded pack
+/// Shipped packs come first, then personal packs. Within each kind a pack
+/// sits above every pack its chain reaches; packs outside one chain keep name
+/// order (INV-18, INV-22). Every `extends` must name a loaded pack
 /// (`extends_target_unknown`), no chain may return to its start
 /// (`extends_cycle`), and no two personal packs may extend one pack
 /// (`personal_pack_conflict`, [configFile], key `packs`). Chains run over
@@ -20,8 +20,10 @@ List<LoadedPack> orderPacks(
   _checkTargets(packs, extendsOf);
   _checkCycles(packs, extendsOf);
   _checkPersonalConflicts(packs, configFile);
-  final shipped = [...packs.where((pack) => pack.kind == LayerKind.shipped)]
-    ..sort((a, b) => compareCodePoints(a.manifest.name, b.manifest.name));
+  final shipped = _chainOrdered(
+    packs.where((pack) => pack.kind == LayerKind.shipped),
+    extendsOf,
+  );
   final personal = _chainOrdered(
     packs.where((pack) => pack.kind == LayerKind.personal),
     extendsOf,
@@ -133,16 +135,16 @@ void _checkPersonalConflicts(List<LoadedPack> packs, String configFile) {
   }
 }
 
-/// Sorts [personal] so each pack sits above every pack its chain reaches.
+/// Sorts [packs] so each pack sits above every pack its chain reaches.
 ///
 /// Packs wait until every pack they reach is placed; among unblocked packs
 /// the name-first (INV-22) is placed first. Cycles cannot reach here:
 /// `_checkCycles` ran first.
 List<LoadedPack> _chainOrdered(
-  Iterable<LoadedPack> personal,
+  Iterable<LoadedPack> packs,
   Map<String, String?> extendsOf,
 ) {
-  final pending = [...personal]
+  final pending = [...packs]
     ..sort((a, b) => compareCodePoints(a.manifest.name, b.manifest.name));
   final ordered = <LoadedPack>[];
   while (pending.isNotEmpty) {
