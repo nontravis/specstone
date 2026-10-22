@@ -110,9 +110,9 @@ const _entryKeys = {'title', 'url', 'file', 'doc', 'locator'};
 ///
 /// [written] is a plain layer-relative path, never a URI reference, so names
 /// keep their written characters. Throws `reference_file_outside` for a
-/// scheme, a drive letter, a leading `/` or `\`, or any `..` segment that
-/// pops above the template file's folder, and `reference_file_missing` when
-/// the layer holds no file at the resolved path.
+/// scheme, a drive letter, a leading `/`, any `\` (reference paths use `/`),
+/// or any `..` segment that pops above the template file's folder, and
+/// `reference_file_missing` when the layer holds no file at the resolved path.
 String _resolveFile(
   String written, {
   required String templateFolder,
@@ -150,7 +150,7 @@ final _schemePrefix = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:');
 /// and `.` segments drop out; a `..` that would pop above the folder fails.
 List<String>? _insideSegments(String written, String templateFolder) {
   if (written.startsWith('/') ||
-      written.startsWith(r'\') ||
+      written.contains(r'\') ||
       _schemePrefix.hasMatch(written)) {
     return null;
   }

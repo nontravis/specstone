@@ -202,6 +202,23 @@ void main() {
       },
     );
 
+    test('f03/us03/fr03/e04: a backslash escape is reference_file_outside', () {
+      expect(
+        () => parseRef(r"{title: T, file: 'refs\..\..\x.md'}"),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
+
+    test(
+      'f03/us03/fr03/e04: a backslash separator is reference_file_outside',
+      () {
+        expect(
+          () => parseRef(r"{title: T, file: 'refs\x.md'}"),
+          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+        );
+      },
+    );
+
     test('f03/us03/fr03: a file name with a space keeps its characters', () {
       final entry = parseRef(
         '{title: T, file: my notes.md}',
