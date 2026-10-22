@@ -34,6 +34,20 @@ void main() {
       expect(out.toString(), contains('mcp'));
     });
 
+    test('mcp --help prints the mcp usage to out and exits 0', () async {
+      expect(await runner.run(['mcp', '--help']), 0);
+      expect(
+        out.toString(),
+        contains('Run the Specstone MCP server over stdio.'),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('help mcp prints the mcp usage to out and exits 0', () async {
+      expect(await runner.run(['help', 'mcp']), 0);
+      expect(out.toString(), contains('Usage: specstone mcp'));
+    });
+
     test('an unknown command prints usage to stderr and exits 64', () async {
       expect(await runner.run(['nope']), usageExitCode);
       expect(err.toString(), contains('Could not find a command named "nope"'));

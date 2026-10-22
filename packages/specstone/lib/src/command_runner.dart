@@ -34,6 +34,12 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final StringSink _out;
   final StringSink _err;
 
+  /// Sink that receives normal output: version, usage, and command results.
+  StringSink get out => _out;
+
+  /// Sink that receives usage errors.
+  StringSink get err => _err;
+
   @override
   void printUsage() => _out.writeln(usage);
 
