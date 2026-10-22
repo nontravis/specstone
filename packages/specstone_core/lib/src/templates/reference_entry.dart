@@ -108,9 +108,11 @@ const _entryKeys = {'title', 'url', 'file', 'doc', 'locator'};
 
 /// Resolves [written] against [templateFolder] and checks it exists.
 ///
-/// Throws `reference_file_outside` for an absolute path or any segment
-/// escaping the template file's folder, and `reference_file_missing` when the
-/// layer holds no file at the resolved path.
+/// [written] is a plain layer-relative path, never a URI reference, so names
+/// keep their written characters. Throws `reference_file_outside` for a
+/// scheme, a drive letter, a leading `/` or `\`, or any `..` segment that
+/// pops above the template file's folder, and `reference_file_missing` when
+/// the layer holds no file at the resolved path.
 String _resolveFile(
   String written, {
   required String templateFolder,
@@ -118,7 +120,8 @@ String _resolveFile(
   required String key,
   required LayerFiles files,
 }) {
-  if (written.startsWith('/') || _escapesFolder(written)) {
+  final segments = _insideSegments(written, templateFolder);
+  if (segments == null) {
     throw TemplateFault(
       FaultCode.referenceFileOutside,
       'the cited file $written must stay inside the template file folder',
@@ -126,8 +129,7 @@ String _resolveFile(
       key: key,
     );
   }
-  final folderPart = templateFolder.isEmpty ? '' : '$templateFolder/';
-  final normalized = Uri.parse(folderPart).resolve(written).path;
+  final normalized = segments.join('/');
   if (!files.exists(normalized)) {
     throw TemplateFault(
       FaultCode.referenceFileMissing,
@@ -139,18 +141,35 @@ String _resolveFile(
   return normalized;
 }
 
-/// Whether any `..` segment of [written] pops above the template folder.
-bool _escapesFolder(String written) {
-  var depth = 0;
+/// A scheme (`file:`, `https:`) or drive letter (`C:`) opening a path.
+final _schemePrefix = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:');
+
+/// Returns the layer-relative segments of [written] under [templateFolder].
+///
+/// Returns null when [written] is not a path inside the template folder. Empty
+/// and `.` segments drop out; a `..` that would pop above the folder fails.
+List<String>? _insideSegments(String written, String templateFolder) {
+  if (written.startsWith('/') ||
+      written.startsWith(r'\') ||
+      _schemePrefix.hasMatch(written)) {
+    return null;
+  }
+  final inside = <String>[];
   for (final segment in written.split('/')) {
-    if (segment == '..') {
-      depth--;
-      if (depth < 0) return true;
-    } else if (segment.isNotEmpty && segment != '.') {
-      depth++;
+    if (segment.isEmpty || segment == '.') continue;
+    if (segment != '..') {
+      inside.add(segment);
+    } else if (inside.isEmpty) {
+      return null;
+    } else {
+      inside.removeLast();
     }
   }
-  return false;
+  return [
+    for (final segment in templateFolder.split('/'))
+      if (segment.isNotEmpty) segment,
+    ...inside,
+  ];
 }
 
 String? _checkedDoc(

@@ -171,6 +171,53 @@ void main() {
   });
 
   group('ReferenceEntry file normalization', () {
+    test('f03/us03/fr03/e04: a file URL is reference_file_outside', () {
+      expect(
+        () => parseRef('{title: T, file: "file:///etc/hosts"}'),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
+
+    test('f03/us03/fr03/e04: an http URL is reference_file_outside', () {
+      expect(
+        () => parseRef('{title: T, file: "https://h/handbook.md"}'),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
+
+    test('f03/us03/fr03/e04: a drive letter is reference_file_outside', () {
+      expect(
+        () => parseRef('{title: T, file: "C:/x.md"}'),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
+
+    test(
+      'f03/us03/fr03/e04: a leading backslash is reference_file_outside',
+      () {
+        expect(
+          () => parseRef(r"{title: T, file: '\x.md'}"),
+          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+        );
+      },
+    );
+
+    test('f03/us03/fr03: a file name with a space keeps its characters', () {
+      final entry = parseRef(
+        '{title: T, file: my notes.md}',
+        files: {'my notes.md'},
+      );
+      expect(entry.file, 'my notes.md');
+    });
+
+    test('f03/us03/fr03: a file name with a hash keeps its characters', () {
+      final entry = parseRef(
+        '{title: T, file: refs/a#b.md}',
+        files: {'refs/a#b.md'},
+      );
+      expect(entry.file, 'refs/a#b.md');
+    });
+
     test(
       'f03/us03/fr03: a file inside a nested template folder is accepted',
       () {
