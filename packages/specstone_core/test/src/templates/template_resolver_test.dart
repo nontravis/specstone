@@ -388,7 +388,7 @@ reference:
       },
     );
 
-    test('f03/s03/inv22: two faulty project templates fault the first by code '
+    test('s03/inv22: two faulty project templates fault the first by code '
         'point', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -512,7 +512,7 @@ reference:
       );
     });
 
-    test('f03/s03/inv22: a pin fault wins over a doc-type fault in the other '
+    test('s03/inv22: a pin fault wins over a doc-type fault in the other '
         'pack whatever the YAML order', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  software-tech: 1.0.0\n  prd-core: 2.0.0\n',
