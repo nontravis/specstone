@@ -31,18 +31,20 @@ YamlMap readYamlMap(String text, {required String file}) {
 
 /// Throws `unknown_key` for the first key of [map] not in [allowed].
 ///
-/// Keys are checked in file order; the fault key is `'$prefix$name'`.
+/// Keys are checked in file order; the fault key is `'$prefix$name'`. [format]
+/// names the file format in the message, e.g. `'doc-type'` or `'config'`.
 void checkKeys(
   YamlMap map,
   Set<String> allowed, {
   required String file,
+  required String format,
   String prefix = '',
 }) {
   for (final name in map.keys) {
     if (name is String && allowed.contains(name)) continue;
     throw TemplateFault(
       FaultCode.unknownKey,
-      'the doc-type format defines no key $name',
+      'the $format format defines no key $name',
       file: file,
       key: '$prefix$name',
     );
@@ -71,7 +73,8 @@ T requireValue<T extends Object>(
 
 /// Returns the [T] at [key] of [map], or null when [key] is absent or null.
 ///
-/// Throws `unknown_value` when the value is not a [T].
+/// Throws `unknown_value` when the value is not a [T]; the message names the
+/// expected shape in plain words, never a Dart type name.
 T? optionalValue<T extends Object>(
   YamlMap map,
   String key, {
@@ -84,16 +87,26 @@ T? optionalValue<T extends Object>(
     final T typed => typed,
     _ => throw TemplateFault(
       FaultCode.unknownValue,
-      'the key $key must be a $T',
+      'the key $key must be ${_typeName<T>()}',
       file: file,
       key: '$prefix$key',
     ),
   };
 }
 
+String _typeName<T extends Object>() {
+  if (T == String) return 'a string';
+  if (T == bool) return 'true or false';
+  if (T == int) return 'a whole number';
+  if (T == YamlMap) return 'a mapping';
+  if (T == YamlList) return 'a list';
+  return 'a value of the right type';
+}
+
 /// Returns the list of strings at [key] of [map], empty when [key] is absent.
 ///
-/// Throws `unknown_value` when the value is not a list or holds a non-string.
+/// The empty list is growable. Throws `unknown_value` when the value is not a
+/// list or holds a non-string.
 List<String> stringList(
   YamlMap map,
   String key, {
@@ -101,7 +114,7 @@ List<String> stringList(
   String prefix = '',
 }) {
   final list = optionalValue<YamlList>(map, key, file: file, prefix: prefix);
-  if (list == null) return const [];
+  if (list == null) return <String>[];
   return [
     for (final element in list)
       if (element is String)

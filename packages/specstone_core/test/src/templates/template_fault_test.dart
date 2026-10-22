@@ -35,12 +35,12 @@ void main() {
   ];
 
   group('FaultCode', () {
-    test('f03/s05/catalog: wire codes equal the 29 catalog codes in order', () {
+    test('s05 catalog: wire codes equal the 29 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
       expect(FaultCode.values, hasLength(29));
     });
 
-    test('f03/s05/catalog: only docTypeUnknown exits 64, the rest 78', () {
+    test('s05 catalog: only docTypeUnknown exits 64, the rest 78', () {
       for (final code in FaultCode.values) {
         expect(
           code.exitStatus,
@@ -50,7 +50,7 @@ void main() {
       }
     });
 
-    test('f03/s05/catalog: value names are the camelCase of the wire code', () {
+    test('s05 catalog: value names are the camelCase of the wire code', () {
       for (final code in FaultCode.values) {
         final camel = code.wire.replaceAllMapped(
           RegExp('_([a-z])'),

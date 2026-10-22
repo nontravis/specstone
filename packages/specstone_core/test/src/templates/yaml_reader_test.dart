@@ -5,11 +5,12 @@ import 'package:yaml/yaml.dart';
 
 const _file = '.specstone/templates/a.yaml';
 
-Matcher _fault(FaultCode code, {String? key, int? line}) => isA<TemplateFault>()
-    .having((f) => f.code, 'code', code)
-    .having((f) => f.file, 'file', _file)
-    .having((f) => f.key, 'key', key)
-    .having((f) => f.line, 'line', line);
+TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
+    isA<TemplateFault>()
+        .having((f) => f.code, 'code', code)
+        .having((f) => f.file, 'file', _file)
+        .having((f) => f.key, 'key', key)
+        .having((f) => f.line, 'line', line);
 
 void main() {
   group('readYamlMap', () {
@@ -81,7 +82,13 @@ void main() {
       final map = readYamlMap('bogus: 1\n', file: _file);
 
       expect(
-        () => checkKeys(map, {'title'}, file: _file, prefix: 'sections.goal.'),
+        () => checkKeys(
+          map,
+          {'title'},
+          file: _file,
+          format: 'doc-type',
+          prefix: 'sections.goal.',
+        ),
         throwsA(_fault(FaultCode.unknownKey, key: 'sections.goal.bogus')),
       );
     });
@@ -90,8 +97,29 @@ void main() {
       final map = readYamlMap('prefixId: x\n', file: _file);
 
       expect(
-        () => checkKeys(map, {'prefix_id'}, file: _file),
-        throwsA(_fault(FaultCode.unknownKey, key: 'prefixId')),
+        () => checkKeys(map, {'prefix_id'}, file: _file, format: 'doc-type'),
+        throwsA(
+          _fault(FaultCode.unknownKey, key: 'prefixId').having(
+            (f) => f.message,
+            'message',
+            'the doc-type format defines no key prefixId',
+          ),
+        ),
+      );
+    });
+
+    test('f03/us03/fr01/e02: the message names the given format', () {
+      final map = readYamlMap('pakcs: 1\n', file: _file);
+
+      expect(
+        () => checkKeys(map, {'packs'}, file: _file, format: 'config'),
+        throwsA(
+          _fault(FaultCode.unknownKey, key: 'pakcs').having(
+            (f) => f.message,
+            'message',
+            'the config format defines no key pakcs',
+          ),
+        ),
       );
     });
 
@@ -99,7 +127,7 @@ void main() {
       final map = readYamlMap('id: a\nzzz: 1\naaa: 2\n', file: _file);
 
       expect(
-        () => checkKeys(map, {'id'}, file: _file),
+        () => checkKeys(map, {'id'}, file: _file, format: 'doc-type'),
         throwsA(_fault(FaultCode.unknownKey, key: 'zzz')),
       );
     });
@@ -108,7 +136,12 @@ void main() {
       final map = readYamlMap('id: a\npath: p\n', file: _file);
 
       expect(
-        () => checkKeys(map, {'id', 'path', 'extra'}, file: _file),
+        () => checkKeys(
+          map,
+          {'id', 'path', 'extra'},
+          file: _file,
+          format: 'doc-type',
+        ),
         returnsNormally,
       );
     });
@@ -117,7 +150,7 @@ void main() {
       final map = readYamlMap('1: a\n', file: _file);
 
       expect(
-        () => checkKeys(map, {'id'}, file: _file),
+        () => checkKeys(map, {'id'}, file: _file, format: 'doc-type'),
         throwsA(_fault(FaultCode.unknownKey, key: '1')),
       );
     });
@@ -191,6 +224,36 @@ void main() {
         throwsA(_fault(FaultCode.unknownValue, key: 'locked')),
       );
     });
+
+    test('f03/us03/fr01/e05: a bool mismatch says true or false', () {
+      final map = readYamlMap('locked: yes-please\n', file: _file);
+
+      expect(
+        () => optionalValue<bool>(map, 'locked', file: _file),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'locked').having(
+            (f) => f.message,
+            'message',
+            'the key locked must be true or false',
+          ),
+        ),
+      );
+    });
+
+    test('f03/us03/fr01/e05: a map mismatch says a mapping', () {
+      final map = readYamlMap('goal: t\n', file: _file);
+
+      expect(
+        () => optionalValue<YamlMap>(map, 'goal', file: _file),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'goal').having(
+            (f) => f.message,
+            'message',
+            'the key goal must be a mapping',
+          ),
+        ),
+      );
+    });
   });
 
   group('stringList', () {
@@ -200,10 +263,20 @@ void main() {
       expect(stringList(map, 'words', file: _file), ['a', 'b']);
     });
 
-    test('f03/us03/fr01: an absent key gives an empty list', () {
+    test('f03/us03/fr01: an absent key gives a growable empty list', () {
       final map = readYamlMap('id: a\n', file: _file);
 
-      expect(stringList(map, 'words', file: _file), isEmpty);
+      final words = stringList(map, 'words', file: _file)..add('later');
+
+      expect(words, ['later']);
+    });
+
+    test('f03/us03/fr01: a null value gives a growable empty list', () {
+      final map = readYamlMap('words:\n', file: _file);
+
+      final words = stringList(map, 'words', file: _file)..add('later');
+
+      expect(words, ['later']);
     });
 
     test('f03/us03/fr01: a non-list value is unknown_value', () {
@@ -211,7 +284,12 @@ void main() {
 
       expect(
         () => stringList(map, 'words', file: _file, prefix: 'x.'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'x.words')),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'x.words',
+          ).having((f) => f.message, 'message', 'the key words must be a list'),
+        ),
       );
     });
 
@@ -220,7 +298,13 @@ void main() {
 
       expect(
         () => stringList(map, 'words', file: _file),
-        throwsA(_fault(FaultCode.unknownValue, key: 'words')),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'words').having(
+            (f) => f.message,
+            'message',
+            'the key words must hold only strings',
+          ),
+        ),
       );
     });
   });
