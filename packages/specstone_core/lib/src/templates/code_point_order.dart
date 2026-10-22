@@ -6,11 +6,9 @@
 int compareCodePoints(String a, String b) {
   final aRunes = a.runes;
   final bRunes = b.runes;
-  var index = 0;
   for (
     final aRunesIterator = aRunes.iterator, bRunesIterator = bRunes.iterator;
     ;
-    index++
   ) {
     final aHas = aRunesIterator.moveNext();
     final bHas = bRunesIterator.moveNext();

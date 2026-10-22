@@ -1,10 +1,8 @@
+import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
-
-/// The layer a doc-type file sits in: shipped, personal, or project.
-enum LayerKind { shipped, personal, project }
 
 /// A field's type; [wire] is the snake_case name the format uses (INV-13).
 enum FieldType {

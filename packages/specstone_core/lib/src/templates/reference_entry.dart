@@ -1,15 +1,7 @@
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
-
-/// Whether a layer holds a file at a layer-relative path.
-///
-/// Implemented by the disk and the shipped sources at load time.
-abstract interface class LayerFiles {
-  /// Whether the layer holds a file at [layerRelativePath].
-  bool exists(String layerRelativePath);
-}
 
 /// One `reference:` entry of a doc type, as one layer writes it.
 final class ReferenceEntry {
