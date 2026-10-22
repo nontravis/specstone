@@ -4,7 +4,6 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 const _file = '.specstone/templates/feature.yaml';
-const _folder = '/p/.specstone/templates';
 
 final class _FakeFiles implements LayerFiles {
   const new(this.paths);
@@ -20,7 +19,6 @@ DocTypeLayer _parse(String text) => DocTypeLayer.parse(
   file: _file,
   docTypeId: 'feature',
   kind: LayerKind.project,
-  folder: _folder,
   files: const _FakeFiles({'refs/handbook.md'}),
 );
 
@@ -39,7 +37,7 @@ void main() {
       );
     });
 
-    test('f03/us03/s4, us03/fr01/e02, s03/inv10: a top-level unknown key is unknown_key', () {
+    test('f03/us03/s4, f03/us03/fr01/e02, s03/inv10: a top-level unknown key is unknown_key', () {
       expect(
         () => _parse('color: red\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'color')),
@@ -70,14 +68,14 @@ void main() {
       );
     });
 
-    test('f03/us03/s5, us03/fr01/e03: a section with no id is missing_key at the index', () {
+    test('f03/us03/s5, f03/us03/fr01/e03: a section with no id is missing_key at the index', () {
       expect(
         () => _parse('sections: [{header: Goal}]'),
         throwsA(_fault(FaultCode.missingKey, key: 'sections[0].id')),
       );
     });
 
-    test('f03/us03/s10, us03/fr01/e05, s03/inv13: a field type outside the seven is unknown_value', () {
+    test('f03/us03/s10, f03/us03/fr01/e05, s03/inv13: a field type outside the seven is unknown_value', () {
       expect(
         () => _parse('fields: [{id: size, type: float}]'),
         throwsA(_fault(FaultCode.unknownValue, key: 'fields.size.type')),
@@ -155,7 +153,6 @@ lint:
       expect(layer.extendsId, 'task');
       expect(layer.file, _file);
       expect(layer.kind, LayerKind.project);
-      expect(layer.folder, _folder);
 
       final field = layer.fields.single;
       expect(field.id, 'impact');
@@ -293,7 +290,7 @@ lint:
     });
 
     test(
-      'f03/us02/fr05, us03/fr03/e09: a reference add map parses entries',
+      'f03/us02/fr05, f03/us03/fr03/e09: a reference add map parses entries',
       () {
         final layer = _parse(
           'reference: {add: [{title: T, file: refs/handbook.md}], '

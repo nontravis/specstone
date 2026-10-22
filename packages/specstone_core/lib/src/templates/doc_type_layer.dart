@@ -179,7 +179,6 @@ final class DocTypeLayer {
     required this.docTypeId,
     required this.file,
     required this.kind,
-    required this.folder,
     required this.id,
     required this.description,
     required this.writesParent,
@@ -194,15 +193,14 @@ final class DocTypeLayer {
 
   /// Parses one doc-type file; [docTypeId] is the file name without `.yaml`.
   ///
-  /// [folder] is the layer folder the file sits in; [files] answers whether
-  /// the layer holds a file at a layer-relative path, for `reference` checks.
+  /// [files] answers whether the layer holds a file at a layer-relative path,
+  /// for `reference` checks.
   /// Throws a [TemplateFault] for any format fault.
   static DocTypeLayer parse(
     String text, {
     required String file,
     required String docTypeId,
     required LayerKind kind,
-    required String folder,
     required LayerFiles files,
   }) {
     final map = readYamlMap(text, file: file);
@@ -222,7 +220,6 @@ final class DocTypeLayer {
       docTypeId: docTypeId,
       file: file,
       kind: kind,
-      folder: folder,
       id: id,
       description: optionalValue<String>(map, 'description', file: file),
       writesParent: parentWritten,
@@ -244,9 +241,6 @@ final class DocTypeLayer {
 
   /// The layer this file sits in.
   final LayerKind kind;
-
-  /// The layer folder the file sits in.
-  final String folder;
 
   /// The written `id`, or null when the layer writes none.
   final String? id;

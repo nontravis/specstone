@@ -35,6 +35,9 @@ final class MergedField {
   final String? description;
 
   /// Returns a copy with each non-null argument replacing its property.
+  ///
+  /// A list the new type does not use is dropped unless the call writes it:
+  /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only.
   MergedField copyWith({
     FieldType? type,
     bool? list,
@@ -42,15 +45,21 @@ final class MergedField {
     List<String>? enumValues,
     List<String>? docTypes,
     String? description,
-  }) => MergedField(
-    id: id,
-    type: type ?? this.type,
-    list: list ?? this.list,
-    required: required ?? this.required,
-    enumValues: enumValues ?? this.enumValues,
-    docTypes: docTypes ?? this.docTypes,
-    description: description ?? this.description,
-  );
+  }) {
+    final newType = type ?? this.type;
+    return MergedField(
+      id: id,
+      type: newType,
+      list: list ?? this.list,
+      required: required ?? this.required,
+      enumValues:
+          enumValues ??
+          (newType == FieldType.enumType ? this.enumValues : null),
+      docTypes:
+          docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
+      description: description ?? this.description,
+    );
+  }
 }
 
 /// One enabled guide section of a merged doc type.

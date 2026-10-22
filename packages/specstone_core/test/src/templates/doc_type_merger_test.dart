@@ -46,7 +46,6 @@ DocTypeLayer layer(
     file: file,
     docTypeId: docTypeId,
     kind: kind,
-    folder: '/layer',
     files: const _NoFiles(),
   );
 }
@@ -144,7 +143,6 @@ void main() {
               file: _projectFile,
               docTypeId: 'runbook',
               kind: LayerKind.project,
-              folder: '/layer',
               files: const _NoFiles(),
             ),
           ),
@@ -408,6 +406,63 @@ sections:
       expect(slug.type, FieldType.string);
       expect(slug.list, isTrue);
     });
+
+    test('f03/us02/fr04: changing enum to string drops the enum list', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
+      );
+
+      final merged = project(base, 'fields: [{id: kind, type: string}]');
+
+      final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+      expect(kind.type, FieldType.string);
+      expect(kind.enumValues, isNull);
+    });
+
+    test('f03/us02/fr04: changing doc_ref to string drops doc_types', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: parent, type: doc_ref, doc_types: [epic]}]'),
+      );
+
+      final merged = project(base, 'fields: [{id: parent, type: string}]');
+
+      final parent = merged.fields.singleWhere((f) => f.id == 'parent');
+      expect(parent.type, FieldType.string);
+      expect(parent.docTypes, isNull);
+    });
+
+    test('f03/us02/fr04: changing a type keeps the lists the layer writes', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: kind, type: string}]'),
+      );
+
+      final merged = project(
+        base,
+        'fields: [{id: kind, type: enum, enum: [x, y]}]',
+      );
+
+      final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+      expect(kind.enumValues, ['x', 'y']);
+    });
+
+    test(
+      'f03/us02/fr04: a layer that leaves the type alone keeps the lists',
+      () {
+        final base = merger.apply(
+          merger.builtInBase('feature'),
+          layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
+        );
+
+        final merged = project(base, 'fields: [{id: kind, description: Kind}]');
+
+        final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+        expect(kind.enumValues, ['a', 'b']);
+        expect(kind.description, 'Kind');
+      },
+    );
 
     test('f03/us02/fr04: writing the built-in type again is not a change', () {
       final merged = project(

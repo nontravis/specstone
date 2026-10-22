@@ -48,6 +48,13 @@ void main() {
     test('f03/us04/fr01/e06: empty text is pack_version_invalid', () {
       expect(() => _parse(''), throwsA(_invalid()));
     });
+
+    test('f03/us05/fr01, s03/inv16: a number past the int range is '
+        'pack_version_invalid', () {
+      expect(() => _parse('99999999999999999999.0.0'), throwsA(_invalid()));
+      expect(() => _parse('1.99999999999999999999.0'), throwsA(_invalid()));
+      expect(() => _parse('1.0.99999999999999999999'), throwsA(_invalid()));
+    });
   });
 
   group('PackVersion.fromYaml', () {

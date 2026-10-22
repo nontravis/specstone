@@ -59,7 +59,7 @@ void main() {
       );
     });
 
-    test('f03/us03/s8, us03/fr03/e03, s03/inv6: a missing file is reference_file_missing', () {
+    test('f03/us03/s8, f03/us03/fr03/e03, s03/inv6: a missing file is reference_file_missing', () {
       expect(
         () => parseRef('{title: T, file: refs/none.md}'),
         throwsA(_fault(FaultCode.referenceFileMissing, key: 'reference[0]')),
@@ -83,7 +83,7 @@ void main() {
       );
     });
 
-    test('f03/us04/s7, us03/fr03/e05, us04/fr01/e11, s03/inv6: a doc in a personal layer '
+    test('f03/us04/s7, f03/us03/fr03/e05, f03/us04/fr01/e11, s03/inv6: a doc in a personal layer '
         'is reference_doc_outside_project', () {
       expect(
         () =>
@@ -94,7 +94,7 @@ void main() {
       );
     });
 
-    test('f03/us04/s7, us03/fr03/e05, us04/fr01/e11, s03/inv6: a doc in a shipped layer '
+    test('f03/us04/s7, f03/us03/fr03/e05, f03/us04/fr01/e11, s03/inv6: a doc in a shipped layer '
         'is reference_doc_outside_project', () {
       expect(
         () => parseRef('{title: T, doc: prd/feature}', kind: LayerKind.shipped),
@@ -135,7 +135,7 @@ void main() {
     });
 
     test(
-      'f03/us03/s3, us03/fr03: a title-only entry carries only the title',
+      'f03/us03/s3, f03/us03/fr03: a title-only entry carries only the title',
       () {
         final entry = parseRef('{title: Clean Architecture}');
         expect(entry.toJson(), {'title': 'Clean Architecture'});
@@ -152,7 +152,7 @@ void main() {
       });
     });
 
-    test('f03/us03/fr03/e09, us02/fr05/e03: an add entry is checked by its own '
+    test('f03/us03/fr03/e09, f03/us02/fr05/e03: an add entry is checked by its own '
         'key', () {
       expect(
         () => parseRef(

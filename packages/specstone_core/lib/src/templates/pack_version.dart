@@ -17,11 +17,13 @@ final class PackVersion implements Comparable<PackVersion> {
   }) {
     final match = _versionPattern.firstMatch(text);
     if (match == null) throw _invalid(text, file: file, key: key);
-    return PackVersion._(
-      int.parse(match[1]!),
-      int.parse(match[2]!),
-      int.parse(match[3]!),
-    );
+    final major = int.tryParse(match[1]!);
+    final minor = int.tryParse(match[2]!);
+    final patch = int.tryParse(match[3]!);
+    if (major == null || minor == null || patch == null) {
+      throw _invalid(text, file: file, key: key);
+    }
+    return PackVersion._(major, minor, patch);
   }
 
   /// Reads a version from a YAML [node] by its written text.
