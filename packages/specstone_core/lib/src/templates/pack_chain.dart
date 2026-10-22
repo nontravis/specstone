@@ -16,9 +16,7 @@ List<LoadedPack> orderPacks(
   List<LoadedPack> packs, {
   required String configFile,
 }) {
-  final extendsOf = {
-    for (final pack in packs) pack.manifest.name: pack.manifest.extendsPack,
-  };
+  final extendsOf = extendsMapOf(packs);
   _checkTargets(packs, extendsOf);
   _checkCycles(packs, extendsOf);
   _checkPersonalConflicts(packs, configFile);
@@ -31,17 +29,28 @@ List<LoadedPack> orderPacks(
   return [...shipped, ...personal];
 }
 
+/// Maps every pack in [packs] by name to the name its `extends` writes, or
+/// null when it writes none.
+///
+/// The one owner of the map [reaches] walks.
+Map<String, String?> extendsMapOf(Iterable<LoadedPack> packs) => {
+  for (final pack in packs) pack.manifest.name: pack.manifest.extendsPack,
+};
+
 /// Whether [upper]'s `extends` chain reaches [lower] (INV-5).
 ///
-/// [extendsOf] maps every loaded pack's name to its `extends` target; false
-/// when [upper] is [lower] itself or a target is no loaded pack.
+/// [extendsOf] is [extendsMapOf] of the loaded packs; false when [upper] is
+/// [lower] itself or a target is no loaded pack. The walk stops at a name it
+/// already visited, so a chain that loops without returning to [upper] ends
+/// with false.
 bool reaches(
   LoadedPack upper,
   LoadedPack lower, {
   required Map<String, String?> extendsOf,
 }) {
+  final visited = <String>{upper.manifest.name};
   var target = upper.manifest.extendsPack;
-  while (target != null) {
+  while (target != null && visited.add(target)) {
     if (target == lower.manifest.name) return true;
     if (!extendsOf.containsKey(target)) return false;
     target = extendsOf[target];
@@ -142,8 +151,8 @@ List<LoadedPack> _chainOrdered(
         (other) => other != pack && reaches(pack, other, extendsOf: extendsOf),
       ),
     );
-    if (pack == null) throw StateError('pack chain ordering stalled');
-    ordered.add(pack);
+    assert(pack != null, 'pack chain ordering stalled');
+    ordered.add(pack!);
     pending.remove(pack);
   }
   return ordered;

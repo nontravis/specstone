@@ -146,11 +146,7 @@ void main() {
         final software = await personal('nont-software', 'software-tech');
         final tech = shipped('software-tech', null);
         final other = await personal('nont-x', null);
-        final packs = [flutter, software, tech, other];
-        final extendsOf = {
-          for (final pack in packs)
-            pack.manifest.name: pack.manifest.extendsPack,
-        };
+        final extendsOf = extendsMapOf([flutter, software, tech, other]);
 
         expect(reaches(flutter, software, extendsOf: extendsOf), isTrue);
         expect(reaches(flutter, tech, extendsOf: extendsOf), isTrue);
@@ -158,6 +154,19 @@ void main() {
         expect(reaches(tech, flutter, extendsOf: extendsOf), isFalse);
         expect(reaches(other, tech, extendsOf: extendsOf), isFalse);
         expect(reaches(flutter, flutter, extendsOf: extendsOf), isFalse);
+      },
+    );
+
+    test(
+      'f03/inv4: a loop that never returns to the start ends, not hangs',
+      () async {
+        final a = await personal('nont-a', 'nont-b');
+        final b = await personal('nont-b', 'nont-c');
+        final c = await personal('nont-c', 'nont-b');
+        final target = await personal('nont-x', null);
+        final extendsOf = extendsMapOf([a, b, c, target]);
+
+        expect(reaches(a, target, extendsOf: extendsOf), isFalse);
       },
     );
   });

@@ -183,22 +183,22 @@ final class TemplateResolver {
   /// Pack layers come in `orderPacks` order, then the project layer, whose
   /// `pack` is null. Two packs defining one id where neither reaches the
   /// other are `doc_type_duplicate`: `file` holds the upper or later pack's
-  /// file, `relatedFiles` the other's, and the message names the id.
+  /// file, `relatedFiles` the other's, and the message names the id. A
+  /// project template over a pack-defined id is an override, never a
+  /// duplicate.
   Map<String, List<({LoadedPack? pack, DocTypeLayer layer})>> _docTypeLayers(
     List<({LoadedPack pack, Map<String, DocTypeLayer> layers})> packs,
     List<DocTypeLayer> projectLayers,
   ) {
     final lists = <String, List<({LoadedPack? pack, DocTypeLayer layer})>>{};
-    final extendsOf = {
-      for (final (:pack, layers: _) in packs)
-        pack.manifest.name: pack.manifest.extendsPack,
-    };
+    final extendsOf = extendsMapOf([
+      for (final (:pack, layers: _) in packs) pack,
+    ]);
     for (final (:pack, :layers) in packs) {
       for (final MapEntry(key: id, value: layer) in layers.entries) {
         final list = lists.putIfAbsent(id, () => []);
-        for (final prior in list) {
-          final priorPack = prior.pack;
-          if (priorPack == null) continue;
+        // No project layer sits in `list` here: they append after this loop.
+        for (final (pack: priorPack!, layer: prior) in list) {
           final upper = reaches(pack, priorPack, extendsOf: extendsOf);
           final lower = reaches(priorPack, pack, extendsOf: extendsOf);
           if (!upper && !lower) {
@@ -206,7 +206,7 @@ final class TemplateResolver {
               FaultCode.docTypeDuplicate,
               'two loaded packs define one doc type id: $id',
               file: layer.file,
-              relatedFiles: [prior.layer.file],
+              relatedFiles: [prior.file],
             );
           }
         }
