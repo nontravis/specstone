@@ -4,12 +4,13 @@ import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 /// Rewrites every `a` element under [nodes] in place for the single-file html.
 ///
 /// An `http` or `https` link (any letter case) stays. A link to a doc in
-/// [anchors], or a bare `#fragment` naming [docPath] itself, jumps to that
-/// doc's anchor. Any other link becomes an `outside-link` span that keeps the
-/// link text and shows the path in `code`.
+/// [anchors] jumps to that doc's anchor. A bare `#fragment` stays as written
+/// for `scopeIds`, which runs on the rendered html. Any other link becomes an
+/// `outside-link` span that keeps the link text and shows the path in `code`.
 ///
 /// - [docPath]: the path of the doc holding [nodes], relative to the docs root.
-/// - [anchors]: the section anchor of each doc in the build, by docPath.
+/// - [anchors]: the section anchor of each doc in the build, by docPath. A bare
+///   `#fragment` in a doc with no entry becomes an `outside-link` span.
 void rewriteLinks(
   List<Node> nodes, {
   required String docPath,
@@ -41,10 +42,66 @@ Node _rewriteLink(
     case _Doc(:final path):
       final anchor = anchors[path];
       if (anchor == null) return _outsideSpan(link, path);
+      if (href.startsWith('#')) return link;
       link.attributes['href'] = '#$anchor';
       return link;
     case _Outside(:final shown):
       return _outsideSpan(link, shown);
+  }
+}
+
+final _idAttribute = RegExp(r'(\sid=")([^"]*)(")');
+final _fragmentHref = RegExp(r'(\shref="#)([^"]*)(")');
+
+/// Prefixes every `id` in [bodyHtml] with [anchor] and a hyphen, and points
+/// each bare `#fragment` link at the result.
+///
+/// Ids then stay unique across the docs of one page. A fragment that names an
+/// id of the body (`fn-1`, `top`) goes to the prefixed id (`doc-3-fn-1`); any
+/// other fragment goes to [anchor]. A fragment that is a page anchor in
+/// [pageAnchors] is a link `rewriteLinks` already resolved and stays. Markdown
+/// escapes the quotes of code and text, so only real tags match.
+///
+/// - [bodyHtml]: the rendered html of one doc's body.
+/// - [anchor]: the section anchor of that doc.
+/// - [pageAnchors]: the section anchor of every doc in the build.
+String scopeIds(
+  String bodyHtml, {
+  required String anchor,
+  required Set<String> pageAnchors,
+}) {
+  final ids = {
+    for (final match in _idAttribute.allMatches(bodyHtml)) match.group(2)!,
+  };
+  return bodyHtml
+      .replaceAllMapped(
+        _idAttribute,
+        (match) => '${match[1]}$anchor-${match[2]}${match[3]}',
+      )
+      .replaceAllMapped(_fragmentHref, (match) {
+        final fragment = match[2]!;
+        final String target;
+        if (_namesId(fragment, ids)) {
+          target = '$anchor-$fragment';
+        } else if (pageAnchors.contains(fragment)) {
+          target = fragment;
+        } else {
+          target = anchor;
+        }
+        return '${match[1]}$target${match[3]}';
+      });
+}
+
+final _brokenPercent = RegExp('%(?![0-9A-Fa-f]{2})');
+
+// A fragment may be written percent-encoded, an id never is.
+bool _namesId(String fragment, Set<String> ids) {
+  if (ids.contains(fragment)) return true;
+  if (_brokenPercent.hasMatch(fragment)) return false;
+  try {
+    return ids.contains(Uri.decodeComponent(fragment));
+  } on FormatException {
+    return false;
   }
 }
 

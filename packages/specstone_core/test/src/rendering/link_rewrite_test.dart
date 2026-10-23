@@ -1,4 +1,6 @@
 import 'package:markdown/markdown.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
 import 'package:specstone_core/src/rendering/link_rewrite.dart';
@@ -201,5 +203,143 @@ void main() {
       final table = _rewritten('| h |\n|---|\n| [x](../d.md) |');
       expect(table, contains('<a href="#doc-2">x</a>'));
     });
+  });
+
+  group('ids inside a doc', () {
+    const footnote = 'text[^1]\n\n[^1]: note\n';
+    const rawTop = '<a id="top"></a>\n\n[up](#top)\n';
+
+    String body(String markdown, {Map<String, String>? anchors}) =>
+        renderDocBody(
+          Doc.parse(markdown),
+          docPath: 'a/b/c.md',
+          anchors: anchors ?? const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
+        );
+
+    test('f05/us02/fr03: every id is prefixed with the doc anchor, and the '
+        'footnote links follow', () {
+      final html = body(footnote);
+
+      expect(html, contains('<a href="#doc-1-fn-1" id="doc-1-fnref-1">'));
+      expect(html, contains('<li id="doc-1-fn-1">'));
+      expect(
+        html,
+        contains('<a href="#doc-1-fnref-1" class="footnote-backref">'),
+      );
+      expect(html, isNot(contains('id="fn-1"')));
+      expect(html, isNot(contains('id="fnref-1"')));
+    });
+
+    test('f05/us02/fr03: a raw html id is prefixed and a bare fragment naming '
+        'it points at the prefixed id', () {
+      final html = body('<div id="box">x</div>\n\n$rawTop');
+
+      expect(html, contains('<div id="doc-1-box">'));
+      expect(html, contains('<a id="doc-1-top"></a>'));
+      expect(html, contains('<a href="#doc-1-top">up</a>'));
+    });
+
+    test('f05/us02/fr03: a bare fragment that names no id stays on the doc '
+        'anchor', () {
+      final html = body('$footnote\n[a](#fn-1) [b](#nope) [c](#)');
+
+      expect(html, contains('<a href="#doc-1-fn-1">a</a>'));
+      expect(html, contains('<a href="#doc-1">b</a>'));
+      expect(html, contains('<a href="#doc-1">c</a>'));
+    });
+
+    test('f05/us02/fr03: a percent-encoded fragment names the id it decodes '
+        'to', () {
+      final html = body('<a id="caf\u00e9"></a>\n\n[a](#caf%C3%A9)\n');
+
+      expect(html, contains('<a id="doc-1-caf\u00e9"></a>'));
+      expect(html, contains('<a href="#doc-1-caf%C3%A9">a</a>'));
+    });
+
+    test('f05/us02/fr03: a fragment with broken percent-encoding names no id '
+        'and goes to the doc anchor', () {
+      final html = body('<a id="x"></a>\n\n[a](#x%zz) [b](#%FF) [c](#x%)\n');
+
+      expect(html, isNot(contains('href="#doc-1-')));
+      expect('href="#doc-1"'.allMatches(html), hasLength(3));
+    });
+
+    test('f05/us02/fr03: a link to another doc drops its fragment even when '
+        'it names an id', () {
+      final html = body('$footnote\n[a](../d.md#fn-1) [b](c.md#fn-1)');
+
+      expect(html, contains('<a href="#doc-2">a</a>'));
+      expect(html, contains('<a href="#doc-1">b</a>'));
+    });
+
+    test('f05/us02/fr03: an id written in code or inline code is shown as '
+        'written and no link follows it', () {
+      final html = body(
+        '<a id="top"></a>\n\n```html\n<a id="x" href="#top">\n```\n\n'
+        '`<a id="y" href="#top">` [up](#top)\n',
+      );
+
+      expect(html, contains('<a id="doc-1-top"></a>'));
+      expect(
+        html,
+        contains('&lt;a id=&quot;x&quot; href=&quot;#top&quot;&gt;'),
+      );
+      expect(
+        html,
+        contains('&lt;a id=&quot;y&quot; href=&quot;#top&quot;&gt;'),
+      );
+      expect(html, contains('<a href="#doc-1-top">up</a>'));
+      expect(html, isNot(contains('doc-1-x')));
+      expect(html, isNot(contains('doc-1-y')));
+    });
+
+    test('f05/us02/fr03: a doc with no anchor keeps its ids and its bare '
+        'fragment becomes an outside-link span', () {
+      final html = body(
+        '<a id="top"></a>\n\n[up](#top)\n',
+        anchors: const {'a/d.md': 'doc-2'},
+      );
+
+      expect(html, contains('<a id="top"></a>'));
+      expect(
+        html,
+        contains(
+          '<span class="outside-link">up (<code>a/b/c.md</code>)</span>',
+        ),
+      );
+    });
+
+    test(
+      'f05/us02/fr03: two docs with a footnote [^1] and a raw id get '
+      'distinct ids and every in-page link lands on an id of the page',
+      () async {
+        const both = '$footnote\n$rawTop';
+        final html = await _build({
+          _storyA: _story('Story one', both),
+          _storyB: _story('Story two', both),
+        }, target: 'docs/$_featureDir');
+
+        final ids = [
+          for (final m in RegExp(' id="([^"]+)"').allMatches(html)) m.group(1)!,
+        ];
+        expect(ids.toSet().length, ids.length, reason: 'ids are unique');
+        final one = _anchorOf(html, 'Story one');
+        final two = _anchorOf(html, 'Story two');
+        for (final anchor in [one, two]) {
+          expect(
+            ids,
+            containsAll(['$anchor-fn-1', '$anchor-fnref-1', '$anchor-top']),
+          );
+          expect(html, contains('href="#$anchor-fn-1"'));
+          expect(html, contains('href="#$anchor-fnref-1"'));
+          expect(html, contains('href="#$anchor-top"'));
+        }
+        final links = [
+          for (final m in RegExp('href="#([^"]+)"').allMatches(html))
+            m.group(1)!,
+        ];
+        expect(links.where((link) => !ids.contains(link)), isEmpty);
+      },
+    );
   });
 }

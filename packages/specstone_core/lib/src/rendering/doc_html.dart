@@ -8,9 +8,10 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// The body is the text after the frontmatter minus the title line, read as
 /// GitHub-flavored markdown. A `mermaid` fence becomes `<pre class="mermaid">`
 /// holding its escaped source. A blank title line shows no title. Links are
-/// rewritten by `rewriteLinks`. The GFM tag filter turns a raw start or end tag
-/// of `title`, `script`, `style`, `textarea` and the like into text, so one doc
-/// cannot swallow the docs after it.
+/// rewritten by `rewriteLinks`, and every `id` of the body, raw html included,
+/// is prefixed with the doc's anchor by `scopeIds`. The GFM tag filter turns a
+/// raw start or end tag of `title`, `script`, `style`, `textarea` and the like
+/// into text, so one doc cannot swallow the docs after it.
 ///
 /// - [docPath]: the path of [doc] relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath.
@@ -20,6 +21,7 @@ String renderDocBody(
   required Map<String, String> anchors,
 }) {
   final title = shownTitle(doc);
+  final anchor = anchors[docPath];
   final frontmatter = doc.frontmatter;
   final body = Document(extensionSet: ExtensionSet.gitHubFlavored)
       .parse(_withoutTitleLine(doc));
@@ -29,8 +31,15 @@ String renderDocBody(
     if (frontmatter != null && frontmatter.isNotEmpty)
       _frontmatterTable(frontmatter),
     if (doc.isDraft) '<p class="draft">Draft</p>',
-    _withTagFilter(renderToHtml(_withMermaidPre(body))).trimRight(),
+    _withTagFilter(_bodyHtml(body, anchor, anchors)).trimRight(),
   ].where((part) => part.isNotEmpty).join('\n');
+}
+
+// A doc with no anchor is not on the page, so its ids have nothing to scope to.
+String _bodyHtml(List<Node> body, String? anchor, Map<String, String> anchors) {
+  final html = renderToHtml(_withMermaidPre(body));
+  if (anchor == null) return html;
+  return scopeIds(html, anchor: anchor, pageAnchors: anchors.values.toSet());
 }
 
 /// Tags the GFM "disallowed raw HTML" rule writes as text, plus `noscript` and

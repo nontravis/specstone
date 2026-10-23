@@ -192,6 +192,26 @@ void main() {
       expect(refused.duplicateHeaders, ['## Feature goal', '## Feature name']);
     });
 
+    test('f05/us01/fr04: a doc that ends inside a fence is refused, with no '
+        'header fault listed', () async {
+      final feature = await _feature();
+
+      final refused = _refused(
+        '## Feature name\nx\n```\n## Feature goal\n',
+        feature,
+      );
+
+      expect(refused.unclosedFence, isTrue);
+      expect(refused.unknownHeaders, isEmpty);
+      expect(refused.duplicateHeaders, isEmpty);
+    });
+
+    test('f05/us01/fr04: a header fault is not unclosedFence', () async {
+      final feature = await _feature();
+
+      expect(_refused('## Notes\nx\n', feature).unclosedFence, isFalse);
+    });
+
     test('f05/us01/fr04/e02, f05/us01/fr04/e03: a doc with both faults '
         'reports both lists', () async {
       final feature = await _feature();
