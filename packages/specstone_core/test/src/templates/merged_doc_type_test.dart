@@ -264,7 +264,7 @@ void main() {
     test('f03/us01/fr02: a section with an empty description prints its '
         'header alone', () {
       final guide = _merge(
-        "description: A.\npath: a.md\n"
+        'description: A.\npath: a.md\n'
         "sections: [{id: s, header: S, description: ''}]",
       ).renderGuide();
 
