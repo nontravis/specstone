@@ -252,13 +252,15 @@ List<String> listedWordsIn(String text) => [
     if (_wholeWord(word).hasMatch(text)) word,
 ];
 
-/// Expects no section template of [docType] to hold a listed word.
+/// Expects no section header or template of [docType] to hold a listed word.
 void expectTemplatesFreeOfListedWords(MergedDocType docType) {
   for (final section in docType.sections) {
+    final reason = '${docType.id}.${section.id}';
+    expect(listedWordsIn(section.header), isEmpty, reason: '$reason header');
     expect(
       listedWordsIn(section.template ?? ''),
       isEmpty,
-      reason: '${docType.id}.${section.id}',
+      reason: '$reason template',
     );
   }
 }
