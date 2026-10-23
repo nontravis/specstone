@@ -202,4 +202,63 @@ void main() {
       expect(table, contains('<a href="#doc-2">x</a>'));
     });
   });
+
+  group('ids inside a doc', () {
+    const footnote = 'text[^1]\n\n[^1]: note\n';
+
+    test('f05/us02/fr03: every id is prefixed with the doc anchor, and the '
+        'footnote links follow', () {
+      final html = _rewritten(footnote);
+
+      expect(html, contains('<a href="#doc-1-fn-1" id="doc-1-fnref-1">'));
+      expect(html, contains('<li id="doc-1-fn-1">'));
+      expect(
+        html,
+        contains('<a href="#doc-1-fnref-1" class="footnote-backref">'),
+      );
+      expect(html, isNot(contains('id="fn-1"')));
+      expect(html, isNot(contains('id="fnref-1"')));
+    });
+
+    test('f05/us02/fr03: a bare fragment naming an id of the doc points at '
+        'the prefixed id; any other stays on the doc anchor', () {
+      final html = _rewritten('$footnote\n[a](#fn-1) [b](#nope) [c](#)');
+
+      expect(html, contains('<a href="#doc-1-fn-1">a</a>'));
+      expect(html, contains('<a href="#doc-1">b</a>'));
+      expect(html, contains('<a href="#doc-1">c</a>'));
+    });
+
+    test('f05/us02/fr03: a link to another doc drops its fragment even when '
+        'it names an id', () {
+      final html = _rewritten('$footnote\n[a](../d.md#fn-1) [b](c.md#fn-1)');
+
+      expect(html, contains('<a href="#doc-2">a</a>'));
+      expect(html, contains('<a href="#doc-1">b</a>'));
+    });
+
+    test('f05/us02/fr03: two docs with a footnote [^1] get distinct ids and '
+        'every in-page link lands on an id of the page', () async {
+      final html = await _build({
+        _storyA: _story('Story one', footnote),
+        _storyB: _story('Story two', footnote),
+      }, target: 'docs/$_featureDir');
+
+      final ids = [
+        for (final m in RegExp(' id="([^"]+)"').allMatches(html)) m.group(1)!,
+      ];
+      expect(ids.toSet().length, ids.length, reason: 'ids are unique');
+      final one = _anchorOf(html, 'Story one');
+      final two = _anchorOf(html, 'Story two');
+      for (final anchor in [one, two]) {
+        expect(ids, containsAll(['$anchor-fn-1', '$anchor-fnref-1']));
+        expect(html, contains('href="#$anchor-fn-1"'));
+        expect(html, contains('href="#$anchor-fnref-1"'));
+      }
+      final links = [
+        for (final m in RegExp('href="#([^"]+)"').allMatches(html)) m.group(1)!,
+      ];
+      expect(links.where((link) => !ids.contains(link)), isEmpty);
+    });
+  });
 }

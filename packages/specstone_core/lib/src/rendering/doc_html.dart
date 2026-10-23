@@ -8,7 +8,8 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// The body is the text after the frontmatter minus the title line, read as
 /// GitHub-flavored markdown. A `mermaid` fence becomes `<pre class="mermaid">`
 /// holding its escaped source. A blank title line shows no title. Links are
-/// rewritten by `rewriteLinks`. The GFM tag filter turns a raw start or end tag
+/// rewritten and every `id` is prefixed with the doc's anchor, by
+/// `rewriteLinks`. The GFM tag filter turns a raw start or end tag
 /// of `title`, `script`, `style`, `textarea` and the like into text, so one doc
 /// cannot swallow the docs after it.
 ///
