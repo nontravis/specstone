@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -27,6 +28,8 @@ const _featureOutOfOrder =
     '## Feature name\n- **Human:** Rendering\n';
 const _storyFormatted =
     '# US-01\n\n## Summary\nFormat docs.\n\n## Acceptance Criteria\nDone.\n';
+const _storyOutOfOrder =
+    '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 typedef _Run = ({Directory root, DocsProject project});
@@ -330,4 +333,30 @@ void main() {
       _featureFormatted,
     );
   });
+
+  test(
+    'f05/us01/fr07: a write that fails throws output_not_writable naming the '
+    'doc; docs written before it stay written',
+    () async {
+      final run = await _open({
+        _feature: _featureOutOfOrder,
+        _story: _storyOutOfOrder,
+      });
+      final storyFolder = _file(run, _story).parent;
+      await Process.run('chmod', ['555', storyFolder.path]);
+      addTearDown(() => Process.run('chmod', ['755', storyFolder.path]));
+
+      expect(
+        () => _run(run),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', _story)
+              .having((f) => f.exitStatus, 'exitStatus', 73),
+        ),
+      );
+      expect(_read(run, _feature), _featureFormatted);
+    },
+    skip: Platform.isWindows ? 'chmod does not apply on Windows' : false,
+  );
 }

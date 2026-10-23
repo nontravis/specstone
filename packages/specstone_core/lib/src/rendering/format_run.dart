@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
@@ -6,6 +7,7 @@ import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// What a format run did with one doc.
 enum FileStatus {
@@ -113,6 +115,9 @@ final class FormatReport {
 ///
 /// A doc is written, atomically and in its own line-ending style, only when
 /// its formatted text differs from its LF text and [check] is false.
+///
+/// Throws a [RenderFault] `output_not_writable` naming the doc when a write
+/// fails; docs written before it stay written.
 FormatReport runFormat(
   DocsProject project,
   Target target, {
@@ -155,9 +160,20 @@ FileResult _formatReadable(ReadableDoc read, {required bool check}) {
     case Formatted(:final text) when text == toLf(read.text):
       return FileResult(path: read.path, status: FileStatus.unchanged);
     case Formatted(:final text):
-      if (!check) {
-        writeFileAtomic(read.file, utf8.encode(read.lineEnding.apply(text)));
-      }
+      if (!check) _write(read, text);
       return FileResult(path: read.path, status: FileStatus.formatted);
+  }
+}
+
+void _write(ReadableDoc read, String text) {
+  try {
+    writeFileAtomic(read.file, utf8.encode(read.lineEnding.apply(text)));
+  } on FileSystemException catch (error) {
+    final reason = error.osError?.message ?? error.message;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write the formatted doc: $reason',
+      file: read.path,
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
 import 'package:specstone/src/commands/mcp_command.dart';
 import 'package:specstone_core/specstone_core.dart';
@@ -50,6 +51,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       help: 'Print the Specstone version.',
     );
     addCommand(GuideCommand());
+    addCommand(FormatCommand());
     addCommand(McpCommand());
   }
 
@@ -65,7 +67,8 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// Sink that receives usage errors.
   StringSink get err => _err;
 
-  /// Resolver that `guide` uses to load and merge the doc type templates.
+  /// Resolver that `guide` and `format` use to load and merge the doc type
+  /// templates.
   TemplateResolver get templates => _templates;
 
   /// Folder the project is looked up from, the process working folder by
