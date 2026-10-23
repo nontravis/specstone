@@ -1,82 +1,31 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 
-/// Rewrites every `a` element under [nodes] in place for the single-file html,
-/// and prefixes every `id` under [nodes] with the doc's anchor.
+/// Rewrites every `a` element under [nodes] in place for the single-file html.
 ///
-/// An `http` or `https` link (any letter case) stays. A bare `#fragment` naming
-/// an `id` under [nodes] points at that id once prefixed (`doc-3-fn-1`), so ids
-/// stay unique across the docs of one page. A link to a doc in [anchors], or
-/// any other bare `#fragment`, jumps to that doc's anchor. Any other link
-/// becomes an `outside-link` span that keeps the link text and shows the path
-/// in `code`.
+/// An `http` or `https` link (any letter case) stays. A link to a doc in
+/// [anchors] jumps to that doc's anchor. A bare `#fragment` stays as written
+/// for `scopeIds`, which runs on the rendered html. Any other link becomes an
+/// `outside-link` span that keeps the link text and shows the path in `code`.
 ///
 /// - [docPath]: the path of the doc holding [nodes], relative to the docs root.
-/// - [anchors]: the section anchor of each doc in the build, by docPath. A doc
-///   with no entry keeps its ids as written.
+/// - [anchors]: the section anchor of each doc in the build, by docPath. A bare
+///   `#fragment` in a doc with no entry becomes an `outside-link` span.
 void rewriteLinks(
   List<Node> nodes, {
   required String docPath,
   required Map<String, String> anchors,
-}) {
-  final idPrefix = anchors[docPath];
-  final ownIds = idPrefix == null ? const <String>{} : _collectIds(nodes);
-  _rewrite(
-    nodes,
-    docPath: docPath,
-    anchors: anchors,
-    idPrefix: idPrefix,
-    ownIds: ownIds,
-  );
-  if (idPrefix != null) _prefixIds(nodes, idPrefix);
-}
-
-void _rewrite(
-  List<Node> nodes, {
-  required String docPath,
-  required Map<String, String> anchors,
-  required String? idPrefix,
-  required Set<String> ownIds,
 }) {
   for (var i = 0; i < nodes.length; i++) {
     final node = nodes[i];
     if (node is! Element) continue;
     final children = node.children;
     if (children != null) {
-      _rewrite(
-        children,
-        docPath: docPath,
-        anchors: anchors,
-        idPrefix: idPrefix,
-        ownIds: ownIds,
-      );
+      rewriteLinks(children, docPath: docPath, anchors: anchors);
     }
     if (node.tag == 'a') {
-      nodes[i] = _rewriteLink(
-        node,
-        docPath: docPath,
-        anchors: anchors,
-        idPrefix: idPrefix,
-        ownIds: ownIds,
-      );
+      nodes[i] = _rewriteLink(node, docPath: docPath, anchors: anchors);
     }
-  }
-}
-
-Set<String> _collectIds(List<Node> nodes) => {
-  for (final node in nodes)
-    if (node is Element) ...[
-      ?node.attributes['id'],
-      ..._collectIds(node.children ?? const []),
-    ],
-};
-
-void _prefixIds(List<Node> nodes, String prefix) {
-  for (final node in nodes) {
-    if (node is! Element) continue;
-    final id = node.attributes['id'];
-    if (id != null) node.attributes['id'] = '$prefix-$id';
-    _prefixIds(node.children ?? const [], prefix);
   }
 }
 
@@ -84,14 +33,8 @@ Node _rewriteLink(
   Element link, {
   required String docPath,
   required Map<String, String> anchors,
-  required String? idPrefix,
-  required Set<String> ownIds,
 }) {
   final href = link.attributes['href'] ?? '';
-  if (idPrefix != null && ownIds.contains(_bareFragment(href))) {
-    link.attributes['href'] = '#$idPrefix-${href.substring(1)}';
-    return link;
-  }
   final target = _resolve(href, docPath);
   switch (target) {
     case _Web():
@@ -99,6 +42,7 @@ Node _rewriteLink(
     case _Doc(:final path):
       final anchor = anchors[path];
       if (anchor == null) return _outsideSpan(link, path);
+      if (href.startsWith('#')) return link;
       link.attributes['href'] = '#$anchor';
       return link;
     case _Outside(:final shown):
@@ -106,9 +50,60 @@ Node _rewriteLink(
   }
 }
 
-/// Returns the decoded fragment of a `#fragment` [href], else null.
-String? _bareFragment(String href) =>
-    href.startsWith('#') ? Uri.tryParse(href)?.fragment : null;
+final _idAttribute = RegExp(r'(\sid=")([^"]*)(")');
+final _fragmentHref = RegExp(r'(\shref="#)([^"]*)(")');
+
+/// Prefixes every `id` in [bodyHtml] with [anchor] and a hyphen, and points
+/// each bare `#fragment` link at the result.
+///
+/// Ids then stay unique across the docs of one page. A fragment that names an
+/// id of the body (`fn-1`, `top`) goes to the prefixed id (`doc-3-fn-1`); any
+/// other fragment goes to [anchor]. A fragment that is a page anchor in
+/// [pageAnchors] is a link `rewriteLinks` already resolved and stays. Markdown
+/// escapes the quotes of code and text, so only real tags match.
+///
+/// - [bodyHtml]: the rendered html of one doc's body.
+/// - [anchor]: the section anchor of that doc.
+/// - [pageAnchors]: the section anchor of every doc in the build.
+String scopeIds(
+  String bodyHtml, {
+  required String anchor,
+  required Set<String> pageAnchors,
+}) {
+  final ids = {
+    for (final match in _idAttribute.allMatches(bodyHtml)) match.group(2)!,
+  };
+  return bodyHtml
+      .replaceAllMapped(
+        _idAttribute,
+        (match) => '${match[1]}$anchor-${match[2]}${match[3]}',
+      )
+      .replaceAllMapped(_fragmentHref, (match) {
+        final fragment = match[2]!;
+        final String target;
+        if (_namesId(fragment, ids)) {
+          target = '$anchor-$fragment';
+        } else if (pageAnchors.contains(fragment)) {
+          target = fragment;
+        } else {
+          target = anchor;
+        }
+        return '${match[1]}$target${match[3]}';
+      });
+}
+
+final _brokenPercent = RegExp('%(?![0-9A-Fa-f]{2})');
+
+// A fragment may be written percent-encoded, an id never is.
+bool _namesId(String fragment, Set<String> ids) {
+  if (ids.contains(fragment)) return true;
+  if (_brokenPercent.hasMatch(fragment)) return false;
+  try {
+    return ids.contains(Uri.decodeComponent(fragment));
+  } on FormatException {
+    return false;
+  }
+}
 
 // The renderer writes a Text as given, so the path is escaped here.
 Element _outsideSpan(Element link, String shown) => Element('span', [
