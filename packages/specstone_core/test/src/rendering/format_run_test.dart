@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/temp_tree.dart';
 
 const _zeta = '''
 id: zeta
@@ -486,4 +487,23 @@ void main() {
       expect(_read(run, _feature), _featureFormatted);
     }, skip: unreadablePathSkipReason() ?? false);
   });
+
+  test('f05/us01/fr08: a docs root that is a link to a folder outside the '
+      'project still reports docs/... paths', () async {
+    final outside = await writeTree({
+      'prds/features/f05_rendering/FEATURE.md': _featureOutOfOrder,
+    });
+    final root = await fixtureProject({});
+    Link('${root.path}/docs').createSync(outside.path);
+    final project = DocsProject.open(
+      templates: TemplateResolver(shippedFiles: fixturePackFiles()),
+      workingDirectory: root,
+      homeDirectory: null,
+    );
+
+    final report = _run((root: root, project: project));
+
+    expect([for (final f in report.files) f.path], [_feature]);
+    expect(report.files.single.status, FileStatus.formatted);
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 }

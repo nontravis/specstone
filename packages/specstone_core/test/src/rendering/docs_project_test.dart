@@ -384,6 +384,28 @@ void main() {
   });
 
   group('DocsProject.displayPath', () {
+    test('f05/us02/fr01: a docs root that is a link to a folder outside the '
+        'project still prints docs/... paths', () async {
+      final root = await fixtureProject({});
+      final outside = await writeTree({'prds/a.md': ''});
+      Link('${root.path}/docs').createSync(outside.path);
+      final project = _open(root);
+
+      expect(
+        project.displayPath(File('${root.path}/docs/prds/a.md')),
+        'docs/prds/a.md',
+      );
+      expect(project.displayPath(Directory('${root.path}/docs')), 'docs');
+      expect(
+        project.displayPath(File('${root.path}/docs/prds/new.md')),
+        'docs/prds/new.md',
+      );
+      expect(
+        project.displayPath(File('${root.path}/.specstone/build/docs.html')),
+        '.specstone/build/docs.html',
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
     test(
       'a path under the project root is relative with / separators',
       () async {

@@ -105,10 +105,13 @@ final class DocsProject {
   /// Returns [entity] relative to the project root with `/` separators, or
   /// its absolute path when it lies outside the project root.
   ///
-  /// [entity] may not exist yet; its nearest existing ancestor is made
-  /// canonical first.
+  /// A path in the docs root prints as `docs/...` even when `docs` is a link
+  /// to a folder outside the project. [entity] may not exist yet; its nearest
+  /// existing ancestor is made canonical first.
   String displayPath(FileSystemEntity entity) {
     final path = _canonicalPath(entity.absolute.path);
+    final docPath = _docPathOf(path);
+    if (docPath != null) return docPath.isEmpty ? 'docs' : 'docs/$docPath';
     final root = projectRoot.path;
     if (path == root) return '.';
     final prefix = root.endsWith(_separator) ? root : '$root$_separator';
