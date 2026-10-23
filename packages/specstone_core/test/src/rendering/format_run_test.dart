@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/posix_modes.dart';
 
 const _zeta = '''
 id: zeta
@@ -442,5 +443,47 @@ void main() {
       expect(report.files.single.status, FileStatus.formatted);
       expect(_read(run, _feature), _featureOutOfOrder);
     }, skip: Platform.isWindows ? readOnlySkip : false);
+  });
+
+  group('an unreadable path', () {
+    test('f05/us01/fr02: a doc that cannot be read is skipped with a warning; '
+        'the run goes on and its exit status stays 0', () async {
+      final run = await _open({
+        _feature: _featureFormatted,
+        _story: _storyOutOfOrder,
+      });
+      final locked = _file(run, _feature);
+      await Process.run('chmod', ['000', locked.path]);
+      addTearDown(() => Process.run('chmod', ['644', locked.path]));
+
+      final report = _run(run);
+
+      expect(
+        [for (final f in report.files) (f.path, f.status)],
+        [(_feature, FileStatus.skipped), (_story, FileStatus.formatted)],
+      );
+      expect(report.warnings, ['$_feature: cannot be read; skipped']);
+      expect(report.exitStatus, 0);
+      expect(_read(run, _story), _storyFormatted);
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('f05/us01/fr02: a folder that cannot be listed is skipped with a '
+        'warning whose path ends in a slash', () async {
+      final run = await _open({
+        _feature: _featureOutOfOrder,
+        _story: _storyOutOfOrder,
+      });
+      final locked = _file(run, _story).parent;
+      await Process.run('chmod', ['000', locked.path]);
+      addTearDown(() => Process.run('chmod', ['755', locked.path]));
+
+      final report = _run(run);
+
+      expect(report.warnings, [
+        'docs/$_featureDir/us01_format_docs/: cannot be read; skipped',
+      ]);
+      expect(report.exitStatus, 0);
+      expect(_read(run, _feature), _featureFormatted);
+    }, skip: unreadablePathSkipReason() ?? false);
   });
 }

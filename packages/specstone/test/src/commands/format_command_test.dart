@@ -282,6 +282,41 @@ void main() {
       skip: _readOnlyFolderSkipReason(),
     );
 
+    test('f05/us01/fr07: a read-only doc that needs a rewrite is '
+        'output_not_writable, exit 73, and stays untouched', () async {
+      final project = await fixtureProject({_feature: _featureOutOfOrder});
+      final doc = File('${project.path}/$_feature');
+      await Process.run('chmod', ['444', doc.path]);
+      addTearDown(() => Process.run('chmod', ['644', doc.path]));
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format']), 73);
+
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), '$_feature: the doc is read-only\n');
+      expect(read(project, _feature), _featureOutOfOrder);
+    }, skip: _readOnlyFolderSkipReason() ?? false);
+
+    test('f05/us01/fr02: a doc that cannot be read is skipped with a warning '
+        'and the run exits 0', () async {
+      final project = await fixtureProject({
+        _feature: _featureFormatted,
+        _story: _storyOutOfOrder,
+      });
+      final doc = File('${project.path}/$_feature');
+      await Process.run('chmod', ['000', doc.path]);
+      addTearDown(() => Process.run('chmod', ['644', doc.path]));
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format']), 0);
+
+      expect(out.toString(), '$_story: formatted\n');
+      expect(
+        err.toString(),
+        '⚠️ WARNING: $_feature: cannot be read; skipped\n',
+      );
+    }, skip: _readOnlyFolderSkipReason() ?? false);
+
     test('help format prints the usage to out and exits 0', () async {
       final runner = await runnerIn(await fixtureProject({}));
 

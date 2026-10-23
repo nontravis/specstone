@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/posix_modes.dart';
 
 const _tree = [
   'prds/zeta.md',
@@ -42,7 +43,7 @@ const _prdsInOrder = [
 typedef _Walk = ({
   DocsProject project,
   Directory root,
-  List<DocFile> Function(String? target) collect,
+  List<DocEntry> Function(String? target) collect,
 });
 
 Future<_Walk> _walk([List<String> files = _tree]) async {
@@ -58,7 +59,7 @@ Future<_Walk> _walk([List<String> files = _tree]) async {
   return (
     project: project,
     root: root,
-    collect: (String? target) => collectDocFiles(
+    collect: (String? target) => collectDocEntries(
       project.resolveTarget(
         target,
         workingDirectory: root,
@@ -69,12 +70,12 @@ Future<_Walk> _walk([List<String> files = _tree]) async {
   );
 }
 
-List<String> _docPaths(List<DocFile> files) => [
+List<String> _docPaths(List<DocEntry> files) => [
   for (final file in files) file.docPath,
 ];
 
 void main() {
-  group('collectDocFiles', () {
+  group('collectDocEntries', () {
     test('f05/us02/fr01, f05/us02/fr01/e08, s03/inv10: a folder yields its '
         'docs in tree order', () async {
       final walk = await _walk();
@@ -132,7 +133,7 @@ void main() {
       final files = walk.collect('docs/prds/d01_context.md');
 
       expect(_docPaths(files), ['prds/d01_context.md']);
-      expect(files.single.file.existsSync(), isTrue);
+      expect((files.single as DocFile).file.existsSync(), isTrue);
     });
 
     test(
@@ -171,5 +172,21 @@ void main() {
 
       expect(_docPaths(walk.collect('docs/prds')), ['prds/a.md']);
     }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+  });
+
+  group('an unreadable folder', () {
+    test('f05/us02/fr01: yields an UnreadableFolder in its place; the rest of '
+        'the tree still comes', () async {
+      final walk = await _walk(['prds/a.md', 'prds/locked/b.md', 'z.md']);
+      final locked = Directory('${walk.root.path}/docs/prds/locked');
+      await Process.run('chmod', ['000', locked.path]);
+      addTearDown(() => Process.run('chmod', ['755', locked.path]));
+
+      final entries = walk.collect('docs');
+
+      expect(_docPaths(entries), ['z.md', 'prds/a.md', 'prds/locked']);
+      expect(entries.last, isA<UnreadableFolder>());
+      expect(entries.first, isA<DocFile>());
+    }, skip: unreadablePathSkipReason() ?? false);
   });
 }

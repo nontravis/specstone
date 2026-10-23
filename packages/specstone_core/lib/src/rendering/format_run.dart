@@ -125,12 +125,15 @@ FormatReport runFormat(
 }) {
   final files = <FileResult>[];
   final warnings = <String>[];
-  for (final docFile in collectDocFiles(target, project.matcher)) {
+  for (final docFile in collectDocEntries(target, project.matcher)) {
     switch (readDoc(project, docFile)) {
       case UnmatchedDoc(:final path, :final warning):
         files.add(FileResult(path: path, status: FileStatus.skipped));
         warnings.add(warning);
       case NotUtf8Doc(:final path, :final warning):
+        files.add(FileResult(path: path, status: FileStatus.skipped));
+        warnings.add(warning);
+      case UnreadableDoc(:final path, :final warning):
         files.add(FileResult(path: path, status: FileStatus.skipped));
         warnings.add(warning);
       case AmbiguousDoc(:final path, :final docTypeIds):

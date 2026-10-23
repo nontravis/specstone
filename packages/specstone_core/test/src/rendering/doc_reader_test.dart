@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/posix_modes.dart';
 
 const _zeta = '''
 id: zeta
@@ -23,6 +24,7 @@ Future<DocRead> _read(
   String content, {
   Map<String, String> extra = const {},
   List<int>? bytes,
+  void Function(File file)? prepare,
 }) async {
   final root = await fixtureProject({'docs/$docPath': content});
   final project = DocsProject.open(
@@ -37,6 +39,7 @@ Future<DocRead> _read(
   );
   final file = target.entity as File;
   if (bytes != null) file.writeAsBytesSync(bytes);
+  prepare?.call(file);
   return readDoc(project, DocFile(file, target.docPath));
 }
 
@@ -100,4 +103,26 @@ void main() {
 
     expect(read, isA<UnmatchedDoc>());
   });
+
+  test(
+    'f05/us01/fr02: a matched doc that cannot be read is an UnreadableDoc with '
+    'a warning',
+    () async {
+      final read = await _read(
+        _feature,
+        '# T\n',
+        prepare: (file) {
+          Process.runSync('chmod', ['000', file.path]);
+          addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+        },
+      );
+
+      expect(read, isA<UnreadableDoc>());
+      expect(
+        (read as UnreadableDoc).warning,
+        'docs/$_feature: cannot be read; skipped',
+      );
+    },
+    skip: unreadablePathSkipReason() ?? false,
+  );
 }

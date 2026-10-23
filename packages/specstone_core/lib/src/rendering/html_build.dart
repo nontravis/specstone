@@ -23,15 +23,17 @@ final class HtmlBuild {
 /// skipped with a warning; one that does not match its template renders and
 /// warns.
 HtmlBuild buildHtml(DocsProject project, Target target) {
-  final readable = <(DocFile, ReadableDoc)>[];
+  final readable = <(String, ReadableDoc)>[];
   final warnings = <String>[];
-  for (final docFile in collectDocFiles(target, project.matcher)) {
-    switch (readDoc(project, docFile)) {
+  for (final entry in collectDocEntries(target, project.matcher)) {
+    switch (readDoc(project, entry)) {
       case UnmatchedDoc(:final warning):
         warnings.add(warning);
       case AmbiguousDoc(:final warning):
         warnings.add(warning);
       case NotUtf8Doc(:final warning):
+        warnings.add(warning);
+      case UnreadableDoc(:final warning):
         warnings.add(warning);
       case final ReadableDoc read:
         if (!_matchesTemplate(read)) {
@@ -39,23 +41,19 @@ HtmlBuild buildHtml(DocsProject project, Target target) {
             '${read.path} does not match its template; run specstone format',
           );
         }
-        readable.add((docFile, read));
+        readable.add((entry.docPath, read));
     }
   }
   final anchors = {
-    for (final (index, (docFile, _)) in readable.indexed)
-      docFile.docPath: _anchorOf(index),
+    for (final (index, (docPath, _)) in readable.indexed)
+      docPath: _anchorOf(index),
   };
   final rendered = [
-    for (final (index, (docFile, read)) in readable.indexed)
+    for (final (index, (docPath, read)) in readable.indexed)
       RenderedDoc(
         anchor: _anchorOf(index),
-        tocEntry: shownTitle(read.doc) ?? docFile.docPath,
-        bodyHtml: renderDocBody(
-          read.doc,
-          docPath: docFile.docPath,
-          anchors: anchors,
-        ),
+        tocEntry: shownTitle(read.doc) ?? docPath,
+        bodyHtml: renderDocBody(read.doc, docPath: docPath, anchors: anchors),
       ),
   ];
   return HtmlBuild(
