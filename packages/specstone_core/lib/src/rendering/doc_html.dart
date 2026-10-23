@@ -33,13 +33,14 @@ String renderDocBody(
   ].where((part) => part.isNotEmpty).join('\n');
 }
 
-/// Tags the GFM "disallowed raw HTML" rule writes as text.
+/// Tags the GFM "disallowed raw HTML" rule writes as text, plus `noscript` and
+/// `template`, whose unclosed start tag also swallows the docs after it.
 ///
 /// The `markdown` package's own filter only matches a start tag without
 /// attributes, so `<title lang=x>` and `</title>` get through it.
 final _disallowedTag = RegExp(
-  '<(?=/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext)'
-  r'[\s/>])',
+  '<(?=/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext'
+  r'|noscript|template)[\s/>])',
   caseSensitive: false,
 );
 

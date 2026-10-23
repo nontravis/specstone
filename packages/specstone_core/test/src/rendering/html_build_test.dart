@@ -338,6 +338,32 @@ void main() {
     expect(html, contains('<h1>Req</h1>'));
   });
 
+  test('f05/us02/fr02: an unclosed <noscript> or <TEMPLATE id=x> and their end '
+      'tags in prose are shown as text and every later doc keeps its '
+      'section', () async {
+    final build = await _build({
+      _featurePath:
+          '# F-05\n\nShow <noscript> as text.\n\n'
+          'Then <TEMPLATE id=x> and </template> and </noscript>.\n',
+      _storyPath: _story,
+    }, target: 'docs/$_featureDir');
+
+    final html = build.html;
+    expect(html, contains('Show &lt;noscript> as text.'));
+    expect(
+      html,
+      contains(
+        'Then &lt;TEMPLATE id=x> and &lt;/template> and &lt;/noscript>.',
+      ),
+    );
+    final page = html.replaceAll(mermaidScript, '');
+    expect(RegExp('<noscript').allMatches(page), isEmpty);
+    expect(RegExp('</noscript').allMatches(page), isEmpty);
+    expect(RegExp('<template', caseSensitive: false).allMatches(page), isEmpty);
+    expect(RegExp('</template').allMatches(page), isEmpty);
+    expect(html, contains('<section class="doc" id="doc-2">'));
+  });
+
   test('f05/us02/fr02: a fenced code block that shows <script> still renders '
       'as code', () async {
     final build = await _build({
