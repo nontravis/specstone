@@ -60,6 +60,19 @@ final class MergedField {
       description: description ?? this.description,
     );
   }
+
+  /// Returns the JSON object of this field with only the keys set.
+  ///
+  /// `list` and `required` print only when true.
+  Map<String, Object> toJson() => {
+    'id': id,
+    'type': type.wire,
+    if (list) 'list': true,
+    if (required) 'required': true,
+    'enum': ?enumValues,
+    'docTypes': ?docTypes,
+    'description': ?description,
+  };
 }
 
 /// One enabled guide section of a merged doc type.
@@ -118,6 +131,22 @@ final class MergedSection {
     maxChars: maxChars ?? this.maxChars,
     maxLines: maxLines ?? this.maxLines,
   );
+
+  /// Returns the JSON object of this section with only the keys set.
+  ///
+  /// `required` prints only when true; `lint` is absent when no limit is set.
+  Map<String, Object> toJson() {
+    final lint = MergedLint(maxChars: maxChars, maxLines: maxLines).toJson();
+    return {
+      'id': id,
+      'prefixId': ?prefixId,
+      if (required) 'required': true,
+      'header': header,
+      'description': ?description,
+      'template': ?template,
+      if (lint.isNotEmpty) 'lint': lint,
+    };
+  }
 }
 
 /// The doc-level lint settings of a merged doc type.
@@ -155,6 +184,16 @@ final class MergedLint {
     bannedWords: bannedWords ?? this.bannedWords,
     allowedWords: allowedWords ?? this.allowedWords,
   );
+
+  /// Returns the JSON object of this lint with only the keys set.
+  ///
+  /// The object is empty when no layer defines a limit or a word list.
+  Map<String, Object> toJson() => {
+    'maxChars': ?maxChars,
+    'maxLines': ?maxLines,
+    'bannedWords': ?bannedWords,
+    'allowedWords': ?allowedWords,
+  };
 }
 
 /// A doc type with its layers folded into one, disabled entries dropped.
@@ -231,4 +270,37 @@ final class MergedDocType {
     pack: pack ?? this.pack,
     files: files ?? this.files,
   );
+
+  /// Returns the JSON object of the merged schema with only the keys set.
+  ///
+  /// Keys follow the s02 `specstone guide <type> --json` order; `lint` is
+  /// absent when no layer sets a limit or a word list.
+  Map<String, Object> toJson() {
+    final lintJson = lint.toJson();
+    return {
+      'id': id,
+      'description': ?description,
+      'parent': ?parent,
+      'extends': ?extendsId,
+      'path': ?path,
+      'fields': [for (final field in fields) field.toJson()],
+      'sections': [for (final section in sections) section.toJson()],
+      if (lintJson.isNotEmpty) 'lint': lintJson,
+      if (reference != null)
+        'reference': [for (final entry in reference!) entry.toJson()],
+    };
+  }
+
+  /// Returns the writing guide: the description, then each section's header
+  /// and description, each block set off by a blank line.
+  String renderGuide() {
+    final blocks = <String>[
+      if (description != null) description!.trimRight(),
+      for (final section in sections) ...[
+        '## ${section.header}',
+        if (section.description != null) section.description!.trimRight(),
+      ],
+    ];
+    return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
 }

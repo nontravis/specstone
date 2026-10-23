@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -16,6 +18,25 @@ final class MergedSet {
     }
     return null;
   }
+
+  /// Returns one JSON object per doc type: `id`, `pack` when a pack supplies
+  /// the doc type, and the first line of `description`.
+  List<Map<String, Object>> listJson() => [
+    for (final docType in docTypes)
+      {
+        'id': docType.id,
+        'pack': ?docType.pack,
+        'description': ?_firstLine(docType.description),
+      },
+  ];
+
+  /// Returns the doc type ids, one per line, each ending with a newline.
+  String listText() =>
+      [for (final docType in docTypes) '${docType.id}\n'].join();
+
+  /// Returns the first line of [text], or null when [text] is null or empty.
+  static String? _firstLine(String? text) =>
+      text == null ? null : const LineSplitter().convert(text).firstOrNull;
 
   /// Returns an unmodifiable [docTypes] copy sorted by id (INV-22).
   static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) {
