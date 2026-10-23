@@ -2,6 +2,8 @@
 library;
 
 export 'src/fault.dart';
+export 'src/rendering/browser_host.dart' show BrowserHost, HostOs, RunProcess;
+export 'src/rendering/browser_locator.dart' show locateBrowser;
 export 'src/rendering/build_output.dart'
     show
         BuildResult,
@@ -12,6 +14,7 @@ export 'src/rendering/build_output.dart'
 export 'src/rendering/docs_project.dart' show DocsProject, Target;
 export 'src/rendering/format_run.dart' show FormatReport, runFormat;
 export 'src/rendering/html_build.dart' show HtmlBuild, buildHtml;
+export 'src/rendering/pdf_printer.dart' show printPdf;
 export 'src/rendering/render_fault.dart';
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';

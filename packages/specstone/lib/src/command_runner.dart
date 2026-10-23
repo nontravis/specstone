@@ -37,11 +37,13 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     TemplateResolver? templates,
     Directory? workingDirectory,
     Directory? homeDirectory,
+    BrowserHost? browserHost,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _templates = templates ?? TemplateResolver(),
        _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
+       _browserHost = browserHost ?? BrowserHost.system(),
        super(
          'specstone',
          'Keeps PRD and spec documents for spec-driven development.',
@@ -62,6 +64,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final TemplateResolver _templates;
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
+  final BrowserHost _browserHost;
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -83,6 +86,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// Home folder that holds the personal packs, `~`, or null when the
   /// environment names none.
   Directory? get homeDirectory => _homeDirectory;
+
+  /// The machine facts `build --format pdf` finds and runs the browser with.
+  BrowserHost get browserHost => _browserHost;
 
   @override
   void printUsage() => _out.writeln(usage);

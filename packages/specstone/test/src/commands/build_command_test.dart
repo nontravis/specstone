@@ -5,6 +5,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/fake_browser_host.dart';
 import '../../helpers/fixture_packs.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -47,6 +48,7 @@ void main() {
     Future<SpecstoneCommandRunner> runnerIn(
       Directory workingDirectory, {
       Map<String, String> packs = const {},
+      BrowserHost? browserHost,
     }) async {
       final home = await writeTree({});
       return SpecstoneCommandRunner(
@@ -57,6 +59,7 @@ void main() {
         ),
         workingDirectory: workingDirectory,
         homeDirectory: home,
+        browserHost: browserHost,
       );
     }
 
@@ -163,11 +166,16 @@ void main() {
       );
 
       expect(
-        await runner.run(['build', 'prds/features', '--output', 'out/a.html']),
+        await runner.run([
+          'build',
+          'prds/features',
+          '--output',
+          '../out/a.html',
+        ]),
         0,
       );
-      expect(out.toString(), 'docs/out/a.html\n');
-      expect(exists(project, 'docs/out/a.html'), isTrue);
+      expect(out.toString(), 'out/a.html\n');
+      expect(exists(project, 'out/a.html'), isTrue);
     });
 
     test('f05/us02/s2: a mermaid block ships the script and a pre', () async {
@@ -381,6 +389,272 @@ void main() {
       expect(await runner.run(['build', 'docs']), 78);
       expect(out.toString(), isEmpty);
       expect(err.toString(), isNotEmpty);
+    });
+
+    group('--format pdf', () {
+      const pdfOut = '.specstone/build/$_featureDir.pdf';
+      const noBrowser =
+          'no Chrome, Edge, or Chromium found: install one, name a browser in '
+          'SPECSTONE_BROWSER, or build html with --format html\n';
+
+      test('f05/us03/s1, f05/us02/fr04/e05: prints the mirrored .pdf path '
+          'and writes the fake pdf bytes', () async {
+        final project = await fixtureProject(_fixture);
+        final browser = FakeBrowserHost.withChrome();
+        final runner = await runnerIn(project, browserHost: browser.host);
+
+        expect(await runner.run(['build', _featureDir, '--format', 'pdf']), 0);
+        expect(out.toString(), '$pdfOut\n');
+        expect(err.toString(), isEmpty);
+        expect(read(project, pdfOut), fakePdf);
+        expect(browser.executables, [FakeBrowserHost.chromePath]);
+      });
+
+      test(
+        'f05/us03/s2: SPECSTONE_BROWSER names the program that runs',
+        () async {
+          final project = await fixtureProject(_fixture);
+          final browser = FakeBrowserHost(
+            runnable: {'/opt/browser', FakeBrowserHost.chromePath},
+            environment: {'SPECSTONE_BROWSER': '/opt/browser'},
+          );
+          final runner = await runnerIn(project, browserHost: browser.host);
+
+          expect(
+            await runner.run(['build', _featureDir, '--format', 'pdf']),
+            0,
+          );
+          expect(browser.executables, ['/opt/browser']);
+        },
+      );
+
+      test(
+        'f05/us03/s3: no runnable browser is 69 and writes nothing',
+        () async {
+          final project = await fixtureProject(_fixture);
+          final browser = FakeBrowserHost();
+          final runner = await runnerIn(project, browserHost: browser.host);
+
+          expect(
+            await runner.run(['build', _featureDir, '--format', 'pdf']),
+            69,
+          );
+          expect(out.toString(), isEmpty);
+          expect(err.toString(), noBrowser);
+          expect(browser.executables, isEmpty);
+          expect(
+            Directory.fromUri(project.uri.resolve('.specstone/build'))
+                .existsSync(),
+            isFalse,
+          );
+        },
+      );
+
+      test('f05/us03/s4: a failing print is 70 in text and in json', () async {
+        final project = await fixtureProject(_fixture);
+        final browser = FakeBrowserHost.withChrome(exitCode: 1);
+        final runner = await runnerIn(project, browserHost: browser.host);
+
+        expect(await runner.run(['build', _featureDir, '--format', 'pdf']), 70);
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          'the browser stopped before it printed the pdf\n',
+        );
+        expect(exists(project, pdfOut), isFalse);
+
+        err.clear();
+        expect(
+          await runner.run(['build', _featureDir, '--format', 'pdf', '--json']),
+          70,
+        );
+        expect(out.toString(), isEmpty);
+        expect(jsonDecode(err.toString()), {
+          'error': {
+            'code': 'browser_print_failed',
+            'message': 'the browser stopped before it printed the pdf',
+          },
+        });
+      });
+
+      test('f05/us03/s5: a named browser that is not runnable is 69 and '
+          'never falls back to Chrome', () async {
+        final project = await fixtureProject(_fixture);
+        final browser = FakeBrowserHost(
+          runnable: {FakeBrowserHost.chromePath},
+          environment: {'SPECSTONE_BROWSER': '/opt/none/chrome'},
+        );
+        final runner = await runnerIn(project, browserHost: browser.host);
+
+        expect(await runner.run(['build', _featureDir, '--format', 'pdf']), 69);
+        expect(
+          err.toString(),
+          'SPECSTONE_BROWSER names /opt/none/chrome, which is not a runnable '
+          'program: fix the variable or unset it\n',
+        );
+        expect(browser.executables, isEmpty);
+      });
+
+      test(
+        'f05/us03/fr01/e02: html builds never touch the browser host',
+        () async {
+          final project = await fixtureProject(_fixture);
+          final browser = FakeBrowserHost.withChrome();
+          final runner = await runnerIn(project, browserHost: browser.host);
+
+          expect(await runner.run(['build', _featureDir]), 0);
+          expect(
+            await runner.run(['build', _featureDir, '--format', 'html']),
+            0,
+          );
+          expect(browser.wasUsed, isFalse);
+        },
+      );
+
+      test('f05/us03/fr02/e03: an output whose parent is a file is 73 after '
+          'the print and nothing is written', () async {
+        final project = await fixtureProject({..._fixture, 'blocker': 'x'});
+        final browser = FakeBrowserHost.withChrome();
+        final runner = await runnerIn(project, browserHost: browser.host);
+
+        expect(
+          await runner.run([
+            'build', _featureDir, '--format', 'pdf', //
+            '--output', 'blocker/x.pdf',
+          ]),
+          73,
+        );
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          'blocker/x.pdf: the output path is not writable\n',
+        );
+        expect(browser.executables, hasLength(1));
+        expect(read(project, 'blocker'), 'x');
+      });
+
+      test('f05/us03/fr02/e04: an unformatted doc and a skipped file warn '
+          'as the html build does', () async {
+        final project = await fixtureProject({
+          ..._fixture,
+          _feature:
+              '# F-03\n\n## Feature goal\n- **why:** x\n\n'
+              '## Feature name\n- **Human:** y\n',
+          '$_featureDir/notes.md': 'notes\n',
+        });
+        final browser = FakeBrowserHost.withChrome();
+        final runner = await runnerIn(project, browserHost: browser.host);
+
+        expect(await runner.run(['build', _featureDir]), 0);
+        final htmlWarnings = err.toString();
+        err.clear();
+
+        expect(await runner.run(['build', _featureDir, '--format', 'pdf']), 0);
+        expect(err.toString(), htmlWarnings);
+        expect(htmlWarnings.trim().split('\n'), hasLength(2));
+        expect(htmlWarnings, startsWith('⚠️ WARNING: '));
+      });
+    });
+
+    group('an --output inside the docs root', () {
+      for (final format in ['html', 'pdf']) {
+        test('f05/us02/fr04: $format to a new file in docs/ is 73 and '
+            'renders nothing', () async {
+          final project = await fixtureProject(_fixture);
+          final browser = FakeBrowserHost.withChrome();
+          final runner = await runnerIn(project, browserHost: browser.host);
+
+          expect(
+            await runner.run([
+              'build', _featureDir, '--format', format, //
+              '--output', 'docs/x.$format',
+            ]),
+            73,
+          );
+          expect(out.toString(), isEmpty);
+          expect(
+            err.toString(),
+            'docs/x.$format: the output path is inside the docs root\n',
+          );
+          expect(exists(project, 'docs/x.$format'), isFalse);
+          expect(browser.executables, isEmpty);
+        });
+
+        test('f05/us02/fr04: $format over a source doc leaves the source '
+            'byte-identical', () async {
+          final project = await fixtureProject(_fixture);
+          final runner = await runnerIn(
+            project,
+            browserHost: FakeBrowserHost.withChrome().host,
+          );
+
+          expect(
+            await runner.run([
+              'build', _featureDir, '--format', format, //
+              '--output', _feature,
+            ]),
+            73,
+          );
+          expect(read(project, _feature), _featureText);
+          expect(
+            err.toString(),
+            '$_feature: the output path is inside the docs root\n',
+          );
+        });
+      }
+
+      test('f05/us02/fr04: a .. path and a symlink into docs/ do not slip '
+          'past the guard', () async {
+        final project = await fixtureProject(_fixture);
+        final runner = await runnerIn(project);
+
+        expect(
+          await runner.run([
+            'build', _featureDir, //
+            '--output', 'missing/../docs/x.html',
+          ]),
+          73,
+        );
+        expect(exists(project, 'docs/x.html'), isFalse);
+
+        if (Platform.isWindows) return;
+        final alias = Link.fromUri(project.uri.resolve('alias'));
+        await alias.create('${project.path}/docs');
+        out.clear();
+        err.clear();
+
+        expect(
+          await runner.run(['build', _featureDir, '--output', 'alias/y.html']),
+          73,
+        );
+        expect(exists(project, 'docs/y.html'), isFalse);
+        expect(err.toString(), contains('inside the docs root'));
+      });
+
+      test('f05/us02/fr04: --json prints the envelope with the file on '
+          'stderr', () async {
+        final project = await fixtureProject(_fixture);
+        final runner = await runnerIn(project);
+
+        expect(
+          await runner.run([
+            'build',
+            _featureDir,
+            '--json',
+            '--output',
+            'docs/x.html',
+          ]),
+          73,
+        );
+        expect(out.toString(), isEmpty);
+        expect(jsonDecode(err.toString()), {
+          'error': {
+            'code': 'output_not_writable',
+            'message': 'the output path is inside the docs root',
+            'file': 'docs/x.html',
+          },
+        });
+      });
     });
 
     test('an unsupported --format is a usage error and exits 64', () async {

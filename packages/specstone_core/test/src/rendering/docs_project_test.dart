@@ -440,4 +440,67 @@ void main() {
       expect(project.displayPath(output), output.resolveSymbolicLinksSync());
     });
   });
+
+  group('DocsProject.isInsideDocsRoot', () {
+    test('a file that does not exist yet below docs/ is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      expect(
+        project.isInsideDocsRoot(File.fromUri(root.uri.resolve('docs/x.html'))),
+        isTrue,
+      );
+      expect(
+        project.isInsideDocsRoot(
+          File.fromUri(root.uri.resolve('docs/new/deep/x.html')),
+        ),
+        isTrue,
+      );
+    });
+
+    test('the docs root itself is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      expect(project.isInsideDocsRoot(project.docsRoot), isTrue);
+    });
+
+    test('a path beside docs/, a sibling prefix, and a .. escape are '
+        'outside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      for (final path in [
+        'x.html',
+        'docs2/x.html',
+        '.specstone/build/docs.html',
+        'docs/../x.html',
+      ]) {
+        expect(
+          project.isInsideDocsRoot(File.fromUri(root.uri.resolve(path))),
+          isFalse,
+          reason: path,
+        );
+      }
+    });
+
+    test('a .. path that returns into docs/ is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+      final path = '${root.path}/other/../docs/x.html';
+
+      expect(project.isInsideDocsRoot(File(path)), isTrue);
+    });
+
+    test('a path through a symbolic link into docs/ is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final holder = await Directory.systemTemp.createTemp('specstone_link_');
+      addTearDown(() => holder.delete(recursive: true));
+      final link = Link('${holder.path}/alias');
+      await link.create('${root.path}/docs');
+      final project = _open(root);
+
+      expect(project.isInsideDocsRoot(File('${link.path}/x.html')), isTrue);
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+  });
 }

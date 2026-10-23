@@ -116,6 +116,13 @@ final class DocsProject {
     return path.substring(prefix.length).split(_separator).join('/');
   }
 
+  /// Whether [entity] is the docs root or lies below it.
+  ///
+  /// [entity] may not exist yet. Symbolic links and `..` segments are resolved
+  /// first, so no spelling of a path inside the docs root compares as outside.
+  bool isInsideDocsRoot(FileSystemEntity entity) =>
+      _docPathOf(_canonicalPath(entity.absolute.path)) != null;
+
   Target _targetAt(String path, {required String asGiven}) {
     final type = FileSystemEntity.typeSync(path);
     if (type == FileSystemEntityType.notFound) {
@@ -157,7 +164,8 @@ String _absolute(String path, Directory workingDirectory) {
 ///
 /// The path may not exist: the nearest existing ancestor is resolved and the
 /// missing names are appended, so a build output file that is not written yet
-/// still compares against canonical roots.
+/// still compares against canonical roots. A `..` or `.` among the missing
+/// names is applied, because nothing missing can be a symbolic link.
 String _canonicalPath(String path) {
   final missing = <String>[];
   var existing = _withoutTrailingSeparator(File(path).absolute.path);
@@ -169,6 +177,12 @@ String _canonicalPath(String path) {
   }
   var resolved = File(existing).resolveSymbolicLinksSync();
   for (final name in missing.reversed) {
+    if (name == '.') continue;
+    if (name == '..') {
+      final cut = resolved.lastIndexOf(_separator);
+      resolved = cut <= 0 ? _separator : resolved.substring(0, cut);
+      continue;
+    }
     resolved = resolved.endsWith(_separator)
         ? '$resolved$name'
         : '$resolved$_separator$name';

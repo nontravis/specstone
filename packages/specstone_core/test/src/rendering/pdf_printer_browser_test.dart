@@ -65,7 +65,7 @@ void main() {
         .map((match) => int.parse(match.group(1)!))
         .fold<int>(0, (a, b) => a > b ? a : b);
     printOnFailure('page count: $largest');
-    // ignore: avoid_print, the run reports the page count the controller asked for.
+    // ignore: avoid_print, a live-browser run reports the page count it printed.
     print('browser=$browser pages=$largest');
     expect(largest, greaterThanOrEqualTo(3));
   });
