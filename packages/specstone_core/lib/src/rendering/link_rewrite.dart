@@ -90,7 +90,11 @@ _Target _resolve(String href, String docPath) {
 }
 
 /// Returns the docPath [segments] reach from [docPath]'s folder, or null when
-/// a `..` pops past the docs root. An empty result names the docs root.
+/// a `..` pops past the docs root or a decoded segment holds a `/`. An empty
+/// result names the docs root.
+///
+/// [segments] are split on `/` before they are percent-decoded, so an encoded
+/// slash (`%2F`) belongs to one segment and cannot name a doc.
 String? _resolveSegments(List<String> segments, String docPath) {
   final path = docPath.split('/')..removeLast();
   for (final segment in segments) {
@@ -100,6 +104,8 @@ String? _resolveSegments(List<String> segments, String docPath) {
       case '..':
         if (path.isEmpty) return null;
         path.removeLast();
+      case _ when segment.contains('/'):
+        return null;
       default:
         path.add(segment);
     }

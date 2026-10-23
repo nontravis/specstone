@@ -156,6 +156,22 @@ void main() {
       );
     });
 
+    test('f05/us02/fr03: an encoded slash never separates segments, so the '
+        'link stays an outside-link span with the href as written', () {
+      const anchors = {'x/c.md': 'doc-1', 'x/a/b.md': 'doc-2', 'd.md': 'doc-3'};
+
+      for (final href in ['..%2Fd.md', 'a%2Fb.md', 'a%2fb.md']) {
+        expect(
+          _rewritten('[x]($href)', docPath: 'x/c.md', anchors: anchors),
+          '<p><span class="outside-link">x (<code>$href</code>)</span></p>',
+        );
+      }
+      expect(
+        _rewritten('[x](a/b.md)', docPath: 'x/c.md', anchors: anchors),
+        '<p><a href="#doc-2">x</a></p>',
+      );
+    });
+
     test('f05/us02/fr03: "." and empty segments resolve away', () {
       expect(_rewritten('[x](./../d.md)'), '<p><a href="#doc-2">x</a></p>');
       expect(_rewritten('[x](c.md)'), '<p><a href="#doc-1">x</a></p>');
