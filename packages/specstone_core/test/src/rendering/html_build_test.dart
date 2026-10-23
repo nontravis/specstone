@@ -293,8 +293,26 @@ void main() {
     expect(html.indexOf('https://example.com/a.js'), greaterThan(csp));
     expect(html, contains('img-src data:'));
     expect(html, contains("default-src 'none'"));
-    expect(html, contains('<script>alert(1)</script>'));
+    expect(html, contains('&lt;script>alert(1)</script>'));
+    expect(html, isNot(contains('<script>alert(1)</script>')));
     expect(RegExp('<script nonce="').allMatches(html), hasLength(2));
+  });
+
+  test('f05/us02/fr02: an unclosed <title> in a doc is shown as text and the '
+      'next doc still gets its section', () async {
+    final build = await _build({
+      _featurePath: "# F-05\n\nSet the page's <title> from the doc.\n",
+      _storyPath: _story,
+    }, target: 'docs/$_featureDir');
+
+    final html = build.html;
+    expect(html, contains("Set the page's &lt;title> from the doc."));
+    expect(
+      RegExp('<title>').allMatches(html.replaceAll(mermaidScript, '')),
+      hasLength(1),
+    );
+    expect(html, contains('<section class="doc" id="doc-2">'));
+    expect(html, contains('<h1>Story one</h1>'));
   });
 
   test('f05/us02/fr02/e05: a bare "# " title line is no title, so the toc '

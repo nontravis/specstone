@@ -8,7 +8,9 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// The body is the text after the frontmatter minus the title line, read as
 /// GitHub-flavored markdown. A `mermaid` fence becomes `<pre class="mermaid">`
 /// holding its escaped source. A blank title line shows no title. Links are
-/// rewritten by `rewriteLinks`.
+/// rewritten by `rewriteLinks`. The GFM tag filter turns a raw `<title>`,
+/// `<script>`, `<style>`, `<textarea>` and similar tags in prose into text,
+/// so one doc cannot swallow the docs after it.
 ///
 /// - [docPath]: the path of [doc] relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath.
@@ -27,7 +29,7 @@ String renderDocBody(
     if (frontmatter != null && frontmatter.isNotEmpty)
       _frontmatterTable(frontmatter),
     if (doc.isDraft) '<p class="draft">Draft</p>',
-    renderToHtml(_withMermaidPre(body)).trimRight(),
+    renderToHtml(_withMermaidPre(body), enableTagfilter: true).trimRight(),
   ].where((part) => part.isNotEmpty).join('\n');
 }
 
