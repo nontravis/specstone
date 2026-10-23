@@ -50,6 +50,7 @@ sections:
       Write: The <product> shall <verb> <object> <value ± tolerance> <condition>.
       Use one "shall" and a positive form; give every value a unit and a tolerance (<, ≥, ±).
       Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
+      Do not use EARS keywords.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
   - id: rationale

@@ -268,7 +268,7 @@ RegExp _wholeWord(String word) => RegExp(
   caseSensitive: false,
 );
 
-final _thai = RegExp('[฀-๿]');
+final _thai = RegExp(r'[\u0E00-\u0E7F]');
 
 Iterable<String> _guideTexts(MergedDocType docType) sync* {
   yield docType.description ?? '';

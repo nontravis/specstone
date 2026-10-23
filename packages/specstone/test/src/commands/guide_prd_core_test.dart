@@ -68,17 +68,17 @@ void main() {
     );
 
     test('f03/us06/s2, f03/us06/fr02: guide user_story prints the title form, '
-        'then each section header in order', () async {
+        'then each section header and description in order', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'user_story']), 0);
       final guide = out.toString();
       expect(guide, isNot(startsWith('#')));
       final title = guide.indexOf('# <Name>');
       final at = [
-        '## Use Case',
-        '## Rules',
-        '## Acceptance Criteria',
-        '## Open questions',
+        '## Use Case\n\nWrite: As a <Role>',
+        '## Rules\n\nWrite it when the story has two or more rules',
+        '## Acceptance Criteria\n\nTitle each scenario',
+        '## Open questions\n\nOptional. Record each example',
       ].map(guide.indexOf).toList();
       expect(title, greaterThan(0));
       expect(at, everyElement(greaterThan(title)));

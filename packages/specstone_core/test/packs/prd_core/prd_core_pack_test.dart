@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -75,10 +76,9 @@ void main() {
         set.lookup('feature')!.path,
         'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
       );
-      expect(
-        set.lookup('nf')!.path,
-        'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}/nf{nn}_{slug}.md',
-      );
+      expect(set.lookup('user_story')!.path, '$story/USER_STORY.md');
+      expect(set.lookup('fr')!.path, '$story/fr{nn}_{slug}.md');
+      expect(set.lookup('nf')!.path, '$story/nf{nn}_{slug}.md');
       expect(set.lookup('fr')!.parent, 'user_story');
     });
 
@@ -135,5 +135,53 @@ void main() {
         ),
       );
     });
+  });
+
+  group('expectOwnFields', () {
+    test(
+      'f03/us06/fr01: fails when an enum field lists other values',
+      () async {
+        final anti = prdCoreDocType(await resolvePrdCore(), 'anti_persona');
+        expect(
+          () => expectOwnFields(anti, const [
+            FieldSpec(
+              'anti_type',
+              FieldType.enumType,
+              required: true,
+              enumValues: ['misuser', 'other'],
+            ),
+            FieldSpec(
+              'basis',
+              FieldType.enumType,
+              required: true,
+              enumValues: ['proto', 'qualitative', 'statistical'],
+            ),
+            FieldSpec('reviewed', FieldType.date),
+          ]),
+          throwsA(isA<TestFailure>()),
+        );
+      },
+    );
+
+    test(
+      'f03/us06/fr01: fails when a docRef field names other doc types',
+      () async {
+        final feature = prdCoreDocType(await resolvePrdCore(), 'feature');
+        expect(
+          () => expectOwnFields(feature, const [
+            FieldSpec('vision', FieldType.string, list: true),
+            FieldSpec('goals', FieldType.string, list: true),
+            FieldSpec(
+              'persona',
+              FieldType.docRef,
+              list: true,
+              docTypes: ['anti_persona'],
+            ),
+            FieldSpec('system', FieldType.string),
+          ]),
+          throwsA(isA<TestFailure>()),
+        );
+      },
+    );
   });
 }
