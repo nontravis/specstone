@@ -1,3 +1,5 @@
 packages/specstone_core/packs/** -text
 packages/specstone_core/test/fixtures/packs/** -text
 packages/specstone_core/lib/src/templates/shipped_packs.g.dart text eol=lf
+packages/specstone_core/assets/mermaid/** -text
+packages/specstone_core/lib/src/rendering/mermaid_script.g.dart text eol=lf

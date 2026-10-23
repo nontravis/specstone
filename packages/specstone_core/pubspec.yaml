@@ -9,6 +9,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  markdown: ^7.3.1
   yaml: ^3.1.4
 
 dev_dependencies:
