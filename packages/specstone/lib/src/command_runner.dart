@@ -11,6 +11,18 @@ import 'package:specstone_core/specstone_core.dart';
 /// unknown command or option is given.
 const int usageExitCode = 64;
 
+/// Returns the folder in `HOME`, else `USERPROFILE` (Windows) of [env].
+///
+/// An empty value counts as unset. Returns null when neither names a folder, so
+/// no relative path ever stands in for the home.
+Directory? homeFrom(Map<String, String> env) {
+  for (final key in const ['HOME', 'USERPROFILE']) {
+    final value = env[key];
+    if (value != null && value.isNotEmpty) return Directory(value);
+  }
+  return null;
+}
+
 /// Runs the `specstone` command line.
 ///
 /// Prints the Specstone version for `--version`, prints generated usage for
@@ -27,7 +39,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
        _err = err ?? stderr,
        _templates = templates ?? TemplateResolver(),
        _workingDirectory = workingDirectory ?? Directory.current,
-       _homeDirectory = homeDirectory ?? _homeFromEnvironment(),
+       _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        super(
          'specstone',
          'Keeps PRD and spec documents for spec-driven development.',
@@ -45,7 +57,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final StringSink _err;
   final TemplateResolver _templates;
   final Directory _workingDirectory;
-  final Directory _homeDirectory;
+  final Directory? _homeDirectory;
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -60,16 +72,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// default.
   Directory get workingDirectory => _workingDirectory;
 
-  /// Home folder that holds the personal packs, `~`.
-  Directory get homeDirectory => _homeDirectory;
-
-  /// Returns the folder in `HOME`, else `USERPROFILE` (Windows).
-  ///
-  /// With neither set the folder is empty, so no personal pack is found.
-  static Directory _homeFromEnvironment() {
-    final env = Platform.environment;
-    return Directory(env['HOME'] ?? env['USERPROFILE'] ?? '');
-  }
+  /// Home folder that holds the personal packs, `~`, or null when the
+  /// environment names none.
+  Directory? get homeDirectory => _homeDirectory;
 
   @override
   void printUsage() => _out.writeln(usage);

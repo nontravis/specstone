@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
@@ -14,6 +16,22 @@ void main() {
       out = StringBuffer();
       err = StringBuffer();
       runner = SpecstoneCommandRunner(out: out, err: err);
+    });
+
+    test('the injected resolver and folders come back from the getters', () {
+      final templates = TemplateResolver();
+      final working = Directory('work');
+      final home = Directory('home');
+
+      final injected = SpecstoneCommandRunner(
+        templates: templates,
+        workingDirectory: working,
+        homeDirectory: home,
+      );
+
+      expect(injected.templates, same(templates));
+      expect(injected.workingDirectory, same(working));
+      expect(injected.homeDirectory, same(home));
     });
 
     test('--version prints the core version and exits 0', () async {
@@ -81,5 +99,23 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 10)),
     );
+  });
+
+  group('homeFrom', () {
+    test('returns the folder in HOME', () {
+      expect(
+        homeFrom({'HOME': '/home/a', 'USERPROFILE': r'C:\\a'})?.path,
+        '/home/a',
+      );
+    });
+
+    test('treats an empty HOME as unset and falls back to USERPROFILE', () {
+      expect(homeFrom({'HOME': '', 'USERPROFILE': r'C:\\a'})?.path, r'C:\\a');
+    });
+
+    test('returns null when both are unset or empty', () {
+      expect(homeFrom({}), isNull);
+      expect(homeFrom({'HOME': '', 'USERPROFILE': ''}), isNull);
+    });
   });
 }

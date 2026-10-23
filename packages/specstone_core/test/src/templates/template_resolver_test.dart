@@ -180,6 +180,39 @@ void main() {
       );
     });
 
+    test('f03/us04/fr01/e01: a null home makes a listed personal pack '
+        'pack_not_found', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: null),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packNotFound)
+              .having((f) => f.file, 'file', _configPath)
+              .having((f) => f.key, 'key', 'packs.nont-software'),
+        ),
+      );
+    });
+
+    test('f03/us04/fr01: a null home still resolves a project that lists only '
+        'shipped packs', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+
+      expect(merged.docTypes.map((d) => d.id), ['feature']);
+    });
+
     test(
       'f03/us04/s5, f03/us04/fr01/e02, f03/us05/fr02/e06: '
       'a differing personal version is personal_pack_version_differs',

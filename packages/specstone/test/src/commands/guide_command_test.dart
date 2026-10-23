@@ -120,18 +120,20 @@ void main() {
     });
 
     test('f03/us01/fr03/e01: an unknown type with --json prints the envelope '
-        'with no file or key', () async {
+        'pretty-printed with no file or key', () async {
       final runner = await runnerIn(await projectWith({}));
 
       expect(await runner.run(['guide', 'featur', '--json']), 64);
       expect(out.toString(), isEmpty);
-      final error =
-          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
-              as Map<String, Object?>;
-      expect(error['code'], 'doc_type_unknown');
-      expect(error['message'], 'Could not find a doc type named "featur".');
-      expect(error.containsKey('file'), isFalse);
-      expect(error.containsKey('key'), isFalse);
+      expect(
+        err.toString(),
+        '{\n'
+        '  "error": {\n'
+        '    "code": "doc_type_unknown",\n'
+        '    "message": "Could not find a doc type named \\"featur\\"."\n'
+        '  }\n'
+        '}\n',
+      );
     });
 
     test('f03/us01/s7, f03/us01/fr01/e02, f03/us01/fr02/e04: a broken project '
@@ -156,6 +158,7 @@ void main() {
 
       expect(await runner.run(['guide', '--json']), 78);
       expect(out.toString(), isEmpty);
+      expect(err.toString(), startsWith('{\n  "error": {\n    "code"'));
       final error =
           (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
               as Map<String, Object?>;

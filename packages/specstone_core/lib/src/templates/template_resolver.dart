@@ -30,13 +30,14 @@ final class TemplateResolver {
 
   /// Resolves the doc types of the project at [workingDirectory].
   ///
-  /// [homeDirectory] is the personal pack home, `~`. Outside a project every
-  /// shipped pack loads with no config, no pin check, no personal pack, and
-  /// no project layer (INV-9). Throws the first [TemplateFault] in load
-  /// order; nothing is cached between calls.
+  /// [homeDirectory] is the personal pack home, `~`, or null when the
+  /// environment names none; a listed personal pack is then `pack_not_found`.
+  /// Outside a project every shipped pack loads with no config, no pin check,
+  /// no personal pack, and no project layer (INV-9). Throws the first
+  /// [TemplateFault] in load order; nothing is cached between calls.
   MergedSet resolve({
     required Directory workingDirectory,
-    required Directory homeDirectory,
+    required Directory? homeDirectory,
   }) {
     final root = findProjectRoot(workingDirectory);
     final packs = root == null
@@ -67,7 +68,7 @@ final class TemplateResolver {
   /// (`pack_pin_older`, `pack_pin_newer`). A pack that does not ship loads
   /// from the home folder (`pack_not_found`, `pack_name_mismatch`,
   /// `personal_pack_version_differs`). Unlisted packs never load (INV-9).
-  List<LoadedPack> _listedPacks(ProjectConfig config, Directory home) {
+  List<LoadedPack> _listedPacks(ProjectConfig config, Directory? home) {
     final names = config.pins.keys.toList()..sort(compareCodePoints);
     return [
       for (final name in names) _checkedPack(name, config.pins[name]!, home),
@@ -75,7 +76,7 @@ final class TemplateResolver {
   }
 
   /// Loads the one listed pack [name] pinned at [pin].
-  LoadedPack _checkedPack(String name, PackVersion pin, Directory home) {
+  LoadedPack _checkedPack(String name, PackVersion pin, Directory? home) {
     if (_shippedPackNames().contains(name)) {
       return _checkedShippedPack(name, pin);
     }
@@ -120,10 +121,11 @@ final class TemplateResolver {
   LoadedPack _checkedPersonalPack(
     String name,
     PackVersion pin,
-    Directory home,
+    Directory? home,
   ) {
-    final folder = home.uri.resolve('.specstone/packs/$name/');
-    if (!Directory.fromUri(folder).existsSync()) {
+    if (home == null ||
+        !Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'))
+            .existsSync()) {
       throw TemplateFault(
         FaultCode.packNotFound,
         'Pack $name is pinned but no shipped pack has that name and '

@@ -79,7 +79,9 @@ class GuideCommand extends SpecstoneCommand {
     TemplateFault fault, {
     required bool asJson,
   }) {
-    runner.err.writeln(asJson ? jsonEncode(fault.toJson()) : fault.toText());
+    runner.err.writeln(
+      asJson ? _pretty.convert(fault.toJson()) : fault.toText(),
+    );
     return fault.exitStatus;
   }
 }
