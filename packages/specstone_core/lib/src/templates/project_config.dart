@@ -10,6 +10,9 @@ const projectConfigPath = '.specstone/config.yaml';
 
 const _coreName = 'prd-core';
 
+/// Lowercase letters and digits in hyphen-separated groups.
+final _kebabCase = RegExp(r'^[a-z0-9]+(-[a-z0-9]+)*$');
+
 /// Returns the first folder from [start] upward holding a config file.
 ///
 /// The config is `.specstone/config.yaml`. Returns null when no folder up to
@@ -32,9 +35,13 @@ final class ProjectConfig {
 
   /// Reads `.specstone/config.yaml` under the project [root].
   ///
-  /// Throws `unknown_key` for a key other than `packs`, `missing_key` when
-  /// `packs` is absent, `pack_version_invalid` for a bad pin, and
-  /// `prd_core_missing` when `packs` pins no `prd-core`.
+  /// Throws `unknown_key` for a key other than `packs` or a `packs` key that
+  /// is not kebab-case, `missing_key` when `packs` is absent,
+  /// `pack_version_invalid` for a bad pin, and `prd_core_missing` when `packs`
+  /// pins no `prd-core`.
+  ///
+  /// A `packs` key is checked before its pin parses, so the first fault in file
+  /// order wins, and before any pack file is opened.
   static ProjectConfig read(Directory root) {
     final text = decodeYamlBytes(
       File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
@@ -43,14 +50,23 @@ final class ProjectConfig {
     final map = readYamlMap(text, file: projectConfigPath);
     checkKeys(map, {'packs'}, file: projectConfigPath, format: 'config');
     final packs = requireValue<YamlMap>(map, 'packs', file: projectConfigPath);
-    final pins = {
-      for (final MapEntry(:key, :value) in packs.nodes.entries)
-        '${(key as YamlNode).value}': PackVersion.fromYaml(
-          value,
+    final pins = <String, PackVersion>{};
+    for (final MapEntry(:key, :value) in packs.nodes.entries) {
+      final name = '${(key as YamlNode).value}';
+      if (!_kebabCase.hasMatch(name)) {
+        throw TemplateFault(
+          FaultCode.unknownKey,
+          'pack names are kebab-case',
           file: projectConfigPath,
-          key: 'packs.${key.value}',
-        ),
-    };
+          key: 'packs.$name',
+        );
+      }
+      pins[name] = PackVersion.fromYaml(
+        value,
+        file: projectConfigPath,
+        key: 'packs.$name',
+      );
+    }
     if (!pins.containsKey(_coreName)) {
       throw TemplateFault(
         FaultCode.prdCoreMissing,

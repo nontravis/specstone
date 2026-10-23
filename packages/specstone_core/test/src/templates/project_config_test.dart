@@ -56,6 +56,52 @@ void main() {
       );
     });
 
+    for (final (name, text, key) in [
+      ('a path-escape key', 'prd-core: 1.0.0\n  ../x: 1.0.0', 'packs.../x'),
+      (
+        'an upper-case or underscore key',
+        'prd-core: 1.0.0\n  My_Pack: 1.0.0',
+        'packs.My_Pack',
+      ),
+      (
+        'a doubled or leading hyphen, first in file order',
+        'prd-core: 1.0.0\n  a--b: 1.0.0\n  -a: 1.0.0',
+        'packs.a--b',
+      ),
+      (
+        'a bad key before its bad pin',
+        'My_Pack: 1.2\n  prd-core: 1.0.0',
+        'packs.My_Pack',
+      ),
+      (
+        'a bad key instead of prd_core_missing',
+        'My_Pack: 1.0.0',
+        'packs.My_Pack',
+      ),
+    ]) {
+      test('f03/us05/fr01/e08: $name is unknown_key', () async {
+        final root = await _withConfig('packs:\n  $text\n');
+
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(
+            _fault(
+              FaultCode.unknownKey,
+              key: key,
+            ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+          ),
+        );
+      });
+    }
+
+    test('f03/us05/fr01: a kebab-case key with digits reads', () async {
+      final root = await _withConfig(
+        'packs:\n  prd-core: 1.0.0\n  tech-2: 1.0.0\n',
+      );
+
+      expect(ProjectConfig.read(root).pins.keys, ['prd-core', 'tech-2']);
+    });
+
     test(
       'f03/us05/fr01/e02, s03/inv10: a syntax error is yaml_syntax with line 1',
       () async {
