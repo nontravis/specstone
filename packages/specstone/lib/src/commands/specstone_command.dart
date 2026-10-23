@@ -23,11 +23,26 @@ abstract class SpecstoneCommand extends Command<int> {
 
   /// Writes [fault] to `err` and returns its exit status.
   ///
-  /// Prints the JSON envelope when [asJson], else the text form.
-  int fail(SpecstoneFault fault, {required bool asJson}) {
-    specstoneRunner.err.writeln(
-      asJson ? pretty.convert(fault.toJson()) : fault.toText(),
-    );
+  /// Prints the JSON envelope when [asJson], else the text form. [warnings]
+  /// the run collected before it failed are not lost: the text form prints
+  /// them first, and the envelope carries them as a top-level `warnings`
+  /// array beside `error`, present only when [warnings] is not empty.
+  int fail(
+    SpecstoneFault fault, {
+    required bool asJson,
+    List<String> warnings = const [],
+  }) {
+    if (asJson) {
+      specstoneRunner.err.writeln(
+        pretty.convert({
+          ...fault.toJson(),
+          if (warnings.isNotEmpty) 'warnings': warnings,
+        }),
+      );
+    } else {
+      warn(warnings);
+      specstoneRunner.err.writeln(fault.toText());
+    }
     return fault.exitStatus;
   }
 

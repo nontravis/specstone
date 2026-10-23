@@ -384,6 +384,28 @@ void main() {
   });
 
   group('DocsProject.displayPath', () {
+    test('f05/us02/fr01: a docs root that is a link to a folder outside the '
+        'project still prints docs/... paths', () async {
+      final root = await fixtureProject({});
+      final outside = await writeTree({'prds/a.md': ''});
+      Link('${root.path}/docs').createSync(outside.path);
+      final project = _open(root);
+
+      expect(
+        project.displayPath(File('${root.path}/docs/prds/a.md')),
+        'docs/prds/a.md',
+      );
+      expect(project.displayPath(Directory('${root.path}/docs')), 'docs');
+      expect(
+        project.displayPath(File('${root.path}/docs/prds/new.md')),
+        'docs/prds/new.md',
+      );
+      expect(
+        project.displayPath(File('${root.path}/.specstone/build/docs.html')),
+        '.specstone/build/docs.html',
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
     test(
       'a path under the project root is relative with / separators',
       () async {
@@ -502,6 +524,51 @@ void main() {
 
       expect(project.isInsideDocsRoot(File('${link.path}/x.html')), isTrue);
     }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+  });
+
+  group('parentOf', () {
+    test('f05/us02/fr04: on Windows a path whose first folder is missing stops '
+        r'at the drive root C:\, never the bare drive C:', () {
+      expect(parentOf(r'C:\missing', isWindows: true), r'C:\');
+      expect(parentOf(r'C:\missing\x', isWindows: true), r'C:\missing');
+      expect(parentOf(r'D:\a\b\c', isWindows: true), r'D:\a\b');
+    });
+
+    test('f05/us02/fr04: on Windows the drive root is its own parent', () {
+      expect(parentOf(r'C:\', isWindows: true), r'C:\');
+    });
+
+    test('a POSIX path stops at the file-system root', () {
+      expect(parentOf('/missing', isWindows: false), '/');
+      expect(parentOf('/missing/x', isWindows: false), '/missing');
+    });
+
+    test(
+      'off Windows a name that looks like a drive is an ordinary folder',
+      () {
+        expect(parentOf('C:/x', isWindows: false), 'C:');
+      },
+    );
+  });
+
+  group('withoutTrailingSeparator', () {
+    test('f05/us02/fr04: on Windows a drive root keeps its separator, so it '
+        'never becomes the bare drive C:', () {
+      expect(withoutTrailingSeparator(r'C:\', isWindows: true), r'C:\');
+      expect(withoutTrailingSeparator('C:/', isWindows: true), r'C:\');
+      expect(withoutTrailingSeparator(r'C:\\', isWindows: true), r'C:\');
+    });
+
+    test('on Windows any other trailing separator is dropped', () {
+      expect(withoutTrailingSeparator(r'C:\a\', isWindows: true), r'C:\a');
+      expect(withoutTrailingSeparator('C:/a//', isWindows: true), 'C:/a');
+    });
+
+    test('off Windows only slashes are dropped, and the root stays', () {
+      expect(withoutTrailingSeparator('/a/', isWindows: false), '/a');
+      expect(withoutTrailingSeparator('/', isWindows: false), '/');
+      expect(withoutTrailingSeparator(r'/a\', isWindows: false), r'/a\');
+    });
   });
 
   group('withNativeSeparators', () {

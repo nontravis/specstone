@@ -488,10 +488,11 @@ void main() {
             ? 'needs POSIX file modes and a non-root user'
             : false;
 
-        FakeBrowserHost lockedBrowser() {
+        FakeBrowserHost lockedBrowser({int exitCode = 0}) {
           final browser = FakeBrowserHost(
             runnable: {FakeBrowserHost.chromePath},
             leavesLockedFolder: true,
+            exitCode: exitCode,
           );
           addTearDown(() {
             for (final locked in browser.lockedFolders) {
@@ -501,6 +502,59 @@ void main() {
           });
           return browser;
         }
+
+        test('f05/us03/fr02: a failed print keeps the cleanup warning, printed '
+            'before the fault line', () async {
+          final project = await fixtureProject(_fixture);
+          final runner = await runnerIn(
+            project,
+            browserHost: lockedBrowser(exitCode: 1).host,
+          );
+
+          expect(
+            await runner.run(['build', _featureDir, '--format', 'pdf']),
+            70,
+          );
+
+          expect(out.toString(), isEmpty);
+          final lines = err.toString().trim().split('\n');
+          expect(lines, hasLength(2));
+          expect(lines.first, startsWith('⚠️ WARNING: could not delete'));
+          expect(lines.first, matches(_cleanupWarning));
+          expect(lines.last, 'the browser stopped before it printed the pdf');
+        }, skip: skip);
+
+        test('f05/us03/fr02: under --json a failed print puts the cleanup '
+            'warning in a top-level warnings array beside error', () async {
+          final project = await fixtureProject(_fixture);
+          final runner = await runnerIn(
+            project,
+            browserHost: lockedBrowser(exitCode: 1).host,
+          );
+
+          expect(
+            await runner.run([
+              'build',
+              _featureDir,
+              '--format',
+              'pdf',
+              '--json',
+            ]),
+            70,
+          );
+
+          expect(out.toString(), isEmpty);
+          final json = jsonDecode(err.toString()) as Map<String, Object?>;
+          expect(json.keys, ['error', 'warnings']);
+          expect(json['error'], {
+            'code': 'browser_print_failed',
+            'message': 'the browser stopped before it printed the pdf',
+          });
+          final warnings = (json['warnings']! as List).cast<String>();
+          expect(warnings, hasLength(1));
+          expect(warnings.single, matches(_cleanupWarning));
+          expect(warnings.single, isNot(startsWith('⚠️')));
+        }, skip: skip);
 
         test(
           'f05/us03/fr02: the pdf is written and the text output warns',

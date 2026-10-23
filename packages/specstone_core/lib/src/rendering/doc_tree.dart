@@ -4,15 +4,28 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
-/// One doc file found under a [Target], with its path from the docs root.
-final class DocFile {
-  new(this.file, this.docPath);
-
-  /// The file on disk.
-  final File file;
+/// One entry [collectDocEntries] found under a [Target].
+sealed class DocEntry {
+  const new(this.docPath);
 
   /// The path relative to the docs root, `/`-separated.
   final String docPath;
+}
+
+/// One doc file found under a [Target], with its path from the docs root.
+final class DocFile extends DocEntry {
+  const new(this.file, super.docPath);
+
+  /// The file on disk.
+  final File file;
+}
+
+/// A folder under a [Target] whose entries could not be listed.
+final class UnreadableFolder extends DocEntry {
+  const new(this.folder, super.docPath);
+
+  /// The folder on disk.
+  final Directory folder;
 }
 
 /// Returns the docs under [target] in tree order (R-INV-10).
@@ -22,17 +35,24 @@ final class DocFile {
 /// each group the entries no `{nn}` pattern numbers come first, by name in
 /// code point order, then the numbered entries by number, ties by name. A
 /// file or folder whose name starts with `.` is never visited, and links are
-/// not followed.
-List<DocFile> collectDocFiles(Target target, DocTypeMatcher matcher) {
+/// not followed. A folder that cannot be listed yields an [UnreadableFolder]
+/// in its place, and the walk goes on.
+List<DocEntry> collectDocEntries(Target target, DocTypeMatcher matcher) {
   final entity = target.entity;
   if (entity is File) return [DocFile(entity, target.docPath)];
   return _walk(entity as Directory, target.docPath, matcher);
 }
 
-List<DocFile> _walk(Directory folder, String docPath, DocTypeMatcher matcher) {
+List<DocEntry> _walk(Directory folder, String docPath, DocTypeMatcher matcher) {
+  final List<FileSystemEntity> listing;
+  try {
+    listing = folder.listSync(followLinks: false);
+  } on FileSystemException {
+    return [UnreadableFolder(folder, docPath)];
+  }
   final files = <_Entry>[];
   final folders = <_Entry>[];
-  for (final entity in folder.listSync(followLinks: false)) {
+  for (final entity in listing) {
     final name = _nameOf(entity);
     if (name.startsWith('.')) continue;
     final entryPath = docPath.isEmpty ? name : '$docPath/$name';

@@ -105,10 +105,13 @@ final class DocsProject {
   /// Returns [entity] relative to the project root with `/` separators, or
   /// its absolute path when it lies outside the project root.
   ///
-  /// [entity] may not exist yet; its nearest existing ancestor is made
-  /// canonical first.
+  /// A path in the docs root prints as `docs/...` even when `docs` is a link
+  /// to a folder outside the project. [entity] may not exist yet; its nearest
+  /// existing ancestor is made canonical first.
   String displayPath(FileSystemEntity entity) {
     final path = _canonicalPath(entity.absolute.path);
+    final docPath = _docPathOf(path);
+    if (docPath != null) return docPath.isEmpty ? 'docs' : 'docs/$docPath';
     final root = projectRoot.path;
     if (path == root) return '.';
     final prefix = root.endsWith(_separator) ? root : '$root$_separator';
@@ -169,6 +172,24 @@ String _absolute(String path, Directory workingDirectory) {
 String withNativeSeparators(String path, {bool? isWindows}) =>
     (isWindows ?? Platform.isWindows) ? path.replaceAll('/', r'\') : path;
 
+/// Returns the folder that holds [path], keeping a root as a root.
+///
+/// A path cut at its first separator is the root: `/` on POSIX, and on Windows
+/// the drive root `C:\`, never the bare drive `C:`, which Windows resolves to
+/// that drive's current folder. [isWindows] picks the style; it defaults to
+/// the running platform.
+String parentOf(String path, {bool? isWindows}) {
+  final windows = isWindows ?? Platform.isWindows;
+  final separator = windows ? r'\' : '/';
+  final cut = path.lastIndexOf(separator);
+  if (cut <= 0) return separator;
+  final parent = path.substring(0, cut);
+  return windows && _isBareDrive(parent) ? '$parent$separator' : parent;
+}
+
+bool _isBareDrive(String path) =>
+    path.length == 2 && path[1] == ':' && RegExp('[A-Za-z]').hasMatch(path[0]);
+
 /// Returns [path] with symbolic links resolved.
 ///
 /// The path may not exist: the nearest existing ancestor is resolved and the
@@ -177,21 +198,19 @@ String withNativeSeparators(String path, {bool? isWindows}) =>
 /// names is applied, because nothing missing can be a symbolic link.
 String _canonicalPath(String path) {
   final missing = <String>[];
-  var existing = _withoutTrailingSeparator(
+  var existing = withoutTrailingSeparator(
     withNativeSeparators(File(path).absolute.path),
   );
   while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
-    final cut = existing.lastIndexOf(_separator);
-    missing.add(existing.substring(cut + 1));
+    missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
     // An absolute path always reaches the file-system root, which exists.
-    existing = cut <= 0 ? _separator : existing.substring(0, cut);
+    existing = parentOf(existing);
   }
   var resolved = File(existing).resolveSymbolicLinksSync();
   for (final name in missing.reversed) {
     if (name == '.') continue;
     if (name == '..') {
-      final cut = resolved.lastIndexOf(_separator);
-      resolved = cut <= 0 ? _separator : resolved.substring(0, cut);
+      resolved = parentOf(resolved);
       continue;
     }
     resolved = resolved.endsWith(_separator)
@@ -201,10 +220,20 @@ String _canonicalPath(String path) {
   return resolved;
 }
 
-String _withoutTrailingSeparator(String path) {
+/// Returns [path] without trailing separators, keeping a root as a root.
+///
+/// On Windows both `\` and `/` count as separators and the drive root stays
+/// `C:\`, never the bare drive `C:`. Elsewhere only `/` counts. [isWindows]
+/// picks the style; it defaults to the running platform.
+String withoutTrailingSeparator(String path, {bool? isWindows}) {
+  final windows = isWindows ?? Platform.isWindows;
   var end = path.length;
-  while (end > 1 && (path[end - 1] == _separator || path[end - 1] == '/')) {
+  while (end > 1 &&
+      (path[end - 1] == '/' || windows && path[end - 1] == r'\')) {
     end--;
   }
-  return path.substring(0, end);
+  final trimmed = path.substring(0, end);
+  return windows && _isBareDrive(trimmed) && end < path.length
+      ? '$trimmed\\'
+      : trimmed;
 }

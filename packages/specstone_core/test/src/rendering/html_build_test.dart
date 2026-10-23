@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/posix_modes.dart';
 
 const _zeta = '''
 id: zeta
@@ -392,5 +393,42 @@ void main() {
     final html = build.html.replaceAll(mermaidScript, '');
     expect(html, contains('<a href="#doc-1">$_frDocPath</a>'));
     expect(html, isNot(contains('<h1')));
+  });
+
+  group('an unreadable path', () {
+    test(
+      'f05/us02/fr02: a doc that cannot be read is skipped with a warning and '
+      'the other docs still render',
+      () async {
+        final build = await _build(
+          {_featurePath: _feature, _storyPath: _story},
+          beforeBuild: (root) {
+            final locked = File('${root.path}/docs/$_featurePath');
+            Process.runSync('chmod', ['000', locked.path]);
+            addTearDown(() => Process.runSync('chmod', ['644', locked.path]));
+          },
+        );
+
+        expect(build.warnings, ['docs/$_featurePath: cannot be read; skipped']);
+        expect(build.html, contains('Story one'));
+      },
+      skip: unreadablePathSkipReason() ?? false,
+    );
+
+    test('f05/us02/fr02: a folder that cannot be listed is skipped with a '
+        'warning whose path ends in a slash', () async {
+      final build = await _build(
+        {_featurePath: _feature, _storyPath: _story},
+        beforeBuild: (root) {
+          final locked = Directory('${root.path}/docs/$_featureDir/us01_a');
+          Process.runSync('chmod', ['000', locked.path]);
+          addTearDown(() => Process.runSync('chmod', ['755', locked.path]));
+        },
+      );
+
+      expect(build.warnings, [
+        'docs/$_featureDir/us01_a/: cannot be read; skipped',
+      ]);
+    }, skip: unreadablePathSkipReason() ?? false);
   });
 }

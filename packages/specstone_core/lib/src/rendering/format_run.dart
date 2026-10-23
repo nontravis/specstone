@@ -125,13 +125,19 @@ FormatReport runFormat(
 }) {
   final files = <FileResult>[];
   final warnings = <String>[];
-  for (final docFile in collectDocFiles(target, project.matcher)) {
+  for (final docFile in collectDocEntries(target, project.matcher)) {
     switch (readDoc(project, docFile)) {
       case UnmatchedDoc(:final path, :final warning):
         files.add(FileResult(path: path, status: FileStatus.skipped));
         warnings.add(warning);
       case NotUtf8Doc(:final path, :final warning):
         files.add(FileResult(path: path, status: FileStatus.skipped));
+        warnings.add(warning);
+      case UnreadableDoc(:final path, :final isFolder, :final warning):
+        // A folder has no file entry, only its warning (s02_api_format).
+        if (!isFolder) {
+          files.add(FileResult(path: path, status: FileStatus.skipped));
+        }
         warnings.add(warning);
       case AmbiguousDoc(:final path, :final docTypeIds):
         files.add(
@@ -166,6 +172,13 @@ FileResult _formatReadable(ReadableDoc read, {required bool check}) {
 }
 
 void _write(ReadableDoc read, String text) {
+  if (isReadOnly(read.file)) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'the doc is read-only',
+      file: read.path,
+    );
+  }
   try {
     final bytes = utf8.encode(read.lineEnding.apply(text));
     writeFileAtomic(read.file, [if (read.hasBom) ...utf8Bom, ...bytes]);

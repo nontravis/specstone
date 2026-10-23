@@ -8,6 +8,8 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/posix_modes.dart';
+import '../../helpers/temp_tree.dart';
 
 const _zeta = '''
 id: zeta
@@ -378,4 +380,131 @@ void main() {
     },
     skip: Platform.isWindows ? 'chmod does not apply on Windows' : false,
   );
+
+  group('a read-only doc', () {
+    const readOnlySkip = 'file modes need chmod, which Windows lacks';
+
+    Future<void> makeReadOnly(File file) async {
+      await Process.run('chmod', ['444', file.path]);
+      addTearDown(() => Process.run('chmod', ['644', file.path]));
+    }
+
+    test(
+      'f05/us01/fr07: format refuses with output_not_writable and leaves the '
+      'doc untouched; docs written before it stay written',
+      () async {
+        final run = await _open({
+          _feature: _featureOutOfOrder,
+          _story: _storyOutOfOrder,
+        });
+        await makeReadOnly(_file(run, _story));
+
+        expect(
+          () => _run(run),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.file, 'file', _story)
+                .having((f) => f.message, 'message', 'the doc is read-only')
+                .having((f) => f.exitStatus, 'exitStatus', 73),
+          ),
+        );
+
+        expect(_read(run, _story), _storyOutOfOrder);
+        expect(_file(run, _story).statSync().mode & 0x80, 0);
+        expect(_read(run, _feature), _featureFormatted);
+      },
+      skip: Platform.isWindows ? readOnlySkip : false,
+    );
+
+    test(
+      'f05/us01/fr07: a read-only doc that needs no change is unchanged',
+      () async {
+        final run = await _open({_feature: _featureFormatted});
+        await makeReadOnly(_file(run, _feature));
+
+        final report = _run(run);
+
+        expect(report.files.single.status, FileStatus.unchanged);
+      },
+      skip: Platform.isWindows ? readOnlySkip : false,
+    );
+
+    test('f05/us01/fr07: --check lists a read-only doc that would change and '
+        'raises no fault', () async {
+      final run = await _open({_feature: _featureOutOfOrder});
+      await makeReadOnly(_file(run, _feature));
+
+      final report = _run(run, check: true);
+
+      expect(report.files.single.status, FileStatus.formatted);
+      expect(_read(run, _feature), _featureOutOfOrder);
+    }, skip: Platform.isWindows ? readOnlySkip : false);
+  });
+
+  group('an unreadable path', () {
+    test('f05/us01/fr02: a doc that cannot be read is skipped with a warning; '
+        'the run goes on and its exit status stays 0', () async {
+      final run = await _open({
+        _feature: _featureFormatted,
+        _story: _storyOutOfOrder,
+      });
+      final locked = _file(run, _feature);
+      await Process.run('chmod', ['000', locked.path]);
+      addTearDown(() => Process.run('chmod', ['644', locked.path]));
+
+      final report = _run(run);
+
+      expect(
+        [for (final f in report.files) (f.path, f.status)],
+        [(_feature, FileStatus.skipped), (_story, FileStatus.formatted)],
+      );
+      expect(report.warnings, ['$_feature: cannot be read; skipped']);
+      expect(report.exitStatus, 0);
+      expect(_read(run, _story), _storyFormatted);
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('f05/us01/fr02: a folder that cannot be listed is skipped with a '
+        'warning whose path ends in a slash', () async {
+      final run = await _open({
+        _feature: _featureOutOfOrder,
+        _story: _storyOutOfOrder,
+      });
+      final locked = _file(run, _story).parent;
+      await Process.run('chmod', ['000', locked.path]);
+      addTearDown(() => Process.run('chmod', ['755', locked.path]));
+
+      final report = _run(run);
+
+      expect(report.warnings, [
+        'docs/$_featureDir/us01_format_docs/: cannot be read; skipped',
+      ]);
+      expect([for (final f in report.files) f.path], [_feature]);
+      expect(report.exitStatus, 0);
+      expect(_read(run, _feature), _featureFormatted);
+    }, skip: unreadablePathSkipReason() ?? false);
+  });
+
+  test('f05/us01/fr08: a docs root that is a link to a folder outside the '
+      'project still reports docs/... paths', () async {
+    final outside = await writeTree({
+      'prds/features/f05_rendering/FEATURE.md': _featureOutOfOrder,
+    });
+    final root = await fixtureProject({});
+    Link('${root.path}/docs').createSync(outside.path);
+    final project = DocsProject.open(
+      templates: TemplateResolver(shippedFiles: fixturePackFiles()),
+      workingDirectory: root,
+      homeDirectory: null,
+    );
+
+    final report = _run((root: root, project: project));
+
+    expect([for (final f in report.files) f.path], [_feature]);
+    expect(report.files.single.status, FileStatus.formatted);
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 }
