@@ -1,5 +1,20 @@
 import 'dart:io';
 
+/// The owner write bit of a file mode.
+const _ownerWriteBit = 0x80;
+
+/// Whether the owner write bit of [file] is off, so an in-place write fails.
+///
+/// A rename replaces such a file whatever its mode, which is why a caller that
+/// must keep a read-only file read-only checks first. The Dart VM maps the
+/// Windows read-only attribute onto the same bit, so one check serves both.
+/// A file that does not exist is not read-only.
+bool isReadOnly(File file) {
+  final stat = file.statSync();
+  return stat.type != FileSystemEntityType.notFound &&
+      stat.mode & _ownerWriteBit == 0;
+}
+
 /// Writes and flushes [bytes] to a temp sibling of [target] and returns it.
 ///
 /// The temp is `.<target name>.<pid>.specstone.tmp` in [target]'s folder, so

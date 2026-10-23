@@ -166,6 +166,13 @@ FileResult _formatReadable(ReadableDoc read, {required bool check}) {
 }
 
 void _write(ReadableDoc read, String text) {
+  if (isReadOnly(read.file)) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'the doc is read-only',
+      file: read.path,
+    );
+  }
   try {
     final bytes = utf8.encode(read.lineEnding.apply(text));
     writeFileAtomic(read.file, [if (read.hasBom) ...utf8Bom, ...bytes]);

@@ -378,4 +378,69 @@ void main() {
     },
     skip: Platform.isWindows ? 'chmod does not apply on Windows' : false,
   );
+
+  group('a read-only doc', () {
+    const readOnlySkip = 'file modes need chmod, which Windows lacks';
+
+    Future<void> makeReadOnly(File file) async {
+      await Process.run('chmod', ['444', file.path]);
+      addTearDown(() => Process.run('chmod', ['644', file.path]));
+    }
+
+    test(
+      'f05/us01/fr07: format refuses with output_not_writable and leaves the '
+      'doc untouched; docs written before it stay written',
+      () async {
+        final run = await _open({
+          _feature: _featureOutOfOrder,
+          _story: _storyOutOfOrder,
+        });
+        await makeReadOnly(_file(run, _story));
+
+        expect(
+          () => _run(run),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.file, 'file', _story)
+                .having((f) => f.message, 'message', 'the doc is read-only')
+                .having((f) => f.exitStatus, 'exitStatus', 73),
+          ),
+        );
+
+        expect(_read(run, _story), _storyOutOfOrder);
+        expect(_file(run, _story).statSync().mode & 0x80, 0);
+        expect(_read(run, _feature), _featureFormatted);
+      },
+      skip: Platform.isWindows ? readOnlySkip : false,
+    );
+
+    test(
+      'f05/us01/fr07: a read-only doc that needs no change is unchanged',
+      () async {
+        final run = await _open({_feature: _featureFormatted});
+        await makeReadOnly(_file(run, _feature));
+
+        final report = _run(run);
+
+        expect(report.files.single.status, FileStatus.unchanged);
+      },
+      skip: Platform.isWindows ? readOnlySkip : false,
+    );
+
+    test('f05/us01/fr07: --check lists a read-only doc that would change and '
+        'raises no fault', () async {
+      final run = await _open({_feature: _featureOutOfOrder});
+      await makeReadOnly(_file(run, _feature));
+
+      final report = _run(run, check: true);
+
+      expect(report.files.single.status, FileStatus.formatted);
+      expect(_read(run, _feature), _featureOutOfOrder);
+    }, skip: Platform.isWindows ? readOnlySkip : false);
+  });
 }

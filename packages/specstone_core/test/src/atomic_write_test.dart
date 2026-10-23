@@ -83,4 +83,26 @@ void main() {
       expect(temp.parent.path, file.parent.path);
     });
   });
+
+  group('isReadOnly', () {
+    const skipWindows = 'file modes need chmod, which Windows lacks';
+
+    test('a file without the owner write bit is read-only', () async {
+      final file = File('${folder.path}/FEATURE.md')..writeAsStringSync('x');
+      await Process.run('chmod', ['444', file.path]);
+
+      expect(isReadOnly(file), isTrue);
+    }, skip: Platform.isWindows ? skipWindows : false);
+
+    test('a writable file is not read-only', () async {
+      final file = File('${folder.path}/FEATURE.md')..writeAsStringSync('x');
+      await Process.run('chmod', ['644', file.path]);
+
+      expect(isReadOnly(file), isFalse);
+    }, skip: Platform.isWindows ? skipWindows : false);
+
+    test('a file that does not exist is not read-only', () {
+      expect(isReadOnly(File('${folder.path}/missing.md')), isFalse);
+    });
+  });
 }
