@@ -87,5 +87,17 @@ void main() {
         expect(matcher.entryNumber(['prds', 'zeta.md']), isNull);
       },
     );
+
+    test(
+      'is null, without throwing, when the digits overflow an int',
+      () async {
+        final matcher = DocTypeMatcher(await fixtureDocTypes());
+
+        expect(
+          matcher.entryNumber(['prds', 'features', 'f99999999999999999999_x']),
+          isNull,
+        );
+      },
+    );
   });
 }

@@ -108,5 +108,12 @@ void main() {
     test('is null for an empty segment list', () {
       expect(feature.numberAt([]), isNull);
     });
+
+    test('is null, without throwing, when the {nn} digits overflow an int', () {
+      const overlong = 'f99999999999999999999_x';
+
+      expect(feature.numberAt(['prds', 'features', overlong]), isNull);
+      expect(feature.matches('prds/features/$overlong/FEATURE.md'), isTrue);
+    });
   });
 }

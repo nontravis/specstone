@@ -23,7 +23,8 @@ final class PathPattern {
   ///
   /// Null when an earlier pattern segment does not match its entry segment,
   /// when the entry is deeper than the pattern, when the last segment does
-  /// not match, or when the pattern segment holds no `{nn}`.
+  /// not match, when the pattern segment holds no `{nn}`, or when the digits
+  /// overflow an int.
   int? numberAt(List<String> segments) {
     final depth = segments.length - 1;
     if (depth < 0 || depth >= _segments.length) return null;
@@ -34,7 +35,7 @@ final class PathPattern {
     final digits = match == null || match.groupCount == 0
         ? null
         : match.group(1);
-    return digits == null ? null : int.parse(digits);
+    return digits == null ? null : int.tryParse(digits);
   }
 
   /// Compiles [text] to an anchored expression; each `{nn}` is a group.
