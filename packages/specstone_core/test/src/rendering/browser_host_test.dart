@@ -59,6 +59,25 @@ void main() {
         expect(code, -1);
         expect(stopwatch.elapsed, lessThan(const Duration(seconds: 30)));
       }, skip: skipOnWindows);
+
+      test('kills a dart script that waits 30 s once the 1 s timeout '
+          'elapses', () async {
+        final dir = Directory.systemTemp.createTempSync('browser_host_wait_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final script = File('${dir.path}/wait.dart')
+          ..writeAsStringSync(
+            'Future<void> main() =>\n'
+            '    Future<void>.delayed(const Duration(seconds: 30));\n',
+          );
+        final stopwatch = Stopwatch()..start();
+
+        final code = await host.runProcess(Platform.resolvedExecutable, [
+          script.path,
+        ], timeout: const Duration(seconds: 1));
+
+        expect(code, -1);
+        expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
+      });
     });
 
     group('isRunnable', () {
