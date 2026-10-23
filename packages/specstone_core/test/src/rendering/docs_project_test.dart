@@ -505,24 +505,27 @@ void main() {
   });
 
   group('withNativeSeparators', () {
-    test('f05/us02/fr04: on Windows every / becomes \\, so a path spelled '
-        'with / splits like one spelled with \\', () {
-      expect(
-        withNativeSeparators(r'C:\proj/docs/out.html', isWindows: true),
-        r'C:\proj\docs\out.html',
-      );
-      expect(
-        withNativeSeparators('C:/proj/docs/x.html', isWindows: true),
-        r'C:\proj\docs\x.html',
-      );
-      expect(
-        withNativeSeparators('missing/../docs/x.html', isWindows: true),
-        r'missing\..\docs\x.html',
-      );
-    });
+    test(
+      'f05/us02/fr04: on Windows every slash becomes a backslash, so a '
+      'path spelled with slashes splits like one spelled with backslashes',
+      () {
+        expect(
+          withNativeSeparators(r'C:\proj/docs/out.html', isWindows: true),
+          r'C:\proj\docs\out.html',
+        );
+        expect(
+          withNativeSeparators('C:/proj/docs/x.html', isWindows: true),
+          r'C:\proj\docs\x.html',
+        );
+        expect(
+          withNativeSeparators('missing/../docs/x.html', isWindows: true),
+          r'missing\..\docs\x.html',
+        );
+      },
+    );
 
-    test('f05/us02/fr04: off Windows the path is unchanged, since \\ is a '
-        'file name character there', () {
+    test('f05/us02/fr04: off Windows the path is unchanged, since a backslash '
+        'is a file name character there', () {
       expect(
         withNativeSeparators(r'/proj/docs/a\b.html', isWindows: false),
         r'/proj/docs/a\b.html',
