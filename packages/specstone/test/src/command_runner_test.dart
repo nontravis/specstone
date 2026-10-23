@@ -31,6 +31,7 @@ void main() {
       expect(await runner.run(['--help']), 0);
       expect(out.toString(), contains(usageLine));
       expect(out.toString(), contains('--version'));
+      expect(out.toString(), contains('guide'));
       expect(out.toString(), contains('mcp'));
     });
 
