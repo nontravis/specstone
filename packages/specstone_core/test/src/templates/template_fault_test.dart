@@ -138,6 +138,29 @@ void main() {
       expect(fault, isA<Exception>());
     });
 
+    test('F-05 fault contract: a TemplateFault is a SpecstoneFault with the '
+        'same exitStatus, toJson, and toText', () {
+      final fault = TemplateFault(
+        FaultCode.yamlSyntax,
+        'bad',
+        file: 'a.yaml',
+        line: 2,
+      );
+
+      expect(fault, isA<SpecstoneFault>());
+      final SpecstoneFault asFault = fault;
+      expect(asFault.exitStatus, 78);
+      expect(asFault.toJson(), {
+        'error': {
+          'code': 'yaml_syntax',
+          'message': 'bad',
+          'file': 'a.yaml',
+          'line': 2,
+        },
+      });
+      expect(asFault.toText(), 'a.yaml:2: bad');
+    });
+
     test('f03/us01/fr01/e04: toText of a yaml fault is file:line: message', () {
       final fault = TemplateFault(
         FaultCode.yamlSyntax,

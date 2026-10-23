@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/fault.dart';
+
 /// A template, pack, or config fault code from the `s05_errors.md` catalog.
 ///
 /// Values follow catalog order. [wire] is the snake_case code printed in the
@@ -47,7 +49,7 @@ enum FaultCode {
 ///
 /// [message] is plain text with no file, line, or key prefix; the location
 /// lives in [file], [line], [key], and [relatedFiles].
-final class TemplateFault implements Exception {
+final class TemplateFault implements SpecstoneFault {
   new(
     this.code,
     this.message, {
@@ -76,11 +78,13 @@ final class TemplateFault implements Exception {
   final List<String> relatedFiles;
 
   /// The process exit status for this fault.
+  @override
   int get exitStatus => code.exitStatus;
 
   /// Returns the JSON envelope `{'error': {...}}`.
   ///
   /// `file`, `key`, `line`, and `relatedFiles` appear only when set.
+  @override
   Map<String, Object> toJson() => {
     'error': {
       'code': code.wire,
@@ -96,6 +100,7 @@ final class TemplateFault implements Exception {
   ///
   /// Appends `; also <f1>, <f2>` for [relatedFiles]; returns [message] alone
   /// when [file] is null.
+  @override
   String toText() {
     final file = this.file;
     if (file == null) return message;
