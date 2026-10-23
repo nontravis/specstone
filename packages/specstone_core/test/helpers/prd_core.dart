@@ -158,14 +158,16 @@ void expectOwnFields(MergedDocType docType, List<FieldSpec> expected) {
     for (final f in docType.fields)
       if (!_builtInFieldIds.contains(f.id)) f,
   ];
+  // Lists, not records: a record compares its parts with `==`, and a `List`
+  // compares by identity, so only a list is matched element by element.
   expect(
     [
       for (final f in own)
-        (f.id, f.type, f.list, f.required, f.enumValues, f.docTypes),
+        [f.id, f.type, f.list, f.required, f.enumValues, f.docTypes],
     ],
     [
       for (final f in expected)
-        (f.id, f.type, f.list, f.required, f.enumValues, f.docTypes),
+        [f.id, f.type, f.list, f.required, f.enumValues, f.docTypes],
     ],
     reason: docType.id,
   );
