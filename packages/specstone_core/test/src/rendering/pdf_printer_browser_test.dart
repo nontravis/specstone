@@ -56,8 +56,15 @@ void main() {
       ),
     ).html;
 
-    final bytes = await printPdf(html, browser: browser, host: host);
+    final warnings = <String>[];
+    final bytes = await printPdf(
+      html,
+      browser: browser,
+      host: host,
+      onWarning: warnings.add,
+    );
 
+    expect(warnings, isEmpty);
     final text = latin1.decode(bytes);
     expect(text, startsWith('%PDF-'));
     final largest = _count

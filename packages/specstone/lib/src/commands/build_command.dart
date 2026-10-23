@@ -75,16 +75,18 @@ class BuildCommand extends SpecstoneCommand {
         );
       }
       final build = buildHtml(project, target);
+      final warnings = [...build.warnings];
       final List<int> bytes = switch (format) {
         OutputFormat.html => utf8.encode(build.html),
         OutputFormat.pdf => await printPdf(
           build.html,
           browser: locateBrowser(runner.browserHost),
           host: runner.browserHost,
+          onWarning: warnings.add,
         ),
       };
       writeBuildOutput(output, bytes, displayPath: displayPath);
-      result = BuildResult(output: displayPath, warnings: build.warnings);
+      result = BuildResult(output: displayPath, warnings: warnings);
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson);
     }

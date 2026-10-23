@@ -13,6 +13,10 @@ const _buildUsage =
     'Usage: specstone build <target> [--format html|pdf] [--output <file>] '
     '[--json]';
 
+final _cleanupWarning = RegExp(
+  'could not delete the temporary folder .*specstone_pdf_',
+);
+
 const _featureDir = 'docs/prds/features/f03_template_packs';
 const _feature = '$_featureDir/FEATURE.md';
 const _storyA = '$_featureDir/us01_a/USER_STORY.md';
@@ -475,6 +479,79 @@ void main() {
             'message': 'the browser stopped before it printed the pdf',
           },
         });
+      });
+
+      group('a temp folder the browser leaves undeletable', () {
+        final skip =
+            Platform.isWindows ||
+                Process.runSync('id', ['-u']).stdout.toString().trim() == '0'
+            ? 'needs POSIX file modes and a non-root user'
+            : false;
+
+        FakeBrowserHost lockedBrowser() {
+          final browser = FakeBrowserHost(
+            runnable: {FakeBrowserHost.chromePath},
+            leavesLockedFolder: true,
+          );
+          addTearDown(() {
+            for (final locked in browser.lockedFolders) {
+              Process.runSync('chmod', ['700', locked.path]);
+              locked.parent.deleteSync(recursive: true);
+            }
+          });
+          return browser;
+        }
+
+        test(
+          'f05/us03/fr02: the pdf is written and the text output warns',
+          () async {
+            final project = await fixtureProject(_fixture);
+            final runner = await runnerIn(
+              project,
+              browserHost: lockedBrowser().host,
+            );
+
+            expect(
+              await runner.run(['build', _featureDir, '--format', 'pdf']),
+              0,
+            );
+            expect(exists(project, pdfOut), isTrue);
+            expect(out.toString(), '$pdfOut\n');
+            final lines = err.toString().trim().split('\n');
+            expect(lines.last, matches(_cleanupWarning));
+          },
+          skip: skip,
+        );
+
+        test(
+          'f05/us03/fr02: --json lists the warning in the warnings array',
+          () async {
+            final project = await fixtureProject(_fixture);
+            final runner = await runnerIn(
+              project,
+              browserHost: lockedBrowser().host,
+            );
+
+            expect(
+              await runner.run([
+                'build',
+                _featureDir,
+                '--format',
+                'pdf',
+                '--json',
+              ]),
+              0,
+            );
+            expect(err.toString(), isEmpty);
+            final json = jsonDecode(out.toString()) as Map<String, Object?>;
+            expect(json['output'], pdfOut);
+            expect(
+              (json['warnings']! as List<Object?>).last,
+              matches(_cleanupWarning),
+            );
+          },
+          skip: skip,
+        );
       });
 
       test('f05/us03/s5: a named browser that is not runnable is 69 and '

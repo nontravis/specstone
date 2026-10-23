@@ -13,12 +13,16 @@ const _virtualTimeBudgetMs = 30000;
 /// Prints [html] to a pdf with the [browser] program and returns the bytes.
 ///
 /// The page and the pdf live in a temp folder that is deleted in every case.
-/// Throws a [RenderFault] with `browser_print_failed` when the browser cannot
-/// start, outlives [browserTimeout], exits non-zero, or writes no pdf.
+/// A folder that cannot be deleted (a browser helper may still hold its
+/// profile) never hides the outcome: [onWarning] gets the message and the pdf
+/// or the fault goes on as it was. Throws a [RenderFault] with
+/// `browser_print_failed` when the browser cannot start, outlives
+/// [browserTimeout], exits non-zero, or writes no pdf.
 Future<Uint8List> printPdf(
   String html, {
   required String browser,
   required BrowserHost host,
+  required void Function(String warning) onWarning,
 }) async {
   final folder = Directory.systemTemp.createTempSync('specstone_pdf_');
   try {
@@ -48,7 +52,11 @@ Future<Uint8List> printPdf(
     if (bytes.isEmpty) throw _printFailed();
     return bytes;
   } finally {
-    folder.deleteSync(recursive: true);
+    try {
+      folder.deleteSync(recursive: true);
+    } on FileSystemException {
+      onWarning('could not delete the temporary folder ${folder.path}');
+    }
   }
 }
 

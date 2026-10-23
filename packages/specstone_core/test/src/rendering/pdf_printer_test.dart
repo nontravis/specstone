@@ -50,6 +50,29 @@ BrowserHost _hostWith(_Run run, [_Behavior behavior = _printsPdf]) {
   );
 }
 
+void _ignoreWarning(String warning) {}
+
+/// Leaves a folder in the browser's temp folder that `delete` cannot remove.
+///
+/// Mode 000 on a non-empty folder makes a recursive delete of its parent
+/// fail with a permission error on POSIX hosts.
+Future<int> _lockedThen(_Run run, File pdf, int exitCode) async {
+  final locked = Directory('${pdf.parent.path}/locked')..createSync();
+  File('${locked.path}/inner').writeAsStringSync('x');
+  Process.runSync('chmod', ['000', locked.path]);
+  addTearDown(() {
+    Process.runSync('chmod', ['700', locked.path]);
+    if (pdf.parent.existsSync()) pdf.parent.deleteSync(recursive: true);
+  });
+  if (exitCode == 0) pdf.writeAsStringSync(_fakePdf);
+  return exitCode;
+}
+
+/// Whether a recursive delete ignores file modes, as it does for root.
+final bool _modesAreIgnored =
+    !Platform.isWindows &&
+    Process.runSync('id', ['-u']).stdout.toString().trim() == '0';
+
 Future<RenderFault> _faultOf(Future<Object?> call) async {
   try {
     await call;
@@ -63,13 +86,16 @@ void main() {
   test('f05/us03/fr02: returns the pdf the browser wrote, run with the '
       'planned arguments and the 120 s timeout', () async {
     final run = _Run();
+    final warnings = <String>[];
 
     final bytes = await printPdf(
       '<html>x</html>',
       browser: '/opt/chrome',
       host: _hostWith(run),
+      onWarning: warnings.add,
     );
 
+    expect(warnings, isEmpty);
     expect(utf8.decode(bytes), _fakePdf);
     expect(run.executable, '/opt/chrome');
     final folder = run.folder!.path;
@@ -95,7 +121,12 @@ void main() {
       'use the network in the background', () async {
     final run = _Run();
 
-    await printPdf('<html/>', browser: '/opt/chrome', host: _hostWith(run));
+    await printPdf(
+      '<html/>',
+      browser: '/opt/chrome',
+      host: _hostWith(run),
+      onWarning: _ignoreWarning,
+    );
 
     expect(run.arguments, contains('--disable-background-networking'));
   });
@@ -106,6 +137,7 @@ void main() {
         '<html/>',
         browser: '/opt/chrome',
         host: _hostWith(_Run(), behavior),
+        onWarning: _ignoreWarning,
       ),
     );
 
@@ -149,7 +181,12 @@ void main() {
     test('after a successful print', () async {
       final run = _Run();
 
-      await printPdf('<html/>', browser: '/opt/chrome', host: _hostWith(run));
+      await printPdf(
+        '<html/>',
+        browser: '/opt/chrome',
+        host: _hostWith(run),
+        onWarning: _ignoreWarning,
+      );
 
       expect(run.folder!.existsSync(), isFalse);
     });
@@ -162,6 +199,7 @@ void main() {
           '<html/>',
           browser: '/opt/chrome',
           host: _hostWith(run, (run, pdf) async => 1),
+          onWarning: _ignoreWarning,
         ),
       );
 
@@ -176,6 +214,7 @@ void main() {
           '<html/>',
           browser: '/opt/chrome',
           host: _hostWith(run, (run, pdf) async => -1),
+          onWarning: _ignoreWarning,
         ),
       );
 
@@ -193,10 +232,64 @@ void main() {
             run,
             (run, pdf) => throw const ProcessException('/opt/chrome', []),
           ),
+          onWarning: _ignoreWarning,
         ),
       );
 
       expect(run.folder!.existsSync(), isFalse);
     });
+  });
+
+  group('a temp folder that cannot be deleted', () {
+    final skip = Platform.isWindows
+        ? 'POSIX file modes'
+        : _modesAreIgnored
+        ? 'root ignores file modes'
+        : false;
+
+    test(
+      'f05/us03/fr02: still returns the pdf and reports one warning',
+      () async {
+        final run = _Run();
+        final warnings = <String>[];
+
+        final bytes = await printPdf(
+          '<html/>',
+          browser: '/opt/chrome',
+          host: _hostWith(run, (run, pdf) => _lockedThen(run, pdf, 0)),
+          onWarning: warnings.add,
+        );
+
+        expect(utf8.decode(bytes), _fakePdf);
+        expect(warnings, [
+          'could not delete the temporary folder ${run.folder!.path}',
+        ]);
+      },
+      skip: skip,
+    );
+
+    test(
+      'f05/us03/fr02/e01: the print fault is still the one thrown',
+      () async {
+        final run = _Run();
+        final warnings = <String>[];
+
+        final fault = await _faultOf(
+          printPdf(
+            '<html/>',
+            browser: '/opt/chrome',
+            host: _hostWith(run, (run, pdf) => _lockedThen(run, pdf, 1)),
+            onWarning: warnings.add,
+          ),
+        );
+
+        expect(fault.code, RenderFaultCode.browserPrintFailed);
+        expect(fault.message, _failedMessage);
+        expect(warnings, [
+          'could not delete the temporary folder ${run.folder!.path}',
+        ]);
+      },
+      skip: skip,
+    );
   });
 }

@@ -17,6 +17,7 @@ final class FakeBrowserHost {
     Set<String> runnable = const {},
     Map<String, String> environment = const {},
     this.exitCode = 0,
+    this.leavesLockedFolder = false,
   }) : _runnable = runnable {
     host = BrowserHost(
       environment: {'PATH': '/bin', ...environment},
@@ -30,8 +31,9 @@ final class FakeBrowserHost {
         final target = arguments.firstWhere(
           (argument) => argument.startsWith(_printFlag),
         );
-        File(target.substring(_printFlag.length))
-            .writeAsBytesSync(utf8.encode(fakePdf));
+        final pdf = File(target.substring(_printFlag.length));
+        if (leavesLockedFolder) lockedFolders.add(_lockInside(pdf.parent));
+        pdf.writeAsBytesSync(utf8.encode(fakePdf));
         return exitCode;
       },
     );
@@ -53,6 +55,15 @@ final class FakeBrowserHost {
   /// What the fake browser exits with after it writes the pdf.
   final int exitCode;
 
+  /// Whether the fake browser leaves a folder its temp folder cannot delete.
+  ///
+  /// POSIX only: it relies on mode 000. A test must restore the mode of each
+  /// entry of [lockedFolders] and delete the parent.
+  final bool leavesLockedFolder;
+
+  /// The undeletable folders left so far.
+  final List<Directory> lockedFolders = [];
+
   /// The host to hand to the runner.
   late final BrowserHost host;
 
@@ -64,4 +75,11 @@ final class FakeBrowserHost {
 
   /// Whether the lookup or the print touched the host.
   bool get wasUsed => isRunnableCalls > 0 || executables.isNotEmpty;
+}
+
+Directory _lockInside(Directory folder) {
+  final locked = Directory('${folder.path}/locked')..createSync();
+  File('${locked.path}/inner').writeAsStringSync('x');
+  Process.runSync('chmod', ['000', locked.path]);
+  return locked;
 }
