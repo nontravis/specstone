@@ -348,9 +348,11 @@ void main() {
     expect(
       build.html,
       contains(
-        '<pre><code class="language-html">'
-        '&lt;script&gt;alert(1)&lt;/script&gt;\n'
-        '&lt;title lang=x&gt;\n</code></pre>',
+        [
+          '<pre><code class="language-html">',
+          '&lt;script&gt;alert(1)&lt;/script&gt;\n',
+          '&lt;title lang=x&gt;\n</code></pre>',
+        ].join(),
       ),
     );
   });
