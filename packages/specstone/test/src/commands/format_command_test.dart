@@ -29,6 +29,13 @@ const _storyOutOfOrder =
     '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
+/// Returns why a read-only folder cannot stop a write here, else null.
+String? _readOnlyFolderSkipReason() {
+  if (Platform.isWindows) return 'chmod does not apply on Windows';
+  final user = Process.runSync('id', ['-u']).stdout.toString().trim();
+  return user == '0' ? 'the process ignores folder permissions (root)' : null;
+}
+
 void main() {
   group('specstone format', () {
     late StringBuffer out;
@@ -256,22 +263,8 @@ void main() {
           _story: _storyOutOfOrder,
         });
         final storyDir = Directory('${project.path}/$_storyDir');
-        if (Platform.isWindows) {
-          markTestSkipped('chmod does not apply on Windows');
-          return;
-        }
         await Process.run('chmod', ['555', storyDir.path]);
         addTearDown(() => Process.run('chmod', ['755', storyDir.path]));
-        final probe = File('${storyDir.path}/probe');
-        try {
-          probe
-            ..writeAsStringSync('x')
-            ..deleteSync();
-          markTestSkipped('the process ignores folder permissions (root)');
-          return;
-        } on FileSystemException {
-          // The folder is read-only for this process, as the test needs.
-        }
         final runner = await runnerIn(project);
 
         expect(await runner.run(['format', '--json']), 73);
@@ -286,6 +279,7 @@ void main() {
         expect(read(project, _feature), _featureFormatted);
         expect(read(project, _story), _storyOutOfOrder);
       },
+      skip: _readOnlyFolderSkipReason(),
     );
 
     test('help format prints the usage to out and exits 0', () async {
