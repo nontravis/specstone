@@ -1,0 +1,98 @@
+id: anti_persona
+description: |-
+  An anti-persona: a group the product must resist or does not serve, kept as its own doc beside the personas.
+  Title it `# <archetype title>`, role-based, with no number. The folder name is its identity, so it has no id field.
+  `anti_type:` is misuser or non-target. Never write an anti-persona as a row inside a persona.
+  A misuser fills every section; the Goal is the threat, then Motivations, Actions, Tools, Needs, and Consequences.
+  A non-target fills only Snapshot, Goal, and Sources; the Goal states who the product does not serve and why.
+  Write a misuser only when the likelihood or consequence of misuse justifies the effort.
+  A doc or spec that guards against an anti-persona cites it in `reference:`.
+path: prds/personas/{slug}/ANTI_PERSONA.md
+fields:
+  - id: anti_type
+    type: enum
+    enum: [misuser, non-target]
+    required: true
+    description: |-
+      misuser: a group that would use the product to cause harm, so the product guards against it.
+      non-target: a group the product does not serve, with the reason.
+  - id: status
+    enum: [assumed, validated, retired]
+    description: |-
+      assumed: the team wrote it from belief; treat it as a hypothesis to test.
+      validated: at least one linked research source backs it; list every source under Sources.
+      retired: no longer a group the product designs for; kept because older docs cite it.
+  - id: basis
+    type: enum
+    enum: [proto, qualitative, statistical]
+    required: true
+    description: |-
+      proto: written from the team's belief, with no research yet; pair it with status assumed.
+      qualitative: built from interviews or observation.
+      statistical: built from survey or analytics data.
+  - id: reviewed
+    type: date
+    description: |-
+      Date of the last review. Bump it on each review.
+sections:
+  - id: snapshot
+    header: Snapshot
+    required: true
+    description: |-
+      Give the group a name and a face in 2 to 4 lines: role, experience level, and one memorable detail.
+      Include a detail only if it would change a product decision; cut the rest.
+    template: |-
+      <Role, experience level, and one memorable detail, in 2 to 4 lines.>
+  - id: goal
+    header: Goal
+    required: true
+    description: |-
+      For a misuser, state the threat: what the group wants to achieve against the product.
+      For a non-target, state who the product does not serve and why.
+    template: |-
+      <The threat, or why the product does not serve the group.>
+  - id: sources
+    header: Sources
+    required: true
+    description: |-
+      List every research source behind the claims, and link each claim to its source.
+      For an assumed anti-persona, list the assumptions to test.
+    template: |-
+      - <Research link or reference>
+  - id: motivations
+    header: Motivations
+    description: |-
+      Optional. Fill it for a misuser only; a non-target leaves it out.
+      State why the misuser wants to misuse the product.
+    template: |-
+      - <Why the misuser wants to misuse the product.>
+  - id: actions
+    header: Actions
+    description: |-
+      Optional. Fill it for a misuser only; a non-target leaves it out.
+      List the steps the misuser takes to reach the goal.
+    template: |-
+      - <A step the misuser takes.>
+  - id: tools
+    header: Tools
+    description: |-
+      Optional. Fill it for a misuser only; a non-target leaves it out.
+      List the tools, scripts, or access the misuser uses.
+    template: |-
+      - <A tool, script, or access the misuser uses.>
+  - id: needs
+    header: Needs
+    description: |-
+      Optional. Fill it for a misuser only; a non-target leaves it out.
+      List what the misuser needs from the product to succeed.
+    template: |-
+      - <What the misuser needs from the product.>
+  - id: consequences
+    header: Consequences
+    description: |-
+      Optional. Fill it for a misuser only; a non-target leaves it out.
+      State the harm if the misuse succeeds, and who bears it.
+    template: |-
+      - <The harm if the misuse succeeds, and who bears it.>
+lint:
+  max_lines: 400

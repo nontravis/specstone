@@ -1,0 +1,43 @@
+id: reference
+description: |-
+  A reference card: the summary of one outside source that the project keeps in its own folder.
+  Title it `# <Name>`, the name of the source, with no number.
+  The folder holds the original files; the card sits beside them.
+  `source:` says where the source came from, and `files:` lists the file names in the folder.
+  Write the card so that an agent reads it instead of the original: every fact the project relies on is on the card.
+  Add a new card for a new edition, and mark the older one superseded; do not edit a card to hide its history.
+path: prds/references/{slug}/REFERENCE.md
+fields:
+  - id: source
+    type: string
+    required: true
+    description: |-
+      Names where the source came from: a URL, a publisher and edition, or who handed it over.
+  - id: files
+    type: string
+    list: true
+    required: true
+    description: |-
+      Lists the file names in this folder.
+  - id: status
+    enum: [current, superseded]
+    description: |-
+      current: the edition the project relies on today.
+      superseded: a newer edition replaced it; kept because older decisions cite it.
+sections:
+  - id: summary
+    header: Summary
+    required: true
+    description: |-
+      State every fact the project relies on, and give the page or section of each one.
+      Agents read this card, not the original, so a fact missing here is lost to them.
+    template: |-
+      - <A fact the project relies on> (<page or section>)
+  - id: key_terms
+    header: Key terms
+    description: |-
+      Optional. Define the terms of the source that the project reuses, in the source's own words.
+    template: |-
+      - **<Term>:** <the source's definition> (<page or section>)
+lint:
+  max_lines: 400

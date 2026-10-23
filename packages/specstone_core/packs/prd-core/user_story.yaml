@@ -1,0 +1,80 @@
+id: user_story
+description: |-
+  A user story: one change in behavior that someone outside the team cares about, sized to finish in one iteration.
+  Title it `# <Name>`, with no number: the activity as actor, verb, and object.
+  State what the person does and gets, never how: no screens, fields, tables, or design choices.
+  Check INVEST: independent, negotiable, valuable, estimable, small, and testable.
+  Split a story that needs more than five or six scenarios, along business behavior and never along technical layers.
+  Keep team-wide quality checks in the Definition of Done, never in a story's criteria.
+  Mark the story ready only when no open question can still change its scope.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md
+parent: feature
+fields:
+  - id: vision
+    type: string
+    list: true
+    description: |-
+      Lists the vision IDs (`PV-*`) the story serves; each must be one the parent feature lists.
+      Write at least one ID across `vision` and `goals`.
+  - id: goals
+    type: string
+    list: true
+    description: |-
+      Lists the goal IDs (`PG-*`) the story serves; each must be one the parent feature lists.
+      Write at least one ID across `vision` and `goals`.
+  - id: persona
+    type: doc_ref
+    list: true
+    doc_types: [persona]
+    description: |-
+      Names the personas the story serves; each name must resolve to a persona.
+      Leave it out when the actor is an Agent: an Agent-actor story has no persona.
+sections:
+  - id: use_case
+    header: Use Case
+    required: true
+    description: |-
+      Write: As a <Role>, I want to <action>, so that <benefit>.
+      Name a Role registered in PROJECT, never a bare "user"; add "who <situation>" when the situation matters.
+      Keep the so-that clause, or explain why it is left out; if the action cannot deliver it, look for a missing story.
+      State what the person does, never how the system does it.
+    template: |-
+      - **As a** <Role> [who <situation>]
+      - **I want to** <action>
+      - **so that** <benefit>
+  - id: rules
+    header: Rules
+    prefix_id: BR-
+    description: |-
+      Write it when the story has two or more rules; skip it for a rule that everyone already understands.
+      Write each rule as `**BR-NN** — <rule>` and number the rules in order.
+      Cite a rule's id at the end of the title of each scenario that illustrates it.
+    template: |-
+      - **BR-01** — <rule>
+  - id: acceptance_criteria
+    header: Acceptance Criteria
+    required: true
+    description: |-
+      Title each scenario `### Scenario N — [happy|edge|error] <what differs> (BR-NN)`, naming what differs.
+      Give only the state the scenario needs in Given; use one When; chain extra outcomes with And or But.
+      Make each Then observable by the person or an external system, in the domain's words; keep 3 to 5 steps.
+      Write at least one `[error]` scenario, or write "Error cases: N/A — <reason>".
+    template: |-
+      ### Scenario 1 — [happy] <what differs>
+      - **Given** <only the state the scenario needs>
+      - **When** <one trigger>
+      - **Then** <observed outcome>
+
+      ### Scenario 2 — [error] <what differs> (BR-01)
+      - **Given** <only the state the scenario needs>
+      - **When** <one trigger>
+      - **Then** <what the person sees or what the system refuses>
+  - id: open_questions
+    header: Open questions
+    description: |-
+      Optional. Record each example whose outcome nobody knows as a question, not as a scenario.
+      Leave it empty before the Owner approves the story.
+    template: |-
+      - <question>
+lint:
+  max_lines: 400

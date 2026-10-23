@@ -1,0 +1,77 @@
+id: project
+description: |-
+  The project-wide context doc: name, vision, goals, roles, scope limits, and glossary.
+  Title it `# Project context`, with no number. A project has exactly one PROJECT.
+path: prds/PROJECT.md
+fields:
+  - id: owner
+    type: string
+    required: true
+    description: |-
+      Names the default owner of every FR and NFR in the project.
+  - id: status
+    description: |-
+      planned: no feature is in use.
+      implemented: at least one feature is in use.
+      deprecated: still usable and being retired.
+sections:
+  - id: name
+    header: Project name
+    required: true
+    description: |-
+      Give the human-readable name, then the snake_case code name, one line each.
+      The Code line stays here, since no folder carries the project's code.
+    template: |-
+      - **Human:** <Human-readable project name>
+      - **Code:** `<snake_case_code_name>`
+  - id: vision
+    header: Project vision
+    prefix_id: PV-
+    required: true
+    description: |-
+      Put one `> <lang>: <sentence>` line per language right under each PV heading.
+      Use an ISO 639-1 code, give at least one language, and keep each sentence to 15 words or fewer.
+      Then write Why, Problem, and Audience, one sentence each.
+      Add one more PV entry for each extra angle, such as a business vision beside a product vision.
+      Write at least one entry before the first feature.
+    template: |-
+      ### PV-01 — <short name>
+      > en: <one sentence of 15 words or fewer>
+      - **Why:** <one sentence>
+      - **Problem:** <one sentence>
+      - **Audience:** <one sentence>
+  - id: goals
+    header: Project goals
+    prefix_id: PG-
+    description: |-
+      Optional. Skip it until the project has a committed metric; no gate blocks the doc without it.
+      Each PG entry names the PV it serves, a statement, a numeric metric with unit, and a date or milestone.
+    template: |-
+      ### PG-01 — <short name>
+      **Serves:** PV-01
+      **Statement:** <goal statement>
+      **Metric:** <numeric target with unit>
+      **By:** <date or milestone>
+  - id: roles
+    header: Role
+    required: true
+    description: |-
+      List every actor, human or not, by a short name with a one-line definition.
+      A story's "As a" line names one of these roles.
+    template: |-
+      - `<RoleName>` — <one-line definition>
+  - id: out_of_scope
+    header: Out-of-scope
+    required: true
+    description: |-
+      List what the project will NOT do, one bullet each.
+    template: |-
+      - <thing the project will NOT do>
+  - id: glossary
+    header: Domain glossary
+    description: |-
+      Define each domain term in one line that ties it to a concrete entity.
+    template: |-
+      - **<Term>** — <one-line definition tying to a concrete entity>
+lint:
+  max_lines: 400
