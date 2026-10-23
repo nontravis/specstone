@@ -483,6 +483,7 @@ void main() {
       expect(report.warnings, [
         'docs/$_featureDir/us01_format_docs/: cannot be read; skipped',
       ]);
+      expect([for (final f in report.files) f.path], [_feature]);
       expect(report.exitStatus, 0);
       expect(_read(run, _feature), _featureFormatted);
     }, skip: unreadablePathSkipReason() ?? false);

@@ -80,7 +80,10 @@ final class NotUtf8Doc extends DocRead {
 
 /// A doc file or folder the run cannot read.
 final class UnreadableDoc extends DocRead {
-  const new(super.path);
+  const new(super.path, {required this.isFolder});
+
+  /// Whether the path is a folder that could not be listed, not a file.
+  final bool isFolder;
 
   /// The warning for a run that skips the path.
   String get warning => '$path: cannot be read; skipped';
@@ -94,6 +97,7 @@ final class UnreadableDoc extends DocRead {
 DocRead readDoc(DocsProject project, DocEntry entry) => switch (entry) {
   UnreadableFolder(:final folder) => UnreadableDoc(
     '${project.displayPath(folder)}/',
+    isFolder: true,
   ),
   DocFile(:final file, :final docPath) => _readFile(project, file, docPath),
 };
@@ -110,7 +114,7 @@ DocRead _readFile(DocsProject project, File file, String docPath) {
       try {
         bytes = file.readAsBytesSync();
       } on FileSystemException {
-        return UnreadableDoc(path);
+        return UnreadableDoc(path, isFolder: false);
       }
       final String text;
       try {

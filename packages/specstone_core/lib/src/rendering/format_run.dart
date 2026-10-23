@@ -133,8 +133,11 @@ FormatReport runFormat(
       case NotUtf8Doc(:final path, :final warning):
         files.add(FileResult(path: path, status: FileStatus.skipped));
         warnings.add(warning);
-      case UnreadableDoc(:final path, :final warning):
-        files.add(FileResult(path: path, status: FileStatus.skipped));
+      case UnreadableDoc(:final path, :final isFolder, :final warning):
+        // A folder has no file entry, only its warning (s02_api_format).
+        if (!isFolder) {
+          files.add(FileResult(path: path, status: FileStatus.skipped));
+        }
         warnings.add(warning);
       case AmbiguousDoc(:final path, :final docTypeIds):
         files.add(
