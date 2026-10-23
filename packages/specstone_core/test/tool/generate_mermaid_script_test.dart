@@ -79,8 +79,9 @@ void main() {
     });
   });
 
-  group('main output', () {
-    test('the committed constants match assets/mermaid/', () {
+  group('committed output', () {
+    test('mermaid_script.g.dart equals renderMermaidScript over the committed '
+        'assets/mermaid/ files', () {
       final root = packageRoot();
       final script = File.fromUri(
         root.uri.resolve('assets/mermaid/mermaid.min.js'),
