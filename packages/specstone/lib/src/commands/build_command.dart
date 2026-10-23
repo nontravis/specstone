@@ -50,6 +50,7 @@ class BuildCommand extends SpecstoneCommand {
     final outputOption = argResults!.option('output');
 
     final BuildResult result;
+    final warnings = <String>[];
     try {
       final project = DocsProject.open(
         templates: runner.templates,
@@ -75,7 +76,7 @@ class BuildCommand extends SpecstoneCommand {
         );
       }
       final build = buildHtml(project, target);
-      final warnings = [...build.warnings];
+      warnings.addAll(build.warnings);
       final List<int> bytes = switch (format) {
         OutputFormat.html => utf8.encode(build.html),
         OutputFormat.pdf => await printPdf(
@@ -88,7 +89,7 @@ class BuildCommand extends SpecstoneCommand {
       writeBuildOutput(output, bytes, displayPath: displayPath);
       result = BuildResult(output: displayPath, warnings: warnings);
     } on SpecstoneFault catch (fault) {
-      return fail(fault, asJson: asJson);
+      return fail(fault, asJson: asJson, warnings: warnings);
     }
 
     if (asJson) {
