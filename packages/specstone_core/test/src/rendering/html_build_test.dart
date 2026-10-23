@@ -293,7 +293,8 @@ void main() {
     expect(html.indexOf('https://example.com/a.js'), greaterThan(csp));
     expect(html, contains('img-src data:'));
     expect(html, contains("default-src 'none'"));
-    expect(html, contains('&lt;script>alert(1)</script>'));
+    expect(html, contains('&lt;script>alert(1)&lt;/script>'));
+    expect(html, contains('&lt;script src="https://example.com/a.js">'));
     expect(html, isNot(contains('<script>alert(1)</script>')));
     expect(RegExp('<script nonce="').allMatches(html), hasLength(2));
   });
@@ -313,6 +314,45 @@ void main() {
     );
     expect(html, contains('<section class="doc" id="doc-2">'));
     expect(html, contains('<h1>Story one</h1>'));
+  });
+
+  test('f05/us02/fr02: an unclosed <title lang=x> or <STYLE media=print> in '
+      'prose is shown as text and every later doc keeps its section', () async {
+    final build = await _build({
+      _featurePath:
+          '# F-05\n\nSet the <title lang=x> from the doc.\n\n'
+          'Then <STYLE media=print> applies.\n\nAnd a <textarea\nrows=2>.\n',
+      _storyPath: _story,
+      _frPath: '# Req\n\n## Statement\nx\n',
+    }, target: 'docs/$_featureDir');
+
+    final html = build.html;
+    expect(html, contains('Set the &lt;title lang=x> from the doc.'));
+    expect(html, contains('Then &lt;STYLE media=print> applies.'));
+    expect(html, contains('And a &lt;textarea\nrows=2>.'));
+    final page = html.replaceAll(mermaidScript, '');
+    expect(RegExp('<title').allMatches(page), hasLength(1));
+    expect(RegExp('<style').allMatches(page), hasLength(1));
+    expect(RegExp('<textarea').allMatches(page), isEmpty);
+    expect(html, contains('<section class="doc" id="doc-3">'));
+    expect(html, contains('<h1>Req</h1>'));
+  });
+
+  test('f05/us02/fr02: a fenced code block that shows <script> still renders '
+      'as code', () async {
+    final build = await _build({
+      _featurePath:
+          '# F-05\n\n```html\n<script>alert(1)</script>\n<title lang=x>\n```\n',
+    }, target: 'docs/$_featurePath');
+
+    expect(
+      build.html,
+      contains(
+        '<pre><code class="language-html">'
+        '&lt;script&gt;alert(1)&lt;/script&gt;\n'
+        '&lt;title lang=x&gt;\n</code></pre>',
+      ),
+    );
   });
 
   test('f05/us02/fr02/e05: a bare "# " title line is no title, so the toc '

@@ -8,9 +8,9 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// The body is the text after the frontmatter minus the title line, read as
 /// GitHub-flavored markdown. A `mermaid` fence becomes `<pre class="mermaid">`
 /// holding its escaped source. A blank title line shows no title. Links are
-/// rewritten by `rewriteLinks`. The GFM tag filter turns a raw `<title>`,
-/// `<script>`, `<style>`, `<textarea>` and similar tags in prose into text,
-/// so one doc cannot swallow the docs after it.
+/// rewritten by `rewriteLinks`. The GFM tag filter turns a raw start or end tag
+/// of `title`, `script`, `style`, `textarea` and the like into text, so one doc
+/// cannot swallow the docs after it.
 ///
 /// - [docPath]: the path of [doc] relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath.
@@ -29,9 +29,21 @@ String renderDocBody(
     if (frontmatter != null && frontmatter.isNotEmpty)
       _frontmatterTable(frontmatter),
     if (doc.isDraft) '<p class="draft">Draft</p>',
-    renderToHtml(_withMermaidPre(body), enableTagfilter: true).trimRight(),
+    _withTagFilter(renderToHtml(_withMermaidPre(body))).trimRight(),
   ].where((part) => part.isNotEmpty).join('\n');
 }
+
+/// Tags the GFM "disallowed raw HTML" rule writes as text.
+///
+/// The `markdown` package's own filter only matches a start tag without
+/// attributes, so `<title lang=x>` and `</title>` get through it.
+final _disallowedTag = RegExp(
+  '<(?=/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext)'
+  r'[\s/>])',
+  caseSensitive: false,
+);
+
+String _withTagFilter(String html) => html.replaceAll(_disallowedTag, '&lt;');
 
 /// Returns the title [doc] shows, or null when it has none or it is blank.
 String? shownTitle(Doc doc) {
