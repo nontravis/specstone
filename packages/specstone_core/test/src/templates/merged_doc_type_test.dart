@@ -11,8 +11,7 @@ const _projectFile = '.specstone/templates/feature.yaml';
 
 const _featureLayer = '''
 description: A feature groups the stories that serve one goal.
-parent: project
-path: features/f{nn}_{slug}/FEATURE.md
+path: prds/features/f{nn}_{slug}/FEATURE.md
 fields:
   - id: slug
     description: Search aliases of the doc.
@@ -81,8 +80,7 @@ MergedDocType featureDocType() => _merge(_featureLayer);
 final s02FeatureJson = <String, Object>{
   'id': 'feature',
   'description': 'A feature groups the stories that serve one goal.',
-  'parent': 'project',
-  'path': 'features/f{nn}_{slug}/FEATURE.md',
+  'path': 'prds/features/f{nn}_{slug}/FEATURE.md',
   'fields': [
     {
       'id': 'slug',
