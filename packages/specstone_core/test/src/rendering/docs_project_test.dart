@@ -403,6 +403,34 @@ void main() {
       },
     );
 
+    test(
+      'a path whose first segment is missing resolves without throwing',
+      () async {
+        final root = await fixtureProject({});
+        final project = _open(root);
+
+        expect(
+          project.displayPath(File('/specstone_missing_out/docs.html')),
+          '/specstone_missing_out/docs.html',
+        );
+      },
+      skip: Platform.isWindows ? 'POSIX root path' : false,
+    );
+
+    test('a relative path whose every segment is missing is resolved from '
+        'the current directory', () async {
+      final root = await fixtureProject({});
+      final project = _open(root);
+
+      final sep = Platform.pathSeparator;
+      final cwd = Directory.current.resolveSymbolicLinksSync();
+
+      expect(
+        project.displayPath(File('specstone_missing/none/docs.html')),
+        '$cwd${sep}specstone_missing${sep}none${sep}docs.html',
+      );
+    });
+
     test('a path outside the project root is absolute', () async {
       final root = await fixtureProject({});
       final elsewhere = await writeTree({'x.html': ''});

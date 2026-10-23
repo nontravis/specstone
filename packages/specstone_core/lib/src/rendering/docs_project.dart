@@ -160,12 +160,12 @@ String _absolute(String path, Directory workingDirectory) {
 /// still compares against canonical roots.
 String _canonicalPath(String path) {
   final missing = <String>[];
-  var existing = _withoutTrailingSeparator(path);
+  var existing = _withoutTrailingSeparator(File(path).absolute.path);
   while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
     final cut = existing.lastIndexOf(_separator);
-    if (cut <= 0) break;
     missing.add(existing.substring(cut + 1));
-    existing = existing.substring(0, cut);
+    // An absolute path always reaches the file-system root, which exists.
+    existing = cut <= 0 ? _separator : existing.substring(0, cut);
   }
   var resolved = File(existing).resolveSymbolicLinksSync();
   for (final name in missing.reversed) {
