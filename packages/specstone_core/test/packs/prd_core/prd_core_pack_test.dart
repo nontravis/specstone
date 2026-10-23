@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
@@ -56,6 +57,83 @@ void main() {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
+    });
+
+    test('f03/us06/fr01/e03: a project that groups features overrides the '
+        'four paths in its layer', () async {
+      const story = 'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}';
+      final set = await resolvePrdCore(
+        templates: {
+          'feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          'user_story.yaml': 'path: $story/USER_STORY.md\n',
+          'fr.yaml': 'path: $story/fr{nn}_{slug}.md\n',
+          'nf.yaml': 'path: $story/nf{nn}_{slug}.md\n',
+        },
+      );
+      expect(
+        set.lookup('feature')!.path,
+        'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
+      );
+      expect(
+        set.lookup('nf')!.path,
+        'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}/nf{nn}_{slug}.md',
+      );
+      expect(set.lookup('fr')!.parent, 'user_story');
+    });
+
+    test('f03/us06/fr01/e04: a project adds Availability to gnfr as a project '
+        'section', () async {
+      final set = await resolvePrdCore(
+        templates: {
+          'gnfr.yaml':
+              'sections:\n'
+              '  - id: availability\n'
+              '    header: Availability\n'
+              '    prefix_id: NFR-A\n'
+              '    required: true\n'
+              '    after: reliability\n',
+        },
+      );
+      final gnfr = set.lookup('gnfr')!;
+      expect(gnfr.sections.map((s) => s.id).take(5), [
+        'performance',
+        'security',
+        'reliability',
+        'availability',
+        'maintainability',
+      ]);
+      expect(sectionOf(gnfr, 'availability').prefixId, 'NFR-A');
+    });
+
+    test('f03/us06/fr03/e03: a project changes the fr word list with add and '
+        'remove', () async {
+      final set = await resolvePrdCore(
+        templates: {
+          'fr.yaml':
+              'lint:\n  banned_words:\n    add: [simply]\n    remove: [etc.]\n',
+        },
+      );
+      expect(set.lookup('fr')!.lint.bannedWords, [
+        ...nasaBannedWords.where((w) => w != 'etc.'),
+        'simply',
+      ]);
+    });
+
+    test('f03/us06/fr03/e03: a plain word list over the shipped one is '
+        'list_override_needs_add_remove', () async {
+      await expectLater(
+        resolvePrdCore(
+          templates: {'fr.yaml': 'lint:\n  banned_words: [simply]\n'},
+        ),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.listOverrideNeedsAddRemove,
+          ),
+        ),
+      );
     });
   });
 }
