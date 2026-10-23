@@ -260,5 +260,28 @@ void main() {
 
       expect(guide, 'A.\n\n## S\n');
     });
+
+    test('f03/us01/fr02: a section with an empty description prints its '
+        'header alone', () {
+      final guide = _merge(
+        "description: A.\npath: a.md\n"
+        "sections: [{id: s, header: S, description: ''}]",
+      ).renderGuide();
+
+      expect(guide, 'A.\n\n## S\n');
+    });
+
+    test('f03/us01/fr02: an empty doc description adds no blank paragraph', () {
+      final guide = _merge(
+        "description: ''\npath: a.md\nsections: [{id: s, header: S}]",
+      ).renderGuide();
+
+      expect(guide, '## S\n');
+    });
+
+    test('f03/us01/fr02: a doc type with an empty description and no sections '
+        'renders nothing', () {
+      expect(_merge("description: ''\npath: a.md").renderGuide(), '');
+    });
   });
 }

@@ -34,9 +34,10 @@ final class MergedSet {
   String listText() =>
       [for (final docType in docTypes) '${docType.id}\n'].join();
 
-  /// Returns the first line of [text], or null when [text] is null or empty.
-  static String? _firstLine(String? text) =>
-      text == null ? null : const LineSplitter().convert(text).firstOrNull;
+  /// Returns the first line of [text], `''` for an empty text, or null.
+  static String? _firstLine(String? text) => text == null
+      ? null
+      : const LineSplitter().convert(text).firstOrNull ?? '';
 
   /// Returns an unmodifiable [docTypes] copy sorted by id (INV-22).
   static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) {

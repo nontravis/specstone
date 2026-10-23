@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+
+import '../../helpers/temp_tree.dart';
 
 MergedDocType _docType(String id, {String? pack, String? description}) =>
     MergedDocType(
@@ -79,8 +83,7 @@ void main() {
       );
     });
 
-    test('f03/us01/fr01/e05: a doc type with extends lists the first line of '
-        'its inherited description', () {
+    test('lists the first line of a description that spans lines', () {
       final inherited = _docType(
         'story',
         pack: 'prd-core',
@@ -90,6 +93,51 @@ void main() {
       final json = MergedSet(docTypes: [inherited]).listJson();
 
       expect(json.single['description'], 'First line.');
+    });
+
+    test('f03/us01/fr01/e05: a doc type with extends and no description of '
+        'its own lists the first line of the target description', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/a.yaml': '''
+id: a
+description: |
+  First line of a.
+  Second line of a.
+path: a/{slug}.md
+''',
+        '.specstone/templates/b.yaml': '''
+id: b
+extends: a
+path: b/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: {
+          'prd-core/pack.yaml': Uint8List.fromList(
+            utf8.encode('name: prd-core\nversion: 1.1.0\n'),
+          ),
+        },
+      );
+
+      final json = resolver
+          .resolve(workingDirectory: project, homeDirectory: home)
+          .listJson();
+
+      expect(json, [
+        {'id': 'a', 'description': 'First line of a.'},
+        {'id': 'b', 'description': 'First line of a.'},
+      ]);
+    });
+
+    test('f03/us01/fr01: an empty description lists as an empty string', () {
+      final json = MergedSet(docTypes: [_docType('a', description: '')])
+          .listJson();
+
+      expect(json, [
+        {'id': 'a', 'description': ''},
+      ]);
     });
   });
 }

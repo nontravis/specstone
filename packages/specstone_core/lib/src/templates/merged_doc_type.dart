@@ -293,14 +293,22 @@ final class MergedDocType {
 
   /// Returns the writing guide: the description, then each section's header
   /// and description, each block set off by a blank line.
+  ///
+  /// A description with only whitespace adds no block.
   String renderGuide() {
     final blocks = <String>[
-      if (description != null) description!.trimRight(),
+      ?_trimmedOrNull(description),
       for (final section in sections) ...[
         '## ${section.header}',
-        if (section.description != null) section.description!.trimRight(),
+        ?_trimmedOrNull(section.description),
       ],
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
+
+  /// Returns [text] without trailing whitespace, or null when nothing is left.
+  static String? _trimmedOrNull(String? text) {
+    final trimmed = text?.trimRight();
+    return trimmed == null || trimmed.trim().isEmpty ? null : trimmed;
   }
 }
