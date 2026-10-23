@@ -60,16 +60,19 @@ void main() {
   });
 
   group('writeTempSibling', () {
-    test('us01/fr07/e03, NFR-DI01: a write stopped before the rename leaves '
-        'the target untouched', () {
-      final file = File('${folder.path}/FEATURE.md')
-        ..writeAsStringSync('old\n');
+    test(
+      'f05/us01/fr07/e03, NFR-DI01: a write stopped before the rename leaves '
+      'the target untouched',
+      () {
+        final file = File('${folder.path}/FEATURE.md')
+          ..writeAsStringSync('old\n');
 
-      final temp = writeTempSibling(file, utf8.encode('new\n'));
+        final temp = writeTempSibling(file, utf8.encode('new\n'));
 
-      expect(file.readAsStringSync(), 'old\n');
-      expect(temp.readAsStringSync(), 'new\n');
-    });
+        expect(file.readAsStringSync(), 'old\n');
+        expect(temp.readAsStringSync(), 'new\n');
+      },
+    );
 
     test('names the temp .<name>.<pid>.specstone.tmp in the target folder', () {
       final file = File('${folder.path}/FEATURE.md');
