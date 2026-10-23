@@ -208,6 +208,31 @@ void main() {
       expect(locateBrowser(host), '/usr/bin/chromium');
     });
 
+    test('f05/us03/fr01: on Windows a bare name with no extension is also '
+        'tried as <name>.exe on PATH', () {
+      final host = _host(
+        os: HostOs.windows,
+        environment: {
+          'SPECSTONE_BROWSER': 'chrome',
+          'PATH': r'C:\bin;C:\tools',
+        },
+        runnable: {r'C:\tools\chrome.exe'},
+      );
+
+      expect(locateBrowser(host), r'C:\tools\chrome.exe');
+    });
+
+    test('f05/us03/fr01: on Windows a bare name with an extension is not '
+        'given .exe', () {
+      final host = _host(
+        os: HostOs.windows,
+        environment: {'SPECSTONE_BROWSER': 'chrome.cmd', 'PATH': r'C:\bin'},
+        runnable: {r'C:\bin\chrome.cmd.exe'},
+      );
+
+      expect(_faultOf(host).code, RenderFaultCode.browserNotFound);
+    });
+
     test('f05/us03/fr01/e03: a bare name missing from PATH is a fault', () {
       final host = _host(
         os: HostOs.linux,

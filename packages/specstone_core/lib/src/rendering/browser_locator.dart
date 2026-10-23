@@ -50,7 +50,9 @@ String locateBrowser(BrowserHost host) {
 
 String _locateNamed(BrowserHost host, String named) {
   final isBareName = !named.contains('/') && !named.contains(r'\');
-  final candidates = isBareName ? _onPath(host, named) : [named];
+  final candidates = isBareName
+      ? _onPath(host, named, tryExe: _lacksExtension(host, named))
+      : [named];
   for (final path in candidates) {
     if (host.isRunnable(path)) return path;
   }
@@ -84,14 +86,20 @@ Iterable<String> _windowsPaths(Map<String, String> environment) sync* {
   }
 }
 
-Iterable<String> _onPath(BrowserHost host, String name) {
+// Windows resolves a bare program name through PATHEXT; `.exe` stands in.
+bool _lacksExtension(BrowserHost host, String name) =>
+    host.os == HostOs.windows && !name.contains('.');
+
+Iterable<String> _onPath(BrowserHost host, String name, {bool tryExe = false}) {
   final isWindows = host.os == HostOs.windows;
   final separator = isWindows ? r'\' : '/';
   final directories = (host.environment['PATH'] ?? '')
       .split(isWindows ? ';' : ':')
       .where((directory) => directory.isNotEmpty);
   return [
-    for (final directory in directories)
-      '$directory${directory.endsWith(separator) ? '' : separator}$name',
+    for (final directory in directories) ...[
+      for (final file in [name, if (tryExe) '$name.exe'])
+        '$directory${directory.endsWith(separator) ? '' : separator}$file',
+    ],
   ];
 }
