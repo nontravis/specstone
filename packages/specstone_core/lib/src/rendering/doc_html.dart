@@ -4,14 +4,14 @@ import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 
 /// Renders [doc] as html: its title, frontmatter table, draft label, body.
 ///
-/// The body is the text after the frontmatter minus the first line equal to
-/// the title line, read as GitHub-flavored markdown. A `mermaid` fence
-/// becomes `<pre class="mermaid">` holding its escaped source.
+/// The body is the text after the frontmatter minus the title line, read as
+/// GitHub-flavored markdown. A `mermaid` fence becomes `<pre class="mermaid">`
+/// holding its escaped source. A blank title line shows no title.
 String renderDocBody(Doc doc) {
-  final title = doc.title;
+  final title = shownTitle(doc);
   final frontmatter = doc.frontmatter;
   final body = Document(extensionSet: ExtensionSet.gitHubFlavored)
-      .parse(_withoutTitleLine(doc.afterFrontmatter, title));
+      .parse(_withoutTitleLine(doc));
   return [
     if (title != null) '<h1>${escapeText(title)}</h1>',
     if (frontmatter != null && frontmatter.isNotEmpty)
@@ -19,6 +19,12 @@ String renderDocBody(Doc doc) {
     if (doc.isDraft) '<p class="draft">Draft</p>',
     renderToHtml(_withMermaidPre(body)).trimRight(),
   ].where((part) => part.isNotEmpty).join('\n');
+}
+
+/// Returns the title [doc] shows, or null when it has none or it is blank.
+String? shownTitle(Doc doc) {
+  final title = doc.title;
+  return title == null || title.trim().isEmpty ? null : title;
 }
 
 String _frontmatterTable(List<KeyBlock> blocks) {
@@ -32,12 +38,10 @@ String _row(KeyBlock block) {
   return '<tr><th>$key</th><td>$value</td></tr>';
 }
 
-String _withoutTitleLine(String text, String? title) {
-  if (title == null) return text;
-  final lines = text.split('\n');
-  final index = lines.indexOf('# $title');
-  if (index < 0) return text;
-  return (lines..removeAt(index)).join('\n');
+String _withoutTitleLine(Doc doc) {
+  final index = doc.titleLineIndex;
+  if (index == null) return doc.afterFrontmatter;
+  return (doc.afterFrontmatter.split('\n')..removeAt(index)).join('\n');
 }
 
 List<Node> _withMermaidPre(List<Node> nodes) => [

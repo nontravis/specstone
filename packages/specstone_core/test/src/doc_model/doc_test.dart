@@ -230,6 +230,15 @@ void main() {
       expect(Doc.parse('lead\n#  Spaced \n# second\n').title, ' Spaced ');
     });
 
+    test(
+      'titleLineIndex is the title line among the afterFrontmatter lines',
+      () {
+        expect(Doc.parse('---\na: b\n---\nlead\n# T\n').titleLineIndex, 1);
+        expect(Doc.parse('```\n# T\n```\n# T\n').titleLineIndex, 3);
+        expect(Doc.parse('lead\n## A\n# not in head\n').titleLineIndex, isNull);
+      },
+    );
+
     test('title is null without a "# " head line', () {
       expect(Doc.parse('lead\n## A\n# not in head\n').title, isNull);
       expect(Doc.parse('#nospace\n').title, isNull);

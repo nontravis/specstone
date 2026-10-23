@@ -55,6 +55,7 @@ final class Doc {
     required this.frontmatter,
     required this.head,
     required this.title,
+    required this.titleLineIndex,
     required this.sections,
     required this.afterFrontmatter,
   });
@@ -69,6 +70,7 @@ final class Doc {
       frontmatter: close < 0 ? null : _keyBlocks(lines.sublist(1, close)),
       head: scan.head,
       title: scan.title,
+      titleLineIndex: scan.titleLineIndex,
       sections: scan.sections,
       afterFrontmatter: bodyLines.join(),
     );
@@ -93,6 +95,11 @@ final class Doc {
 
   /// The text after `# ` on the first such head line, as written.
   final String? title;
+
+  /// The index of the [title] line among the lines of [afterFrontmatter].
+  ///
+  /// Null exactly when [title] is null.
+  final int? titleLineIndex;
 
   /// Whether the `draft` key holds the YAML boolean `true`.
   ///
@@ -183,13 +190,13 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
 }
 
 /// Splits [lines] into head, title, and sections outside fenced code.
-({String head, String? title, List<Section> sections}) _scan(
-  List<String> lines,
-) {
+({String head, String? title, int? titleLineIndex, List<Section> sections})
+_scan(List<String> lines) {
   final fence = _FenceTracker();
   final headLines = <String>[];
   final sections = <Section>[];
   String? title;
+  int? titleLineIndex;
   String? headerLine;
   var bodyLines = <String>[];
 
@@ -210,16 +217,18 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
     } else if (headerLine != null) {
       bodyLines.add(line);
     } else {
-      headLines.add(line);
       if (!fenced && title == null && bare.startsWith('# ')) {
         title = bare.substring(2);
+        titleLineIndex = headLines.length;
       }
+      headLines.add(line);
     }
   }
   closeSection();
   return (
     head: _joinWithoutTrailingBlank(headLines),
     title: title,
+    titleLineIndex: titleLineIndex,
     sections: sections,
   );
 }

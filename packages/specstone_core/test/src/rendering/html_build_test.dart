@@ -20,6 +20,7 @@ const _featurePath = '$_featureDir/FEATURE.md';
 const _storyPath = '$_featureDir/us01_a/USER_STORY.md';
 const _frPath = '$_featureDir/us01_a/functional_requirements/fr02_y.md';
 
+const _frDocPath = '$_featureDir/us01_a/functional_requirements/fr02_y.md';
 const _frNoTitlePath = '$_featureDir/us01_a/functional_requirements/fr03_z.md';
 const _feature =
     '# F-05 — Rendering\n\n## Feature name\n- **Human:** Rendering\n\n'
@@ -257,5 +258,53 @@ void main() {
     final build = await _build({_featurePath: _feature});
 
     expect(build.html, contains(pageStylesheet));
+  });
+
+  test('f05/us02/fr01: a folder where no doc type matches any file builds an '
+      'empty table of contents, one warning per file', () async {
+    final build = await _build({
+      '$_featureDir/notes.md': 'notes\n',
+      '$_featureDir/todo.md': 'todo\n',
+    }, target: 'docs/$_featureDir');
+
+    final html = build.html.replaceAll(mermaidScript, '');
+    expect(html, contains('<nav class="toc">'));
+    expect(html, isNot(contains('<li>')));
+    expect(html, isNot(contains('<section')));
+    expect(build.warnings, [
+      'docs/$_featureDir/notes.md: no doc type matches this path; skipped',
+      'docs/$_featureDir/todo.md: no doc type matches this path; skipped',
+    ]);
+  });
+
+  test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: an external image, an external '
+      'script, and an inline script in a doc follow the csp meta, which '
+      'blocks them', () async {
+    final build = await _build({
+      _featurePath:
+          '$_feature\n<img src="https://example.com/p.png">\n\n'
+          '<script src="https://example.com/a.js"></script>\n\n'
+          '<script>alert(1)</script>\n',
+    });
+
+    final html = build.html.replaceAll(mermaidScript, '');
+    final csp = html.indexOf('Content-Security-Policy');
+    expect(html.indexOf('https://example.com/p.png'), greaterThan(csp));
+    expect(html.indexOf('https://example.com/a.js'), greaterThan(csp));
+    expect(html, contains('img-src data:'));
+    expect(html, contains("default-src 'none'"));
+    expect(html, contains('<script>alert(1)</script>'));
+    expect(RegExp('<script nonce="').allMatches(html), hasLength(2));
+  });
+
+  test('f05/us02/fr02/e05: a bare "# " title line is no title, so the toc '
+      'entry is the path and the body has no h1', () async {
+    final build = await _build({
+      _frPath: '# \n\n## Statement\nx\n',
+    }, target: 'docs/$_featureDir');
+
+    final html = build.html.replaceAll(mermaidScript, '');
+    expect(html, contains('<a href="#doc-1">$_frDocPath</a>'));
+    expect(html, isNot(contains('<h1')));
   });
 }

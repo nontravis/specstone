@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
 
@@ -24,8 +25,18 @@ const _escape = HtmlEscape(
 /// attribute; slashes stay as they are.
 String escapeText(String text) => _escape.convert(text);
 
-const _contentSecurityPolicy =
-    "default-src 'none'; script-src 'unsafe-inline'; "
+const _nonceBytes = 16;
+
+/// Returns a fresh unguessable nonce for one page's `script-src`.
+String _newNonce() {
+  final random = Random.secure();
+  return base64Url.encode([
+    for (var i = 0; i < _nonceBytes; i++) random.nextInt(256),
+  ]);
+}
+
+String _contentSecurityPolicy(String nonce) =>
+    "default-src 'none'; script-src 'nonce-$nonce'; "
     "style-src 'unsafe-inline'; img-src data:; font-src data:";
 
 /// One doc ready for the page: its anchor, toc entry, and body html.
@@ -49,10 +60,12 @@ final class RenderedDoc {
 /// Returns a self-contained html page: a toc, then each doc in a section.
 ///
 /// The page loads nothing: the CSP meta denies every fetch and the mermaid
-/// script is inlined.
+/// script is inlined. Only the two page scripts carry the page's nonce, so a
+/// script written in a doc body does not run.
 String renderPage({required String title, required List<RenderedDoc> docs}) {
   final toc = [for (final doc in docs) _tocItem(doc)].join('\n');
   final sections = [for (final doc in docs) _section(doc)].join('\n');
+  final nonce = _newNonce();
   final buffer = StringBuffer()
     ..writeln('<!DOCTYPE html>')
     ..writeln('<html>')
@@ -60,7 +73,7 @@ String renderPage({required String title, required List<RenderedDoc> docs}) {
     ..writeln('<meta charset="utf-8">')
     ..writeln(
       '<meta http-equiv="Content-Security-Policy" '
-      'content="$_contentSecurityPolicy">',
+      'content="${_contentSecurityPolicy(nonce)}">',
     )
     ..writeln('<title>${escapeText(title)}</title>')
     ..writeln('<style>$pageStylesheet</style>')
@@ -71,11 +84,14 @@ String renderPage({required String title, required List<RenderedDoc> docs}) {
     ..writeln('</ul></nav>')
     ..writeln(sections)
     ..writeln('<!-- $mermaidLicense -->')
-    ..writeln('<script>$mermaidScript</script>')
-    ..write('<script>mermaid.initialize({startOnLoad: true});</script>')
+    ..writeln(_script(nonce, mermaidScript))
+    ..write(_script(nonce, 'mermaid.initialize({startOnLoad: true});'))
     ..writeln('</body></html>');
   return buffer.toString();
 }
+
+String _script(String nonce, String code) =>
+    '<script nonce="$nonce">$code</script>';
 
 String _tocItem(RenderedDoc doc) {
   final anchor = escapeText(doc.anchor);

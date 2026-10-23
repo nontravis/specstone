@@ -9,7 +9,15 @@ String _page(List<RenderedDoc> docs, {String title = 'docs'}) =>
 
 const _statusRow = '<tr><th>status</th><td>planned</td></tr>';
 
-const _start = '<script>mermaid.initialize({startOnLoad: true});</script>';
+const _start = 'mermaid.initialize({startOnLoad: true});</script>';
+
+final _nonceAttribute = RegExp('<script nonce="([^"]+)">');
+final _cspNonce = RegExp("script-src 'nonce-([^']+)'");
+
+const _inlineScript = '<script>alert(1)</script>';
+const _externalImage = '<img src="https://example.com/p.png">';
+const _externalScript = '<script src="https://example.com/a.js"></script>';
+const _hostileBody = '$_inlineScript$_externalImage$_externalScript';
 
 const _oneDoc = RenderedDoc(
   anchor: 'doc-1',
@@ -87,7 +95,8 @@ void main() {
       final html = _page(const [_oneDoc]);
 
       final license = html.indexOf('<!-- $mermaidLicense -->');
-      final script = html.indexOf('<script>$mermaidScript</script>');
+      final nonce = _cspNonce.firstMatch(html)!.group(1);
+      final script = html.indexOf('<script nonce="$nonce">$mermaidScript');
       expect(license, isNonNegative);
       expect(script, greaterThan(license));
       expect(html.indexOf(mermaidScript), html.lastIndexOf(mermaidScript));
@@ -98,14 +107,48 @@ void main() {
         'fetch', () {
       final html = _page(const [_oneDoc]);
 
+      final nonce = _cspNonce.firstMatch(html)!.group(1);
       expect(
         html,
         contains(
           '<meta http-equiv="Content-Security-Policy" '
-          '''content="default-src 'none'; script-src 'unsafe-inline'; '''
+          '''content="default-src 'none'; script-src 'nonce-$nonce'; '''
           '''style-src 'unsafe-inline'; img-src data:; font-src data:">''',
         ),
       );
+      expect(html, isNot(contains("script-src 'unsafe-inline'")));
+    });
+
+    test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: a doc body with an inline '
+        'script, an external image, and an external script follows the csp '
+        'meta; only the two page scripts carry the csp nonce', () {
+      final html = _page(const [
+        RenderedDoc(anchor: 'doc-1', tocEntry: 'One', bodyHtml: _hostileBody),
+      ]);
+
+      final nonce = _cspNonce.firstMatch(html)!.group(1);
+      final withoutMermaid = html.replaceAll(mermaidScript, '');
+      final csp = withoutMermaid.indexOf('Content-Security-Policy');
+      expect(csp, isNonNegative);
+      expect(withoutMermaid.indexOf('<nav'), greaterThan(csp));
+      expect(withoutMermaid.indexOf('<section'), greaterThan(csp));
+      expect(withoutMermaid.indexOf(_hostileBody), greaterThan(csp));
+      expect(withoutMermaid, contains('<script>alert(1)</script>'));
+      expect(_nonceAttribute.allMatches(withoutMermaid), hasLength(2));
+      expect(
+        _nonceAttribute.allMatches(withoutMermaid).map((m) => m.group(1)),
+        everyElement(nonce),
+      );
+      expect(withoutMermaid, contains('img-src data:'));
+      expect(withoutMermaid, contains("default-src 'none'"));
+    });
+
+    test('f05/us02/fr02/e04, s03/inv13: every page gets a fresh nonce', () {
+      final first = _cspNonce.firstMatch(_page(const [_oneDoc]))!.group(1);
+      final second = _cspNonce.firstMatch(_page(const [_oneDoc]))!.group(1);
+
+      expect(first, isNot(second));
+      expect(first, matches(RegExp(r'^[A-Za-z0-9_-]{22}==$')));
     });
 
     test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: without the mermaid script '
@@ -158,6 +201,23 @@ void main() {
           '<tr><th></th><td>  stray: &lt;line&gt;\n</td></tr>$_statusRow',
         ),
       );
+    });
+
+    test('f05/us02/fr02: a bare "# " title line is no title: no h1, and the '
+        'line is not in the body', () {
+      final html = renderDocBody(Doc.parse('# \n\nBody.\n'));
+
+      expect(html, isNot(contains('<h1')));
+      expect(html, contains('<p>Body.</p>'));
+    });
+
+    test('f05/us02/fr02: only the real title line leaves the body, not a '
+        'fenced line equal to it', () {
+      final html = renderDocBody(Doc.parse('```\n# T\n```\n# T\n\nBody.\n'));
+
+      expect(html, startsWith('<h1>T</h1>'));
+      expect(html, contains('<code># T\n</code>'));
+      expect(RegExp('<h1>').allMatches(html), hasLength(1));
     });
 
     test('f05/us02/fr02: a doc without frontmatter has no table', () {

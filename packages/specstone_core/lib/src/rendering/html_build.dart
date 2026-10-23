@@ -42,7 +42,7 @@ HtmlBuild buildHtml(DocsProject project, Target target) {
         rendered.add(
           RenderedDoc(
             anchor: 'doc-${rendered.length + 1}',
-            tocEntry: read.doc.title ?? docFile.docPath,
+            tocEntry: shownTitle(read.doc) ?? docFile.docPath,
             bodyHtml: renderDocBody(read.doc),
           ),
         );
