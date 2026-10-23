@@ -544,7 +544,7 @@ reference:
     });
 
     test(
-      'f03/us04/fr01/e04: an absent personal pack.yaml is missing_key',
+      'f03/us04/fr01/e12: an absent personal pack.yaml is missing_key',
       () async {
         final project = await writeTree({
           _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
