@@ -167,7 +167,8 @@ FileResult _formatReadable(ReadableDoc read, {required bool check}) {
 
 void _write(ReadableDoc read, String text) {
   try {
-    writeFileAtomic(read.file, utf8.encode(read.lineEnding.apply(text)));
+    final bytes = utf8.encode(read.lineEnding.apply(text));
+    writeFileAtomic(read.file, [if (read.hasBom) ...utf8Bom, ...bytes]);
   } on FileSystemException catch (error) {
     final reason = error.osError?.message ?? error.message;
     throw RenderFault(

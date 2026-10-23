@@ -8,6 +8,9 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
+/// The UTF-8 byte order mark, which `utf8.decode` drops from a decoded text.
+const utf8Bom = [0xEF, 0xBB, 0xBF];
+
 /// One doc file read and classified by [readDoc].
 sealed class DocRead {
   const new(this.file, this.path);
@@ -26,6 +29,7 @@ final class ReadableDoc extends DocRead {
     super.path, {
     required this.text,
     required this.lineEnding,
+    required this.hasBom,
     required this.docType,
     required this.doc,
   });
@@ -35,6 +39,9 @@ final class ReadableDoc extends DocRead {
 
   /// The line-break style of [text].
   final LineEnding lineEnding;
+
+  /// Whether the file starts with a UTF-8 byte order mark that [text] omits.
+  final bool hasBom;
 
   /// The doc type its path matches.
   final MergedDocType docType;
@@ -83,9 +90,10 @@ DocRead readDoc(DocsProject project, DocFile docFile) {
     case AmbiguousDocType(:final docTypeIds):
       return AmbiguousDoc(file, path, docTypeIds: docTypeIds);
     case MatchedDocType(:final docType):
+      final bytes = file.readAsBytesSync();
       final String text;
       try {
-        text = utf8.decode(file.readAsBytesSync());
+        text = utf8.decode(bytes);
       } on FormatException {
         return NotUtf8Doc(file, path);
       }
@@ -94,8 +102,16 @@ DocRead readDoc(DocsProject project, DocFile docFile) {
         path,
         text: text,
         lineEnding: LineEnding.of(text),
+        hasBom: _startsWithBom(bytes),
         docType: docType,
         doc: Doc.parse(toLf(text)),
       );
   }
 }
+
+bool _startsWithBom(List<int> bytes) =>
+    bytes.length >= utf8Bom.length &&
+    bytes
+        .sublist(0, utf8Bom.length)
+        .indexed
+        .every((e) => e.$2 == utf8Bom[e.$1]);

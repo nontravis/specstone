@@ -32,6 +32,8 @@ const _storyOutOfOrder =
     '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
+const _bom = [0xEF, 0xBB, 0xBF];
+
 typedef _Run = ({Directory root, DocsProject project});
 
 Future<_Run> _open(
@@ -73,6 +75,23 @@ void main() {
 
     expect(report.files.single.status, FileStatus.formatted);
     expect(_read(run, _feature), _featureFormatted.replaceAll('\n', '\r\n'));
+  });
+
+  test('f05/us01/fr07: a BOM doc out of order is rewritten with the BOM first '
+      'and the sections ordered', () async {
+    final run = await _open({_feature: ''});
+    _file(
+      run,
+      _feature,
+    ).writeAsBytesSync([..._bom, ...utf8.encode(_featureOutOfOrder)]);
+
+    final report = _run(run);
+
+    expect(report.files.single.status, FileStatus.formatted);
+    expect(_file(run, _feature).readAsBytesSync(), [
+      ..._bom,
+      ...utf8.encode(_featureFormatted),
+    ]);
   });
 
   test(
