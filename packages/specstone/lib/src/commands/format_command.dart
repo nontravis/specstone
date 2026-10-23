@@ -1,4 +1,3 @@
-import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -35,7 +34,7 @@ class FormatCommand extends SpecstoneCommand {
         'Expected at most one file or folder, got ${rest.length}.',
       );
     }
-    final runner = this.runner! as SpecstoneCommandRunner;
+    final runner = specstoneRunner;
     final asJson = argResults!.flag('json');
 
     final FormatReport report;
