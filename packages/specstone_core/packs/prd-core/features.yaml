@@ -1,0 +1,29 @@
+id: features
+description: |-
+  The system map: one diagram of the actors and systems, and the table of user-facing systems.
+  Title it `# System map`, with no number. It holds the diagram and the Systems table only.
+path: prds/FEATURES.md
+sections:
+  - id: diagram
+    header: System interaction diagram
+    required: true
+    description: |-
+      Draw one Mermaid diagram of the actors, the systems, and the external systems.
+    template: |-
+      ```mermaid
+      flowchart LR
+        <Actor> --> <System>
+        <System> --> <External>
+      ```
+  - id: systems
+    header: Systems
+    required: true
+    description: |-
+      Add one row per user-facing system: its name and a one-line description.
+      A FEATURE's `system:` field names one of these rows.
+    template: |-
+      | System | Description |
+      |--------|-------------|
+      | <System name> | <One-line description of the system.> |
+lint:
+  max_lines: 400

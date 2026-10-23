@@ -22,7 +22,7 @@ description: |
   A feature groups the stories that serve one goal.
 
   Second paragraph.
-path: features/f{nn}_{slug}/FEATURE.md
+path: prds/features/f{nn}_{slug}/FEATURE.md
 sections:
   - id: goal
     header: Feature goal
@@ -102,7 +102,8 @@ void main() {
       expect(await runner.run(['guide', 'feature', '--json']), 0);
       final decoded = jsonDecode(out.toString()) as Map<String, Object?>;
       expect(decoded['id'], 'feature');
-      expect(decoded['path'], 'features/f{nn}_{slug}/FEATURE.md');
+      expect(decoded['path'], 'prds/features/f{nn}_{slug}/FEATURE.md');
+      expect(decoded.containsKey('parent'), isFalse);
       expect(out.toString(), startsWith('{\n  "id": "feature",\n'));
       expect(err.toString(), isEmpty);
     });

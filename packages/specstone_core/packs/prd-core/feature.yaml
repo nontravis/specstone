@@ -1,0 +1,120 @@
+id: feature
+description: |-
+  A feature: functionality that delivers value to a persona, meets one need, and fits one planning interval.
+  Title it `# <Name>`, with no number.
+  The title holds the name and the folder slug is the code, so write no Feature name section.
+  Name the feature by the outcome it creates for the persona, and let the name imply its boundary.
+  Never write `status:`; it is computed from the feature's stories.
+  Write at least one ID across `vision:` (`PV-*`) and `goals:` (`PG-*`).
+  Name the personas served precisely in `persona:`, never "everyone"; an Agent-only feature has none.
+  Pair the problem with a shaped solution: a problem alone is unshaped work, a solution alone has no test of fit.
+  Reject grab-bags such as "X 2.0" or "redesign Y"; narrow them to one problem with a clear done.
+  Split off a sibling feature when a candidate serves a different goal or a different primary persona.
+  Keep the document lean; never specify everything before work starts.
+path: prds/features/f{nn}_{slug}/FEATURE.md
+fields:
+  - id: vision
+    type: string
+    list: true
+    description: |-
+      Lists the vision IDs (`PV-*`) of PROJECT that the feature serves.
+      Write at least one ID across `vision` and `goals`.
+  - id: goals
+    type: string
+    list: true
+    description: |-
+      Lists the goal IDs (`PG-*`) of PROJECT that the feature serves.
+      Write at least one ID across `vision` and `goals`.
+  - id: persona
+    type: doc_ref
+    list: true
+    doc_types: [persona]
+    description: |-
+      Names the personas served; each name must resolve to a persona.
+      Leave it out when the feature is Agent-only and serves no human persona.
+  - id: system
+    type: string
+    description: |-
+      Names a row of the Systems table in FEATURES.
+sections:
+  - id: problem
+    header: Problem
+    required: true
+    description: |-
+      Tell one specific story from the persona's view that shows why the current way fails.
+    template: |-
+      <One specific story, from the persona's view, that shows why the current way fails.>
+  - id: benefit_hypothesis
+    header: Benefit hypothesis
+    required: true
+    description: |-
+      Write: We believe <outcome> will be achieved if <persona> attains <benefit> with <feature>.
+      State the outcome as a change in someone's behavior, never as the thing shipped.
+      Test value assumptions before feasibility assumptions.
+    template: |-
+      We believe <outcome> will be achieved if <persona> attains <benefit> with <feature>.
+  - id: success_measures
+    header: Success measures
+    required: true
+    description: |-
+      Give each measure as a behavior change, a target, and a date; it must be collectable by the solution.
+      Separate business outcomes (revenue, cost) from product outcomes (behavior in the product).
+      Measure the moment value is created, not the easiest proxy before it.
+      The feature is done when the expected impact appears, not when it ships.
+    template: |-
+      - <behavior change> — <target> by <date>
+  - id: current_alternatives
+    header: Current alternatives
+    required: true
+    description: |-
+      List what the personas use today, including manual workarounds, and say how this feature beats each one.
+    template: |-
+      - <What the personas do today> — <why this feature beats it>
+  - id: flow
+    header: Feature flow
+    required: true
+    description: |-
+      Sketch the core elements of the solution as a Mermaid diagram.
+      Stay at sketch level; leave layout and visual detail to design.
+    template: |-
+      ```mermaid
+      flowchart LR
+        <Step1> --> <Step2> --> <Step3>
+      ```
+  - id: out_of_scope
+    header: Out-of-scope
+    required: true
+    description: |-
+      List the use cases left out to fit the appetite or keep the problem tractable, one line each.
+      Write each line as `<thing> — <owning feature | not planned>`; mark a deferred item with its owning feature.
+      The list has no cap on the number of lines.
+    template: |-
+      - <thing> — <owning feature | not planned>
+  - id: appetite
+    header: Appetite
+    description: |-
+      Optional. State the time budget when one exists, and let it cut scope instead of estimating scope.
+    template: |-
+      <The time budget that constrains the scope.>
+  - id: assumptions
+    header: Assumptions & rabbit holes
+    description: |-
+      Optional; write it when the feature is risky. List the assumptions that must hold and the top reasons it could fail.
+      List each rabbit hole (technical unknown, unsolved design problem, interdependency) and how it is patched.
+    template: |-
+      - **Assumption:** <what must hold>
+      - **Rabbit hole:** <the unknown> — <how it is patched>
+  - id: open_questions
+    header: Open questions
+    description: |-
+      Optional. Track each question until it is closed, and mark it decide or research.
+    template: |-
+      - <Question> — <decide | research>
+  - id: faq
+    header: FAQ
+    description: |-
+      Optional. Add it when readers will ask predictable questions, from personas and from the team.
+    template: |-
+      - **<Question>** <Answer>
+lint:
+  max_lines: 400

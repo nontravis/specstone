@@ -1,0 +1,164 @@
+id: persona
+description: |-
+  A persona: one archetype of a human Role, described by its goals, behaviors, and the research behind them.
+  Title it `# <archetype title>`, role-based, with no number. The folder name is its identity, so it has no id field.
+  `role:` names the Role of PROJECT that the persona deepens; one Role may have many personas.
+  Write one persona per distinct pattern of goals, behaviors, and skills, never one per job title or segment.
+  Keep the set to the minimum that shows real differences, and merge personas whose needs match.
+  Mark one primary persona per product surface; mark the others secondary or served.
+  Scope each persona to the product's domain; do not reuse one built for another product or for marketing.
+  Keep the persona behavioral: demographics alone describe a marketing segment.
+  Keep it in a form anyone can edit; never polish it into an artifact nobody can update.
+path: prds/personas/{slug}/PERSONA.md
+fields:
+  - id: role
+    type: string
+    required: true
+    description: |-
+      Names the Role of PROJECT that the persona deepens.
+  - id: priority
+    type: enum
+    enum: [primary, secondary, served]
+    required: true
+    description: |-
+      primary: the persona the product surface is designed for first; mark one per surface.
+      secondary: designed for after the primary persona.
+      served: supported, but not a design driver.
+  - id: status
+    enum: [assumed, validated, retired]
+    description: |-
+      assumed: the team wrote it from belief; treat it as a hypothesis to test.
+      Do not base a binding design decision on an assumed persona alone.
+      validated: at least one linked research source backs it; list every source under Sources.
+      retired: no longer a group the product designs for; kept because older docs cite it.
+  - id: basis
+    type: enum
+    enum: [proto, qualitative, statistical]
+    required: true
+    description: |-
+      proto: written from the team's belief, with no research yet; pair it with status assumed.
+      qualitative: built from interviews or observation.
+      statistical: built from survey or analytics data.
+  - id: share
+    type: string
+    description: |-
+      Write the share of the user base, such as `12%`, only when `basis` is statistical.
+      A qualitative persona cannot state a population share.
+  - id: reviewed
+    type: date
+    description: |-
+      Date of the last review. Bump it on each review.
+      Change the content only when the user base or the business landscape changes.
+sections:
+  - id: snapshot
+    header: Snapshot
+    required: true
+    description: |-
+      Write 2 to 4 lines: role, experience level, and one memorable detail.
+      Add a personal name only to make the persona memorable; the title stays the archetype role.
+      Include a detail only if it would change a product decision; cut the rest.
+    template: |-
+      <Role, experience level, and one memorable detail, in 2 to 4 lines.>
+  - id: jobs
+    header: Jobs to be done
+    required: true
+    description: |-
+      Write 3 to 4 goals: mostly end goals, an experience goal where feelings matter, a life goal only if needed.
+      Write each job as verb + object + context, with no solution or product name in it.
+      Reference a shared job statement by its ID instead of copying it into each persona.
+    template: |-
+      - <Verb> <object> <context>
+  - id: behaviors
+    header: Behaviors & skills
+    required: true
+    description: |-
+      Describe behaviors as patterns: sequence, frequency, interruptions, and skill level.
+      Do not write a task list.
+    template: |-
+      - <A pattern in how the persona works, with its frequency or skill level.>
+  - id: context_of_use
+    header: Context of use
+    required: true
+    description: |-
+      State the setting, the tools or devices, the frequency, and whether use is chosen or required.
+    template: |-
+      - **Setting:** <where the persona works>
+      - **Tools or devices:** <what the persona uses>
+      - **Frequency:** <how often>
+      - **Use:** <chosen or required>
+  - id: pains
+    header: Pains
+    required: true
+    description: |-
+      List pains as observed problems with the current way.
+      Include potential harms, such as physical danger or lack of consent.
+    template: |-
+      - <An observed problem with the current way.>
+  - id: triggers
+    header: Triggers
+    required: true
+    description: |-
+      Write each trigger as the moment the current situation becomes unacceptable for the persona.
+    template: |-
+      - <The moment the current situation becomes unacceptable.>
+  - id: barriers
+    header: Barriers
+    required: true
+    description: |-
+      Write barriers as anxieties about the new option and habits that keep the old one.
+    template: |-
+      - **Anxiety:** <a worry about the new option>
+      - **Habit:** <a habit that keeps the old way>
+  - id: alternatives
+    header: Current alternatives
+    required: true
+    description: |-
+      List what the persona does today, including manual workarounds and doing nothing.
+      There is always at least one.
+    template: |-
+      - <What the persona does today, or does nothing.>
+  - id: success
+    header: Success looks like
+    required: true
+    description: |-
+      Write success as desired outcomes: direction + metric + object + context.
+      Add functional and emotional success criteria where the persona differs from the others.
+    template: |-
+      - <Direction> <metric> <object> <context>
+  - id: vocabulary
+    header: Vocabulary
+    required: true
+    description: |-
+      Record the persona's words verbatim from research, each with its source; never paraphrase into team jargon.
+      Reuse the persona's words in story titles and scenario steps.
+    template: |-
+      - "<verbatim word or quote>" — <source>
+  - id: sources
+    header: Sources
+    required: true
+    description: |-
+      List every research source behind the persona's claims, and link each claim to its source.
+      For an assumed persona, list the assumptions to test.
+    template: |-
+      - <Research link or reference>
+  - id: decision_criteria
+    header: Decision criteria
+    description: |-
+      Optional. Fill it only when the persona chooses or buys among options.
+    template: |-
+      - <A criterion the persona uses to choose.>
+  - id: channels
+    header: Channels & content habits
+    description: |-
+      Optional. Fill it only for marketing use; record the resources the persona trusts.
+    template: |-
+      - <A resource or channel the persona trusts.>
+  - id: how_we_talk
+    header: How we talk to
+    description: |-
+      Optional. Link the brand voice guide and state only the tone shift for the persona's state of mind.
+    template: |-
+      - **Voice guide:** <link>
+      - **Tone shift:** <how the tone changes for the persona>
+lint:
+  max_lines: 400

@@ -13,6 +13,6 @@ void main() {
   });
 
   test('f03/us03/fr03/e08: the shipped pack files are decoded', () {
-    expect(shippedPackFiles, isA<Map<String, List<int>>>());
+    expect(shippedPackFiles.keys, contains('prd-core/pack.yaml'));
   });
 }

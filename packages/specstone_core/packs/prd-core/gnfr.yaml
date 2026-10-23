@@ -1,0 +1,188 @@
+id: gnfr
+description: |-
+  The project-wide non-functional requirements; every item applies to every story.
+  Title it `# Project-wide non-functional requirements`, with no number.
+  A category holds `### NFR-<cat><NN> — <name>` blocks, or `N/A — <reason>` when it has none.
+  Write each statement with one "shall" and a quantified value; avoid the listed words and other -ly and -ize words.
+  A project adds a missing category, such as Availability, as a project-layer section that keeps its IDs.
+path: prds/GNFR.md
+sections:
+  - id: performance
+    header: Performance
+    prefix_id: NFR-P
+    required: true
+    description: |-
+      Cover timing, throughput, storage size, latency, accuracy, and precision, each with its margin.
+      Give every value a unit and a tolerance, such as `< 200 ms` or `± 0.5 %`.
+      Write one `### NFR-P01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-P01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: security
+    header: Security
+    prefix_id: NFR-Sec
+    required: true
+    description: |-
+      Cover who may read or change what, and how the product resists misuse, each with a measurable limit.
+      Name the data or function each target protects, so a test or inspection can check it.
+      Write one `### NFR-Sec01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-Sec01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: reliability
+    header: Reliability
+    prefix_id: NFR-R
+    required: true
+    description: |-
+      Give a measurable target for detecting a fault and for recovering from it.
+      Add the target for surviving a software or hardware fault, with the allowed loss or downtime.
+      Write one `### NFR-R01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-R01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: maintainability
+    header: Maintainability
+    prefix_id: NFR-M
+    required: true
+    description: |-
+      Give a measurable, verifiable target for the cost and time to change, inspect, and repair the product.
+      Name the unit of change, such as one module or one release, that the target measures.
+      Write one `### NFR-M01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-M01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: interface
+    header: Interface
+    prefix_id: NFR-I
+    required: true
+    description: |-
+      Cover each external interface: data standard, protocol, message timing, and error handling.
+      Name the system or device on the other side, and give each value a unit and a tolerance.
+      Write one `### NFR-I01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-I01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: environment
+    header: Environment
+    prefix_id: NFR-E
+    required: true
+    description: |-
+      For each condition, say whether the product shall operate, operate degraded, or only survive.
+      Cover the conditions met in development, test, transport, storage, and operations.
+      Write one `### NFR-E01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-E01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: safety
+    header: Safety
+    prefix_id: NFR-Sa
+    required: true
+    description: |-
+      Cover the harm to people, property, or data that the product shall prevent or limit.
+      Give each limit as a measurable value, and name the hazard it answers.
+      Write one `### NFR-Sa01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-Sa01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: operability
+    header: Operability
+    prefix_id: NFR-O
+    required: true
+    description: |-
+      Cover human factors, training, and the personnel the product expects, each as a measurable target.
+      Keep the steps an operator takes in the story; state here the result, such as time to learn.
+      Write one `### NFR-O01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-O01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+  - id: design_standards
+    header: Design standards
+    prefix_id: NFR-DS
+    required: true
+    description: |-
+      Name each standard, code, or constraint that the design shall follow.
+      State the check that proves the design follows it, such as an audit or an inspection.
+      Write one `### NFR-DS01 — <name>` block per target, or `N/A — <reason>` when none applies.
+    template: |-
+      ### NFR-DS01 — <name>
+      - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      - **Rationale:** <reason and assumptions>
+      - **Traced from:** <PG id, stakeholder expectation, standard, or self-derived>
+      - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
+      - **Owner:** <name, or blank for the PROJECT owner>
+      - **TBR:** <value, why, close action, who, by when; or none>
+lint:
+  max_lines: 400
+  banned_words:
+    - flexible
+    - easy
+    - sufficient
+    - safe
+    - ad hoc
+    - adequate
+    - accommodate
+    - user-friendly
+    - usable
+    - when required
+    - if required
+    - appropriate
+    - fast
+    - portable
+    - light-weight
+    - small
+    - large
+    - maximize
+    - minimize
+    - robust
+    - quickly
+    - easily
+    - clearly
+    - this
+    - these
+    - as appropriate
+    - etc.
+    - and/or
+    - but not limited to
+reference:
+  - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
+    url: https://www.nasa.gov/wp-content/uploads/2018/09/nasa_systems_engineering_handbook_0.pdf
