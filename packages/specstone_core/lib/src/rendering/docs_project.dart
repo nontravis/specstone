@@ -198,7 +198,7 @@ bool _isBareDrive(String path) =>
 /// names is applied, because nothing missing can be a symbolic link.
 String _canonicalPath(String path) {
   final missing = <String>[];
-  var existing = _withoutTrailingSeparator(
+  var existing = withoutTrailingSeparator(
     withNativeSeparators(File(path).absolute.path),
   );
   while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
@@ -220,10 +220,20 @@ String _canonicalPath(String path) {
   return resolved;
 }
 
-String _withoutTrailingSeparator(String path) {
+/// Returns [path] without trailing separators, keeping a root as a root.
+///
+/// On Windows both `\` and `/` count as separators and the drive root stays
+/// `C:\`, never the bare drive `C:`. Elsewhere only `/` counts. [isWindows]
+/// picks the style; it defaults to the running platform.
+String withoutTrailingSeparator(String path, {bool? isWindows}) {
+  final windows = isWindows ?? Platform.isWindows;
   var end = path.length;
-  while (end > 1 && (path[end - 1] == _separator || path[end - 1] == '/')) {
+  while (end > 1 &&
+      (path[end - 1] == '/' || windows && path[end - 1] == r'\')) {
     end--;
   }
-  return path.substring(0, end);
+  final trimmed = path.substring(0, end);
+  return windows && _isBareDrive(trimmed) && end < path.length
+      ? '$trimmed\\'
+      : trimmed;
 }

@@ -551,6 +551,26 @@ void main() {
     );
   });
 
+  group('withoutTrailingSeparator', () {
+    test('f05/us02/fr04: on Windows a drive root keeps its separator, so it '
+        'never becomes the bare drive C:', () {
+      expect(withoutTrailingSeparator(r'C:\', isWindows: true), r'C:\');
+      expect(withoutTrailingSeparator('C:/', isWindows: true), r'C:\');
+      expect(withoutTrailingSeparator(r'C:\\', isWindows: true), r'C:\');
+    });
+
+    test('on Windows any other trailing separator is dropped', () {
+      expect(withoutTrailingSeparator(r'C:\a\', isWindows: true), r'C:\a');
+      expect(withoutTrailingSeparator('C:/a//', isWindows: true), 'C:/a');
+    });
+
+    test('off Windows only slashes are dropped, and the root stays', () {
+      expect(withoutTrailingSeparator('/a/', isWindows: false), '/a');
+      expect(withoutTrailingSeparator('/', isWindows: false), '/');
+      expect(withoutTrailingSeparator(r'/a\', isWindows: false), r'/a\');
+    });
+  });
+
   group('withNativeSeparators', () {
     test(
       'f05/us02/fr04: on Windows every slash becomes a backslash, so a '
