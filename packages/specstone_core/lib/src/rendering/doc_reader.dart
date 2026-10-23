@@ -57,6 +57,10 @@ final class AmbiguousDoc extends DocRead {
 
   /// The matching doc type ids, in code point order.
   final List<String> docTypeIds;
+
+  /// The warning for a run that skips the file.
+  String get warning =>
+      '$path: doc types ${docTypeIds.join(', ')} match this path; skipped';
 }
 
 /// A doc a doc type matches whose bytes are not valid UTF-8.

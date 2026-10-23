@@ -74,6 +74,16 @@ void main() {
     expect((read as AmbiguousDoc).docTypeIds, ['feature', 'zeta']);
   });
 
+  test('Plan decision 9: an ambiguous doc has the skip warning naming its '
+      'doc types', () async {
+    final read = await _read(_feature, '# T\n', extra: {'zeta.yaml': _zeta});
+
+    expect(
+      (read as AmbiguousDoc).warning,
+      'docs/$_feature: doc types feature, zeta match this path; skipped',
+    );
+  });
+
   test('Plan decision 8: a doc that is not UTF-8 is not UTF-8 text, with '
       'the skip warning', () async {
     final read = await _read(_feature, '', bytes: [0xFF, 0xFE]);
