@@ -52,6 +52,23 @@ const nasaHandbookUrl =
     'https://www.nasa.gov/wp-content/uploads/2018/09/'
     'nasa_systems_engineering_handbook_0.pdf';
 
+/// The Statement template `fr` and `nf` share (F3P-D37, F3P-D39).
+const requirementStatementTemplate =
+    'The <product> shall <verb> <object> <value ± tolerance> <condition>.';
+
+/// The Verification template `fr` and `nf` share.
+const verificationTemplate =
+    '- **Pass criteria:** <what shows the requirement holds>\n'
+    '- **Level:** <level>';
+
+/// The TBR template `fr` and `nf` share.
+const tbrTemplate =
+    '- **Value:** <best estimate>\n'
+    '- **Why:** <reason>\n'
+    '- **Close action:** <what resolves it>\n'
+    '- **Who:** <name>\n'
+    '- **By when:** <date or milestone>';
+
 /// The `prd-core` doc type ids, in code point order.
 const prdCoreIds = <String>[
   'anti_persona',

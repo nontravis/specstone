@@ -1,0 +1,119 @@
+id: nf
+description: |-
+  A story-level non-functional requirement: one quantified quality target that a single story tightens, relaxes, or adds.
+  Title it `# <Name>`, with no number.
+  Write one NFR in each file, and never restate a GNFR item that stays unchanged: every GNFR item applies to every story.
+  Write the statement in fr's form, with one "shall" and a quantified value.
+  Avoid the listed words and other -ly and -ize words.
+  Name the GNFR item in `overrides` and write only what differs; the entry controls for this story.
+  When several stories need the same `add`, move it to GNFR.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/nf{nn}_{slug}.md
+parent: user_story
+fields:
+  - id: kind
+    type: enum
+    enum: [tighten, relax, add]
+    required: true
+    description: |-
+      Names how the NFR relates to GNFR.
+      `tighten` sets a stricter value than GNFR and needs `overrides`; `relax` sets a looser value and needs `overrides`
+      and the Owner's approval; `add` is a new NFR only this story needs and takes no `overrides`.
+  - id: overrides
+    type: string
+    description: |-
+      Names the GNFR NFR id the entry replaces for this story, such as `NFR-P01`.
+      Write it for `tighten` and `relax`; leave it out for `add`.
+  - id: traced_from
+    type: string
+    list: true
+    description: |-
+      Names the source of the NFR: a PG id, a stakeholder expectation, a standard, or `self-derived`.
+      Write it for `add` only; `tighten` and `relax` trace through `overrides`.
+  - id: verify_method
+    type: enum
+    enum: [test, analysis, inspection, demonstration]
+    required: true
+    description: |-
+      Names how the requirement is proven; set it while writing the statement.
+      `test` runs the product and checks measured output; `analysis` proves it by reasoning or calculation.
+      `inspection` examines the artifact, such as code or a document; `demonstration` shows it working without measuring.
+  - id: owner
+    type: string
+    description: |-
+      Names the person or group who writes the requirement and approves its changes.
+      Leave it blank when the PROJECT owner holds it.
+sections:
+  - id: statement
+    header: Statement
+    required: true
+    description: |-
+      Write: The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      Use one "shall" and a positive form; give every value a unit and a tolerance (<, ≥, ±).
+      Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
+    template: |-
+      The <product> shall <verb> <object> <value ± tolerance> <condition>.
+  - id: rationale
+    header: Rationale
+    required: true
+    description: |-
+      Give the reason, the assumptions, and the related requirements.
+      For `tighten`, say why the stricter value is needed; it is a derived requirement.
+      For `relax`, say why the waiver is acceptable, and record the Owner's approval.
+    template: |-
+      <reason; for kind relax, why the waiver is acceptable>
+  - id: verification
+    header: Verification
+    required: true
+    description: |-
+      Give the pass criteria: the observable condition that shows the requirement holds, kept apart from the statement.
+      Give the level at which it is proven, such as unit, integration, or end to end.
+    template: |-
+      - **Pass criteria:** <what shows the requirement holds>
+      - **Level:** <level>
+  - id: tbr
+    header: TBR
+    description: |-
+      Write it when a value is still to be resolved; avoid TBD and give a best estimate marked TBR.
+      Give the value, the reason, the action that closes it, who closes it, and by when.
+      Skip the section when no value is open.
+    template: |-
+      - **Value:** <best estimate>
+      - **Why:** <reason>
+      - **Close action:** <what resolves it>
+      - **Who:** <name>
+      - **By when:** <date or milestone>
+lint:
+  max_lines: 400
+  banned_words:
+    - flexible
+    - easy
+    - sufficient
+    - safe
+    - ad hoc
+    - adequate
+    - accommodate
+    - user-friendly
+    - usable
+    - when required
+    - if required
+    - appropriate
+    - fast
+    - portable
+    - light-weight
+    - small
+    - large
+    - maximize
+    - minimize
+    - robust
+    - quickly
+    - easily
+    - clearly
+    - this
+    - these
+    - as appropriate
+    - etc.
+    - and/or
+    - but not limited to
+reference:
+  - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
+    url: https://www.nasa.gov/wp-content/uploads/2018/09/nasa_systems_engineering_handbook_0.pdf

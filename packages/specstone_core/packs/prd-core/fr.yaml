@@ -1,0 +1,147 @@
+id: fr
+description: |-
+  A functional requirement: one testable statement of what the product shall do, traced to a scenario of its story.
+  Title it `# <Name>`, with no number.
+  Write one sentence with one "shall", stated positively, with a quantified value.
+  Avoid the listed words and other -ly and -ize words.
+  State what the product does, never how, and never assign a task to a person.
+  Keep one behavior in each requirement; split joined behaviors into separate requirements.
+  An FR never records results: the verification matrix points to the evidence.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
+parent: user_story
+fields:
+  - id: traced_from
+    type: string
+    list: true
+    required: true
+    description: |-
+      Names the source of the requirement as `S<N>`, Scenario N of the parent story, or `self-derived`.
+      Trace each FR to a scenario that covers a nominal or an off-nominal case.
+      A self-derived FR needs the parent owner's agreement, or it is gold plating: delete it.
+  - id: verify_method
+    type: enum
+    enum: [test, analysis, inspection, demonstration]
+    required: true
+    description: |-
+      Names how the requirement is proven; set it while writing the statement.
+      `test` runs the product and checks measured output; `analysis` proves it by reasoning or calculation.
+      `inspection` examines the artifact, such as code or a document; `demonstration` shows it working without measuring.
+  - id: owner
+    type: string
+    description: |-
+      Names the person or group who writes the requirement and approves its changes.
+      Leave it blank when the PROJECT owner holds it.
+sections:
+  - id: statement
+    header: Statement
+    required: true
+    description: |-
+      Write: The <product> shall <verb> <object> <value ± tolerance> <condition>.
+      Use one "shall" and a positive form; rewrite "shall not" as the required behavior. Do not use EARS keywords.
+      Give every value a unit and a tolerance (<, ≥, ±); a statement without a number is an expectation for the story.
+      Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
+    template: |-
+      The <product> shall <verb> <object> <value ± tolerance> <condition>.
+  - id: input_output
+    header: Input / Output
+    description: |-
+      Write it when data crosses a boundary; skip it for a behavior that moves no data.
+      Give each item a type, a unit, a format, and a tolerance, and say "don't care" for a value that does not matter.
+      For a data interface, also cover the standard, message timing, protocol, error detection, initialization, and status.
+    template: |-
+      **Input**
+      | Field   | Type   | Required | Notes         |
+      | ------- | ------ | -------- | ------------- |
+      | <field> | <type> | <yes/no> | <constraints> |
+
+      **Output**
+      | Field   | Type   | Notes              |
+      | ------- | ------ | ------------------ |
+      | <field> | <type> | <semantics, units> |
+  - id: behavior
+    header: Behavior
+    description: |-
+      Draw a Mermaid diagram when the behavior branches; skip it for a straight line of steps.
+      State a required order of functions as a requirement, and an assumed order as an assumption.
+    template: |-
+      ```mermaid
+      flowchart TD
+        A[<step>] --> B{<decision>}
+        B -- <branch> --> C[<outcome>]
+      ```
+  - id: edge_cases
+    header: Edge cases
+    required: true
+    description: |-
+      Write each as `E01 — <trigger> → <response>`, numbered in order.
+      For an error case (failure, bad input, low performance, operator error), state how the product will detect, report,
+      handle, and recover from it.
+      For a non-error edge case, state its outcome only.
+    template: |-
+      1. E01 — <trigger> → <response>
+  - id: rationale
+    header: Rationale
+    required: true
+    description: |-
+      Give the reason, the assumptions, the related requirements, and the design constraints.
+      Link the scenario the requirement traces from; confirm each assumption before the baseline.
+      When the statement mandates a method, say why only that method will do.
+    template: |-
+      <reason, assumptions, related requirements, design constraints>
+  - id: verification
+    header: Verification
+    required: true
+    description: |-
+      Give the pass criteria: the observable condition that shows the requirement holds, kept apart from the statement.
+      Give the level at which it is proven, such as unit, integration, or end to end.
+      Never write results here; evidence belongs to the verification matrix.
+    template: |-
+      - **Pass criteria:** <what shows the requirement holds>
+      - **Level:** <level>
+  - id: tbr
+    header: TBR
+    description: |-
+      Write it when a value is still to be resolved; avoid TBD and give a best estimate marked TBR.
+      Give the value, the reason, the action that closes it, who closes it, and by when.
+      Skip the section when no value is open.
+    template: |-
+      - **Value:** <best estimate>
+      - **Why:** <reason>
+      - **Close action:** <what resolves it>
+      - **Who:** <name>
+      - **By when:** <date or milestone>
+lint:
+  max_lines: 400
+  banned_words:
+    - flexible
+    - easy
+    - sufficient
+    - safe
+    - ad hoc
+    - adequate
+    - accommodate
+    - user-friendly
+    - usable
+    - when required
+    - if required
+    - appropriate
+    - fast
+    - portable
+    - light-weight
+    - small
+    - large
+    - maximize
+    - minimize
+    - robust
+    - quickly
+    - easily
+    - clearly
+    - this
+    - these
+    - as appropriate
+    - etc.
+    - and/or
+    - but not limited to
+reference:
+  - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
+    url: https://www.nasa.gov/wp-content/uploads/2018/09/nasa_systems_engineering_handbook_0.pdf
