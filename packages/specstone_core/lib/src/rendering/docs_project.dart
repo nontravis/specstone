@@ -160,6 +160,15 @@ String _absolute(String path, Directory workingDirectory) {
   return '${workingDirectory.absolute.path}$_separator$path';
 }
 
+/// Returns [path] with every `/` changed to `\` on Windows, else unchanged.
+///
+/// Windows accepts both separators and Dart keeps whichever was written, so a
+/// path that is cut at `\` alone mis-splits when it holds a `/`. Elsewhere `\`
+/// is an ordinary file name character, so nothing changes. [isWindows] picks
+/// the style; it defaults to the running platform.
+String withNativeSeparators(String path, {bool? isWindows}) =>
+    (isWindows ?? Platform.isWindows) ? path.replaceAll('/', r'\') : path;
+
 /// Returns [path] with symbolic links resolved.
 ///
 /// The path may not exist: the nearest existing ancestor is resolved and the
@@ -168,7 +177,9 @@ String _absolute(String path, Directory workingDirectory) {
 /// names is applied, because nothing missing can be a symbolic link.
 String _canonicalPath(String path) {
   final missing = <String>[];
-  var existing = _withoutTrailingSeparator(File(path).absolute.path);
+  var existing = _withoutTrailingSeparator(
+    withNativeSeparators(File(path).absolute.path),
+  );
   while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
     final cut = existing.lastIndexOf(_separator);
     missing.add(existing.substring(cut + 1));

@@ -503,4 +503,34 @@ void main() {
       expect(project.isInsideDocsRoot(File('${link.path}/x.html')), isTrue);
     }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
   });
+
+  group('withNativeSeparators', () {
+    test('f05/us02/fr04: on Windows every / becomes \\, so a path spelled '
+        'with / splits like one spelled with \\', () {
+      expect(
+        withNativeSeparators(r'C:\proj/docs/out.html', isWindows: true),
+        r'C:\proj\docs\out.html',
+      );
+      expect(
+        withNativeSeparators('C:/proj/docs/x.html', isWindows: true),
+        r'C:\proj\docs\x.html',
+      );
+      expect(
+        withNativeSeparators('missing/../docs/x.html', isWindows: true),
+        r'missing\..\docs\x.html',
+      );
+    });
+
+    test('f05/us02/fr04: off Windows the path is unchanged, since \\ is a '
+        'file name character there', () {
+      expect(
+        withNativeSeparators(r'/proj/docs/a\b.html', isWindows: false),
+        r'/proj/docs/a\b.html',
+      );
+    });
+
+    test('with no style given it follows the running platform', () {
+      expect(withNativeSeparators('a/b'), Platform.isWindows ? r'a\b' : 'a/b');
+    });
+  });
 }
