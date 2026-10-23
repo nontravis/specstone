@@ -23,7 +23,7 @@ final class HtmlBuild {
 /// skipped with a warning; one that does not match its template renders and
 /// warns.
 HtmlBuild buildHtml(DocsProject project, Target target) {
-  final rendered = <RenderedDoc>[];
+  final readable = <(DocFile, ReadableDoc)>[];
   final warnings = <String>[];
   for (final docFile in collectDocFiles(target, project.matcher)) {
     switch (readDoc(project, docFile)) {
@@ -39,15 +39,25 @@ HtmlBuild buildHtml(DocsProject project, Target target) {
             '${read.path} does not match its template; run specstone format',
           );
         }
-        rendered.add(
-          RenderedDoc(
-            anchor: 'doc-${rendered.length + 1}',
-            tocEntry: shownTitle(read.doc) ?? docFile.docPath,
-            bodyHtml: renderDocBody(read.doc),
-          ),
-        );
+        readable.add((docFile, read));
     }
   }
+  final anchors = {
+    for (final (index, (docFile, _)) in readable.indexed)
+      docFile.docPath: _anchorOf(index),
+  };
+  final rendered = [
+    for (final (index, (docFile, read)) in readable.indexed)
+      RenderedDoc(
+        anchor: _anchorOf(index),
+        tocEntry: shownTitle(read.doc) ?? docFile.docPath,
+        bodyHtml: renderDocBody(
+          read.doc,
+          docPath: docFile.docPath,
+          anchors: anchors,
+        ),
+      ),
+  ];
   return HtmlBuild(
     html: renderPage(
       title: target.isDocsRoot ? 'docs' : target.docPath,
@@ -56,6 +66,8 @@ HtmlBuild buildHtml(DocsProject project, Target target) {
     warnings: warnings,
   );
 }
+
+String _anchorOf(int index) => 'doc-${index + 1}';
 
 bool _matchesTemplate(ReadableDoc read) =>
     switch (formatDoc(read.doc, read.docType)) {

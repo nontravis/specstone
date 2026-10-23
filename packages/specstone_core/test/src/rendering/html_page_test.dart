@@ -25,6 +25,9 @@ const _oneDoc = RenderedDoc(
   bodyHtml: '<h1>One</h1>',
 );
 
+String _body(Doc doc) =>
+    renderDocBody(doc, docPath: 'doc.md', anchors: const {'doc.md': 'doc-1'});
+
 void main() {
   group('pageStylesheet', () {
     test('f05/us03/fr02: starts each doc on a new page', () {
@@ -165,7 +168,7 @@ void main() {
   group('renderDocBody', () {
     test('f05/us02/fr02: shows the title, then the frontmatter table, then '
         'the body without its title line', () {
-      final html = renderDocBody(
+      final html = _body(
         Doc.parse('---\nstatus: planned\n---\n# F-05 — Rendering\n\nBody.\n'),
       );
 
@@ -181,9 +184,7 @@ void main() {
     });
 
     test('f05/us02/fr02: escapes a key, a value, and the title', () {
-      final html = renderDocBody(
-        Doc.parse('---\n"a<b": x & y\n---\n# T <i>\n'),
-      );
+      final html = _body(Doc.parse('---\n"a<b": x & y\n---\n# T <i>\n'));
 
       expect(html, contains('<h1>T &lt;i&gt;</h1>'));
       expect(html, contains('<tr><th>&quot;a&lt;b&quot;</th><td>x &amp; y'));
@@ -191,7 +192,7 @@ void main() {
 
     test('f05/us02/fr02: a keyless block is one row with an empty th and its '
         'whole text escaped, line breaks kept', () {
-      final html = renderDocBody(
+      final html = _body(
         Doc.parse('---\n  stray: <line>\nstatus: planned\n---\n# T\n'),
       );
 
@@ -205,7 +206,7 @@ void main() {
 
     test('f05/us02/fr02: a bare "# " title line is no title: no h1, and the '
         'line is not in the body', () {
-      final html = renderDocBody(Doc.parse('# \n\nBody.\n'));
+      final html = _body(Doc.parse('# \n\nBody.\n'));
 
       expect(html, isNot(contains('<h1')));
       expect(html, contains('<p>Body.</p>'));
@@ -213,7 +214,7 @@ void main() {
 
     test('f05/us02/fr02: only the real title line leaves the body, not a '
         'fenced line equal to it', () {
-      final html = renderDocBody(Doc.parse('```\n# T\n```\n# T\n\nBody.\n'));
+      final html = _body(Doc.parse('```\n# T\n```\n# T\n\nBody.\n'));
 
       expect(html, startsWith('<h1>T</h1>'));
       expect(html, contains('<code># T\n</code>'));
@@ -221,7 +222,7 @@ void main() {
     });
 
     test('f05/us02/fr02: a doc without frontmatter has no table', () {
-      final html = renderDocBody(Doc.parse('# T\n\nBody.\n'));
+      final html = _body(Doc.parse('# T\n\nBody.\n'));
 
       expect(html, isNot(contains('<table')));
       expect(html, startsWith('<h1>T</h1>'));
@@ -229,7 +230,7 @@ void main() {
 
     test('f05/us02/fr02: a doc without a title line has no h1 and keeps its '
         'body', () {
-      final html = renderDocBody(Doc.parse('Intro.\n\n## Section\ntext\n'));
+      final html = _body(Doc.parse('Intro.\n\n## Section\ntext\n'));
 
       expect(html, isNot(contains('<h1>')));
       expect(html, contains('<p>Intro.</p>'));
@@ -238,9 +239,7 @@ void main() {
 
     test('f05/us02/fr02/e02: a draft shows its label after the table and '
         'before the body', () {
-      final html = renderDocBody(
-        Doc.parse('---\ndraft: true\n---\n# T\n\nBody.\n'),
-      );
+      final html = _body(Doc.parse('---\ndraft: true\n---\n# T\n\nBody.\n'));
 
       final table = html.indexOf('</table>');
       final label = html.indexOf('<p class="draft">Draft</p>');
@@ -249,16 +248,14 @@ void main() {
     });
 
     test('f05/us02/fr02/e02: a doc that is not a draft has no label', () {
-      final html = renderDocBody(
-        Doc.parse('---\ndraft: false\n---\n# T\n\nBody.\n'),
-      );
+      final html = _body(Doc.parse('---\ndraft: false\n---\n# T\n\nBody.\n'));
 
       expect(html, isNot(contains('class="draft"')));
     });
 
     test('f05/us02/fr02/e03, s03/inv13: a mermaid fence becomes a '
         'pre.mermaid with its source escaped', () {
-      final html = renderDocBody(
+      final html = _body(
         Doc.parse('# T\n\n```mermaid\ngraph TD; A-->B\n```\n'),
       );
 
@@ -268,7 +265,7 @@ void main() {
 
     test('f05/us02/fr02: another fence stays a code block, and github '
         'flavored tables render', () {
-      final html = renderDocBody(
+      final html = _body(
         Doc.parse(
           '# T\n\n```dart\nvar a = 1;\n```\n\n| a | b |\n|---|---|\n'
           '| 1 | 2 |\n',

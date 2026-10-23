@@ -1,17 +1,27 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
+import 'package:specstone_core/src/rendering/link_rewrite.dart';
 
 /// Renders [doc] as html: its title, frontmatter table, draft label, body.
 ///
 /// The body is the text after the frontmatter minus the title line, read as
 /// GitHub-flavored markdown. A `mermaid` fence becomes `<pre class="mermaid">`
-/// holding its escaped source. A blank title line shows no title.
-String renderDocBody(Doc doc) {
+/// holding its escaped source. A blank title line shows no title. Links are
+/// rewritten by `rewriteLinks`.
+///
+/// - [docPath]: the path of [doc] relative to the docs root.
+/// - [anchors]: the section anchor of each doc in the build, by docPath.
+String renderDocBody(
+  Doc doc, {
+  required String docPath,
+  required Map<String, String> anchors,
+}) {
   final title = shownTitle(doc);
   final frontmatter = doc.frontmatter;
   final body = Document(extensionSet: ExtensionSet.gitHubFlavored)
       .parse(_withoutTitleLine(doc));
+  rewriteLinks(body, docPath: docPath, anchors: anchors);
   return [
     if (title != null) '<h1>${escapeText(title)}</h1>',
     if (frontmatter != null && frontmatter.isNotEmpty)
