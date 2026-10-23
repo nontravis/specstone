@@ -11,18 +11,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.5
       - run: dart pub get --enforce-lockfile
+      - name: Check the shipped packs constants are current
+        working-directory: packages/specstone_core
+        run: |
+          dart run tool/generate_shipped_packs.dart
+          git diff --exit-code -- lib/src/templates/shipped_packs.g.dart
+          test -z "$(git status --porcelain -- lib/src/templates/)"
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
 
@@ -32,6 +39,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
@@ -40,7 +48,7 @@ jobs:
       - run: dart pub get --enforce-lockfile
       - name: Test specstone_core with coverage
         working-directory: packages/specstone_core
-        run: dart test --coverage-path=coverage/lcov.info
+        run: dart run coverage:test_with_coverage --fail-under=80
       - name: Test specstone with coverage
         working-directory: packages/specstone
         run: dart test --coverage-path=coverage/lcov.info
