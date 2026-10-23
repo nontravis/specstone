@@ -34,6 +34,22 @@ void main() {
       expect(injected.homeDirectory, same(home));
     });
 
+    test(
+      'a deleted working folder does not stop --version or --help',
+      () async {
+        final exits = await IOOverrides.runZoned(
+          () async => [
+            await SpecstoneCommandRunner(out: out, err: err).run(['--version']),
+            await SpecstoneCommandRunner(out: out, err: err).run(['--help']),
+          ],
+          getCurrentDirectory: () => throw const FileSystemException('gone'),
+        );
+
+        expect(exits, [0, 0]);
+        expect(err.toString(), isEmpty);
+      },
+    );
+
     test('--version prints the core version and exits 0', () async {
       expect(await runner.run(['--version']), 0);
       expect(out.toString(), '$specstoneVersion\n');

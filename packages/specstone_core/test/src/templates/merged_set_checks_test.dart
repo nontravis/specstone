@@ -77,8 +77,52 @@ void main() {
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
               .having((f) => f.key, 'key', 'path')
+              .having(
+                (f) => f.message,
+                'message',
+                'doc types playbook and runbook share the path '
+                    'ops/{slug}/RUNBOOK.md',
+              )
               .having((f) => f.file, 'file', _runbookFile)
               .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
+        ),
+      );
+    });
+
+    test('f03/us03/fr02/e06: three doc types with one path are named in load '
+        'order, the last joined by "and"', () {
+      final layers = {
+        'runbook': [layerOf('runbook', 'path: ops/{slug}/RUNBOOK.md\n')],
+        'playbook': [
+          layerOf(
+            'playbook',
+            'path: ops/{slug}/RUNBOOK.md\n',
+            file: _playbookFile,
+          ),
+        ],
+        'epic': [
+          layerOf('epic', 'path: ops/{slug}/RUNBOOK.md\n', file: _epicFile),
+        ],
+      };
+      expect(
+        () => check([
+          for (final id in layers.keys)
+            builtIn(id).copyWith(path: 'ops/{slug}/RUNBOOK.md'),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                'doc types runbook, playbook and epic share the path '
+                    'ops/{slug}/RUNBOOK.md',
+              )
+              .having((f) => f.file, 'file', _epicFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                _runbookFile,
+                _playbookFile,
+              ]),
         ),
       );
     });

@@ -38,7 +38,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _templates = templates ?? TemplateResolver(),
-       _workingDirectory = workingDirectory ?? Directory.current,
+       _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        super(
          'specstone',
@@ -56,7 +56,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final StringSink _out;
   final StringSink _err;
   final TemplateResolver _templates;
-  final Directory _workingDirectory;
+  final Directory? _workingDirectory;
   final Directory? _homeDirectory;
 
   /// Sink that receives normal output: version, usage, and command results.
@@ -70,7 +70,10 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
 
   /// Folder the project is looked up from, the process working folder by
   /// default.
-  Directory get workingDirectory => _workingDirectory;
+  ///
+  /// The process working folder is read on each call, so only a command that
+  /// uses it can fail on a deleted folder.
+  Directory get workingDirectory => _workingDirectory ?? Directory.current;
 
   /// Home folder that holds the personal packs, `~`, or null when the
   /// environment names none.

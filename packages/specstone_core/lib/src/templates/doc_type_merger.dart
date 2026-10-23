@@ -155,7 +155,13 @@ final class DocTypeMerger {
       if (index == -1) {
         final type = entry.type;
         if (entry.disabled || type == null) {
-          throw _notFound(layer, 'fields.${entry.id}');
+          throw _notFound(
+            layer,
+            'field',
+            entry.id,
+            disabled: entry.disabled,
+            missing: 'type',
+          );
         }
         fields.add(
           MergedField(
@@ -198,7 +204,13 @@ final class DocTypeMerger {
       if (index == -1) {
         final header = entry.header;
         if (entry.disabled || header == null) {
-          throw _notFound(layer, 'sections.${entry.id}');
+          throw _notFound(
+            layer,
+            'section',
+            entry.id,
+            disabled: entry.disabled,
+            missing: 'header',
+          );
         }
         final position = _positionAfter(sections, entry, layer);
         sections.insert(
@@ -276,11 +288,23 @@ final class DocTypeMerger {
     );
   }
 
-  TemplateFault _notFound(DocTypeLayer layer, String key) => TemplateFault(
+  /// The `override_id_not_found` fault for a [kind] entry [id] that no lower
+  /// layer defines.
+  ///
+  /// A [disabled] entry has nothing to disable; any other entry lacks the
+  /// [missing] key that would add it.
+  TemplateFault _notFound(
+    DocTypeLayer layer,
+    String kind,
+    String id, {
+    required bool disabled,
+    required String missing,
+  }) => TemplateFault(
     FaultCode.overrideIdNotFound,
-    'the entry names an id the lower layers do not define and is not '
-    'complete enough to add',
+    disabled
+        ? 'no $kind "$id" in the merged doc type to disable'
+        : 'no $kind "$id" in the merged doc type and no $missing to add it',
     file: layer.file,
-    key: key,
+    key: '${kind}s.$id',
   );
 }

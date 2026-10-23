@@ -83,7 +83,8 @@ void checkMergedSet(
 /// (INV-19).
 ///
 /// `file` holds the `path` writer that loads last by [loadIndex], and
-/// `relatedFiles` the other holders' writers, ascending.
+/// `relatedFiles` the other holders' writers, ascending. The message names the
+/// holders in that same load order.
 void _checkPaths(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
@@ -96,13 +97,20 @@ void _checkPaths(
   }
   for (final MapEntry(key: path, value: holders) in byPath.entries) {
     if (holders.length < 2) continue;
+    final writers =
+        [
+          for (final holder in holders)
+            (id: holder.id, file: _writerOf(holder.id, _wrotePath, layerLists)),
+        ]..sort(
+          (a, b) => _loadRank(a.file, loadIndex) - _loadRank(b.file, loadIndex),
+        );
     final (:file, :related) = rankFaultFiles([
-      for (final holder in holders)
-        _writerOf(holder.id, _wrotePath, layerLists),
+      for (final writer in writers) writer.file,
     ], loadIndex);
     throw TemplateFault(
       FaultCode.docTypePathConflict,
-      'two doc types write one path pattern: $path',
+      'doc types ${_joinIds([for (final writer in writers) writer.id])} '
+      'share the path $path',
       file: file,
       key: 'path',
       relatedFiles: related,
@@ -111,6 +119,15 @@ void _checkPaths(
 }
 
 bool _wrotePath(DocTypeLayer layer) => layer.path != null;
+
+/// The load position of [file], before every file when null.
+int _loadRank(String? file, LoadIndex loadIndex) =>
+    file == null ? -1 : loadIndex[file]!;
+
+/// [ids] joined for a sentence: `a`, `a and b`, `a, b and c`.
+String _joinIds(List<String> ids) => ids.length < 2
+    ? ids.join()
+    : '${ids.sublist(0, ids.length - 1).join(', ')} and ${ids.last}';
 
 /// Throws `unknown_value` for a `parent` naming no doc type of the set, then
 /// `parent_cycle` for a `parent` chain that returns to its start (INV-21).

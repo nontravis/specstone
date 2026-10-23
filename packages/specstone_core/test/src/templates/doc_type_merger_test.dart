@@ -56,11 +56,19 @@ MergedDocType shipped() =>
 MergedDocType project(MergedDocType base, String text) =>
     merger.apply(base, layer(text, kind: LayerKind.project));
 
-TypeMatcher<TemplateFault> fault(FaultCode code, String key) =>
-    isA<TemplateFault>()
-        .having((f) => f.code, 'code', code)
-        .having((f) => f.file, 'file', _projectFile)
-        .having((f) => f.key, 'key', key);
+TypeMatcher<TemplateFault> fault(
+  FaultCode code,
+  String key, {
+  String? message,
+}) {
+  final matcher = isA<TemplateFault>()
+      .having((f) => f.code, 'code', code)
+      .having((f) => f.file, 'file', _projectFile)
+      .having((f) => f.key, 'key', key);
+  return message == null
+      ? matcher
+      : matcher.having((f) => f.message, 'message', message);
+}
 
 List<String> ids(Iterable<Object> entries) => [
   for (final e in entries)
@@ -104,7 +112,15 @@ void main() {
         expect(
           () =>
               project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
-          throwsA(fault(FaultCode.overrideIdNotFound, 'sections.goal_typo')),
+          throwsA(
+            fault(
+              FaultCode.overrideIdNotFound,
+              'sections.goal_typo',
+              message:
+                  'no section "goal_typo" in the merged doc type and no '
+                  'header to add it',
+            ),
+          ),
         );
       },
     );
@@ -118,7 +134,13 @@ void main() {
             shipped(),
             'sections: [{id: nope, header: N, disabled: true}]',
           ),
-          throwsA(fault(FaultCode.overrideIdNotFound, 'sections.nope')),
+          throwsA(
+            fault(
+              FaultCode.overrideIdNotFound,
+              'sections.nope',
+              message: 'no section "nope" in the merged doc type to disable',
+            ),
+          ),
         );
       },
     );
@@ -127,7 +149,13 @@ void main() {
         'override_id_not_found', () {
       expect(
         () => project(shipped(), 'fields: [{id: nope, disabled: true}]'),
-        throwsA(fault(FaultCode.overrideIdNotFound, 'fields.nope')),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.nope',
+            message: 'no field "nope" in the merged doc type to disable',
+          ),
+        ),
       );
     });
 
@@ -146,7 +174,15 @@ void main() {
               files: const _NoFiles(),
             ),
           ),
-          throwsA(fault(FaultCode.overrideIdNotFound, 'fields.size')),
+          throwsA(
+            fault(
+              FaultCode.overrideIdNotFound,
+              'fields.size',
+              message:
+                  'no field "size" in the merged doc type and no type to '
+                  'add it',
+            ),
+          ),
         );
       },
     );

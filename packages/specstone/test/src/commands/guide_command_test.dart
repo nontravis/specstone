@@ -136,7 +136,7 @@ void main() {
       );
     });
 
-    test('f03/us01/s7, f03/us01/fr01/e02, f03/us01/fr02/e04: a broken project '
+    test('f03/us01/s7, f03/us01/fr01/e02: a broken project '
         'template prints file and line on stderr and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'id: [\n'}),
@@ -150,7 +150,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us01/fr01/e04, f03/us01/fr03/e04: --json reports a fault as one '
+    test('f03/us01/fr01/e04: --json reports a fault as one '
         'envelope on stderr and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'bogus: 1\n'}),
@@ -164,6 +164,37 @@ void main() {
               as Map<String, Object?>;
       expect(error['code'], 'unknown_key');
       expect(error['message'], isA<String>());
+      expect(error['file'], '.specstone/templates/feature.yaml');
+      expect(error['key'], 'bogus');
+    });
+
+    test('f03/us01/fr02/e04: a broken project template prints file and line on '
+        'stderr for a doc type and exits 78', () async {
+      final runner = await runnerIn(
+        await projectWith({'.specstone/templates/feature.yaml': 'id: [\n'}),
+      );
+
+      expect(await runner.run(['guide', 'feature']), 78);
+      expect(
+        err.toString(),
+        matches(RegExp(r'^\.specstone/templates/feature\.yaml:\d+: ')),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('f03/us01/fr03/e04: --json reports a fault for a doc type as one '
+        'envelope on stderr and exits 78', () async {
+      final runner = await runnerIn(
+        await projectWith({'.specstone/templates/feature.yaml': 'bogus: 1\n'}),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 78);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), startsWith('{\n  "error": {\n    "code"'));
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'unknown_key');
       expect(error['file'], '.specstone/templates/feature.yaml');
       expect(error['key'], 'bogus');
     });
