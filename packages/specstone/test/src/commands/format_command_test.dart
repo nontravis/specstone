@@ -157,6 +157,26 @@ void main() {
       expect(read(project, _story), _storyUnknown);
     });
 
+    test('f05/us01/fr04: a doc ending inside a fence is refused and left '
+        'byte for byte; exit 1; --json marks unclosedFence', () async {
+      const unclosed = '# US-01\n\n## Summary\nx\n```\ncode\n';
+      final project = await fixtureProject({_story: unclosed});
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format']), 1);
+      expect(out.toString(), '$_story: refused: unclosed code fence\n');
+      expect(read(project, _story), unclosed);
+
+      out.clear();
+      expect(await runner.run(['format', '--json']), 1);
+      expect(jsonDecode(out.toString()), {
+        'files': [
+          {'path': _story, 'status': 'refused', 'unclosedFence': true},
+        ],
+        'warnings': <String>[],
+      });
+    });
+
     test('f05/us01/s8: a target outside the docs root, then a missing target, '
         'exit 64 and change nothing', () async {
       final project = await fixtureProject({

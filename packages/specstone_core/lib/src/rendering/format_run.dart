@@ -32,6 +32,7 @@ final class FileResult {
     this.unknownHeaders = const [],
     this.duplicateHeaders = const [],
     this.docTypes = const [],
+    this.unclosedFence = false,
   });
 
   /// The doc's path, relative to the project root.
@@ -49,19 +50,25 @@ final class FileResult {
   /// The doc types its path matches, when two or more do.
   final List<String> docTypes;
 
-  /// Returns the wire form; a list prints only when it is not empty.
+  /// Whether the doc ends inside a fenced code block.
+  final bool unclosedFence;
+
+  /// Returns the wire form; a list prints only when it is not empty, and
+  /// `unclosedFence` only when true.
   Map<String, Object> toJson() => {
     'path': path,
     'status': status.name,
     if (unknownHeaders.isNotEmpty) 'unknownHeaders': unknownHeaders,
     if (duplicateHeaders.isNotEmpty) 'duplicateHeaders': duplicateHeaders,
     if (docTypes.isNotEmpty) 'docTypes': docTypes,
+    if (unclosedFence) 'unclosedFence': true,
   };
 
   String get _reasons => [
     for (final header in unknownHeaders) 'unknown header "$header"',
     for (final header in duplicateHeaders) 'duplicate header "$header"',
     if (docTypes.isNotEmpty) 'doc types ${docTypes.join(', ')} match this path',
+    if (unclosedFence) 'unclosed code fence',
   ].join('; ');
 }
 
@@ -156,12 +163,17 @@ FormatReport runFormat(
 
 FileResult _formatReadable(ReadableDoc read, {required bool check}) {
   switch (formatDoc(read.doc, read.docType)) {
-    case Refused(:final unknownHeaders, :final duplicateHeaders):
+    case Refused(
+      :final unknownHeaders,
+      :final duplicateHeaders,
+      :final unclosedFence,
+    ):
       return FileResult(
         path: read.path,
         status: FileStatus.refused,
         unknownHeaders: unknownHeaders,
         duplicateHeaders: duplicateHeaders,
+        unclosedFence: unclosedFence,
       );
     case Formatted(:final text) when text == toLf(read.text):
       return FileResult(path: read.path, status: FileStatus.unchanged);

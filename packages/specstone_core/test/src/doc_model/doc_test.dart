@@ -211,6 +211,22 @@ void main() {
       expect(_headers(doc), ['A']);
     });
 
+    test('f05/us01/fr04: hasUnclosedFence is true when the text ends inside '
+        'a fence', () {
+      expect(Doc.parse('## A\n```\n## in\n').hasUnclosedFence, isTrue);
+      expect(Doc.parse('# T\n~~~~\ncode\n~~~\n').hasUnclosedFence, isTrue);
+    });
+
+    test('f05/us01/fr04: hasUnclosedFence is false when every fence closes '
+        'or the frontmatter holds the backticks', () {
+      expect(Doc.parse('## A\n```\ncode\n```\n').hasUnclosedFence, isFalse);
+      expect(Doc.parse('## A\ntext\n').hasUnclosedFence, isFalse);
+      expect(
+        Doc.parse('---\nnote: "```"\n---\n## A\ntext\n').hasUnclosedFence,
+        isFalse,
+      );
+    });
+
     test('review focus 1: a backtick fence whose info string holds a '
         'backtick is not a fence', () {
       final doc = Doc.parse('## A\n```a`b\n## B\n');

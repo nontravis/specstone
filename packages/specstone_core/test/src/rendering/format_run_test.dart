@@ -235,6 +235,54 @@ void main() {
     );
   });
 
+  test('f05/us01/fr04: a doc ending inside a fence is refused and left '
+      'alone; a second run adds no section either', () async {
+    const unclosed = '# F-05\n\n## Feature name\n- **Human:** x\n```\ncode\n';
+    final run = await _open({_feature: unclosed, _story: _storyOutOfOrder});
+
+    for (var pass = 0; pass < 2; pass++) {
+      final report = _run(run);
+
+      final file = report.files.first;
+      expect(file.status, FileStatus.refused);
+      expect(file.unclosedFence, isTrue);
+      expect(
+        report.toText(),
+        contains(
+          '$_feature: refused: unclosed code '
+          'fence\n',
+        ),
+      );
+      expect(report.exitStatus, 1);
+      expect(_read(run, _feature), unclosed);
+      expect(_read(run, _story), _storyFormatted);
+    }
+  });
+
+  test('f05/us01/fr04: under check a doc ending inside a fence is listed '
+      'as refused and exits 1', () async {
+    final run = await _open({_feature: '# F-05\n\n```\n'});
+
+    final report = _run(run, check: true);
+
+    expect(report.toText(), '$_feature: refused: unclosed code fence\n');
+    expect(report.exitStatus, 1);
+  });
+
+  test('f05/us01/fr04: toJson carries unclosedFence only when true', () async {
+    final run = await _open({
+      _feature: '# F-05\n\n```\n',
+      _story: _storyFormatted,
+    });
+
+    final json = _run(run, target: 'docs/$_featureDir').toJson();
+
+    expect(json['files'], [
+      {'path': _feature, 'status': 'refused', 'unclosedFence': true},
+      {'path': _story, 'status': 'unchanged'},
+    ]);
+  });
+
   test('f05/us01/fr06/e02: a refused doc lists a duplicate header with its '
       'template form', () async {
     final run = await _open({_story: '$_storyFormatted\n## Summary\ntwice\n'});

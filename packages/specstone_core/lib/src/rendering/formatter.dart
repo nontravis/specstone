@@ -14,15 +14,23 @@ final class Formatted extends FormatOutcome {
   final String text;
 }
 
-/// A doc the formatter will not touch because its headers break the template.
+/// A doc the formatter will not touch: its headers break the template, or its
+/// text ends inside a code fence.
 final class Refused extends FormatOutcome {
-  const new({required this.unknownHeaders, required this.duplicateHeaders});
+  const new({
+    required this.unknownHeaders,
+    required this.duplicateHeaders,
+    this.unclosedFence = false,
+  });
 
   /// Headers the template does not define, as written, in file order.
   final List<String> unknownHeaders;
 
   /// Headers that occur more than once, in template form `## <header>`.
   final List<String> duplicateHeaders;
+
+  /// Whether the doc ends inside a fenced code block.
+  final bool unclosedFence;
 }
 
 final _whitespaceRun = RegExp(r'\s+');
@@ -34,10 +42,19 @@ String headerKey(String headerText) =>
 
 /// Formats [doc] to the section and key order of [docType].
 ///
-/// Refuses a doc whose headers are unknown or repeated, changing nothing.
+/// Refuses a doc whose headers are unknown or repeated, or whose text ends
+/// inside a code fence, changing nothing.
 /// Bodies and key blocks are copied as written; only a missing required
 /// section is added.
 FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
+  // An open fence hides the headers after it, so the sections cannot be judged.
+  if (doc.hasUnclosedFence) {
+    return const Refused(
+      unknownHeaders: [],
+      duplicateHeaders: [],
+      unclosedFence: true,
+    );
+  }
   final templateByKey = {
     for (final section in docType.sections) headerKey(section.header): section,
   };

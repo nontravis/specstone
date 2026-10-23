@@ -58,6 +58,7 @@ final class Doc {
     required this.titleLineIndex,
     required this.sections,
     required this.afterFrontmatter,
+    required this.hasUnclosedFence,
   });
 
   /// Parses [text] into its frontmatter, head, and sections.
@@ -73,6 +74,7 @@ final class Doc {
       titleLineIndex: scan.titleLineIndex,
       sections: scan.sections,
       afterFrontmatter: bodyLines.join(),
+      hasUnclosedFence: scan.unclosedFence,
     );
   }
 
@@ -92,6 +94,12 @@ final class Doc {
   /// The text after the closing `---` line, or the whole text without
   /// frontmatter.
   final String afterFrontmatter;
+
+  /// Whether the text after the frontmatter ends inside a fenced code block.
+  ///
+  /// Such a fence swallows every later `##` line, so no section after it is
+  /// seen.
+  final bool hasUnclosedFence;
 
   /// The text after `# ` on the first such head line, as written.
   final String? title;
@@ -190,7 +198,13 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
 }
 
 /// Splits [lines] into head, title, and sections outside fenced code.
-({String head, String? title, int? titleLineIndex, List<Section> sections})
+({
+  String head,
+  String? title,
+  int? titleLineIndex,
+  List<Section> sections,
+  bool unclosedFence,
+})
 _scan(List<String> lines) {
   final fence = _FenceTracker();
   final headLines = <String>[];
@@ -230,6 +244,7 @@ _scan(List<String> lines) {
     title: title,
     titleLineIndex: titleLineIndex,
     sections: sections,
+    unclosedFence: fence.isOpen,
   );
 }
 
@@ -248,6 +263,9 @@ String _joinWithoutTrailingBlank(List<String> lines) {
 final class _FenceTracker {
   String? _char;
   var _length = 0;
+
+  /// Whether the lines fed so far end inside an open fence.
+  bool get isOpen => _char != null;
 
   /// Feeds one [line]; returns whether it is fence content or a delimiter.
   bool consume(String line) {
