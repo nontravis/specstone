@@ -526,6 +526,31 @@ void main() {
     }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
   });
 
+  group('parentOf', () {
+    test('f05/us02/fr04: on Windows a path whose first folder is missing stops '
+        r'at the drive root C:\, never the bare drive C:', () {
+      expect(parentOf(r'C:\missing', isWindows: true), r'C:\');
+      expect(parentOf(r'C:\missing\x', isWindows: true), r'C:\missing');
+      expect(parentOf(r'D:\a\b\c', isWindows: true), r'D:\a\b');
+    });
+
+    test('f05/us02/fr04: on Windows the drive root is its own parent', () {
+      expect(parentOf(r'C:\', isWindows: true), r'C:\');
+    });
+
+    test('a POSIX path stops at the file-system root', () {
+      expect(parentOf('/missing', isWindows: false), '/');
+      expect(parentOf('/missing/x', isWindows: false), '/missing');
+    });
+
+    test(
+      'off Windows a name that looks like a drive is an ordinary folder',
+      () {
+        expect(parentOf('C:/x', isWindows: false), 'C:');
+      },
+    );
+  });
+
   group('withNativeSeparators', () {
     test(
       'f05/us02/fr04: on Windows every slash becomes a backslash, so a '

@@ -172,6 +172,24 @@ String _absolute(String path, Directory workingDirectory) {
 String withNativeSeparators(String path, {bool? isWindows}) =>
     (isWindows ?? Platform.isWindows) ? path.replaceAll('/', r'\') : path;
 
+/// Returns the folder that holds [path], keeping a root as a root.
+///
+/// A path cut at its first separator is the root: `/` on POSIX, and on Windows
+/// the drive root `C:\`, never the bare drive `C:`, which Windows resolves to
+/// that drive's current folder. [isWindows] picks the style; it defaults to
+/// the running platform.
+String parentOf(String path, {bool? isWindows}) {
+  final windows = isWindows ?? Platform.isWindows;
+  final separator = windows ? r'\' : '/';
+  final cut = path.lastIndexOf(separator);
+  if (cut <= 0) return separator;
+  final parent = path.substring(0, cut);
+  return windows && _isBareDrive(parent) ? '$parent$separator' : parent;
+}
+
+bool _isBareDrive(String path) =>
+    path.length == 2 && path[1] == ':' && RegExp('[A-Za-z]').hasMatch(path[0]);
+
 /// Returns [path] with symbolic links resolved.
 ///
 /// The path may not exist: the nearest existing ancestor is resolved and the
@@ -184,17 +202,15 @@ String _canonicalPath(String path) {
     withNativeSeparators(File(path).absolute.path),
   );
   while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
-    final cut = existing.lastIndexOf(_separator);
-    missing.add(existing.substring(cut + 1));
+    missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
     // An absolute path always reaches the file-system root, which exists.
-    existing = cut <= 0 ? _separator : existing.substring(0, cut);
+    existing = parentOf(existing);
   }
   var resolved = File(existing).resolveSymbolicLinksSync();
   for (final name in missing.reversed) {
     if (name == '.') continue;
     if (name == '..') {
-      final cut = resolved.lastIndexOf(_separator);
-      resolved = cut <= 0 ? _separator : resolved.substring(0, cut);
+      resolved = parentOf(resolved);
       continue;
     }
     resolved = resolved.endsWith(_separator)
