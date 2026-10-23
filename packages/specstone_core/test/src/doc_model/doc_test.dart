@@ -71,23 +71,26 @@ void main() {
       expect(doc.sections.single.body, 'a\nlast');
     });
 
-    test('doc_model/s03/inv6, us01/fr03/e03: key blocks keep their text byte '
-        'for byte', () {
-      final doc = Doc.parse(
-        '---\n# owner note\nvision:\n  - PV-01\n  # inner\n# date note\n'
-        'date: 2026-10-23 # c\nq: "x"\n# tail\n---\n',
-      );
+    test(
+      'doc_model/s03/inv6, f05/us01/fr03/e03: key blocks keep their text byte '
+      'for byte',
+      () {
+        final doc = Doc.parse(
+          '---\n# owner note\nvision:\n  - PV-01\n  # inner\n# date note\n'
+          'date: 2026-10-23 # c\nq: "x"\n# tail\n---\n',
+        );
 
-      expect(_keys(doc), ['vision', 'date', 'q']);
-      expect(_texts(doc), [
-        '# owner note\nvision:\n  - PV-01\n  # inner\n',
-        '# date note\ndate: 2026-10-23 # c\n',
-        'q: "x"\n# tail\n',
-      ]);
-      expect(doc.frontmatter![1].valueText, '2026-10-23 # c');
-      expect(doc.frontmatter![0].valueText, '- PV-01');
-      expect(doc.frontmatter![2].valueText, '"x"');
-    });
+        expect(_keys(doc), ['vision', 'date', 'q']);
+        expect(_texts(doc), [
+          '# owner note\nvision:\n  - PV-01\n  # inner\n',
+          '# date note\ndate: 2026-10-23 # c\n',
+          'q: "x"\n# tail\n',
+        ]);
+        expect(doc.frontmatter![1].valueText, '2026-10-23 # c');
+        expect(doc.frontmatter![0].valueText, '- PV-01');
+        expect(doc.frontmatter![2].valueText, '"x"');
+      },
+    );
 
     test('doc_model/s03/inv6: blank lines above a key join that key and '
         'the blocks cover every line', () {
@@ -150,29 +153,32 @@ void main() {
       expect(_texts(doc), ['# one\n\n# two\nk: 1\n']);
     });
 
-    test('us01/fr03/e04: no leading --- means no frontmatter', () {
+    test('f05/us01/fr03/e04: no leading --- means no frontmatter', () {
       final doc = Doc.parse('\n---\nstatus: planned\n---\n# T\n');
 
       expect(doc.frontmatter, isNull);
       expect(doc.afterFrontmatter, '\n---\nstatus: planned\n---\n# T\n');
     });
 
-    test('us01/fr03/e04: --- with trailing space does not open or close '
+    test('f05/us01/fr03/e04: --- with trailing space does not open or close '
         'frontmatter', () {
       expect(Doc.parse('--- \nk: v\n---\n').frontmatter, isNull);
       expect(Doc.parse('---\nk: v\n--- \n').frontmatter, isNull);
     });
 
-    test('us01/fr03/e04: no closing line means no frontmatter and all text is '
-        'head', () {
-      final doc = Doc.parse('---\nstatus: planned\n');
+    test(
+      'f05/us01/fr03/e04: no closing line means no frontmatter and all text is '
+      'head',
+      () {
+        final doc = Doc.parse('---\nstatus: planned\n');
 
-      expect(doc.frontmatter, isNull);
-      expect(doc.head, '---\nstatus: planned\n');
-      expect(doc.sections, isEmpty);
-    });
+        expect(doc.frontmatter, isNull);
+        expect(doc.head, '---\nstatus: planned\n');
+        expect(doc.sections, isEmpty);
+      },
+    );
 
-    test('us01/fr03/e01: a ### heading stays in the ## body', () {
+    test('f05/us01/fr03/e01: a ### heading stays in the ## body', () {
       final doc = Doc.parse('## A\n### sub\ntext\n#### deeper\n## B\n');
 
       expect(_headers(doc), ['A', 'B']);
