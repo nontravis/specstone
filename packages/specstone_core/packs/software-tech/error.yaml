@@ -1,0 +1,52 @@
+id: error
+description: |-
+  The error taxonomy of one feature: its codes, how a client acts on each, and when a call retries.
+  Title it `# <Feature name> errors`, such as `# Rendering errors`, with no number.
+  Aim for about 150 to 200 lines; keep one file per feature spec folder.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Put no stack trace or internals in any error body.
+path: specs/f{nn}_{slug}/ERROR.md
+parent: feature
+sections:
+  - id: error_envelope
+    header: Error envelope
+    description: |-
+      Write this section only when the envelope differs from the project's one envelope.
+      Show the shape of the envelope, and justify the difference.
+  - id: error_catalog
+    header: Error catalog
+    required: true
+    description: |-
+      Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Implemented by, Client guidance.
+      Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`.
+      Write one row per code; keep codes stable and never reused for a different error.
+      Write Triggered by as the FR edge ID or US scenario that raises the code, so no code is orphaned.
+      Write Client guidance as one line: the action the client takes, not user copy.
+  - id: retry_policy
+    header: Retry policy
+    required: true
+    description: |-
+      Write a table with the columns Category, Retry?, Backoff, Max attempts.
+      Write the default rows by category first, then the per-code override rows.
+      Never retry a non-idempotent call: write Retry? as no for it, whatever its category.
+  - id: fallback
+    header: Fallback
+    description: |-
+      Omit this section when the feature has no graceful-degradation path.
+      Write the code and its trigger, such as persisting past max retries.
+      Write the degraded behavior as bullets, such as a read-only mode, a disabled control, or an emitted metric.
+lint:
+  max_lines: 400
+reference:
+  - title: RFC 9457, Problem Details for HTTP APIs
+    url: https://www.rfc-editor.org/rfc/rfc9457
+    locator: 3.1 Members; 4 Defining New Problem Types; 5 Security Considerations
+  - title: Google AIP-193, Errors
+    url: https://google.aip.dev/193
+    locator: ErrorInfo (reason, domain, metadata); Changing error messages
+  - title: Google AIP-194, Automatic retry configuration
+    url: https://google.aip.dev/194
+    locator: Guidance
+  - title: Microsoft Azure REST API Guidelines
+    url: https://github.com/microsoft/api-guidelines/blob/vNext/azure/Guidelines.md
+    locator: Handling Errors
