@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
@@ -201,5 +202,120 @@ void main() {
       block.substring(0, block.indexOf('\n==> ')),
       isNot(contains('## Rationale')),
     );
+  });
+  group('budget', () {
+    test('f01/us05/s5, f01/us05/fr03, f01/us05/fr03/e01, f01/us05/fr03/e03: over budget prints sizes and the next step, no doc text, exit 1', () async {
+      final tokens =
+          ctx('login/email_login', BundleMode.implement).json['tokens']! as int;
+      final a = ctx(
+        'login/email_login',
+        BundleMode.implement,
+        budget: tokens - 1,
+      );
+      expect(a.exitStatus, 1);
+      expect(
+        a.text,
+        startsWith(
+          'The bundle holds $tokens est. tokens, over the budget of ${tokens - 1}; no doc text is printed.\n'
+          'Docs it would hold:\n- gnfr (gnfr) · ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith(
+          'Next step: narrow the target, or hand login/email_login to specstone:sdd-reader.\n',
+        ),
+      );
+      expect(a.text, isNot(contains('## Statement')));
+    });
+    test(
+      'f01/us05/fr03/e02: a bundle whose size equals the budget prints whole',
+      () async {
+        final tokens =
+            ctx('login/email_login', BundleMode.implement).json['tokens']!
+                as int;
+        final a = ctx(
+          'login/email_login',
+          BundleMode.implement,
+          budget: tokens,
+        );
+        expect(a.exitStatus, 0);
+        expect(a.text, contains('## Statement'));
+      },
+    );
+    test(
+      'f01/us05/fr03/e04: query bundles meet the same budget rule',
+      () async {
+        expect(ctx('login', BundleMode.query, budget: 1).exitStatus, 1);
+      },
+    );
+    test(
+      'f01/us05/fr03/e05: with --no-project the budget counts only what prints',
+      () async {
+        final narrow =
+            ctx(
+                  'login/email_login',
+                  BundleMode.implement,
+                  noProject: true,
+                ).json['tokens']!
+                as int;
+        expect(
+          ctx(
+            'login/email_login',
+            BundleMode.implement,
+            noProject: true,
+            budget: narrow,
+          ).exitStatus,
+          0,
+        );
+        expect(
+          ctx(
+            'login/email_login',
+            BundleMode.implement,
+            budget: narrow,
+          ).exitStatus,
+          1,
+        );
+      },
+    );
+    test('f01/us05/fr03/e06: over budget under --json', () async {
+      final json = ctx(
+        'login/email_login',
+        BundleMode.implement,
+        budget: 1,
+      ).json;
+      expect(json.keys.toList(), [
+        'target',
+        'for',
+        'budget',
+        'tokens',
+        'overBudget',
+        'docs',
+        'next',
+      ]);
+      expect(json['overBudget'], isTrue);
+      expect(
+        json['next'],
+        'narrow the target, or hand login/email_login to specstone:sdd-reader',
+      );
+      expect(
+        ((json['docs']! as List).first as Map).containsKey('text'),
+        isFalse,
+      );
+    });
+    test('f01/us05/fr03/e07: a --budget that is not a positive integer is argument_invalid', () {
+      for (final v in ['0', '-5', '5k']) {
+        expect(
+          () => parsePositiveOption('--budget', v),
+          throwsA(
+            isA<IndexFault>().having(
+              (x) => x.message,
+              'message',
+              '--budget takes a positive integer, not $v',
+            ),
+          ),
+        );
+      }
+    });
   });
 }

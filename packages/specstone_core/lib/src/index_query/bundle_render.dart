@@ -10,8 +10,9 @@ final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 /// Renders [bundle]'s docs as one `context` answer (us05 FR-02).
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
-/// prints it under the JSON key `code` instead of `target`. [budget] is
-/// accepted and ignored; M4-T17 gives it FR-03's meaning.
+/// prints it under the JSON key `code` instead of `target`. A bundle larger
+/// than [budget] prints its sizes and the next step instead of doc text, with
+/// exit status 1 (us05 FR-03); a bundle equal to it prints whole.
 ReadAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -33,6 +34,17 @@ ReadAnswer answerContext(
   ];
   final shown = [...docBlocks, ...mapBlocks, ...namesBlocks].join('\n\n');
   final tokens = tokenSizeOf(shown);
+  if (budget != null && tokens > budget) {
+    return _overBudget(
+      ordered,
+      docBlocks,
+      bundle,
+      label: label,
+      byCode: byCode,
+      budget: budget,
+      tokens: tokens,
+    );
+  }
   final text =
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
@@ -55,6 +67,54 @@ ReadAnswer answerContext(
     ..._namesJson(index, bundle.nameListTops),
   };
   return ReadAnswer(text: text, json: json, warnings: [...bundle.warnings]);
+}
+
+/// Returns the reply for a bundle of [tokens] est. tokens that exceeds
+/// [budget]: each doc's size, no doc text, and the next step (us05 FR-03).
+ReadAnswer _overBudget(
+  List<IndexedDoc> ordered,
+  List<String> docBlocks,
+  Bundle bundle, {
+  required String label,
+  required bool byCode,
+  required int budget,
+  required int tokens,
+}) {
+  final next = 'narrow the target, or hand $label to specstone:sdd-reader';
+  final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
+  final lines = [
+    for (final (i, doc) in ordered.indexed)
+      '- ${nameWithType(doc)} · ${sizes[i]} tokens\n',
+  ];
+  final text =
+      'The bundle holds $tokens est. tokens, over the budget of $budget; '
+      'no doc text is printed.\n'
+      'Docs it would hold:\n'
+      '${lines.join()}'
+      'Next step: $next.\n';
+  final json = <String, Object>{
+    byCode ? 'code' : 'target': label,
+    'for': bundle.mode.wire,
+    'budget': budget,
+    'tokens': tokens,
+    'overBudget': true,
+    'docs': [
+      for (final (i, doc) in ordered.indexed)
+        {
+          'name': doc.name,
+          'docType': ?doc.docTypeId,
+          'path': doc.docPath,
+          'tokens': sizes[i],
+        },
+    ],
+    'next': next,
+  };
+  return ReadAnswer(
+    text: text,
+    json: json,
+    warnings: [...bundle.warnings],
+    exitStatus: 1,
+  );
 }
 
 /// Returns [bundle]'s docs in bundle order: the joined docs in tree order,
