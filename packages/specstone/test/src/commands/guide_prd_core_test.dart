@@ -69,7 +69,7 @@ void main() {
         );
 
     Future<Directory> prdCoreProject() =>
-        writeTree({_configPath: 'packs:\n  prd-core: 1.0.0\n'});
+        writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n'});
 
     test('f03/us06/s1, f03/us06/fr01/e01: guide lists the ten prd-core doc '
         'types and no other', () async {

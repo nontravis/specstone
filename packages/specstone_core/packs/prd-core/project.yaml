@@ -3,6 +3,7 @@ description: |-
   The project-wide context doc: name, vision, goals, roles, scope limits, and glossary.
   Title it `# Project context`, with no number. A project has exactly one PROJECT.
 path: prds/PROJECT.md
+bundle: [query, implement, design]
 fields:
   - id: owner
     type: string
@@ -60,6 +61,7 @@ sections:
       A story's "As a" line names one of these roles.
     template: |-
       - `<RoleName>` — <one-line definition>
+    query: true
   - id: out_of_scope
     header: Out-of-scope
     required: true
@@ -67,11 +69,13 @@ sections:
       List what the project will NOT do, one bullet each.
     template: |-
       - <thing the project will NOT do>
+    query: true
   - id: glossary
     header: Domain glossary
     description: |-
       Define each domain term in one line that ties it to a concrete entity.
     template: |-
       - **<Term>** — <one-line definition tying to a concrete entity>
+    query: true
 lint:
   max_lines: 400

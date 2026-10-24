@@ -7,6 +7,7 @@ description: |-
   Hold no secret in any row.
   Leave performance and scale to the project-wide and per-story non-functional requirements.
 path: specs/TECH_STACK.md
+bundle: [implement, design]
 sections:
   - id: stack
     header: Stack

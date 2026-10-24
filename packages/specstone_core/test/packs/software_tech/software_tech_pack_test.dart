@@ -14,7 +14,7 @@ import '../../helpers/temp_tree.dart';
 void main() {
   group('software-tech manifest', () {
     test(
-      'f03/us07/fr01: software-tech ships at 1.0.0 and extends prd-core',
+      'f03/us07/fr01: software-tech ships at 1.1.0 and extends prd-core',
       () {
         final bytes = shippedPackFiles['software-tech/pack.yaml'];
         expect(bytes, isNotNull);
@@ -23,7 +23,7 @@ void main() {
           file: 'packs/software-tech/pack.yaml',
         );
         expect(manifest.name, 'software-tech');
-        expect(manifest.version.toString(), '1.0.0');
+        expect(manifest.version.toString(), '1.1.0');
         expect(manifest.extendsPack, 'prd-core');
       },
     );
@@ -38,7 +38,7 @@ void main() {
     test('f03/us07/fr01/e03: software-tech listed without prd-core is '
         'prd_core_missing', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': 'packs:\n  software-tech: 1.0.0\n',
+        '.specstone/config.yaml': 'packs:\n  software-tech: 1.1.0\n',
       });
       final home = await writeTree({});
       expect(
@@ -136,6 +136,25 @@ void main() {
       for (final id in softwareTechIds) {
         expect(prdCoreDocType(set, id).lint.bannedWords, isNull, reason: id);
       }
+    });
+
+    test('f03/us06/fr01, f03/us07/fr01: no other doc type sets bundle, and no '
+        'other section sets query', () {
+      expect(
+        [
+          for (final t in set.docTypes)
+            if (t.bundle != null) t.id,
+        ],
+        ['gnfr', 'project', 'tech_stack'],
+      );
+      expect(
+        {
+          for (final t in set.docTypes)
+            for (final s in t.sections)
+              if (s.query != null) t.id,
+        },
+        {'feature', 'project'},
+      );
     });
   });
 }

@@ -72,4 +72,17 @@ void main() {
   test('f03/us06/fr02: Out-of-scope carries no line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
   });
+
+  test('f03/us06/fr01: feature joins no bundle and marks problem and '
+      'out_of_scope query', () async {
+    final feature = prdCoreDocType(await resolvePrdCore(), 'feature');
+    expect(feature.bundle, isNull);
+    expect(
+      [
+        for (final s in feature.sections)
+          if (s.query == true) s.id,
+      ],
+      ['problem', 'out_of_scope'],
+    );
+  });
 }

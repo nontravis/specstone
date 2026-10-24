@@ -9,9 +9,9 @@ import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
 const _guideUsage = 'Usage: specstone guide [type] [--json]';
-const _bothPacks = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
-const _prdCoreOnly = 'packs:\n  prd-core: 1.0.0\n';
-const _softwareTechOnly = 'packs:\n  software-tech: 1.0.0\n';
+const _bothPacks = 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n';
+const _prdCoreOnly = 'packs:\n  prd-core: 1.1.0\n';
+const _softwareTechOnly = 'packs:\n  software-tech: 1.1.0\n';
 const _eighteenIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
     'fr\ngnfr\nintegration\nnf\npersona\nproject\nreference\ntech_stack\n'

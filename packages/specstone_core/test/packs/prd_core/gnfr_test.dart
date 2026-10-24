@@ -112,4 +112,11 @@ void main() {
   test('f03/us06/fr03: no starter template holds a listed word', () {
     expectTemplatesFreeOfListedWords(gnfr);
   });
+
+  test('f03/us06/fr01: gnfr joins implement and design and marks no query '
+      'section', () async {
+    final gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');
+    expect(gnfr.bundle, ['implement', 'design']);
+    expect(gnfr.sections.where((s) => s.query != null), isEmpty);
+  });
 }

@@ -44,6 +44,7 @@ sections:
       Tell one specific story from the persona's view that shows why the current way fails.
     template: |-
       <One specific story, from the persona's view, that shows why the current way fails.>
+    query: true
   - id: benefit_hypothesis
     header: Benefit hypothesis
     required: true
@@ -90,6 +91,7 @@ sections:
       The list has no cap on the number of lines.
     template: |-
       - <thing> — <owning feature | not planned>
+    query: true
   - id: appetite
     header: Appetite
     description: |-
