@@ -304,6 +304,33 @@ void main() {
       addTearDown(session.close);
       expect(titleOf(session, featureDoc), 'Login v2');
     });
+    test('s03/inv1, review focus 3: a non-finite YAML number is indexed as its YAML text', () async {
+      const key = 'docs/prds/features/f04_limits/FEATURE.md';
+      final session = openSession(
+        await writeLoginProject(
+          extra: {
+            key: '---\nmax_users: .inf\nmin_users: -.inf\nratio: .nan\nlimits:\n  - .inf\n  - cap: .nan\n---\n\n# Limits\n',
+          },
+        ),
+      );
+      addTearDown(session.close);
+      expect(
+        session.docs
+            .firstWhere(
+              (d) => d.docPath == 'prds/features/f04_limits/FEATURE.md',
+            )
+            .frontmatter,
+        {
+          'max_users': '.inf',
+          'min_users': '-.inf',
+          'ratio': '.nan',
+          'limits': [
+            '.inf',
+            {'cap': '.nan'},
+          ],
+        },
+      );
+    });
     test('review focus 2, review focus 3: a non-UTF-8 doc and a bad frontmatter doc are indexed with warnings', () async {
       final project = await writeLoginProject(
         extra: {

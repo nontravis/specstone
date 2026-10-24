@@ -267,9 +267,15 @@ Map<String, Object?> _notIndexed(String docPath, List<String> warnings) {
   return const {};
 }
 
+/// Returns [value] as plain maps, lists, and scalars that `jsonEncode` takes.
+///
+/// A non-finite number has no JSON form, so it stays as its YAML text.
 Object? _plain(Object? value) => switch (value) {
   YamlMap() => {for (final e in value.entries) '${e.key}': _plain(e.value)},
   YamlList() => [for (final item in value) _plain(item)],
+  double(isNaN: true) => '.nan',
+  double(isInfinite: true, isNegative: true) => '-.inf',
+  double(isInfinite: true) => '.inf',
   _ => value,
 };
 
