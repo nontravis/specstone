@@ -102,6 +102,7 @@ final class FieldSpec {
     this.required = false,
     this.enumValues,
     this.docTypes,
+    this.pointer,
   });
 
   final String id;
@@ -110,6 +111,7 @@ final class FieldSpec {
   final bool required;
   final List<String>? enumValues;
   final List<String>? docTypes;
+  final PointerKind? pointer;
 }
 
 /// Resolves a temp project that pins `prd-core` 1.0.0.
@@ -146,14 +148,15 @@ MergedSection sectionOf(MergedDocType docType, String id) =>
 MergedField fieldOf(MergedDocType docType, String id) =>
     docType.fields.singleWhere((f) => f.id == id);
 
-/// Parses the shipped `prd-core/<id>.yaml` as a shipped layer.
-DocTypeLayer shippedLayer(String id) => DocTypeLayer.parse(
-  utf8.decode(shippedPackFiles['prd-core/$id.yaml']!),
-  file: 'packs/prd-core/$id.yaml',
-  docTypeId: id,
-  kind: LayerKind.shipped,
-  files: const _NoFiles(),
-);
+/// Parses the shipped `<pack>/<id>.yaml` as a shipped layer.
+DocTypeLayer shippedLayer(String id, {String pack = 'prd-core'}) =>
+    DocTypeLayer.parse(
+      utf8.decode(shippedPackFiles['$pack/$id.yaml']!),
+      file: 'packs/$pack/$id.yaml',
+      docTypeId: id,
+      kind: LayerKind.shipped,
+      files: const _NoFiles(),
+    );
 
 /// Expects the section ids, headers, prefix ids, and required flags.
 void expectSections(MergedDocType docType, List<SectionSpec> expected) {
@@ -180,11 +183,11 @@ void expectOwnFields(MergedDocType docType, List<FieldSpec> expected) {
   expect(
     [
       for (final f in own)
-        [f.id, f.type, f.list, f.required, f.enumValues, f.docTypes],
+        [f.id, f.type, f.list, f.required, f.enumValues, f.docTypes, f.pointer],
     ],
     [
       for (final f in expected)
-        [f.id, f.type, f.list, f.required, f.enumValues, f.docTypes],
+        [f.id, f.type, f.list, f.required, f.enumValues, f.docTypes, f.pointer],
     ],
     reason: docType.id,
   );
@@ -199,9 +202,13 @@ void expectStatusValues(MergedDocType docType, List<String> values) {
 }
 
 /// Expects the guide shape every `prd-core` doc type shares.
-void expectGuideShape(MergedDocType docType, {required String title}) {
+void expectGuideShape(
+  MergedDocType docType, {
+  required String title,
+  String pack = 'prd-core',
+}) {
   final id = docType.id;
-  expect(docType.pack, 'prd-core', reason: id);
+  expect(docType.pack, pack, reason: id);
   final description = docType.description;
   expect(description, isNotNull, reason: id);
   final firstLine = const LineSplitter().convert(description!).first;

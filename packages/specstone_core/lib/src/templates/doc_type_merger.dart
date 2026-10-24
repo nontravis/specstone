@@ -171,6 +171,7 @@ final class DocTypeMerger {
             required: entry.required ?? false,
             enumValues: _frozen(entry.enumValues),
             docTypes: _frozen(entry.docTypes),
+            pointer: _pointerOf(entry, type, layer),
             description: entry.description,
           ),
         );
@@ -188,10 +189,28 @@ final class DocTypeMerger {
         required: entry.required,
         enumValues: _frozen(entry.enumValues),
         docTypes: _frozen(entry.docTypes),
+        pointer: _pointerOf(entry, entry.type ?? current.type, layer),
         description: entry.description,
       );
     }
     return fields;
+  }
+
+  /// Returns the kind [entry] writes, read only when [type] is `output_ref`.
+  ///
+  /// A pointer on any other type has no effect and is not checked.
+  PointerKind? _pointerOf(
+    FieldEntry entry,
+    FieldType type,
+    DocTypeLayer layer,
+  ) {
+    final written = entry.pointer;
+    if (type != FieldType.outputRef || written == null) return null;
+    return PointerKind.read(
+      written,
+      file: layer.file,
+      prefix: 'fields.${entry.id}.',
+    );
   }
 
   List<MergedSection> _mergeSections(

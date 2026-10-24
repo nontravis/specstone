@@ -1,0 +1,52 @@
+id: integration
+description: |-
+  The outside systems one feature calls: why, over which protocol, and the contract with each.
+  Title it `# <Feature name> integrations`, such as `# Rendering integrations`, with no number.
+  Write this doc only when the feature calls an outside system.
+  Aim for about 150 to 200 lines; keep one file per feature spec folder.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+path: specs/f{nn}_{slug}/INTEGRATION.md
+parent: feature
+sections:
+  - id: external_systems
+    header: External systems
+    required: true
+    description: |-
+      Write a table with the columns System, Purpose, Protocol, Owned by; list every outside system the feature calls.
+      Write Purpose as why the feature calls the system, and Protocol such as REST, gRPC, webhook, or event.
+      Write Owned by as an internal team or a vendor.
+  - id: contract_per_system
+    header: Contract per system
+    required: true
+    description: |-
+      Write one `###` per system, with Endpoints used as a table of Direction, Method / Event, Purpose.
+      Write Credentials as location and rotation only, never a value.
+      Write Failure handling in numbers: connect and request timeouts, the one layer that retries, backoff with jitter,
+      max attempts, and a circuit breaker when used; add provider rate limits as an optional row.
+      Write Idempotency as key source, duplicate behavior, and expiry.
+  - id: translation
+    header: Translation
+    description: |-
+      Write the anticorruption layer: where each outside model maps to the terms of the domain doc.
+  - id: events
+    header: Events
+    description: |-
+      Omit this section when the feature has no event concern.
+      Write a table with the columns Event type, Channel, Action, Payload schema, Dedup key, Version rule.
+      Write Action as send or receive.
+      Write Payload schema as a pointer to the source of truth; copy no payload schema.
+lint:
+  max_lines: 400
+reference:
+  - title: Marc Brooker, Timeouts, retries, and backoff with jitter (Amazon Builders' Library)
+    url: https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/
+    locator: Timeouts; Retries and backoff; Jitter
+  - title: IETF draft-ietf-httpapi-idempotency-key-header-08
+    url: https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
+    locator: 2.2 Uniqueness; 2.3 Validity and Expiry; 2.5.2 Resource
+  - title: AsyncAPI Specification 3.1.0
+    url: https://www.asyncapi.com/docs/reference/specification/v3.1.0
+    locator: Definitions; Channel Object; Operation Object
+  - title: CloudEvents 1.0.2
+    url: https://github.com/cloudevents/spec/blob/ce@v1.0.2/cloudevents/spec.md
+    locator: REQUIRED Attributes (id, source, type)

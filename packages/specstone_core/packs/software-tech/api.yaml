@@ -1,0 +1,52 @@
+id: api
+description: |-
+  The API of one feature: which operations it uses, how each is called, and where the source of truth declares it.
+  Title it `# <Feature name> API`, such as `# Rendering API`, with no number.
+  Aim for about 150 to 200 lines; keep one file per feature spec folder.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Copy no request or response schema; the source of truth owns it.
+path: specs/f{nn}_{slug}/API.md
+parent: feature
+sections:
+  - id: source_of_truth
+    header: Source-of-truth
+    description: |-
+      Omit this section when the project has no OpenAPI or ApiDog file, as a CLI project has none.
+      Otherwise write a table with the columns Format, Path, Purpose.
+      Write each Path relative to this file, resolving to a real file.
+  - id: fr_trace
+    header: FR trace
+    required: true
+    description: |-
+      Write a table with the columns FR and Operation; write one row per operation.
+      Write the `operationId` or the command in Operation; it is the pointer, a name and never a copy.
+      Give every row a block in Operations, and every block a row.
+  - id: operations
+    header: Operations
+    required: true
+    description: |-
+      Write one `###` per operation, headed `` `<operation>` — FR-<NN> ``, holding a Request example.
+      Write a success and an error Response example, both required and valid against the source of truth when one exists.
+      Write Errors as the codes with a pointer to the error doc, and Auth as a scope or `none`.
+      Write Idempotent on every mutating operation: `yes` with the key, or `no`.
+      Write no Why line.
+  - id: compatibility
+    header: Compatibility
+    description: |-
+      Write what counts as breaking for the feature's operations.
+      End with a pointer to the Rollout section of the architecture doc.
+lint:
+  max_lines: 400
+reference:
+  - title: OpenAPI Specification 3.2.1
+    url: https://spec.openapis.org/oas/v3.2.1.html
+    locator: Operation Object (operationId); Working with Examples
+  - title: Google AIP-121, Resource-oriented design
+    url: https://google.aip.dev/121
+    locator: Guidance
+  - title: Google AIP-180, Backwards compatibility
+    url: https://google.aip.dev/180
+    locator: Guidance (source, wire, semantic compatibility)
+  - title: Microsoft Azure REST API Guidelines
+    url: https://github.com/microsoft/api-guidelines/blob/vNext/azure/Guidelines.md
+    locator: Exactly Once Behavior; Handling Errors

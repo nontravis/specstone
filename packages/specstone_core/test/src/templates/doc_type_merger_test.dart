@@ -508,6 +508,108 @@ sections:
 
       expect(merged.fields[2].description, 'Hidden');
     });
+
+    test('f03/us02/s2, f03/us03/fr01: a new output_ref field keeps its '
+        'pointer', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, list: true, pointer: prefix}]',
+      );
+
+      expect(merged.fields.last.pointer, PointerKind.prefix);
+    });
+
+    test('f03/us02/fr01: an override that writes only pointer changes the '
+        'kind', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, pointer: exact}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.type, FieldType.outputRef);
+      expect(covers.pointer, PointerKind.exact);
+    });
+
+    test('f03/us02/fr01: an override that writes no pointer keeps the lower '
+        'layer kind', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, required: true}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.type, FieldType.outputRef);
+      expect(covers.required, isTrue);
+      expect(covers.pointer, PointerKind.prefix);
+    });
+
+    test('f03/us03/fr01/e17: a typeless override with a pointer other than '
+        'exact or prefix over an output_ref field is unknown_value', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      expect(
+        () => project(base, 'fields: [{id: covers, pointer: glob}]'),
+        throwsA(fault(FaultCode.unknownValue, 'fields.covers.pointer')),
+      );
+    });
+
+    test('f03/us03/fr01/e17: a typeless override with a non-string pointer '
+        'over an output_ref field is unknown_value', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      expect(
+        () => project(base, 'fields: [{id: covers, pointer: 3}]'),
+        throwsA(fault(FaultCode.unknownValue, 'fields.covers.pointer')),
+      );
+    });
+
+    test('f03/us03/fr01/e18: a pointer on a field of another type has no '
+        'effect, whatever its kind', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: size, type: string, pointer: glob}]',
+      );
+      final overridden = project(
+        shipped(),
+        'fields: [{id: owner, pointer: glob}]',
+      );
+
+      expect(added.fields.last.pointer, isNull);
+      expect(
+        overridden.fields.singleWhere((f) => f.id == 'owner').pointer,
+        isNull,
+      );
+    });
+
+    test('f03/us03/fr01/e18: a field turned from output_ref to another type '
+        'drops its pointer', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, type: string}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.pointer, isNull);
+    });
   });
 
   group('DocTypeMerger.apply lint', () {

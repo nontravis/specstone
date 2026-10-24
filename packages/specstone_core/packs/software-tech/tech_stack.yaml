@@ -1,0 +1,49 @@
+id: tech_stack
+description: |-
+  The project's technology stack: one small set of tables that an Agent loads on most calls.
+  Title it `# Tech stack`, with no number.
+  Aim for about 80 lines; keep one fact per table cell and write rows that a reader can check.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Hold no secret in any row.
+  Leave performance and scale to the project-wide and per-story non-functional requirements.
+path: specs/TECH_STACK.md
+sections:
+  - id: stack
+    header: Stack
+    required: true
+    description: |-
+      Write one table with the columns Slot, Choice, Version, Why; keep the Why to one clause.
+      Fill the slots Language, Architecture, API protocol, Storage, Auth / Identity, Frontend framework, and Repo layout.
+      Keep the Architecture row to one line pointing at the architecture docs.
+      Add the rows Primary dependencies, Testing, and Target platform.
+      Write the exact version in Version, since the Agent prefers the stack you establish.
+  - id: constraints
+    header: Constraints
+    description: |-
+      List the outside rules the stack must obey, such as a license or no network.
+      Write each as one checkable row.
+  - id: naming
+    header: Naming
+    required: true
+    description: |-
+      Record the project's naming canonicalization: one canonical noun per concept, and the casing of each artifact once.
+      Rows may exceed five when keys, members, or types need their own rows.
+  - id: avoid
+    header: Avoid
+    description: |-
+      List what the project steers clear of, in a table with the columns What, Why.
+lint:
+  max_lines: 400
+reference:
+  - title: arc42 section 2, Architecture Constraints
+    url: https://docs.arc42.org/section-2/
+    locator: Form (constraints table; conventions incl. naming)
+  - title: arc42 section 4, Solution Strategy
+    url: https://docs.arc42.org/section-4/
+    locator: Contents (technology decisions); Form (short, motivated)
+  - title: GitHub Spec Kit, plan-template.md
+    url: https://github.com/github/spec-kit/blob/main/templates/plan-template.md
+    locator: "## Technical Context"
+  - title: Google AIP-140, Field names
+    url: https://google.aip.dev/140
+    locator: Case; Uniformity

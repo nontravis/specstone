@@ -1,0 +1,78 @@
+id: auth
+description: |-
+  The access rules of one feature: who may do what on which resource, and what the feature logs about it.
+  Title it `# <Feature name> auth`, such as `# Rendering auth`, with no number.
+  Write this doc only when the feature has access rules.
+  Aim for about 150 to 200 lines; keep one file per feature spec folder.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+path: specs/f{nn}_{slug}/AUTH.md
+parent: feature
+sections:
+  - id: roles
+    header: Roles
+    required: true
+    description: |-
+      Write a table with the columns Role, Scope inheritance, Introduced by, Notes.
+      Write one row per role the feature introduces or uses.
+      Write Scope inheritance as the parent role whose scopes the role inherits, or `—` for a root role.
+      Name in Introduced by the PRD feature that introduces the role, or PROJECT for a role it registers,
+      so every role traces back.
+  - id: scopes
+    header: Scopes
+    required: true
+    description: |-
+      Write a table with the columns Scope, Action, Required for; write each scope as `<resource>:<action>`.
+      Keep scopes flat, with no nesting.
+      Name a real operation of the API doc in Required for, so every scope traces forward.
+      State the default scope when one exists.
+  - id: resource_matrix
+    header: Resource matrix
+    required: true
+    description: |-
+      Write one row per resource and operation, and one column per role.
+      Write the line "Default: deny"; a blank cell is deny.
+      Write each cell as `yes`, `no`, `own` (the resource belongs to the caller), or `any` (any instance).
+      Use `own` only when the FR for that endpoint enforces that the subject is the caller.
+  - id: conditions
+    header: Conditions
+    description: |-
+      Write the attribute and relationship rules the matrix cannot hold, such as state, time, or owner chain.
+  - id: field_rules
+    header: Field rules
+    description: |-
+      Write a table with the columns Field, Read, Write.
+      Name in Read and Write who may read or write the field.
+  - id: authentication_and_sessions
+    header: Authentication and sessions
+    description: |-
+      Write the session idle timeout, the absolute lifetime, and the limit on concurrent sessions.
+      List the auth pathways: every one the feature offers.
+      Write the anti-automation controls, such as rate limiting against credential stuffing.
+  - id: enforcement
+    header: Enforcement
+    required: true
+    description: |-
+      Write one line: the layer where the checks run.
+  - id: audit
+    header: Audit
+    required: true
+    description: |-
+      Write a table with the columns Event, Triggered by, Logged fields.
+      Write event names from one vocabulary; each name is a stable identifier.
+      Cover when, where, who, what in the logged fields of each event.
+      Never log tokens or passwords; name any other field that is banned from the log.
+lint:
+  max_lines: 400
+reference:
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/master/5.0/en
+    locator: V8.1 Authorization Documentation; V16.3 Security Events
+  - title: OWASP Authorization Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
+    locator: Enforce Least Privileges; Deny by Default; Validate the Permissions on Every Request
+  - title: RFC 6749, The OAuth 2.0 Authorization Framework
+    url: https://www.rfc-editor.org/rfc/rfc6749#section-3.3
+    locator: 3.3 Access Token Scope
+  - title: OWASP Logging Vocabulary Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Vocabulary_Cheat_Sheet.html
+    locator: Authentication [AUTHN]; Authorization [AUTHZ]

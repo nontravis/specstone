@@ -1,0 +1,90 @@
+id: architecture
+description: |-
+  The architecture of one feature: which components exist, who calls whom, and where each runs.
+  Title it `# <Feature name> architecture`, such as `# Rendering architecture`, with no number.
+  Aim for under 150 lines; keep one file per feature spec folder.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Write no code samples; this doc describes structure, and the implementation belongs in code.
+path: specs/f{nn}_{slug}/ARCHITECTURE.md
+parent: feature
+fields:
+  - id: covers
+    type: output_ref
+    list: true
+    required: true
+    pointer: prefix
+    description: |-
+      Lists the folders or files of code that the feature's spec folder covers, each relative to the project root.
+      A path matches by longest prefix, so a folder covers every file under it.
+sections:
+  - id: component_diagram
+    header: Component diagram
+    required: true
+    description: |-
+      Write a Mermaid diagram that stands alone, so the reader needs no prose to read it.
+      Give it a title, and type every box with its technology.
+      Label every arrow with its intent and protocol; write no bare `Uses`.
+  - id: components
+    header: Components
+    required: true
+    description: |-
+      Write one table with the columns Component, Responsibility, Tech, Owns, and an optional Code path.
+      Give every diagram box a row, and every row a diagram box; write no prose outside the table.
+      Name the technology in Tech, so the Agent picks a library without opening the tech stack doc.
+      Fill Code path with the folder or file of the component, so the Agent finds which component owns a file.
+  - id: interaction
+    header: Interaction
+    description: |-
+      Write this section only when the flow is more than one request and one reply.
+      Add one error scenario when the failure path differs.
+  - id: deployment
+    header: Deployment
+    description: |-
+      Write this section only when the feature runs somewhere the tech stack doc does not say.
+      Write a table of where each component runs, such as process, container, edge, or browser, with a one-clause Why per row.
+      Write one table per environment only when the environments differ.
+  - id: rollout
+    header: Rollout
+    description: |-
+      Omit this section when the feature has no rollout concern.
+      Write a table with the columns Stage, Scope, Gate, Rollback.
+      Write the Gate as a signal and a threshold, and the Rollback as a trigger and an action.
+      Add expand, migrate, and contract steps for a breaking change.
+  - id: observability
+    header: Observability
+    description: |-
+      Omit this section when the feature has no observability concern.
+      Write a table with the columns Signal, SLI, SLO target, Alert on.
+      Write the SLI as how the signal is measured, and Alert on as a symptom, never a cause.
+      Add the log channels as `<name> - <events>`.
+  - id: concerns
+    header: Concerns
+    required: true
+    description: |-
+      Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability.
+      End each line with `see <section or sibling doc>` or `N/A — <reason>`.
+      Skip no concern, so a reviewer sees that the decision was made.
+  - id: design_references
+    header: Design references
+    description: |-
+      List at most three links to an ADR or design doc, one line each.
+      This section is the only home for rationale.
+  - id: open_questions
+    header: Open questions
+    description: |-
+      List the unresolved decisions.
+lint:
+  max_lines: 400
+reference:
+  - title: The C4 model, Notation
+    url: https://c4model.com/diagrams/notation
+    locator: Diagrams; Elements; Relationships
+  - title: arc42 section 5, Building Block View
+    url: https://docs.arc42.org/section-5/
+    locator: Whitebox template; black box template
+  - title: Google SRE Book, ch. 27 Reliable Product Launches at Scale
+    url: https://sre.google/sre-book/reliable-product-launches/
+    locator: Rollout Planning; Gradual and Staged Rollouts
+  - title: Google SRE Book, ch. 6 Monitoring Distributed Systems
+    url: https://sre.google/sre-book/monitoring-distributed-systems/
+    locator: Symptoms Versus Causes; The Four Golden Signals

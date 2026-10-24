@@ -1,0 +1,67 @@
+id: domain
+description: |-
+  The domain model of one feature: the concepts it owns, how they are shaped, and the invariants that hold.
+  Title it `# <Feature name> domain`, such as `# Rendering domain`, with no number.
+  Aim for about 150 to 200 lines; keep one file per feature spec folder.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+path: specs/f{nn}_{slug}/DOMAIN.md
+parent: feature
+sections:
+  - id: entities
+    header: Entities
+    required: true
+    description: |-
+      Write one table with the columns Entity, Kind, Identity, Owns, Refers to (by id), and Notes; write one row per entity.
+      Write Kind as Aggregate root, Entity, Service, or Repository.
+      Refers to (by id) is optional; use it to name another aggregate by its id.
+  - id: value_objects
+    header: Value objects
+    description: |-
+      Write this section only when the feature defines a value object.
+      Write a table with the columns VO, Backed by, Validation.
+      Make each value object immutable.
+  - id: invariants
+    header: Invariants
+    required: true
+    prefix_id: INV-
+    description: |-
+      Write each invariant as a bullet, never a numbered item, led by a bold `INV-<N>` ID.
+      Keep IDs append-only and never reused; a deleted invariant retires its ID.
+      Write numbers and checkable conditions, such as `timeout 10 s`, not adjectives.
+      Name the enforcing aggregate root and the consistency, immediate or eventual, in each invariant.
+  - id: lifecycle
+    header: Lifecycle
+    description: |-
+      Write a Mermaid `stateDiagram-v2` only when an entity has a status with 4 or more states.
+  - id: data_touch
+    header: Data touch
+    description: |-
+      Write a table with the columns Table, Operation, Field / Change; write one row per table the feature touches.
+      Copy no column definitions; the schema file owns them.
+  - id: commands_and_events
+    header: Commands and events
+    description: |-
+      Write one table with the columns Command, Aggregate, Event emitted.
+  - id: corrective_policies
+    header: Corrective policies
+    description: |-
+      Write this section only when an invariant is eventual.
+  - id: terms
+    header: Terms
+    description: |-
+      List only the terms beyond the project glossary.
+lint:
+  max_lines: 400
+reference:
+  - title: Eric Evans, Domain-Driven Design Reference (2015)
+    url: https://www.domainlanguage.com/wp-content/uploads/2016/05/DDD_Reference_2015-03.pdf
+    locator: Ubiquitous Language; Entities; Value Objects; Domain Events; Aggregates
+  - title: Vaughn Vernon, Effective Aggregate Design, Part I
+    url: https://www.dddcommunity.org/wp-content/uploads/files/pdf_articles/Vernon_2011_1.pdf
+    locator: Rule - Model True Invariants in Consistency Boundaries; Rule - Design Small Aggregates
+  - title: Vaughn Vernon, Effective Aggregate Design, Part II
+    url: https://www.dddcommunity.org/wp-content/uploads/files/pdf_articles/Vernon_2011_2.pdf
+    locator: Rule - Reference Other Aggregates By Identity; Rule - Use Eventual Consistency Outside the Boundary
+  - title: DDD Crew, Aggregate Design Canvas
+    url: https://github.com/ddd-crew/aggregate-design-canvas
+    locator: How to Use, sections 3-7

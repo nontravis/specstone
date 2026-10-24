@@ -1,0 +1,73 @@
+id: topic
+description: |-
+  A topic: a rule set or a shared component that two or more features apply, written once and tied to its code.
+  Title it `# <Topic name>`, such as `# Doc model`, with no number.
+  Aim for about 150 to 200 lines; keep one topic per file, named for the topic.
+  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  A rule set writes Rules, a component writes Interface, and a topic that is both writes both; no field names the kind.
+  Write tables and ID'd bullets in the order of the code's own structure, and point at code instead of copying it.
+path: specs/topics/{slug}.md
+fields:
+  - id: covers
+    type: output_ref
+    list: true
+    required: true
+    pointer: prefix
+    description: |-
+      Lists the folders or files of code that the topic covers, each relative to the project root.
+      A path matches by longest prefix, so a folder covers every file under it.
+sections:
+  - id: purpose
+    header: Purpose
+    required: true
+    description: |-
+      Write one paragraph: the problem the topic solves and who reads this file.
+  - id: scope
+    header: Scope
+    required: true
+    description: |-
+      Write prose that agrees with `covers`: name the code the topic governs and add no path that `covers` leaves out.
+  - id: used_by
+    header: Used by
+    required: true
+    description: |-
+      Write one table with the columns Feature, What it uses.
+      List each feature, and each component of it, that applies the topic.
+  - id: rules
+    header: Rules
+    prefix_id: RULE-
+    description: |-
+      Give each rule a `RULE-<N>` ID and write it as one sentence a reviewer can check against a diff.
+      Write numbers and checkable conditions, such as `timeout 10 s`, not adjectives.
+  - id: interface
+    header: Interface
+    description: |-
+      List the public entry points as `path:Symbol` pointers, in the order of the code.
+      Copy no signature; a copy drifts from the code.
+  - id: model
+    header: Model
+    description: |-
+      Name the shared data shapes, each pointed at its code; copy no definition.
+  - id: examples
+    header: Examples
+    description: |-
+      Give one short usage example per rule or entry point.
+  - id: open_questions
+    header: Open questions
+    description: |-
+      List the unresolved decisions.
+lint:
+  max_lines: 400
+reference:
+  - title: arc42 section 8, Crosscutting Concepts
+    url: https://docs.arc42.org/section-8/
+    locator: Content; Structure (pick only the most-needed topics)
+  - title: arc42 tips 8-4 and 8-8, explain concepts with how and with code
+    url: https://docs.arc42.org/tips/8-4/
+    locator: Tip 8-4; see also tip 8-8 (do not copy/paste code)
+  - title: arc42 section 5, Building Block View
+    url: https://docs.arc42.org/section-5/
+    locator: Black box template
+  - title: Diátaxis, Reference
+    url: https://diataxis.fr/reference/
+    locator: Key principles
