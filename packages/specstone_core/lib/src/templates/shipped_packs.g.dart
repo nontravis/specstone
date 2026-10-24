@@ -1301,6 +1301,14 @@ const Map<String, String> shippedPackFilesBase64 = {
       'bmVzCiAgICB1cmw6IGh0dHBzOi8vZ2l0aHViLmNvbS9taWNyb3NvZnQvYXBpLWd1'
       'aWRlbGluZXMvYmxvYi92TmV4dC9henVyZS9HdWlkZWxpbmVzLm1kCiAgICBsb2Nh'
       'dG9yOiBIYW5kbGluZyBFcnJvcnMK',
+  'software-tech/fr.yaml':
+      'ZmllbGRzOgogIC0gaWQ6IGltcGxlbWVudHMKICAgIHR5cGU6IG91dHB1dF9yZWYK'
+      'ICAgIGxpc3Q6IHRydWUKICAgIHBvaW50ZXI6IGV4YWN0CiAgICBkZXNjcmlwdGlv'
+      'bjogfC0KICAgICAgTGlzdHMgdGhlIGNvZGUgdGhhdCBpbXBsZW1lbnRzIHRoZSBk'
+      'b2MsIGVhY2ggZW50cnkgYHBhdGhbOlN5bWJvbF1gLCB3aXRoIHRoZSBwYXRoIHJl'
+      'bGF0aXZlIHRvIHRoZSBwcm9qZWN0IHJvb3QuCiAgICAgIFdyaXRlIGl0IG9uY2Ug'
+      'Y29kZSBpbXBsZW1lbnRzIHRoZSBkb2M7IGEgZG9jIHdpdGggbm8gY29kZSB5ZXQg'
+      'd3JpdGVzIG5vbmUuCg==',
   'software-tech/integration.yaml':
       'aWQ6IGludGVncmF0aW9uCmRlc2NyaXB0aW9uOiB8LQogIFRoZSBvdXRzaWRlIHN5'
       'c3RlbXMgb25lIGZlYXR1cmUgY2FsbHM6IHdoeSwgb3ZlciB3aGljaCBwcm90b2Nv'
@@ -1476,4 +1484,12 @@ const Map<String, String> shippedPackFilesBase64 = {
       'IEJsYWNrIGJveCB0ZW1wbGF0ZQogIC0gdGl0bGU6IERpw6F0YXhpcywgUmVmZXJl'
       'bmNlCiAgICB1cmw6IGh0dHBzOi8vZGlhdGF4aXMuZnIvcmVmZXJlbmNlLwogICAg'
       'bG9jYXRvcjogS2V5IHByaW5jaXBsZXMK',
+  'software-tech/user_story.yaml':
+      'ZmllbGRzOgogIC0gaWQ6IGltcGxlbWVudHMKICAgIHR5cGU6IG91dHB1dF9yZWYK'
+      'ICAgIGxpc3Q6IHRydWUKICAgIHBvaW50ZXI6IGV4YWN0CiAgICBkZXNjcmlwdGlv'
+      'bjogfC0KICAgICAgTGlzdHMgdGhlIGNvZGUgdGhhdCBpbXBsZW1lbnRzIHRoZSBk'
+      'b2MsIGVhY2ggZW50cnkgYHBhdGhbOlN5bWJvbF1gLCB3aXRoIHRoZSBwYXRoIHJl'
+      'bGF0aXZlIHRvIHRoZSBwcm9qZWN0IHJvb3QuCiAgICAgIFdyaXRlIGl0IG9uY2Ug'
+      'Y29kZSBpbXBsZW1lbnRzIHRoZSBkb2M7IGEgZG9jIHdpdGggbm8gY29kZSB5ZXQg'
+      'd3JpdGVzIG5vbmUuCg==',
 };
