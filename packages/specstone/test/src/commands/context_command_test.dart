@@ -2,6 +2,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
@@ -150,5 +151,19 @@ void main() {
       64,
     );
     expect(err.toString(), 'the code path ../ lies outside the project root\n');
+  });
+  test('f01/us05/fr04, s05: --code "" is argument_invalid, exit 64, and opens no index', () async {
+    final project = await writeReadProject();
+    final (:runner, :out, :err) = readRunner(project);
+    expect(
+      await runner.run(['context', '--code', '', '--for', 'implement']),
+      64,
+    );
+    expect(err.toString(), '--code takes a file or folder, not ""\n');
+    expect(out.toString(), isEmpty);
+    expect(
+      File('${project.path}/.specstone/index.sqlite').existsSync(),
+      isFalse,
+    );
   });
 }

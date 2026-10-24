@@ -59,6 +59,13 @@ class ContextCommand extends SpecstoneCommand {
     final BundleMode mode;
     final int? budget;
     try {
+      // An empty shell variable must not bundle the whole project.
+      if (code != null && code.isEmpty) {
+        throw IndexFault(
+          IndexFaultCode.argumentInvalid,
+          '--code takes a file or folder, not ""',
+        );
+      }
       if (rest.isEmpty && code == null) {
         throw missingArgument(
           'context',
