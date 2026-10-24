@@ -3,6 +3,10 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+
 import 'temp_tree.dart';
 
 /// The project every index and query test reads.
@@ -103,3 +107,17 @@ const featureKey = 'docs/prds/features/f01_login/FEATURE.md';
 
 /// The DocPath of [featureKey].
 const featureDoc = 'prds/features/f01_login/FEATURE.md';
+
+/// Opens a [ReadSession] on [project] with the built-in doc types.
+///
+/// Registers no teardown, so it also runs inside `Isolate.run`; the caller
+/// closes the session.
+ReadSession openSession(
+  Directory project, {
+  Duration busyTimeout = indexBusyTimeout,
+}) => ReadSession.open(
+  templates: TemplateResolver(),
+  workingDirectory: project,
+  homeDirectory: null,
+  busyTimeout: busyTimeout,
+);
