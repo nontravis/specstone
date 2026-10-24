@@ -34,14 +34,16 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
   final warnings = <String>[];
   final listed = _readListing(project, warnings);
   final stamp = IndexStamp.of(project.set);
-  final fullBuild = store.readStamp() != stamp;
-  if (!fullBuild && !_differs(listed, store.hashes())) {
+  if (store.readStamp() == stamp && !_differs(listed, store.hashes())) {
     return RefreshResult(warnings: warnings, reindexed: 0, fullBuild: false);
   }
   var reindexed = 0;
+  var fullBuild = false;
   store.write(() {
+    // A peer may have rebuilt or reindexed while this call waited for the
+    // lock, so the stamp and the hashes are read again here.
+    fullBuild = store.readStamp() != stamp;
     if (fullBuild) store.reset(stamp);
-    // A peer may have reindexed while this call waited for the lock.
     final stored = store.hashes();
     for (final docPath in stored.keys.where((p) => !listed.containsKey(p))) {
       store.deleteDoc(docPath);

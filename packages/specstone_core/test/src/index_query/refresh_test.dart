@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -10,6 +11,27 @@ import 'package:test/test.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
+
+/// Refreshes the index of the project at [path] in the calling isolate and
+/// returns whether that refresh rebuilt the whole index.
+bool _peerFullBuild(String path) {
+  final docs = DocsProject.open(
+    templates: TemplateResolver(),
+    workingDirectory: Directory(path),
+    homeDirectory: null,
+  );
+  final store = IndexStore.open(docs.projectRoot);
+  try {
+    return refreshIndex(store, docs).fullBuild;
+  } finally {
+    store.close();
+  }
+}
+
+/// Runs [_peerFullBuild] in a new isolate.
+///
+/// Top level so the closure captures no open index.
+Future<bool> _startPeer(String path) => Isolate.run(() => _peerFullBuild(path));
 
 void main() {
   ({RefreshResult result, IndexStore store}) refresh(Directory project) {
@@ -56,6 +78,30 @@ void main() {
         expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
       },
     );
+    test('f01/us01/fr05/e01, s03/inv23: a call that waited for the lock finds the stamp current and does not rebuild', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      File('${project.path}/.specstone/templates/feature.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          'sections:\n  - id: open_notes\n    header: Open Notes\n    after: out_of_scope\n',
+        );
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final holder = IndexStore.open(docs.projectRoot);
+      addTearDown(holder.close);
+      late final Future<bool> peer;
+      holder.write(() {
+        holder.reset(IndexStamp.of(docs.set));
+        // The peer starts under the lock, reads the old stamp, then waits.
+        peer = _startPeer(project.path);
+        sleep(const Duration(milliseconds: 1500));
+      });
+      expect(await peer, isFalse);
+    });
     test('f01/us01/fr02/e02, s03/inv2: an edit under .specstone/templates/ rebuilds the whole index', () async {
       final project = await writeLoginProject(
         extra: {
