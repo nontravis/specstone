@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
@@ -74,6 +75,9 @@ final class ReadSession {
 
   /// The merged doc types of the project.
   MergedSet get set => project.set;
+
+  /// The docs of the snapshot, with their names, parent tree, and links.
+  late final DocIndex index = DocIndex(set, docs, store);
 
   /// Ends the snapshot and closes the index.
   void close() {

@@ -3,9 +3,11 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:test/test.dart';
 
 import 'temp_tree.dart';
 
@@ -121,3 +123,12 @@ ReadSession openSession(
   homeDirectory: null,
   busyTimeout: busyTimeout,
 );
+
+/// Opens a session on [loginProject] with [extra] files and returns its index.
+///
+/// A key in [extra] replaces or adds a file. `addTearDown` closes the session.
+Future<DocIndex> indexWith([Map<String, String> extra = const {}]) async {
+  final session = openSession(await writeLoginProject(extra: extra));
+  addTearDown(session.close);
+  return session.index;
+}
