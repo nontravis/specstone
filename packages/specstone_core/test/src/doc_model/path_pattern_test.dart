@@ -116,4 +116,27 @@ void main() {
       expect(feature.matches('prds/features/$overlong/FEATURE.md'), isTrue);
     });
   });
+
+  group('PathPattern.slugValues', () {
+    test('f01/us01/fr03/e01, s03/inv5: every slug value in pattern order, '
+        'nn values dropped', () {
+      expect(
+        PathPattern('prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md')
+            .slugValues(
+              'prds/features/f01_login/us02_email_login/'
+              'fr01_validate_credentials.md',
+            ),
+        ['login', 'email_login', 'validate_credentials'],
+      );
+    });
+
+    test('f01/us01/fr03/e02: a pattern with no slug gives an empty list; no '
+        'match gives null', () {
+      expect(
+        PathPattern('prds/PROJECT.md').slugValues('prds/PROJECT.md'),
+        isEmpty,
+      );
+      expect(PathPattern('prds/PROJECT.md').slugValues('prds/GNFR.md'), isNull);
+    });
+  });
 }
