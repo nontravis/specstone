@@ -231,6 +231,43 @@ void main() {
           .singleWhere((f) => f['id'] == 'draft');
       expect(draft.keys, ['id', 'type', 'description']);
     });
+
+    test('f03/us01/fr03: an output_ref field prints pointer between docTypes '
+        'and description', () {
+      final json = _merge(
+        _featureLayer,
+        'fields: [{id: covers, type: output_ref, list: true, required: true, '
+        'pointer: prefix, description: Code paths the doc covers.}]',
+      ).toJson();
+
+      final covers = (json['fields']! as List<Object?>)
+          .cast<Map<String, Object>>()
+          .singleWhere((f) => f['id'] == 'covers');
+      expect(covers, {
+        'id': 'covers',
+        'type': 'output_ref',
+        'list': true,
+        'required': true,
+        'pointer': 'prefix',
+        'description': 'Code paths the doc covers.',
+      });
+      expect(covers.keys, [
+        'id',
+        'type',
+        'list',
+        'required',
+        'pointer',
+        'description',
+      ]);
+    });
+
+    test('f03/us01/fr03/e05: a field with no pointer prints no pointer '
+        'key', () {
+      final fields = (featureDocType().toJson()['fields']! as List<Object?>)
+          .cast<Map<String, Object>>();
+
+      expect(fields.where((f) => f.containsKey('pointer')), isEmpty);
+    });
   });
 
   group('MergedDocType.renderGuide', () {

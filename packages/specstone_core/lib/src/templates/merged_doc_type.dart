@@ -10,8 +10,9 @@ final class MergedField {
     this.required = false,
     this.enumValues,
     this.docTypes,
+    PointerKind? pointer,
     this.description,
-  });
+  }) : pointer = type == FieldType.outputRef ? pointer : null;
 
   /// The field id.
   final String id;
@@ -31,19 +32,24 @@ final class MergedField {
   /// The target doc type ids of a `doc_ref` field.
   final List<String>? docTypes;
 
+  /// How an `output_ref` field's value matches a path; null for any other type.
+  final PointerKind? pointer;
+
   /// What the field holds.
   final String? description;
 
   /// Returns a copy with each non-null argument replacing its property.
   ///
   /// A list the new type does not use is dropped unless the call writes it:
-  /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only.
+  /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only, and
+  /// [pointer] to `output_ref` only.
   MergedField copyWith({
     FieldType? type,
     bool? list,
     bool? required,
     List<String>? enumValues,
     List<String>? docTypes,
+    PointerKind? pointer,
     String? description,
   }) {
     final newType = type ?? this.type;
@@ -57,6 +63,7 @@ final class MergedField {
           (newType == FieldType.enumType ? this.enumValues : null),
       docTypes:
           docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
+      pointer: pointer ?? this.pointer,
       description: description ?? this.description,
     );
   }
@@ -71,6 +78,7 @@ final class MergedField {
     if (required) 'required': true,
     'enum': ?enumValues,
     'docTypes': ?docTypes,
+    'pointer': ?pointer?.wire,
     'description': ?description,
   };
 }
