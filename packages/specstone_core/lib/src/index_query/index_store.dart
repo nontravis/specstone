@@ -129,16 +129,44 @@ final class IndexStore {
   static IndexStore open(
     Directory projectRoot, {
     Duration busyTimeout = indexBusyTimeout,
+  }) => _open(projectRoot, busyTimeout, discard: false);
+
+  /// Deletes the index of [projectRoot] and opens an empty one.
+  ///
+  /// [warnings] holds [damagedIndexWarning]. Use it after a read or write
+  /// failed with a damage error ([isDamage]) on an index that opened.
+  static IndexStore openRebuilt(
+    Directory projectRoot, {
+    Duration busyTimeout = indexBusyTimeout,
+  }) => _open(projectRoot, busyTimeout, discard: true);
+
+  /// Whether [e] says the file is no readable index.
+  static bool isDamage(SqliteException e) =>
+      e.resultCode == SqlError.SQLITE_NOTADB ||
+      e.resultCode == SqlError.SQLITE_CORRUPT;
+
+  /// The fault that describes [e]; any error with no fault of its own means
+  /// the index cannot be written.
+  static IndexFault faultOf(SqliteException e) =>
+      _faultOf(e) ??
+      IndexFault(IndexFaultCode.indexNotWritable, _notWritableMessage);
+
+  static IndexStore _open(
+    Directory projectRoot,
+    Duration busyTimeout, {
+    required bool discard,
   }) {
     final file = File.fromUri(projectRoot.uri.resolve(indexFilePath));
     final warnings = <String>[];
     try {
-      try {
-        return IndexStore._(_connect(file, busyTimeout), warnings);
-      } on _NotAnIndex {
-        // Falls through to the rebuild below.
-      } on SqliteException catch (e) {
-        if (!_isDamage(e)) rethrow;
+      if (!discard) {
+        try {
+          return IndexStore._(_connect(file, busyTimeout), warnings);
+        } on _NotAnIndex {
+          // Falls through to the rebuild below.
+        } on SqliteException catch (e) {
+          if (!isDamage(e)) rethrow;
+        }
       }
       _deleteFiles(file);
       warnings.add(damagedIndexWarning);
@@ -441,10 +469,6 @@ Set<String> _tableNames(Database db) => {
   ))
     row['name'] as String,
 };
-
-bool _isDamage(SqliteException e) =>
-    e.resultCode == SqlError.SQLITE_NOTADB ||
-    e.resultCode == SqlError.SQLITE_CORRUPT;
 
 void _deleteFiles(File file) {
   for (final suffix in ['', '-wal', '-shm']) {

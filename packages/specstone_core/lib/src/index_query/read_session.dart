@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 /// One command's view of a project: the project, a refreshed index, and one
 /// read snapshot of it.
@@ -26,6 +28,9 @@ final class ReadSession {
   /// [homeDirectory] is where user-level doc types are read from; null reads
   /// none. A fault from the project, the templates, or the index propagates
   /// unchanged, and no index is opened before the project and templates load.
+  /// An index that fails with a damage error is deleted and rebuilt once,
+  /// with [damagedIndexWarning]; any other database error is an
+  /// [IndexFault].
   static ReadSession open({
     required TemplateResolver templates,
     required Directory workingDirectory,
@@ -37,10 +42,26 @@ final class ReadSession {
       workingDirectory: workingDirectory,
       homeDirectory: homeDirectory,
     );
-    final store = IndexStore.open(
-      project.projectRoot,
-      busyTimeout: busyTimeout,
-    );
+    try {
+      return _read(
+        project,
+        IndexStore.open(project.projectRoot, busyTimeout: busyTimeout),
+      );
+    } on SqliteException catch (e) {
+      if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
+    }
+    // A page the first read hit is lost: discard the index and read once more.
+    try {
+      return _read(
+        project,
+        IndexStore.openRebuilt(project.projectRoot, busyTimeout: busyTimeout),
+      );
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    }
+  }
+
+  static ReadSession _read(DocsProject project, IndexStore store) {
     try {
       final refreshed = refreshIndex(store, project);
       store.beginSnapshot();

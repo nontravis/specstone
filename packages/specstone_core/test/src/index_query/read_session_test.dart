@@ -204,6 +204,30 @@ void main() {
       expect(answers(rebuilt), expected);
       expect(rebuilt.warnings.first, damagedIndexWarning);
     });
+    test('f01/us01/fr05/e03, s03/inv23: an index whose later pages are lost rebuilds to the same answers, with the warning', () async {
+      final project = await writeLoginProject();
+      final intact = openSession(project);
+      final expected = answers(intact);
+      intact.close();
+      final index = inProject(project, indexFilePath);
+      final bytes = index.readAsBytesSync();
+      for (final suffix in ['-wal', '-shm']) {
+        final f = inProject(project, '$indexFilePath$suffix');
+        if (f.existsSync()) f.deleteSync();
+      }
+      // Page 1 and the file size survive, so opening the file succeeds; the
+      // first read of a lost page is what fails.
+      index.writeAsBytesSync([
+        ...bytes.sublist(0, 4096),
+        ...List<int>.filled(bytes.length - 4096, 0xAB),
+      ]);
+      inProject(project, featureKey).writeAsStringSync(loginV2);
+      final rebuilt = openSession(project);
+      addTearDown(rebuilt.close);
+      expect(titleOf(rebuilt, featureDoc), 'Login v2');
+      expect(rebuilt.docs, hasLength(expected.length));
+      expect(rebuilt.warnings.first, damagedIndexWarning);
+    });
     test('f01/us01/s8: a doc two doc types describe reads with no doc type and a warning naming both', () async {
       final session = openSession(
         await writeLoginProject(
