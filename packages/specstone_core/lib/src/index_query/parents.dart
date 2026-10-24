@@ -35,9 +35,12 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
     if (candidates.length == 1) {
       parents[doc.docPath] = candidates.single;
     } else if (candidates.length > 1) {
+      // Sorted, because `ord` is stale after a full rebuild but not after an
+      // incremental refresh, and both must print the same warning.
+      final listed = [...candidates]..sort();
       warnings[doc.docPath] =
           '${doc.docPath} has ${countWord(candidates.length)} candidate '
-          'parent docs: ${candidates.join(', ')}; it has no parent doc';
+          'parent docs: ${listed.join(', ')}; it has no parent doc';
     }
   }
   return (parents: parents, warnings: warnings);

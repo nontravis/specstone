@@ -65,6 +65,19 @@ void main() {
             'prds/features/f03_login/FEATURE.md; it has no parent doc',
       });
     });
+    test('f01/us01/fr02/e01, s03/inv7: the candidates are listed in DocPath order whatever the order of the docs', () {
+      const story = 'prds/features/f01_login/us02_email_login/USER_STORY.md';
+      final result = resolveParents([
+        doc('prds/features/f03_login/FEATURE.md', 'feature', 'login'),
+        doc('prds/features/f01_login/FEATURE.md', 'feature', 'login'),
+        doc(story, 'user_story', 'login/email_login'),
+      ], set);
+      expect(result.warnings, {
+        story:
+            '$story has two candidate parent docs: prds/features/f01_login/FEATURE.md, '
+            'prds/features/f03_login/FEATURE.md; it has no parent doc',
+      });
+    });
     test('s03/inv7: a slug-free parent type, a top-level type, and an untyped doc give no parent', () {
       final custom = MergedSet(
         docTypes: const [
