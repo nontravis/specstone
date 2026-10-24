@@ -116,6 +116,17 @@ void main() {
       '==> crlf.md · crlf.md <==\n# Crlf\r\n\r\n## A\r\nx\r\n',
     );
   });
+  test('s02_api_get: a doc with no final newline prints as one that ends in a newline, JSON text verbatim', () async {
+    const feature = '# Login\n\n## Problem\nNo final newline';
+    final bare = await indexWith({featureKey: feature});
+    final ended = await indexWith({featureKey: '$feature\n'});
+    final answer = answerGet(bare, 'login');
+    expect(answer.text, answerGet(ended, 'login').text);
+    expect(answer.text, contains('$feature\n\n==> login (api) · '));
+    expect(answerGet(bare, 'feature:login').text, endsWith('$feature\n'));
+    final docs = answer.json['docs']! as List;
+    expect((docs.first as Map)['text'], feature);
+  });
   test('namingLine: the name with its doc type, then the DocPath; an untyped doc has no type', () async {
     expect(
       namingLine(index.resolve('login').first),

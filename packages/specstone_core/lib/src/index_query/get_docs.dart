@@ -37,8 +37,10 @@ ReadAnswer answerGet(DocIndex index, String address) {
   }
 
   return ReadAnswer(
-    text: [for (final (doc, text) in blocks) '${namingLine(doc)}\n$text']
-        .join('\n'),
+    text: [
+      for (final (doc, text) in blocks)
+        '${namingLine(doc)}\n${_endedLine(text)}',
+    ].join('\n'),
     json: {
       'docs': [
         for (final (doc, text) in blocks)
@@ -53,3 +55,6 @@ ReadAnswer answerGet(DocIndex index, String address) {
     },
   );
 }
+
+/// Returns [text] ended by a line break, adding one only when it lacks it.
+String _endedLine(String text) => text.endsWith('\n') ? text : '$text\n';
