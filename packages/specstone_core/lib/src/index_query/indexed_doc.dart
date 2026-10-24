@@ -191,7 +191,10 @@ ParsedDoc parseIndexedDoc({
     _ => null,
   };
   if (match case AmbiguousDocType(:final docTypeIds)) {
-    warnings.add('$docPath matches two doc types: ${docTypeIds.join(', ')}');
+    warnings.add(
+      '$docPath matches ${countWord(docTypeIds.length)} doc types: '
+      '${docTypeIds.join(', ')}',
+    );
   }
   final frontmatter = _frontmatterValues(doc.frontmatter, docPath, warnings);
   final content = DocContent(

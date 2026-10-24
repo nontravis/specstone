@@ -78,6 +78,15 @@ void main() {
     expect(doc.warnings, ['prds/x.md matches two doc types: fr, legacy_fr']);
   });
 
+  test('f01/us01/fr03/e06, plan decision 7: three doc types matching one DocPath read "3" in the warning', () {
+    final doc = parseIndexedDoc(
+      docPath: 'prds/x.md',
+      bytes: utf8.encode('# X\n'),
+      match: AmbiguousDocType(['a', 'b', 'c']),
+    ).doc;
+    expect(doc.warnings, ['prds/x.md matches 3 doc types: a, b, c']);
+  });
+
   test('f01/us01/fr03/e07, s03/inv4: a template header takes its id, any other header its heading slug', () {
     final keys = parse(
       'prds/features/f01_login/FEATURE.md',
