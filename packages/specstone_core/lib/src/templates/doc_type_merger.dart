@@ -34,9 +34,10 @@ final class DocTypeMerger {
   /// `after_id_not_found` for a section whose `after:` names an id the base
   /// built so far lacks, `locked_field_disabled` for a layer that breaks a
   /// built-in field or clears a parent the base has,
-  /// `list_override_needs_add_remove` for a plain word or reference list over
-  /// one a lower layer defines, `lint_word_not_found` for a removed word the
-  /// base lacks, and `reference_title_not_found` for a removed title the base
+  /// `list_override_needs_add_remove` for a plain word, reference, or bundle
+  /// list over one a lower layer defines, `lint_word_not_found` for a removed
+  /// word the base lacks, `reference_title_not_found` for a removed title the
+  /// base lacks, and `bundle_mode_not_found` for a removed mode the base
   /// lacks.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
@@ -45,6 +46,14 @@ final class DocTypeMerger {
       parent: parent,
       extendsId: layer.extendsId,
       path: layer.path,
+      bundle: _mergeList<String>(
+        base.bundle,
+        layer.bundle,
+        layer,
+        key: 'bundle',
+        nameOf: (mode) => mode,
+        notFound: FaultCode.bundleModeNotFound,
+      ),
       fields: List.unmodifiable(_mergeFields(base.fields, layer)),
       sections: List.unmodifiable(_mergeSections(base.sections, layer)),
       lint: _mergeLint(base.lint, layer),
@@ -243,6 +252,7 @@ final class DocTypeMerger {
             template: entry.template,
             maxChars: entry.lint?.maxChars,
             maxLines: entry.lint?.maxLines,
+            query: entry.query,
           ),
         );
         continue;
@@ -259,6 +269,7 @@ final class DocTypeMerger {
         template: entry.template,
         maxChars: entry.lint?.maxChars,
         maxLines: entry.lint?.maxLines,
+        query: entry.query,
       );
       if (entry.after == null || entry.after == entry.id) {
         sections[index] = merged;

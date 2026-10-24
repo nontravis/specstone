@@ -94,6 +94,7 @@ final class MergedSection {
     this.template,
     this.maxChars,
     this.maxLines,
+    this.query,
   });
 
   /// The section id.
@@ -120,6 +121,9 @@ final class MergedSection {
   /// The section's own line ceiling, replacing the doc-level value.
   final int? maxLines;
 
+  /// Whether the section is a query section; null when no layer sets it.
+  final bool? query;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedSection copyWith({
     String? header,
@@ -129,6 +133,7 @@ final class MergedSection {
     String? template,
     int? maxChars,
     int? maxLines,
+    bool? query,
   }) => MergedSection(
     id: id,
     header: header ?? this.header,
@@ -138,6 +143,7 @@ final class MergedSection {
     template: template ?? this.template,
     maxChars: maxChars ?? this.maxChars,
     maxLines: maxLines ?? this.maxLines,
+    query: query ?? this.query,
   );
 
   /// Returns the JSON object of this section with only the keys set.
@@ -153,6 +159,7 @@ final class MergedSection {
       'description': ?description,
       'template': ?template,
       if (lint.isNotEmpty) 'lint': lint,
+      'query': ?query,
     };
   }
 }
@@ -216,6 +223,7 @@ final class MergedDocType {
     this.parent,
     this.extendsId,
     this.path,
+    this.bundle,
     this.reference,
     this.pack,
   });
@@ -234,6 +242,9 @@ final class MergedDocType {
 
   /// The doc path pattern.
   final String? path;
+
+  /// The bundle modes the doc type takes part in; null when no layer sets it.
+  final List<String>? bundle;
 
   /// The enabled fields, built-ins first.
   final List<MergedField> fields;
@@ -259,6 +270,7 @@ final class MergedDocType {
     String? parent,
     String? extendsId,
     String? path,
+    List<String>? bundle,
     List<MergedField>? fields,
     List<MergedSection>? sections,
     MergedLint? lint,
@@ -271,6 +283,7 @@ final class MergedDocType {
     parent: parent ?? this.parent,
     extendsId: extendsId ?? this.extendsId,
     path: path ?? this.path,
+    bundle: bundle ?? this.bundle,
     fields: fields ?? this.fields,
     sections: sections ?? this.sections,
     lint: lint ?? this.lint,
@@ -291,6 +304,7 @@ final class MergedDocType {
       'parent': ?parent,
       'extends': ?extendsId,
       'path': ?path,
+      'bundle': ?bundle,
       'fields': [for (final field in fields) field.toJson()],
       'sections': [for (final section in sections) section.toJson()],
       if (lintJson.isNotEmpty) 'lint': lintJson,

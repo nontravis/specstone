@@ -790,6 +790,72 @@ sections:
     });
   });
 
+  group('DocTypeMerger.apply bundle', () {
+    test(
+      'f03/us03/fr01, tpl-s03/inv23: the first layer that writes bundle sets '
+      'it plain',
+      () {
+        expect(project(shipped(), 'bundle: [implement, design]\n').bundle, [
+          'implement',
+          'design',
+        ]);
+      },
+    );
+
+    test('f03/us03/fr01/e20, tpl-s03/inv23: a plain bundle over a lower one is '
+        'list_override_needs_add_remove', () {
+      final base = project(shipped(), 'bundle: [query]\n');
+      expect(
+        () => project(base, 'bundle: [design]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'bundle')),
+      );
+    });
+
+    test(
+      'f03/us03/fr01/e21, tpl-s03/inv23: removing a mode the lower list lacks '
+      'is bundle_mode_not_found',
+      () {
+        final base = project(shipped(), 'bundle: [query]\n');
+        expect(
+          () => project(base, 'bundle: {remove: [design]}\n'),
+          throwsA(
+            fault(
+              FaultCode.bundleModeNotFound,
+              'bundle',
+              message:
+                  'cannot remove design from bundle; no lower layer holds '
+                  'it',
+            ),
+          ),
+        );
+      },
+    );
+
+    test('f03/us03/fr01: add and remove change the lower list in order', () {
+      final base = project(shipped(), 'bundle: [query, implement]\n');
+      expect(
+        project(base, 'bundle: {add: [design], remove: [query]}\n').bundle,
+        ['implement', 'design'],
+      );
+    });
+
+    test(
+      'f03/us03/fr01: a section query set by one layer survives a layer that '
+      'leaves it out',
+      () {
+        final withQuery = project(
+          shipped(),
+          'sections: [{id: goal, query: true}]\n',
+        );
+        final later = project(
+          withQuery,
+          'sections: [{id: goal, description: Why it exists}]\n',
+        );
+        expect(later.sections.firstWhere((s) => s.id == 'goal').query, isTrue);
+      },
+    );
+  });
+
   group('DocTypeMerger.apply result lists', () {
     const richLayer = '''
 fields:
