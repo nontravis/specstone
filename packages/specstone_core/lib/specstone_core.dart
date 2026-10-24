@@ -18,6 +18,7 @@ export 'src/index_query/read_answer.dart'
         namingLine,
         parsePositiveOption;
 export 'src/index_query/read_session.dart' show ReadSession;
+export 'src/index_query/refs.dart' show answerRefs;
 export 'src/index_query/search_docs.dart'
     show SearchOptions, answerSearch, checkQuery, defaultSearchLimit;
 export 'src/index_query/structure.dart' show answerStructure;
