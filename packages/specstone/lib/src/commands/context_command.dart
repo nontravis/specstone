@@ -6,6 +6,12 @@ class ContextCommand extends SpecstoneCommand {
   new() {
     argParser
       ..addOption(
+        'code',
+        help:
+            'A file or folder of the project to bundle the docs of, '
+            'in place of a target.',
+      )
+      ..addOption(
         'for',
         help: 'The work the docs are picked for: query, implement, or design.',
       )
@@ -29,21 +35,31 @@ class ContextCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone context [<target>] --for <mode> [--budget N] [--no-project] '
-      '[--json]';
+      'specstone context [<target> | --code <path>] --for <mode> [--budget N] '
+      '[--no-project] [--json]';
 
   @override
   Future<int> run() async {
     final args = argResults!;
     final asJson = args.flag('json');
     final rest = args.rest;
+    final code = args.option('code');
+    if (code != null && rest.isNotEmpty) {
+      return fail(
+        IndexFault(
+          IndexFaultCode.argumentConflict,
+          'give a target or --code, not both',
+        ),
+        asJson: asJson,
+      );
+    }
     if (rest.length > 1) {
       usageException('Expected one target, got ${rest.length}.');
     }
     final BundleMode mode;
     final int? budget;
     try {
-      if (rest.isEmpty) {
+      if (rest.isEmpty && code == null) {
         throw missingArgument(
           'context',
           'a target or --code',
@@ -55,8 +71,24 @@ class ContextCommand extends SpecstoneCommand {
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);
     }
-    final target = rest.single;
     final noProject = args.flag('no-project');
+    if (code != null) {
+      return runRead((session) {
+        final codePath = resolveCodePath(
+          code,
+          workingDirectory: specstoneRunner.workingDirectory,
+          projectRoot: session.project.projectRoot,
+        );
+        return answerContext(
+          session.index,
+          pickCodeBundle(session.index, codePath, mode, noProject: noProject),
+          label: codePath.path,
+          byCode: true,
+          budget: budget,
+        );
+      }, asJson: asJson);
+    }
+    final target = rest.single;
     return runRead(
       (session) => answerContext(
         session.index,

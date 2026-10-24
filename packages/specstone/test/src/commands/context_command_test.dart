@@ -90,4 +90,65 @@ void main() {
       78,
     );
   });
+  test('f01/us05/s11, f01/us05/fr04/e07: a target and --code together are argument_conflict, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(extra: {'app/lib/main.dart': ''}),
+    );
+    expect(
+      await runner.run([
+        'context',
+        'login',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'query',
+      ]),
+      64,
+    );
+    expect(err.toString(), 'give a target or --code, not both\n');
+  });
+  test('f01/us05/s7, f01/us05/fr04/e06: an unmatched code path exits 0 with the warning on stderr', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(extra: {'app/lib/main.dart': ''}),
+    );
+    expect(
+      await runner.run([
+        'context',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'implement',
+      ]),
+      0,
+    );
+    expect(
+      err.toString(),
+      '⚠️ WARNING: no doc covers or implements app/lib/main.dart\n',
+    );
+  });
+  test("f01/us05/fr04: under --json the object's first key is code", () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(extra: {'app/lib/main.dart': ''}),
+    );
+    expect(
+      await runner.run([
+        'context',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'implement',
+        '--json',
+      ]),
+      0,
+    );
+    expect((jsonDecode(out.toString()) as Map).keys.first, 'code');
+  });
+  test('f01/us05/s12, f01/us05/fr04/e09: a code path outside the project exits 64 and names it', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run(['context', '--code', '../', '--for', 'implement']),
+      64,
+    );
+    expect(err.toString(), 'the code path ../ lies outside the project root\n');
+  });
 }
