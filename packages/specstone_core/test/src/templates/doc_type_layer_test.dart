@@ -393,6 +393,49 @@ lint:
         );
       },
     );
+
+    test('f03/us03/fr01, tpl-s03/inv23: bundle and a section query are read as written', () {
+      final layer = _parse(
+        'bundle: [query, implement]\nsections: [{id: goal, query: true}]\n',
+      );
+      expect((layer.bundle! as PlainList<String>).items, [
+        'query',
+        'implement',
+      ]);
+      expect(layer.sections.single.query, isTrue);
+    });
+
+    test('f03/us03/fr01: a bundle add and remove mapping is a ListChange', () {
+      final change =
+          _parse('bundle: {add: [design], remove: [query]}\n').bundle!
+              as ListChange<String>;
+      expect(change.add, ['design']);
+      expect(change.remove, ['query']);
+    });
+
+    test('f03/us03/fr01/e19, tpl-s03/inv23: a bundle entry outside the three modes is unknown_value', () {
+      expect(
+        () => _parse('bundle: [query, deploy]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'bundle')),
+      );
+      expect(
+        () => _parse('bundle: {add: [deploy]}\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'bundle')),
+      );
+    });
+
+    test('f03/us03/fr01/e19, tpl-s03/inv23: a section query that is not a boolean is unknown_value', () {
+      expect(
+        () => _parse('sections: [{id: goal, query: yes please}]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.query')),
+      );
+    });
+
+    test('f03/us03/fr01: a layer that writes neither key leaves both null', () {
+      final layer = _parse('sections: [{id: goal}]\n');
+      expect(layer.bundle, isNull);
+      expect(layer.sections.single.query, isNull);
+    });
   });
 
   group('isDocTypeFileName', () {
