@@ -102,6 +102,39 @@ void main() {
       expect(store.hashes(), isEmpty);
     });
     test(
+      'f01/us01/fr05, f01/us01/fr04: a database with no tables is a new index, '
+      'not a damaged one',
+      () async {
+        final r = await root();
+        sqlite3.open(file(r, indexFilePath).path)
+          ..execute('PRAGMA user_version = 1')
+          ..close();
+        expect(file(r, indexFilePath).lengthSync(), greaterThan(0));
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        expect(store.warnings, isEmpty);
+        expect(store.readStamp(), isNull);
+        expect(
+          file(r, '.specstone/.gitignore').readAsStringSync(),
+          'index.sqlite*\nbuild/\n',
+        );
+      },
+    );
+    test(
+      'f01/us01/fr05/e03: a database with tables but no meta table is deleted, '
+      'rebuilt empty, and warned about',
+      () async {
+        final r = await root();
+        sqlite3.open(file(r, indexFilePath).path)
+          ..execute('CREATE TABLE other (x)')
+          ..close();
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        expect(store.warnings, [damagedIndexWarning]);
+        expect(store.hashes(), isEmpty);
+      },
+    );
+    test(
       'f01/us01/fr05/e04: a write that throws rolls back every change',
       () async {
         final store = IndexStore.open(await root());

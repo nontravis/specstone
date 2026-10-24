@@ -133,17 +133,16 @@ final class IndexStore {
     final file = File.fromUri(projectRoot.uri.resolve(indexFilePath));
     final warnings = <String>[];
     try {
-      final hadContent = file.existsSync() && file.lengthSync() > 0;
       try {
-        return IndexStore._(_connect(file, busyTimeout, hadContent), warnings);
+        return IndexStore._(_connect(file, busyTimeout), warnings);
       } on _NotAnIndex {
         // Falls through to the rebuild below.
       } on SqliteException catch (e) {
-        if (!hadContent || !_isDamage(e)) rethrow;
+        if (!_isDamage(e)) rethrow;
       }
       _deleteFiles(file);
       warnings.add(damagedIndexWarning);
-      return IndexStore._(_connect(file, busyTimeout, false), warnings);
+      return IndexStore._(_connect(file, busyTimeout), warnings);
     } on SqliteException catch (e) {
       throw _faultOf(e) ?? e;
     } on FileSystemException {
@@ -392,32 +391,56 @@ final class IndexStore {
   }
 }
 
-/// A file that opened but holds no `meta` table.
+/// A database that holds tables but no `meta` table.
 final class _NotAnIndex implements Exception {
   const new();
 }
 
-Database _connect(File file, Duration busyTimeout, bool hadContent) {
-  if (!hadContent) _ensureGitignore(file.parent);
+/// Opens [file] and returns the connection to an index with a `meta` table.
+///
+/// A database with no table is new: its schema is created, and the
+/// `.gitignore` lines written, inside one write transaction. A database with
+/// tables but no `meta` is judged damaged only after the same lock confirms it,
+/// so a parallel first open never deletes the index the other call is making.
+///
+/// Throws [_NotAnIndex] when the file is a database that is no index.
+Database _connect(File file, Duration busyTimeout) {
   final db = sqlite3.open(file.path);
   try {
     db
       ..execute('PRAGMA busy_timeout = ${busyTimeout.inMilliseconds}')
       ..execute('PRAGMA journal_mode = WAL');
-    if (hadContent) {
-      final meta = db.select(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'",
-      );
-      if (meta.isEmpty) throw const _NotAnIndex();
-    } else {
-      db.execute(_schema);
-    }
+    if (!_tableNames(db).contains('meta')) _createUnderLock(db, file.parent);
     return db;
   } on Object {
     db.close();
     rethrow;
   }
 }
+
+void _createUnderLock(Database db, Directory folder) {
+  db.execute('BEGIN IMMEDIATE');
+  try {
+    final names = _tableNames(db);
+    if (names.isEmpty) {
+      _ensureGitignore(folder);
+      db.execute(_schema);
+    } else if (!names.contains('meta')) {
+      throw const _NotAnIndex();
+    }
+    db.execute('COMMIT');
+  } on Object {
+    if (!db.autocommit) db.execute('ROLLBACK');
+    rethrow;
+  }
+}
+
+Set<String> _tableNames(Database db) => {
+  for (final row in db.select(
+    "SELECT name FROM sqlite_master WHERE type = 'table'",
+  ))
+    row['name'] as String,
+};
 
 bool _isDamage(SqliteException e) =>
     e.resultCode == SqlError.SQLITE_NOTADB ||
