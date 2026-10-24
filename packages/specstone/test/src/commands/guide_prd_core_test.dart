@@ -9,9 +9,26 @@ import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
 const _guideUsage = 'Usage: specstone guide [type] [--json]';
-const _tenIds =
-    'anti_persona\nfeature\nfeatures\nfr\ngnfr\nnf\npersona\nproject\n'
-    'reference\nuser_story\n';
+const _prdCoreIds = <String>[
+  'anti_persona',
+  'feature',
+  'features',
+  'fr',
+  'gnfr',
+  'nf',
+  'persona',
+  'project',
+  'reference',
+  'user_story',
+];
+
+/// The software-tech doc type ids shipped so far; each M2 task of the
+/// software-tech plan appends its own.
+const _softwareTechIds = <String>[];
+
+/// The `guide` listing of [ids]: sorted, each followed by a newline.
+String _listOf(List<String> ids) =>
+    (List.of(ids)..sort()).map((id) => '$id\n').join();
 
 /// True when an ancestor of the system temp folder holds a project config.
 bool _tempHasConfigAncestor() {
@@ -50,17 +67,17 @@ void main() {
         'types and no other', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide']), 0);
-      expect(out.toString(), _tenIds);
+      expect(out.toString(), _listOf(_prdCoreIds));
       expect(err.toString(), isEmpty);
     });
 
     test(
-      'f03/us01/s5, f03/us06/fr01/e01: outside a project guide lists the '
-      'same ten doc types',
+      'f03/us01/s5, f03/us01/fr04/e01: outside a project guide lists every '
+      'shipped doc type',
       () async {
         final runner = await runnerIn(await writeTree({}));
         expect(await runner.run(['guide']), 0);
-        expect(out.toString(), _tenIds);
+        expect(out.toString(), _listOf([..._prdCoreIds, ..._softwareTechIds]));
       },
       skip: _tempHasConfigAncestor()
           ? 'an ancestor of the system temp folder holds $_configPath'

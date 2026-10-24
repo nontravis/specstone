@@ -953,4 +953,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'by4KICAgICAgTGVhdmUgaXQgZW1wdHkgYmVmb3JlIHRoZSBPd25lciBhcHByb3Zl'
       'cyB0aGUgc3RvcnkuCiAgICB0ZW1wbGF0ZTogfC0KICAgICAgLSA8cXVlc3Rpb24+'
       'CmxpbnQ6CiAgbWF4X2xpbmVzOiA0MDAK',
+  'software-tech/pack.yaml':
+      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjAuMApleHRlbmRzOiBwcmQt'
+      'Y29yZQo=',
 };
