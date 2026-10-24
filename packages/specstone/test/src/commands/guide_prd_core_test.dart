@@ -24,7 +24,7 @@ const _prdCoreIds = <String>[
 
 /// The software-tech doc type ids shipped so far; each M2 task of the
 /// software-tech plan appends its own.
-const _softwareTechIds = <String>[];
+const _softwareTechIds = <String>['tech_stack', 'topic'];
 
 /// The `guide` listing of [ids]: sorted, each followed by a newline.
 String _listOf(List<String> ids) =>
