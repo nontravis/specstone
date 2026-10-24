@@ -65,7 +65,9 @@ final class DocIndex {
 
   /// Returns every doc [name] addresses.
   ///
-  /// [name] is a bare name, `<doc type>:<name>`, or an untyped doc's DocPath.
+  /// [name] is a bare name, `<doc type>:<name>`, or an untyped doc's DocPath;
+  /// a DocPath that holds a colon resolves when the text before the colon is
+  /// no doc type id.
   /// Throws a [TemplateFault] for a doc type id the set lacks, and an
   /// [IndexFault] when no doc carries the name.
   List<IndexedDoc> resolve(String name) {
@@ -76,6 +78,9 @@ final class DocIndex {
     final typeId = name.substring(0, colon);
     final bare = name.substring(colon + 1);
     if (set.lookup(typeId) == null) {
+      // A DocPath may hold a colon, and an untyped doc's name is its DocPath.
+      final untyped = _byName[name]?.where((doc) => doc.docTypeId == null);
+      if (untyped != null && untyped.isNotEmpty) return untyped.toList();
       throw TemplateFault(
         FaultCode.docTypeUnknown,
         'Could not find a doc type named "$typeId".',

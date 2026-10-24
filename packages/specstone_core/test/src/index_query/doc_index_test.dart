@@ -49,6 +49,17 @@ void main() {
       'prds/d01_context.md',
     ]);
   });
+  test('f01/us04/fr01/e05, s03/inv6: an untyped DocPath with a colon resolves to its doc when the text before it is no doc type', () async {
+    final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
+    expect(paths(colon.resolve('notes/10:00.md')), ['notes/10:00.md']);
+  });
+  test('f01/us04/fr01/e07: a colon argument whose prefix is no doc type and names no untyped doc is still doc_type_unknown', () async {
+    final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
+    expect(
+      () => colon.resolve('notes/11:00.md'),
+      throwsA(isA<TemplateFault>()),
+    );
+  });
   test(
     'f01/us04/fr01/e06, s05: a name no doc carries is doc_not_found, exit 64',
     () async {
