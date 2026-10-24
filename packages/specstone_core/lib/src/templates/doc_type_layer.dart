@@ -36,6 +36,51 @@ enum FieldType {
   }
 }
 
+/// How an `output_ref` field's pointer is matched; [wire] is the format name.
+enum PointerKind {
+  exact('exact'),
+  prefix('prefix');
+
+  new(this.wire);
+
+  /// The name the doc-type format uses for this pointer kind.
+  final String wire;
+
+  /// Returns the kind named [wire], or throws `unknown_value`.
+  ///
+  /// The fault key is [prefix]pointer.
+  static PointerKind byWire(
+    String wire, {
+    required String file,
+    required String prefix,
+  }) {
+    final kind = values.where((k) => k.wire == wire).firstOrNull;
+    if (kind != null) return kind;
+    throw _unknownPointer(file: file, prefix: prefix);
+  }
+
+  /// Returns the kind a field wrote as [value].
+  ///
+  /// Throws `unknown_value` at [prefix]pointer when [value] is not a string
+  /// naming a kind; a YAML value other than a string never names one.
+  static PointerKind read(
+    Object? value, {
+    required String file,
+    required String prefix,
+  }) {
+    if (value is String) return byWire(value, file: file, prefix: prefix);
+    throw _unknownPointer(file: file, prefix: prefix);
+  }
+}
+
+TemplateFault _unknownPointer({required String file, required String prefix}) =>
+    TemplateFault(
+      FaultCode.unknownValue,
+      'the key pointer must be exact or prefix',
+      file: file,
+      key: '${prefix}pointer',
+    );
+
 /// A word list as written: a whole list, or `add`/`remove` changes.
 sealed class ListWrite<T>;
 
@@ -70,6 +115,7 @@ final class FieldEntry {
     this.required,
     this.enumValues,
     this.docTypes,
+    this.pointer,
     this.description,
     required this.disabled,
   });
@@ -91,6 +137,12 @@ final class FieldEntry {
 
   /// The target doc type ids of a `doc_ref` field, when written.
   final List<String>? docTypes;
+
+  /// The `pointer` value as written, or null when absent.
+  ///
+  /// Unchecked here: only an `output_ref` field must name a [PointerKind], and
+  /// a layer that writes no type is checked once the merge knows the type.
+  final Object? pointer;
 
   /// What the field holds, when written.
   final String? description;
@@ -380,6 +432,7 @@ const _fieldKeys = {
   'list',
   'enum',
   'doc_types',
+  'pointer',
   'required',
   'description',
   'disabled',
@@ -442,6 +495,18 @@ FieldEntry _parseField(
   if (type == FieldType.enumType) {
     requireValue<YamlList>(entry, 'enum', file: file, prefix: prefix);
   }
+  final pointer = entry['pointer'];
+  if (type == FieldType.outputRef) {
+    if (pointer == null) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key pointer is required',
+        file: file,
+        key: '${prefix}pointer',
+      );
+    }
+    PointerKind.read(pointer, file: file, prefix: prefix);
+  }
   final enumList = optionalValue<YamlList>(
     entry,
     'enum',
@@ -470,6 +535,7 @@ FieldEntry _parseField(
     docTypes: docTypesList == null
         ? null
         : stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
+    pointer: pointer,
     description: optionalValue<String>(
       entry,
       'description',

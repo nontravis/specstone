@@ -90,6 +90,82 @@ void main() {
       );
     });
 
+    test('f03/us03/fr01/e16, s03/inv13: '
+        'an output_ref field with no pointer is missing_key', () {
+      expect(
+        () => _parse('fields: [{id: covers, type: output_ref}]'),
+        throwsA(_fault(FaultCode.missingKey, key: 'fields.covers.pointer')),
+      );
+    });
+
+    test(
+      'f03/us03/fr01/e17, s03/inv13: '
+      'an output_ref pointer other than exact or prefix is unknown_value',
+      () {
+        expect(
+          () =>
+              _parse('fields: [{id: covers, type: output_ref, pointer: glob}]'),
+          throwsA(_fault(FaultCode.unknownValue, key: 'fields.covers.pointer')),
+        );
+      },
+    );
+
+    test('f03/us03/fr01/e17, s03/inv13: '
+        'an output_ref pointer that is not a string is unknown_value', () {
+      expect(
+        () => _parse('fields: [{id: covers, type: output_ref, pointer: 3}]'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields.covers.pointer')),
+      );
+    });
+
+    test('f03/us03/fr01: an output_ref field reads its pointer kind', () {
+      final layer = _parse(
+        'fields: [{id: covers, type: output_ref, list: true, pointer: prefix}, '
+        '{id: implements, type: output_ref, pointer: exact}]',
+      );
+      expect(layer.fields.map((f) => f.pointer), ['prefix', 'exact']);
+    });
+
+    test(
+      'f03/us03/fr01/e18, s03/inv13: '
+      'a pointer on a field of another type is accepted, whatever its kind',
+      () {
+        expect(
+          _parse('fields: [{id: size, type: string, pointer: exact}]')
+              .fields
+              .single
+              .pointer,
+          'exact',
+        );
+        expect(
+          _parse('fields: [{id: size, type: string, pointer: glob}]')
+              .fields
+              .single
+              .pointer,
+          'glob',
+        );
+      },
+    );
+
+    test('f03/us03/fr01/e18, s03/inv13: '
+        'a pointer that is not a string on a field of another type '
+        'is accepted', () {
+      expect(
+        _parse('fields: [{id: size, type: string, pointer: 3}]')
+            .fields
+            .single
+            .pointer,
+        3,
+      );
+    });
+
+    test('f03/us02/fr01: an override entry may write pointer with no type; '
+        'its kind is checked at merge', () {
+      final layer = _parse('fields: [{id: covers, pointer: glob}]');
+      expect(layer.fields.single.type, isNull);
+      expect(layer.fields.single.pointer, 'glob');
+    });
+
     test('f03/us02/fr03/e01: an unknown doc lint key is unknown_key', () {
       expect(
         () => _parse('lint: {max_words: 3}'),
