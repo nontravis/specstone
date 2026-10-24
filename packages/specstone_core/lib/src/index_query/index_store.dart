@@ -426,13 +426,20 @@ final class _NotAnIndex implements Exception {
 
 /// Opens [file] and returns the connection to an index with a `meta` table.
 ///
-/// A database with no table is new: its schema is created, and the
-/// `.gitignore` lines written, inside one write transaction. A database with
-/// tables but no `meta` is judged damaged only after the same lock confirms it,
-/// so a parallel first open never deletes the index the other call is making.
+/// A missing or empty file first gets its `.gitignore` lines. A database with
+/// no table is new: its `.gitignore` lines are checked and its schema created
+/// inside one write transaction. A database with tables but no `meta` is
+/// judged damaged only after the same lock confirms it, so a parallel first
+/// open never deletes the index the other call is making.
 ///
-/// Throws [_NotAnIndex] when the file is a database that is no index.
+/// Throws [_NotAnIndex] when the file is a database that is no index, and
+/// [FileSystemException] when the `.gitignore` cannot be written.
 Database _connect(File file, Duration busyTimeout) {
+  // Before sqlite3.open creates the file, so a refused write leaves no
+  // unignored index behind.
+  if (!file.existsSync() || file.lengthSync() == 0) {
+    _ensureGitignore(file.parent);
+  }
   final db = sqlite3.open(file.path);
   try {
     db
@@ -489,6 +496,9 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
 };
 
 /// Adds each missing line of [_gitignoreLines] to `.gitignore` in [folder].
+///
+/// Throws [FileSystemException] when a line is missing and the file is
+/// read-only: a rename would replace it whatever its mode.
 void _ensureGitignore(Directory folder) {
   final target = File.fromUri(folder.uri.resolve('.gitignore'));
   final text = target.existsSync() ? target.readAsStringSync() : '';
@@ -498,6 +508,9 @@ void _ensureGitignore(Directory folder) {
       if (!present.contains(line)) '$line\n',
   ];
   if (missing.isEmpty) return;
+  if (isReadOnly(target)) {
+    throw FileSystemException('the file is read-only', target.path);
+  }
   final separator = text.isEmpty || text.endsWith('\n') ? '' : '\n';
   writeFileAtomic(target, utf8.encode('$text$separator${missing.join()}'));
 }

@@ -83,6 +83,29 @@ void main() {
         expect(file(r, '.specstone/index.sqlite').existsSync(), isFalse);
       },
     );
+    test(
+      'f01/us01/fr04/e06, s03/inv23: a read-only .specstone/.gitignore is index_not_writable, exit 73, and leaves it and no index behind',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final r = await writeTree({
+          '.specstone/config.yaml': '',
+          '.specstone/.gitignore': '*.tmp\n',
+        });
+        final ignore = file(r, '.specstone/.gitignore');
+        Process.runSync('chmod', ['444', ignore.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', ignore.path]));
+        expect(
+          () => IndexStore.open(r),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.indexNotWritable)
+                .having((f) => f.exitStatus, 'exit', 73),
+          ),
+        );
+        expect(ignore.readAsStringSync(), '*.tmp\n');
+        expect(file(r, indexFilePath).existsSync(), isFalse);
+      },
+    );
     test('f01/us01/fr05, s03/inv23: the index opens in WAL mode', () async {
       final r = await root();
       IndexStore.open(r).close();
