@@ -3,6 +3,7 @@ library;
 
 export 'src/fault.dart';
 export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
+export 'src/index_query/bundle_render.dart' show answerContext;
 export 'src/index_query/doc_index.dart' show DocIndex;
 export 'src/index_query/get_docs.dart' show answerGet;
 export 'src/index_query/index_fault.dart' show IndexFault, IndexFaultCode;
