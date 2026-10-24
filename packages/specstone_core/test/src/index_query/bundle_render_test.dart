@@ -164,6 +164,29 @@ void main() {
     );
     expect((a.json['names']! as List).length, 2);
   });
+  test('f01/us05/fr02, s03/inv9: each docs[].tokens is the size of its printed block, and the total is the size of all that prints', () async {
+    final a = ctx('login/email_login', BundleMode.implement);
+    final parts = shown(a).split('\n\n==> ');
+    final blocks = [parts.first, for (final part in parts.skip(1)) '==> $part'];
+    final docs = a.json['docs']! as List<Object?>;
+    expect(docs, hasLength(blocks.length));
+    expect(
+      [for (final d in docs) (d! as Map)['tokens']],
+      [for (final b in blocks) tokenSizeOf(b)],
+    );
+    final lock = docs.cast<Map<String, Object?>>().singleWhere(
+      (d) => d['name'] == 'login/email_login/lock_after_failures',
+    );
+    final wholeFile = index
+        .resolve('login/email_login/lock_after_failures')
+        .single
+        .tokens;
+    expect(lock['tokens'], isNot(wholeFile));
+    final sum = [for (final d in docs) (d! as Map)['tokens']! as int]
+        .fold(0, (x, y) => x + y);
+    expect(a.json['tokens'], tokenSizeOf(shown(a)));
+    expect(sum, lessThanOrEqualTo(a.json['tokens']! as int));
+  });
   test('review focus 5: a CRLF doc trims its N/A section as on LF', () async {
     final crlf = await indexWith({
       '$story/fr03_crlf.md':

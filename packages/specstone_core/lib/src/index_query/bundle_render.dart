@@ -47,7 +47,7 @@ ReadAnswer answerContext(
           'name': ordered[doc].name,
           'docType': ?ordered[doc].docTypeId,
           'path': ordered[doc].docPath,
-          'tokens': ordered[doc].tokens,
+          'tokens': tokenSizeOf(block),
           'text': _blockBody(block),
         },
     ],
