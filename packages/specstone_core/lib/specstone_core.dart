@@ -3,6 +3,7 @@ library;
 
 export 'src/fault.dart';
 export 'src/index_query/doc_index.dart' show DocIndex;
+export 'src/index_query/get_docs.dart' show answerGet;
 export 'src/index_query/index_fault.dart' show IndexFault, IndexFaultCode;
 export 'src/index_query/index_store.dart' show indexBusyTimeout;
 export 'src/index_query/indexed_doc.dart' show IndexedDoc;
@@ -14,6 +15,7 @@ export 'src/index_query/read_answer.dart'
         docLine,
         missingArgument,
         nameWithType,
+        namingLine,
         parsePositiveOption;
 export 'src/index_query/read_session.dart' show ReadSession;
 export 'src/index_query/structure.dart' show answerStructure;

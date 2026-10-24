@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:specstone/src/commands/build_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
+import 'package:specstone/src/commands/get_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
 import 'package:specstone/src/commands/list_command.dart';
 import 'package:specstone/src/commands/mcp_command.dart';
@@ -62,6 +63,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(BuildCommand());
     addCommand(StructureCommand());
     addCommand(ListCommand());
+    addCommand(GetCommand());
     addCommand(McpCommand());
   }
 

@@ -32,6 +32,11 @@ String nameWithType(IndexedDoc doc) {
   return typeId == null ? doc.name : '${doc.name} ($typeId)';
 }
 
+/// Returns the line that heads the text of [doc] in `get`, `refs`, and
+/// `context`: `==> <name> (<doc type>) · <DocPath> <==`.
+String namingLine(IndexedDoc doc) =>
+    '==> ${nameWithType(doc)} · ${doc.docPath} <==';
+
 /// Returns the one-line description of [doc].
 ///
 /// It is the name with its doc type, ` — <title>` when there is one, then
