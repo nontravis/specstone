@@ -7,6 +7,7 @@ import 'package:specstone/src/commands/build_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
 import 'package:specstone/src/commands/mcp_command.dart';
+import 'package:specstone/src/commands/structure_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Exit status for a usage error (`EX_USAGE` from sysexits), returned when an
@@ -38,12 +39,14 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Directory? workingDirectory,
     Directory? homeDirectory,
     BrowserHost? browserHost,
+    Duration busyTimeout = indexBusyTimeout,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _templates = templates ?? TemplateResolver(),
        _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        _browserHost = browserHost ?? BrowserHost.system(),
+       _busyTimeout = busyTimeout,
        super(
          'specstone',
          'Keeps PRD and spec documents for spec-driven development.',
@@ -56,6 +59,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(GuideCommand());
     addCommand(FormatCommand());
     addCommand(BuildCommand());
+    addCommand(StructureCommand());
     addCommand(McpCommand());
   }
 
@@ -65,6 +69,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
   final BrowserHost _browserHost;
+  final Duration _busyTimeout;
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -89,6 +94,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
 
   /// The machine facts `build --format pdf` finds and runs the browser with.
   BrowserHost get browserHost => _browserHost;
+
+  /// How long a read command waits on another call's index write.
+  Duration get busyTimeout => _busyTimeout;
 
   @override
   void printUsage() => _out.writeln(usage);

@@ -17,5 +17,6 @@ dependencies:
   specstone_core: ^0.1.0
 
 dev_dependencies:
+  sqlite3: ^3.7.1
   stream_channel: ^2.1.4
   test: ^1.33.0

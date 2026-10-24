@@ -167,7 +167,7 @@ Map<String, List<IndexedDoc>> _groupBy(
   for (final doc in docs) {
     (groups[key(doc)] ??= []).add(doc);
   }
-  return groups;
+  return _unmodifiable(groups);
 }
 
 Map<String, List<IndexedDoc>> _childrenByParent(List<IndexedDoc> docs) {
@@ -177,8 +177,17 @@ Map<String, List<IndexedDoc>> _childrenByParent(List<IndexedDoc> docs) {
       (children[parentPath] ??= []).add(doc);
     }
   }
-  return children;
+  return _unmodifiable(children);
 }
+
+/// Returns [groups] with each list unmodifiable, so no caller can sort the
+/// index's own lists in place.
+Map<String, List<IndexedDoc>> _unmodifiable(
+  Map<String, List<IndexedDoc>> groups,
+) => {
+  for (final MapEntry(:key, :value) in groups.entries)
+    key: List.unmodifiable(value),
+};
 
 /// Returns the ids INV-10 calls chain types: a doc type with a child doc type,
 /// or one whose parent has no child doc type with children of its own.
