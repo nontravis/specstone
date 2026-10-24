@@ -21,7 +21,7 @@ sections:
     header: Purpose
     required: true
     description: |-
-      State what the topic is for in one or two sentences.
+      Write one paragraph: the problem the topic solves and who reads this file.
   - id: scope
     header: Scope
     required: true
@@ -38,7 +38,7 @@ sections:
     prefix_id: RULE-
     description: |-
       Give each rule a `RULE-<N>` ID and write it as one sentence a reviewer can check against a diff.
-      Ask for numbers and checkable conditions, such as `timeout 10 s`, not adjectives.
+      Write numbers and checkable conditions, such as `timeout 10 s`, not adjectives.
   - id: interface
     header: Interface
     description: |-
@@ -55,7 +55,7 @@ sections:
   - id: open_questions
     header: Open questions
     description: |-
-      List the questions the topic leaves open, one bullet each.
+      List the unresolved decisions.
 lint:
   max_lines: 400
 reference:
