@@ -15,7 +15,8 @@ sections:
       Write a table with the columns Role, Scope inheritance, Introduced by, Notes.
       Write one row per role the feature introduces or uses.
       Write Scope inheritance as the parent role whose scopes the role inherits, or `—` for a root role.
-      Name an existing PRD feature in Introduced by, so every role traces back.
+      Name in Introduced by the PRD feature that introduces the role, or PROJECT for a role it registers,
+      so every role traces back.
   - id: scopes
     header: Scopes
     required: true

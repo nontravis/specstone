@@ -22,8 +22,7 @@ const _prdCoreIds = <String>[
   'user_story',
 ];
 
-/// The software-tech doc type ids shipped so far; each M2 task of the
-/// software-tech plan appends its own.
+/// The `software-tech` doc type ids (US-07 FR-01).
 const _softwareTechIds = <String>[
   'tech_stack',
   'topic',

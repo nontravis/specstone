@@ -535,6 +535,23 @@ sections:
       expect(covers.pointer, PointerKind.exact);
     });
 
+    test('f03/us02/fr01: an override that writes no pointer keeps the lower '
+        'layer kind', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, required: true}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.type, FieldType.outputRef);
+      expect(covers.required, isTrue);
+      expect(covers.pointer, PointerKind.prefix);
+    });
+
     test('f03/us03/fr01/e17: a typeless override with a pointer other than '
         'exact or prefix over an output_ref field is unknown_value', () {
       final base = project(

@@ -5,6 +5,7 @@ import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
 const _says = <String, List<String>>{
+  'roles': ['Introduced by', 'PROJECT'],
   'scopes': ['<resource>:<action>', 'default scope'],
   'resource_matrix': [
     'resource',
