@@ -61,6 +61,14 @@ void main() {
     expect(await runner.run(['search', 'login', '--limit', '0']), 64);
     expect(err.toString(), '--limit takes a positive integer, not 0\n');
   });
+  test('f01/us06/fr02/e06, plan decision 9: an invalid --limit wins over a short query', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['search', 'ab', '--limit', '0', '--json']), 64);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_invalid',
+    );
+  });
   test('f01/us06/s8, f01/us06/fr01/e09: outside a project, or under a 9.9.9 pin, exits 78', () async {
     expect(
       await readRunner(await writeTree({})).runner.run(['search', 'login']),

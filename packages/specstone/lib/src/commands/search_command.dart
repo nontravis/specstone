@@ -46,13 +46,14 @@ class SearchCommand extends SpecstoneCommand {
     final query = rest.join(' ');
     final SearchOptions options;
     try {
+      final limit =
+          parsePositiveOption('--limit', args.option('limit')) ??
+          defaultSearchLimit;
       checkQuery(query);
       options = SearchOptions(
         docTypeId: args.option('type'),
         under: args.option('under'),
-        limit:
-            parsePositiveOption('--limit', args.option('limit')) ??
-            defaultSearchLimit,
+        limit: limit,
       );
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);
