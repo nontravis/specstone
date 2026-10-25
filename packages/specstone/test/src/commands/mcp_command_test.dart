@@ -49,13 +49,27 @@ Future<void> _expectServesZeroTools({String? workingDirectory}) async {
     ),
   );
 
-  final result = await server.initialize(
-    InitializeRequest(
-      protocolVersion: ProtocolVersion.latestSupported,
-      capabilities: client.capabilities,
-      clientInfo: client.implementation,
-    ),
-  );
+  final InitializeResult result;
+  try {
+    result = await server.initialize(
+      InitializeRequest(
+        protocolVersion: ProtocolVersion.latestSupported,
+        capabilities: client.capabilities,
+        clientInfo: client.implementation,
+      ),
+    );
+  } on Object catch (error) {
+    // The process died before answering; its exit status and stderr say why.
+    final status = await process.exitCode.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => -1,
+    );
+    fail(
+      'initialize failed: $error\n'
+      'exit status: $status\n'
+      'stderr: ${stderrLines.join('\n')}',
+    );
+  }
   server.notifyInitialized();
   final tools = await server.listTools(ListToolsRequest());
   await client.shutdown();
