@@ -27,16 +27,18 @@ const _notWritableMessage =
     'cannot write the index under .specstone/; make it writable and run the '
     'command again';
 
-/// The layout of [_schema], kept in `PRAGMA user_version`.
+/// The layout of [_schema], kept in the `layout` column of the meta row.
 ///
 /// Bump it on every change to [_schema], so an index of another layout is
-/// rebuilt instead of failing a read (INV-2).
-const _schemaVersion = 1;
+/// rebuilt instead of failing a read (INV-2). An older build's reset recreates
+/// the meta row without it, so its index is rebuilt too.
+const _layoutVersion = 1;
 
 const _schema = '''
 CREATE TABLE meta (
   binary_version TEXT NOT NULL,
   doc_types TEXT NOT NULL,
+  layout INTEGER NOT NULL,
   checked_at INTEGER
 );
 CREATE TABLE docs (
@@ -208,12 +210,12 @@ final class IndexStore {
   /// Returns the stamp the index was written under; null when none, or when
   /// the index has another layout.
   IndexStamp? readStamp() {
-    if (_db.userVersion != _schemaVersion) return null;
-    final rows = _db.select('SELECT binary_version, doc_types FROM meta');
-    if (rows.isEmpty) return null;
+    // `*`, so a meta row of another layout reads with no column error.
+    final row = _db.select('SELECT * FROM meta').firstOrNull;
+    if (row == null || _layoutVersion != row['layout']) return null;
     return IndexStamp(
-      binaryVersion: rows.single['binary_version'] as String,
-      docTypes: rows.single['doc_types'] as String,
+      binaryVersion: row['binary_version'] as String,
+      docTypes: row['doc_types'] as String,
     );
   }
 
@@ -289,11 +291,11 @@ final class IndexStore {
     }
     _db
       ..execute(_schema)
-      ..userVersion = _schemaVersion
-      ..execute('INSERT INTO meta (binary_version, doc_types) VALUES (?, ?)', [
-        stamp.binaryVersion,
-        stamp.docTypes,
-      ]);
+      ..execute(
+        'INSERT INTO meta (binary_version, doc_types, layout) '
+        'VALUES (?, ?, ?)',
+        [stamp.binaryVersion, stamp.docTypes, _layoutVersion],
+      );
   }
 
   /// Replaces every row of the doc [parsed] describes.

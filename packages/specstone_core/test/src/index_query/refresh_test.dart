@@ -253,12 +253,26 @@ void main() {
         expect(paths(store), isNot(contains('README.md')));
       },
     );
-    test('f01/us01/fr02, f01/us01/fr02/e02, s03/inv2: an index written under an older layout is rebuilt with no fault', () async {
+    test('f01/us01/fr02, f01/us01/fr02/e02, s03/inv2: an index an older build reset to its own layout is rebuilt with no fault', () async {
       final project = await writeLoginProject();
       refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('ALTER TABLE docs DROP COLUMN content_hash')
-        ..userVersion = 0
+      final raw = sqlite3.open('${project.path}/$indexFilePath');
+      final meta = raw.select('SELECT binary_version, doc_types FROM meta');
+      // An older build's reset: its own meta and docs tables under the same
+      // stamp, and a user_version it never touches.
+      raw
+        ..execute('DROP TABLE meta')
+        ..execute(
+          'CREATE TABLE meta (binary_version TEXT NOT NULL, '
+          'doc_types TEXT NOT NULL)',
+        )
+        ..execute('INSERT INTO meta VALUES (?, ?)', [
+          meta.single['binary_version'],
+          meta.single['doc_types'],
+        ])
+        ..execute('ALTER TABLE docs DROP COLUMN stat_size')
+        ..execute('ALTER TABLE docs DROP COLUMN stat_mtime')
+        ..execute('ALTER TABLE docs DROP COLUMN stat_mode')
         ..close();
       final (:result, :store) = refresh(project);
       expect(result.fullBuild, isTrue);
