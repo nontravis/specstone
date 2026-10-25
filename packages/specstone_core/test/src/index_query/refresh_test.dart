@@ -64,12 +64,11 @@ void main() {
     }
   }
 
-  /// Stores a checked_at 1 s after the mtime of [file], as when a bulk change
-  /// was listed inside the racy window, and returns it.
-  int listedInsideWindow(IndexStore s, File file) {
+  /// Stores a checked_at [gap] after the mtime of [file], as when the listing
+  /// that last wrote the index began then, and returns it.
+  int storeCheckedAt(IndexStore s, File file, Duration gap) {
     final checkedAt =
-        file.statSync().modified.microsecondsSinceEpoch +
-        Duration.microsecondsPerSecond;
+        file.statSync().modified.microsecondsSinceEpoch + gap.inMicroseconds;
     s.write(() => s.setCheckedAt(checkedAt));
     return checkedAt;
   }
@@ -190,9 +189,10 @@ void main() {
     test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a bulk change listed inside the racy window is hashed once more, then checked_at moves and the next call hashes no file', () async {
       final project = await writeLoginProject();
       backdate(project);
-      final rewound = listedInsideWindow(
+      final rewound = storeCheckedAt(
         refresh(project).store,
         File('${project.path}/$featureKey'),
+        const Duration(seconds: 1),
       );
       var written = watchWrites(project);
       final second = refresh(project);
@@ -207,27 +207,35 @@ void main() {
     test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file still inside the racy window stays hashed after checked_at moves', () async {
       final project = await writeLoginProject();
       backdate(project);
-      final feature = File('${project.path}/$featureKey')
-        // An mtime later than every refresh's start keeps the file inside the
-        // racy window however slow the run.
-        ..setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
-      listedInsideWindow(
+      // An mtime later than every refresh's start keeps the file inside the
+      // racy window however slow the run.
+      File('${project.path}/$featureKey')
+          .setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+      storeCheckedAt(
         refresh(project).store,
         File('${project.path}/docs/README.md'),
+        const Duration(seconds: 1),
       );
-      final written = watchWrites(project);
+      var written = watchWrites(project);
       expect(refresh(project).result.hashed, 25);
       expect(written(), isTrue);
-      final before = feature.statSync();
-      feature
-        ..writeAsStringSync(
-          feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
-        )
-        ..setLastModifiedSync(before.modified);
-      final (:result, :store) = refresh(project);
-      expect(result.hashed, 1);
-      expect(result.reindexed, 1);
-      expect(docAt(store, featureDoc).title, 'Logon');
+      written = watchWrites(project);
+      expect(refresh(project).result.hashed, 1);
+      expect(written(), isFalse);
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file 1.9 s older than checked_at is hashed, and one 2.1 s older is trusted', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final feature = File('${project.path}/$featureKey');
+      storeCheckedAt(
+        refresh(project).store,
+        feature,
+        const Duration(milliseconds: 1900),
+      );
+      final inside = refresh(project);
+      expect(inside.result.hashed, 25);
+      storeCheckedAt(inside.store, feature, const Duration(milliseconds: 2100));
+      expect(refresh(project).result.hashed, 0);
     });
     test(
       'f01/us01/fr02, f01/us01/fr02/e08, s03/inv1: a chmod that makes a trusted file unreadable warns and drops it',
@@ -301,6 +309,36 @@ void main() {
       });
       expect(await peer, isFalse);
       expect(paths(holder), hasLength(26));
+    });
+    test('f01/us01/fr05/e01, f01/us01/fr02/e06, s03/inv1: a call that waited for the lock stores the start of its listing, so a file inside the window then is hashed again next call', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      final feature = File('${project.path}/$featureKey')
+        // 1 s ahead keeps the file inside the window of the peer's listing
+        // even when the peer is slow to start.
+        ..setLastModifiedSync(DateTime.now().add(const Duration(seconds: 1)));
+      final mtime = feature.statSync().modified;
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final holder = IndexStore.open(docs.projectRoot);
+      addTearDown(holder.close);
+      late final Future<bool> peer;
+      holder.write(() {
+        // The peer lists and reads the file, then gets the lock only more
+        // than 2 s after the file's mtime.
+        peer = _startPeer(project.path);
+        sleep(
+          mtime
+              .add(const Duration(milliseconds: 2500))
+              .difference(DateTime.now()),
+        );
+      });
+      expect(await peer, isFalse);
+      expect(refresh(project).result.hashed, 1);
     });
     test('f01/us01/fr02/e02, s03/inv2: an edit under .specstone/templates/ rebuilds the whole index', () async {
       final project = await writeLoginProject(
