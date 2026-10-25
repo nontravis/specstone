@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -36,6 +37,18 @@ bool _peerFullBuild(String path) {
 /// Top level so the closure captures no open index.
 Future<bool> _startPeer(String path) => Isolate.run(() => _peerFullBuild(path));
 
+/// Fails the stat of every file whose path ends with [suffix], as a stat that
+/// lands between the delete and the rename of a save does.
+final class _FailedStat extends IOOverrides {
+  new(this.suffix);
+
+  final String suffix;
+
+  @override
+  FileStat statSync(String path) =>
+      super.statSync(path.endsWith(suffix) ? '$path.gone' : path);
+}
+
 void main() {
   ({RefreshResult result, IndexStore store}) refresh(Directory project) {
     final docs = DocsProject.open(
@@ -51,6 +64,37 @@ void main() {
   List<String> paths(IndexStore s) => [for (final d in s.loadDocs()) d.docPath];
   IndexedDoc docAt(IndexStore s, String p) =>
       s.loadDocs().firstWhere((d) => d.docPath == p);
+
+  /// Sets the mtime of every file under the docs root of [project] an hour
+  /// back, outside the racy window of every later refresh.
+  void backdate(Directory project) {
+    final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+    for (final f in Directory(
+      '${project.path}/docs',
+    ).listSync(recursive: true).whereType<File>()) {
+      f.setLastModifiedSync(anHourAgo);
+    }
+  }
+
+  /// Stores a checked_at [gap] after the mtime of [file], as when the listing
+  /// that last wrote the index began then, and returns it.
+  int storeCheckedAt(IndexStore s, File file, Duration gap) {
+    final checkedAt =
+        file.statSync().modified.microsecondsSinceEpoch + gap.inMicroseconds;
+    s.write(() => s.setCheckedAt(checkedAt));
+    return checkedAt;
+  }
+
+  /// Returns a check that tells whether a write landed on the index of
+  /// [project] after this call.
+  bool Function() watchWrites(Directory project) {
+    final raw = sqlite3.open('${project.path}/$indexFilePath');
+    addTearDown(raw.close);
+    int dataVersion() =>
+        raw.select('PRAGMA data_version').single.columnAt(0) as int;
+    final before = dataVersion();
+    return () => dataVersion() != before;
+  }
 
   group('refreshIndex', () {
     test('f01/us01/fr02, f01/us01/fr02/e01, s03/inv1: a first refresh builds one entry per .md file', () async {
@@ -81,6 +125,214 @@ void main() {
         expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
       },
     );
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a warm refresh with no change hashes no file and writes nothing', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      expect(refresh(project).result.hashed, 25);
+      final written = watchWrites(project);
+      final (:result, :store) = refresh(project);
+      expect(result.hashed, 0);
+      expect(result.reindexed, 0);
+      expect(written(), isFalse);
+      expect(paths(store), hasLength(25));
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: an edit that keeps the size and the mtime is seen inside the racy window', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final feature = File('${project.path}/$featureKey')
+        // An mtime later than the refresh's start keeps the file inside the
+        // racy window however slow the run.
+        ..setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+      refresh(project);
+      final before = feature.statSync();
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
+        )
+        ..setLastModifiedSync(before.modified);
+      final after = feature.statSync();
+      expect(
+        (after.size, after.modified, after.mode),
+        (before.size, before.modified, before.mode),
+      );
+      final (:result, :store) = refresh(project);
+      expect(result.reindexed, 1);
+      expect(docAt(store, featureDoc).title, 'Logon');
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: an edit that changes the size or the mtime is seen', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      final feature = File('${project.path}/$featureKey');
+      final mtime = feature.statSync().modified;
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Login v2\n'),
+        )
+        ..setLastModifiedSync(mtime);
+      expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
+      final size = feature.lengthSync();
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst(
+            '# Login v2\n',
+            '# Login v3\n',
+          ),
+        )
+        ..setLastModifiedSync(mtime.subtract(const Duration(minutes: 1)));
+      expect(feature.lengthSync(), size);
+      expect(docAt(refresh(project).store, featureDoc).title, 'Login v3');
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a touched file is not reindexed, and its new stat is stored so the next call hashes no file', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      final feature = File('${project.path}/$featureKey');
+      feature.setLastModifiedSync(
+        feature.statSync().modified.add(const Duration(minutes: 1)),
+      );
+      final written = watchWrites(project);
+      final touched = refresh(project).result;
+      expect(touched.hashed, 1);
+      expect(touched.reindexed, 0);
+      expect(written(), isTrue);
+      expect(refresh(project).result.hashed, 0);
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a bulk change listed inside the racy window is hashed once more, then checked_at moves and the next call hashes no file', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final rewound = storeCheckedAt(
+        refresh(project).store,
+        File('${project.path}/$featureKey'),
+        const Duration(seconds: 1),
+      );
+      var written = watchWrites(project);
+      final second = refresh(project);
+      expect(second.result.hashed, 25);
+      expect(second.result.reindexed, 0);
+      expect(written(), isTrue);
+      expect(second.store.readCheckedAt(), greaterThan(rewound));
+      written = watchWrites(project);
+      expect(refresh(project).result.hashed, 0);
+      expect(written(), isFalse);
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file still inside the racy window stays hashed after checked_at moves', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      // An mtime later than every refresh's start keeps the file inside the
+      // racy window however slow the run.
+      File('${project.path}/$featureKey')
+          .setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+      storeCheckedAt(
+        refresh(project).store,
+        File('${project.path}/docs/README.md'),
+        const Duration(seconds: 1),
+      );
+      var written = watchWrites(project);
+      expect(refresh(project).result.hashed, 25);
+      expect(written(), isTrue);
+      written = watchWrites(project);
+      expect(refresh(project).result.hashed, 1);
+      expect(written(), isFalse);
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file 1.9 s older than checked_at is hashed, and one 2.1 s older is trusted', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final feature = File('${project.path}/$featureKey');
+      storeCheckedAt(
+        refresh(project).store,
+        feature,
+        const Duration(milliseconds: 1900),
+      );
+      final inside = refresh(project);
+      expect(inside.result.hashed, 25);
+      storeCheckedAt(inside.store, feature, const Duration(milliseconds: 2100));
+      expect(refresh(project).result.hashed, 0);
+    });
+    test(
+      'f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a replacement that keeps the size, the mtime, and the mode is seen',
+      skip: Platform.isWindows
+          ? 'FileStat.changed is the creation time on Windows, which a save over a file can keep'
+          : null,
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        refresh(project);
+        final feature = File('${project.path}/$featureKey');
+        final before = feature.statSync();
+        // As `cp -p` or `rsync -t` deliver it: same size, the old mtime.
+        File('${feature.path}.new')
+          ..writeAsStringSync(
+            feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
+          )
+          ..setLastModifiedSync(before.modified)
+          ..renameSync(feature.path);
+        final after = feature.statSync();
+        expect(
+          (after.size, after.modified, after.mode),
+          (before.size, before.modified, before.mode),
+        );
+        expect(docAt(refresh(project).store, featureDoc).title, 'Logon');
+      },
+    );
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a file whose stat fails is read on every call and stores no stat key', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      ({RefreshResult result, IndexStore store}) failingReadme() =>
+          IOOverrides.runWithIOOverrides(
+            () => refresh(project),
+            _FailedStat('README.md'),
+          );
+      final first = failingReadme();
+      expect(first.result.hashed, 1);
+      expect(first.store.statKeys()['README.md'], isNull);
+      final written = watchWrites(project);
+      expect(failingReadme().result.hashed, 1);
+      expect(written(), isFalse);
+    });
+    test(
+      'f01/us01/fr02, f01/us01/fr02/e08, s03/inv1: a chmod that makes a trusted file unreadable warns and drops it',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        refresh(project);
+        final readme = File('${project.path}/docs/README.md');
+        Process.runSync('chmod', ['000', readme.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', readme.path]));
+        final (:result, :store) = refresh(project);
+        expect(result.warnings, ['README.md: cannot be read; skipped']);
+        expect(paths(store), hasLength(24));
+        expect(paths(store), isNot(contains('README.md')));
+      },
+    );
+    test('f01/us01/fr02, f01/us01/fr02/e02, s03/inv2: an index an older build reset to its own layout is rebuilt with no fault', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      final raw = sqlite3.open('${project.path}/$indexFilePath');
+      final meta = raw.select('SELECT binary_version, doc_types FROM meta');
+      // An older build's reset: its own meta and docs tables under the same
+      // stamp, and a user_version it never touches.
+      raw
+        ..execute('DROP TABLE meta')
+        ..execute(
+          'CREATE TABLE meta (binary_version TEXT NOT NULL, '
+          'doc_types TEXT NOT NULL)',
+        )
+        ..execute('INSERT INTO meta VALUES (?, ?)', [
+          meta.single['binary_version'],
+          meta.single['doc_types'],
+        ])
+        ..execute('ALTER TABLE docs DROP COLUMN stat_size')
+        ..execute('ALTER TABLE docs DROP COLUMN stat_mtime')
+        ..execute('ALTER TABLE docs DROP COLUMN stat_mode')
+        ..execute('ALTER TABLE docs DROP COLUMN stat_ctime')
+        ..close();
+      final (:result, :store) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      expect(paths(store), hasLength(25));
+    });
     test('f01/us01/fr05/e01, s03/inv23: a call that waited for the lock finds the stamp current and does not rebuild', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -104,6 +356,58 @@ void main() {
         sleep(const Duration(milliseconds: 1500));
       });
       expect(await peer, isFalse);
+    });
+    test('f01/us01/fr05/e01, s03/inv1: a call that waited for the lock reads again each file the index no longer vouches for', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      File('${project.path}/docs/NEW.md').writeAsStringSync('# New\n');
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final holder = IndexStore.open(docs.projectRoot);
+      addTearDown(holder.close);
+      late final Future<bool> peer;
+      holder.write(() {
+        holder.reset(IndexStamp.of(docs.set));
+        // The peer trusts the old stat keys of 25 files, then waits.
+        peer = _startPeer(project.path);
+        sleep(const Duration(milliseconds: 1500));
+      });
+      expect(await peer, isFalse);
+      expect(paths(holder), hasLength(26));
+    });
+    test('f01/us01/fr05/e01, f01/us01/fr02/e06, s03/inv1: a call that waited for the lock stores the start of its listing, so a file inside the window then is hashed again next call', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      final feature = File('${project.path}/$featureKey')
+        // 1 s ahead keeps the file inside the window of the peer's listing
+        // even when the peer is slow to start.
+        ..setLastModifiedSync(DateTime.now().add(const Duration(seconds: 1)));
+      final mtime = feature.statSync().modified;
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final holder = IndexStore.open(docs.projectRoot);
+      addTearDown(holder.close);
+      late final Future<bool> peer;
+      holder.write(() {
+        // The peer lists and reads the file, then gets the lock only more
+        // than 2 s after the file's mtime.
+        peer = _startPeer(project.path);
+        sleep(
+          mtime
+              .add(const Duration(milliseconds: 2500))
+              .difference(DateTime.now()),
+        );
+      });
+      expect(await peer, isFalse);
+      expect(refresh(project).result.hashed, 1);
     });
     test('f01/us01/fr02/e02, s03/inv2: an edit under .specstone/templates/ rebuilds the whole index', () async {
       final project = await writeLoginProject(
@@ -221,6 +525,20 @@ void main() {
         featureDoc,
       );
       expect(docAt(store, 'prds/PROJECT.md').parentPath, isNull);
+    });
+    test("f01/us01/fr03/e01, s03/inv7: a refresh that reindexes one doc keeps that doc's parent doc", () async {
+      const requirement =
+          'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+      final project = await writeLoginProject();
+      refresh(project);
+      File('${project.path}/docs/$requirement')
+          .writeAsStringSync('# Validate credentials v2\n');
+      final (:result, :store) = refresh(project);
+      expect(result.reindexed, 1);
+      expect(
+        docAt(store, requirement).parentPath,
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+      );
     });
     test('f01/us01/fr03/e10: a second feature named login leaves the story with no parent and a stored warning', () async {
       const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';

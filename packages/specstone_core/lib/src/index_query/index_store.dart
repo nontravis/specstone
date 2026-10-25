@@ -27,10 +27,19 @@ const _notWritableMessage =
     'cannot write the index under .specstone/; make it writable and run the '
     'command again';
 
+/// The layout of [_schema], kept in the `layout` column of the meta row.
+///
+/// Bump it on every change to [_schema], so an index of another layout is
+/// rebuilt instead of failing a read (INV-2). An older build's reset recreates
+/// the meta row without it, so its index is rebuilt too.
+const _layoutVersion = 1;
+
 const _schema = '''
 CREATE TABLE meta (
   binary_version TEXT NOT NULL,
-  doc_types TEXT NOT NULL
+  doc_types TEXT NOT NULL,
+  layout INTEGER NOT NULL,
+  checked_at INTEGER
 );
 CREATE TABLE docs (
   id INTEGER PRIMARY KEY,
@@ -47,7 +56,11 @@ CREATE TABLE docs (
   content_hash TEXT NOT NULL,
   text TEXT NOT NULL,
   frontmatter_text TEXT,
-  head TEXT NOT NULL
+  head TEXT NOT NULL,
+  stat_size INTEGER,
+  stat_mtime INTEGER,
+  stat_ctime INTEGER,
+  stat_mode INTEGER
 );
 CREATE TABLE sections (
   doc_path TEXT NOT NULL,
@@ -73,6 +86,15 @@ CREATE VIRTUAL TABLE doc_search USING fts5(
 const int _searchRowsPerDoc = 1 << 32;
 
 const _tables = ['meta', 'docs', 'sections', 'links', 'doc_search'];
+
+/// The stat values of a file that stand in for its content between refreshes.
+///
+/// - `size`: in bytes.
+/// - `modified`: the mtime, in microseconds since the epoch.
+/// - `changed`: the ctime on POSIX, the creation time on Windows, in
+///   microseconds since the epoch.
+/// - `mode`: the permission and type bits.
+typedef FileStatKey = ({int size, int modified, int changed, int mode});
 
 /// The pair of values that decides whether an index is still current.
 ///
@@ -188,13 +210,15 @@ final class IndexStore {
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
 
-  /// Returns the stamp the index was written under; null when none.
+  /// Returns the stamp the index was written under; null when none, or when
+  /// the index has another layout.
   IndexStamp? readStamp() {
-    final rows = _db.select('SELECT binary_version, doc_types FROM meta');
-    if (rows.isEmpty) return null;
+    // `*`, so a meta row of another layout reads with no column error.
+    final row = _db.select('SELECT * FROM meta').firstOrNull;
+    if (row == null || _layoutVersion != row['layout']) return null;
     return IndexStamp(
-      binaryVersion: rows.single['binary_version'] as String,
-      docTypes: rows.single['doc_types'] as String,
+      binaryVersion: row['binary_version'] as String,
+      docTypes: row['doc_types'] as String,
     );
   }
 
@@ -203,6 +227,47 @@ final class IndexStore {
     for (final row in _db.select('SELECT doc_path, content_hash FROM docs'))
       row['doc_path'] as String: row['content_hash'] as String,
   };
+
+  /// Returns the stat key of every stored doc by docPath; null for a doc
+  /// stored with none.
+  Map<String, FileStatKey?> statKeys() => {
+    for (final row in _db.select(
+      'SELECT doc_path, stat_size, stat_mtime, stat_ctime, stat_mode '
+      'FROM docs',
+    ))
+      row['doc_path'] as String: switch ((
+        row['stat_size'],
+        row['stat_mtime'],
+        row['stat_ctime'],
+        row['stat_mode'],
+      )) {
+        (
+          final int size,
+          final int modified,
+          final int changed,
+          final int mode,
+        ) =>
+          (size: size, modified: modified, changed: changed, mode: mode),
+        _ => null,
+      },
+  };
+
+  /// Stores [key] as the stat key of the doc at [docPath]; null clears it.
+  void setStatKey(String docPath, FileStatKey? key) => _db.execute(
+    'UPDATE docs SET stat_size = ?, stat_mtime = ?, stat_ctime = ?, '
+    'stat_mode = ? WHERE doc_path = ?',
+    [key?.size, key?.modified, key?.changed, key?.mode, docPath],
+  );
+
+  /// Returns when the refresh that last wrote the index began listing, in
+  /// microseconds since the epoch; null when none stored it.
+  int? readCheckedAt() =>
+      _db.select('SELECT checked_at FROM meta').firstOrNull?['checked_at']
+          as int?;
+
+  /// Stores [checkedAt] as the start of the listing that wrote the index.
+  void setCheckedAt(int checkedAt) =>
+      _db.execute('UPDATE meta SET checked_at = ?', [checkedAt]);
 
   /// Runs [body] in one write transaction.
   ///
@@ -225,17 +290,19 @@ final class IndexStore {
     }
   }
 
-  /// Drops every table, recreates them empty, and stores [stamp].
+  /// Drops every table, recreates them empty in this layout, and stores
+  /// [stamp].
   void reset(IndexStamp stamp) {
     for (final table in _tables) {
       _db.execute('DROP TABLE IF EXISTS $table');
     }
     _db
       ..execute(_schema)
-      ..execute('INSERT INTO meta (binary_version, doc_types) VALUES (?, ?)', [
-        stamp.binaryVersion,
-        stamp.docTypes,
-      ]);
+      ..execute(
+        'INSERT INTO meta (binary_version, doc_types, layout) '
+        'VALUES (?, ?, ?)',
+        [stamp.binaryVersion, stamp.docTypes, _layoutVersion],
+      );
   }
 
   /// Replaces every row of the doc [parsed] describes.
