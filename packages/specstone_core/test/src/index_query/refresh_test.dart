@@ -64,6 +64,16 @@ void main() {
     }
   }
 
+  /// Stores a checked_at 1 s after the mtime of [file], as when a bulk change
+  /// was listed inside the racy window, and returns it.
+  int listedInsideWindow(IndexStore s, File file) {
+    final checkedAt =
+        file.statSync().modified.microsecondsSinceEpoch +
+        Duration.microsecondsPerSecond;
+    s.write(() => s.setCheckedAt(checkedAt));
+    return checkedAt;
+  }
+
   /// Returns a check that tells whether a write landed on the index of
   /// [project] after this call.
   bool Function() watchWrites(Directory project) {
@@ -176,6 +186,48 @@ void main() {
       expect(touched.reindexed, 0);
       expect(written(), isTrue);
       expect(refresh(project).result.hashed, 0);
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a bulk change listed inside the racy window is hashed once more, then checked_at moves and the next call hashes no file', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final rewound = listedInsideWindow(
+        refresh(project).store,
+        File('${project.path}/$featureKey'),
+      );
+      var written = watchWrites(project);
+      final second = refresh(project);
+      expect(second.result.hashed, 25);
+      expect(second.result.reindexed, 0);
+      expect(written(), isTrue);
+      expect(second.store.readCheckedAt(), greaterThan(rewound));
+      written = watchWrites(project);
+      expect(refresh(project).result.hashed, 0);
+      expect(written(), isFalse);
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file still inside the racy window stays hashed after checked_at moves', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final feature = File('${project.path}/$featureKey')
+        // An mtime later than every refresh's start keeps the file inside the
+        // racy window however slow the run.
+        ..setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+      listedInsideWindow(
+        refresh(project).store,
+        File('${project.path}/docs/README.md'),
+      );
+      final written = watchWrites(project);
+      expect(refresh(project).result.hashed, 25);
+      expect(written(), isTrue);
+      final before = feature.statSync();
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
+        )
+        ..setLastModifiedSync(before.modified);
+      final (:result, :store) = refresh(project);
+      expect(result.hashed, 1);
+      expect(result.reindexed, 1);
+      expect(docAt(store, featureDoc).title, 'Logon');
     });
     test(
       'f01/us01/fr02, f01/us01/fr02/e08, s03/inv1: a chmod that makes a trusted file unreadable warns and drops it',
@@ -366,6 +418,20 @@ void main() {
         featureDoc,
       );
       expect(docAt(store, 'prds/PROJECT.md').parentPath, isNull);
+    });
+    test("f01/us01/fr03/e01, s03/inv7: a refresh that reindexes one doc keeps that doc's parent doc", () async {
+      const requirement =
+          'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+      final project = await writeLoginProject();
+      refresh(project);
+      File('${project.path}/docs/$requirement')
+          .writeAsStringSync('# Validate credentials v2\n');
+      final (:result, :store) = refresh(project);
+      expect(result.reindexed, 1);
+      expect(
+        docAt(store, requirement).parentPath,
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+      );
     });
     test('f01/us01/fr03/e10: a second feature named login leaves the story with no parent and a stored warning', () async {
       const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';

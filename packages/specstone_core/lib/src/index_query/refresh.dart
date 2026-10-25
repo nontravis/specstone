@@ -43,7 +43,8 @@ final class RefreshResult {
 /// mtime lies more than 2 s before the listing that last wrote the index; a
 /// hash that differs reindexes it. An index written under another stamp or
 /// layout is rebuilt whole. The store is written only when a file was added or
-/// deleted, a hash or a stat key changed, or the stamp differs.
+/// deleted, a hash or a stat key changed, a file read in the racy window has
+/// aged out of it, or the stamp differs.
 RefreshResult refreshIndex(IndexStore store, DocsProject project) {
   final stamp = IndexStamp.of(project.set);
   final current = store.readStamp() == stamp;
@@ -90,14 +91,16 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
         store.setStatKey(docPath, file.stat);
       }
     }
-    final tree = resolveParents(store.loadDocs(), project.set);
-    store
-      ..setTree(
+    // With no doc put or deleted, the parents and the order still hold.
+    if (reindexed > 0) {
+      final tree = resolveParents(store.loadDocs(), project.set);
+      store.setTree(
         parents: tree.parents,
         parentWarnings: tree.warnings,
         order: files.keys.toList(),
-      )
-      ..setCheckedAt(listing.checkedAt);
+      );
+    }
+    store.setCheckedAt(listing.checkedAt);
   });
   return RefreshResult(
     warnings: listing.warnings,
@@ -132,9 +135,14 @@ final class _Stored {
     final checkedAt = this.checkedAt;
     return checkedAt != null &&
         stats[docPath] == stat &&
-        checkedAt - stat.modified > _racyWindow.inMicroseconds;
+        _outsideWindow(checkedAt, stat);
   }
 }
+
+/// Whether the mtime in [stat] lies more than [_racyWindow] before
+/// [checkedAt].
+bool _outsideWindow(int checkedAt, FileStatKey stat) =>
+    checkedAt - stat.modified > _racyWindow.inMicroseconds;
 
 /// One `.md` file the listing found.
 final class _ListedFile {
@@ -205,7 +213,7 @@ final class _Listing {
   }
 
   /// Whether the listing saw a file added, deleted, or changed since
-  /// [stored] was written.
+  /// [stored] was written, or a racy file that a new checked_at would trust.
   bool differsFrom(_Stored stored, IndexStore store) {
     final stats = stored.stats;
     if (files.length != stats.length ||
@@ -213,14 +221,18 @@ final class _Listing {
       return true;
     }
     // Every stat key matches, so only a file read in the racy window can
-    // hold a new hash.
-    final read = {
+    // differ: by a new hash, or by having aged out of the window, which a
+    // write of checked_at turns into trust from the next call on.
+    final read = [
       for (final MapEntry(key: docPath, value: listed) in files.entries)
-        if (listed.content case final content?) docPath: content.hash,
-    };
+        if (listed.content case final content?)
+          (docPath: docPath, hash: content.hash, stat: listed.stat),
+    ];
     if (read.isEmpty) return false;
     final hashes = store.hashes();
-    return read.entries.any((e) => hashes[e.key] != e.value);
+    return read.any(
+      (r) => hashes[r.docPath] != r.hash || _outsideWindow(checkedAt, r.stat),
+    );
   }
 
   /// Reads and hashes [listed]; a read failure adds a warning and returns
