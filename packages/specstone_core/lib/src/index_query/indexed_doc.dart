@@ -283,6 +283,9 @@ Object? _plain(Object? value) => switch (value) {
 };
 
 List<String> _linksOf(String lfBody, String docPath) {
+  // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
+  // is absolute, so it never resolves to a doc.
+  if (!lfBody.contains('](') && !lfBody.contains(']:')) return const [];
   final links = <String>{};
   void visit(List<Node> nodes) {
     for (final node in nodes) {

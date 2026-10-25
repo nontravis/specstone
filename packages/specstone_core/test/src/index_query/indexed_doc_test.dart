@@ -142,6 +142,30 @@ void main() {
     expect(links, ['prds/features/f01_login/us01_email_login/USER_STORY.md']);
   });
 
+  test('f01/us07/fr02, s03/inv19: a reference-style link lists its target', () {
+    final links = parse(
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+      '# V\n\nSee the [story][s].\n\n[s]: USER_STORY.md\n',
+    ).content.links;
+    expect(links, ['prds/features/f01_login/us01_email_login/USER_STORY.md']);
+  });
+
+  test('f01/us07/fr02, s03/inv19: an inline link alone lists its target', () {
+    final links = parse(
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+      'See [story](USER_STORY.md)',
+    ).content.links;
+    expect(links, ['prds/features/f01_login/us01_email_login/USER_STORY.md']);
+  });
+
+  test('f01/us07/fr02, s03/inv19: bracketed text with no link lists none', () {
+    final links = parse(
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+      '# V\n\nA [x] note, an array a[0], and https://example.org/a.md.\n',
+    ).content.links;
+    expect(links, isEmpty);
+  });
+
   test(
     'f01/us01/fr03, s03/inv9: sizes are code points divided by 4, rounded down',
     () {
