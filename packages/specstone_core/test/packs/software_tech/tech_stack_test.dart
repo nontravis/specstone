@@ -60,4 +60,9 @@ void main() {
       'its four sources', () {
     expectSpecLint(techStack);
   });
+
+  test('f03/us07/fr01: tech_stack joins implement and design', () async {
+    final set = await resolveSoftwareTech();
+    expect(set.lookup('tech_stack')!.bundle, ['implement', 'design']);
+  });
 }

@@ -13,6 +13,7 @@ enum FaultCode {
   docTypePathConflict('doc_type_path_conflict', 78),
   overrideIdNotFound('override_id_not_found', 78),
   lintWordNotFound('lint_word_not_found', 78),
+  bundleModeNotFound('bundle_mode_not_found', 78),
   listOverrideNeedsAddRemove('list_override_needs_add_remove', 78),
   afterIdNotFound('after_id_not_found', 78),
   extendsCycle('extends_cycle', 78),

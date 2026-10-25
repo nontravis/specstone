@@ -73,4 +73,17 @@ void main() {
       expect(sectionOf(project, key).template, value, reason: key);
     }
   });
+
+  test('f03/us06/fr01: project joins every bundle mode and marks roles, '
+      'out_of_scope, and glossary query', () async {
+    final project = prdCoreDocType(await resolvePrdCore(), 'project');
+    expect(project.bundle, ['query', 'implement', 'design']);
+    expect(
+      [
+        for (final s in project.sections)
+          if (s.query == true) s.id,
+      ],
+      ['roles', 'out_of_scope', 'glossary'],
+    );
+  });
 }

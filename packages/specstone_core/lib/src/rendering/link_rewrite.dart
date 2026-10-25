@@ -1,4 +1,5 @@
 import 'package:markdown/markdown.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 
 /// Rewrites every `a` element under [nodes] in place for the single-file html.
@@ -35,17 +36,17 @@ Node _rewriteLink(
   required Map<String, String> anchors,
 }) {
   final href = link.attributes['href'] ?? '';
-  final target = _resolve(href, docPath);
+  final target = resolveDocLink(href, docPath);
   switch (target) {
-    case _Web():
+    case WebTarget():
       return link;
-    case _Doc(:final path):
-      final anchor = anchors[path];
-      if (anchor == null) return _outsideSpan(link, path);
+    case DocTarget(docPath: final resolved):
+      final anchor = anchors[resolved];
+      if (anchor == null) return _outsideSpan(link, resolved);
       if (href.startsWith('#')) return link;
       link.attributes['href'] = '#$anchor';
       return link;
-    case _Outside(:final shown):
+    case OutsideTarget(:final shown):
       return _outsideSpan(link, shown);
   }
 }
@@ -112,60 +113,3 @@ Element _outsideSpan(Element link, String shown) => Element('span', [
   Element('code', [Text(escapeText(shown))]),
   Text(')'),
 ])..attributes['class'] = 'outside-link';
-
-sealed class _Target;
-
-final class _Web extends _Target;
-
-final class _Doc extends _Target {
-  new(this.path);
-
-  /// The docPath the link resolves to.
-  final String path;
-}
-
-final class _Outside extends _Target {
-  new(this.shown);
-
-  /// The path the span shows.
-  final String shown;
-}
-
-_Target _resolve(String href, String docPath) {
-  final uri = Uri.tryParse(href);
-  if (uri == null) return _Outside(href);
-  if (uri.hasScheme) {
-    final scheme = uri.scheme;
-    return scheme == 'http' || scheme == 'https' ? _Web() : _Outside(href);
-  }
-  if (uri.hasAuthority || uri.path.startsWith('/')) return _Outside(href);
-  // An empty path (`#frag`, `?q`) names the doc itself.
-  if (uri.path.isEmpty) return _Doc(docPath);
-  final resolved = _resolveSegments(uri.pathSegments, docPath);
-  if (resolved == null || resolved.isEmpty) return _Outside(href);
-  return _Doc(resolved);
-}
-
-/// Returns the docPath [segments] reach from [docPath]'s folder, or null when
-/// a `..` pops past the docs root or a decoded segment holds a `/`. An empty
-/// result names the docs root.
-///
-/// [segments] are split on `/` before they are percent-decoded, so an encoded
-/// slash (`%2F`) belongs to one segment and cannot name a doc.
-String? _resolveSegments(List<String> segments, String docPath) {
-  final path = docPath.split('/')..removeLast();
-  for (final segment in segments) {
-    switch (segment) {
-      case '' || '.':
-        continue;
-      case '..':
-        if (path.isEmpty) return null;
-        path.removeLast();
-      case _ when segment.contains('/'):
-        return null;
-      default:
-        path.add(segment);
-    }
-  }
-  return path.join('/');
-}

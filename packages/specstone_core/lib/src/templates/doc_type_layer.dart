@@ -175,6 +175,7 @@ final class SectionEntry {
     this.template,
     this.lint,
     this.after,
+    this.query,
     required this.disabled,
   });
 
@@ -201,6 +202,9 @@ final class SectionEntry {
 
   /// The section this one follows in an adding layer, when written.
   final String? after;
+
+  /// Whether the section is a query section, when written.
+  final bool? query;
 
   /// Whether the section is turned off by this layer.
   final bool disabled;
@@ -239,6 +243,7 @@ final class DocTypeLayer {
     required this.sections,
     required this.lint,
     required this.reference,
+    required this.bundle,
   });
 
   /// Parses one doc-type file; [docTypeId] is the file name without `.yaml`.
@@ -280,6 +285,7 @@ final class DocTypeLayer {
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
       reference: _parseReference(map, file: file, kind: kind, files: files),
+      bundle: _parseBundle(map, file: file),
     );
   }
 
@@ -321,6 +327,35 @@ final class DocTypeLayer {
 
   /// The reference list this layer writes, when written.
   final ListWrite<ReferenceEntry>? reference;
+
+  /// The bundle modes this layer writes, plain or as changes, when written.
+  final ListWrite<String>? bundle;
+}
+
+/// The bundle modes a doc type may name on the wire.
+const bundleModeWires = <String>{'query', 'implement', 'design'};
+
+/// Reads the `bundle` key of [map], checking each written mode.
+///
+/// `remove` entries are not checked here; the merger owns that fault.
+ListWrite<String>? _parseBundle(YamlMap map, {required String file}) {
+  final write = _listWrite(map, 'bundle', file: file, prefix: '');
+  final written = switch (write) {
+    null => const <String>[],
+    PlainList<String>(:final items) => items,
+    ListChange<String>(:final add) => add,
+  };
+  for (final mode in written) {
+    if (!bundleModeWires.contains(mode)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key bundle takes query, implement, or design, not $mode',
+        file: file,
+        key: 'bundle',
+      );
+    }
+  }
+  return write;
 }
 
 /// Reads the `reference` key of [map] as a [ListWrite] of entries.
@@ -424,6 +459,7 @@ const _topKeys = {
   'sections',
   'lint',
   'reference',
+  'bundle',
 };
 
 const _fieldKeys = {
@@ -448,6 +484,7 @@ const _sectionKeys = {
   'lint',
   'disabled',
   'after',
+  'query',
 };
 
 const _docLintKeys = {
@@ -617,6 +654,7 @@ SectionEntry _parseSection(
         ? null
         : _parseSectionLint(lintMap, file: file, prefix: prefix),
     after: optionalValue<String>(entry, 'after', file: file, prefix: prefix),
+    query: optionalValue<bool>(entry, 'query', file: file, prefix: prefix),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,

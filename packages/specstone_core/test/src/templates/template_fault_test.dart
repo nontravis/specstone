@@ -11,6 +11,7 @@ void main() {
     'doc_type_path_conflict',
     'override_id_not_found',
     'lint_word_not_found',
+    'bundle_mode_not_found',
     'list_override_needs_add_remove',
     'after_id_not_found',
     'extends_cycle',
@@ -36,9 +37,9 @@ void main() {
   ];
 
   group('FaultCode', () {
-    test('s05 catalog: wire codes equal the 30 catalog codes in order', () {
+    test('s05 catalog: wire codes equal the 31 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
-      expect(FaultCode.values, hasLength(30));
+      expect(FaultCode.values, hasLength(31));
     });
 
     test('s05 catalog: only docTypeUnknown exits 64, the rest 78', () {

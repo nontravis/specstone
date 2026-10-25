@@ -108,6 +108,25 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
+    test('f03/us01/fr03: guide <type> --json prints bundle and a section '
+        'query set by a project layer', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml':
+              'bundle: [query]\nsections: [{id: goal, query: true}]\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final keys = json.keys.toList();
+      expect(keys.indexOf('bundle'), keys.indexOf('path') + 1);
+      expect(json['bundle'], ['query']);
+      final sections = (json['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.first['query'], isTrue);
+    });
+
     test('f03/us01/s6, f03/us01/fr02/e01: an unknown type prints usage and '
         'exits 64', () async {
       final runner = await runnerIn(await projectWith({}));

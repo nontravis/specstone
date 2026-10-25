@@ -194,13 +194,13 @@ String lineTargetOf(String id) => switch (id) {
 String snakeCaseOf(String header) =>
     header.toLowerCase().replaceAll(RegExp('[^a-z0-9]+'), '_');
 
-/// Resolves a temp project that pins `prd-core` and `software-tech` 1.0.0.
+/// Resolves a temp project that pins `prd-core` and `software-tech` 1.1.0.
 ///
 /// Calls `writeTree`, so call it from a test or `setUpAll`.
 Future<MergedSet> resolveSoftwareTech() async {
   final project = await writeTree({
     '.specstone/config.yaml':
-        'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+        'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
   });
   final home = await writeTree({});
   return TemplateResolver().resolve(

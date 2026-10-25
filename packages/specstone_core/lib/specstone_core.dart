@@ -2,6 +2,30 @@
 library;
 
 export 'src/fault.dart';
+export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
+export 'src/index_query/bundle_render.dart' show answerContext;
+export 'src/index_query/code_bundle.dart'
+    show CodePath, pickCodeBundle, resolveCodePath;
+export 'src/index_query/doc_index.dart' show DocIndex;
+export 'src/index_query/get_docs.dart' show answerGet;
+export 'src/index_query/index_fault.dart' show IndexFault, IndexFaultCode;
+export 'src/index_query/index_store.dart' show indexBusyTimeout;
+export 'src/index_query/indexed_doc.dart' show IndexedDoc;
+export 'src/index_query/list_docs.dart' show ListFilters, answerList;
+export 'src/index_query/read_answer.dart'
+    show
+        ReadAnswer,
+        docJson,
+        docLine,
+        missingArgument,
+        nameWithType,
+        namingLine,
+        parsePositiveOption;
+export 'src/index_query/read_session.dart' show ReadSession;
+export 'src/index_query/refs.dart' show answerRefs;
+export 'src/index_query/search_docs.dart'
+    show SearchOptions, answerSearch, checkQuery, defaultSearchLimit;
+export 'src/index_query/structure.dart' show answerStructure;
 export 'src/rendering/browser_host.dart' show BrowserHost, HostOs, RunProcess;
 export 'src/rendering/browser_locator.dart' show locateBrowser;
 export 'src/rendering/build_output.dart'

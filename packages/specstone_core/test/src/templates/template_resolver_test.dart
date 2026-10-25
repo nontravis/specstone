@@ -1060,6 +1060,75 @@ lint:
       expect(feature.lint.maxLines, 300);
     });
 
+    test('f03/us03/fr04/e05, s03/inv12: an extending doc type that writes no '
+        'bundle inherits the bundle of its target', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+bundle: [implement, design]
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('adr')!.bundle, ['implement', 'design']);
+      expect(merged.lookup('feature')!.bundle, ['implement', 'design']);
+    });
+
+    test('f03/us03/fr04/e05, s03/inv12: a layer over an extending doc type '
+        'removes one inherited bundle mode and keeps the other', () async {
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': '''
+parent: project
+bundle: [implement, design]
+''',
+        '.specstone/templates/adr.yaml': '''
+bundle:
+  remove: [design]
+''',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('adr')!.bundle, ['implement']);
+      expect(merged.lookup('feature')!.bundle, ['implement', 'design']);
+    });
+
     test('f03/us03/fr04: an extending doc type changes inherited lists by '
         'add and remove', () async {
       final project = await writeTree({

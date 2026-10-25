@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
@@ -35,6 +36,7 @@ final class DocsProject {
     required this.projectRoot,
     required this.docsRoot,
     required this.matcher,
+    required this.set,
   });
 
   /// Opens the project holding [workingDirectory] and loads its doc types.
@@ -66,6 +68,7 @@ final class DocsProject {
         _canonicalPath('${projectRoot.path}${_separator}docs'),
       ),
       matcher: DocTypeMatcher(set),
+      set: set,
     );
   }
 
@@ -77,6 +80,9 @@ final class DocsProject {
 
   /// Finds the doc type of a DocPath.
   final DocTypeMatcher matcher;
+
+  /// The merged doc types [matcher] reads.
+  final MergedSet set;
 
   /// Resolves [target] from [workingDirectory] to an existing file or folder
   /// inside the docs root.

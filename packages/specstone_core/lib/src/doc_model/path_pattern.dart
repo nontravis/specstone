@@ -5,7 +5,8 @@
 final class PathPattern {
   new(this.source)
     : _whole = _compile(source),
-      _segments = [for (final part in source.split('/')) _compile(part)];
+      _segments = [for (final part in source.split('/')) _compile(part)],
+      _slugs = _compile(source, slugGroups: true);
 
   static final _placeholder = RegExp(r'\{nn\}|\{slug\}');
 
@@ -14,6 +15,7 @@ final class PathPattern {
 
   final RegExp _whole;
   final List<RegExp> _segments;
+  final RegExp _slugs;
 
   /// Returns whether the pattern matches all of [docPath].
   bool matches(String docPath) => _whole.hasMatch(docPath);
@@ -38,14 +40,30 @@ final class PathPattern {
     return digits == null ? null : int.tryParse(digits);
   }
 
-  /// Compiles [text] to an anchored expression; each `{nn}` is a group.
-  static RegExp _compile(String text) {
+  /// Returns the `{slug}` values of [docPath] in pattern order.
+  ///
+  /// Empty for a pattern with no `{slug}`; null when the pattern does not match
+  /// all of [docPath]. The `{nn}` values are dropped.
+  List<String>? slugValues(String docPath) {
+    final match = _slugs.firstMatch(docPath);
+    if (match == null) return null;
+    return [for (var i = 1; i <= match.groupCount; i++) match.group(i)!];
+  }
+
+  /// Compiles [text] to an anchored expression.
+  ///
+  /// Each `{nn}` is a group, or each `{slug}` when [slugGroups] is set.
+  static RegExp _compile(String text, {bool slugGroups = false}) {
     final buffer = StringBuffer('^');
     var literalStart = 0;
     for (final token in _placeholder.allMatches(text)) {
       buffer
         ..write(RegExp.escape(text.substring(literalStart, token.start)))
-        ..write(token.group(0) == '{nn}' ? '([0-9]+)' : '[a-z0-9_]+');
+        ..write(
+          token.group(0) == '{nn}'
+              ? (slugGroups ? '[0-9]+' : '([0-9]+)')
+              : (slugGroups ? '([a-z0-9_]+)' : '[a-z0-9_]+'),
+        );
       literalStart = token.end;
     }
     buffer

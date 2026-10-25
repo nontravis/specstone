@@ -6,6 +6,7 @@ description: |-
   Write each statement with one "shall" and a quantified value; avoid the listed words and other -ly and -ize words.
   A project adds a missing category, such as Availability, as a project-layer section that keeps its IDs.
 path: prds/GNFR.md
+bundle: [implement, design]
 sections:
   - id: performance
     header: Performance

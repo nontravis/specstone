@@ -52,4 +52,45 @@ abstract class SpecstoneCommand extends Command<int> {
       specstoneRunner.err.writeln('⚠️ WARNING: $warning');
     }
   }
+
+  /// Opens a read session, prints what [answer] returns, and returns its exit
+  /// status.
+  ///
+  /// Under [asJson] it prints one object, [ReadAnswer.json] with a `warnings`
+  /// array of the session's warnings then the answer's, on `out`. Else it
+  /// warns on `err` and writes [ReadAnswer.text] on `out`. A
+  /// [SpecstoneFault] from opening the session or from [answer] goes to
+  /// [fail] with the warnings collected so far. [ReadSession.run] closes each
+  /// session once and rebuilds an index [answer] finds damaged.
+  Future<int> runRead(
+    ReadAnswer Function(ReadSession session) answer, {
+    required bool asJson,
+  }) async {
+    final runner = specstoneRunner;
+    var sessionWarnings = const <String>[];
+    final ReadAnswer read;
+    try {
+      read = ReadSession.run(
+        (session) {
+          sessionWarnings = session.warnings;
+          return answer(session);
+        },
+        templates: runner.templates,
+        workingDirectory: runner.workingDirectory,
+        homeDirectory: runner.homeDirectory,
+        busyTimeout: runner.busyTimeout,
+      );
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson, warnings: sessionWarnings);
+    }
+    final warnings = [...sessionWarnings, ...read.warnings];
+    if (asJson) {
+      final printed = {...read.json, 'warnings': warnings};
+      runner.out.write('${SpecstoneCommand.pretty.convert(printed)}\n');
+    } else {
+      warn(warnings);
+      runner.out.write(read.text);
+    }
+    return read.exitStatus;
+  }
 }

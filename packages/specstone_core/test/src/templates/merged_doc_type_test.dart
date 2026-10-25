@@ -268,6 +268,50 @@ void main() {
 
       expect(fields.where((f) => f.containsKey('pointer')), isEmpty);
     });
+
+    test('f03/us01/fr03: bundle prints right after path and query right after '
+        'lint', () {
+      const docType = MergedDocType(
+        id: 'feature',
+        path: 'f{nn}_{slug}.md',
+        bundle: ['query'],
+        fields: [],
+        lint: MergedLint(),
+        files: [],
+        sections: [
+          MergedSection(id: 'goal', header: 'Goal', maxLines: 5, query: true),
+        ],
+      );
+      final json = docType.toJson();
+      expect(json.keys.toList(), [
+        'id',
+        'path',
+        'bundle',
+        'fields',
+        'sections',
+      ]);
+      expect((json['sections']! as List<Object?>).single, {
+        'id': 'goal',
+        'header': 'Goal',
+        'lint': {'maxLines': 5},
+        'query': true,
+      });
+    });
+
+    test('f03/us01/fr03: no bundle and no query print no key, as E05 says', () {
+      const docType = MergedDocType(
+        id: 'feature',
+        fields: [],
+        lint: MergedLint(),
+        files: [],
+        sections: [MergedSection(id: 'goal', header: 'Goal')],
+      );
+      expect(docType.toJson().containsKey('bundle'), isFalse);
+      expect((docType.toJson()['sections']! as List<Object?>).single, {
+        'id': 'goal',
+        'header': 'Goal',
+      });
+    });
   });
 
   group('MergedDocType.renderGuide', () {
