@@ -388,6 +388,7 @@ final class TemplateResolver {
       parent: target.parent,
       extendsId: targetId,
       path: null,
+      bundle: target.bundle == null ? null : List.unmodifiable(target.bundle!),
       fields: List.unmodifiable(target.fields),
       sections: List.unmodifiable(target.sections),
       lint: target.lint,
