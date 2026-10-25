@@ -268,7 +268,12 @@ void main() {
       final store = IndexStore.open(await root());
       addTearDown(store.close);
       const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      const key = (size: 4, modified: 1700000000123456, mode: 33188);
+      const key = (
+        size: 4,
+        modified: 1700000000123456,
+        changed: 1700000000654321,
+        mode: 33188,
+      );
       store.write(() {
         store
           ..reset(stamp)

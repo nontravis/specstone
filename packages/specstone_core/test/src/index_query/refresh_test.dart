@@ -37,6 +37,18 @@ bool _peerFullBuild(String path) {
 /// Top level so the closure captures no open index.
 Future<bool> _startPeer(String path) => Isolate.run(() => _peerFullBuild(path));
 
+/// Fails the stat of every file whose path ends with [suffix], as a stat that
+/// lands between the delete and the rename of a save does.
+final class _FailedStat extends IOOverrides {
+  new(this.suffix);
+
+  final String suffix;
+
+  @override
+  FileStat statSync(String path) =>
+      super.statSync(path.endsWith(suffix) ? '$path.gone' : path);
+}
+
 void main() {
   ({RefreshResult result, IndexStore store}) refresh(Directory project) {
     final docs = DocsProject.open(
@@ -238,6 +250,48 @@ void main() {
       expect(refresh(project).result.hashed, 0);
     });
     test(
+      'f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a replacement that keeps the size, the mtime, and the mode is seen',
+      skip: Platform.isWindows
+          ? 'FileStat.changed is the creation time on Windows, which a save over a file can keep'
+          : null,
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        refresh(project);
+        final feature = File('${project.path}/$featureKey');
+        final before = feature.statSync();
+        // As `cp -p` or `rsync -t` deliver it: same size, the old mtime.
+        File('${feature.path}.new')
+          ..writeAsStringSync(
+            feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
+          )
+          ..setLastModifiedSync(before.modified)
+          ..renameSync(feature.path);
+        final after = feature.statSync();
+        expect(
+          (after.size, after.modified, after.mode),
+          (before.size, before.modified, before.mode),
+        );
+        expect(docAt(refresh(project).store, featureDoc).title, 'Logon');
+      },
+    );
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a file whose stat fails is read on every call and stores no stat key', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      ({RefreshResult result, IndexStore store}) failingReadme() =>
+          IOOverrides.runWithIOOverrides(
+            () => refresh(project),
+            _FailedStat('README.md'),
+          );
+      final first = failingReadme();
+      expect(first.result.hashed, 1);
+      expect(first.store.statKeys()['README.md'], isNull);
+      final written = watchWrites(project);
+      expect(failingReadme().result.hashed, 1);
+      expect(written(), isFalse);
+    });
+    test(
       'f01/us01/fr02, f01/us01/fr02/e08, s03/inv1: a chmod that makes a trusted file unreadable warns and drops it',
       skip: unreadablePathSkipReason(),
       () async {
@@ -273,6 +327,7 @@ void main() {
         ..execute('ALTER TABLE docs DROP COLUMN stat_size')
         ..execute('ALTER TABLE docs DROP COLUMN stat_mtime')
         ..execute('ALTER TABLE docs DROP COLUMN stat_mode')
+        ..execute('ALTER TABLE docs DROP COLUMN stat_ctime')
         ..close();
       final (:result, :store) = refresh(project);
       expect(result.fullBuild, isTrue);

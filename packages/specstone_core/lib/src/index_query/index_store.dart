@@ -59,6 +59,7 @@ CREATE TABLE docs (
   head TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
+  stat_ctime INTEGER,
   stat_mode INTEGER
 );
 CREATE TABLE sections (
@@ -90,8 +91,10 @@ const _tables = ['meta', 'docs', 'sections', 'links', 'doc_search'];
 ///
 /// - `size`: in bytes.
 /// - `modified`: the mtime, in microseconds since the epoch.
+/// - `changed`: the ctime on POSIX, the creation time on Windows, in
+///   microseconds since the epoch.
 /// - `mode`: the permission and type bits.
-typedef FileStatKey = ({int size, int modified, int mode});
+typedef FileStatKey = ({int size, int modified, int changed, int mode});
 
 /// The pair of values that decides whether an index is still current.
 ///
@@ -229,27 +232,31 @@ final class IndexStore {
   /// stored with none.
   Map<String, FileStatKey?> statKeys() => {
     for (final row in _db.select(
-      'SELECT doc_path, stat_size, stat_mtime, stat_mode FROM docs',
+      'SELECT doc_path, stat_size, stat_mtime, stat_ctime, stat_mode '
+      'FROM docs',
     ))
       row['doc_path'] as String: switch ((
         row['stat_size'],
         row['stat_mtime'],
+        row['stat_ctime'],
         row['stat_mode'],
       )) {
-        (final int size, final int modified, final int mode) => (
-          size: size,
-          modified: modified,
-          mode: mode,
-        ),
+        (
+          final int size,
+          final int modified,
+          final int changed,
+          final int mode,
+        ) =>
+          (size: size, modified: modified, changed: changed, mode: mode),
         _ => null,
       },
   };
 
-  /// Stores [key] as the stat key of the doc at [docPath].
-  void setStatKey(String docPath, FileStatKey key) => _db.execute(
-    'UPDATE docs SET stat_size = ?, stat_mtime = ?, stat_mode = ? '
-    'WHERE doc_path = ?',
-    [key.size, key.modified, key.mode, docPath],
+  /// Stores [key] as the stat key of the doc at [docPath]; null clears it.
+  void setStatKey(String docPath, FileStatKey? key) => _db.execute(
+    'UPDATE docs SET stat_size = ?, stat_mtime = ?, stat_ctime = ?, '
+    'stat_mode = ? WHERE doc_path = ?',
+    [key?.size, key?.modified, key?.changed, key?.mode, docPath],
   );
 
   /// Returns when the refresh that last wrote the index began listing, in

@@ -129,9 +129,9 @@ final class _Stored {
 
   /// Whether the stored hash of [docPath] still holds for a file with [stat].
   ///
-  /// Holds only when the stat key matches and the mtime lies outside the
-  /// racy window before [checkedAt].
-  bool vouches(String docPath, FileStatKey stat) {
+  /// Holds only when the stat succeeded, the stat key matches, and the mtime
+  /// lies outside the racy window before [checkedAt].
+  bool vouches(String docPath, FileStatKey? stat) {
     final checkedAt = this.checkedAt;
     return checkedAt != null &&
         stats[docPath] == stat &&
@@ -139,10 +139,10 @@ final class _Stored {
   }
 }
 
-/// Whether the mtime in [stat] lies more than [_racyWindow] before
+/// Whether [stat] succeeded and its mtime lies more than [_racyWindow] before
 /// [checkedAt].
-bool _outsideWindow(int checkedAt, FileStatKey stat) =>
-    checkedAt - stat.modified > _racyWindow.inMicroseconds;
+bool _outsideWindow(int checkedAt, FileStatKey? stat) =>
+    stat != null && checkedAt - stat.modified > _racyWindow.inMicroseconds;
 
 /// One `.md` file the listing found.
 final class _ListedFile {
@@ -150,8 +150,9 @@ final class _ListedFile {
 
   final File file;
 
-  /// Taken before any read, so an edit between the two shows on the next call.
-  final FileStatKey stat;
+  /// Taken before any read, so an edit between the two shows on the next call;
+  /// null when the stat failed, so the file is read on every call.
+  final FileStatKey? stat;
 
   /// The bytes and their hash; null while the stored hash is trusted.
   ({List<int> bytes, String hash})? content;
@@ -217,7 +218,9 @@ final class _Listing {
   bool differsFrom(_Stored stored, IndexStore store) {
     final stats = stored.stats;
     if (files.length != stats.length ||
-        files.entries.any((e) => stats[e.key] != e.value.stat)) {
+        files.entries.any(
+          (e) => !stats.containsKey(e.key) || stats[e.key] != e.value.stat,
+        )) {
       return true;
     }
     // Every stat key matches, so only a file read in the racy window can
@@ -250,11 +253,16 @@ final class _Listing {
   }
 }
 
-FileStatKey _statKeyOf(File file) {
+/// Returns the stat key of [file]; null when the stat fails or finds no file.
+///
+/// A failed stat yields placeholder values, which must never vouch for a hash.
+FileStatKey? _statKeyOf(File file) {
   final stat = file.statSync();
+  if (stat.type != FileSystemEntityType.file) return null;
   return (
     size: stat.size,
     modified: stat.modified.microsecondsSinceEpoch,
+    changed: stat.changed.microsecondsSinceEpoch,
     mode: stat.mode,
   );
 }
