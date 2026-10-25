@@ -8,7 +8,7 @@ import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
 import 'helpers/baseline_tree.dart';
-import 'helpers/package_root.dart';
+import 'helpers/built_cli.dart';
 
 void main() {
   late Directory project;
@@ -16,20 +16,7 @@ void main() {
 
   setUpAll(() async {
     project = await writeBaselineTree();
-    final out = await Directory.systemTemp.createTemp('specstone_build_');
-    addTearDown(() => out.delete(recursive: true));
-    // `dart compile exe` rejects build hooks and sqlite3 is a hook package.
-    final build = Process.runSync(Platform.resolvedExecutable, [
-      'build',
-      'cli',
-      '-t',
-      'bin/specstone.dart',
-      '-o',
-      out.path,
-    ], workingDirectory: packageRoot().path);
-    expect(build.exitCode, 0, reason: '${build.stdout}\n${build.stderr}');
-    final name = Platform.isWindows ? 'specstone.exe' : 'specstone';
-    exe = out.uri.resolve('bundle/bin/$name').toFilePath();
+    exe = await buildSpecstone();
   });
 
   Duration timed(List<String> args) {

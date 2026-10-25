@@ -5,30 +5,37 @@ import 'package:dart_mcp/client.dart';
 import 'package:dart_mcp/stdio.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/package_root.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
   group('specstone mcp', () {
+    late String exe;
+
+    setUpAll(() async {
+      exe = await buildSpecstone();
+    });
+
     test('serves initialize and zero tools over stdio, then exits 0', () async {
-      await _expectServesZeroTools();
+      await _expectServesZeroTools(exe);
     }, timeout: const Timeout(Duration(seconds: 60)));
 
     test('f03/us01/fr04/e04, f03/us05/fr01/e07, f03/us05/fr02/e03: mcp starts '
         'and initializes inside a project with a broken config', () async {
       final project = await writeTree({'.specstone/config.yaml': 'packs: [\n'});
 
-      await _expectServesZeroTools(workingDirectory: project.path);
+      await _expectServesZeroTools(exe, workingDirectory: project.path);
     }, timeout: const Timeout(Duration(seconds: 60)));
-  });
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
 
-/// Starts `specstone mcp`, initializes a client against it, and expects zero
-/// tools and exit status 0.
-Future<void> _expectServesZeroTools({String? workingDirectory}) async {
-  final process = await Process.start(Platform.resolvedExecutable, [
-    'run',
-    packageRoot().uri.resolve('bin/specstone.dart').toFilePath(),
+/// Starts `specstone mcp` from the built binary [exe], initializes a client
+/// against it, and expects zero tools and exit status 0.
+Future<void> _expectServesZeroTools(
+  String exe, {
+  String? workingDirectory,
+}) async {
+  final process = await Process.start(exe, [
     'mcp',
   ], workingDirectory: workingDirectory);
   addTearDown(process.kill);
