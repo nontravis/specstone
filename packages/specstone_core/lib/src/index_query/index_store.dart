@@ -33,7 +33,8 @@ CREATE TABLE meta (
   doc_types TEXT NOT NULL
 );
 CREATE TABLE docs (
-  doc_path TEXT PRIMARY KEY,
+  id INTEGER PRIMARY KEY,
+  doc_path TEXT NOT NULL UNIQUE,
   doc_type_id TEXT,
   name TEXT NOT NULL,
   parent_path TEXT,
@@ -66,6 +67,10 @@ CREATE VIRTUAL TABLE doc_search USING fts5(
   text, path UNINDEXED, section_key UNINDEXED, tokenize = 'trigram'
 );
 ''';
+
+/// The rowids a doc may use in `doc_search`: its id shifted left by 32 bits,
+/// plus a counter below this limit.
+const int _searchRowsPerDoc = 1 << 32;
 
 const _tables = ['meta', 'docs', 'sections', 'links', 'doc_search'];
 
@@ -257,9 +262,22 @@ final class IndexStore {
         content.head,
       ],
     );
+    final docId = _db.lastInsertRowId;
     final firstKey = content.sections.firstOrNull?.key;
-    for (final heading in [?doc.title, ...doc.valuesOf('slug')]) {
-      _putSearch(heading, doc.docPath, firstKey);
+    final searchRows = <(String, String?)>[
+      for (final heading in [?doc.title, ...doc.valuesOf('slug')])
+        (heading, firstKey),
+      for (final section in content.sections) (section.body, section.key),
+    ];
+    for (final (n, (text, sectionKey)) in searchRows.indexed) {
+      if (n >= _searchRowsPerDoc) {
+        throw StateError('${doc.docPath} has too many search rows');
+      }
+      _db.execute(
+        'INSERT INTO doc_search (rowid, text, path, section_key) '
+        'VALUES (?, ?, ?, ?)',
+        [(docId << 32) + n, text, doc.docPath, sectionKey],
+      );
     }
     for (final (position, section) in content.sections.indexed) {
       _db.execute(
@@ -267,7 +285,6 @@ final class IndexStore {
         'body) VALUES (?, ?, ?, ?, ?)',
         [doc.docPath, position, section.key, section.headerLine, section.body],
       );
-      _putSearch(section.body, doc.docPath, section.key);
     }
     for (final (position, target) in content.links.indexed) {
       _db.execute(
@@ -277,13 +294,19 @@ final class IndexStore {
     }
   }
 
-  /// Removes every row of the doc at [docPath].
+  /// Removes every row of the doc at [docPath]; an unknown path is a no-op.
   void deleteDoc(String docPath) {
+    final ids = _db.select('SELECT id FROM docs WHERE doc_path = ?', [docPath]);
+    if (ids.isEmpty) return;
+    final firstRowid = (ids.single['id'] as int) << 32;
     _db
+      ..execute('DELETE FROM doc_search WHERE rowid BETWEEN ? AND ?', [
+        firstRowid,
+        firstRowid + _searchRowsPerDoc - 1,
+      ])
       ..execute('DELETE FROM docs WHERE doc_path = ?', [docPath])
       ..execute('DELETE FROM sections WHERE doc_path = ?', [docPath])
-      ..execute('DELETE FROM links WHERE source = ?', [docPath])
-      ..execute('DELETE FROM doc_search WHERE path = ?', [docPath]);
+      ..execute('DELETE FROM links WHERE source = ?', [docPath]);
   }
 
   /// Stores the parent of each doc and the order of the docs.
@@ -410,13 +433,6 @@ final class IndexStore {
 
   /// Closes the connection.
   void close() => _db.close();
-
-  void _putSearch(String text, String docPath, String? sectionKey) {
-    _db.execute(
-      'INSERT INTO doc_search (text, path, section_key) VALUES (?, ?, ?)',
-      [text, docPath, sectionKey],
-    );
-  }
 }
 
 /// A database that holds tables but no `meta` table.

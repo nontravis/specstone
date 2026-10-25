@@ -258,5 +258,63 @@ void main() {
       expect(store.search('"ค้นหา"').single.sectionKey, 'notes');
       expect(store.search('"log"').single.docPath, 'README.md');
     });
+    test(
+      'nfr-p02: a doc put twice leaves exactly one set of search rows',
+      () async {
+        final store = IndexStore.open(await root());
+        addTearDown(store.close);
+        final doc = parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n');
+        store.write(() {
+          store
+            ..putDoc(doc)
+            ..putDoc(doc);
+        });
+        expect(store.search('"zebra"'), hasLength(1));
+        expect(store.search('"alpha"'), hasLength(1));
+      },
+    );
+    test(
+      'nfr-p02: deleteDoc removes the search rows of that doc only',
+      () async {
+        final store = IndexStore.open(await root());
+        addTearDown(store.close);
+        store.write(() {
+          store
+            ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n'))
+            ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nzebra herd\n'))
+            ..deleteDoc('a.md');
+        });
+        expect(store.search('"crossing"'), isEmpty);
+        expect(store.search('"alpha"'), isEmpty);
+        expect(store.search('"zebra"').map((r) => r.docPath), ['b.md']);
+        expect(store.search('"beta"').map((r) => r.docPath), ['b.md']);
+      },
+    );
+    test('nfr-p02: deleteDoc of an unknown path changes nothing', () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      store.write(() {
+        store
+          ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n'))
+          ..deleteDoc('missing.md');
+      });
+      expect(store.search('"zebra"').map((r) => r.docPath), ['a.md']);
+    });
+    test(
+      'nfr-p02: a doc put again with an edit finds the new text, not the old',
+      () async {
+        final store = IndexStore.open(await root());
+        addTearDown(store.close);
+        store.write(() {
+          store
+            ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n'))
+            ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nzebra herd\n'))
+            ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nllama trail\n'));
+        });
+        expect(store.search('"crossing"'), isEmpty);
+        expect(store.search('"llama"').map((r) => r.docPath), ['a.md']);
+        expect(store.search('"zebra"').map((r) => r.docPath), ['b.md']);
+      },
+    );
   });
 }
