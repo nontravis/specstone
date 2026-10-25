@@ -301,6 +301,24 @@ void main() {
       expect(store.search('"zebra"').map((r) => r.docPath), ['a.md']);
     });
     test(
+      'nfr-p02: a freed doc id is reused without the old search rows',
+      () async {
+        final store = IndexStore.open(await root());
+        addTearDown(store.close);
+        store.write(() {
+          store
+            ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n'))
+            ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nllama trail\n'))
+            ..deleteDoc('b.md')
+            ..putDoc(parsed('c.md', '# Gamma\n\n## Notes\nheron marsh\n'));
+        });
+        expect(store.search('"llama"'), isEmpty);
+        expect(store.search('"beta"'), isEmpty);
+        expect(store.search('"heron"').map((r) => r.docPath), ['c.md']);
+        expect(store.search('"zebra"').map((r) => r.docPath), ['a.md']);
+      },
+    );
+    test(
       'nfr-p02: a doc put again with an edit finds the new text, not the old',
       () async {
         final store = IndexStore.open(await root());
