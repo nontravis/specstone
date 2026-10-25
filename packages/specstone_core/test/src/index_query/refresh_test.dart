@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -52,6 +53,28 @@ void main() {
   IndexedDoc docAt(IndexStore s, String p) =>
       s.loadDocs().firstWhere((d) => d.docPath == p);
 
+  /// Sets the mtime of every file under the docs root of [project] an hour
+  /// back, outside the racy window of every later refresh.
+  void backdate(Directory project) {
+    final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+    for (final f in Directory(
+      '${project.path}/docs',
+    ).listSync(recursive: true).whereType<File>()) {
+      f.setLastModifiedSync(anHourAgo);
+    }
+  }
+
+  /// Returns a check that tells whether a write landed on the index of
+  /// [project] after this call.
+  bool Function() watchWrites(Directory project) {
+    final raw = sqlite3.open('${project.path}/$indexFilePath');
+    addTearDown(raw.close);
+    int dataVersion() =>
+        raw.select('PRAGMA data_version').single.columnAt(0) as int;
+    final before = dataVersion();
+    return () => dataVersion() != before;
+  }
+
   group('refreshIndex', () {
     test('f01/us01/fr02, f01/us01/fr02/e01, s03/inv1: a first refresh builds one entry per .md file', () async {
       final (:result, :store) = refresh(await writeLoginProject());
@@ -81,6 +104,106 @@ void main() {
         expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
       },
     );
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a warm refresh with no change hashes no file and writes nothing', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      expect(refresh(project).result.hashed, 25);
+      final written = watchWrites(project);
+      final (:result, :store) = refresh(project);
+      expect(result.hashed, 0);
+      expect(result.reindexed, 0);
+      expect(written(), isFalse);
+      expect(paths(store), hasLength(25));
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: an edit that keeps the size and the mtime is seen inside the racy window', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final feature = File('${project.path}/$featureKey')
+        // An mtime later than the refresh's start keeps the file inside the
+        // racy window however slow the run.
+        ..setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+      refresh(project);
+      final before = feature.statSync();
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
+        )
+        ..setLastModifiedSync(before.modified);
+      final after = feature.statSync();
+      expect(
+        (after.size, after.modified, after.mode),
+        (before.size, before.modified, before.mode),
+      );
+      final (:result, :store) = refresh(project);
+      expect(result.reindexed, 1);
+      expect(docAt(store, featureDoc).title, 'Logon');
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: an edit that changes the size or the mtime is seen', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      final feature = File('${project.path}/$featureKey');
+      final mtime = feature.statSync().modified;
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Login v2\n'),
+        )
+        ..setLastModifiedSync(mtime);
+      expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
+      final size = feature.lengthSync();
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst(
+            '# Login v2\n',
+            '# Login v3\n',
+          ),
+        )
+        ..setLastModifiedSync(mtime.subtract(const Duration(minutes: 1)));
+      expect(feature.lengthSync(), size);
+      expect(docAt(refresh(project).store, featureDoc).title, 'Login v3');
+    });
+    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a touched file is not reindexed, and its new stat is stored so the next call hashes no file', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      final feature = File('${project.path}/$featureKey');
+      feature.setLastModifiedSync(
+        feature.statSync().modified.add(const Duration(minutes: 1)),
+      );
+      final written = watchWrites(project);
+      final touched = refresh(project).result;
+      expect(touched.hashed, 1);
+      expect(touched.reindexed, 0);
+      expect(written(), isTrue);
+      expect(refresh(project).result.hashed, 0);
+    });
+    test(
+      'f01/us01/fr02, f01/us01/fr02/e08, s03/inv1: a chmod that makes a trusted file unreadable warns and drops it',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        refresh(project);
+        final readme = File('${project.path}/docs/README.md');
+        Process.runSync('chmod', ['000', readme.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', readme.path]));
+        final (:result, :store) = refresh(project);
+        expect(result.warnings, ['README.md: cannot be read; skipped']);
+        expect(paths(store), hasLength(24));
+        expect(paths(store), isNot(contains('README.md')));
+      },
+    );
+    test('f01/us01/fr02, f01/us01/fr02/e02, s03/inv2: an index written under an older layout is rebuilt with no fault', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute('ALTER TABLE docs DROP COLUMN content_hash')
+        ..userVersion = 0
+        ..close();
+      final (:result, :store) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      expect(paths(store), hasLength(25));
+    });
     test('f01/us01/fr05/e01, s03/inv23: a call that waited for the lock finds the stamp current and does not rebuild', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -104,6 +227,28 @@ void main() {
         sleep(const Duration(milliseconds: 1500));
       });
       expect(await peer, isFalse);
+    });
+    test('f01/us01/fr05/e01, s03/inv1: a call that waited for the lock reads again each file the index no longer vouches for', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      refresh(project);
+      File('${project.path}/docs/NEW.md').writeAsStringSync('# New\n');
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final holder = IndexStore.open(docs.projectRoot);
+      addTearDown(holder.close);
+      late final Future<bool> peer;
+      holder.write(() {
+        holder.reset(IndexStamp.of(docs.set));
+        // The peer trusts the old stat keys of 25 files, then waits.
+        peer = _startPeer(project.path);
+        sleep(const Duration(milliseconds: 1500));
+      });
+      expect(await peer, isFalse);
+      expect(paths(holder), hasLength(26));
     });
     test('f01/us01/fr02/e02, s03/inv2: an edit under .specstone/templates/ rebuilds the whole index', () async {
       final project = await writeLoginProject(

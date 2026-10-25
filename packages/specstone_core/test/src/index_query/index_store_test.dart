@@ -244,6 +244,37 @@ void main() {
       expect(IndexStamp.of(setWith('Another feature')), isNot(stamp));
       expect(stamp.binaryVersion, specstoneVersion);
     });
+    test('f01/us01/fr02/e02, s03/inv2: an index whose user_version is not this layout has no stamp', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      expect(store.readStamp(), stamp);
+      sqlite3.open(file(r, indexFilePath).path)
+        ..userVersion = 0
+        ..close();
+      expect(store.readStamp(), isNull);
+    });
+    test("f01/us01/fr02, s03/inv1: a doc's stat key and checked_at read back as stored; reset clears them", () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      const key = (size: 4, modified: 1700000000123456, mode: 33188);
+      store.write(() {
+        store
+          ..reset(stamp)
+          ..putDoc(parsed('README.md', '# R\n'))
+          ..putDoc(parsed('NOTES.md', '# N\n'))
+          ..setStatKey('README.md', key)
+          ..setCheckedAt(1700000005000000);
+      });
+      expect(store.statKeys(), {'README.md': key, 'NOTES.md': null});
+      expect(store.readCheckedAt(), 1700000005000000);
+      store.write(() => store.reset(stamp));
+      expect(store.statKeys(), isEmpty);
+      expect(store.readCheckedAt(), isNull);
+    });
     test('s03/inv21, F1-D22: the FTS5 trigram table finds a Thai substring and a word part', () async {
       final store = IndexStore.open(await root());
       addTearDown(store.close);
