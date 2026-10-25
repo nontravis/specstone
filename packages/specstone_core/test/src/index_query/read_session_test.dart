@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -352,6 +353,110 @@ void main() {
           'prds/features/f03_broken/FEATURE.md: frontmatter is not valid YAML; its values are not indexed',
         ]),
       );
+    });
+  });
+
+  group('ReadSession.run', () {
+    T runSession<T>(Directory p, T Function(ReadSession s) answer) =>
+        ReadSession.run(
+          answer,
+          templates: TemplateResolver(),
+          workingDirectory: p,
+          homeDirectory: null,
+        );
+    SqliteException sqliteError(int code) =>
+        SqliteException(extendedResultCode: code, message: 'test error');
+    Matcher closed() => everyElement(
+      isA<ReadSession>().having(
+        (s) =>
+            () => s.store.readStamp(),
+        'store read',
+        throwsStateError,
+      ),
+    );
+    // Zeroes the root page of each table only an answer reads, so the session
+    // opens and refreshes, and the answer's first read of them fails.
+    void loseAnswerPages(Directory p) {
+      final index = inProject(p, indexFilePath);
+      final db = sqlite3.open(index.path);
+      final pageSize = db.select('PRAGMA page_size').single.columnAt(0) as int;
+      final roots = [
+        for (final row in db.select(
+          'SELECT rootpage FROM sqlite_master '
+          "WHERE name IN ('sections', 'links', 'doc_search_content')",
+        ))
+          row.columnAt(0) as int,
+      ];
+      db.close();
+      final bytes = index.readAsBytesSync();
+      for (final root in roots) {
+        bytes.fillRange((root - 1) * pageSize, root * pageSize, 0);
+      }
+      index.writeAsBytesSync(bytes);
+    }
+
+    test('f01/us01/fr05/e03, s03/inv23: a page lost where only the answer reads rebuilds the index and answers as an intact index does, with the warning', () async {
+      final project = await writeLoginProject();
+      final expected = runSession(project, answers);
+      loseAnswerPages(project);
+      final sessions = <ReadSession>[];
+      final answered = runSession(project, (s) {
+        sessions.add(s);
+        return answers(s);
+      });
+      expect(answered, expected);
+      expect(sessions, hasLength(2));
+      expect(sessions.last.warnings.first, damagedIndexWarning);
+      expect(sessions, closed());
+    });
+    test('f01/us01/fr05/e03: a second damage error while answering is index_not_writable, exit 73, and closes both sessions', () async {
+      final project = await writeLoginProject();
+      final sessions = <ReadSession>[];
+      expect(
+        () => runSession<void>(project, (s) {
+          sessions.add(s);
+          throw sqliteError(SqlError.SQLITE_CORRUPT);
+        }),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.indexNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+      expect(sessions, hasLength(2));
+      expect(sessions.last.warnings.first, damagedIndexWarning);
+      expect(sessions, closed());
+    });
+    test('f01/us01/fr05/e05: another database error while answering is its own fault, with no rebuild', () async {
+      final project = await writeLoginProject();
+      final sessions = <ReadSession>[];
+      expect(
+        () => runSession<void>(project, (s) {
+          sessions.add(s);
+          throw sqliteError(SqlError.SQLITE_BUSY);
+        }),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
+              .having((f) => f.exitStatus, 'exit', 75),
+        ),
+      );
+      expect(sessions, hasLength(1));
+      expect(sessions, closed());
+    });
+    test('f01/us01/fr05: a fault from the answer passes unchanged and closes the session', () async {
+      final project = await writeLoginProject();
+      final fault = IndexFault(IndexFaultCode.sectionNotFound, 'no section');
+      final sessions = <ReadSession>[];
+      expect(
+        () => runSession<void>(project, (s) {
+          sessions.add(s);
+          throw fault;
+        }),
+        throwsA(same(fault)),
+      );
+      expect(sessions, hasLength(1));
+      expect(sessions, closed());
     });
   });
 }

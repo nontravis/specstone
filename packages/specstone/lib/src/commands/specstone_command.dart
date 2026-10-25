@@ -60,42 +60,37 @@ abstract class SpecstoneCommand extends Command<int> {
   /// array of the session's warnings then the answer's, on `out`. Else it
   /// warns on `err` and writes [ReadAnswer.text] on `out`. A
   /// [SpecstoneFault] from opening the session or from [answer] goes to
-  /// [fail] with the warnings collected so far. The session closes once.
+  /// [fail] with the warnings collected so far. [ReadSession.run] closes each
+  /// session once and rebuilds an index [answer] finds damaged.
   Future<int> runRead(
     ReadAnswer Function(ReadSession session) answer, {
     required bool asJson,
   }) async {
     final runner = specstoneRunner;
-    final ReadSession session;
+    var sessionWarnings = const <String>[];
+    final ReadAnswer read;
     try {
-      session = ReadSession.open(
+      read = ReadSession.run(
+        (session) {
+          sessionWarnings = session.warnings;
+          return answer(session);
+        },
         templates: runner.templates,
         workingDirectory: runner.workingDirectory,
         homeDirectory: runner.homeDirectory,
         busyTimeout: runner.busyTimeout,
       );
     } on SpecstoneFault catch (fault) {
-      return fail(fault, asJson: asJson);
+      return fail(fault, asJson: asJson, warnings: sessionWarnings);
     }
-
-    try {
-      final ReadAnswer read;
-      try {
-        read = answer(session);
-      } on SpecstoneFault catch (fault) {
-        return fail(fault, asJson: asJson, warnings: session.warnings);
-      }
-      final warnings = [...session.warnings, ...read.warnings];
-      if (asJson) {
-        final printed = {...read.json, 'warnings': warnings};
-        runner.out.write('${SpecstoneCommand.pretty.convert(printed)}\n');
-      } else {
-        warn(warnings);
-        runner.out.write(read.text);
-      }
-      return read.exitStatus;
-    } finally {
-      session.close();
+    final warnings = [...sessionWarnings, ...read.warnings];
+    if (asJson) {
+      final printed = {...read.json, 'warnings': warnings};
+      runner.out.write('${SpecstoneCommand.pretty.convert(printed)}\n');
+    } else {
+      warn(warnings);
+      runner.out.write(read.text);
     }
+    return read.exitStatus;
   }
 }

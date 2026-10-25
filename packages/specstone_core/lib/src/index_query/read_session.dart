@@ -13,7 +13,8 @@ import 'package:sqlite3/sqlite3.dart';
 /// One command's view of a project: the project, a refreshed index, and one
 /// read snapshot of it.
 ///
-/// Call [close] when done; it ends the snapshot and closes the index.
+/// [run] opens a session, answers from it, and closes it. A session from
+/// [open] needs [close], which ends the snapshot and closes the index.
 final class ReadSession {
   new _({
     required this.project,
@@ -51,6 +52,42 @@ final class ReadSession {
       if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
     }
     // A page the first read hit is lost: discard the index and read once more.
+    return _rebuilt(project, busyTimeout);
+  }
+
+  /// Opens a session as [open] does, returns what [answer] computes from it,
+  /// and closes it.
+  ///
+  /// A damage error from [answer] closes the session, rebuilds the index as
+  /// [open] does, and computes [answer] once more from the new session. A
+  /// second damage error, or any other database error, is an [IndexFault].
+  static T run<T>(
+    T Function(ReadSession session) answer, {
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    Duration busyTimeout = indexBusyTimeout,
+  }) {
+    final session = open(
+      templates: templates,
+      workingDirectory: workingDirectory,
+      homeDirectory: homeDirectory,
+      busyTimeout: busyTimeout,
+    );
+    try {
+      return _answer(session, answer);
+    } on SqliteException catch (e) {
+      if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
+    }
+    // A page only the answer reads is lost: discard the index and answer again.
+    try {
+      return _answer(_rebuilt(session.project, busyTimeout), answer);
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    }
+  }
+
+  static ReadSession _rebuilt(DocsProject project, Duration busyTimeout) {
     try {
       return _read(
         project,
@@ -58,6 +95,17 @@ final class ReadSession {
       );
     } on SqliteException catch (e) {
       throw IndexStore.faultOf(e);
+    }
+  }
+
+  static T _answer<T>(
+    ReadSession session,
+    T Function(ReadSession session) answer,
+  ) {
+    try {
+      return answer(session);
+    } finally {
+      session.close();
     }
   }
 
