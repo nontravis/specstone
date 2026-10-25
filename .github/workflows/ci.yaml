@@ -53,7 +53,10 @@ jobs:
         run: dart run coverage:test_with_coverage --fail-under=80
       - name: Test specstone with coverage
         working-directory: packages/specstone
-        run: dart test --coverage-path=coverage/lcov.info
+        run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing
+      - name: Timing gate (NFR-P01, NFR-P02)
+        working-directory: packages/specstone
+        run: dart test --tags timing
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.os }}
