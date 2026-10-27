@@ -163,6 +163,7 @@ void main() {
         'traced_from',
         'verify_method',
         'owner',
+        'confirmed',
         'implements',
       ]);
       final implements = fields.last! as Map<String, Object?>;

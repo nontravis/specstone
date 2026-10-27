@@ -260,6 +260,9 @@ void expectSpecLint(MergedDocType docType) {
   expect(docType.lint.maxChars, isNull, reason: id);
   expect(docType.lint.bannedWords, isNull, reason: id);
   expect(docType.lint.allowedWords, isNull, reason: id);
+  for (final section in docType.sections) {
+    expect(section.bannedWords, isNull, reason: '$id.${section.id}');
+  }
   final reference = docType.reference;
   expect(reference, isNotNull, reason: id);
   final expected = softwareTechSources[id]!;

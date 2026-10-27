@@ -40,6 +40,7 @@ void main() {
         enumValues: ['test', 'analysis', 'inspection', 'demonstration'],
       ),
       FieldSpec('owner', FieldType.string),
+      FieldSpec('confirmed', FieldType.string, list: true),
     ]);
     expectStatusValues(nf, ['planned', 'implemented', 'deprecated']);
     expectSections(nf, const [
@@ -56,9 +57,9 @@ void main() {
     expect(nf.description, allOf(contains('-ly'), contains('-ize')));
   });
 
-  test('f03/us06/s4, f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words at '
-      'doc level and the NASA handbook', () {
-    expectNasaLint(nf);
+  test('f03/us06/s4, f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on '
+      'the Statement section only, and the NASA handbook', () {
+    expectNasaLint(nf, sections: ['statement']);
   });
 
   test('f03/us06/fr02: the templates hold the requirement forms, free of the '

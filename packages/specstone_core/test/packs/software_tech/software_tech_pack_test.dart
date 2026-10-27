@@ -15,7 +15,7 @@ import '../../helpers/temp_tree.dart';
 void main() {
   group('software-tech manifest', () {
     test(
-      'f03/us07/fr01: software-tech ships at 1.1.0 and extends prd-core',
+      'f03/us07/fr01: software-tech ships at 1.2.0 and extends prd-core',
       () {
         final bytes = shippedPackFiles['software-tech/pack.yaml'];
         expect(bytes, isNotNull);
@@ -24,7 +24,7 @@ void main() {
           file: 'packs/software-tech/pack.yaml',
         );
         expect(manifest.name, 'software-tech');
-        expect(manifest.version.toString(), '1.1.0');
+        expect(manifest.version.toString(), '1.2.0');
         expect(manifest.extendsPack, 'prd-core');
       },
     );
@@ -133,9 +133,13 @@ void main() {
     });
 
     test('f03/us07/fr03, f03/us07/fr03/e01: no spec doc type carries a word '
-        'list', () {
+        'list at either level', () {
       for (final id in softwareTechIds) {
-        expect(prdCoreDocType(set, id).lint.bannedWords, isNull, reason: id);
+        final docType = prdCoreDocType(set, id);
+        expect(docType.lint.bannedWords, isNull, reason: id);
+        for (final section in docType.sections) {
+          expect(section.bannedWords, isNull, reason: '$id.${section.id}');
+        }
       }
     });
 
