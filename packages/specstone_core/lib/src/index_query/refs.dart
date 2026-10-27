@@ -141,3 +141,33 @@ Iterable<IndexedDoc> _carrying(
 String _groupLines(List<_Ref> refs) => refs.isEmpty
     ? '- none\n'
     : '${[for (final ref in refs) ref.text].join('\n')}\n';
+
+/// Returns the docs that refer to [doc]: first those whose `doc_ref` value
+/// reaches it, then those linking to it, each once and in tree order.
+///
+/// These are the inbound references `answerRefs` prints for [doc].
+List<IndexedDoc> referrersOf(DocIndex index, IndexedDoc doc) {
+  final byValue = [
+    for (final from in index.docs)
+      if (_refersTo(index, from, doc)) from,
+  ];
+  final seen = {for (final from in byValue) from.docPath};
+  return [
+    ...byValue,
+    for (final from in index.linkingTo(doc))
+      if (seen.add(from.docPath)) from,
+  ];
+}
+
+/// Whether a `doc_ref` value of [from] reaches [doc].
+bool _refersTo(DocIndex index, IndexedDoc from, IndexedDoc doc) {
+  for (final field in _docRefFields(index, from)) {
+    for (final value in from.valuesOf(field.id)) {
+      if (value != doc.name) continue;
+      if (_carrying(index, field, value).any((t) => t.docPath == doc.docPath)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
