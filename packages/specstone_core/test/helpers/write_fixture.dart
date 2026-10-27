@@ -5,9 +5,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/get_docs.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
+import 'index_fixture.dart';
 import 'temp_tree.dart';
 
 /// A `docs/`-relative path of a document in [writeProject].
@@ -114,4 +118,29 @@ void writeJournal(Directory root, List<JournalStep> steps) {
   final file = File('${root.path}/${MoveJournal.journalPath}');
   file.parent.createSync(recursive: true);
   file.writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+}
+
+/// Runs [body] in a [WriteSession] on [root] with the shipped packs.
+T writeIn<T>(
+  Directory root,
+  T Function(WriteSession session) body, {
+  Duration busyTimeout = indexBusyTimeout,
+}) => WriteSession.run(
+  body,
+  templates: TemplateResolver(),
+  workingDirectory: root,
+  homeDirectory: null,
+  busyTimeout: busyTimeout,
+);
+
+/// Returns the first doc object `get` prints for [address], as an Agent reads
+/// a base.
+Map<String, Object?> getDoc(Directory root, String address) {
+  final session = openSession(root);
+  try {
+    final docs = answerGet(session.index, address).json['docs']! as List;
+    return docs.first as Map<String, Object?>;
+  } finally {
+    session.close();
+  }
 }
