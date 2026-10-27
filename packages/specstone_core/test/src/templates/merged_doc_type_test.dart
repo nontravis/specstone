@@ -20,6 +20,8 @@ fields:
     description: Lifecycle of the feature.
   - id: draft
     description: Content the Owner has not approved.
+  - id: approved
+    description: The Owner approved the doc at least once; written only by approve.
   - id: reference
     description: Reference docs the doc cites.
 sections:
@@ -99,6 +101,12 @@ final s02FeatureJson = <String, Object>{
       'id': 'draft',
       'type': 'boolean',
       'description': 'Content the Owner has not approved.',
+    },
+    {
+      'id': 'approved',
+      'type': 'boolean',
+      'description':
+          'The Owner approved the doc at least once; written only by approve.',
     },
     {
       'id': 'reference',

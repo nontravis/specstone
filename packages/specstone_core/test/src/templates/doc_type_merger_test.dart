@@ -82,20 +82,33 @@ List<String> ids(Iterable<Object> entries) => [
 void main() {
   group('DocTypeMerger.builtInBase', () {
     test('f03/us02/fr04, f03/us02/fr04/e07, f03/us03/fr01/e15, s03/inv12, s03/inv20: a doc type with '
-        'no fields still holds the four built-ins in order', () {
+        'no fields still holds the five built-ins in order', () {
       final merged = merger.apply(
         merger.builtInBase('runbook'),
         layer('description: Runbook\n', docTypeId: 'runbook'),
       );
 
-      expect(ids(merged.fields), ['slug', 'status', 'draft', 'reference']);
+      expect(ids(merged.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+      ]);
       expect(merged.fields.map((f) => f.type), [
         FieldType.string,
         FieldType.enumType,
         FieldType.boolean,
+        FieldType.boolean,
         FieldType.docRef,
       ]);
-      expect(merged.fields.map((f) => f.list), [true, false, false, true]);
+      expect(merged.fields.map((f) => f.list), [
+        true,
+        false,
+        false,
+        false,
+        true,
+      ]);
       expect(merged.fields[1].enumValues, [
         'planned',
         'implemented',
@@ -203,6 +216,7 @@ void main() {
         'slug',
         'status',
         'draft',
+        'approved',
         'reference',
         'owner',
         'size',
@@ -364,7 +378,7 @@ sections:
       expect(merged.path, 'docs/prds/{slug}/FEATURE.md');
     });
 
-    for (final id in ['slug', 'status', 'draft', 'reference']) {
+    for (final id in ['slug', 'status', 'draft', 'approved', 'reference']) {
       test(
         'f03/us02/s9, f03/us02/fr04/e01, s03/inv1, s03/inv20: disabling the built-in $id is '
         'locked_field_disabled',

@@ -913,6 +913,7 @@ sections:
         'slug',
         'status',
         'draft',
+        'approved',
         'reference',
       ]);
       expect(runbook.sections.single.id, 'steps');

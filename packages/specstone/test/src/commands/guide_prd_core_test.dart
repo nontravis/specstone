@@ -126,6 +126,7 @@ void main() {
         'slug',
         'status',
         'draft',
+        'approved',
         'reference',
         'traced_from',
         'verify_method',

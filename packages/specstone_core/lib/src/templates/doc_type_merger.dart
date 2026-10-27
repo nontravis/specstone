@@ -3,7 +3,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-/// The four fields every doc type carries below its lowest layer (INV-20).
+/// The five fields every doc type carries below its lowest layer (INV-20).
 const _builtInFields = <MergedField>[
   MergedField(id: 'slug', type: FieldType.string, list: true),
   MergedField(
@@ -12,6 +12,7 @@ const _builtInFields = <MergedField>[
     enumValues: ['planned', 'implemented', 'deprecated'],
   ),
   MergedField(id: 'draft', type: FieldType.boolean),
+  MergedField(id: 'approved', type: FieldType.boolean),
   MergedField(id: 'reference', type: FieldType.docRef, list: true),
 ];
 
