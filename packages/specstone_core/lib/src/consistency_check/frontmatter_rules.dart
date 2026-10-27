@@ -27,6 +27,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
     );
     return;
   }
+  // A null value counts as absent for the required and value rules only.
   final values = {
     for (final MapEntry(:key, :value) in doc.frontmatter.entries) key: ?value,
   };
@@ -42,7 +43,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
       );
     }
   }
-  for (final MapEntry(:key, :value) in values.entries) {
+  for (final MapEntry(:key, :value) in doc.frontmatter.entries) {
     final line = lines.keyLine(key) ?? 1;
     final field = fieldsById[key];
     if (key == _statusKey && doc.docTypeId == _featureType) {
@@ -51,7 +52,6 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         FindingKind.featureStatusWritten,
         line: line,
         message: 'a FEATURE takes its status from its stories; remove status',
-        keys: {'field': key},
       );
     } else if (field == null) {
       yield context.finding(
@@ -61,7 +61,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         message: '$key is not a field of the ${type.id} doc type',
         keys: {'field': key},
       );
-    } else if (!_fits(field, value)) {
+    } else if (value != null && !_fits(field, value)) {
       yield context.finding(
         doc,
         FindingKind.fieldValueMismatch,

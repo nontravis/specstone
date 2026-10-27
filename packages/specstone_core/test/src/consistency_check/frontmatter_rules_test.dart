@@ -93,6 +93,7 @@ void main() {
       ),
     );
     expect(spots(report), ['$loginFeature:6: feature_status_written']);
+    expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
   test('f04/us01/fr03/e07: invalid frontmatter is frontmatter_invalid only, and its warning is not printed', () async {
@@ -125,5 +126,14 @@ void main() {
       '$loginFr:1: required_field_missing',
       '$loginFr:1: required_field_missing',
     ]);
+  });
+
+  test('f04/us01/fr03/e04: an undeclared key with an empty value is still field_undeclared', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: fr('verify_method: test\n', 'verify_method: test\npriority:\n'),
+      ),
+    );
+    expect(spots(report), ['$loginFr:6: field_undeclared']);
   });
 }
