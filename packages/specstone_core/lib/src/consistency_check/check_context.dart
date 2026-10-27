@@ -21,6 +21,7 @@ final class CheckContext {
   final Map<String, String?> _codeTexts = {};
   final List<String> _codeWarnings = [];
   final Set<String> _stated = {};
+  final Map<String, Map<String, String>> _scenarioBlocks = {};
 
   /// The index of the session's snapshot.
   DocIndex get index => _session.index;
@@ -120,6 +121,63 @@ final class CheckContext {
   bool hasNoParent(IndexedDoc doc) =>
       typeOf(doc)?.parent != null && doc.parentPath == null;
 
+  /// Whether the merged set holds a `gnfr` doc type.
+  bool get hasGnfr =>
+      _session.project.set.docTypes.any((type) => type.id == _gnfrType);
+
+  /// Returns the `### Scenario <N>` blocks of [story], keyed `S<N>`.
+  ///
+  /// Reads the `acceptance_criteria` section. A block runs from its heading
+  /// line to the next `###` line or the section end. The first block of a
+  /// repeated number wins.
+  Map<String, String> scenarioBlocksOf(IndexedDoc story) =>
+      _scenarioBlocks.putIfAbsent(story.docPath, () {
+        final section = heldSection(story, _acceptanceSection);
+        if (section == null) return const {};
+        return {
+          for (final (:key, :text) in _blocksOf(
+            section.body,
+            _scenarioHeading,
+            (match) => 'S${match.group(1)}',
+          ))
+            key: text,
+        };
+      });
+
+  /// Maps each NFR id of the `gnfr` docs to its DocPath and Statement line.
+  ///
+  /// The text is empty when the block has no `- **Statement:**` line.
+  late final Map<String, ({String path, String text})> _nfrStatements =
+      _readNfrStatements();
+
+  /// Returns the NFR ids of the `gnfr` docs with their Statement lines.
+  Map<String, ({String path, String text})> nfrStatements() => _nfrStatements;
+
+  Map<String, ({String path, String text})> _readNfrStatements() {
+    final statements = <String, ({String path, String text})>{};
+    for (final doc in index.docs) {
+      if (doc.docTypeId != _gnfrType) continue;
+      for (final section in contentOf(doc).sections) {
+        for (final (:key, :text) in _blocksOf(
+          section.body,
+          _nfrHeading,
+          (match) => match.group(1)!,
+        )) {
+          final line = text
+              .split('\n')
+              .map((line) => line.trim())
+              .where((line) => line.startsWith(_statementPrefix))
+              .firstOrNull;
+          statements.putIfAbsent(
+            key,
+            () => (path: doc.docPath, text: line ?? ''),
+          );
+        }
+      }
+    }
+    return statements;
+  }
+
   /// Every warning of the session, in session order.
   List<String> get sessionWarnings => _session.warnings;
 
@@ -136,3 +194,37 @@ final class CheckContext {
 
 String _headerText(IndexedSection section) =>
     section.headerLine.trimLeft().substring(2).trim();
+
+const _gnfrType = 'gnfr';
+const _acceptanceSection = 'acceptance_criteria';
+const _statementPrefix = '- **Statement:**';
+final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
+final _nfrHeading = RegExp(r'^### (\S+) — ');
+final _subHeading = RegExp('^###(?!#)');
+
+/// Splits [body] into the `###` blocks whose heading matches [heading].
+///
+/// A block runs from its heading line to the next `###` line, trailing blank
+/// lines dropped. [keyOf] names a block from its heading match.
+List<({String key, String text})> _blocksOf(
+  String body,
+  RegExp heading,
+  String Function(Match heading) keyOf,
+) {
+  final blocks = <({String key, String text})>[];
+  String? key;
+  var lines = <String>[];
+  for (final line in '$body\n###'.split('\n')) {
+    if (!_subHeading.hasMatch(line)) {
+      lines.add(line);
+      continue;
+    }
+    if (key case final closed?) {
+      blocks.add((key: closed, text: lines.join('\n').trimRight()));
+    }
+    final match = heading.firstMatch(line);
+    key = match == null ? null : keyOf(match);
+    lines = [line];
+  }
+  return blocks;
+}
