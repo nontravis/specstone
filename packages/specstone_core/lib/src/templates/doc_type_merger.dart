@@ -222,21 +222,6 @@ final class DocTypeMerger {
     );
   }
 
-  List<String>? _mergeSectionWords(
-    List<String>? base,
-    ListWrite<String>? write,
-    DocTypeLayer layer,
-    String sectionId,
-    String name,
-  ) => _mergeList<String>(
-    base,
-    write,
-    layer,
-    key: 'sections.$sectionId.lint.$name',
-    nameOf: (word) => word,
-    notFound: FaultCode.lintWordNotFound,
-  );
-
   List<MergedSection> _mergeSections(
     List<MergedSection> base,
     DocTypeLayer layer,
@@ -325,6 +310,21 @@ final class DocTypeMerger {
     }
     return sections;
   }
+
+  List<String>? _mergeSectionWords(
+    List<String>? base,
+    ListWrite<String>? write,
+    DocTypeLayer layer,
+    String sectionId,
+    String name,
+  ) => _mergeList<String>(
+    base,
+    write,
+    layer,
+    key: 'sections.$sectionId.lint.$name',
+    nameOf: (word) => word,
+    notFound: FaultCode.lintWordNotFound,
+  );
 
   /// Returns the index right after the section [entry] names, else the end.
   ///

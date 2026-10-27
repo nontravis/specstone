@@ -167,13 +167,15 @@ final class SectionLint {
   /// The section's line ceiling, when written.
   final int? maxLines;
 
-  /// The section's banned words, when written.
+  /// The section's own banned words, merged for this section; the doc-level
+  /// list applies on top of it.
   final ListWrite<String>? bannedWords;
 
-  /// The section's allowed words, when written.
+  /// The section's own allowed words, merged for this section; the doc-level
+  /// list applies on top of it.
   final ListWrite<String>? allowedWords;
 
-  /// The prefix every body line of the section starts with, when written.
+  /// Limits the section's own banned words to its lines that start with it.
   final String? linePrefix;
 }
 

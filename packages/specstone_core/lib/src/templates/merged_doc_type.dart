@@ -124,13 +124,21 @@ final class MergedSection {
   /// The section's own line ceiling, replacing the doc-level value.
   final int? maxLines;
 
-  /// The section's own banned words; null when no layer sets them.
+  /// The section's own banned words, merged for this section; the doc-level
+  /// list applies on top of it.
+  ///
+  /// Null when no layer sets them.
   final List<String>? bannedWords;
 
-  /// The section's own allowed words; null when no layer sets them.
+  /// The section's own allowed words, merged for this section; the doc-level
+  /// list applies on top of it.
+  ///
+  /// Null when no layer sets them.
   final List<String>? allowedWords;
 
-  /// The prefix each body line starts with; null when no layer sets it.
+  /// Limits the section's own banned words to its lines that start with it.
+  ///
+  /// Null when no layer sets it.
   final String? linePrefix;
 
   /// Whether the section is a query section; null when no layer sets it.
