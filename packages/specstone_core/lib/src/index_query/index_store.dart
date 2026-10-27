@@ -18,7 +18,7 @@ const indexBusyTimeout = Duration(seconds: 10);
 const damagedIndexWarning =
     'the index was damaged and was rebuilt from the markdown files';
 
-const _gitignoreLines = ['index.sqlite*', 'build/'];
+const _gitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
 
 const _busyMessage =
     'the index is busy; run the command again once the other call finishes';
@@ -521,7 +521,7 @@ Database _connect(File file, Duration busyTimeout) {
   // Before sqlite3.open creates the file, so a refused write leaves no
   // unignored index behind.
   if (!file.existsSync() || file.lengthSync() == 0) {
-    _ensureGitignore(file.parent);
+    ensureSpecstoneGitignore(file.parent);
   }
   final db = sqlite3.open(file.path);
   try {
@@ -541,7 +541,7 @@ void _createUnderLock(Database db, Directory folder) {
   try {
     final names = _tableNames(db);
     if (names.isEmpty) {
-      _ensureGitignore(folder);
+      ensureSpecstoneGitignore(folder);
       db.execute(_schema);
     } else if (!names.contains('meta')) {
       throw const _NotAnIndex();
@@ -578,11 +578,12 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
   _ => null,
 };
 
-/// Adds each missing line of [_gitignoreLines] to `.gitignore` in [folder].
+/// Adds each missing line of `index.sqlite*`, `build/`, and `trash/` to
+/// `.gitignore` in [folder].
 ///
 /// Throws [FileSystemException] when a line is missing and the file is
 /// read-only: a rename would replace it whatever its mode.
-void _ensureGitignore(Directory folder) {
+void ensureSpecstoneGitignore(Directory folder) {
   final target = File.fromUri(folder.uri.resolve('.gitignore'));
   final text = target.existsSync() ? target.readAsStringSync() : '';
   final present = const LineSplitter().convert(text).toSet();
