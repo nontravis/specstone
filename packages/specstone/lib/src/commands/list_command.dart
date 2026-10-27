@@ -24,6 +24,11 @@ class ListCommand extends SpecstoneCommand {
         negatable: false,
         help: 'Keep docs with no implements entry.',
       )
+      ..addFlag(
+        'suspect',
+        negatable: false,
+        help: 'Keep docs with a suspect link.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 
@@ -36,7 +41,7 @@ class ListCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone list <type> [--status <value>] [--draft] [--under <name>] '
-      '[--cites <id>] [--slug <alias>] [--no-implements] [--json]';
+      '[--cites <id>] [--slug <alias>] [--no-implements] [--suspect] [--json]';
 
   @override
   Future<int> run() async {
@@ -61,7 +66,9 @@ class ListCommand extends SpecstoneCommand {
       noImplements: args.flag('no-implements'),
     );
     return runRead(
-      (session) => answerList(session.index, rest.first, filters),
+      (session) => args.flag('suspect')
+          ? answerListSuspect(session, rest.first, filters)
+          : answerList(session.index, rest.first, filters),
       asJson: asJson,
     );
   }
