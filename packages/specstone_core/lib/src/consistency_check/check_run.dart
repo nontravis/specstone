@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
+import 'package:specstone_core/src/consistency_check/link_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
@@ -25,7 +26,9 @@ CheckReport runCheck(ReadSession session, {String? target}) {
     if (!context.isChecked(doc)) continue;
     findings.addAll(checkTree(context, doc));
     if (!doc.isTyped) {
-      findings.addAll(checkDocType(context, doc));
+      findings
+        ..addAll(checkDocType(context, doc))
+        ..addAll(checkDocLinks(context, doc));
       continue;
     }
     findings
@@ -33,7 +36,8 @@ CheckReport runCheck(ReadSession session, {String? target}) {
       ..addAll(checkSections(context, doc))
       ..addAll(checkBannedWords(context, doc))
       ..addAll(checkImplements(context, doc))
-      ..addAll(checkCoversAndCodeRoots(context, doc));
+      ..addAll(checkCoversAndCodeRoots(context, doc))
+      ..addAll(checkDocLinks(context, doc));
   }
   if (target == null) findings.addAll(uncoveredCode(context));
   findings.addAll(unreadableFindings(context, inScope));
