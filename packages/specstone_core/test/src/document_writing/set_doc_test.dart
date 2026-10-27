@@ -988,7 +988,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'a title is one non-empty line',
+                'a title is one line; stdin held 0 lines',
               ),
         ),
       );
@@ -1007,7 +1007,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'a title is one non-empty line',
+                'a title is one line; stdin held 2 lines',
               ),
         ),
       );
@@ -1053,5 +1053,122 @@ void main() {
       ),
     );
     expect(readDoc(root, loginFeature), before);
+  });
+
+  test(
+    'PD5, f02/us01/fr01/e04: whitespace-only stdin counts as empty',
+    () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#acceptance_criteria';
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(target, sectionBase(root, target)), ' \n\t\n'),
+        ),
+        throwsA(
+          isA<WriteFault>().having(
+            (f) => f.code,
+            'code',
+            WriteFaultCode.requiredTarget,
+          ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    },
+  );
+  test('f02/us01/fr01/e06, PD11: a template section no later held section follows is added at the end', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#open_questions';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, emptyBaseHash), 'None yet.\n'),
+    );
+    expect(readDoc(root, story1), endsWith('## Open questions\nNone yet.\n'));
+  });
+  test(
+    'f02/us01/fr01/e07: empty stdin on an absent optional section adds nothing',
+    () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#rules';
+      final before = readDoc(root, story1);
+      writeIn(root, (s) => answerSet(s, req(target, emptyBaseHash), '\n'));
+      expect(readDoc(root, story1), before);
+    },
+  );
+  test('PD4, f02/us01/fr03/e11: a base from get on a duplicated field key writes the first block', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1':
+            '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\nvision:\n  - PV-09\npersona:\n  - buyer\n---\n\n'
+            '# Sign in with email\n\n## Use Case\nSign in with an email.\n\n'
+            '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n',
+      },
+    );
+    const target = 'user_story:login/email_login';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
+        '- PV-02\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      startsWith(
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-02\nvision:\n  - PV-09\npersona:\n  - buyer\n---\n',
+      ),
+    );
+  });
+  test('PD4, doc-model inv6: a quoted field key is its own field, and set treats it as undeclared', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$loginFeature': '---\nvision:\n  - PV-01\n"status": planned\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
+      },
+    );
+    const target = 'feature:login';
+    expect(fieldBase(root, target, 'status'), emptyBaseHash);
+    expect(
+      fieldBase(root, target, '"status"'),
+      baseHashOf('"status": planned\n'),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(target, '"status"', baseHashOf('"status": planned\n')),
+          'implemented\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldUnknown)
+            .having(
+              (f) => f.message,
+              'message',
+              'feature declares no field "status"',
+            ),
+      ),
+    );
+    expect(readDoc(root, loginFeature), contains('"status": planned\n'));
+  });
+  test('PD6: a multi-line value keeps its interior blank lines, each indented two spaces', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
+        '- PV-02\n\n- PV-03\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      contains('vision:\n  - PV-02\n\n  - PV-03\n'),
+    );
   });
 }

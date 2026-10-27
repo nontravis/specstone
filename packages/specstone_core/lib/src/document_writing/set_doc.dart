@@ -294,29 +294,32 @@ bool _itemIs(Object? value, MergedField field) => switch (field.type) {
 };
 
 /// Returns [stdin] as the key block text of [fieldId], per PD6.
+///
+/// A blank interior line stays blank; a trailing blank line is dropped.
 String _blockOf(String fieldId, String stdin) {
   final lines = stdin.split('\n');
   if (lines.length == 1 && !stdin.startsWith('- ')) {
     return '$fieldId: ${lines[0]}\n';
   }
   final buffer = StringBuffer('$fieldId:\n');
-  for (final line in lines.where((l) => l.isNotEmpty)) {
-    buffer.write('  $line\n');
+  final last = lines.last == '' ? lines.length - 1 : lines.length;
+  for (final line in lines.take(last)) {
+    buffer.write(line.isEmpty ? '\n' : '  $line\n');
   }
   return buffer.toString();
 }
 
 ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   final lf = toLf(stdin);
-  final stripped = lf.replaceFirst(_trailingBlankLines, '');
-  final lines = stripped.split('\n').where((l) => l.isNotEmpty).toList();
-  if (lines.length != 1 || lines.single.trim().isEmpty) {
+  final dropped = lf.endsWith('\n') ? lf.substring(0, lf.length - 1) : lf;
+  final count = dropped.isEmpty ? 0 : dropped.split('\n').length;
+  if (count != 1) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      'a title is one non-empty line',
+      'a title is one line; stdin held $count lines',
     );
   }
-  final title = lines.single.trim();
+  final title = dropped.trim();
 
   final doc = session.target(request.address);
   final docType =

@@ -192,4 +192,26 @@ void main() {
       baseHashOf('D-01 — Project context'),
     );
   });
+
+  test('f02/us01/s3, PD4: bases hash the first of two key blocks of one field; a quoted key is its own field', () async {
+    final dup = await indexWith({
+      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+          '---\nstatus: planned\nvision:\n  - PV-01\nstatus: implemented\n---\n\n'
+          '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+      'docs/prds/features/f01_login/FEATURE.md': '---\nvision:\n  - PV-01\n"status": planned\n---\n\n# Login\n\n## Problem\nUsers sign in.\n',
+    });
+    final story =
+        (answerGet(dup, 'user_story:login/email_login').json['docs']! as List)
+                .single
+            as Map;
+    expect(
+      ((story['bases']! as Map)['fields']! as Map)['status'],
+      baseHashOf('status: planned\n'),
+    );
+    final feature =
+        (answerGet(dup, 'feature:login').json['docs']! as List).single as Map;
+    final fields = (feature['bases']! as Map)['fields']! as Map;
+    expect(fields['status'], emptyBaseHash);
+    expect(fields['"status"'], baseHashOf('"status": planned\n'));
+  });
 }
