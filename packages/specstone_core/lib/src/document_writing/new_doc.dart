@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
@@ -16,6 +17,20 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
+/// Refuses [lfText] whose frontmatter holds an `approved` key of any value.
+///
+/// Only `specstone approve` writes the mark, so `new` never takes it from stdin.
+void _refuseApprovedMark(String lfText) {
+  final marked =
+      Doc.parse(lfText).frontmatter?.any((b) => b.key == 'approved') ?? false;
+  if (!marked) return;
+  throw WriteFault(
+    WriteFaultCode.fieldNotWritable,
+    'approved is written only by specstone approve',
+    key: 'approved',
+  );
+}
+
 /// Creates a doc of [docTypeId] from its template at its next sibling number.
 ///
 /// [parent] names a doc of the doc type's `parent:`, [slug] fills `{slug}`, and
@@ -26,7 +41,8 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// failed write removes the file and the folders this call created.
 /// Throws [TemplateFault] `doc_type_unknown`, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
-/// not take, [WriteFault] `doc_exists` when the doc is there, and [RenderFault]
+/// not take, [WriteFault] `doc_exists` when the doc is there and
+/// `field_not_writable` when [text] holds an `approved` key, and [RenderFault]
 /// `output_not_writable` when the disk refuses.
 ReadAnswer answerNew(
   WriteSession session, {
@@ -57,6 +73,7 @@ ReadAnswer answerNew(
       ? const <String>[]
       : _valuesOfParent(session, docType, parentDoc);
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
+  if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
   final lfText = text.isEmpty
       ? _skeleton(docType, title)
       : markDraft(toLf(text));

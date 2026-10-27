@@ -396,6 +396,39 @@ void main() {
     },
   );
 
+  test('final Minor 5: stdin holding an approved key refuses before any path is claimed', () async {
+    final root = await writeWriteProject();
+    for (final value in ['true', 'false']) {
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'sneaky',
+            text: '---\napproved: $value\n---\n\n# Mine\n',
+          ),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'approved is written only by specstone approve',
+              )
+              .having((f) => f.key, 'key', 'approved'),
+        ),
+      );
+    }
+    expect(
+      Directory('${root.path}/docs/prds/features/f01_login/us04_sneaky')
+          .existsSync(),
+      isFalse,
+    );
+  });
+
   test('f02/us02/fr02/e06: empty text gives the skeleton', () async {
     final root = await writeWriteProject();
     writeIn(
