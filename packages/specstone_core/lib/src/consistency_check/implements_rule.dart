@@ -24,8 +24,8 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
     final split = value.indexOf(_symbolMark);
     final path = split < 0 ? value : value.substring(0, split);
     final symbol = split < 0 ? '' : value.substring(split + 1);
-    final file = '${context.projectRoot.path}/$path';
-    if (FileSystemEntity.typeSync(file) != FileSystemEntityType.file) {
+    if (FileSystemEntity.typeSync('${context.projectRoot.path}/$path') !=
+        FileSystemEntityType.file) {
       yield context.finding(
         doc,
         FindingKind.implementsPathUnresolved,
@@ -36,7 +36,8 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
       continue;
     }
     if (symbol.isEmpty) continue;
-    final text = context.codeTextOf(file);
+    final text = context.codeTextOf(path);
+    if (text == null) continue;
     for (final segment in symbol.split(_segmentMark)) {
       if (_wordPattern(segment).hasMatch(text)) continue;
       yield context.finding(

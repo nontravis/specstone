@@ -18,7 +18,8 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
-  final Map<String, String> _codeTexts = {};
+  final Map<String, String?> _codeTexts = {};
+  final List<String> _codeWarnings = [];
   final Set<String> _stated = {};
 
   /// The index of the session's snapshot.
@@ -37,13 +38,22 @@ final class CheckContext {
 
   /// Returns the text of the code file at [path], read once per run.
   ///
-  /// Malformed UTF-8 bytes decode to U+FFFD instead of failing.
-  String codeTextOf(String path) => _codeTexts.putIfAbsent(
-    path,
-    () =>
-        const Utf8Decoder(allowMalformed: true)
-            .convert(File(path).readAsBytesSync()),
-  );
+  /// [path] is relative to the project root. Malformed UTF-8 bytes decode to
+  /// U+FFFD instead of failing. Returns null for a file that cannot be read,
+  /// and adds one warning for it.
+  String? codeTextOf(String path) {
+    if (_codeTexts.containsKey(path)) return _codeTexts[path];
+    String? text;
+    try {
+      text = const Utf8Decoder(allowMalformed: true)
+          .convert(File('${projectRoot.path}/$path').readAsBytesSync());
+    } on FileSystemException {
+      _codeWarnings.add(
+        '$path: cannot read the file; implements Symbols in it are not checked',
+      );
+    }
+    return _codeTexts[path] = text;
+  }
 
   /// How many code files this run has read.
   int get codeFilesRead => _codeTexts.length;
@@ -114,6 +124,7 @@ final class CheckContext {
   List<String> get unstatedWarnings => [
     for (final warning in _session.warnings)
       if (!_stated.contains(warning)) warning,
+    ..._codeWarnings,
   ];
 }
 

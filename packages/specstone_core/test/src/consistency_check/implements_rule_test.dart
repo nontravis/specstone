@@ -1,11 +1,14 @@
 // The expected texts are plan literals kept as written.
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/posix_modes.dart';
 
 void main() {
   const entry = 'app/lib/login.dart:checkPassword';
@@ -122,4 +125,29 @@ void main() {
     );
     expect(spots(report), ['prds/notes.md:1: untyped_doc']);
   });
+
+  test(
+    'f04/us02/fr01/e09: an unreadable code file gives a warning and no finding',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          'app/lib/other.dart': 'class Other {}\n',
+          ...doc(
+            loginStory,
+            'app/lib/login.dart:SignInPage',
+            'app/lib/other.dart:Gone',
+          ),
+        },
+      );
+      final path = '${project.path}/app/lib/login.dart';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+      final report = checkOf(project);
+      expect(spots(report), ['$loginStory:6: implements_symbol_unresolved']);
+      expect(report.warnings, [
+        'app/lib/login.dart: cannot read the file; implements Symbols in it are not checked',
+      ]);
+    },
+  );
 }
