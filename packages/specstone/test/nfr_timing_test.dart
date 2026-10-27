@@ -19,11 +19,11 @@ void main() {
     exe = await buildSpecstone();
   });
 
-  Duration timed(List<String> args) {
+  Duration timed(List<String> args, {Set<int> exitCodes = const {0}}) {
     final watch = Stopwatch()..start();
     final run = Process.runSync(exe, args, workingDirectory: project.path);
     watch.stop();
-    expect(run.exitCode, 0, reason: '${run.stderr}');
+    expect(exitCodes, contains(run.exitCode), reason: '${run.stderr}');
     return watch.elapsed;
   }
 
@@ -78,5 +78,33 @@ void main() {
     print(
       'diagnostic: in-process context call ${watch.elapsedMilliseconds} ms',
     );
+  });
+
+  test('NFR-P03, f04/us01/fr01/e01: a whole-project specstone check, with a '
+      'current index, finishes within 2 s', () {
+    const call = ['check'];
+    final code = Directory('${project.path}/src')
+        .listSync(recursive: true)
+        .whereType<File>();
+    expect(
+      code,
+      hasLength(1042),
+    ); // one file per FR, 52 x 5 x 4, and one per topic
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, anyOf(0, 1), reason: '${first.stderr}');
+    final out = first.stdout.toString();
+    expect(out, isNot(contains('implements_path_unresolved')));
+    expect(out, isNot(contains('implements_symbol_unresolved')));
+    expect(out, isNot(contains('code_uncovered')));
+    for (var i = 0; i < 5; i++) {
+      expect(
+        timed(call, exitCodes: {0, 1}),
+        lessThanOrEqualTo(const Duration(seconds: 2)),
+      );
+    }
   });
 }
