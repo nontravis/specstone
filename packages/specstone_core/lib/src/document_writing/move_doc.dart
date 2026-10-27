@@ -82,6 +82,214 @@ ReadAnswer answerReorder(
   });
 }
 
+/// Renames the doc [address] names to the slug [slug], keeping its number.
+///
+/// The own segment moves, with the spec folders of a feature, and the links
+/// to them and the `doc_ref` values that name a renamed doc follow. The `# `
+/// title is never touched and no draft mark is written. The slug a doc
+/// already carries changes nothing.
+///
+/// Throws [WriteFault] `doc_type_not_movable` for a doc type that carries no
+/// slug, a spec doc included, and `doc_exists` when a sibling carries
+/// [slug] or a path on disk is where the renamed segment would land; an
+/// `IndexFault` for a missing or bad [slug] or a bad address;
+/// `index_busy` when another call holds the lock.
+ReadAnswer answerRename(
+  WriteSession session,
+  String address, {
+  required String? slug,
+}) {
+  if (slug == null) {
+    throw missingArgument(
+      'rename',
+      'a slug',
+      'specstone rename user_story:login/reset_password --to recover_account',
+    );
+  }
+  checkSlug(slug);
+  final target = session.target(address);
+  final docType =
+      session.index.typeOf(target) ??
+      (throw StateError('${target.docPath} has no doc type'));
+  final shape = DocPathShape.of(docType, session.index.set);
+  if (shape == null || !shape.slugged) {
+    throw _noSlugFault(session, address, target, docType, shape);
+  }
+  return session.locked(() {
+    final moves = _renameMoves(session, target, docType, shape, slug);
+    if (moves.isEmpty) return _answerFor(session, moves, const []);
+    final renamed = _renamedNames(session, moves);
+    final rewrites = planRewrites(session, moves, renamed: renamed);
+    MoveJournal([
+      for (final move in moves)
+        MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+      ...rewrites,
+    ]).run(session.project);
+    return _answerFor(session, moves, rewrites);
+  });
+}
+
+/// Returns the fault for a doc type that [shape] gives no slug to: a spec
+/// doc names its parent, any other type says it carries no slug.
+WriteFault _noSlugFault(
+  WriteSession session,
+  String address,
+  IndexedDoc target,
+  MergedDocType docType,
+  DocPathShape? shape,
+) {
+  final parentType = docType.parent;
+  final parent = session.index.parentOf(target);
+  if (parentType != null && parent != null && (shape?.ownIsFile ?? false)) {
+    return WriteFault(
+      WriteFaultCode.docTypeNotMovable,
+      '$address takes its name from its $parentType; '
+      'rename $parentType:${parent.name} instead',
+    );
+  }
+  return WriteFault(
+    WriteFaultCode.docTypeNotMovable,
+    '${docType.id} docs carry no slug, so rename cannot rename them',
+  );
+}
+
+/// Returns the moves that give [target] the slug [slug]: its own segment,
+/// then the spec folders of a feature that exist; empty for the slug it
+/// carries.
+List<PathMove> _renameMoves(
+  WriteSession session,
+  IndexedDoc target,
+  MergedDocType docType,
+  DocPathShape shape,
+  String slug,
+) {
+  final set = session.index.set;
+  final oldValues =
+      shape.valuesOf(target.docPath) ??
+      (throw StateError('${target.docPath} does not match its doc type'));
+  final parentValues = oldValues.take(shape.parentCount).toList();
+  final siblings = siblingsOnDisk(
+    session.project.docsRoot,
+    shape,
+    parentValues,
+  );
+  final own = _ownEntry(
+    siblings,
+    target.docPath.split('/')[shape.ownIndex],
+    target,
+  );
+  if (own.slug == slug) return const [];
+  final number = own.number;
+  final newDocPath = shape.build([
+    ...parentValues,
+    ...shape.ownValues(
+      number: number == null ? null : padNumber(number),
+      slug: slug,
+    ),
+  ]);
+  final newValues =
+      shape.valuesOf(newDocPath) ??
+      (throw StateError('$newDocPath does not match its doc type'));
+  final moves = [
+    (from: shape.ownPathOf(target.docPath), to: shape.ownPathOf(newDocPath)),
+  ];
+  final oldFolders = specFoldersOf(set, docType, oldValues);
+  final newFolders = specFoldersOf(set, docType, newValues);
+  for (var i = 0; i < oldFolders.length; i++) {
+    if (_folderExists(session, oldFolders[i])) {
+      moves.add((from: oldFolders[i], to: newFolders[i]));
+    }
+  }
+  _checkNoClash(
+    session,
+    docType,
+    shape,
+    parentValues,
+    siblings,
+    slug: slug,
+    newDocPath: newDocPath,
+    moves: moves,
+  );
+  return moves;
+}
+
+/// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
+/// [slug], or a path on disk is where one of [moves] lands (PD12); the fault
+/// names [newDocPath].
+void _checkNoClash(
+  WriteSession session,
+  MergedDocType docType,
+  DocPathShape shape,
+  List<String> parentValues,
+  List<SiblingEntry> siblings, {
+  required String slug,
+  required String newDocPath,
+  required List<PathMove> moves,
+}) {
+  for (final sibling in siblings) {
+    if (sibling.slug != slug) continue;
+    final docPath = [
+      '${shape.containerOf(parentValues)}${sibling.name}',
+      ...shape.segments.skip(shape.ownIndex + 1),
+    ].join('/');
+    if (session.fileOf(docPath).existsSync()) {
+      throw _existsFault(docType, docPath, docPath);
+    }
+  }
+  for (final move in moves) {
+    final landing = session.fileOf(_withoutClosingSlash(move.to)).path;
+    if (FileSystemEntity.typeSync(landing) == FileSystemEntityType.notFound) {
+      continue;
+    }
+    throw _existsFault(docType, newDocPath, move.to);
+  }
+}
+
+String _withoutClosingSlash(String path) =>
+    path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+
+WriteFault _existsFault(MergedDocType docType, String named, String file) =>
+    WriteFault(
+      WriteFaultCode.docExists,
+      'a ${docType.id} named ${docNameOf(named, docType)} exists',
+      file: file,
+    );
+
+/// Returns the names that change under [moves], each typed doc under a
+/// moved path mapped from `(doc type id, old name)` to its new name.
+Map<(String, String), String> _renamedNames(
+  WriteSession session,
+  List<PathMove> moves,
+) {
+  final renamed = <(String, String), String>{};
+  for (final doc in session.index.docs) {
+    final typeId = doc.docTypeId;
+    final docType = typeId == null ? null : session.index.set.lookup(typeId);
+    final newPath = movedPath(doc.docPath, moves);
+    if (docType == null || newPath == doc.docPath) continue;
+    renamed[(docType.id, doc.name)] = docNameOf(newPath, docType);
+  }
+  return renamed;
+}
+
+/// Returns the entry of [siblings] named [ownName].
+///
+/// Throws [IndexFault] `doc_not_found` when [target] is indexed but its
+/// segment is gone from disk.
+SiblingEntry _ownEntry(
+  List<SiblingEntry> siblings,
+  String ownName,
+  IndexedDoc target,
+) {
+  for (final sibling in siblings) {
+    if (sibling.name == ownName) return sibling;
+  }
+  throw IndexFault(
+    IndexFaultCode.docNotFound,
+    'no ${target.docTypeId} doc carries the name ${target.name}',
+  );
+}
+
 /// Returns the moves that put [target] at [wanted] and number every sibling
 /// from 1: each renamed own segment, then the spec folders that follow it.
 List<PathMove> _movesFor(
@@ -113,14 +321,14 @@ List<PathMove> _movesFor(
   final ordered = [
     for (final sibling in siblings)
       if (sibling.name != ownName) sibling,
-  ]..insert(wanted - 1, siblings.firstWhere((s) => s.name == ownName));
+  ]..insert(wanted - 1, _ownEntry(siblings, ownName, target));
 
-  String docPathOf(String name) =>
+  String siblingDocPath(String name) =>
       (target.docPath.split('/')..[shape.ownIndex] = name).join('/');
 
   final moves = <PathMove>[];
   for (final (index, sibling) in ordered.indexed) {
-    final oldPath = docPathOf(sibling.name);
+    final oldPath = siblingDocPath(sibling.name);
     final oldValues = shape.valuesOf(oldPath)!;
     final newValues = [
       ...parentValues,
@@ -149,18 +357,18 @@ bool _folderExists(WriteSession session, String folder) =>
 /// Returns every move twice, as a [MoveStep]: each path to its stage slot,
 /// then each stage slot to its target, so no move lands on a path another
 /// has not yet left (PD3).
-List<MoveStep> _stageSteps(WriteSession session, List<PathMove> moves) {
-  String projectPath(String docPath) {
-    final path = session.projectPathOf(docPath);
-    return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
-  }
+List<MoveStep> _stageSteps(WriteSession session, List<PathMove> moves) => [
+  for (final (i, move) in moves.indexed)
+    MoveStep(_stepPath(session, move.from), '$_stagePath/$i'),
+  for (final (i, move) in moves.indexed)
+    MoveStep('$_stagePath/$i', _stepPath(session, move.to)),
+];
 
-  return [
-    for (final (i, move) in moves.indexed)
-      MoveStep(projectPath(move.from), '$_stagePath/$i'),
-    for (final (i, move) in moves.indexed)
-      MoveStep('$_stagePath/$i', projectPath(move.to)),
-  ];
+/// Returns [docPath] as a [MoveStep] takes it: a project path with no
+/// closing `/`.
+String _stepPath(WriteSession session, String docPath) {
+  final path = session.projectPathOf(docPath);
+  return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 }
 
 ReadAnswer _answerFor(

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
@@ -12,6 +13,9 @@ import '../../helpers/write_fixture.dart';
 void main() {
   ReadAnswer reorder(Directory root, String address, String place) =>
       writeIn(root, (s) => answerReorder(s, address, place: place));
+
+  ReadAnswer rename(Directory root, String address, String slug) =>
+      writeIn(root, (s) => answerRename(s, address, slug: slug));
 
   const f = 'prds/features/f01_login';
 
@@ -256,6 +260,268 @@ void main() {
     expect(
       readDoc(root, '$f/us02_email_login/fr02_lock_after_failures.md'),
       contains('](../us01_reset_password/USER_STORY.md#use-case)'),
+    );
+  });
+
+  test('f02/us05/fr01/e06: a doc gone from disk since the index is doc_not_found, not a crash', () async {
+    Future<void> expectNotFound(void Function(WriteSession) body) async {
+      final fresh = await writeWriteProject();
+      expect(
+        () => writeIn(fresh, (s) {
+          Directory('${fresh.path}/docs/$f/us03_reset_password')
+              .deleteSync(recursive: true);
+          body(s);
+        }),
+        throwsA(
+          isA<IndexFault>().having(
+            (e) => e.code,
+            'code',
+            IndexFaultCode.docNotFound,
+          ),
+        ),
+      );
+    }
+
+    await expectNotFound(
+      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+    );
+    await expectNotFound(
+      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+    );
+  });
+
+  test('f02/us06/s1, f02/us06/fr01, f02/us06/fr01/e01, f02/us06/fr01/e08, f02/us05/fr02, dw-s03/inv10: a story takes a new slug, keeps its number and title, and links follow', () async {
+    final root = await writeWriteProject();
+    expect(
+      rename(root, 'user_story:login/reset_password', 'recover_account').text,
+      'moved $f/us03_reset_password/ to $f/us03_recover_account/\n'
+      'rewrote $f/us01_email_login/fr02_lock_after_failures.md\n',
+    );
+    expect(
+      readDoc(root, '$f/us03_recover_account/USER_STORY.md'),
+      contains('\n# Reset password\n'),
+    );
+    expect(
+      readDoc(root, fr12),
+      contains('](../us03_recover_account/USER_STORY.md#use-case)'),
+    );
+    expect(
+      writeIn(
+        root,
+        (s) => s.target('user_story:login/recover_account').docPath,
+      ),
+      '$f/us03_recover_account/USER_STORY.md',
+    );
+  });
+
+  test('f02/us06/s2, f02/us06/fr01/e02, f02/us06/fr02/e02: a feature renames with its spec folder, and names under it follow in doc_ref values', () async {
+    final root = await writeWriteProject();
+    expect(rename(root, 'feature:login', 'signin').json, {
+      'moved': [
+        {'from': 'prds/features/f01_login/', 'to': 'prds/features/f01_signin/'},
+        {'from': 'specs/f01_login/', 'to': 'specs/f01_signin/'},
+      ],
+      'rewritten': ['prds/FEATURES.md', 'prds/personas/buyer/PERSONA.md'],
+    });
+    expect(
+      readDoc(root, persona),
+      contains('reference:\n  - signin/email_login\n'),
+    );
+  });
+
+  test('f02/us06/s3, f02/us06/fr01/e03, f02/us06/fr02, f02/us06/fr02/e01: a persona renames with the anti-persona in its folder', () async {
+    final root = await writeWriteProject();
+    rename(root, 'persona:buyer', 'shopper');
+    expect(
+      [
+        hasDoc(root, 'prds/personas/shopper/PERSONA.md'),
+        hasDoc(root, 'prds/personas/shopper/ANTI_PERSONA.md'),
+      ],
+      [true, true],
+    );
+    expect(readDoc(root, story1), contains('persona:\n  - shopper\n'));
+  });
+
+  test('f02/us06/s5, f02/us06/fr01/e05: a slug a sibling carries is doc_exists naming it, and nothing moves', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => rename(root, 'user_story:login/reset_password', 'sign_out'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docExists)
+            .having(
+              (f) => f.message,
+              'message',
+              'a user_story named login/sign_out exists',
+            )
+            .having((f) => f.file, 'file', story2),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('f02/us06/s6, f02/us06/fr01/e06, dw-s03/inv8: a spec doc refuses and names its feature', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => rename(root, 'architecture:login', 'signin'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having(
+              (f) => f.message,
+              'message',
+              'architecture:login takes its name from its feature; '
+                  'rename feature:login instead',
+            ),
+      ),
+    );
+  });
+
+  test('f02/us06/fr01/e04: an FR file takes the new slug', () async {
+    final root = await writeWriteProject();
+    rename(root, 'fr:login/reset_password/expire_reset_link', 'expire_link');
+    expect(hasDoc(root, '$f/us03_reset_password/fr02_expire_link.md'), isTrue);
+    expect(hasDoc(root, fr32), isFalse);
+  });
+
+  test(
+    'f02/us06/fr01/e06: a doc type with no slug is doc_type_not_movable',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => rename(root, 'features:features', 'index'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+              .having(
+                (f) => f.message,
+                'message',
+                'features docs carry no slug, so rename cannot rename them',
+              ),
+        ),
+      );
+    },
+  );
+
+  test('f02/us06/fr01/e07: a bad or missing slug is refused', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => rename(root, 'user_story:login/reset_password', 'Recover'),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.code,
+          'code',
+          IndexFaultCode.argumentInvalid,
+        ),
+      ),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerRename(s, 'user_story:login/reset_password', slug: null),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+            .having(
+              (f) => f.message,
+              'message',
+              'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account',
+            ),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test(
+    'f02/us06/fr01/e08: the slug a doc already carries changes nothing',
+    () async {
+      final root = await writeWriteProject();
+      final answer = rename(
+        root,
+        'user_story:login/reset_password',
+        'reset_password',
+      );
+      expect(answer.text, '');
+      expect(answer.json, {'moved': <Object>[], 'rewritten': <Object>[]});
+      expect(hasDoc(root, story3), isTrue);
+    },
+  );
+
+  test('f02/us06/s4, f02/us06/fr01/e09, f02/us06/fr02/e05: an approved doc renames with no Owner step, and every mark stays', () async {
+    final root = await writeWriteProject();
+    final before = readDoc(root, story2);
+    rename(root, 'user_story:login/sign_out', 'log_out');
+    expect(readDoc(root, '$f/us02_log_out/USER_STORY.md'), before);
+    final linked = readDoc(root, story3);
+    expect(linked, contains('](../us02_log_out/USER_STORY.md)'));
+    expect('draft: true'.allMatches(linked), hasLength(1));
+  });
+
+  test('f02/us06/fr02/e03, f02/us06/fr02/e04, f02/us06/fr02/e06: prose, code, and unrelated values stay', () async {
+    final root = await writeWriteProject();
+    final apiBefore = readDoc(root, fr11);
+    rename(root, 'feature:login', 'signin');
+    final personaText = readDoc(root, persona);
+    expect(personaText, contains('draft: true'));
+    expect(personaText, contains('# Buyer\n\n## Profile\nBuys things.\n'));
+    expect(
+      readDoc(
+        root,
+        'prds/features/f01_signin/us01_email_login/fr01_validate_credentials.md',
+      ),
+      apiBefore,
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_signin/us01_email_login/USER_STORY.md'),
+      contains('persona:\n  - buyer\n'),
+    );
+    expect(
+      readDoc(root, 'prds/FEATURES.md'),
+      contains('- [Login](features/f01_signin/FEATURE.md)\n'),
+    );
+  });
+
+  test('PD12: a folder already at the new path is doc_exists', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/prds/personas/shopper/ANTI_PERSONA.md': '# Not a shopper\n',
+      },
+    );
+    expect(
+      () => rename(root, 'persona:buyer', 'shopper'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docExists)
+            .having((f) => f.file, 'file', 'prds/personas/shopper/'),
+      ),
+    );
+    expect(hasDoc(root, persona), isTrue);
+  });
+
+  test('f02/us04/fr03/e02, nfr-di01: a rename stopped before its link rewrite is finished by the next write', () async {
+    final root = await writeWriteProject();
+    const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
+    final linkText = readDoc(root, linkFile);
+    writeJournal(root, [
+      const MoveStep(
+        'docs/$f/us03_reset_password',
+        'docs/$f/us03_recover_account',
+      ),
+      WriteStep(
+        'docs/$linkFile',
+        linkText.replaceAll('us03_reset_password', 'us03_recover_account'),
+      ),
+    ]);
+    // The move ran before the stop.
+    Directory('${root.path}/docs/$f/us03_reset_password')
+        .renameSync('${root.path}/docs/$f/us03_recover_account');
+
+    writeIn(root, (_) {});
+
+    expect(
+      readDoc(root, linkFile),
+      contains('](../us03_recover_account/USER_STORY.md#use-case)'),
     );
   });
 }
