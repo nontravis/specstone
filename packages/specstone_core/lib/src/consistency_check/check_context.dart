@@ -55,6 +55,9 @@ final class CheckContext {
     return _codeTexts[path] = text;
   }
 
+  /// Adds [warning], which no finding states.
+  void warn(String warning) => _codeWarnings.add(warning);
+
   /// How many code files this run has read.
   int get codeFilesRead => _codeTexts.length;
 

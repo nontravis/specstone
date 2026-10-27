@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
@@ -31,8 +32,10 @@ CheckReport runCheck(ReadSession session, {String? target}) {
       ..addAll(checkFrontmatter(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkBannedWords(context, doc))
-      ..addAll(checkImplements(context, doc));
+      ..addAll(checkImplements(context, doc))
+      ..addAll(checkCoversAndCodeRoots(context, doc));
   }
+  if (target == null) findings.addAll(uncoveredCode(context));
   findings.addAll(unreadableFindings(context, inScope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
