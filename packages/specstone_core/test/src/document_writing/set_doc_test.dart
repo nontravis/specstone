@@ -436,7 +436,7 @@ void main() {
     );
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test('final Important 2: a read-only doc is output_not_writable and keeps its bytes and mode', () async {
+  test('f02/us01/fr01/e07, final Important 2: a read-only doc is output_not_writable and keeps its bytes and mode', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#use_case';
     final base = sectionBase(root, target);

@@ -66,6 +66,54 @@ void main() {
     );
   });
 
+  test('fix round 2, f02/us05/fr01, dw-s03/inv9: a reorder stages under .specstone/trash/stage, never in the project root', () async {
+    final root = await writeWriteProject();
+    final answer = reorder(root, 'user_story:login/reset_password', '1');
+    expect(answer.text, startsWith('moved '));
+    expect(
+      Directory('${root.path}/MoveJournal.stagePath').existsSync(),
+      isFalse,
+    );
+    expect(
+      Directory('${root.path}/${MoveJournal.stagePath}').existsSync(),
+      isFalse,
+    );
+  });
+
+  test('fix round 2, f02/us04/fr03/e03, dw-s03/inv9: a stopped reorder replays and the phase-1 stage skip fires on a taken slot', () async {
+    final root = await writeWriteProject();
+    final moves = [
+      ('us03_reset_password', 'us01_reset_password'),
+      ('us01_email_login', 'us02_email_login'),
+      ('us02_sign_out', 'us03_sign_out'),
+    ];
+    String path(String name) => 'docs/$f/$name';
+    String stage(int i) => '${MoveJournal.stagePath}/$i';
+    writeJournal(root, [
+      for (final (i, (from, _)) in moves.indexed)
+        MoveStep(path(from), stage(i)),
+      for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
+    ]);
+    // The run stopped after one phase-1 move, and slot 0 already holds its doc.
+    for (final (i, (from, _)) in moves.indexed.take(1)) {
+      Directory('${root.path}/${stage(i)}/../'.replaceAll('../', ''))
+          .createSync(recursive: true);
+      Directory('${root.path}/${path(from)}')
+          .renameSync('${root.path}/${stage(i)}');
+    }
+
+    writeIn(root, (_) {});
+
+    for (final (_, to) in moves) {
+      expect(Directory('${root.path}/${path(to)}').existsSync(), isTrue);
+    }
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    expect(
+      Directory('${root.path}/MoveJournal.stagePath').existsSync(),
+      isFalse,
+    );
+  });
+
   test('f02/us05/s5, f02/us05/fr01/e06: a place outside the list is position_out_of_range, and nothing moves', () async {
     final root = await writeWriteProject();
     for (final place in ['0', '4']) {
@@ -292,32 +340,28 @@ void main() {
     );
   });
 
-  test(
-    'final Important 2: a read-only rewrite target stops a rename',
-    () async {
-      final root = await writeWriteProject();
-      final linker = docFile(root, fr12);
-      Process.runSync('chmod', ['444', linker.path]);
-      addTearDown(() => Process.runSync('chmod', ['644', linker.path]));
-      final before = readDoc(root, fr12);
-      expect(
-        () => rename(root, 'user_story:login/reset_password', 'recover'),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-              .having(
-                (f) => f.message,
-                'message',
-                'cannot write $fr12: read-only',
-              ),
-        ),
-      );
-      expect(readDoc(root, fr12), before);
-      expect(hasDoc(root, story3), isTrue);
-      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-    },
-    skip: unreadablePathSkipReason() ?? false,
-  );
+  test('f02/us05/fr02, dw-s03/inv10, final Important 2: a read-only rewrite target stops a rename', () async {
+    final root = await writeWriteProject();
+    final linker = docFile(root, fr12);
+    Process.runSync('chmod', ['444', linker.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', linker.path]));
+    final before = readDoc(root, fr12);
+    expect(
+      () => rename(root, 'user_story:login/reset_password', 'recover'),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $fr12: read-only',
+            ),
+      ),
+    );
+    expect(readDoc(root, fr12), before);
+    expect(hasDoc(root, story3), isTrue);
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
 
   test('f02/us06/s1, f02/us06/fr01, f02/us06/fr01/e01, f02/us06/fr01/e08, f02/us05/fr02, dw-s03/inv10: a story takes a new slug, keeps its number and title, and links follow', () async {
     final root = await writeWriteProject();

@@ -226,7 +226,7 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isTrue);
   });
 
-  test('final Minor 3: a replay skips a stage move whose slot is taken', () {
+  test('f02/us04/fr03/e03, final Minor 3: a replay skips a stage move whose slot is taken', () {
     const stage = MoveJournal.stagePath;
     const us01 = 'docs/$_login/us01_email_login';
     File('${root.path}/$stage/0/kept.md')

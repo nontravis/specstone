@@ -396,7 +396,7 @@ void main() {
     },
   );
 
-  test('final Minor 5: stdin holding an approved key refuses before any path is claimed', () async {
+  test('f02/us02/fr02/e01, final Minor 5: stdin holding an approved key refuses before any path is claimed', () async {
     final root = await writeWriteProject();
     for (final value in ['true', 'false']) {
       expect(

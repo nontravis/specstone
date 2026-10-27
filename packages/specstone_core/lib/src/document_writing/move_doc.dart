@@ -355,9 +355,9 @@ bool _folderExists(WriteSession session, String folder) =>
 /// has not yet left (PD3).
 List<MoveStep> _stageSteps(WriteSession session, List<PathMove> moves) => [
   for (final (i, move) in moves.indexed)
-    MoveStep(_stepPath(session, move.from), '$MoveJournal.stagePath/$i'),
+    MoveStep(_stepPath(session, move.from), '${MoveJournal.stagePath}/$i'),
   for (final (i, move) in moves.indexed)
-    MoveStep('$MoveJournal.stagePath/$i', _stepPath(session, move.to)),
+    MoveStep('${MoveJournal.stagePath}/$i', _stepPath(session, move.to)),
 ];
 
 /// Returns [docPath] as a [MoveStep] takes it: a project path with no

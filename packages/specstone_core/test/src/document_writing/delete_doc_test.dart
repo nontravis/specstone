@@ -262,7 +262,7 @@ void main() {
     expect(hasDoc(root, story3), isFalse);
   });
 
-  test('final Important 3: an unreadable unit path names itself', () async {
+  test('f02/us04/fr01/e07, final Important 3: an unreadable unit path names itself', () async {
     const folder = 'prds/features/f01_login/us03_reset_password';
     for (final (name, mode, target) in [
       ('folder', '000', folder),
