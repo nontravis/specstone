@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
@@ -17,6 +18,7 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
+  final Map<String, String> _codeTexts = {};
   final Set<String> _stated = {};
 
   /// The index of the session's snapshot.
@@ -32,6 +34,19 @@ final class CheckContext {
   /// Returns the line map of [doc], built on first use.
   DocLines linesOf(IndexedDoc doc) =>
       _lines.putIfAbsent(doc.docPath, () => DocLines.of(contentOf(doc).text));
+
+  /// Returns the text of the code file at [path], read once per run.
+  ///
+  /// Malformed UTF-8 bytes decode to U+FFFD instead of failing.
+  String codeTextOf(String path) => _codeTexts.putIfAbsent(
+    path,
+    () =>
+        const Utf8Decoder(allowMalformed: true)
+            .convert(File(path).readAsBytesSync()),
+  );
+
+  /// How many code files this run has read.
+  int get codeFilesRead => _codeTexts.length;
 
   /// Returns the merged doc type of [doc], or null for an untyped doc.
   MergedDocType? typeOf(IndexedDoc doc) => index.typeOf(doc);
