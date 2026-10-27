@@ -28,6 +28,9 @@ final class CheckContext {
   /// The project root folder.
   Directory get projectRoot => _session.project.projectRoot;
 
+  /// The docs root folder, `<project root>/docs/`.
+  Directory get docsRoot => _session.project.docsRoot;
+
   /// Returns the content of [doc], read once.
   DocContent contentOf(IndexedDoc doc) =>
       _contents.putIfAbsent(doc.docPath, () => index.contentOf(doc));
