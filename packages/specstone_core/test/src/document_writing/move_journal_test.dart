@@ -165,24 +165,49 @@ void main() {
     expect(MoveJournal.pending(root), isTrue);
   });
 
-  test('f02/us04/fr03, dw-s03/inv9, PD3: a journal that does not parse is discarded, and a leftover trash folder is removed', () {
+  Matcher notReplayable(String reason) => throwsA(
+    isA<RenderFault>()
+        .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+        .having(
+          (f) => f.message,
+          'message',
+          'cannot replay .specstone/trash/journal.json: $reason; '
+              'fix or remove it',
+        ),
+  );
+
+  test('final Minor 2, f02/us04/fr03, dw-s03/inv9: a journal that does not parse is refused and the trash stays', () {
     final journal = File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"steps": [');
-    File('${root.path}/$_trashDocs/leftover.md')
+    final leftover = File('${root.path}/$_trashDocs/leftover.md')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('x');
     final before = readDoc(root, story1);
 
-    MoveJournal.replay(openProject(root));
+    expect(
+      () => MoveJournal.replay(openProject(root)),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              allOf(
+                startsWith('cannot replay .specstone/trash/journal.json: '),
+                endsWith('; fix or remove it'),
+              ),
+            ),
+      ),
+    );
 
-    expect(journal.existsSync(), isFalse);
-    expect(dirExists(MoveJournal.trashPath), isFalse);
+    expect(journal.existsSync(), isTrue);
+    expect(leftover.existsSync(), isTrue);
     expect(readDoc(root, story1), before);
   });
 
-  test('f02/us04/fr03: a journal with an unknown step is discarded like an unparsable one', () {
-    File('${root.path}/${MoveJournal.journalPath}')
+  test('final Minor 2, f02/us04/fr03: a journal with an unknown step is refused like an unparsable one', () {
+    final journal = File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(
         jsonEncode({
@@ -192,8 +217,26 @@ void main() {
         }),
       );
 
+    expect(
+      () => MoveJournal.replay(openProject(root)),
+      notReplayable('not a journal step'),
+    );
+
+    expect(journal.existsSync(), isTrue);
+    expect(dirExists(MoveJournal.trashPath), isTrue);
+  });
+
+  test('final Minor 3: a replay skips a stage move whose slot is taken', () {
+    const stage = MoveJournal.stagePath;
+    const us01 = 'docs/$_login/us01_email_login';
+    File('${root.path}/$stage/0/kept.md')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('staged');
+    writeJournal(root, const [MoveStep(us01, '$stage/0')]);
+
     MoveJournal.replay(openProject(root));
 
+    expect(hasDoc(root, story1), isTrue);
     expect(journalExists(), isFalse);
     expect(dirExists(MoveJournal.trashPath), isFalse);
   });

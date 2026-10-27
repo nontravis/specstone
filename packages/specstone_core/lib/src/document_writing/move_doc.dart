@@ -12,10 +12,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _wholeNumber = RegExp(r'^[0-9]+$');
 
-/// Where a reorder parks each moved path between its two moves, relative to
-/// the project root.
-const _stagePath = '${MoveJournal.trashPath}/stage';
-
 /// Returns the place [value] names; `0` parses, the range check refuses it.
 ///
 /// Throws [IndexFault] `argument_missing` for null and `argument_invalid`
@@ -359,9 +355,9 @@ bool _folderExists(WriteSession session, String folder) =>
 /// has not yet left (PD3).
 List<MoveStep> _stageSteps(WriteSession session, List<PathMove> moves) => [
   for (final (i, move) in moves.indexed)
-    MoveStep(_stepPath(session, move.from), '$_stagePath/$i'),
+    MoveStep(_stepPath(session, move.from), '$MoveJournal.stagePath/$i'),
   for (final (i, move) in moves.indexed)
-    MoveStep('$_stagePath/$i', _stepPath(session, move.to)),
+    MoveStep('$MoveJournal.stagePath/$i', _stepPath(session, move.to)),
 ];
 
 /// Returns [docPath] as a [MoveStep] takes it: a project path with no

@@ -48,7 +48,9 @@ sealed class JournalStep {
 
 /// Moves a file or a folder, creating the parent folders of the target.
 ///
-/// Skipped when [from] is gone, because an earlier run already moved it.
+/// Skipped when [from] is gone, because an earlier run already moved it, and
+/// when [to] is a stage slot that is taken, so a replay never lands on what
+/// another move staged there.
 final class MoveStep extends JournalStep {
   const new(this.from, this.to);
 
@@ -70,8 +72,13 @@ final class MoveStep extends JournalStep {
         FileSystemEntityType.notFound) {
       return;
     }
+    final target = _absolute(project, to);
+    if (to.startsWith('${MoveJournal.stagePath}/') &&
+        FileSystemEntity.typeSync(target, followLinks: false) !=
+            FileSystemEntityType.notFound) {
+      return;
+    }
     try {
-      final target = _absolute(project, to);
       Directory(File(target).parent.path).createSync(recursive: true);
       if (FileSystemEntity.isDirectorySync(source)) {
         Directory(source).renameSync(target);
@@ -157,6 +164,10 @@ final class MoveJournal {
   /// project root.
   static const trashPath = '.specstone/trash';
 
+  /// The folder a reorder parks its docs in between its two phases, relative
+  /// to the project root.
+  static const stagePath = '$trashPath/stage';
+
   /// The steps, applied in order.
   final List<JournalStep> steps;
 
@@ -202,11 +213,12 @@ final class MoveJournal {
 
   /// Finishes an unfinished journal, then removes the trash folder.
   ///
-  /// A journal that does not parse is discarded. Does nothing when no trash
-  /// folder exists.
+  /// A journal that does not parse is refused and left with the trash, since
+  /// its steps may be the only record of where the files went. Does nothing
+  /// when no trash folder exists.
   ///
-  /// Throws [RenderFault] `output_not_writable` when a step fails; the journal
-  /// stays, so the next replay resumes.
+  /// Throws [RenderFault] `output_not_writable` when a step fails, the journal
+  /// stays, so the next replay resumes, or when the journal cannot be parsed.
   static void replay(DocsProject project) {
     final journal = File(
       _join(project.projectRoot.path, MoveJournal.journalPath),
@@ -215,22 +227,33 @@ final class MoveJournal {
       _removeTrash(project);
       return;
     }
-    List<JournalStep>? steps;
+    final List<JournalStep> steps;
     try {
-      final json = jsonDecode(journal.readAsStringSync());
-      if (json is Map<String, Object?> && json['steps'] is List<Object?>) {
-        steps = [
-          for (final step in json['steps']! as List<Object?>)
-            JournalStep.fromJson(step),
-        ];
-      }
-    } on FormatException {
-      steps = null;
+      steps = _stepsOf(jsonDecode(journal.readAsStringSync()));
+    } on FormatException catch (error) {
+      throw RenderFault(
+        RenderFaultCode.outputNotWritable,
+        'cannot replay ${MoveJournal.journalPath}: ${error.message}; '
+        'fix or remove it',
+      );
     } on FileSystemException catch (error) {
       throw _notWritable('read', MoveJournal.journalPath, error);
     }
-    _finish(project, steps ?? const []);
+    _finish(project, steps);
   }
+}
+
+/// Returns the steps of a decoded [journal].
+///
+/// Throws [FormatException] when [journal] is not `{'steps': [<step>...]}`.
+List<JournalStep> _stepsOf(Object? journal) {
+  if (journal is Map<String, Object?> && journal['steps'] is List<Object?>) {
+    return [
+      for (final step in journal['steps']! as List<Object?>)
+        JournalStep.fromJson(step),
+    ];
+  }
+  throw const FormatException('not a journal');
 }
 
 /// Applies [steps], then deletes the journal and the trash folder.

@@ -99,6 +99,17 @@ final class DocPathShape {
   /// Whether the own segment is the file, not a folder.
   bool get ownIsFile => ownIndex == segments.length - 1;
 
+  /// Whether [own], an entry that fits the own segment, holds the doc.
+  ///
+  /// A folder with no doc file under it is no sibling: INV-8 counts docs. A
+  /// file, or a doc file name with placeholders, is taken as is.
+  bool _holdsDoc(FileSystemEntity own) {
+    if (ownIsFile) return true;
+    final rest = segments.sublist(ownIndex + 1);
+    if (rest.any(_placeholder.hasMatch)) return true;
+    return File([own.path, ...rest].join(Platform.pathSeparator)).existsSync();
+  }
+
   /// Whether the own segment holds `{nn}`.
   bool get numbered => _patterns[ownIndex].tokens.contains(_numberToken);
 
@@ -174,8 +185,9 @@ final class SiblingEntry {
 /// Returns the siblings of [shape]'s own segment under [parentValues], sorted
 /// by number, then name.
 ///
-/// They are the folders, or for a file segment the files, of the container
-/// whose name matches the segment. Empty when the container is absent.
+/// They are the folders that hold the doc file, or for a file segment the
+/// files, of the container whose name matches the segment. Empty when the
+/// container is absent.
 /// Throws [RenderFault] `output_not_writable` when the container is unreadable.
 List<SiblingEntry> siblingsOnDisk(
   Directory docsRoot,
@@ -208,7 +220,7 @@ List<SiblingEntry> siblingsOnDisk(
     if (!isOwn) continue;
     final name = entity.path.split(Platform.pathSeparator).last;
     final match = pattern.regex.firstMatch(name);
-    if (match == null) continue;
+    if (match == null || !shape._holdsDoc(entity)) continue;
     final values = {
       for (var i = 0; i < pattern.tokens.length; i++)
         pattern.tokens[i]: match.group(i + 1)!,

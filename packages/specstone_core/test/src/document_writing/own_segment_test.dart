@@ -134,6 +134,28 @@ void main() {
   });
 
   test(
+    'final Minor 1, dw-s03/inv8: a folder with no doc file is no sibling',
+    () async {
+      final copy = await writeWriteProject();
+      Directory('${copy.path}/docs/prds/features/f01_login/us09_empty')
+          .createSync();
+      final names = [
+        for (final s in siblingsOnDisk(
+          openProject(copy).docsRoot,
+          shape('user_story'),
+          ['01', 'login'],
+        ))
+          s.name,
+      ];
+      expect(names, [
+        'us01_email_login',
+        'us02_sign_out',
+        'us03_reset_password',
+      ]);
+    },
+  );
+
+  test(
     'final Important 3: an unreadable container is output_not_writable',
     () async {
       final copy = await writeWriteProject();
