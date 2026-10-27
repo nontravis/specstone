@@ -267,6 +267,13 @@ String _joinWithoutTrailingBlank(List<String> lines) {
   return lines.sublist(0, end).join();
 }
 
+/// Returns, per line of [lines] (each without its line end), whether it is
+/// fenced code content or a fence delimiter.
+List<bool> fencedLines(List<String> lines) {
+  final fence = _FenceTracker();
+  return [for (final line in lines) fence.consume(line)];
+}
+
 /// Tracks whether the scan is inside a fenced code block.
 ///
 /// A fence opens with three or more backticks or tildes and closes with the

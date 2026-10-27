@@ -46,36 +46,110 @@ Iterable<Finding> _unresolvedDocRefs(
   }
 }
 
-/// Yields a finding per link of [doc] that targets a doc of a checked folder
-/// where none is indexed.
+/// Yields a finding per link of [doc] whose target is indexed nowhere.
 ///
-/// The index stores each target once, so a doc holding such a target is parsed
-/// again to list its links in order; each finding's line is that of the first
-/// `](<href>` or `]: <href>` after the previous finding's match.
+/// `markdown` decides which links exist and which resolve to no doc: the index
+/// stores each target once, so a doc holding an unindexed target is parsed
+/// again to list its links in order. Each such link is then placed in the
+/// source text (see [_scanUses]) for its line and its target as written.
+/// A link `markdown` reports and the scan cannot place is a bug: it asserts in
+/// debug, and in release the finding takes line 1 and the normalized href.
 Iterable<Finding> _unresolvedLinks(CheckContext context, IndexedDoc doc) sync* {
-  final broken = {
+  final unindexed = {
     for (final target in context.contentOf(doc).links)
-      if (context.isCheckedPath(target) && context.index.at(target) == null)
-        target,
+      if (context.index.at(target) == null) target,
   };
-  if (broken.isEmpty) return;
+  if (unindexed.isEmpty) return;
   final text = toLf(context.contentOf(doc).text);
-  var cursor = text.length - Doc.parse(text).afterFrontmatter.length;
-  for (final href in _hrefsOf(text.substring(cursor))) {
+  final body = Doc.parse(text).afterFrontmatter;
+  final firstLine =
+      '\n'.allMatches(text.substring(0, text.length - body.length)).length + 1;
+  final uses = _scanUses(body, firstLine);
+  var next = 0;
+  for (final href in _hrefsOf(body)) {
     final target = resolveDocLink(href, doc.docPath);
-    if (target is! DocTarget || !broken.contains(target.docPath)) continue;
-    final at = _firstMention(text, href, cursor);
-    if (at >= 0) cursor = at;
+    if (target is! DocTarget || !unindexed.contains(target.docPath)) continue;
+    while (next < uses.length && _normalize(uses[next].dest) != href) {
+      next++;
+    }
+    final placed = next < uses.length;
+    assert(placed, 'link $href of ${doc.docPath} is not in its source text');
     yield context.finding(
       doc,
       FindingKind.linkUnresolved,
-      line: _lineAt(text, cursor),
-      message: 'link target $href is no doc',
-      keys: {'target': href},
+      line: placed ? uses[next].line : 1,
+      message: 'link target ${placed ? uses[next].dest : href} is no doc',
+      keys: {'target': placed ? uses[next].dest : href},
     );
-    cursor += 1;
+    if (placed) next++;
   }
 }
+
+/// A link written in the source: its destination as written and its line.
+typedef _Use = ({String dest, int line});
+
+final _definition = RegExp(r'^ {0,3}\[([^\]]+)\]:[ \t]*(<[^>]*>|\S+)');
+final _span = RegExp('`[^`]*`');
+final _bracket = RegExp(r'(!?)\[([^\]]*)\](?:\(([^)]*)\)|\[([^\]]*)\])?');
+
+/// Returns the links of [body] in source order, outside fenced code.
+///
+/// An inline `](dest)` or `](<dest>)` gives its dest; a reference use
+/// (`[text][label]`, `[label][]`, `[label]`) gives the dest of its
+/// `[label]: dest` definition and the line of the use. Images are no link.
+List<_Use> _scanUses(String body, int firstLine) {
+  final lines = body.split('\n');
+  final fenced = fencedLines(lines);
+  final definitions = <String, String>{};
+  final definitionLines = <int>{};
+  for (var i = 0; i < lines.length; i++) {
+    if (fenced[i]) continue;
+    final match = _definition.firstMatch(lines[i]);
+    if (match == null) continue;
+    definitionLines.add(i);
+    definitions.putIfAbsent(_label(match[1]!), () => _bare(match[2]!));
+  }
+  final uses = <_Use>[];
+  for (var i = 0; i < lines.length; i++) {
+    if (fenced[i] || definitionLines.contains(i)) continue;
+    final line = lines[i].replaceAllMapped(_span, (m) => ' ' * m[0]!.length);
+    for (final match in _bracket.allMatches(line)) {
+      if (match[1] == '!') continue;
+      final inline = match[3];
+      final label = match[4];
+      final dest = inline != null
+          ? _inlineDest(inline.trim())
+          : definitions[_label(
+              label == null || label.isEmpty ? match[2]! : label,
+            )];
+      if (dest != null) uses.add((dest: dest, line: firstLine + i));
+    }
+  }
+  return uses;
+}
+
+String _inlineDest(String inside) {
+  if (inside.startsWith('<')) {
+    final close = inside.indexOf('>');
+    if (close > 0) return inside.substring(1, close);
+  }
+  return inside.split(RegExp(r'\s+')).first;
+}
+
+String _label(String text) =>
+    text.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+String _bare(String dest) => dest.startsWith('<') && dest.endsWith('>')
+    ? dest.substring(1, dest.length - 1)
+    : dest;
+
+/// Mirrors `markdown`'s link destination normalization: percent-escapes stay,
+/// the rest is percent-encoded.
+String _normalize(String dest) => dest.splitMapJoin(
+  RegExp('%[0-9A-Fa-f]{2}'),
+  onMatch: (m) => m.group(0)!,
+  onNonMatch: Uri.encodeFull,
+);
 
 /// Returns the hrefs of the links in [body], in order.
 List<String> _hrefsOf(String body) {
@@ -93,17 +167,3 @@ List<String> _hrefsOf(String body) {
   visit(Document(extensionSet: ExtensionSet.gitHubFlavored).parse(body));
   return hrefs;
 }
-
-/// Returns the offset of the first `](<href>` or `]: <href>` in [text] at or
-/// after [from], or -1 when neither occurs.
-int _firstMention(String text, String href, int from) {
-  final inline = text.indexOf(']($href', from);
-  final definition = text.indexOf(']: $href', from);
-  if (inline < 0) return definition;
-  if (definition < 0) return inline;
-  return inline < definition ? inline : definition;
-}
-
-/// Returns the 1-based line of the character at [offset] in [text].
-int _lineAt(String text, int offset) =>
-    '\n'.allMatches(text.substring(0, offset)).length + 1;

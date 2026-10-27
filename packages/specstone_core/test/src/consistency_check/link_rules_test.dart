@@ -96,4 +96,71 @@ void main() {
       ]);
     },
   );
+
+  test('f04/us01/fr06/e03: a broken link to a file outside the checked folders is reported', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'See [idea](../../../notes/gone.md).',
+        ),
+      ),
+    );
+    expect(
+      report.findings.single.textLine,
+      '$loginFeature:11: link_unresolved: link target ../../../notes/gone.md is no doc',
+    );
+  });
+
+  test('f04/us02/fr04: an angle-bracket destination with a space is shown as written', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'See [a](<gone one.md>).',
+        ),
+      ),
+    );
+    expect(
+      report.findings.single.textLine,
+      '$loginFeature:11: link_unresolved: link target gone one.md is no doc',
+    );
+  });
+
+  test('f04/us02/fr04: a non-ASCII destination is shown as written', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'x\nSee [a](ไทย.md).',
+        ),
+      ),
+    );
+    expect(
+      report.findings.single.textLine,
+      '$loginFeature:12: link_unresolved: link target ไทย.md is no doc',
+    );
+  });
+
+  test('f04/us02/fr04: reference links sit on the line of their use, definitions in any order', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'See [a][r2].\nAnd [b][r1].\n\n[r1]: x.md\n[r2]: y.md\n\n```\n[c](fenced.md)\n```',
+        ),
+      ),
+    );
+    expect(
+      [for (final f in report.findings) f.textLine],
+      [
+        '$loginFeature:11: link_unresolved: link target y.md is no doc',
+        '$loginFeature:12: link_unresolved: link target x.md is no doc',
+      ],
+    );
+  });
 }
