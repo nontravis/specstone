@@ -136,6 +136,20 @@ void main() {
     );
   });
 
+  test(
+    'final Important 3: git output that is not UTF-8 makes the history unknown',
+    () {
+      final garbled = ApprovalHistory(
+        runGit: (_, {required workingDirectory}) =>
+            throw const FormatException('Missing extension byte'),
+      );
+      expect(
+        garbled.lastApproved(Directory.systemTemp, 'docs/$story1'),
+        isA<UnknownHistory>(),
+      );
+    },
+  );
+
   test('f02/us03/fr02, dw-s03/inv11: changed hunks name the lines that differ and carry no context', () {
     expect(changedHunks('a\nb\nc\n', 'a\nB\nc\n'), '@@ -2 +2 @@\n-b\n+B\n');
     expect(changedHunks('a\nc\n', 'a\nb\nc\n'), '@@ -1,0 +2 @@\n+b\n');

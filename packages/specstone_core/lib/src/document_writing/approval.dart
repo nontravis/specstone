@@ -102,6 +102,9 @@ final class ApprovalHistory {
       return const NoApprovedCopy();
     } on ProcessException {
       return const UnknownHistory();
+    } on FormatException {
+      // git printed bytes that are not UTF-8, so its history cannot be read.
+      return const UnknownHistory();
     }
   }
 }

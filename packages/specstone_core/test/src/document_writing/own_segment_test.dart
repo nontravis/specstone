@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -130,6 +132,33 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'final Important 3: an unreadable container is output_not_writable',
+    () async {
+      final copy = await writeWriteProject();
+      final container = '${copy.path}/docs/prds/features/f01_login';
+      Process.runSync('chmod', ['000', container]);
+      addTearDown(() => Process.runSync('chmod', ['755', container]));
+      expect(
+        () => siblingsOnDisk(
+          Directory('${copy.path}/docs'),
+          shape('user_story'),
+          ['01', 'login'],
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('cannot read prds/features/f01_login: '),
+              ),
+        ),
+      );
+    },
+    skip: unreadablePathSkipReason() ?? false,
+  );
 
   test('dw-s03/inv6: a file own segment lists files, not folders', () {
     final names = [

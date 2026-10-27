@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
@@ -175,6 +176,7 @@ final class SiblingEntry {
 ///
 /// They are the folders, or for a file segment the files, of the container
 /// whose name matches the segment. Empty when the container is absent.
+/// Throws [RenderFault] `output_not_writable` when the container is unreadable.
 List<SiblingEntry> siblingsOnDisk(
   Directory docsRoot,
   DocPathShape shape,
@@ -183,6 +185,7 @@ List<SiblingEntry> siblingsOnDisk(
   final folder = shape
       .containerOf(parentValues)
       .split('/')
+      .where((segment) => segment.isNotEmpty)
       .join(Platform.pathSeparator);
   final container = Directory(
     '${docsRoot.path}${Platform.pathSeparator}$folder',
@@ -190,7 +193,17 @@ List<SiblingEntry> siblingsOnDisk(
   if (!container.existsSync()) return const [];
   final pattern = shape._patterns[shape.ownIndex];
   final entries = <SiblingEntry>[];
-  for (final entity in container.listSync(followLinks: false)) {
+  final List<FileSystemEntity> children;
+  try {
+    children = container.listSync(followLinks: false);
+  } on FileSystemException catch (error) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot read ${folder.replaceAll(Platform.pathSeparator, '/')}: '
+      '${error.osError?.message ?? error.message}',
+    );
+  }
+  for (final entity in children) {
     final isOwn = shape.ownIsFile ? entity is File : entity is Directory;
     if (!isOwn) continue;
     final name = entity.path.split(Platform.pathSeparator).last;

@@ -262,6 +262,39 @@ void main() {
     expect(hasDoc(root, story3), isFalse);
   });
 
+  test('final Important 3: an unreadable unit path names itself', () async {
+    const folder = 'prds/features/f01_login/us03_reset_password';
+    for (final (name, mode, target) in [
+      ('folder', '000', folder),
+      ('file', '000', '$folder/fr01_send_reset_link.md'),
+    ]) {
+      final root = await writeWriteProject(extra: withoutLink);
+      final entity = '${root.path}/docs/$target';
+      addTearDown(() => Process.runSync('chmod', ['755', entity]));
+      expect(
+        () => writeIn(root, (s) {
+          Process.runSync('chmod', [mode, entity]);
+          return answerDelete(
+            s,
+            'user_story:login/reset_password',
+            interactive: false,
+            readLine: () => null,
+            prompts: StringBuffer(),
+          );
+        }),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                '$name message',
+                startsWith('cannot read $target: '),
+              ),
+        ),
+      );
+    }
+  }, skip: unreadablePathSkipReason() ?? false);
+
   test('f02/us04/fr01/e12, nfr-di01: an unmovable file is output_not_writable; the journal stays and the next write finishes the delete', () async {
     final root = await writeWriteProject(extra: withoutLink);
     final locked = Directory(

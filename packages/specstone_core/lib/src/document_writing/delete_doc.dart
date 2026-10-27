@@ -12,6 +12,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
 typedef _UnitFiles = Map<String, List<int>>;
@@ -123,7 +124,13 @@ Iterable<String> _filesUnder(WriteSession session, String root) sync* {
   );
   if (!folder.existsSync()) return;
   final prefixLength = session.project.docsRoot.path.length + 1;
-  for (final entity in folder.listSync(recursive: true, followLinks: false)) {
+  final List<FileSystemEntity> entities;
+  try {
+    entities = folder.listSync(recursive: true, followLinks: false);
+  } on FileSystemException catch (error) {
+    throw _notReadable(root, error);
+  }
+  for (final entity in entities) {
     if (entity is! File) continue;
     yield entity.path
         .substring(prefixLength)
@@ -143,9 +150,19 @@ _UnitFiles _readUnit(WriteSession session, List<String> roots) {
       files[docPath] = session.fileOf(docPath).readAsBytesSync();
     } on PathNotFoundException {
       continue;
+    } on FileSystemException catch (error) {
+      throw _notReadable(docPath, error);
     }
   }
   return files;
+}
+
+RenderFault _notReadable(String path, FileSystemException error) {
+  final shown = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  return RenderFault(
+    RenderFaultCode.outputNotWritable,
+    'cannot read $shown: ${error.osError?.message ?? error.message}',
+  );
 }
 
 /// Whether a `.md` file of [files] was ever approved.
