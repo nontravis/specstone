@@ -399,6 +399,13 @@ sections:
       );
     });
 
+    test('f03/us02/fr04/e06, s03/inv20: changing the type of approved is locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, type: string}]'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
     test('f03/us02/fr04/e02, s03/inv1: clearing a parent the base has is '
         'locked_field_disabled', () {
       final base = merger.apply(
