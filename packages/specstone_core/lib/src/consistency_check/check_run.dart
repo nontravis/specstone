@@ -9,6 +9,7 @@ import 'package:specstone_core/src/consistency_check/link_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
+import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 
@@ -38,7 +39,8 @@ CheckReport runCheck(ReadSession session, {String? target}) {
         ..addAll(checkTraces(context, doc))
         ..addAll(checkRolesAndGoals(context, doc))
         ..addAll(checkSpecAgainstPrd(context, doc))
-        ..addAll(checkImplementedStatus(context, doc));
+        ..addAll(checkImplementedStatus(context, doc))
+        ..addAll(checkTrackedLinks(context, doc));
     }
     findings
       ..addAll(checkFrontmatter(context, doc))

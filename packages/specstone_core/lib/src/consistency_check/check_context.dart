@@ -134,14 +134,15 @@ final class CheckContext {
       _scenarioBlocks.putIfAbsent(story.docPath, () {
         final section = heldSection(story, _acceptanceSection);
         if (section == null) return const {};
-        return {
-          for (final (:key, :text) in _blocksOf(
-            section.body,
-            _scenarioHeading,
-            (match) => 'S${match.group(1)}',
-          ))
-            key: text,
-        };
+        final blocks = <String, String>{};
+        for (final (:key, :text) in _blocksOf(
+          section.body,
+          _scenarioHeading,
+          (match) => 'S${match.group(1)}',
+        )) {
+          blocks.putIfAbsent(key, () => text);
+        }
+        return blocks;
       });
 
   /// Whether the merged set holds a `project` doc type.
