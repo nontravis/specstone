@@ -33,7 +33,11 @@ CheckReport runCheck(ReadSession session, {String? target}) {
         ..addAll(checkDocLinks(context, doc));
       continue;
     }
-    if (!context.hasNoParent(doc)) findings.addAll(checkTraces(context, doc));
+    if (!context.hasNoParent(doc)) {
+      findings
+        ..addAll(checkTraces(context, doc))
+        ..addAll(checkRolesAndGoals(context, doc));
+    }
     findings
       ..addAll(checkFrontmatter(context, doc))
       ..addAll(checkSections(context, doc))

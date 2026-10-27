@@ -144,6 +144,35 @@ final class CheckContext {
         };
       });
 
+  /// Whether the merged set holds a `project` doc type.
+  bool get hasProject =>
+      _session.project.set.docTypes.any((type) => type.id == _projectType);
+
+  late final Set<String> _roleNames = {
+    for (final doc in _projectDocs)
+      for (final line in (heldSection(doc, _rolesSection)?.body ?? '').split(
+        '\n',
+      ))
+        if (_roleEntry.firstMatch(line) case final entry?) entry.group(1)!,
+  };
+
+  /// Returns the Role names of every `project` doc.
+  ///
+  /// A name is the text in backticks that opens a `roles` section entry.
+  Set<String> roleNames() => _roleNames;
+
+  late final Set<String> _projectHeadingIds = {
+    for (final doc in _projectDocs)
+      for (final line in linesOf(doc).lines)
+        if (_nfrHeading.firstMatch(line) case final heading?) heading.group(1)!,
+  };
+
+  /// Returns the ID of each `###` heading with a ` — ` of every `project` doc.
+  Set<String> projectHeadingIds() => _projectHeadingIds;
+
+  Iterable<IndexedDoc> get _projectDocs =>
+      index.docs.where((doc) => doc.docTypeId == _projectType);
+
   /// Maps each NFR id of the `gnfr` docs to its DocPath and Statement line.
   ///
   /// The text is empty when the block has no `- **Statement:**` line.
@@ -196,6 +225,9 @@ String _headerText(IndexedSection section) =>
     section.headerLine.trimLeft().substring(2).trim();
 
 const _gnfrType = 'gnfr';
+const _projectType = 'project';
+const _rolesSection = 'roles';
+final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _acceptanceSection = 'acceptance_criteria';
 const _statementPrefix = '- **Statement:**';
 final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');

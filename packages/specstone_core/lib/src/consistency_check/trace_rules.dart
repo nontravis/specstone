@@ -11,6 +11,13 @@ const _selfDerived = 'self-derived';
 const _tighten = 'tighten';
 const _relax = 'relax';
 const _add = 'add';
+const _personaType = 'persona';
+const _storyType = 'user_story';
+const _roleKey = 'role';
+const _idKey = 'id';
+const _asAPrefix = '- **As a** ';
+const _whoSeparator = ' who ';
+const _storyVisionKeys = ['vision', 'goals'];
 
 /// Returns the requirement trace findings of a typed [doc] (US-03 FR-01).
 ///
@@ -79,5 +86,88 @@ Iterable<Finding> _overrideProblems(
       message: '$overrides is no NFR of the project-wide requirements',
       keys: {'overrides': overrides},
     );
+  }
+}
+
+/// Returns the role and vision and goal findings of a typed [doc].
+///
+/// Covers US-03 FR-02.
+///
+/// A `persona` or `user_story` role names a Role entry of a `project` doc; a
+/// story's `vision:` and `goals:` IDs sit in its feature and a project
+/// heading. The rule runs only when the merged set holds `project`.
+Iterable<Finding> checkRolesAndGoals(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  if (!context.hasProject) return;
+  switch (doc.docTypeId) {
+    case _personaType:
+      yield* _personaRole(context, doc);
+    case _storyType:
+      yield* _storyRole(context, doc);
+      yield* _storyGoalSets(context, doc);
+  }
+}
+
+Iterable<Finding> _personaRole(CheckContext context, IndexedDoc doc) sync* {
+  final role = doc.valuesOf(_roleKey).firstOrNull;
+  final line = context.linesOf(doc).keyLine(_roleKey);
+  if (role == null || line == null) return;
+  yield* _unresolvedRole(context, doc, role, line);
+}
+
+Iterable<Finding> _storyRole(CheckContext context, IndexedDoc doc) sync* {
+  final lines = context.linesOf(doc).lines;
+  final index = lines.indexWhere((line) => line.startsWith(_asAPrefix));
+  if (index < 0) return;
+  final text = lines[index].substring(_asAPrefix.length);
+  final who = text.indexOf(_whoSeparator);
+  final role = (who < 0 ? text : text.substring(0, who)).trim();
+  yield* _unresolvedRole(context, doc, role, index + 1);
+}
+
+Iterable<Finding> _unresolvedRole(
+  CheckContext context,
+  IndexedDoc doc,
+  String role,
+  int line,
+) sync* {
+  if (context.roleNames().contains(role)) return;
+  yield context.finding(
+    doc,
+    FindingKind.roleUnresolved,
+    line: line,
+    message: '$role is no Role entry of the project',
+    keys: {_roleKey: role},
+  );
+}
+
+Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
+  final feature = context.index.parentOf(doc);
+  for (final key in _storyVisionKeys) {
+    final line = context.linesOf(doc).keyLine(key);
+    if (line == null) continue;
+    final held = feature?.valuesOf(key).toSet();
+    for (final id in doc.valuesOf(key)) {
+      if (!context.projectHeadingIds().contains(id)) {
+        yield context.finding(
+          doc,
+          FindingKind.visionGoalUnresolved,
+          line: line,
+          message: '$id is no heading of the project',
+          keys: {_idKey: id},
+        );
+      }
+      if (held != null && !held.contains(id)) {
+        yield context.finding(
+          doc,
+          FindingKind.visionGoalWidened,
+          line: line,
+          message: '$id is not in the $key of the feature',
+          keys: {_idKey: id},
+        );
+      }
+    }
   }
 }
