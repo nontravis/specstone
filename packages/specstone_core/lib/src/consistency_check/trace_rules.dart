@@ -18,6 +18,12 @@ const _idKey = 'id';
 const _asAPrefix = '- **As a** ';
 const _whoSeparator = ' who ';
 const _storyVisionKeys = ['vision', 'goals'];
+const _apiType = 'api';
+const _featureType = 'feature';
+const _architectureType = 'architecture';
+const _implementsKey = 'implements';
+const _statusKey = 'status';
+const _implemented = 'implemented';
 
 /// Returns the requirement trace findings of a typed [doc] (US-03 FR-01).
 ///
@@ -170,4 +176,82 @@ Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
       }
     }
   }
+}
+
+/// Returns the findings of a spec doc read against its PRD (US-03 FR-03).
+///
+/// An `api` row must name an FR of its feature as `<feature name>/<cell>`. A
+/// `feature` with code pointers needs an `architecture` doc when the merged
+/// set holds that type.
+Iterable<Finding> checkSpecAgainstPrd(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  switch (doc.docTypeId) {
+    case _apiType:
+      yield* _unresolvedFrRows(context, doc);
+    case _featureType:
+      if (context.hasArchitecture) yield* _missingArchitecture(context, doc);
+  }
+}
+
+Iterable<Finding> _unresolvedFrRows(
+  CheckContext context,
+  IndexedDoc api,
+) sync* {
+  final feature = context.index.parentOf(api);
+  if (feature == null) return;
+  for (final (:cell, :line) in context.frTraceRowsOf(api)) {
+    if (context.frNamed('${feature.name}/$cell') != null) continue;
+    yield context.finding(
+      api,
+      FindingKind.frTraceUnresolved,
+      line: line,
+      message: '$cell is no requirement of ${feature.name}',
+      keys: {'fr': cell},
+    );
+  }
+}
+
+Iterable<Finding> _missingArchitecture(
+  CheckContext context,
+  IndexedDoc feature,
+) sync* {
+  final index = context.index;
+  final hasCode = index
+      .subtreeOf(feature)
+      .any((doc) => doc.valuesOf(_implementsKey).isNotEmpty);
+  if (!hasCode) return;
+  final hasArchitecture = index
+      .childrenOf(feature)
+      .any((doc) => doc.docTypeId == _architectureType);
+  if (hasArchitecture) return;
+  yield context.finding(
+    feature,
+    FindingKind.architectureMissing,
+    line: 1,
+    message: 'code is pointed at but no architecture doc covers the feature',
+  );
+}
+
+/// Returns `implements_missing` for a doc whose status is `implemented` and
+/// that holds no `implements` entry (US-03 FR-04).
+///
+/// Only a doc type that defines `implements` is read (INV-2).
+Iterable<Finding> checkImplementedStatus(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  final type = context.typeOf(doc);
+  if (type == null || !type.fields.any((f) => f.id == _implementsKey)) return;
+  if (doc.writtenStatus != _implemented) return;
+  if (doc.valuesOf(_implementsKey).isNotEmpty) return;
+  final line = context.linesOf(doc).keyLine(_statusKey);
+  if (line == null) return;
+  yield context.finding(
+    doc,
+    FindingKind.implementsMissing,
+    line: line,
+    message: 'status is $_implemented but no implements entry points at code',
+  );
 }

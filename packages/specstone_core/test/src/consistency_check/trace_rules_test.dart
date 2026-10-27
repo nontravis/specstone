@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/shipped_pins.dart';
 
 void main() {
   test("f04/us03/s1: the fixture's requirement, override, and spec agree with the PRD", () async {
@@ -194,5 +195,123 @@ void main() {
     );
     addTearDown(session.close);
     expect(spots(runCheck(session), FindingKind.roleUnresolved), isEmpty);
+  });
+
+  test(
+    'f04/us03/fr03/e01: a row naming a requirement of the feature resolves',
+    () async {
+      expect(
+        spots(
+          checkOf(await writeCheckProject()),
+          FindingKind.frTraceUnresolved,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test('f04/us03/s3, f04/us03/fr03/e02, f04/us03/fr03/e03: a row naming a requirement the feature lacks, or written '
+      'with the feature slug, is fr_trace_unresolved', () async {
+    final extra = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginApi,
+          '| email_login/check_password | `signIn` |\n',
+          '| email_login/check_password | `signIn` |\n| email_login/send_otp | `sendOtp` |\n',
+        ),
+      ),
+    );
+    expect(spots(extra, FindingKind.frTraceUnresolved), [
+      '$loginApi:12: fr_trace_unresolved',
+    ]);
+    expect(
+      extra.findings
+          .firstWhere((f) => f.kind == FindingKind.frTraceUnresolved)
+          .toJson()['fr'],
+      'email_login/send_otp',
+    );
+    final withSlug = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginApi,
+          '| email_login/check_password |',
+          '| login/email_login/check_password |',
+        ),
+      ),
+    );
+    expect(spots(withSlug, FindingKind.frTraceUnresolved), [
+      '$loginApi:11: fr_trace_unresolved',
+    ]);
+  });
+
+  test('f04/us03/fr03/e04: code with no architecture doc is architecture_missing on the feature', () async {
+    final report = checkOf(
+      await writeCheckProject(without: {'docs/$loginArchitecture'}),
+    );
+    expect(spots(report, FindingKind.architectureMissing), [
+      '$loginFeature:1: architecture_missing',
+    ]);
+  });
+
+  test('f04/us03/fr03/e05, f04/us03/fr04/e05, cc-s03/inv2: a prd-core-only project runs neither rule', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          ...fr('implements:\n  - app/lib/login.dart:checkPassword\n', ''),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.architectureMissing), isEmpty);
+    expect(spots(report, FindingKind.implementsMissing), isEmpty);
+  });
+
+  test('f04/us03/fr03/e06: a spec doc whose feature is gone gets parent_missing and no row rule', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/specs/f03_billing/API.md':
+              '# Billing API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+              '| pay/charge | `charge` |\n\n## Operations\nNone.\n',
+        },
+      ),
+    );
+    expect(spots(report), ['specs/f03_billing/API.md:1: parent_missing']);
+  });
+
+  test('f04/us03/s8, f04/us03/fr04/e01, f04/us03/fr04/e02, f04/us03/fr04/e03, f04/us03/fr04/e04: implemented work '
+      'with no code pointer', () async {
+    expect(
+      spots(checkOf(await writeCheckProject()), FindingKind.implementsMissing),
+      isEmpty,
+    );
+    final none = checkOf(
+      await writeCheckProject(
+        extra: fr('implements:\n  - app/lib/login.dart:checkPassword\n', ''),
+      ),
+    );
+    expect(spots(none, FindingKind.implementsMissing), [
+      '$loginFr:2: implements_missing',
+    ]);
+    final empty = checkOf(
+      await writeCheckProject(
+        extra: fr(
+          'implements:\n  - app/lib/login.dart:checkPassword\n',
+          'implements: []\n',
+        ),
+      ),
+    );
+    expect(spots(empty, FindingKind.implementsMissing), [
+      '$loginFr:2: implements_missing',
+    ]);
+    final planned = checkOf(
+      await writeCheckProject(
+        extra: edit(loginFr, [
+          ('status: implemented', 'status: planned'),
+          ('implements:\n  - app/lib/login.dart:checkPassword\n', ''),
+        ]),
+      ),
+    );
+    expect(spots(planned, FindingKind.implementsMissing), isEmpty);
   });
 }

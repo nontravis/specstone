@@ -36,7 +36,9 @@ CheckReport runCheck(ReadSession session, {String? target}) {
     if (!context.hasNoParent(doc)) {
       findings
         ..addAll(checkTraces(context, doc))
-        ..addAll(checkRolesAndGoals(context, doc));
+        ..addAll(checkRolesAndGoals(context, doc))
+        ..addAll(checkSpecAgainstPrd(context, doc))
+        ..addAll(checkImplementedStatus(context, doc));
     }
     findings
       ..addAll(checkFrontmatter(context, doc))

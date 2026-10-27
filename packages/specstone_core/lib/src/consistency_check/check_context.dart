@@ -207,6 +207,53 @@ final class CheckContext {
     return statements;
   }
 
+  /// Whether the merged set holds an `architecture` doc type.
+  bool get hasArchitecture =>
+      _session.project.set.docTypes.any((type) => type.id == _architectureType);
+
+  late final Map<String, IndexedDoc> _frsByName = {
+    for (final doc in index.docs)
+      if (doc.docTypeId == _frType) doc.name: doc,
+  };
+
+  /// Returns the doc of type `fr` named [name], or null.
+  IndexedDoc? frNamed(String name) => _frsByName[name];
+
+  final Map<String, List<({String cell, int line})>> _frTraceRows = {};
+
+  /// Returns the FR cell and file line of each row of the `fr_trace` table
+  /// of [api].
+  ///
+  /// A cell is the row's first cell, trimmed, with one pair of backticks
+  /// dropped. The header row and the separator row are skipped.
+  List<({String cell, int line})> frTraceRowsOf(IndexedDoc api) =>
+      _frTraceRows.putIfAbsent(api.docPath, () => _readFrTraceRows(api));
+
+  List<({String cell, int line})> _readFrTraceRows(IndexedDoc api) {
+    final held = contentOf(api).sections;
+    final type = typeOf(api);
+    if (type == null) return const [];
+    final headerLines = linesOf(api).sectionLines;
+    final rows = <({String cell, int line})>[];
+    for (var i = 0; i < held.length; i++) {
+      if (templateSectionOf(type, held[i])?.id != _frTraceSection) continue;
+      final bodyLines = held[i].body.split('\n');
+      var sawHeader = false;
+      for (var k = 0; k < bodyLines.length; k++) {
+        final text = bodyLines[k].trim();
+        if (!text.startsWith('|')) continue;
+        final cell = _firstCell(text);
+        if (!sawHeader) {
+          sawHeader = true;
+          continue;
+        }
+        if (_separatorCell.hasMatch(cell)) continue;
+        rows.add((cell: _unquoted(cell), line: headerLines[i] + 1 + k));
+      }
+    }
+    return rows;
+  }
+
   /// Every warning of the session, in session order.
   List<String> get sessionWarnings => _session.warnings;
 
@@ -221,6 +268,17 @@ final class CheckContext {
   ];
 }
 
+String _firstCell(String row) {
+  final inner = row.substring(1);
+  final end = inner.indexOf('|');
+  return (end < 0 ? inner : inner.substring(0, end)).trim();
+}
+
+String _unquoted(String cell) =>
+    cell.length > 1 && cell.startsWith('`') && cell.endsWith('`')
+    ? cell.substring(1, cell.length - 1)
+    : cell;
+
 String _headerText(IndexedSection section) =>
     section.headerLine.trimLeft().substring(2).trim();
 
@@ -229,6 +287,10 @@ const _projectType = 'project';
 const _rolesSection = 'roles';
 final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _acceptanceSection = 'acceptance_criteria';
+const _architectureType = 'architecture';
+const _frType = 'fr';
+const _frTraceSection = 'fr_trace';
+final _separatorCell = RegExp(r'^:?-+:?$');
 const _statementPrefix = '- **Statement:**';
 final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
 final _nfrHeading = RegExp(r'^### (\S+) — ');
