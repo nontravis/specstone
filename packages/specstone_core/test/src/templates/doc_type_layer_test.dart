@@ -175,11 +175,31 @@ void main() {
 
     test('f03/us02/fr03/e02: an unknown section lint key is unknown_key', () {
       expect(
-        () => _parse(
-          'sections: [{id: goal, header: G, lint: {banned_words: [x]}}]',
-        ),
+        () => _parse('sections: [{id: goal, header: G, lint: {max_words: 3}}]'),
         throwsA(
-          _fault(FaultCode.unknownKey, key: 'sections.goal.lint.banned_words'),
+          _fault(FaultCode.unknownKey, key: 'sections.goal.lint.max_words'),
+        ),
+      );
+    });
+
+    test('f03/us02/fr03, f03/us03/fr01: a section lint holds banned_words, '
+        'allowed_words, and line_prefix', () {
+      final lint = _parse(
+        'sections: [{id: goal, header: G, lint: {banned_words: [fast], '
+        'allowed_words: {add: [API]}, line_prefix: "- **Statement:**"}}]',
+      ).sections.single.lint!;
+      expect((lint.bannedWords! as PlainList<String>).items, ['fast']);
+      expect((lint.allowedWords! as ListChange<String>).add, ['API']);
+      expect(lint.linePrefix, '- **Statement:**');
+    });
+
+    test('f03/us02/fr03/e09: a section line_prefix that is not a string is '
+        'unknown_value', () {
+      expect(
+        () =>
+            _parse('sections: [{id: goal, header: G, lint: {line_prefix: 3}}]'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'sections.goal.lint.line_prefix'),
         ),
       );
     });

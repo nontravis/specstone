@@ -94,6 +94,9 @@ final class MergedSection {
     this.template,
     this.maxChars,
     this.maxLines,
+    this.bannedWords,
+    this.allowedWords,
+    this.linePrefix,
     this.query,
   });
 
@@ -121,6 +124,15 @@ final class MergedSection {
   /// The section's own line ceiling, replacing the doc-level value.
   final int? maxLines;
 
+  /// The section's own banned words; null when no layer sets them.
+  final List<String>? bannedWords;
+
+  /// The section's own allowed words; null when no layer sets them.
+  final List<String>? allowedWords;
+
+  /// The prefix each body line starts with; null when no layer sets it.
+  final String? linePrefix;
+
   /// Whether the section is a query section; null when no layer sets it.
   final bool? query;
 
@@ -133,6 +145,9 @@ final class MergedSection {
     String? template,
     int? maxChars,
     int? maxLines,
+    List<String>? bannedWords,
+    List<String>? allowedWords,
+    String? linePrefix,
     bool? query,
   }) => MergedSection(
     id: id,
@@ -143,14 +158,26 @@ final class MergedSection {
     template: template ?? this.template,
     maxChars: maxChars ?? this.maxChars,
     maxLines: maxLines ?? this.maxLines,
+    bannedWords: bannedWords ?? this.bannedWords,
+    allowedWords: allowedWords ?? this.allowedWords,
+    linePrefix: linePrefix ?? this.linePrefix,
     query: query ?? this.query,
   );
 
   /// Returns the JSON object of this section with only the keys set.
   ///
-  /// `required` prints only when true; `lint` is absent when no limit is set.
+  /// `required` prints only when true; `lint` is absent when no lint key is
+  /// set.
   Map<String, Object> toJson() {
-    final lint = MergedLint(maxChars: maxChars, maxLines: maxLines).toJson();
+    final lint = {
+      ...MergedLint(
+        maxChars: maxChars,
+        maxLines: maxLines,
+        bannedWords: bannedWords,
+        allowedWords: allowedWords,
+      ).toJson(),
+      'linePrefix': ?linePrefix,
+    };
     return {
       'id': id,
       'prefixId': ?prefixId,

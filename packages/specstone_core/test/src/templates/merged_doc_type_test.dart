@@ -363,4 +363,26 @@ void main() {
       expect(_merge("description: ''\npath: a.md").renderGuide(), '');
     });
   });
+
+  test('f03/us02/fr03: a section prints the lint keys a layer sets, and no '
+      'lint when none is set', () {
+    const section = MergedSection(
+      id: 'statement',
+      header: 'Statement',
+      maxLines: 5,
+      bannedWords: ['fast'],
+      allowedWords: ['API'],
+      linePrefix: '- **Statement:**',
+    );
+    expect(section.toJson()['lint'], {
+      'maxLines': 5,
+      'bannedWords': ['fast'],
+      'allowedWords': ['API'],
+      'linePrefix': '- **Statement:**',
+    });
+    expect(
+      const MergedSection(id: 'a', header: 'A').toJson().containsKey('lint'),
+      isFalse,
+    );
+  });
 }
