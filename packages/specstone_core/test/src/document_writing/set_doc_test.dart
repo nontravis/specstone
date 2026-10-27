@@ -19,8 +19,14 @@ import '../../helpers/write_fixture.dart';
 SetRequest req(String target, String base) =>
     SetRequest.parse(target, base: base);
 
+SetRequest fieldReq(String target, String id, String base) =>
+    SetRequest.parse(target, field: id, base: base);
+
 String sectionBase(Directory root, String target) =>
     getDoc(root, target)['base']! as String;
+
+String fieldBase(Directory root, String target, String id) =>
+    ((getDoc(root, target)['bases']! as Map)['fields']! as Map)[id]! as String;
 
 void main() {
   test(
@@ -572,5 +578,480 @@ void main() {
       readDoc(root, story1),
       contains('## Notes\nchanged\n\n## Notes\nsecond\n'),
     );
+  });
+
+  test('f02/us01/s3, f02/us01/fr03, f02/us01/fr03/e01, dw-s03/inv14: a field block is rewritten and every other block kept', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
+        '- PV-02\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      startsWith(
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-02\npersona:\n  - buyer\n---\n',
+      ),
+    );
+  });
+  test('f02/us01/s4, f02/us01/fr03/e02, dw-s03/inv4: an implements edit leaves an approved FR approved', () async {
+    final root = await writeWriteProject();
+    const target = 'fr:login/email_login/validate_credentials';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'implements', fieldBase(root, target, 'implements')),
+        '- app/lib/src/login/password_check.dart:checkPassword\n',
+      ),
+    );
+    expect(readDoc(root, fr11), isNot(contains('draft:')));
+    expect(
+      readDoc(root, fr11),
+      contains(
+        'implements:\n  - app/lib/src/login/password_check.dart:checkPassword\n',
+      ),
+    );
+    expect(answer.json['draft'], isFalse);
+  });
+  test(
+    'f02/us01/s9, f02/us01/fr03/e04: draft and approved are field_not_writable',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            fieldReq(
+              'fr:login/email_login/validate_credentials',
+              'draft',
+              emptyBaseHash,
+            ),
+            'true\n',
+          ),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'draft is written only by specstone approve',
+              )
+              .having((f) => (f.file, f.key), 'location', (fr11, 'draft')),
+        ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            fieldReq(
+              'fr:login/email_login/validate_credentials',
+              'approved',
+              emptyBaseHash,
+            ),
+            'true\n',
+          ),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'approved is written only by specstone approve',
+              ),
+        ),
+      );
+    },
+  );
+  test('f02/us01/s5, f02/us01/fr04, f02/us01/fr04/e01, f02/us01/fr04/e05: a new title keeps the folder and the name, and marks the doc draft', () async {
+    final root = await writeWriteProject();
+    final base =
+        (getDoc(root, 'feature:login')['bases']! as Map)['title']! as String;
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        SetRequest.parse('feature:login', title: true, base: base),
+        'Sign in\n',
+      ),
+    );
+    expect(
+      readDoc(root, loginFeature),
+      '---\nvision:\n  - PV-01\ndraft: true\n---\n\n# Sign in\n\n## Problem\nUsers sign in with an email and a password.\n',
+    );
+    expect(
+      answer.text,
+      '==> login (feature) · $loginFeature · base ${baseHashOf('Sign in')} <==\n',
+    );
+  });
+
+  test('f02/us01/fr03/e03: a covers edit leaves an approved architecture doc approved', () async {
+    final root = await writeWriteProject();
+    const target = 'architecture:login';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'covers', fieldBase(root, target, 'covers')),
+        '- app/lib/src/login/\n',
+      ),
+    );
+    expect(readDoc(root, loginArch), isNot(contains('draft')));
+    expect(
+      readDoc(root, loginArch),
+      contains('covers:\n  - app/lib/src/login/\n'),
+    );
+    expect(answer.json['draft'], isFalse);
+  });
+  test('f02/us01/fr03/e05: status on a feature is field_not_writable; on a story it is written', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq('feature:login', 'status', emptyBaseHash),
+          'implemented\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'the status of a feature is computed from its stories',
+            )
+            .having((f) => (f.file, f.key), 'location', (
+              loginFeature,
+              'status',
+            )),
+      ),
+    );
+    const story = 'user_story:login/email_login';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(story, 'status', fieldBase(root, story, 'status')),
+        'implemented\n',
+      ),
+    );
+    expect(readDoc(root, story1), startsWith('---\nstatus: implemented\n'));
+    expect(answer.json['base'], baseHashOf('status: implemented\n'));
+  });
+  test('f02/us01/s11, f02/us01/fr03/e06: a value outside the enum is field_value_invalid', () async {
+    final root = await writeWriteProject();
+    const target = 'fr:login/email_login/validate_credentials';
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(
+            target,
+            'verify_method',
+            fieldBase(root, target, 'verify_method'),
+          ),
+          'maybe\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'verify_method takes one of test, analysis, inspection, demonstration',
+            )
+            .having((f) => (f.file, f.key), 'location', (
+              fr11,
+              'verify_method',
+            )),
+      ),
+    );
+  });
+  test('f02/us01/fr03/e07: a scalar for a list, a list for a scalar, or invalid YAML is field_value_invalid', () async {
+    final root = await writeWriteProject();
+    const story = 'user_story:login/email_login';
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(story, 'vision', fieldBase(root, story, 'vision')),
+          'PV-02\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
+            .having((f) => f.message, 'message', 'vision takes a list'),
+      ),
+    );
+    const fr = 'fr:login/email_login/validate_credentials';
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(fr, 'verify_method', fieldBase(root, fr, 'verify_method')),
+          '- test\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'verify_method takes one value',
+            ),
+      ),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(story, 'vision', fieldBase(root, story, 'vision')),
+          '[\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
+            .having((f) => f.message, 'message', 'vision takes a YAML value'),
+      ),
+    );
+  });
+  test('f02/us01/fr03/e08: empty stdin removes an optional field, and refuses a required one', () async {
+    final root = await writeWriteProject();
+    const story = 'user_story:login/email_login';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(story, 'persona', fieldBase(root, story, 'persona')),
+        '\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      startsWith(
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\n---\n',
+      ),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(
+            'fr:login/reset_password/expire_reset_link',
+            'traced_from',
+            fieldBase(
+              root,
+              'fr:login/reset_password/expire_reset_link',
+              'traced_from',
+            ),
+          ),
+          '\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
+            .having(
+              (f) => f.message,
+              'message',
+              'fr requires the field traced_from',
+            ),
+      ),
+    );
+  });
+  test('f02/us01/fr03/e09: an absent field with the empty base is added after the last key block', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    writeIn(
+      root,
+      (s) =>
+          answerSet(s, fieldReq(target, 'goals', emptyBaseHash), '- PG-01\n'),
+    );
+    expect(
+      readDoc(root, story1),
+      startsWith(
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\ngoals:\n  - PG-01\n---\n',
+      ),
+    );
+  });
+  test('f02/us01/fr03/e10: an undeclared id is field_unknown', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(s, fieldReq(target, 'size', emptyBaseHash), '1\n'),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldUnknown)
+            .having(
+              (f) => f.message,
+              'message',
+              'user_story declares no field size',
+            )
+            .having((f) => (f.file, f.key), 'location', (story1, 'size')),
+      ),
+    );
+  });
+  test('f02/us01/fr03/e11, f02/us01/fr02/e02: a field changed after the read refuses with its block as current text', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    final base = fieldBase(root, target, 'vision');
+    writeIn(
+      root,
+      (s) => answerSet(s, fieldReq(target, 'vision', base), '- PV-09\n'),
+    );
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(s, fieldReq(target, 'vision', base), '- PV-02\n'),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+            .having(
+              (f) => f.current?.text,
+              'current.text',
+              'vision:\n  - PV-09\n',
+            )
+            .having(
+              (f) => f.current?.base,
+              'current.base',
+              baseHashOf('vision:\n  - PV-09\n'),
+            ),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+  test(
+    'f02/us01/fr04/e02: a doc with no title line gains one with the empty base',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature':
+              '---\ndraft: true\n---\n\n## Problem\nUsers create an account.\n',
+        },
+      );
+      const target = 'feature:signup';
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(target, title: true, base: emptyBaseHash),
+          'Create an account\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupFeature),
+        '---\ndraft: true\n---\n# Create an account\n\n## Problem\nUsers create an account.\n',
+      );
+      expect(answer.json['base'], baseHashOf('Create an account'));
+    },
+  );
+  test(
+    'f02/us01/fr04/e03: an empty title or two lines is argument_invalid',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse('feature:login', title: true, base: 'x'),
+            '\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'a title is one non-empty line',
+              ),
+        ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse('feature:login', title: true, base: 'x'),
+            'One\nTwo\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'a title is one non-empty line',
+              ),
+        ),
+      );
+    },
+  );
+  test('f02/us01/fr04/e04, f02/us01/fr02/e04: a title changed after the read refuses with the # line as current text', () async {
+    final root = await writeWriteProject();
+    const target = 'feature:login';
+    final base = (getDoc(root, target)['bases']! as Map)['title']! as String;
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        SetRequest.parse(target, title: true, base: base),
+        'Sign in fast\n',
+      ),
+    );
+    final before = readDoc(root, loginFeature);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(target, title: true, base: base),
+          'Sign in slow\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+            .having(
+              (f) => f.message,
+              'message',
+              'the title changed since base $base',
+            )
+            .having((f) => f.key, 'key', 'title')
+            .having((f) => f.current?.text, 'current.text', '# Sign in fast\n')
+            .having(
+              (f) => f.current?.base,
+              'current.base',
+              baseHashOf('Sign in fast'),
+            ),
+      ),
+    );
+    expect(readDoc(root, loginFeature), before);
   });
 }

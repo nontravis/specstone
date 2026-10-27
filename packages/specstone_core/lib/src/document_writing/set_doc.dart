@@ -10,7 +10,9 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:yaml/yaml.dart';
 
 const _targetExample =
     'specstone set user_story:login/email_login#use_case '
@@ -116,16 +118,250 @@ String markDraft(String lfText) => Doc.parse(lfText).isDraft
 ///
 /// The write runs under the session lock against a fresh read of the file,
 /// so a target changed since [SetRequest.base] refuses with its current text.
-/// An empty [text] removes an optional section. Throws [IndexFault] for a
-/// body that holds a `## ` line, a doc or section that is not there, and
-/// [WriteFault] `base_mismatch` or `required_target`.
+/// An empty [text] removes an optional section or field. Throws [IndexFault]
+/// for a body that holds a `## ` line, a doc, section, or field that is not
+/// there, a title that is not one line, and [WriteFault] `base_mismatch`,
+/// `required_target`, or a refused field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) =>
     switch (request.target) {
       SectionTarget(:final key) => _setSection(session, request, key, text),
-      FieldTarget() || TitleTarget() => throw UnimplementedError(
-        'set --field and set --title arrive with M3-T9',
-      ),
+      FieldTarget(:final fieldId) => _setField(session, request, fieldId, text),
+      TitleTarget() => _setTitle(session, request, text),
     };
+
+/// The one ComputedField (PD17): a feature's status, computed from stories.
+const _computedStatusType = 'feature';
+
+ReadAnswer _setField(
+  WriteSession session,
+  SetRequest request,
+  String fieldId,
+  String stdin,
+) {
+  final doc = session.target(request.address);
+  final docType = session.index.typeOf(doc);
+  if (docType == null) {
+    throw StateError('${doc.docPath} is typed but its type is gone');
+  }
+  final match = MatchedDocType(docType);
+  if (fieldId == 'draft' || fieldId == 'approved') {
+    throw WriteFault(
+      WriteFaultCode.fieldNotWritable,
+      '$fieldId is written only by specstone approve',
+      file: doc.docPath,
+      key: fieldId,
+    );
+  }
+  if (fieldId == 'status' && doc.docTypeId == _computedStatusType) {
+    throw WriteFault(
+      WriteFaultCode.fieldNotWritable,
+      'the status of a feature is computed from its stories',
+      file: doc.docPath,
+      key: fieldId,
+    );
+  }
+  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
+  if (field == null) {
+    throw WriteFault(
+      WriteFaultCode.fieldUnknown,
+      '${doc.docTypeId} declares no field $fieldId',
+      file: doc.docPath,
+      key: fieldId,
+    );
+  }
+
+  final lf = toLf(stdin);
+  final stripped = lf.replaceFirst(_trailingBlankLines, '');
+  final empty = stripped.trim().isEmpty;
+  if (!empty) {
+    _checkedValue(doc, field, stripped);
+  }
+
+  return session.locked(() {
+    final read = _readLocked(session, doc, match);
+    final lfText = toLf(read.content.text);
+    final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
+    final held = blocks.where((b) => b.key == fieldId).firstOrNull;
+    final currentText = held?.text ?? '';
+    final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
+    if (currentBase != request.base) {
+      throw _staleBase(
+        doc,
+        target: 'field',
+        key: fieldId,
+        sinceBase: request.base,
+        currentText: currentText,
+        currentBase: currentBase,
+      );
+    }
+    if (empty && field.required) {
+      throw WriteFault(
+        WriteFaultCode.requiredTarget,
+        '${doc.docTypeId} requires the field $fieldId',
+        file: doc.docPath,
+        key: fieldId,
+      );
+    }
+
+    var spliced = empty
+        ? withKeyBlock(lfText, fieldId, null)
+        : withKeyBlock(lfText, fieldId, _blockOf(fieldId, stripped));
+    if (field.type != FieldType.outputRef) {
+      spliced = markDraft(spliced);
+    }
+    session.writeDoc(doc.docPath, spliced, LineEnding.of(read.content.text));
+
+    final after = parseIndexedDoc(
+      docPath: doc.docPath,
+      bytes: utf8.encode(spliced),
+      match: match,
+    );
+    final afterBlock =
+        (Doc.parse(toLf(after.content.text)).frontmatter ?? const <KeyBlock>[])
+            .where((b) => b.key == fieldId)
+            .firstOrNull;
+    final base = afterBlock == null
+        ? emptyBaseHash
+        : baseHashOf(afterBlock.text);
+    return ReadAnswer(
+      text: '${namingLine(doc, base: base)}\n',
+      json: {
+        'name': doc.name,
+        'docType': ?doc.docTypeId,
+        'path': doc.docPath,
+        'base': base,
+        'draft': after.doc.isDraft,
+      },
+    );
+  });
+}
+
+/// Checks the YAML value of [stdin] against [field], throwing the fault.
+void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
+  final Object? value;
+  try {
+    value = loadYaml(stdin);
+  } on YamlException {
+    throw WriteFault(
+      WriteFaultCode.fieldValueInvalid,
+      '${field.id} takes a YAML value',
+      file: doc.docPath,
+      key: field.id,
+    );
+  }
+  WriteFault takes(String what) => WriteFault(
+    WriteFaultCode.fieldValueInvalid,
+    '${field.id} takes $what',
+    file: doc.docPath,
+    key: field.id,
+  );
+  if (field.list) {
+    if (value is! YamlList) throw takes('a list');
+    for (final item in value) {
+      if (!_itemIs(item, field)) throw takes(_typeOf(field));
+    }
+    return;
+  }
+  if (value is YamlList) throw takes('one value');
+  if (!_itemIs(value, field)) throw takes(_typeOf(field));
+}
+
+/// Returns the `<what>` the field's type and `enum` name in a fault.
+String _typeOf(MergedField field) => switch (field.type) {
+  FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+  FieldType.integer => 'a whole number',
+  FieldType.boolean => 'true or false',
+  FieldType.date => 'a date as YYYY-MM-DD',
+  FieldType.enumType =>
+    field.enumValues == null
+        ? 'a string'
+        : 'one of ${field.enumValues!.join(', ')}',
+};
+
+/// Whether [value] is one item the field's type accepts.
+bool _itemIs(Object? value, MergedField field) => switch (field.type) {
+  FieldType.string ||
+  FieldType.docRef ||
+  FieldType.outputRef => value is String,
+  FieldType.integer => value is int,
+  FieldType.boolean => value is bool,
+  FieldType.date =>
+    value is String &&
+        RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value) &&
+        DateTime.tryParse(value) != null,
+  FieldType.enumType =>
+    value is String && (field.enumValues?.contains(value) ?? false),
+};
+
+/// Returns [stdin] as the key block text of [fieldId], per PD6.
+String _blockOf(String fieldId, String stdin) {
+  final lines = stdin.split('\n');
+  if (lines.length == 1 && !stdin.startsWith('- ')) {
+    return '$fieldId: ${lines[0]}\n';
+  }
+  final buffer = StringBuffer('$fieldId:\n');
+  for (final line in lines.where((l) => l.isNotEmpty)) {
+    buffer.write('  $line\n');
+  }
+  return buffer.toString();
+}
+
+ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
+  final lf = toLf(stdin);
+  final stripped = lf.replaceFirst(_trailingBlankLines, '');
+  final lines = stripped.split('\n').where((l) => l.isNotEmpty).toList();
+  if (lines.length != 1 || lines.single.trim().isEmpty) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'a title is one non-empty line',
+    );
+  }
+  final title = lines.single.trim();
+
+  final doc = session.target(request.address);
+  final docType =
+      session.index.typeOf(doc) ??
+      (throw StateError('${doc.docPath} is typed but its type is gone'));
+  final match = MatchedDocType(docType);
+
+  return session.locked(() {
+    final read = _readLocked(session, doc, match);
+    final lfText = toLf(read.content.text);
+    final currentTitle = Doc.parse(lfText).title ?? '';
+    final currentText = currentTitle.isEmpty ? '' : '# $currentTitle\n';
+    final currentBase = baseHashOf(currentTitle);
+    if (currentBase != request.base) {
+      throw _staleBase(
+        doc,
+        target: 'title',
+        key: 'title',
+        sinceBase: request.base,
+        currentText: currentText,
+        currentBase: currentBase,
+      );
+    }
+
+    final written = markDraft(withTitle(lfText, title));
+    session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
+
+    final after = parseIndexedDoc(
+      docPath: doc.docPath,
+      bytes: utf8.encode(written),
+      match: match,
+    );
+    final base = baseHashOf(title);
+    return ReadAnswer(
+      text: '${namingLine(doc, base: base)}\n',
+      json: {
+        'name': doc.name,
+        'docType': ?doc.docTypeId,
+        'path': doc.docPath,
+        'base': base,
+        'draft': after.doc.isDraft,
+      },
+    );
+  });
+}
 
 ReadAnswer _setSection(
   WriteSession session,
