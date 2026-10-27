@@ -102,8 +102,8 @@ final class WriteSession {
   /// types and refuses.
   /// Throws [IndexFault] `argument_invalid` for a bare name, found or
   /// not, or a name two docs carry, `untyped_target` for a doc with no doc
-  /// type, and `doc_not_found` when a typed name matches none; a `TemplateFault` for an unknown doc
-  /// type id passes through.
+  /// type, and `doc_not_found` when a typed name matches
+  /// none; a `TemplateFault` for an unknown doc type id passes through.
   IndexedDoc target(String address) {
     final bare = !address.contains(':');
     final List<IndexedDoc> found;
