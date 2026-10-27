@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
@@ -20,7 +21,8 @@ CheckReport runCheck(ReadSession session, {String? target}) {
     if (inScope != null && !inScope.contains(doc.docPath)) continue;
     findings
       ..addAll(checkFrontmatter(context, doc))
-      ..addAll(checkSections(context, doc));
+      ..addAll(checkSections(context, doc))
+      ..addAll(checkBannedWords(context, doc));
   }
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
