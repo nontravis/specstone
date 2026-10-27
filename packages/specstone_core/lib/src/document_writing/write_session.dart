@@ -13,12 +13,18 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
+/// The docs root as a journal step spells it.
+///
+/// Literal, as `DocsProject.displayPath` prints it: a `docs` link to a folder
+/// outside the project still resolves through `<project root>/docs`.
+const _docsPrefix = 'docs/';
+
 /// One write command's view of a project: a replayed journal, a resolved
 /// index, and the write lock on demand.
 ///
 /// [run] opens a session, runs one command body in it, and closes it.
 final class WriteSession {
-  new _(this._read) : _docsPrefix = _docsPrefixOf(_read.project);
+  new _(this._read);
 
   /// Opens the project holding [workingDirectory], finishes an unfinished
   /// move journal, runs [body], and closes the index.
@@ -61,7 +67,6 @@ final class WriteSession {
   }
 
   final ReadSession _read;
-  final String _docsPrefix;
   bool _snapshotOpen = true;
 
   /// The project the session writes.
@@ -87,16 +92,29 @@ final class WriteSession {
   String docPathOf(String projectPath) =>
       projectPath.substring(_docsPrefix.length);
 
+  static const _namePrompt =
+      'name the doc as <doc type>:<name>, '
+      'such as user_story:login/email_login';
+
   /// Returns the one typed doc [address] names.
   ///
   /// [address] is `<doc type>:<name>`; a bare name is ambiguous across doc
   /// types and refuses.
-  /// Throws [IndexFault] `argument_invalid` for a bare name or a name two
-  /// docs carry, `untyped_target` for a doc with no doc type, and
-  /// `doc_not_found` when none matches; a `TemplateFault` for an unknown doc
+  /// Throws [IndexFault] `argument_invalid` for a bare name, found or
+  /// not, or a name two docs carry, `untyped_target` for a doc with no doc
+  /// type, and `doc_not_found` when a typed name matches none; a `TemplateFault` for an unknown doc
   /// type id passes through.
   IndexedDoc target(String address) {
-    final found = index.resolve(address);
+    final bare = !address.contains(':');
+    final List<IndexedDoc> found;
+    try {
+      found = index.resolve(address);
+    } on IndexFault catch (fault) {
+      if (bare && fault.code == IndexFaultCode.docNotFound) {
+        throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
+      }
+      rethrow;
+    }
     final typed = [
       for (final doc in found)
         if (doc.docTypeId != null) doc,
@@ -108,13 +126,7 @@ final class WriteSession {
         'migrate it to one before a write',
       );
     }
-    if (!address.contains(':')) {
-      throw IndexFault(
-        IndexFaultCode.argumentInvalid,
-        'name the doc as <doc type>:<name>, '
-        'such as user_story:login/email_login',
-      );
-    }
+    if (bare) throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
     if (typed.length > 1) {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
@@ -163,13 +175,4 @@ final class WriteSession {
       _read.store.close();
     }
   }
-}
-
-/// Returns the docs root relative to the project root, `/`-separated, with a
-/// trailing `/`.
-String _docsPrefixOf(DocsProject project) {
-  final relative = project.docsRoot.path.substring(
-    project.projectRoot.path.length + 1,
-  );
-  return '${relative.split(Platform.pathSeparator).join('/')}/';
 }

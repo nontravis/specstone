@@ -9,6 +9,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
+import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
 TypeMatcher<IndexFault> _faultCode(IndexFaultCode code) =>
@@ -43,6 +44,20 @@ void main() {
     },
   );
 
+  test('f02/us01/fr01/e09: a bare name no doc carries is argument_invalid with the name prompt', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => writeIn(root, (s) => s.target('nobody_here')),
+      throwsA(
+        _faultCode(IndexFaultCode.argumentInvalid).having(
+          (f) => f.message,
+          'message',
+          'name the doc as <doc type>:<name>, such as user_story:login/email_login',
+        ),
+      ),
+    );
+  });
+
   test('f02/us01/fr01/e11: a name no doc carries is doc_not_found', () async {
     final root = await writeWriteProject();
     expect(
@@ -62,24 +77,21 @@ void main() {
     },
   );
 
-  test(
-    'PD8: a typed name two docs carry is argument_invalid naming both',
-    () async {
-      final root = await writeWriteProject(
-        extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login again\n'},
-      );
-      expect(
-        () => writeIn(root, (s) => s.target('feature:login')),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.message,
-            'message',
-            'feature:login names 2 docs: prds/features/f01_login/FEATURE.md, prds/features/f03_login/FEATURE.md',
-          ),
+  test('f02/us01/fr01/e09, PD8: a typed name two docs carry is argument_invalid naming both', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login again\n'},
+    );
+    expect(
+      () => writeIn(root, (s) => s.target('feature:login')),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.message,
+          'message',
+          'feature:login names 2 docs: prds/features/f01_login/FEATURE.md, prds/features/f03_login/FEATURE.md',
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 
   test('f02/us01/fr05, dw-s03/inv3: locked runs inside the write lock and returns its result', () async {
     final root = await writeWriteProject();
@@ -156,6 +168,25 @@ void main() {
       expect(s.fileOf(story1).path, endsWith('docs/$story1'));
     });
   });
+
+  test('X1, f02/us04/fr03: a docs root linked outside the project keeps the docs/ prefix', () async {
+    final root = await writeWriteProject(
+      without: {
+        for (final k in writeProject.keys)
+          if (k.startsWith('docs/')) k,
+      },
+    );
+    final outside = await writeTree({
+      for (final MapEntry(:key, :value) in writeProject.entries)
+        if (key.startsWith('docs/')) key.substring(5): value,
+    });
+    Link('${root.path}/docs').createSync(outside.path);
+    writeIn(root, (s) {
+      expect(s.projectPathOf(story1), 'docs/$story1');
+      expect(s.docPathOf('docs/$story1'), story1);
+      expect(s.target('user_story:login/email_login').docPath, story1);
+    });
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   test(
     'D4, f02/us01/fr01: writeDoc writes the text with its line ending',
