@@ -84,8 +84,8 @@ ReadAnswer answerGet(DocIndex index, String address) {
 /// `sections` keyed by section key, and `fields` keyed by field id. [docType],
 /// when given, lists its sections and fields first, in its order, an absent
 /// one with [emptyBaseHash]; held ones its template lacks follow in file order.
-/// Of two sections sharing a key, the first counts; a doc with no title has
-/// the base of empty text.
+/// Of two sections or two field blocks sharing a key, the first counts; a doc
+/// with no title has the base of empty text.
 Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
   final doc = Doc.parse(toLf(content.text));
 

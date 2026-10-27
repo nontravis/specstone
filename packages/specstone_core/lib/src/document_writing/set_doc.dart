@@ -312,7 +312,7 @@ String _blockOf(String fieldId, String stdin) {
 ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   final lf = toLf(stdin);
   final dropped = lf.endsWith('\n') ? lf.substring(0, lf.length - 1) : lf;
-  final count = dropped.isEmpty ? 0 : dropped.split('\n').length;
+  final count = dropped.trim().isEmpty ? 0 : dropped.split('\n').length;
   if (count != 1) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,

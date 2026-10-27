@@ -1011,6 +1011,27 @@ void main() {
               ),
         ),
       );
+      final before = readDoc(root, loginFeature);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse('feature:login', title: true, base: 'x'),
+            '   \n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'a title is one line; stdin held 0 lines',
+              ),
+        ),
+      );
+      expect(readDoc(root, loginFeature), before);
     },
   );
   test('f02/us01/fr04/e04, f02/us01/fr02/e04: a title changed after the read refuses with the # line as current text', () async {
