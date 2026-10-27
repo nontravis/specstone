@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:specstone/src/commands/build_command.dart';
+import 'package:specstone/src/commands/check_command.dart';
 import 'package:specstone/src/commands/context_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/get_command.dart';
@@ -71,6 +72,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(RefsCommand());
     addCommand(ContextCommand());
     addCommand(McpCommand());
+    addCommand(CheckCommand());
   }
 
   final StringSink _out;
