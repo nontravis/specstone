@@ -214,6 +214,45 @@ Iterable<Finding> checkTrackedLinks(
   }
 }
 
+/// Returns the malformed and stale `confirmed` entries of [doc] (INV-7).
+///
+/// Only a doc type that defines `confirmed` is read; a draft is read too.
+Iterable<Finding> checkConfirmedEntries(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  final type = context.typeOf(doc);
+  if (type == null || !type.fields.any((f) => f.id == _confirmedKey)) return;
+  final tracked = {for (final link in trackedLinksOf(context, doc)) link.label};
+  for (final item in context.linesOf(doc).entriesOf(_confirmedKey)) {
+    final value = item.value;
+    // A block map item's span ends with its line break.
+    final text = item.text.trim();
+    final match = value is String ? _wellFormedEntry.firstMatch(value) : null;
+    if (match == null) {
+      yield context.finding(
+        doc,
+        FindingKind.confirmedEntryMalformed,
+        line: item.line,
+        message:
+            '$text is not a confirmed entry; write '
+            '"<link> <12 lowercase hex characters>"',
+        keys: {'entry': text},
+      );
+      continue;
+    }
+    final label = match.group(1)!;
+    if (tracked.contains(label)) continue;
+    yield context.finding(
+      doc,
+      FindingKind.confirmedEntryStale,
+      line: item.line,
+      message: '$text names $label, which this doc does not trace',
+      keys: {'entry': text, 'link': label},
+    );
+  }
+}
+
 // An entry with an unconfirmed state means the doc is a draft.
 String _unconfirmedMessage(
   String label,

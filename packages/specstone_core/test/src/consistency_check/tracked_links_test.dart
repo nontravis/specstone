@@ -257,4 +257,98 @@ void main() {
       expect(hasSuspectLink(context, session.index.at(loginFr)!), suspect);
     }
   });
+
+  test('f04/us04/fr03/e01, f04/us04/fr03/e02, f04/us04/fr03/e03: the map form, uppercase hex, and ten characters are '
+      'malformed', () async {
+    for (final bad in [
+      'S2: 047e817f9707',
+      'S2 047E817F9707',
+      'S2 047e817f97',
+    ]) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr('  - S2 ${fp(loginScenario2)}', '  - $bad'),
+        ),
+      );
+      expect(spots(report, FindingKind.confirmedEntryMalformed), [
+        '$loginFr:9: confirmed_entry_malformed',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.confirmedEntryMalformed)
+            .toJson()['entry'],
+        bad,
+      );
+    }
+  });
+
+  test('f04/us04/s7, f04/us04/fr03/e04: an entry for a link the doc does not trace is stale, in a draft too', () async {
+    for (final draft in ['', 'draft: true\n']) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: edit(loginFr, [
+            ('status: implemented\n', 'status: implemented\n$draft'),
+            (
+              '  - S2 ${fp(loginScenario2)}\n',
+              '  - S2 ${fp(loginScenario2)}\n  - S3 ${fp(loginScenario2)}\n',
+            ),
+          ]),
+        ),
+      );
+      final line = draft.isEmpty ? 10 : 11;
+      expect(spots(report, FindingKind.confirmedEntryStale), [
+        '$loginFr:$line: confirmed_entry_stale',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.confirmedEntryStale)
+            .toJson()['link'],
+        'S3',
+      );
+    }
+  });
+
+  test(
+    'f04/us04/fr03/e05: an add nf tracks no link, so its entry is stale',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: edit(loginNf, [
+            ('kind: tighten', 'kind: add'),
+            ('overrides: NFR-P01\n', ''),
+          ]),
+        ),
+      );
+      expect(spots(report), ['$loginNf:5: confirmed_entry_stale']);
+    },
+  );
+
+  test('f04/us01/fr06/e07: an untyped doc gets no field, section, banned-word, trace, or suspect rule', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/prds/notes.md':
+              '---\npriority: high\ntraced_from:\n  - S9\nconfirmed:\n  - bad\n---\n\n'
+              '## Statement\nThis is fast and easy.\n',
+        },
+      ),
+    );
+    expect(spots(report), ['prds/notes.md:1: untyped_doc']);
+  });
+
+  test(
+    'f04/us04/fr03/e06: an API entry with no FR trace row is stale',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginApi,
+            '---\n\n# Login API',
+            '  - email_login/send_otp 5d1e0c4b7a92\n---\n\n# Login API',
+          ),
+        ),
+      );
+      expect(spots(report), ['$loginApi:4: confirmed_entry_stale']);
+    },
+  );
 }

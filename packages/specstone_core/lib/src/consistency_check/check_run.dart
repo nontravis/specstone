@@ -40,7 +40,8 @@ CheckReport runCheck(ReadSession session, {String? target}) {
         ..addAll(checkRolesAndGoals(context, doc))
         ..addAll(checkSpecAgainstPrd(context, doc))
         ..addAll(checkImplementedStatus(context, doc))
-        ..addAll(checkTrackedLinks(context, doc));
+        ..addAll(checkTrackedLinks(context, doc))
+        ..addAll(checkConfirmedEntries(context, doc));
     }
     findings
       ..addAll(checkFrontmatter(context, doc))
