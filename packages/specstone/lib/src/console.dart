@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/specstone_core.dart';
+
 /// The terminal facts and input a write command reads.
 ///
 /// Tests replace it; [SystemConsole] is the process's own.
@@ -20,14 +22,32 @@ abstract interface class Console {
 
 /// The [Console] of the running process.
 final class SystemConsole implements Console {
+  /// Creates the console of the process, reading [input] in place of stdin
+  /// when given.
+  new({Stream<List<int>>? input}) : _input = input ?? stdin;
+
+  final Stream<List<int>> _input;
+
   @override
   bool get stdinIsTerminal => stdin.hasTerminal;
 
   @override
   bool get stdoutIsTerminal => stdout.hasTerminal;
 
+  /// Reads stdin to its end as UTF-8 text.
+  ///
+  /// Throws [IndexFault] `argument_invalid` when the bytes are not UTF-8.
   @override
-  Future<String> readAll() => stdin.transform(utf8.decoder).join();
+  Future<String> readAll() async {
+    try {
+      return await _input.transform(utf8.decoder).join();
+    } on FormatException {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        'stdin is not UTF-8 text',
+      );
+    }
+  }
 
   @override
   String? readLine() => stdin.readLineSync();

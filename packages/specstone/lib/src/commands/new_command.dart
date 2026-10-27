@@ -38,7 +38,12 @@ class NewCommand extends WriteCommand {
     if (rest.length > 1) {
       usageException('Expected one doc type, got ${rest.length}.');
     }
-    final text = console.stdinIsTerminal ? '' : await console.readAll();
+    final String text;
+    try {
+      text = console.stdinIsTerminal ? '' : await console.readAll();
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
     return runWrite(
       (session) => answerNew(
         session,

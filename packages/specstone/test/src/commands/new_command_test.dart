@@ -81,7 +81,7 @@ void main() {
       64,
     );
     expect(out.toString(), isEmpty);
-    expect(err.toString(), isNotEmpty);
+    expect(err.toString(), 'no feature doc carries the name nobody\n');
   });
   test(
     'f02/us02/fr01/e10: no --parent --json carries the sidecar message',

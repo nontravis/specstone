@@ -49,7 +49,12 @@ class SetCommand extends WriteCommand {
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson);
     }
-    final text = await console.readAll();
+    final String text;
+    try {
+      text = await console.readAll();
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
     return runWrite(
       (session) => answerSet(session, request, text),
       asJson: asJson,

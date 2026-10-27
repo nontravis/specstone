@@ -32,6 +32,11 @@ void main() {
     expect(out.toString(), isEmpty);
     final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
     expect(error['code'], 'owner_terminal_required');
+    expect(
+      error['message'],
+      'fr:login/email_login/validate_credentials holds approved docs; '
+      'only the Owner deletes them, at an interactive terminal',
+    );
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
   });
   test('f02/us04/s3, f02/us04/fr02/e03: the Owner prompt goes to stdout, the removed paths after it', () async {
