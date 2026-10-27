@@ -44,7 +44,7 @@ void main() {
   test('dw-s03/inv13: review focus 2: a ## line inside a fence is no section, so no splice lands on it', () {
     const fenced = '# T\n\n## A\n```\n## B\n```\n\n## B\nreal\n';
     final parsed = Doc.parse(fenced);
-    expect(sectionLineIndexes(parsed), [2, 7]);
+    expect(parsed.sectionLineIndexes, [2, 7]);
     expect(
       withSectionBody(fenced, 1, 'x\n'),
       '# T\n\n## A\n```\n## B\n```\n\n## B\nx\n',

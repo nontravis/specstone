@@ -12,6 +12,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
 import 'index_fixture.dart';
+import 'shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// A `docs/`-relative path of a document in [writeProject].
@@ -41,9 +42,8 @@ const antiPersona = 'prds/personas/buyer/ANTI_PERSONA.md';
 /// [fr31], [story3] into [story2], `FEATURES.md` into both features,
 /// `d01_context.md` into [signupFeature]. `doc_ref` values: [story1]'s
 /// `persona: buyer`, [persona]'s `reference: login/email_login`.
-const writeProject = <String, String>{
-  '.specstone/config.yaml':
-      'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
+final writeProject = <String, String>{
+  '.specstone/config.yaml': shippedPinsConfig(),
   'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Login](features/f01_login/FEATURE.md)\n- [Signup](features/f02_signup/FEATURE.md)\n',
   'docs/prds/d01_context.md': '# Context\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n',
   'docs/prds/personas/buyer/PERSONA.md': '---\ndraft: true\nreference:\n  - login/email_login\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',

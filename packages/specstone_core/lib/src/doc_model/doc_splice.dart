@@ -16,32 +16,13 @@ const emptyBaseHash = 'e3b0c44298fc';
 String baseHashOf(String text) =>
     sha256.convert(utf8.encode(text)).toString().substring(0, 12);
 
-/// Returns, for each of [doc]'s sections in order, the index of its header
-/// line among the lines of `doc.afterFrontmatter`.
-///
-/// The count comes from the parsed head and bodies, so a `##` line inside a
-/// fence is never taken for a header.
-List<int> sectionLineIndexes(Doc doc) {
-  final lines = _lines(doc.afterFrontmatter);
-  final indexes = <int>[];
-  var next = _lines(doc.head).length;
-  for (final section in doc.sections) {
-    while (next < lines.length && lines[next].trim().isEmpty) {
-      next++;
-    }
-    indexes.add(next);
-    next += 1 + _lines(section.body).length;
-  }
-  return indexes;
-}
-
 /// Returns [lfText] with the body of section [section] replaced by [body].
 ///
 /// The header line and the blank lines after the old body stay.
 String withSectionBody(String lfText, int section, String body) {
   final doc = Doc.parse(lfText);
   final lines = _lines(doc.afterFrontmatter);
-  final header = sectionLineIndexes(doc)[section];
+  final header = doc.sectionLineIndexes[section];
   final bodyEnd = header + 1 + _lines(doc.sections[section].body).length;
   final headerLine = lines[header];
   return _frontmatterOf(lfText, doc) +
@@ -58,7 +39,7 @@ String withSectionBody(String lfText, int section, String body) {
 String withoutSection(String lfText, int section) {
   final doc = Doc.parse(lfText);
   final lines = _lines(doc.afterFrontmatter);
-  final indexes = sectionLineIndexes(doc);
+  final indexes = doc.sectionLineIndexes;
   final end = section + 1 < indexes.length
       ? indexes[section + 1]
       : lines.length;
@@ -84,7 +65,7 @@ String withSectionAdded(
   }
   final doc = Doc.parse(lfText);
   final lines = _lines(doc.afterFrontmatter);
-  final at = sectionLineIndexes(doc)[before];
+  final at = doc.sectionLineIndexes[before];
   return _frontmatterOf(lfText, doc) +
       [...lines.sublist(0, at), '$added\n', ...lines.sublist(at)].join();
 }
