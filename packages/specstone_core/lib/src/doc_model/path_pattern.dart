@@ -20,6 +20,15 @@ final class PathPattern {
   /// Returns whether the pattern matches all of [docPath].
   bool matches(String docPath) => _whole.hasMatch(docPath);
 
+  /// Whether the pattern ends in a fixed file name inside a folder that holds
+  /// a placeholder, such as `prds/features/f{nn}_{slug}/FEATURE.md`.
+  bool get isFolderDoc {
+    final segments = source.split('/');
+    return segments.length > 1 &&
+        !_placeholder.hasMatch(segments.last) &&
+        segments.take(segments.length - 1).any(_placeholder.hasMatch);
+  }
+
   /// Returns the first `{nn}` value of the pattern segment at the depth of
   /// the entry [segments], or null.
   ///

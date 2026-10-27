@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -70,16 +71,16 @@ Iterable<Finding> checkTree(CheckContext context, IndexedDoc doc) sync* {
 
 /// Returns a `file_unreadable` finding for each file F-01 could not read.
 ///
-/// Only a file in a checked folder, and in [scope] when it is given, is
-/// reported; a folder that cannot be read stays a warning (PD9).
+/// Only a file in a checked folder and in [scope] is reported; a folder that
+/// cannot be read stays a warning (PD9).
 Iterable<Finding> unreadableFindings(
   CheckContext context,
-  Set<String>? scope,
+  CheckScope scope,
 ) sync* {
   for (final warning in context.sessionWarnings) {
     final docPath = _unreadableFile.firstMatch(warning)?.group(1);
     if (docPath == null || !context.isCheckedPath(docPath)) continue;
-    if (scope != null && !scope.contains(docPath)) continue;
+    if (!scope.contains(docPath)) continue;
     context.state(warning);
     yield Finding(
       kind: FindingKind.fileUnreadable,

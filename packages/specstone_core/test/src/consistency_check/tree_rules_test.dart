@@ -158,8 +158,10 @@ void main() {
       );
       expect(report.warnings, isEmpty);
       final targeted = checkOf(project, target: 'login');
-      expect(spots(targeted, FindingKind.fileUnreadable), isEmpty);
-      expect(targeted.warnings, ['$loginNf: cannot be read; skipped']);
+      expect(spots(targeted, FindingKind.fileUnreadable), [
+        '$loginNf:1: file_unreadable',
+      ]);
+      expect(targeted.warnings, isEmpty);
     },
   );
 
