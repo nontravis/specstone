@@ -52,4 +52,16 @@ void main() {
     expect(DocLines.of('---\n- a list\n---\n').frontmatterErrorLine, 1);
     expect(DocLines.of('# No frontmatter\n').keyLine('status'), isNull);
   });
+
+  test('review: a backtick fence with a backtick in its info string is no '
+      'fence', () {
+    final lines = DocLines.of('# T\n\n```x``` inline\n\n## Real\nx\n');
+    expect(lines.sectionLines, [5]);
+  });
+
+  test('review: empty frontmatter is valid and holds no keys', () {
+    final lines = DocLines.of('---\n---\n');
+    expect(lines.frontmatterErrorLine, isNull);
+    expect(lines.keyLine('status'), isNull);
+  });
 }

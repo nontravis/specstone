@@ -293,5 +293,21 @@ void main() {
       expect(doc.sections, isEmpty);
       expect(doc.afterFrontmatter, '');
     });
+
+    test('sectionLineIndexes lists each header line among the afterFrontmatter '
+        'lines, skipping fenced and inline-fence lines', () {
+      expect(
+        Doc.parse('---\na: b\n---\n# T\n## A\nx\n## B\n').sectionLineIndexes,
+        [1, 3],
+      );
+      expect(
+        Doc.parse('# T\n\n```x``` inline\n\n## Real\nx\n').sectionLineIndexes,
+        [4],
+      );
+      expect(
+        Doc.parse('# T\n~~~\n## hidden\n~~~\n## Real\n').sectionLineIndexes,
+        [4],
+      );
+    });
   });
 }

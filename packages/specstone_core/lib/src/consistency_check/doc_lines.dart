@@ -7,10 +7,6 @@ import 'package:yaml/yaml.dart';
 /// `text` is the item's source text, its span.
 typedef YamlEntry = ({Object? value, int line, String text});
 
-final _sectionHeader = RegExp(r'^ {0,3}##(?:[ \t]|$)');
-final _fenceOpen = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$');
-final _fenceClose = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*$');
-
 /// The 1-based file lines of a doc's title, sections, and frontmatter items.
 final class DocLines {
   new _({
@@ -32,11 +28,6 @@ final class DocLines {
         ? 0
         : lines.length - _lineCount(doc.afterFrontmatter);
     final titleIndex = doc.titleLineIndex;
-    final sectionLines = _sectionLines(lines, bodyStart);
-    assert(
-      sectionLines.length == doc.sections.length,
-      'section lines disagree with Doc.parse',
-    );
     final yaml = _parseFrontmatter(
       doc.frontmatter == null ? null : lines,
       bodyStart,
@@ -45,7 +36,7 @@ final class DocLines {
       lines: lines,
       charCount: lf.runes.length,
       titleLine: titleIndex == null ? null : bodyStart + titleIndex + 1,
-      sectionLines: sectionLines,
+      sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       frontmatter: yaml.node,
       frontmatterErrorLine: yaml.errorLine,
     );
@@ -128,28 +119,4 @@ int _lineCount(String text) {
   } on YamlException catch (e) {
     return (node: null, errorLine: e.span!.start.line + 2);
   }
-}
-
-List<int> _sectionLines(List<String> lines, int bodyStart) {
-  final result = <int>[];
-  String? fence;
-  for (var i = bodyStart; i < lines.length; i++) {
-    final line = lines[i];
-    if (fence == null) {
-      final open = _fenceOpen.firstMatch(line);
-      if (open != null) {
-        fence = open.group(1);
-      } else if (_sectionHeader.hasMatch(line)) {
-        result.add(i + 1);
-      }
-    } else {
-      final close = _fenceClose.firstMatch(line)?.group(1);
-      if (close != null &&
-          close[0] == fence[0] &&
-          close.length >= fence.length) {
-        fence = null;
-      }
-    }
-  }
-  return result;
 }
