@@ -24,6 +24,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: security
     header: Security
     prefix_id: NFR-Sec
@@ -40,6 +72,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: reliability
     header: Reliability
     prefix_id: NFR-R
@@ -56,6 +120,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: maintainability
     header: Maintainability
     prefix_id: NFR-M
@@ -72,6 +168,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: interface
     header: Interface
     prefix_id: NFR-I
@@ -88,6 +216,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: environment
     header: Environment
     prefix_id: NFR-E
@@ -104,6 +264,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: safety
     header: Safety
     prefix_id: NFR-Sa
@@ -120,6 +312,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: operability
     header: Operability
     prefix_id: NFR-O
@@ -136,6 +360,38 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
   - id: design_standards
     header: Design standards
     prefix_id: NFR-DS
@@ -152,38 +408,40 @@ sections:
       - **Verification:** <test | analysis | inspection | demonstration>; <pass criteria>; <level>
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+      line_prefix: "- **Statement:**"
 lint:
   max_lines: 400
-  banned_words:
-    - flexible
-    - easy
-    - sufficient
-    - safe
-    - ad hoc
-    - adequate
-    - accommodate
-    - user-friendly
-    - usable
-    - when required
-    - if required
-    - appropriate
-    - fast
-    - portable
-    - light-weight
-    - small
-    - large
-    - maximize
-    - minimize
-    - robust
-    - quickly
-    - easily
-    - clearly
-    - this
-    - these
-    - as appropriate
-    - etc.
-    - and/or
-    - but not limited to
 reference:
   - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
     url: https://www.nasa.gov/wp-content/uploads/2018/09/nasa_systems_engineering_handbook_0.pdf

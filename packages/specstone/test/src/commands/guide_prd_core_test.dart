@@ -5,6 +5,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
@@ -68,8 +69,9 @@ void main() {
           homeDirectory: await writeTree({}),
         );
 
-    Future<Directory> prdCoreProject() =>
-        writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n'});
+    Future<Directory> prdCoreProject() => writeTree({
+      _configPath: shippedPinsConfig(['prd-core']),
+    });
 
     test('f03/us06/s1, f03/us06/fr01/e01: guide lists the ten prd-core doc '
         'types and no other', () async {
@@ -128,6 +130,7 @@ void main() {
         'traced_from',
         'verify_method',
         'owner',
+        'confirmed',
       ]);
       expect((json['sections']! as List).map((s) => (s as Map)['id']), [
         'statement',
@@ -154,7 +157,11 @@ void main() {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'fr', '--json']), 0);
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
-      final words = (json['lint']! as Map)['bannedWords']! as List;
+      expect((json['lint']! as Map).containsKey('bannedWords'), isFalse);
+      final statement = (json['sections']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((s) => s['id'] == 'statement');
+      final words = (statement['lint']! as Map)['bannedWords']! as List;
       expect(words, hasLength(29));
       expect(words.first, 'flexible');
       expect(words.last, 'but not limited to');

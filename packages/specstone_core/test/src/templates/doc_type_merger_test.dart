@@ -915,4 +915,87 @@ reference: [{title: A}]
       );
     });
   });
+
+  group('DocTypeMerger.apply section lint', () {
+    MergedDocType withSectionWords() => merger.apply(
+      merger.builtInBase('feature'),
+      layer('''
+path: docs/prds/{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Feature goal
+    lint: {banned_words: [fast, robust], line_prefix: "- **Statement:**"}
+  - id: scope
+    header: Out-of-scope
+lint: {banned_words: [simply]}
+'''),
+    );
+    MergedSection section(MergedDocType type, String id) =>
+        type.sections.firstWhere((s) => s.id == id);
+
+    test('f03/us02/fr03/e08, tpl-s03/inv17: removing a word changes that '
+        'section only', () {
+      final merged = project(
+        withSectionWords(),
+        'sections: [{id: goal, lint: {banned_words: '
+        '{add: [quickly], remove: [fast]}}}]',
+      );
+      expect(section(merged, 'goal').bannedWords, ['robust', 'quickly']);
+      expect(section(merged, 'scope').bannedWords, isNull);
+      expect(merged.lint.bannedWords, ['simply']);
+      expect(section(merged, 'goal').linePrefix, '- **Statement:**');
+    });
+
+    test('f03/us02/fr03/e05, tpl-s03/inv17: a removed section word the lower '
+        'list lacks is lint_word_not_found', () {
+      expect(
+        () => project(
+          withSectionWords(),
+          'sections: [{id: goal, lint: {banned_words: {remove: [quick]}}}]',
+        ),
+        throwsA(
+          fault(FaultCode.lintWordNotFound, 'sections.goal.lint.banned_words'),
+        ),
+      );
+    });
+
+    test('f03/us02/fr03/e06: a plain section list over a lower one is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => project(
+          withSectionWords(),
+          'sections: [{id: goal, lint: {banned_words: [x]}}]',
+        ),
+        throwsA(
+          fault(
+            FaultCode.listOverrideNeedsAddRemove,
+            'sections.goal.lint.banned_words',
+          ),
+        ),
+      );
+    });
+
+    test('f03/us02/fr03/e07: the first layer to define a section list writes '
+        'it plain', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, lint: {allowed_words: [API]}}]',
+      );
+      expect(section(merged, 'goal').allowedWords, ['API']);
+      final added = project(
+        shipped(),
+        'sections: [{id: notes, header: Notes, lint: {banned_words: [x]}}]',
+      );
+      expect(section(added, 'notes').bannedWords, ['x']);
+    });
+
+    test('f03/us02/fr03: an upper line_prefix replaces the lower one', () {
+      final merged = project(
+        withSectionWords(),
+        'sections: [{id: goal, lint: {line_prefix: "- **Rule:**"}}]',
+      );
+      expect(section(merged, 'goal').linePrefix, '- **Rule:**');
+      expect(section(merged, 'goal').bannedWords, ['fast', 'robust']);
+    });
+  });
 }

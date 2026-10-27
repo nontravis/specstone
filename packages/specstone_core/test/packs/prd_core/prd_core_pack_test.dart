@@ -10,7 +10,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('f03/us06/fr01: prd-core ships at 1.1.0 with no extends', () {
+    test('f03/us06/fr01: prd-core ships at 1.2.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -18,12 +18,12 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.1.0');
+      expect(manifest.version.toString(), '1.2.0');
       expect(manifest.extendsPack, isNull);
     });
 
-    test('f03/us06/fr01: a project pinning prd-core 1.1.0 resolves with no '
-        'fault', () async {
+    test('f03/us06/fr01: a project pinning the shipped prd-core resolves with '
+        'no fault', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.every((d) => d.pack == 'prd-core'), isTrue);
     });
@@ -106,25 +106,31 @@ void main() {
       expect(sectionOf(gnfr, 'availability').prefixId, 'NFR-A');
     });
 
-    test('f03/us06/fr03/e03: a project changes the fr word list with add and '
-        'remove', () async {
+    test('f03/us06/fr03/e03, f03/us02/fr03/e08: a project changes the fr '
+        'Statement list with add and remove', () async {
       final set = await resolvePrdCore(
         templates: {
           'fr.yaml':
-              'lint:\n  banned_words:\n    add: [simply]\n    remove: [etc.]\n',
+              'sections:\n  - id: statement\n    lint:\n      banned_words:\n'
+              '        add: [simply]\n        remove: [etc.]\n',
         },
       );
-      expect(set.lookup('fr')!.lint.bannedWords, [
+      expect(sectionOf(set.lookup('fr')!, 'statement').bannedWords, [
         ...nasaBannedWords.where((w) => w != 'etc.'),
         'simply',
       ]);
+      expect(set.lookup('fr')!.lint.bannedWords, isNull);
     });
 
-    test('f03/us06/fr03/e03: a plain word list over the shipped one is '
+    test('f03/us06/fr03/e03: a plain Statement list over the shipped one is '
         'list_override_needs_add_remove', () async {
       await expectLater(
         resolvePrdCore(
-          templates: {'fr.yaml': 'lint:\n  banned_words: [simply]\n'},
+          templates: {
+            'fr.yaml':
+                'sections:\n  - id: statement\n    lint:\n'
+                '      banned_words: [simply]\n',
+          },
         ),
         throwsA(
           isA<TemplateFault>().having(
@@ -135,6 +141,16 @@ void main() {
         ),
       );
     });
+
+    test(
+      'f03/us06/fr03/e03: a project writes its own doc-level list plain',
+      () async {
+        final set = await resolvePrdCore(
+          templates: {'fr.yaml': 'lint:\n  banned_words: [simply]\n'},
+        );
+        expect(set.lookup('fr')!.lint.bannedWords, ['simply']);
+      },
+    );
   });
 
   group('expectOwnFields', () {

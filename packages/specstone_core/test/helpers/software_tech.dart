@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import 'prd_core.dart';
+import 'shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// The `software-tech` doc type ids, in code point order (US-07 FR-01).
@@ -194,13 +195,13 @@ String lineTargetOf(String id) => switch (id) {
 String snakeCaseOf(String header) =>
     header.toLowerCase().replaceAll(RegExp('[^a-z0-9]+'), '_');
 
-/// Resolves a temp project that pins `prd-core` and `software-tech` 1.1.0.
+/// Resolves a temp project that pins the shipped `prd-core` and
+/// `software-tech`.
 ///
 /// Calls `writeTree`, so call it from a test or `setUpAll`.
 Future<MergedSet> resolveSoftwareTech() async {
   final project = await writeTree({
-    '.specstone/config.yaml':
-        'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
+    '.specstone/config.yaml': shippedPinsConfig(),
   });
   final home = await writeTree({});
   return TemplateResolver().resolve(
@@ -259,6 +260,9 @@ void expectSpecLint(MergedDocType docType) {
   expect(docType.lint.maxChars, isNull, reason: id);
   expect(docType.lint.bannedWords, isNull, reason: id);
   expect(docType.lint.allowedWords, isNull, reason: id);
+  for (final section in docType.sections) {
+    expect(section.bannedWords, isNull, reason: '$id.${section.id}');
+  }
   final reference = docType.reference;
   expect(reference, isNotNull, reason: id);
   final expected = softwareTechSources[id]!;

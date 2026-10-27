@@ -153,13 +153,30 @@ final class FieldEntry {
 
 /// A section's own lint limits, replacing the doc-level values.
 final class SectionLint {
-  new({this.maxChars, this.maxLines});
+  new({
+    this.maxChars,
+    this.maxLines,
+    this.bannedWords,
+    this.allowedWords,
+    this.linePrefix,
+  });
 
   /// The section's character limit, when written.
   final int? maxChars;
 
   /// The section's line ceiling, when written.
   final int? maxLines;
+
+  /// The section's own banned words, merged for this section; the doc-level
+  /// list applies on top of it.
+  final ListWrite<String>? bannedWords;
+
+  /// The section's own allowed words, merged for this section; the doc-level
+  /// list applies on top of it.
+  final ListWrite<String>? allowedWords;
+
+  /// Limits the section's own banned words to its lines that start with it.
+  final String? linePrefix;
 }
 
 /// One guide section of a doc type, as one layer writes it.
@@ -494,7 +511,13 @@ const _docLintKeys = {
   'allowed_words',
 };
 
-const _sectionLintKeys = {'max_chars', 'max_lines'};
+const _sectionLintKeys = {
+  'max_chars',
+  'max_lines',
+  'banned_words',
+  'allowed_words',
+  'line_prefix',
+};
 
 List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
   final entries = optionalValue<YamlList>(map, 'fields', file: file);
@@ -683,18 +706,32 @@ SectionLint _parseSectionLint(
     format: 'doc-type',
     prefix: '${prefix}lint.',
   );
+  final keyPrefix = '${prefix}lint.';
   return SectionLint(
     maxChars: optionalValue<int>(
       map,
       'max_chars',
       file: file,
-      prefix: '${prefix}lint.',
+      prefix: keyPrefix,
     ),
     maxLines: optionalValue<int>(
       map,
       'max_lines',
       file: file,
-      prefix: '${prefix}lint.',
+      prefix: keyPrefix,
+    ),
+    bannedWords: _listWrite(map, 'banned_words', file: file, prefix: keyPrefix),
+    allowedWords: _listWrite(
+      map,
+      'allowed_words',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    linePrefix: optionalValue<String>(
+      map,
+      'line_prefix',
+      file: file,
+      prefix: keyPrefix,
     ),
   );
 }

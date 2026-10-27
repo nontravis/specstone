@@ -9,14 +9,14 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import 'shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// The project every index and query test reads.
 ///
 /// Keys are paths relative to the project root; values use LF line ends.
-const loginProject = <String, String>{
-  '.specstone/config.yaml':
-      'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
+final loginProject = <String, String>{
+  '.specstone/config.yaml': shippedPinsConfig(),
   'docs/prds/PROJECT.md':
       '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\nLogin demo\n\n'
       '## Role\n- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'

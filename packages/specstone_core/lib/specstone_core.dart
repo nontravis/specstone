@@ -1,6 +1,10 @@
 /// Core library of Specstone, shared by the `specstone` CLI and MCP server.
 library;
 
+export 'src/consistency_check/check_report.dart' show CheckReport;
+export 'src/consistency_check/check_run.dart' show runCheck;
+export 'src/consistency_check/finding.dart' show Finding, FindingKind;
+export 'src/consistency_check/suspect_list.dart' show answerListSuspect;
 export 'src/fault.dart';
 export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
 export 'src/index_query/bundle_render.dart' show answerContext;

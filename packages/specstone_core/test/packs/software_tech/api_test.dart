@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -31,12 +32,23 @@ void main() {
     api = prdCoreDocType(await resolveSoftwareTech(), 'api');
   });
 
+  test('f03/us07/fr02: the FR trace guide names each FR by <story slug>/<fr '
+      'slug>, the confirmed entry text', () {
+    final description = sectionOf(api, 'fr_trace').description!;
+    expect(
+      description,
+      allOf(contains('<story slug>/<fr slug>'), contains('`confirmed`')),
+    );
+  });
+
   test('f03/us07/fr01, f03/us07/fr01/e06: api sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and four '
+      'specs/f{nn}_{slug}/ with parent feature, the confirmed field, and four '
       'sections', () {
     expect(api.path, 'specs/f{nn}_{slug}/API.md');
     expect(api.parent, 'feature');
-    expectOwnFields(api, const []);
+    expectOwnFields(api, const [
+      FieldSpec('confirmed', FieldType.string, list: true),
+    ]);
     expectSections(api, const [
       SectionSpec('source_of_truth', 'Source-of-truth'),
       SectionSpec('fr_trace', 'FR trace', required: true),

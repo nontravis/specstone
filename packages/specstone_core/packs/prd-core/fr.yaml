@@ -31,6 +31,12 @@ fields:
     description: |-
       Names the person or group who writes the requirement and approves its changes.
       Leave it blank when the PROJECT owner holds it.
+  - id: confirmed
+    type: string
+    list: true
+    description: |-
+      Records one `<link> <fingerprint>` entry per tracked link, such as `S2 047e817f9707`.
+      Copy the fingerprint `specstone check` prints; the entry counts once the Owner approves the doc.
 sections:
   - id: statement
     header: Statement
@@ -42,6 +48,37 @@ sections:
       Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
+    lint:
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
   - id: input_output
     header: Input / Output
     description: |-
@@ -112,36 +149,6 @@ sections:
       - **By when:** <date or milestone>
 lint:
   max_lines: 400
-  banned_words:
-    - flexible
-    - easy
-    - sufficient
-    - safe
-    - ad hoc
-    - adequate
-    - accommodate
-    - user-friendly
-    - usable
-    - when required
-    - if required
-    - appropriate
-    - fast
-    - portable
-    - light-weight
-    - small
-    - large
-    - maximize
-    - minimize
-    - robust
-    - quickly
-    - easily
-    - clearly
-    - this
-    - these
-    - as appropriate
-    - etc.
-    - and/or
-    - but not limited to
 reference:
   - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
     url: https://www.nasa.gov/wp-content/uploads/2018/09/nasa_systems_engineering_handbook_0.pdf

@@ -57,6 +57,7 @@ final class Doc {
     required this.title,
     required this.titleLineIndex,
     required this.sections,
+    required this.sectionLineIndexes,
     required this.afterFrontmatter,
     required this.hasUnclosedFence,
   });
@@ -73,6 +74,7 @@ final class Doc {
       title: scan.title,
       titleLineIndex: scan.titleLineIndex,
       sections: scan.sections,
+      sectionLineIndexes: scan.sectionLineIndexes,
       afterFrontmatter: bodyLines.join(),
       hasUnclosedFence: scan.unclosedFence,
     );
@@ -90,6 +92,10 @@ final class Doc {
 
   /// The sections in file order.
   final List<Section> sections;
+
+  /// The index of each section's header line among the lines of
+  /// [afterFrontmatter], one per [sections] element, in the same order.
+  final List<int> sectionLineIndexes;
 
   /// The text after the closing `---` line, or the whole text without
   /// frontmatter.
@@ -203,12 +209,14 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
   String? title,
   int? titleLineIndex,
   List<Section> sections,
+  List<int> sectionLineIndexes,
   bool unclosedFence,
 })
 _scan(List<String> lines) {
   final fence = _FenceTracker();
   final headLines = <String>[];
   final sections = <Section>[];
+  final sectionLineIndexes = <int>[];
   String? title;
   int? titleLineIndex;
   String? headerLine;
@@ -222,12 +230,14 @@ _scan(List<String> lines) {
     bodyLines = [];
   }
 
-  for (final line in lines) {
+  for (var i = 0; i < lines.length; i++) {
+    final line = lines[i];
     final bare = _withoutNewline(line);
     final fenced = fence.consume(bare);
     if (!fenced && _sectionHeader.hasMatch(bare)) {
       closeSection();
       headerLine = bare;
+      sectionLineIndexes.add(i);
     } else if (headerLine != null) {
       bodyLines.add(line);
     } else {
@@ -244,6 +254,7 @@ _scan(List<String> lines) {
     title: title,
     titleLineIndex: titleLineIndex,
     sections: sections,
+    sectionLineIndexes: sectionLineIndexes,
     unclosedFence: fence.isOpen,
   );
 }
@@ -254,6 +265,13 @@ String _joinWithoutTrailingBlank(List<String> lines) {
     end--;
   }
   return lines.sublist(0, end).join();
+}
+
+/// Returns, per line of [lines] (each without its line end), whether it is
+/// fenced code content or a fence delimiter.
+List<bool> fencedLines(List<String> lines) {
+  final fence = _FenceTracker();
+  return [for (final line in lines) fence.consume(line)];
 }
 
 /// Tracks whether the scan is inside a fenced code block.

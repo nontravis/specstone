@@ -8,6 +8,13 @@ description: |-
   Leave performance and scale to the project-wide and per-story non-functional requirements.
 path: specs/TECH_STACK.md
 bundle: [implement, design]
+fields:
+  - id: code
+    type: string
+    list: true
+    description: |-
+      Lists each folder or file of the project's code, relative to the project root, such as `packages/app/lib/`.
+      `specstone check` reports each file under it that no `covers` entry reaches.
 sections:
   - id: stack
     header: Stack

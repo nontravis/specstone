@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -34,10 +35,12 @@ void main() {
   });
 
   test('f03/us07/fr01: tech_stack sits at specs/TECH_STACK.md with no parent, '
-      'no own field, and four sections', () {
+      'the code field, and four sections', () {
     expect(techStack.path, 'specs/TECH_STACK.md');
     expect(techStack.parent, isNull);
-    expectOwnFields(techStack, const []);
+    expectOwnFields(techStack, const [
+      FieldSpec('code', FieldType.string, list: true),
+    ]);
     expectSections(techStack, const [
       SectionSpec('stack', 'Stack', required: true),
       SectionSpec('constraints', 'Constraints'),

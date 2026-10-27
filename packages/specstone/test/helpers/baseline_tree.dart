@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
 
+import '../../../specstone_core/test/helpers/shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// The brick_dartfrog commit the baseline sizes were measured at (F1-D35).
@@ -37,15 +38,15 @@ const _padWords = [
 /// Writes a new-format docs project the size of the baseline and returns its
 /// root.
 ///
-/// The project pins `prd-core` and `software-tech` 1.1.0 and holds
+/// The project pins the shipped `prd-core` and `software-tech` and holds
 /// [baselineBuckets]' 1,826 docs in a fixed order; the doc at position `k`
-/// gets the size at index `(k * 7) % 1826` of the ascending size list. The
-/// folder is deleted by `addTearDown`.
+/// gets the size at index `(k * 7) % 1826` of the ascending size list. Each of
+/// the 1,040 FRs implements one class in its own `src/` file, and each of the two
+/// topics holds one `src/` file, so 1,042 code files sit under the tech stack's
+/// `code:` root and every one is reached by a `covers:` prefix. The folder is
+/// deleted by `addTearDown`.
 Future<Directory> writeBaselineTree() async {
-  final root = await writeTree({
-    '.specstone/config.yaml':
-        'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
-  });
+  final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
     workingDirectory: root,
     homeDirectory: null,
@@ -60,7 +61,30 @@ Future<Directory> writeBaselineTree() async {
     await file.parent.create(recursive: true);
     await file.writeAsString(_render(templates, spec, size, padding));
   }
+  await _writeCode(root);
   return root;
+}
+
+String _codePath(int f, int s, int r) => 'src/feature_$f/story_$s/req_$r.dart';
+
+/// Writes the code files the FRs implement and the topics cover.
+Future<void> _writeCode(Directory root) async {
+  Future<void> write(String path, String content) async {
+    final file = File.fromUri(root.uri.resolve(path));
+    await file.parent.create(recursive: true);
+    await file.writeAsString(content);
+  }
+
+  for (var f = 1; f <= _featureCount; f++) {
+    for (var s = 1; s <= _storiesPerFeature; s++) {
+      for (var r = 1; r <= _frsPerStory; r++) {
+        await write(_codePath(f, s, r), 'class Req$r {}\n');
+      }
+    }
+  }
+  for (var t = 1; t <= _topicCount; t++) {
+    await write('src/topic_$t/topic.dart', '// topic $t\n');
+  }
 }
 
 /// One doc to write: its type, path under `docs/`, title, and frontmatter.
@@ -83,7 +107,12 @@ List<_DocSpec> _docSpecs() => [
   _spec('project', 'prds/PROJECT.md', 'Baseline project', 'owner: baseline\n'),
   _spec('features', 'prds/FEATURES.md', 'Baseline features'),
   _spec('gnfr', 'prds/GNFR.md', 'Baseline requirements'),
-  _spec('tech_stack', 'specs/TECH_STACK.md', 'Baseline stack'),
+  _spec(
+    'tech_stack',
+    'specs/TECH_STACK.md',
+    'Baseline stack',
+    'code:\n  - src/\n',
+  ),
   for (var f = 1; f <= _featureCount; f++) ..._featureSpecs(f),
   for (var t = 1; t <= _topicCount; t++)
     _spec(
@@ -119,7 +148,8 @@ List<_DocSpec> _featureSpecs(int f) {
           'fr',
           'prds/features/$key/us${_two(s)}_story_$s/fr${_two(r)}_req_$r.md',
           'Requirement $r',
-          'status: planned\ntraced_from:\n  - S1\nverify_method: test\n',
+          'status: planned\ntraced_from:\n  - S1\nverify_method: test\n'
+              'implements:\n  - ${_codePath(f, s, r)}:Req$r\n',
         ),
       _spec(
         'nf',

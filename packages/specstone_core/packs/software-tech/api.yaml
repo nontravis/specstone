@@ -7,6 +7,13 @@ description: |-
   Copy no request or response schema; the source of truth owns it.
 path: specs/f{nn}_{slug}/API.md
 parent: feature
+fields:
+  - id: confirmed
+    type: string
+    list: true
+    description: |-
+      Records one `<FR ref> <fingerprint>` entry per FR trace row, the FR ref as the FR cell writes it.
+      Example: `email_login/validate_credentials 5d1e0c4b7a92`; the entry counts once the Owner approves the doc.
 sections:
   - id: source_of_truth
     header: Source-of-truth
@@ -21,6 +28,7 @@ sections:
       Write a table with the columns FR and Operation; write one row per operation.
       Write the `operationId` or the command in Operation; it is the pointer, a name and never a copy.
       Give every row a block in Operations, and every block a row.
+      Name each FR by `<story slug>/<fr slug>`, such as `email_login/validate_credentials`, as its `confirmed` entry does.
   - id: operations
     header: Operations
     required: true

@@ -5,13 +5,14 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
 const _guideUsage = 'Usage: specstone guide [type] [--json]';
-const _bothPacks = 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n';
-const _prdCoreOnly = 'packs:\n  prd-core: 1.1.0\n';
-const _softwareTechOnly = 'packs:\n  software-tech: 1.1.0\n';
+final String _bothPacks = shippedPinsConfig();
+final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
+final String _softwareTechOnly = shippedPinsConfig(['software-tech']);
 const _eighteenIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
     'fr\ngnfr\nintegration\nnf\npersona\nproject\nreference\ntech_stack\n'
@@ -162,6 +163,7 @@ void main() {
         'traced_from',
         'verify_method',
         'owner',
+        'confirmed',
         'implements',
       ]);
       final implements = fields.last! as Map<String, Object?>;

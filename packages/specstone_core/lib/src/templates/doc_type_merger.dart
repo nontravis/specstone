@@ -252,6 +252,21 @@ final class DocTypeMerger {
             template: entry.template,
             maxChars: entry.lint?.maxChars,
             maxLines: entry.lint?.maxLines,
+            bannedWords: _mergeSectionWords(
+              null,
+              entry.lint?.bannedWords,
+              layer,
+              entry.id,
+              'banned_words',
+            ),
+            allowedWords: _mergeSectionWords(
+              null,
+              entry.lint?.allowedWords,
+              layer,
+              entry.id,
+              'allowed_words',
+            ),
+            linePrefix: entry.lint?.linePrefix,
             query: entry.query,
           ),
         );
@@ -269,6 +284,21 @@ final class DocTypeMerger {
         template: entry.template,
         maxChars: entry.lint?.maxChars,
         maxLines: entry.lint?.maxLines,
+        bannedWords: _mergeSectionWords(
+          sections[index].bannedWords,
+          entry.lint?.bannedWords,
+          layer,
+          entry.id,
+          'banned_words',
+        ),
+        allowedWords: _mergeSectionWords(
+          sections[index].allowedWords,
+          entry.lint?.allowedWords,
+          layer,
+          entry.id,
+          'allowed_words',
+        ),
+        linePrefix: entry.lint?.linePrefix,
         query: entry.query,
       );
       if (entry.after == null || entry.after == entry.id) {
@@ -280,6 +310,21 @@ final class DocTypeMerger {
     }
     return sections;
   }
+
+  List<String>? _mergeSectionWords(
+    List<String>? base,
+    ListWrite<String>? write,
+    DocTypeLayer layer,
+    String sectionId,
+    String name,
+  ) => _mergeList<String>(
+    base,
+    write,
+    layer,
+    key: 'sections.$sectionId.lint.$name',
+    nameOf: (word) => word,
+    notFound: FaultCode.lintWordNotFound,
+  );
 
   /// Returns the index right after the section [entry] names, else the end.
   ///

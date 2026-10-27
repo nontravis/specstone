@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import 'shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// The words and phrases the NASA lint bans (US-06 FR-03), in list order.
@@ -114,7 +115,7 @@ final class FieldSpec {
   final PointerKind? pointer;
 }
 
-/// Resolves a temp project that pins `prd-core` 1.1.0.
+/// Resolves a temp project that pins the shipped `prd-core`.
 ///
 /// Each [templates] entry lands at `.specstone/templates/<key>`. Calls
 /// `writeTree`, so call it from a test or `setUpAll`.
@@ -122,7 +123,7 @@ Future<MergedSet> resolvePrdCore({
   Map<String, String> templates = const {},
 }) async {
   final project = await writeTree({
-    '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+    '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
     for (final MapEntry(:key, :value) in templates.entries)
       '.specstone/templates/$key': value,
   });
@@ -232,10 +233,26 @@ void expectGuideShape(
   expect(fieldOf(docType, 'reference').docTypes, isNull, reason: id);
 }
 
-/// Expects the NASA word list and the handbook reference on [docType].
-void expectNasaLint(MergedDocType docType) {
-  expect(docType.lint.bannedWords, nasaBannedWords, reason: docType.id);
+/// Expects the NASA words on [sections] only, with [linePrefix], and the
+/// handbook reference on [docType].
+void expectNasaLint(
+  MergedDocType docType, {
+  required List<String> sections,
+  String? linePrefix,
+}) {
+  expect(docType.lint.bannedWords, isNull, reason: docType.id);
   expect(docType.lint.allowedWords, isNull, reason: docType.id);
+  for (final section in docType.sections) {
+    final where = '${docType.id}.${section.id}';
+    final listed = sections.contains(section.id);
+    expect(
+      section.bannedWords,
+      listed ? nasaBannedWords : isNull,
+      reason: where,
+    );
+    expect(section.allowedWords, isNull, reason: where);
+    expect(section.linePrefix, listed ? linePrefix : isNull, reason: where);
+  }
   final reference = docType.reference;
   expect(reference, isNotNull, reason: docType.id);
   expect(reference, hasLength(1), reason: docType.id);
@@ -250,6 +267,9 @@ void expectNasaLint(MergedDocType docType) {
 /// Expects [docType] to carry no banned words and no reference list.
 void expectNoNasaLint(MergedDocType docType) {
   expect(docType.lint.bannedWords, isNull, reason: docType.id);
+  for (final section in docType.sections) {
+    expect(section.bannedWords, isNull, reason: '${docType.id}.${section.id}');
+  }
   expect(docType.reference, isNull, reason: docType.id);
 }
 
