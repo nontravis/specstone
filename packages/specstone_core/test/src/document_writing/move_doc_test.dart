@@ -94,19 +94,24 @@ void main() {
         MoveStep(path(from), stage(i)),
       for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
     ]);
-    // The run stopped after one phase-1 move, and slot 0 already holds its doc.
-    for (final (i, (from, _)) in moves.indexed.take(1)) {
-      Directory('${root.path}/${stage(i)}/../'.replaceAll('../', ''))
-          .createSync(recursive: true);
-      Directory('${root.path}/${path(from)}')
-          .renameSync('${root.path}/${stage(i)}');
-    }
+    // Slot 0 is taken by a folder of its own while its step's `from` still
+    // exists, so the replay must skip that step, not move onto the slot.
+    final taken = File('${root.path}/${stage(0)}/taken.md')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('taken');
 
     writeIn(root, (_) {});
 
     for (final (_, to) in moves) {
       expect(Directory('${root.path}/${path(to)}').existsSync(), isTrue);
     }
+    expect(hasDoc(root, '$f/us03_reset_password/USER_STORY.md'), isTrue);
+    expect(
+      File('${root.path}/${path('us01_reset_password')}/taken.md')
+          .readAsStringSync(),
+      'taken',
+    );
+    expect(taken.existsSync(), isFalse);
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
     expect(
       Directory('${root.path}/MoveJournal.stagePath').existsSync(),

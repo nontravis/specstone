@@ -165,7 +165,13 @@ void main() {
     writeIn(root, (s) {
       expect(s.projectPathOf(story1), 'docs/$story1');
       expect(s.docPathOf('docs/$story1'), story1);
-      expect(s.fileOf(story1).path, endsWith('docs/$story1'));
+      expect(
+        s.fileOf(story1).path,
+        endsWith(
+          'docs${Platform.pathSeparator}'
+          '${story1.replaceAll('/', Platform.pathSeparator)}',
+        ),
+      );
     });
   });
 
