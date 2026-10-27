@@ -177,4 +177,28 @@ void main() {
       ]);
     },
   );
+
+  test('f04/us01/fr04: an undeclared section over the doc-level limits is reported at its header', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'lint:\n  max_lines: 30\n  max_chars: 600\n',
+          ...fr(
+            '## Statement\n',
+            '## Notes\n${'A long note line.\n' * 40}\n## Statement\n',
+          ),
+        },
+      ),
+    );
+    final notes = report.findings
+        .where((f) => f.toJson()['section'] == 'notes')
+        .toList();
+    expect(
+      notes.map((f) => f.kind),
+      unorderedEquals([FindingKind.linesOverLimit, FindingKind.charsOverLimit]),
+    );
+    expect(notes.every((f) => f.line == notes.first.line), isTrue);
+    expect(notes.first.toJson(), containsPair('limit', anyOf(30, 600)));
+  });
 }

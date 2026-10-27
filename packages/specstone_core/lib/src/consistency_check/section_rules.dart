@@ -71,10 +71,9 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         message: 'section $header is not declared',
         keys: {'header': header},
       );
-      continue;
     }
-    final maxLines = template.maxLines ?? docMaxLines;
-    final maxChars = template.maxChars ?? docMaxChars;
+    final maxLines = template?.maxLines ?? docMaxLines;
+    final maxChars = template?.maxChars ?? docMaxChars;
     final actualLines = section.text.split('\n').length;
     final actualChars = section.text.runes.length;
     if (maxLines != null && actualLines > maxLines) {
@@ -83,10 +82,10 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         FindingKind.linesOverLimit,
         line: headerLine,
         message:
-            'section ${template.id} has $actualLines lines; the limit '
+            'section ${section.key} has $actualLines lines; the limit '
             'is $maxLines',
         keys: {
-          'section': template.id,
+          'section': section.key,
           'limit': maxLines,
           'actual': actualLines,
         },
@@ -98,16 +97,16 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         FindingKind.charsOverLimit,
         line: headerLine,
         message:
-            'section ${template.id} has $actualChars characters; the '
+            'section ${section.key} has $actualChars characters; the '
             'limit is $maxChars',
         keys: {
-          'section': template.id,
+          'section': section.key,
           'limit': maxChars,
           'actual': actualChars,
         },
       );
     }
-    if (type.id == _projectType && template.id == _visionSection) {
+    if (type.id == _projectType && template?.id == _visionSection) {
       yield* _visionQuoteFindings(context, doc, section, headerLine);
     }
   }
