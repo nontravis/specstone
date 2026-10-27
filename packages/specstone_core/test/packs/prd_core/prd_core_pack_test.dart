@@ -22,8 +22,8 @@ void main() {
       expect(manifest.extendsPack, isNull);
     });
 
-    test('f03/us06/fr01: a project pinning prd-core 1.1.0 resolves with no '
-        'fault', () async {
+    test('f03/us06/fr01: a project pinning the shipped prd-core resolves with '
+        'no fault', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.every((d) => d.pack == 'prd-core'), isTrue);
     });

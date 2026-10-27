@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
 
+import '../../../specstone_core/test/helpers/shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// The brick_dartfrog commit the baseline sizes were measured at (F1-D35).
@@ -37,15 +38,12 @@ const _padWords = [
 /// Writes a new-format docs project the size of the baseline and returns its
 /// root.
 ///
-/// The project pins `prd-core` and `software-tech` 1.1.0 and holds
+/// The project pins the shipped `prd-core` and `software-tech` and holds
 /// [baselineBuckets]' 1,826 docs in a fixed order; the doc at position `k`
 /// gets the size at index `(k * 7) % 1826` of the ascending size list. The
 /// folder is deleted by `addTearDown`.
 Future<Directory> writeBaselineTree() async {
-  final root = await writeTree({
-    '.specstone/config.yaml':
-        'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
-  });
+  final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
     workingDirectory: root,
     homeDirectory: null,

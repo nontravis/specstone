@@ -7,12 +7,12 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 import '../../../specstone_core/test/helpers/posix_modes.dart';
+import '../../../specstone_core/test/helpers/shipped_pins.dart';
 import 'temp_tree.dart';
 
 // The entries mirror `loginProject` in specstone_core's test/helpers/index_fixture.dart.
-const _readProject = <String, String>{
-  '.specstone/config.yaml':
-      'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
+final _readProject = <String, String>{
+  '.specstone/config.yaml': shippedPinsConfig(),
   'docs/prds/features/f01_login/FEATURE.md':
       '---\nvision:\n  - PV-01\nslug:\n  - sign-in\n---\n\n# Login\n\n'
       '## Problem\nUsers sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n',
@@ -36,7 +36,7 @@ const _readProject = <String, String>{
       '- **Code:** `specstone`\n\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
 };
 
-/// Writes a project pinning both packs at 1.1.0 under a temp folder.
+/// Writes a project pinning both shipped packs under a temp folder.
 ///
 /// A key in [extra] replaces or adds a file.
 Future<Directory> writeReadProject({Map<String, String> extra = const {}}) =>

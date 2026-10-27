@@ -5,6 +5,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
@@ -68,8 +69,9 @@ void main() {
           homeDirectory: await writeTree({}),
         );
 
-    Future<Directory> prdCoreProject() =>
-        writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n'});
+    Future<Directory> prdCoreProject() => writeTree({
+      _configPath: shippedPinsConfig(['prd-core']),
+    });
 
     test('f03/us06/s1, f03/us06/fr01/e01: guide lists the ten prd-core doc '
         'types and no other', () async {

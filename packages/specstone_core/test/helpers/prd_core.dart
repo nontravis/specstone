@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import 'shipped_pins.dart';
 import 'temp_tree.dart';
 
 /// The words and phrases the NASA lint bans (US-06 FR-03), in list order.
@@ -114,7 +115,7 @@ final class FieldSpec {
   final PointerKind? pointer;
 }
 
-/// Resolves a temp project that pins `prd-core` 1.1.0.
+/// Resolves a temp project that pins the shipped `prd-core`.
 ///
 /// Each [templates] entry lands at `.specstone/templates/<key>`. Calls
 /// `writeTree`, so call it from a test or `setUpAll`.
@@ -122,7 +123,7 @@ Future<MergedSet> resolvePrdCore({
   Map<String, String> templates = const {},
 }) async {
   final project = await writeTree({
-    '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+    '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
     for (final MapEntry(:key, :value) in templates.entries)
       '.specstone/templates/$key': value,
   });

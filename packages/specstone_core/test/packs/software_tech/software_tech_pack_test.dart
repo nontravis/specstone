@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -38,7 +39,7 @@ void main() {
     test('f03/us07/fr01/e03: software-tech listed without prd-core is '
         'prd_core_missing', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': 'packs:\n  software-tech: 1.1.0\n',
+        '.specstone/config.yaml': shippedPinsConfig(['software-tech']),
       });
       final home = await writeTree({});
       expect(
