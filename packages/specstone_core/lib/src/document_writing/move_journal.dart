@@ -137,6 +137,8 @@ final class WriteStep extends JournalStep {
       writeFileAtomic(file, utf8.encode(text));
     } on FileSystemException catch (error) {
       throw _notWritable('write', path, error);
+    } on FormatException catch (error) {
+      throw _notWritable('write', path, error);
     }
   }
 }
@@ -224,6 +226,8 @@ final class MoveJournal {
       }
     } on FormatException {
       steps = null;
+    } on FileSystemException catch (error) {
+      throw _notWritable('read', MoveJournal.journalPath, error);
     }
     _finish(project, steps ?? const []);
   }
@@ -256,7 +260,11 @@ void _removeTrash(DocsProject project) {
   }
 }
 
-String _join(String root, String relative) => '$root/$relative';
+/// Joins [root] and the `/`-separated [relative] with the platform separator,
+/// so every path this file builds and compares has one form.
+String _join(String root, String relative) =>
+    '$root${Platform.pathSeparator}'
+    '${relative.split('/').join(Platform.pathSeparator)}';
 
 String _absolute(DocsProject project, String relative) =>
     _join(project.projectRoot.path, relative);
@@ -267,8 +275,13 @@ bool _isInside(String root, String path) =>
 /// Builds the `output_not_writable` fault for a failed [verb] on [path].
 ///
 /// A path under the docs root reads relative to it.
-RenderFault _notWritable(String verb, String path, FileSystemException error) {
-  final reason = error.osError?.message ?? error.message;
+RenderFault _notWritable(String verb, String path, Exception error) {
+  final reason = switch (error) {
+    FileSystemException(:final osError, :final message) =>
+      osError?.message ?? message,
+    FormatException(:final message) => message,
+    _ => '$error',
+  };
   final shown = path.startsWith('docs/') ? path.substring(5) : path;
   return RenderFault(
     RenderFaultCode.outputNotWritable,

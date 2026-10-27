@@ -1,6 +1,3 @@
-// Test names carry the long FR/INV tags the plan gives them.
-// ignore_for_file: lines_longer_than_80_chars
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -168,7 +165,7 @@ void main() {
     expect(MoveJournal.pending(root), isTrue);
   });
 
-  test('PD3: a journal that does not parse is discarded, and a leftover trash folder is removed', () {
+  test('f02/us04/fr03, dw-s03/inv9, PD3: a journal that does not parse is discarded, and a leftover trash folder is removed', () {
     final journal = File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"steps": [');
@@ -253,5 +250,43 @@ void main() {
     );
     expect(hasDoc(root, story3), isTrue);
     expect(journalExists(), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test('f02/us04/fr03/e04: a WriteStep on a file that is not UTF-8 text fails as output_not_writable', () {
+    docFile(root, story1).writeAsBytesSync([0xff, 0xfe, 0x41]);
+
+    expect(
+      () => const WriteStep('docs/$story1', 'x').apply(openProject(root)),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith('cannot write $story1: '),
+            ),
+      ),
+    );
+  });
+
+  test('f02/us04/fr03/e04: a replay whose journal cannot be read fails as output_not_writable', () {
+    writeJournal(root, const []);
+    final journal = File('${root.path}/${MoveJournal.journalPath}');
+    Process.runSync('chmod', ['000', journal.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', journal.path]));
+
+    expect(
+      () => MoveJournal.replay(openProject(root)),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith('cannot read ${MoveJournal.journalPath}: '),
+            ),
+      ),
+    );
+    expect(journal.existsSync(), isTrue);
   }, skip: unreadablePathSkipReason() ?? false);
 }
