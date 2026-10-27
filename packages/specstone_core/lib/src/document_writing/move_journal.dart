@@ -99,8 +99,8 @@ final class PruneStep extends JournalStep {
   @override
   void apply(DocsProject project) {
     try {
-      var current = Directory(_absolute(project, folder));
       final docsRoot = project.docsRoot.path;
+      var current = Directory(_underDocsRoot(project, folder));
       while (current.path != docsRoot && _isInside(docsRoot, current.path)) {
         if (current.existsSync()) {
           if (current.listSync().isNotEmpty) return;
@@ -268,6 +268,13 @@ String _join(String root, String relative) =>
 
 String _absolute(DocsProject project, String relative) =>
     _join(project.projectRoot.path, relative);
+
+/// Resolves a `docs/`-relative [relative] against the canonical docs root, so
+/// a linked `docs` folder still compares equal to it.
+String _underDocsRoot(DocsProject project, String relative) =>
+    relative.startsWith('docs/')
+    ? _join(project.docsRoot.path, relative.substring(5))
+    : _absolute(project, relative);
 
 bool _isInside(String root, String path) =>
     path.startsWith('$root${Platform.pathSeparator}');

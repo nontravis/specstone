@@ -11,6 +11,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
+import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
 /// [fr12] without its link into [story3], so the unit of [story3] is free.
@@ -57,6 +58,29 @@ void main() {
 
   Matcher refusesWith(WriteFaultCode code) =>
       throwsA(isA<WriteFault>().having((f) => f.code, 'code', code));
+
+  test('dw-s03/inv7: a delete under a docs root linked outside the project removes the emptied folder', () async {
+    final root = await writeWriteProject(
+      without: {
+        for (final k in writeProject.keys)
+          if (k.startsWith('docs/')) k,
+      },
+    );
+    final outside = await writeTree({
+      for (final MapEntry(:key, :value) in {
+        ...writeProject,
+        ...withoutLink,
+      }.entries)
+        if (key.startsWith('docs/')) key.substring(5): value,
+    });
+    Link('${root.path}/docs').createSync(outside.path);
+    del(root, 'user_story:login/reset_password');
+    expect(
+      Directory('${outside.path}/prds/features/f01_login/us03_reset_password')
+          .existsSync(),
+      isFalse,
+    );
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   test('f02/us04/s1, f02/us04/fr01, f02/us04/fr01/e01, f02/us04/fr01/e07, f02/us04/fr02/e01, dw-s03/inv7, dw-s03/inv9: a draft story goes with its requirements, siblings keep their numbers', () async {
     final root = await writeWriteProject(extra: withoutLink);
