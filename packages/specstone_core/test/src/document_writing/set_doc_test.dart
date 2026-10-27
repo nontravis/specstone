@@ -1192,4 +1192,45 @@ void main() {
       contains('vision:\n  - PV-02\n\n  - PV-03\n'),
     );
   });
+
+  test('U1, dw-s03/inv3: set refuses a doc that is not UTF-8 and leaves its bytes unchanged', () async {
+    final root = await writeWriteProject();
+    final base = sectionBase(root, 'feature:signup#problem');
+    final bytes = [
+      ...docFile(root, signupFeature).readAsBytesSync(),
+      0xFF,
+      0x0A,
+    ];
+    docFile(root, signupFeature).writeAsBytesSync(bytes);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(s, req('feature:signup#problem', base), 'New.\n'),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $signupFeature: not UTF-8 text',
+            ),
+      ),
+    );
+    expect(docFile(root, signupFeature).readAsBytesSync(), bytes);
+  });
+  test('U1, dw-s03/inv3: set keeps the BOM of a doc', () async {
+    final root = await writeWriteProject();
+    final base = sectionBase(root, 'feature:signup#problem');
+    final file = docFile(root, signupFeature);
+    file.writeAsBytesSync([0xEF, 0xBB, 0xBF, ...file.readAsBytesSync()]);
+    writeIn(
+      root,
+      (s) => answerSet(s, req('feature:signup#problem', base), 'New.\n'),
+    );
+    final after = file.readAsBytesSync();
+    expect(after.take(3), [0xEF, 0xBB, 0xBF]);
+    expect(String.fromCharCodes(after.skip(3)), contains('draft: true'));
+    expect(String.fromCharCodes(after.skip(3)), contains('New.'));
+  });
 }

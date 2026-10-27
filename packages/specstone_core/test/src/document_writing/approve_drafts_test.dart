@@ -7,33 +7,14 @@ import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/git_repo.dart';
 import '../../helpers/write_fixture.dart';
 
 const _prompt = 'approve? [y/n/q] ';
-
-final bool _hasGit = () {
-  try {
-    return Process.runSync('git', ['--version']).exitCode == 0;
-  } on ProcessException {
-    return false;
-  }
-}();
-
-ProcessResult _git(Directory dir, List<String> args) => Process.runSync('git', [
-  '-c',
-  'user.name=t',
-  '-c',
-  'user.email=t@t',
-  ...args,
-], workingDirectory: dir.path);
-
-void _commit(Directory root, String message) {
-  expect(_git(root, ['add', '-A']).exitCode, 0);
-  expect(_git(root, ['commit', '-q', '-m', message]).exitCode, 0);
-}
 
 /// Returns the given answers in order, then null.
 String? Function() answers(List<String?> list) {
@@ -42,7 +23,7 @@ String? Function() answers(List<String?> list) {
 }
 
 void main() {
-  final skipGit = _hasGit ? null : 'git is not available';
+  final skipGit = hasGit ? null : 'git is not available';
 
   test('f02/us03/s7, f02/us03/fr01/e04, dw-s03/inv12: no interactive terminal is owner_terminal_required, exit 77', () {
     expect(
@@ -118,12 +99,12 @@ void main() {
         'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
       },
     );
-    expect(_git(root, ['init', '-q']).exitCode, 0);
-    _commit(root, 'approved');
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    commitAll(root, 'approved');
     File('${root.path}/docs/$signupFeature').writeAsStringSync(
       '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\n',
     );
-    _commit(root, 'edited as a draft');
+    commitAll(root, 'edited as a draft');
     final out = StringBuffer();
     writeIn(
       root,
@@ -144,8 +125,8 @@ void main() {
     'f02/us03/s3: a draft with no approved version in git shows the whole file',
     () async {
       final root = await writeWriteProject();
-      expect(_git(root, ['init', '-q']).exitCode, 0);
-      _commit(root, 'only ever a draft');
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      commitAll(root, 'only ever a draft');
       final out = StringBuffer();
       writeIn(
         root,
@@ -232,20 +213,17 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'feature:signup',
-        readLine: answers(['x', 'y', 'q']),
+        name: 'architecture:signup',
+        readLine: answers(['x', 'y']),
         out: out,
       ),
     );
+    expect(_prompt.allMatches(out.toString()), hasLength(2));
+    expect(readDoc(root, signupArch), startsWith('---\napproved: true\n---\n'));
     expect(
-      _prompt.allMatches(out.toString()),
-      hasLength(greaterThanOrEqualTo(2)),
+      '==> signup (architecture)'.allMatches(out.toString()),
+      hasLength(1),
     );
-    expect(
-      readDoc(root, signupFeature),
-      startsWith('---\napproved: true\n---\n'),
-    );
-    expect('==> signup (feature)'.allMatches(out.toString()), hasLength(1));
   });
 
   test('f02/us03/fr01/e03: no draft in scope prints one line', () async {
@@ -373,14 +351,17 @@ void main() {
     expect(readDoc(root, signupArch), contains('draft: true'));
   });
 
-  test('review focus 5, PD10: the end of input ends the walk', () async {
-    final root = await writeWriteProject();
-    final out = StringBuffer();
-    writeIn(root, (s) => approveDrafts(s, readLine: answers([]), out: out));
-    expect(_prompt.allMatches(out.toString()), hasLength(1));
-    expect(readDoc(root, signupFeature), contains('draft: true'));
-    expect(readDoc(root, story1), contains('draft: true'));
-  });
+  test(
+    'f02/us03/fr01, review focus 5, PD10: the end of input ends the walk',
+    () async {
+      final root = await writeWriteProject();
+      final out = StringBuffer();
+      writeIn(root, (s) => approveDrafts(s, readLine: answers([]), out: out));
+      expect(_prompt.allMatches(out.toString()), hasLength(1));
+      expect(readDoc(root, signupFeature), contains('draft: true'));
+      expect(readDoc(root, story1), contains('draft: true'));
+    },
+  );
 
   test(
     'f02/us03/fr03, dw-s03/inv5: approval keeps the line endings of the file',
@@ -400,6 +381,59 @@ void main() {
       expect(
         readDoc(root, signupFeature),
         '---\r\napproved: true\r\n---\r\n\r\n# Signup\r\n',
+      );
+    },
+  );
+
+  test('U1, dw-s03/inv5: approve refuses a doc that is not UTF-8 and leaves its bytes unchanged', () async {
+    final root = await writeWriteProject();
+    final bytes = [
+      ...docFile(root, signupFeature).readAsBytesSync(),
+      0xFF,
+      0x0A,
+    ];
+    docFile(root, signupFeature).writeAsBytesSync(bytes);
+    expect(
+      () => writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          name: 'feature:signup',
+          readLine: answers(['y']),
+          out: StringBuffer(),
+        ),
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (f) => f.message,
+          'message',
+          'cannot write $signupFeature: not UTF-8 text',
+        ),
+      ),
+    );
+    expect(docFile(root, signupFeature).readAsBytesSync(), bytes);
+  });
+
+  test(
+    'U1, dw-s03/inv5: approve keeps the BOM of a doc and sees its frontmatter',
+    () async {
+      final root = await writeWriteProject();
+      final file = docFile(root, signupFeature);
+      file.writeAsBytesSync([0xEF, 0xBB, 0xBF, ...file.readAsBytesSync()]);
+      writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          name: 'feature:signup',
+          readLine: answers(['y', 'q']),
+          out: StringBuffer(),
+        ),
+      );
+      final after = file.readAsBytesSync();
+      expect(after.take(3), [0xEF, 0xBB, 0xBF]);
+      expect(
+        String.fromCharCodes(after.skip(3)),
+        startsWith('---\napproved: true\n---\n'),
       );
     },
   );

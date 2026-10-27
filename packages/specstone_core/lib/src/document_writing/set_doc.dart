@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
@@ -464,18 +463,14 @@ ParsedDoc _readLocked(
   IndexedDoc doc,
   DocTypeMatch match,
 ) {
-  try {
-    return parseIndexedDoc(
-      docPath: doc.docPath,
-      bytes: session.fileOf(doc.docPath).readAsBytesSync(),
-      match: match,
-    );
-  } on PathNotFoundException {
+  final bytes = session.readDocBytes(doc.docPath);
+  if (bytes == null) {
     throw IndexFault(
       IndexFaultCode.docNotFound,
       'no ${doc.docTypeId} doc carries the name ${doc.name}',
     );
   }
+  return parseIndexedDoc(docPath: doc.docPath, bytes: bytes, match: match);
 }
 
 /// Returns [lfText] with the template section [key] added before the first

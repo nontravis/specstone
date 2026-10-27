@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart' show utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -68,6 +69,9 @@ final class WriteSession {
 
   final ReadSession _read;
   bool _snapshotOpen = true;
+
+  /// The DocPaths whose last [readDocBytes] began with a UTF-8 BOM.
+  final _bomDocs = <String>{};
 
   /// The project the session writes.
   DocsProject get project => _read.project;
@@ -153,12 +157,44 @@ final class WriteSession {
     return result;
   }
 
+  /// Returns the bytes of [docPath] for a write, or null when the file is gone.
+  ///
+  /// Remembers a leading UTF-8 BOM so [writeDoc] puts it back; decode the
+  /// bytes with `utf8.decode`, which drops the BOM.
+  /// Throws [RenderFault] `output_not_writable` for bytes that are not UTF-8,
+  /// leaving the file untouched.
+  List<int>? readDocBytes(String docPath) {
+    final List<int> bytes;
+    try {
+      bytes = fileOf(docPath).readAsBytesSync();
+    } on PathNotFoundException {
+      return null;
+    }
+    try {
+      utf8.decode(bytes);
+    } on FormatException {
+      throw RenderFault(
+        RenderFaultCode.outputNotWritable,
+        'cannot write $docPath: not UTF-8 text',
+      );
+    }
+    final hasBom =
+        bytes.length >= utf8Bom.length &&
+        utf8Bom.indexed.every((e) => bytes[e.$1] == e.$2);
+    hasBom ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
+    return bytes;
+  }
+
   /// Writes [lfText] to [docPath] in [lineEnding], replacing the file whole.
   ///
+  /// A BOM that the last [readDocBytes] of [docPath] saw is kept.
   /// Throws [RenderFault] `output_not_writable` when the disk refuses.
   void writeDoc(String docPath, String lfText, LineEnding lineEnding) {
     try {
-      writeFileAtomic(fileOf(docPath), utf8.encode(lineEnding.apply(lfText)));
+      writeFileAtomic(fileOf(docPath), [
+        if (_bomDocs.contains(docPath)) ...utf8Bom,
+        ...utf8.encode(lineEnding.apply(lfText)),
+      ]);
     } on FileSystemException catch (error) {
       final reason = error.osError?.message ?? error.message;
       throw RenderFault(

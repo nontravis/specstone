@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
@@ -68,11 +67,10 @@ bool _approveOne(
   String? Function() readLine,
   StringSink out,
 ) {
-  final file = session.fileOf(doc.docPath);
   while (true) {
-    final shown = _readBytes(file);
+    final shown = session.readDocBytes(doc.docPath);
     if (shown == null) return true;
-    final text = utf8.decode(shown, allowMalformed: true);
+    final text = utf8.decode(shown);
     out
       ..write('${namingLine(doc)}\n')
       ..write(_viewOf(session, doc, history, text))
@@ -118,12 +116,11 @@ bool _approveIfUnchanged(
   IndexedDoc doc,
   List<int> shown,
 ) {
-  final file = session.fileOf(doc.docPath);
   return session.locked(() {
-    final current = _readBytes(file);
+    final current = session.readDocBytes(doc.docPath);
     if (current == null) return true;
     if (!_sameBytes(current, shown)) return false;
-    final text = utf8.decode(current, allowMalformed: true);
+    final text = utf8.decode(current);
     final lfText = toLf(text);
     final undrafted = withKeyBlock(lfText, 'draft', null);
     final approved = holdsApproved(Doc.parse(lfText))
@@ -132,14 +129,6 @@ bool _approveIfUnchanged(
     session.writeDoc(doc.docPath, approved, LineEnding.of(text));
     return true;
   });
-}
-
-List<int>? _readBytes(File file) {
-  try {
-    return file.readAsBytesSync();
-  } on PathNotFoundException {
-    return null;
-  }
 }
 
 bool _sameBytes(List<int> a, List<int> b) {

@@ -4,24 +4,9 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/git_repo.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
-
-ProcessResult git(Directory dir, List<String> args) => Process.runSync('git', [
-  '-c',
-  'user.name=t',
-  '-c',
-  'user.email=t@t',
-  ...args,
-], workingDirectory: dir.path);
-
-final bool _hasGit = () {
-  try {
-    return Process.runSync('git', ['--version']).exitCode == 0;
-  } on ProcessException {
-    return false;
-  }
-}();
 
 const _approvedText = '# Signup\n\nApproved body.\n';
 
@@ -37,13 +22,8 @@ Future<Directory> _repo(Map<String, String> files) async {
   return root;
 }
 
-void _commit(Directory root, String message) {
-  expect(git(root, ['add', '-A']).exitCode, 0);
-  expect(git(root, ['commit', '-q', '-m', message]).exitCode, 0);
-}
-
 void main() {
-  final skipGit = _hasGit ? null : 'git is not available';
+  final skipGit = hasGit ? null : 'git is not available';
 
   test('dw-s03/inv5, f02/us04/fr02/e04, f02/us04/fr02/e05: approval reads the frontmatter only', () {
     expect(
@@ -77,9 +57,9 @@ void main() {
 
   test('f02/us03/s2, f02/us03/fr02/e01, dw-s03/inv11: the newest committed copy without draft is found', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
-    _commit(repo, 'approved');
+    commitAll(repo, 'approved');
     File('${repo.path}/docs/$signupFeature').writeAsStringSync(_draftText);
-    _commit(repo, 'edited as draft');
+    commitAll(repo, 'edited as draft');
 
     expect(
       const ApprovalHistory().lastApproved(repo, 'docs/$signupFeature'),
@@ -94,13 +74,13 @@ void main() {
       const newPath =
           'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
       final repo = await _repo({oldPath: _longApproved});
-      _commit(repo, 'approved');
+      commitAll(repo, 'approved');
       Directory(File('${repo.path}/$newPath').parent.path)
           .createSync(recursive: true);
       expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
       File('${repo.path}/$newPath')
           .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
-      _commit(repo, 'moved and drafted');
+      commitAll(repo, 'moved and drafted');
 
       expect(
         const ApprovalHistory().lastApproved(repo, newPath),
@@ -112,10 +92,10 @@ void main() {
 
   test('f02/us03/s3, f02/us03/fr02/e03, f02/us03/fr02/e05: no committed copy without draft is NoApprovedCopy', () async {
     final repo = await _repo({'docs/$signupFeature': _draftText});
-    _commit(repo, 'draft');
+    commitAll(repo, 'draft');
     File('${repo.path}/docs/$signupFeature')
         .writeAsStringSync('$_draftText\nMore.\n');
-    _commit(repo, 'still draft');
+    commitAll(repo, 'still draft');
 
     expect(
       const ApprovalHistory().lastApproved(repo, 'docs/$signupFeature'),
@@ -127,7 +107,7 @@ void main() {
     'f02/us03/fr02/e03, dw-s03/inv11: a path with no commit is NoApprovedCopy',
     () async {
       final repo = await _repo({'docs/$signupFeature': _approvedText});
-      _commit(repo, 'approved');
+      commitAll(repo, 'approved');
 
       expect(
         const ApprovalHistory().lastApproved(repo, 'docs/$story1'),
