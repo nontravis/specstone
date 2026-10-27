@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
+import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 
 /// Runs every rule over [target] and the docs under it, or the whole project.
@@ -19,10 +20,17 @@ CheckReport runCheck(ReadSession session, {String? target}) {
   final findings = <Finding>[];
   for (final doc in index.docs) {
     if (inScope != null && !inScope.contains(doc.docPath)) continue;
+    if (!context.isChecked(doc)) continue;
+    findings.addAll(checkTree(context, doc));
+    if (!doc.isTyped) {
+      findings.addAll(checkDocType(context, doc));
+      continue;
+    }
     findings
       ..addAll(checkFrontmatter(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkBannedWords(context, doc));
   }
+  findings.addAll(unreadableFindings(context, inScope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }

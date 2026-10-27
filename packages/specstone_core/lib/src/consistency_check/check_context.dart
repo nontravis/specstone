@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
@@ -71,6 +72,25 @@ final class CheckContext {
     }
     return null;
   }
+
+  /// The first path segment of every doc type `path` (INV-8).
+  late final Set<String> checkedFolders = checkedFoldersOf(
+    _session.project.set,
+  );
+
+  /// Whether [docPath] lies in a checked folder.
+  bool isCheckedPath(String docPath) =>
+      checkedFolders.contains(docPath.split('/').first);
+
+  /// Whether [doc] lies in a checked folder.
+  bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);
+
+  /// Whether the doc type of [doc] names a parent and [doc] has none (INV-13).
+  bool hasNoParent(IndexedDoc doc) =>
+      typeOf(doc)?.parent != null && doc.parentPath == null;
+
+  /// Every warning of the session, in session order.
+  List<String> get sessionWarnings => _session.warnings;
 
   /// Marks [warning] as printed by a finding.
   void state(String warning) => _stated.add(warning);
