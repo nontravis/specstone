@@ -163,4 +163,45 @@ void main() {
       ],
     );
   });
+
+  test(
+    'f04/us02/fr04: wrapped link text does not displace the next broken link',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginFeature,
+            'Users forget passwords.',
+            'See [long\ntext](gone-a.md).\n\nAnd [b](gone-b.md).',
+          ),
+        ),
+      );
+      expect(
+        [for (final f in report.findings) f.textLine],
+        [
+          '$loginFeature:11: link_unresolved: link target gone-a.md is no doc',
+          '$loginFeature:14: link_unresolved: link target gone-b.md is no doc',
+        ],
+      );
+    },
+  );
+
+  test('f04/us02/fr04: a balanced () in a destination and [] in link text are placed', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'See [a](x(1).md).\nAnd [see [x]](gone.md).',
+        ),
+      ),
+    );
+    expect(
+      [for (final f in report.findings) f.textLine],
+      [
+        '$loginFeature:11: link_unresolved: link target x(1).md is no doc',
+        '$loginFeature:12: link_unresolved: link target gone.md is no doc',
+      ],
+    );
+  });
 }

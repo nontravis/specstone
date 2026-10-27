@@ -52,8 +52,8 @@ Iterable<Finding> _unresolvedDocRefs(
 /// stores each target once, so a doc holding an unindexed target is parsed
 /// again to list its links in order. Each such link is then placed in the
 /// source text (see [_scanUses]) for its line and its target as written.
-/// A link `markdown` reports and the scan cannot place is a bug: it asserts in
-/// debug, and in release the finding takes line 1 and the normalized href.
+/// A link the scan cannot place takes line 1 and the href `markdown` gives as
+/// its target; a link inside an indented code block is one such case.
 Iterable<Finding> _unresolvedLinks(CheckContext context, IndexedDoc doc) sync* {
   final unindexed = {
     for (final target in context.contentOf(doc).links)
@@ -69,71 +69,121 @@ Iterable<Finding> _unresolvedLinks(CheckContext context, IndexedDoc doc) sync* {
   for (final href in _hrefsOf(body)) {
     final target = resolveDocLink(href, doc.docPath);
     if (target is! DocTarget || !unindexed.contains(target.docPath)) continue;
-    while (next < uses.length && _normalize(uses[next].dest) != href) {
-      next++;
-    }
-    final placed = next < uses.length;
-    assert(placed, 'link $href of ${doc.docPath} is not in its source text');
+    final found = uses.indexWhere((use) => _normalize(use.dest) == href, next);
+    if (found >= 0) next = found + 1;
+    final line = found >= 0 ? uses[found].line : 1;
+    final shown = found >= 0 ? uses[found].dest : href;
     yield context.finding(
       doc,
       FindingKind.linkUnresolved,
-      line: placed ? uses[next].line : 1,
-      message: 'link target ${placed ? uses[next].dest : href} is no doc',
-      keys: {'target': placed ? uses[next].dest : href},
+      line: line,
+      message: 'link target $shown is no doc',
+      keys: {'target': shown},
     );
-    if (placed) next++;
   }
 }
 
 /// A link written in the source: its destination as written and its line.
 typedef _Use = ({String dest, int line});
 
-final _definition = RegExp(r'^ {0,3}\[([^\]]+)\]:[ \t]*(<[^>]*>|\S+)');
-final _span = RegExp('`[^`]*`');
-final _bracket = RegExp(r'(!?)\[([^\]]*)\](?:\(([^)]*)\)|\[([^\]]*)\])?');
+final _definition = RegExp(
+  r'^ {0,3}\[([^\]]+)\]:[ \t]*(<[^>]*>|\S+)',
+  multiLine: true,
+);
+final _span = RegExp('`[^`\n]*`');
 
 /// Returns the links of [body] in source order, outside fenced code.
 ///
-/// An inline `](dest)` or `](<dest>)` gives its dest; a reference use
+/// The body is scanned as one string, so link text and a destination may wrap
+/// over lines, and `[]` in link text and `()` in a destination may nest. An
+/// inline `](dest)` or `](<dest>)` gives its dest; a reference use
 /// (`[text][label]`, `[label][]`, `[label]`) gives the dest of its
 /// `[label]: dest` definition and the line of the use. Images are no link.
 List<_Use> _scanUses(String body, int firstLine) {
-  final lines = body.split('\n');
-  final fenced = fencedLines(lines);
+  final masked = _masked(body);
   final definitions = <String, String>{};
-  final definitionLines = <int>{};
-  for (var i = 0; i < lines.length; i++) {
-    if (fenced[i]) continue;
-    final match = _definition.firstMatch(lines[i]);
-    if (match == null) continue;
-    definitionLines.add(i);
+  final definitionStarts = <int>{};
+  for (final match in _definition.allMatches(masked)) {
+    definitionStarts.add(masked.indexOf('[', match.start));
     definitions.putIfAbsent(_label(match[1]!), () => _bare(match[2]!));
   }
   final uses = <_Use>[];
-  for (var i = 0; i < lines.length; i++) {
-    if (fenced[i] || definitionLines.contains(i)) continue;
-    final line = lines[i].replaceAllMapped(_span, (m) => ' ' * m[0]!.length);
-    for (final match in _bracket.allMatches(line)) {
-      if (match[1] == '!') continue;
-      final inline = match[3];
-      final label = match[4];
-      final dest = inline != null
-          ? _inlineDest(inline.trim())
-          : definitions[_label(
-              label == null || label.isEmpty ? match[2]! : label,
-            )];
-      if (dest != null) uses.add((dest: dest, line: firstLine + i));
-    }
+  for (var i = 0; i < masked.length; i++) {
+    if (masked[i] != '[' || definitionStarts.contains(i)) continue;
+    if (i > 0 && masked[i - 1] == '!') continue;
+    final textEnd = _closing(masked, i, '[', ']');
+    if (textEnd < 0) continue;
+    final dest = _destAfter(masked, i, textEnd, definitions);
+    if (dest == null) continue;
+    final line = firstLine + '\n'.allMatches(body.substring(0, i)).length;
+    uses.add((dest: dest, line: line));
   }
   return uses;
 }
 
-String _inlineDest(String inside) {
-  if (inside.startsWith('<')) {
-    final close = inside.indexOf('>');
-    if (close > 0) return inside.substring(1, close);
+/// Returns [body] with fenced code lines and inline code spans blanked, the
+/// length and every line end kept.
+String _masked(String body) {
+  final lines = body.split('\n');
+  final fenced = fencedLines(lines);
+  return [
+    for (var i = 0; i < lines.length; i++)
+      if (fenced[i])
+        ' ' * lines[i].length
+      else
+        lines[i].replaceAllMapped(_span, (m) => ' ' * m[0]!.length),
+  ].join('\n');
+}
+
+/// Returns the offset of the [close] that matches the [open] at [start], or -1.
+///
+/// A backslash escapes the next character.
+int _closing(String text, int start, String open, String close) {
+  var depth = 0;
+  for (var i = start; i < text.length; i++) {
+    final char = text[i];
+    if (char == r'\') {
+      i++;
+    } else if (char == open) {
+      depth++;
+    } else if (char == close && --depth == 0) {
+      return i;
+    }
   }
-  return inside.split(RegExp(r'\s+')).first;
+  return -1;
+}
+
+/// Returns the destination of the link whose text ends at [textEnd], or null
+/// when no link follows.
+String? _destAfter(
+  String text,
+  int textStart,
+  int textEnd,
+  Map<String, String> definitions,
+) {
+  final after = textEnd + 1 < text.length ? text[textEnd + 1] : '';
+  final linkText = text.substring(textStart + 1, textEnd);
+  if (after == '(') {
+    final end = _closing(text, textEnd + 1, '(', ')');
+    return end < 0 ? null : _inlineDest(text.substring(textEnd + 2, end));
+  }
+  if (after == '[') {
+    final end = _closing(text, textEnd + 1, '[', ']');
+    if (end < 0) return null;
+    final label = text.substring(textEnd + 2, end);
+    return definitions[_label(label.isEmpty ? linkText : label)];
+  }
+  return definitions[_label(linkText)];
+}
+
+String _inlineDest(String inside) {
+  final trimmed = inside.trim();
+  if (trimmed.startsWith('<')) {
+    final close = trimmed.indexOf('>');
+    if (close > 0) return trimmed.substring(1, close);
+  }
+  final end = trimmed.indexOf(RegExp(r'\s'));
+  return end < 0 ? trimmed : trimmed.substring(0, end);
 }
 
 String _label(String text) =>
