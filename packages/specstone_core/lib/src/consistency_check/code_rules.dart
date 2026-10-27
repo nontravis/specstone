@@ -24,7 +24,7 @@ Iterable<Finding> checkCoversAndCodeRoots(
     (_coversField, FindingKind.coversPathMissing),
     (_codeField, FindingKind.codeRootMissing),
   ]) {
-    if (!type.fields.any((declared) => declared.id == field)) continue;
+    if (!context.typeHoldsField(type, field)) continue;
     for (final (:value, :line, text: _)
         in context.linesOf(doc).entriesOf(field)) {
       if (value is! String || _namesSomething(context, value)) continue;
@@ -50,10 +50,7 @@ Iterable<Finding> uncoveredCode(CheckContext context) sync* {
   final covers = _coversOf(context);
   final reported = <String>{};
   for (final doc in context.index.docs) {
-    final type = context.typeOf(doc);
-    if (type == null || !type.fields.any((field) => field.id == _codeField)) {
-      continue;
-    }
+    if (!context.typeHoldsField(context.typeOf(doc), _codeField)) continue;
     for (final (:value, :line, text: _)
         in context.linesOf(doc).entriesOf(_codeField)) {
       if (value is! String) continue;
@@ -77,11 +74,10 @@ Iterable<Finding> uncoveredCode(CheckContext context) sync* {
 /// Returns every `covers` entry of every typed doc, a final `/` dropped.
 List<String> _coversOf(CheckContext context) => [
   for (final doc in context.index.docs)
-    if (context.typeOf(doc) case final type?)
-      if (type.fields.any((field) => field.id == _coversField))
-        for (final (:value, line: _, text: _)
-            in context.linesOf(doc).entriesOf(_coversField))
-          if (value is String) _withoutFinalSlash(value),
+    if (context.typeHoldsField(context.typeOf(doc), _coversField))
+      for (final (:value, line: _, text: _)
+          in context.linesOf(doc).entriesOf(_coversField))
+        if (value is String) _withoutFinalSlash(value),
 ];
 
 /// Whether an entry equals [path] or names a folder that holds it.

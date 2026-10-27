@@ -314,4 +314,105 @@ void main() {
     );
     expect(spots(planned, FindingKind.implementsMissing), isEmpty);
   });
+
+  test('f04/us03/fr02, cc-s03/inv2: a project layer that disables the roles section runs no role rule', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/project.yaml':
+              'sections:\n  - id: roles\n    disabled: true\n',
+          ...doc(
+            projectDoc,
+            '## Role\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
+            '',
+          ),
+          'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Buyer\npriority: primary\nbasis: proto\n---\n\n# Buyer\n',
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.roleUnresolved), isEmpty);
+  });
+
+  test('f04/us03/fr01, cc-s03/inv2: a project layer that disables the story acceptance_criteria section runs no scenario trace rule', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/user_story.yaml':
+              'sections:\n  - id: acceptance_criteria\n    disabled: true\n',
+          ...doc(
+            loginStory,
+            '\n## Acceptance Criteria\n\n$loginScenario1\n\n$loginScenario2\n',
+            '',
+          ),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.scenarioTraceUnresolved), isEmpty);
+  });
+
+  test('f04/us03/fr02, f04/us03/fr01: a fenced example is no Role entry, no As-a line, and no project heading', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...edit(projectDoc, [
+            (
+              '- `Owner` — the person who approves them.\n',
+              '- `Owner` — the person who approves them.\n```\n- `Reviewer` — an example.\n```\n',
+            ),
+            (
+              '## Project goals\n',
+              '## Project goals\n```\n### PG-02 — Example\n```\n',
+            ),
+          ]),
+          ...edit(loginStory, [
+            ('## Use Case\n', '## Use Case\n```\n- **As a** Stranger\n```\n'),
+            ('goals:\n  - PG-01\n', 'goals:\n  - PG-01\n  - PG-02\n'),
+          ]),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.roleUnresolved), isEmpty);
+    expect(spots(report, FindingKind.visionGoalUnresolved), [
+      '$loginStory:3: vision_goal_unresolved',
+    ]);
+    expect(spots(report, FindingKind.visionGoalWidened), [
+      '$loginStory:3: vision_goal_widened',
+    ]);
+    final unresolvedReviewer = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...edit(projectDoc, [
+            (
+              '- `Owner` — the person who approves them.\n',
+              '- `Owner` — the person who approves them.\n```\n- `Reviewer` — an example.\n```\n',
+            ),
+          ]),
+          ...doc(
+            loginStory,
+            '- **As a** Agent who signs in',
+            '- **As a** Reviewer',
+          ),
+        },
+      ),
+    );
+    expect(spots(unresolvedReviewer, FindingKind.roleUnresolved), [
+      '$loginStory:12: role_unresolved',
+    ]);
+  });
+
+  test(
+    'f04/us03/fr03: a fenced table in the FR trace section holds no row',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginApi,
+            '| email_login/check_password | `signIn` |\n',
+            '| email_login/check_password | `signIn` |\n\n```\n| FR | Operation |\n|----|-----------|\n| made_up | `x` |\n```\n',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
+    },
+  );
 }

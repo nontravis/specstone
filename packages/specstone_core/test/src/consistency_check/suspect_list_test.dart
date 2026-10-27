@@ -22,4 +22,19 @@ void main() {
       'docs': [docJson(session.index, fr)],
     });
   });
+
+  test('cc-s03/inv2: a project layer that disables confirmed on fr lists no suspect fr', () async {
+    final session = openSession(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'fields:\n  - id: confirmed\n    disabled: true\n',
+          ...doc(loginStory, loginScenario2, edited),
+        },
+      ),
+    );
+    addTearDown(session.close);
+    final answer = answerListSuspect(session, 'fr', const ListFilters());
+    expect(answer.json, {'docs': <Object?>[]});
+  });
 }

@@ -15,7 +15,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   if (type == null) return;
   final lines = context.linesOf(doc);
   final held = context.contentOf(doc).sections;
-  if (doc.title == null) {
+  if (doc.title?.trim().isEmpty ?? true) {
     yield context.finding(
       doc,
       FindingKind.titleMissing,
@@ -62,6 +62,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
     final section = held[i];
     final headerLine = lines.sectionLines[i];
     final template = context.templateSectionOf(type, section);
+    final sectionKey = template?.id ?? section.key;
     if (template == null) {
       final header = section.headerLine.trimLeft().substring(2).trim();
       yield context.finding(
@@ -82,13 +83,9 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         FindingKind.linesOverLimit,
         line: headerLine,
         message:
-            'section ${section.key} has $actualLines lines; the limit '
+            'section $sectionKey has $actualLines lines; the limit '
             'is $maxLines',
-        keys: {
-          'section': section.key,
-          'limit': maxLines,
-          'actual': actualLines,
-        },
+        keys: {'section': sectionKey, 'limit': maxLines, 'actual': actualLines},
       );
     }
     if (maxChars != null && actualChars > maxChars) {
@@ -97,17 +94,13 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         FindingKind.charsOverLimit,
         line: headerLine,
         message:
-            'section ${section.key} has $actualChars characters; the '
+            'section $sectionKey has $actualChars characters; the '
             'limit is $maxChars',
-        keys: {
-          'section': section.key,
-          'limit': maxChars,
-          'actual': actualChars,
-        },
+        keys: {'section': sectionKey, 'limit': maxChars, 'actual': actualChars},
       );
     }
     if (type.id == _projectType && template?.id == _visionSection) {
-      yield* _visionQuoteFindings(context, doc, section, headerLine);
+      yield* _visionQuoteFindings(context, doc, context.bodyLinesOf(doc, i));
     }
   }
 }
@@ -115,19 +108,17 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
 Iterable<Finding> _visionQuoteFindings(
   CheckContext context,
   IndexedDoc doc,
-  IndexedSection section,
-  int headerLine,
+  List<BodyLine> body,
 ) sync* {
-  final body = section.body.split('\n');
   for (var i = 0; i < body.length; i++) {
-    if (!body[i].startsWith(_visionEntryPrefix)) continue;
+    if (body[i].fenced || !body[i].text.startsWith(_visionEntryPrefix)) {
+      continue;
+    }
     var quoted = false;
-    for (
-      var j = i + 1;
-      j < body.length && !_headingLine.hasMatch(body[j]);
-      j++
-    ) {
-      if (_quoteLine.hasMatch(body[j])) {
+    for (var j = i + 1; j < body.length; j++) {
+      if (body[j].fenced) continue;
+      if (_headingLine.hasMatch(body[j].text)) break;
+      if (_quoteLine.hasMatch(body[j].text)) {
         quoted = true;
         break;
       }
@@ -136,9 +127,9 @@ Iterable<Finding> _visionQuoteFindings(
     yield context.finding(
       doc,
       FindingKind.visionQuoteMissing,
-      line: headerLine + 1 + i,
+      line: body[i].line,
       message:
-          'vision entry ${body[i].substring(_visionEntryPrefix.length)} '
+          'vision entry ${body[i].text.substring(_visionEntryPrefix.length)} '
           'has no quote line',
     );
   }

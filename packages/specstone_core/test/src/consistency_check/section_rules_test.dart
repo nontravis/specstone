@@ -201,4 +201,56 @@ void main() {
     expect(notes.every((f) => f.line == notes.first.line), isTrue);
     expect(notes.first.toJson(), containsPair('limit', anyOf(30, 600)));
   });
+
+  test(
+    'f04/us01/fr04: a head line "# " with no text is title_missing at line 1',
+    () async {
+      for (final head in ['# \n\n', '#   \n\n']) {
+        final report = checkOf(
+          await writeCheckProject(extra: fr('# Check the password\n\n', head)),
+        );
+        expect(spots(report, FindingKind.titleMissing), [
+          '$loginFr:1: title_missing',
+        ]);
+      }
+    },
+  );
+
+  test('f04/us01/fr04: a section lint finding names the template section id, not the header slug', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/user_story.yaml': 'sections:\n  - id: acceptance_criteria\n    lint:\n      max_lines: 3\n      max_chars: 40\n',
+          ...doc(
+            loginStory,
+            '## Acceptance Criteria\n',
+            '## Acceptance criteria\n',
+          ),
+        },
+      ),
+    );
+    final limits = report.findings.where(
+      (f) =>
+          f.kind == FindingKind.linesOverLimit ||
+          f.kind == FindingKind.charsOverLimit,
+    );
+    expect(limits, hasLength(2));
+    for (final finding in limits) {
+      expect(finding.toJson(), containsPair('section', 'acceptance_criteria'));
+      expect(finding.message, contains('section acceptance_criteria '));
+    }
+  });
+
+  test('f04/us01/fr04: a fenced example heading in the vision section is no vision entry', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          projectDoc,
+          '> en: One sign-in for every app.\n',
+          '> en: One sign-in for every app.\n```\n### PV-02 — Example\n```\n',
+        ),
+      ),
+    );
+    expect(spots(report, FindingKind.visionQuoteMissing), isEmpty);
+  });
 }

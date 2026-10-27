@@ -11,6 +11,9 @@ const _selfDerived = 'self-derived';
 const _tighten = 'tighten';
 const _relax = 'relax';
 const _add = 'add';
+const _projectType = 'project';
+const _rolesSection = 'roles';
+const _acceptanceSection = 'acceptance_criteria';
 const _personaType = 'persona';
 const _storyType = 'user_story';
 const _roleKey = 'role';
@@ -43,7 +46,12 @@ Iterable<Finding> _unresolvedScenarioTraces(
   IndexedDoc doc,
 ) sync* {
   final story = context.index.parentOf(doc);
-  if (story == null) return;
+  final storyType = story?.docTypeId;
+  if (story == null ||
+      storyType == null ||
+      !context.typeHoldsSection(storyType, _acceptanceSection)) {
+    return;
+  }
   final scenarios = context.scenarioBlocksOf(story);
   final line = context.linesOf(doc).keyLine(_tracedFromKey);
   if (line == null) return;
@@ -101,17 +109,19 @@ Iterable<Finding> _overrideProblems(
 ///
 /// A `persona` or `user_story` role names a Role entry of a `project` doc; a
 /// story's `vision:` and `goals:` IDs sit in its feature and a project
-/// heading. The rule runs only when the merged set holds `project`.
+/// heading. The rule runs only when the merged set holds `project`, and the
+/// role part only when `project` holds its `roles` section (INV-2).
 Iterable<Finding> checkRolesAndGoals(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
   if (!context.hasProject) return;
+  final readsRoles = context.typeHoldsSection(_projectType, _rolesSection);
   switch (doc.docTypeId) {
     case _personaType:
-      yield* _personaRole(context, doc);
+      if (readsRoles) yield* _personaRole(context, doc);
     case _storyType:
-      yield* _storyRole(context, doc);
+      if (readsRoles) yield* _storyRole(context, doc);
       yield* _storyGoalSets(context, doc);
   }
 }
@@ -124,13 +134,18 @@ Iterable<Finding> _personaRole(CheckContext context, IndexedDoc doc) sync* {
 }
 
 Iterable<Finding> _storyRole(CheckContext context, IndexedDoc doc) sync* {
-  final lines = context.linesOf(doc).lines;
-  final index = lines.indexWhere((line) => line.startsWith(_asAPrefix));
-  if (index < 0) return;
-  final text = lines[index].substring(_asAPrefix.length);
+  final lines = context.linesOf(doc);
+  final asA = lines.lines.indexed
+      .where(
+        (entry) =>
+            !lines.isFenced(entry.$1 + 1) && entry.$2.startsWith(_asAPrefix),
+      )
+      .firstOrNull;
+  if (asA == null) return;
+  final text = asA.$2.substring(_asAPrefix.length);
   final who = text.indexOf(_whoSeparator);
   final role = (who < 0 ? text : text.substring(0, who)).trim();
-  yield* _unresolvedRole(context, doc, role, index + 1);
+  yield* _unresolvedRole(context, doc, role, asA.$1 + 1);
 }
 
 Iterable<Finding> _unresolvedRole(
@@ -242,8 +257,7 @@ Iterable<Finding> checkImplementedStatus(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  final type = context.typeOf(doc);
-  if (type == null || !type.fields.any((f) => f.id == _implementsKey)) return;
+  if (!context.typeHoldsField(context.typeOf(doc), _implementsKey)) return;
   if (doc.writtenStatus != _implemented) return;
   if (doc.valuesOf(_implementsKey).isNotEmpty) return;
   final line = context.linesOf(doc).keyLine(_statusKey);

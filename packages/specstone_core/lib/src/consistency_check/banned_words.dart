@@ -36,6 +36,7 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
     final sectionBanned = template?.bannedWords ?? const <String>[];
     final prefix = template?.linePrefix;
     final headerLine = docLines.sectionLines[i];
+    final sectionKey = template?.id ?? section.key;
     for (final (lineIndex, line) in _sectionLines(
       section,
       docLines.lines,
@@ -54,8 +55,8 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
             doc,
             FindingKind.bannedWord,
             line: lineIndex,
-            message: '$word is a banned word in ${section.key}',
-            keys: {'word': word, 'section': section.key},
+            message: '$word is a banned word in $sectionKey',
+            keys: {'word': word, 'section': sectionKey},
           );
         }
       }

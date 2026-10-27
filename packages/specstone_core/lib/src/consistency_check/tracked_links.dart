@@ -159,6 +159,7 @@ LinkState _stateOf(IndexedDoc doc, TrackedLink link, _Entry? entry) {
 
 /// Whether any link [doc] tracks is `suspect` (INV-6).
 bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
+  if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return false;
   final lines = context.linesOf(doc);
   return trackedLinksOf(context, doc).any(
     (link) =>
@@ -170,10 +171,12 @@ bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
 /// Returns the `suspect` and `unconfirmed` findings of [doc] (INV-6, INV-7).
 ///
 /// A link whose upstream block is missing takes no state; US-03 reports it.
+/// Only a doc type that defines `confirmed` is read (INV-2).
 Iterable<Finding> checkTrackedLinks(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
+  if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return;
   final lines = context.linesOf(doc);
   for (final link in trackedLinksOf(context, doc)) {
     final current = link.fingerprint;
@@ -221,8 +224,7 @@ Iterable<Finding> checkConfirmedEntries(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  final type = context.typeOf(doc);
-  if (type == null || !type.fields.any((f) => f.id == _confirmedKey)) return;
+  if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return;
   final tracked = {for (final link in trackedLinksOf(context, doc)) link.label};
   for (final item in context.linesOf(doc).entriesOf(_confirmedKey)) {
     final value = item.value;

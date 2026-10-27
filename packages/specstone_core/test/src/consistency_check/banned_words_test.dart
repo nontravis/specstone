@@ -124,4 +124,27 @@ void main() {
     );
     expect(spots(report, FindingKind.bannedWord), isEmpty);
   });
+
+  test('f04/us01/fr05: a banned-word finding names the template section id, not the header slug', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/user_story.yaml':
+              'lint:\n  banned_words: [sketch]\n',
+          ...edit(loginStory, [
+            ('## Acceptance Criteria\n', '## Acceptance criteria\n'),
+            (
+              'an account\n- **When** the Agent signs in',
+              'a sketch\n- **When** the Agent signs in',
+            ),
+          ]),
+        },
+      ),
+    );
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.bannedWord,
+    );
+    expect(finding.toJson(), containsPair('section', 'acceptance_criteria'));
+    expect(finding.message, 'sketch is a banned word in acceptance_criteria');
+  });
 }

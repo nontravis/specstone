@@ -92,4 +92,20 @@ void main() {
     );
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
+
+  test(
+    'f04/us02/fr05: a fenced line in the Concerns section names no target',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginArchitecture,
+            '- Errors: see Components\n',
+            '- Errors: see Components\n```\n- Auth: see MISSING.md\n```\n',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
+    },
+  );
 }

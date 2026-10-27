@@ -16,8 +16,7 @@ const _edge = r'[\p{L}\p{N}_]';
 /// symbol finding when a segment of its Symbol occurs nowhere in that file as a
 /// whole word. A code file is read only to resolve a Symbol (INV-11).
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
-  final type = context.typeOf(doc);
-  if (type == null || !type.fields.any((field) => field.id == _field)) return;
+  if (!context.typeHoldsField(context.typeOf(doc), _field)) return;
   for (final (:value, :line, text: _)
       in context.linesOf(doc).entriesOf(_field)) {
     if (value is! String) continue;

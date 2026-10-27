@@ -96,15 +96,13 @@ Iterable<Finding> _unresolvedConcerns(
     for (final section in held)
       headerKey(section.headerLine.trimLeft().substring(2)),
   };
-  final lines = context.linesOf(doc);
   final folder = _folderOf(context, doc);
   for (var i = 0; i < held.length; i++) {
     if (context.templateSectionOf(type, held[i])?.id != _concernsSection) {
       continue;
     }
-    final bodyLines = held[i].body.split('\n');
-    for (var k = 0; k < bodyLines.length; k++) {
-      final target = _seeTarget(bodyLines[k]);
+    for (final line in context.bodyLinesOf(doc, i)) {
+      final target = line.fenced ? null : _seeTarget(line.text);
       if (target == null) continue;
       if (headers.contains(headerKey(target)) ||
           File('$folder/$target').existsSync()) {
@@ -113,7 +111,7 @@ Iterable<Finding> _unresolvedConcerns(
       yield context.finding(
         doc,
         FindingKind.concernsTargetUnresolved,
-        line: lines.sectionLines[i] + 1 + k,
+        line: line.line,
         message: 'see $target names no section or file',
         keys: {'target': target},
       );

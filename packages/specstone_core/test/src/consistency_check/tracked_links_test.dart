@@ -351,4 +351,53 @@ void main() {
       expect(spots(report), ['$loginApi:4: confirmed_entry_stale']);
     },
   );
+
+  test('f04/us04, cc-s03/inv2: a project layer that disables confirmed on fr runs no link state rule on an fr', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'fields:\n  - id: confirmed\n    disabled: true\n',
+          ...fr('confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n', ''),
+        },
+      ),
+    );
+    expect(report.findings, isEmpty);
+  });
+
+  test('f04/us04/fr01, cc-s03/inv2: a bare confirmed key counts as absent, not as a malformed entry', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: fr(
+          'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n',
+          'confirmed:\n',
+        ),
+      ),
+    );
+    expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
+    expect(spots(report), ['$loginFr:3: unconfirmed']);
+  });
+
+  test('f04/us04/fr01, cc-s03/inv6: a scenario with a fenced example heading keeps its whole block, and the example is no scenario', () async {
+    const example = '```\n### Scenario 3 — Example\n- **Given** a sketch\n```';
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(
+            loginStory,
+            '$loginScenario2\n',
+            '$loginScenario2\n\n$example\n',
+          ),
+          ...edit(loginFr, [
+            ('traced_from:\n  - S2\n', 'traced_from:\n  - S2\n  - S3\n'),
+            (
+              fingerprintFor(loginScenario2),
+              fingerprintFor('$loginScenario2\n\n$example'),
+            ),
+          ]),
+        },
+      ),
+    );
+    expect(spots(report), ['$loginFr:3: scenario_trace_unresolved']);
+  });
 }

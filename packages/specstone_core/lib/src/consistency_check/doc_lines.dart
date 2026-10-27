@@ -14,9 +14,11 @@ final class DocLines {
     required this.charCount,
     required this.titleLine,
     required this.sectionLines,
+    required List<bool> fenced,
     required YamlNode? frontmatter,
     required this.frontmatterErrorLine,
-  }) : _frontmatter = frontmatter;
+  }) : _fenced = fenced,
+       _frontmatter = frontmatter;
 
   /// Reads [text], a file's decoded text with any line ends.
   factory of(String text) {
@@ -37,6 +39,10 @@ final class DocLines {
       charCount: lf.runes.length,
       titleLine: titleIndex == null ? null : bodyStart + titleIndex + 1,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
+      fenced: [
+        for (var i = 0; i < bodyStart; i++) false,
+        ...fencedLines(lines.sublist(bodyStart)),
+      ],
       frontmatter: yaml.node,
       frontmatterErrorLine: yaml.errorLine,
     );
@@ -59,7 +65,15 @@ final class DocLines {
   /// Null when the frontmatter is valid or absent.
   final int? frontmatterErrorLine;
 
+  final List<bool> _fenced;
+
   final YamlNode? _frontmatter;
+
+  /// Whether file [line] (1-based) is fenced code content or a fence line.
+  ///
+  /// False for a line the file does not have.
+  bool isFenced(int line) =>
+      line >= 1 && line <= _fenced.length && _fenced[line - 1];
 
   /// The line of frontmatter [key], or null when it is absent.
   int? keyLine(String key) {
@@ -69,14 +83,15 @@ final class DocLines {
 
   /// Each item of the list value of [key], or its one scalar, with lines.
   ///
-  /// Empty when [key] is absent.
+  /// Empty when [key] is absent. A null value, or a null item, is absent too.
   List<YamlEntry> entriesOf(String key) {
     final value = _keyEntry(key)?.value;
     if (value == null) return const [];
     final items = value is YamlList ? value.nodes : [value];
     return [
       for (final item in items)
-        (value: item.value, line: _lineOf(item), text: item.span.text),
+        if (item.value != null)
+          (value: item.value, line: _lineOf(item), text: item.span.text),
     ];
   }
 

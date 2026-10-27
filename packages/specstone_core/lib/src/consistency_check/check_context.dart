@@ -10,6 +10,12 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
+/// One line of a held section's body.
+///
+/// `line` is the 1-based file line; `fenced` is true for fenced code content
+/// and the fence lines.
+typedef BodyLine = ({String text, int line, bool fenced});
+
 /// What every rule of one check run reads: the index, per-doc caches, and the
 /// warnings the findings have stated.
 final class CheckContext {
@@ -97,13 +103,46 @@ final class CheckContext {
 
   /// Returns the first held section of [doc] that maps to [sectionId].
   IndexedSection? heldSection(IndexedDoc doc, String sectionId) {
+    final index = _heldIndex(doc, sectionId);
+    return index == null ? null : contentOf(doc).sections[index];
+  }
+
+  int? _heldIndex(IndexedDoc doc, String sectionId) {
     final type = typeOf(doc);
     if (type == null) return null;
-    for (final held in contentOf(doc).sections) {
-      if (templateSectionOf(type, held)?.id == sectionId) return held;
+    final held = contentOf(doc).sections;
+    for (var i = 0; i < held.length; i++) {
+      if (templateSectionOf(type, held[i])?.id == sectionId) return i;
     }
     return null;
   }
+
+  /// Returns the body lines of the held section at [index] of [doc].
+  List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) {
+    final lines = linesOf(doc);
+    final first = lines.sectionLines[index] + 1;
+    final body = contentOf(doc).sections[index].body.split('\n');
+    return [
+      for (var k = 0; k < body.length; k++)
+        (text: body[k], line: first + k, fenced: lines.isFenced(first + k)),
+    ];
+  }
+
+  /// Whether [type] declares the field [fieldId].
+  ///
+  /// A rule that reads a named field runs only when this holds (INV-2).
+  bool typeHoldsField(MergedDocType? type, String fieldId) =>
+      type != null && type.fields.any((field) => field.id == fieldId);
+
+  /// Whether the merged doc type [typeId] declares the section [sectionId].
+  ///
+  /// A rule that reads a named section runs only when this holds (INV-2).
+  bool typeHoldsSection(String typeId, String sectionId) =>
+      _session.project.set.docTypes.any(
+        (type) =>
+            type.id == typeId &&
+            type.sections.any((section) => section.id == sectionId),
+      );
 
   /// The first path segment of every doc type `path` (INV-8).
   late final Set<String> checkedFolders = checkedFoldersOf(
@@ -128,19 +167,19 @@ final class CheckContext {
   /// Returns the `### Scenario <N>` blocks of [story], keyed `S<N>`.
   ///
   /// Reads the `acceptance_criteria` section. A block runs from its heading
-  /// line to the next `###` line or the section end. The first block of a
-  /// repeated number wins.
+  /// line to the next `###` line outside fenced code, or the section end. The
+  /// first block of a repeated number wins.
   Map<String, String> scenarioBlocksOf(IndexedDoc story) =>
       _scenarioBlocks.putIfAbsent(story.docPath, () {
-        final section = heldSection(story, _acceptanceSection);
-        if (section == null) return const {};
+        final index = _heldIndex(story, _acceptanceSection);
+        if (index == null) return const {};
         final blocks = <String, String>{};
-        for (final (:key, :text) in _blocksOf(
-          section.body,
+        for (final (:key, :lines) in _blocksOf(
+          bodyLinesOf(story, index),
           _scenarioHeading,
           (match) => 'S${match.group(1)}',
         )) {
-          blocks.putIfAbsent(key, () => text);
+          blocks.putIfAbsent(key, () => _blockText(lines));
         }
         return blocks;
       });
@@ -151,10 +190,11 @@ final class CheckContext {
 
   late final Set<String> _roleNames = {
     for (final doc in _projectDocs)
-      for (final line in (heldSection(doc, _rolesSection)?.body ?? '').split(
-        '\n',
-      ))
-        if (_roleEntry.firstMatch(line) case final entry?) entry.group(1)!,
+      if (_heldIndex(doc, _rolesSection) case final index?)
+        for (final line in bodyLinesOf(doc, index))
+          if (!line.fenced)
+            if (_roleEntry.firstMatch(line.text) case final entry?)
+              entry.group(1)!,
   };
 
   /// Returns the Role names of every `project` doc.
@@ -164,8 +204,10 @@ final class CheckContext {
 
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
-      for (final line in linesOf(doc).lines)
-        if (_nfrHeading.firstMatch(line) case final heading?) heading.group(1)!,
+      for (final (i, line) in linesOf(doc).lines.indexed)
+        if (!linesOf(doc).isFenced(i + 1))
+          if (_nfrHeading.firstMatch(line) case final heading?)
+            heading.group(1)!,
   };
 
   /// Returns the ID of each `###` heading with a ` — ` of every `project` doc.
@@ -187,20 +229,20 @@ final class CheckContext {
     final statements = <String, ({String path, String text})>{};
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
-      for (final section in contentOf(doc).sections) {
-        for (final (:key, :text) in _blocksOf(
-          section.body,
+      for (var i = 0; i < contentOf(doc).sections.length; i++) {
+        for (final (:key, :lines) in _blocksOf(
+          bodyLinesOf(doc, i),
           _nfrHeading,
           (match) => match.group(1)!,
         )) {
-          final line = text
-              .split('\n')
-              .map((line) => line.trim())
-              .where((line) => line.startsWith(_statementPrefix))
+          final statement = lines
+              .where((line) => !line.fenced)
+              .map((line) => line.text.trim())
+              .where((text) => text.startsWith(_statementPrefix))
               .firstOrNull;
           statements.putIfAbsent(
             key,
-            () => (path: doc.docPath, text: line ?? ''),
+            () => (path: doc.docPath, text: statement ?? ''),
           );
         }
       }
@@ -234,22 +276,20 @@ final class CheckContext {
     final held = contentOf(api).sections;
     final type = typeOf(api);
     if (type == null) return const [];
-    final headerLines = linesOf(api).sectionLines;
     final rows = <({String cell, int line})>[];
     for (var i = 0; i < held.length; i++) {
       if (templateSectionOf(type, held[i])?.id != _frTraceSection) continue;
-      final bodyLines = held[i].body.split('\n');
       var sawHeader = false;
-      for (var k = 0; k < bodyLines.length; k++) {
-        final text = bodyLines[k].trim();
-        if (!text.startsWith('|')) continue;
+      for (final line in bodyLinesOf(api, i)) {
+        final text = line.text.trim();
+        if (line.fenced || !text.startsWith('|')) continue;
         final cell = _firstCell(text);
         if (!sawHeader) {
           sawHeader = true;
           continue;
         }
         if (_separatorCell.hasMatch(cell)) continue;
-        rows.add((cell: _unquoted(cell), line: headerLines[i] + 1 + k));
+        rows.add((cell: _unquoted(cell), line: line.line));
       }
     }
     return rows;
@@ -297,29 +337,35 @@ final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
 final _nfrHeading = RegExp(r'^### (\S+) — ');
 final _subHeading = RegExp('^###(?!#)');
 
+String _blockText(List<BodyLine> lines) =>
+    lines.map((line) => line.text).join('\n').trimRight();
+
 /// Splits [body] into the `###` blocks whose heading matches [heading].
 ///
-/// A block runs from its heading line to the next `###` line, trailing blank
-/// lines dropped. [keyOf] names a block from its heading match.
-List<({String key, String text})> _blocksOf(
-  String body,
+/// A block runs from its heading line to the next `###` line outside fenced
+/// code, or the end of [body]. [keyOf] names a block from its heading match.
+List<({String key, List<BodyLine> lines})> _blocksOf(
+  List<BodyLine> body,
   RegExp heading,
   String Function(Match heading) keyOf,
 ) {
-  final blocks = <({String key, String text})>[];
+  final blocks = <({String key, List<BodyLine> lines})>[];
   String? key;
-  var lines = <String>[];
-  for (final line in '$body\n###'.split('\n')) {
-    if (!_subHeading.hasMatch(line)) {
+  var lines = <BodyLine>[];
+  void close() {
+    if (key case final closed?) blocks.add((key: closed, lines: lines));
+  }
+
+  for (final line in body) {
+    if (line.fenced || !_subHeading.hasMatch(line.text)) {
       lines.add(line);
       continue;
     }
-    if (key case final closed?) {
-      blocks.add((key: closed, text: lines.join('\n').trimRight()));
-    }
-    final match = heading.firstMatch(line);
+    close();
+    final match = heading.firstMatch(line.text);
     key = match == null ? null : keyOf(match);
     lines = [line];
   }
+  close();
   return blocks;
 }

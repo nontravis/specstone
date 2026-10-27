@@ -64,4 +64,25 @@ void main() {
     expect(lines.frontmatterErrorLine, isNull);
     expect(lines.keyLine('status'), isNull);
   });
+
+  test('a bare key, or a bare list item, has no entry', () {
+    final lines = DocLines.of(
+      '---\nconfirmed:\nimplements:\n  - \n  - a\n---\n',
+    );
+    expect(lines.entriesOf('confirmed'), isEmpty);
+    expect([for (final e in lines.entriesOf('implements')) e.value], ['a']);
+  });
+
+  test(
+    'isFenced is true for a fence line and its content, and false elsewhere',
+    () {
+      final lines = DocLines.of(
+        '---\nk: v\n---\n# T\n```\n### x\n```\nafter\n',
+      );
+      expect(
+        [for (var line = 1; line <= 9; line++) lines.isFenced(line)],
+        [false, false, false, false, true, true, true, false, false],
+      );
+    },
+  );
 }
