@@ -132,7 +132,7 @@ String? rewriteDocRefs(
 /// at its project path after the moves. Steps are sorted by path. No draft
 /// or approved mark is touched.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
-/// UTF-8 text.
+/// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
@@ -171,6 +171,7 @@ WriteStep? _stepFor(
       rewriteDocRefs(linked ?? lfText, fields: fields, renamed: renamed) ??
       linked;
   if (text == null) return null;
+  session.requireWritable(doc.docPath);
   final bom = _startsWithBom(bytes) ? _bom : '';
   return WriteStep(
     session.projectPathOf(movedPath(doc.docPath, moves)),

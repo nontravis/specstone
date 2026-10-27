@@ -6,8 +6,10 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -289,6 +291,29 @@ void main() {
       (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
     );
   });
+
+  test('final Important 2: a rename whose rewrite target is read-only refuses before anything moves', () async {
+    final root = await writeWriteProject();
+    final linker = docFile(root, fr12);
+    Process.runSync('chmod', ['444', linker.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', linker.path]));
+    final before = readDoc(root, fr12);
+    expect(
+      () => rename(root, 'user_story:login/reset_password', 'recover'),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $fr12: read-only',
+            ),
+      ),
+    );
+    expect(readDoc(root, fr12), before);
+    expect(hasDoc(root, story3), isTrue);
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
 
   test('f02/us06/s1, f02/us06/fr01, f02/us06/fr01/e01, f02/us06/fr01/e08, f02/us05/fr02, dw-s03/inv10: a story takes a new slug, keeps its number and title, and links follow', () async {
     final root = await writeWriteProject();

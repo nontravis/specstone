@@ -436,6 +436,30 @@ void main() {
     );
   }, skip: unreadablePathSkipReason() ?? false);
 
+  test('final Important 2: a read-only doc is output_not_writable and keeps its bytes and mode', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final base = sectionBase(root, target);
+    final before = readDoc(root, story1);
+    final file = docFile(root, story1);
+    Process.runSync('chmod', ['444', file.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+    expect(
+      () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $story1: read-only',
+            ),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+    expect(file.statSync().mode & 0x80, 0);
+  }, skip: unreadablePathSkipReason() ?? false);
+
   test('f02/us01/fr01/e14: a hand edit is read as it is on disk', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#use_case';

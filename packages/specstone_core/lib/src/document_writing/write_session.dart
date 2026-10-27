@@ -185,11 +185,26 @@ final class WriteSession {
     return bytes;
   }
 
+  /// Refuses a write to [docPath] when the file is read-only.
+  ///
+  /// A rename replaces a read-only file whatever its mode, so the check is the
+  /// caller's.
+  /// Throws [RenderFault] `output_not_writable`.
+  void requireWritable(String docPath) {
+    if (!isReadOnly(fileOf(docPath))) return;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $docPath: read-only',
+    );
+  }
+
   /// Writes [lfText] to [docPath] in [lineEnding], replacing the file whole.
   ///
   /// A BOM that the last [readDocBytes] of [docPath] saw is kept.
-  /// Throws [RenderFault] `output_not_writable` when the disk refuses.
+  /// Throws [RenderFault] `output_not_writable` when the file is read-only or
+  /// the disk refuses.
   void writeDoc(String docPath, String lfText, LineEnding lineEnding) {
+    requireWritable(docPath);
     try {
       writeFileAtomic(fileOf(docPath), [
         if (_bomDocs.contains(docPath)) ...utf8Bom,
