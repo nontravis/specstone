@@ -37,8 +37,8 @@ abstract class WriteCommand extends SpecstoneCommand {
   /// Opens a write session, prints what [answer] returns, and returns its
   /// exit status.
   ///
-  /// Prints as [runRead] does, on a [WriteSession]; a [SpecstoneFault] goes to
-  /// [failWrite] with the warnings collected so far.
+  /// Prints through [printAnswer], on a [WriteSession]; a [SpecstoneFault]
+  /// goes to [failWrite] with the warnings collected so far.
   Future<int> runWrite(
     ReadAnswer Function(WriteSession session) answer, {
     required bool asJson,
@@ -60,14 +60,6 @@ abstract class WriteCommand extends SpecstoneCommand {
     } on SpecstoneFault catch (fault) {
       return failWrite(fault, asJson: asJson, warnings: sessionWarnings);
     }
-    final warnings = [...sessionWarnings, ...written.warnings];
-    if (asJson) {
-      final printed = {...written.json, 'warnings': warnings};
-      runner.out.write('${SpecstoneCommand.pretty.convert(printed)}\n');
-    } else {
-      warn(warnings);
-      runner.out.write(written.text);
-    }
-    return written.exitStatus;
+    return printAnswer(written, sessionWarnings, asJson: asJson);
   }
 }

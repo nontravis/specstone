@@ -197,6 +197,135 @@ void main() {
     );
   });
 
+  test('f02/us06/fr02, HD4: a quoted "reference": key follows the rename', () {
+    const anyType = MergedField(id: 'reference', type: FieldType.docRef);
+    expect(
+      rewriteDocRefs(
+        '---\n"reference": "buyer" # who\nnote: buyer\n---\n',
+        fields: [anyType],
+        renamed: {('persona', 'buyer'): 'shopper'},
+      ),
+      '---\n"reference": "shopper" # who\nnote: buyer\n---\n',
+    );
+    expect(
+      rewriteDocRefs(
+        "---\n'reference':\n  - buyer\n---\n",
+        fields: [anyType],
+        renamed: {('persona', 'buyer'): 'shopper'},
+      ),
+      "---\n'reference':\n  - shopper\n---\n",
+    );
+  });
+
+  test('dw-s03/inv6, f02/us06/fr02: of two blocks with one name only the first counts, whatever the spelling', () {
+    const anyType = MergedField(id: 'reference', type: FieldType.docRef);
+    const renamed = {('persona', 'buyer'): 'shopper'};
+    expect(
+      rewriteDocRefs(
+        '---\nreference: keep\n"reference": buyer\n---\n',
+        fields: [anyType],
+        renamed: renamed,
+      ),
+      isNull,
+    );
+    expect(
+      rewriteDocRefs(
+        '---\nreference: buyer\n"reference": buyer\n---\n',
+        fields: [anyType],
+        renamed: renamed,
+      ),
+      '---\nreference: shopper\n"reference": buyer\n---\n',
+    );
+    expect(
+      rewriteDocRefs(
+        '---\nreference: keep\nreference: buyer\n---\n',
+        fields: [anyType],
+        renamed: renamed,
+      ),
+      isNull,
+    );
+  });
+
+  test('f02/us05/fr02, dw-s03/inv10, H14: a link-shaped frontmatter value keeps its text; the same link in the body follows', () {
+    const link = '[sign out](../us02_sign_out/USER_STORY.md)';
+    expect(
+      rewriteDocLinks(
+        '---\nsee: $link\n---\n\nSee $link.\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      ),
+      '---\nsee: $link\n---\n\n'
+      'See [sign out](../us03_sign_out/USER_STORY.md).\n',
+    );
+  });
+
+  test('f02/us05/fr02, dw-s03/inv10, H17: an href with a backslash escape follows the move', () {
+    expect(
+      rewriteDocLinks(
+        r'See [reset](../us03\_reset\_password/USER_STORY.md) and '
+        '[again](../us03_reset_password/USER_STORY.md).\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      ),
+      'See [reset](../us01_reset_password/USER_STORY.md) and '
+      '[again](../us01_reset_password/USER_STORY.md).\n',
+    );
+  });
+
+  test('f02/us05/fr02, dw-s03/inv10, H17: an href with an entity spelling follows the move', () {
+    expect(
+      rewriteDocLinks(
+        'See [reset](../us03&#95;reset&#95;password/USER_STORY.md).\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      ),
+      'See [reset](../us01_reset_password/USER_STORY.md).\n',
+    );
+  });
+
+  test('f02/us06/fr02, H15: a flow list followed by a comment holding brackets renames its item', () {
+    const reference = MergedField(
+      id: 'reference',
+      type: FieldType.docRef,
+      list: true,
+    );
+    expect(
+      rewriteDocRefs(
+        '---\nreference: [a, buyer] # see [x]\n---\n',
+        fields: [reference],
+        renamed: {('persona', 'buyer'): 'shopper'},
+      ),
+      '---\nreference: [a, shopper] # see [x]\n---\n',
+    );
+  });
+
+  test('f02/us06/fr02, dw-s03/inv10, HD3: with no docTypes, a value two renamed docs take to different names keeps its text, and one they agree on follows', () {
+    const reference = MergedField(id: 'reference', type: FieldType.docRef);
+    const text = '---\nreference: buyer\n---\n';
+    expect(
+      rewriteDocRefs(
+        text,
+        fields: [reference],
+        renamed: {
+          ('persona', 'buyer'): 'shopper',
+          ('actor', 'buyer'): 'customer',
+        },
+      ),
+      isNull,
+    );
+    expect(
+      rewriteDocRefs(
+        text,
+        fields: [reference],
+        renamed: {
+          ('persona', 'buyer'): 'shopper',
+          ('actor', 'buyer'): 'shopper',
+        },
+      ),
+      '---\nreference: shopper\n---\n',
+    );
+  });
+
   test('f02/us05/fr02/e03, f02/us05/fr02/e06, f02/us05/fr02/e07, f02/us06/fr02/e04, f02/us06/fr02/e05: planRewrites reaches untyped referrers, never code, and keeps the marks', () async {
     root = await writeWriteProject(
       extra: {

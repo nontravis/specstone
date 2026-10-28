@@ -8,7 +8,8 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
-import 'package:specstone_core/src/rendering/doc_reader.dart' show utf8Bom;
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show startsWithUtf8Bom, utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -25,7 +26,13 @@ const _docsPrefix = 'docs/';
 ///
 /// [run] opens a session, runs one command body in it, and closes it.
 final class WriteSession {
-  new _(this._read);
+  new _(
+    this._read,
+    this._templates,
+    this._workingDirectory,
+    this._homeDirectory,
+    this._busyTimeout,
+  );
 
   /// Opens the project holding [workingDirectory], finishes an unfinished
   /// move journal, runs [body], and closes the index.
@@ -42,24 +49,18 @@ final class WriteSession {
     required Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
   }) {
-    ReadSession open() => ReadSession.open(
-      templates: templates,
-      workingDirectory: workingDirectory,
-      homeDirectory: homeDirectory,
-      busyTimeout: busyTimeout,
+    final session = WriteSession._(
+      _openReplayed(
+        templates: templates,
+        workingDirectory: workingDirectory,
+        homeDirectory: homeDirectory,
+        busyTimeout: busyTimeout,
+      ),
+      templates,
+      workingDirectory,
+      homeDirectory,
+      busyTimeout,
     );
-
-    var read = open();
-    if (MoveJournal.pending(read.project.projectRoot)) {
-      try {
-        read.store.endSnapshot();
-        read.store.write(() => MoveJournal.replay(read.project));
-      } finally {
-        read.store.close();
-      }
-      read = open();
-    }
-    final session = WriteSession._(read);
     try {
       return body(session);
     } finally {
@@ -67,11 +68,34 @@ final class WriteSession {
     }
   }
 
-  final ReadSession _read;
+  final TemplateResolver _templates;
+  final Directory _workingDirectory;
+  final Directory? _homeDirectory;
+  final Duration _busyTimeout;
+  ReadSession _read;
   bool _snapshotOpen = true;
+  bool _closed = false;
 
   /// The DocPaths whose last [readDocBytes] began with a UTF-8 BOM.
   final _bomDocs = <String>{};
+
+  /// Opens the project afresh and finishes an unfinished move journal, so the
+  /// session sees the tree as it is now.
+  ///
+  /// Call it outside the write lock, after a wait that let another command
+  /// write; [index] and [project] are new objects afterwards.
+  void refresh() {
+    _close();
+    _read = _openReplayed(
+      templates: _templates,
+      workingDirectory: _workingDirectory,
+      homeDirectory: _homeDirectory,
+      busyTimeout: _busyTimeout,
+    );
+    _closed = false;
+    _snapshotOpen = true;
+    _bomDocs.clear();
+  }
 
   /// The project the session writes.
   DocsProject get project => _read.project;
@@ -161,14 +185,16 @@ final class WriteSession {
   ///
   /// Remembers a leading UTF-8 BOM so [writeDoc] puts it back; decode the
   /// bytes with `utf8.decode`, which drops the BOM.
-  /// Throws [RenderFault] `output_not_writable` for bytes that are not UTF-8,
-  /// leaving the file untouched.
+  /// Throws [RenderFault] `output_not_writable` for a file that cannot be read
+  /// or whose bytes are not UTF-8, leaving the file untouched.
   List<int>? readDocBytes(String docPath) {
     final List<int> bytes;
     try {
       bytes = fileOf(docPath).readAsBytesSync();
     } on PathNotFoundException {
       return null;
+    } on FileSystemException catch (error) {
+      throw cannotRead(docPath, error);
     }
     try {
       utf8.decode(bytes);
@@ -178,10 +204,7 @@ final class WriteSession {
         'cannot write $docPath: not UTF-8 text',
       );
     }
-    final hasBom =
-        bytes.length >= utf8Bom.length &&
-        utf8Bom.indexed.every((e) => bytes[e.$1] == e.$2);
-    hasBom ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
+    startsWithUtf8Bom(bytes) ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
     return bytes;
   }
 
@@ -202,8 +225,10 @@ final class WriteSession {
   ///
   /// A BOM that the last [readDocBytes] of [docPath] saw is kept.
   /// Throws [RenderFault] `output_not_writable` when the file is read-only or
-  /// the disk refuses.
+  /// the disk refuses, and [ArgumentError] for a [docPath] that is not a `.md`
+  /// path under the docs root.
   void writeDoc(String docPath, String lfText, LineEnding lineEnding) {
+    _requireDocPath(docPath);
     requireWritable(docPath);
     try {
       writeFileAtomic(fileOf(docPath), [
@@ -219,7 +244,19 @@ final class WriteSession {
     }
   }
 
+  void _requireDocPath(String docPath) {
+    final segments = docPath.split('/');
+    if (!docPath.endsWith('.md') ||
+        segments.any((s) => s.isEmpty || s == '..') ||
+        docPath.contains(r'\') ||
+        File(docPath).isAbsolute) {
+      throw ArgumentError.value(docPath, 'docPath', 'not a .md under docs');
+    }
+  }
+
   void _close() {
+    if (_closed) return;
+    _closed = true;
     if (_snapshotOpen) {
       _read.close();
     } else {
@@ -227,3 +264,37 @@ final class WriteSession {
     }
   }
 }
+
+/// Opens the project, then replays an unfinished move journal inside the write
+/// lock and opens it again.
+ReadSession _openReplayed({
+  required TemplateResolver templates,
+  required Directory workingDirectory,
+  required Directory? homeDirectory,
+  required Duration busyTimeout,
+}) {
+  ReadSession open() => ReadSession.open(
+    templates: templates,
+    workingDirectory: workingDirectory,
+    homeDirectory: homeDirectory,
+    busyTimeout: busyTimeout,
+  );
+
+  final read = open();
+  if (!MoveJournal.pending(read.project.projectRoot)) return read;
+  try {
+    read.store.endSnapshot();
+    read.store.write(() => MoveJournal.replay(read.project));
+  } finally {
+    read.store.close();
+  }
+  return open();
+}
+
+/// Returns the `output_not_writable` fault for a [path] that cannot be read.
+///
+/// [path] is a DocPath or a folder of one, shown as given.
+RenderFault cannotRead(String path, FileSystemException error) => RenderFault(
+  RenderFaultCode.outputNotWritable,
+  'cannot read $path: ${error.osError?.message ?? error.message}',
+);

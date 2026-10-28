@@ -46,7 +46,8 @@ sealed class JournalStep {
   }
 }
 
-/// Moves a file or a folder, creating the parent folders of the target.
+/// Moves a file, a folder, or a symbolic link as itself, creating the parent
+/// folders of the target.
 ///
 /// Skipped when [from] is gone, because an earlier run already moved it, and
 /// when [to] is a stage slot that is taken, so a replay never lands on what
@@ -80,11 +81,7 @@ final class MoveStep extends JournalStep {
     }
     try {
       Directory(File(target).parent.path).createSync(recursive: true);
-      if (FileSystemEntity.isDirectorySync(source)) {
-        Directory(source).renameSync(target);
-      } else {
-        File(source).renameSync(target);
-      }
+      _entityAt(source).renameSync(target);
     } on FileSystemException catch (error) {
       throw _notWritable('move', from, error);
     }
@@ -185,8 +182,10 @@ final class MoveJournal {
   /// trash folder.
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
-  /// cannot be written, and [RenderFault] `output_not_writable` when a step
-  /// or the journal write fails; the journal stays in the second case.
+  /// cannot be written, and [RenderFault] `output_not_writable` when a
+  /// folder a file moves out of sits on another volume than the trash (before
+  /// any file moves), or when a step or the journal write fails; the journal
+  /// stays in the last case.
   void run(DocsProject project) {
     final specstone = Directory(_join(project.projectRoot.path, '.specstone'));
     try {
@@ -199,6 +198,7 @@ final class MoveJournal {
         'command again',
       );
     }
+    if (steps.any(_movesToTrash)) _requireSameVolume(project, steps);
     try {
       Directory(_join(project.projectRoot.path, trashPath)).createSync();
       writeFileAtomic(
@@ -240,6 +240,79 @@ final class MoveJournal {
       throw _notWritable('read', MoveJournal.journalPath, error);
     }
     _finish(project, steps);
+  }
+}
+
+/// Returns [path] as the kind of entity it is, never following a link.
+FileSystemEntity _entityAt(String path) =>
+    switch (FileSystemEntity.typeSync(path, followLinks: false)) {
+      FileSystemEntityType.link => Link(path),
+      FileSystemEntityType.directory => Directory(path),
+      _ => File(path),
+    };
+
+/// Whether [step] moves a file or folder into the trash folder.
+bool _movesToTrash(JournalStep step) =>
+    step is MoveStep && step.to.startsWith('${MoveJournal.trashPath}/');
+
+/// Throws [RenderFault] `output_not_writable` when a folder cannot be renamed
+/// from a folder a file moves out of into the trash folder, as a folder
+/// linked to another volume cannot.
+///
+/// Probes from the parent folder of each file [steps] move to the trash, with
+/// a fresh empty folder, so the refusal comes before the journal, nothing is
+/// left half moved, and no user file is touched. A source folder that is gone
+/// is skipped; its step faults when it runs. A probe that fails also removes
+/// the trash folder it made. A probe folder that cannot be removed stays;
+/// the next replay removes it from the trash, and a source folder keeps it as
+/// a dot folder.
+void _requireSameVolume(DocsProject project, List<JournalStep> steps) {
+  final trash = Directory(
+    _join(project.projectRoot.path, MoveJournal.trashPath),
+  );
+  final trashExisted = trash.existsSync();
+  final sources = {
+    for (final step in steps)
+      if (step is MoveStep && _movesToTrash(step))
+        File(_absolute(project, step.from)).parent.path,
+  };
+  try {
+    for (final source in sources) {
+      if (Directory(source).existsSync()) _probeRename(source, trash);
+    }
+  } on FileSystemException catch (error) {
+    if (!trashExisted && trash.existsSync()) {
+      _removeQuietly(trash, recursive: true);
+    }
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot move docs into ${MoveJournal.trashPath}: '
+      '${error.osError?.message ?? error.message}',
+    );
+  }
+}
+
+/// Renames a fresh empty folder from [source] into [trash] under its own
+/// name, then removes it.
+void _probeRename(String source, Directory trash) {
+  Directory? probe;
+  Directory? landed;
+  try {
+    probe = Directory(source).createTempSync('.specstone-probe-');
+    trash.createSync(recursive: true);
+    final name = probe.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+    landed = probe.renameSync(_join(trash.path, name));
+  } finally {
+    [?probe, ?landed].forEach(_removeQuietly);
+  }
+}
+
+/// Removes [folder] when it exists, ignoring a disk that refuses.
+void _removeQuietly(Directory folder, {bool recursive = false}) {
+  try {
+    if (folder.existsSync()) folder.deleteSync(recursive: recursive);
+  } on FileSystemException {
+    // Best effort: the next replay removes a leftover in the trash.
   }
 }
 

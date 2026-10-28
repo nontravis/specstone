@@ -81,4 +81,34 @@ void main() {
     expect(await runner.run(['reorder', '--to', '1']), 64);
     expect(err.toString(), startsWith('reorder needs a target'));
   });
+  test(
+    'f02/us05/fr01/e10: two positionals are a usage error, exit 64',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['reorder', 'a', 'b']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains(
+          'Expected one target, got 2.\n\n'
+          'Usage: specstone reorder <type>:<name> --to <n> [--json]\n',
+        ),
+      );
+    },
+  );
+  test(
+    'f02/us05/fr01/e07: reorder with no --to is argument_missing, exit 64',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run(['reorder', 'user_story:login/reset_password']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
+      );
+    },
+  );
 }

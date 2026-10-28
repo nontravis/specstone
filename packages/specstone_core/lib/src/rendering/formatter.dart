@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show withoutTrailingBlankLines;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The result of formatting one doc.
@@ -34,7 +36,6 @@ final class Refused extends FormatOutcome {
 }
 
 final _whitespaceRun = RegExp(r'\s+');
-final _trailingBlankLines = RegExp(r'(?:\n[ \t]*)+$');
 
 /// Returns [headerText] lowercased, trimmed, each whitespace run one space.
 String headerKey(String headerText) =>
@@ -111,24 +112,16 @@ List<KeyBlock> _orderedBlocks(List<KeyBlock> blocks, MergedDocType docType) {
   final keyed = blocks.where((b) => b.key.isNotEmpty).toList();
   final defined = [
     for (final field in docType.fields)
-      ...keyed.where((b) => _keyName(b.key) == field.id),
+      ...keyed.where((b) => b.name == field.id),
   ];
   final rest = keyed.where((b) => !defined.contains(b));
   return [...keyless, ...defined, ...rest];
 }
 
-/// Returns the key without the quotes YAML allows around it.
-String _keyName(String key) {
-  if (key.length < 2) return key;
-  final quote = key[0];
-  final quoted = (quote == '"' || quote == "'") && key.endsWith(quote);
-  return quoted ? key.substring(1, key.length - 1) : key;
-}
-
 /// Returns the template text with trailing blank lines dropped, or nothing.
 String _addedBody(String? template) {
   if (template == null) return '';
-  final text = template.replaceFirst(_trailingBlankLines, '');
+  final text = withoutTrailingBlankLines(template);
   return text.isEmpty ? '' : '$text\n';
 }
 

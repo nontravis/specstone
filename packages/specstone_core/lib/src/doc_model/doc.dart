@@ -10,6 +10,22 @@ final class KeyBlock {
   /// The key as written, quotes included; empty for the keyless block.
   final String key;
 
+  /// The YAML name of the key: a quoted key decoded, a bare key as written.
+  ///
+  /// Empty for the keyless block. A quoted key that does not decode to a
+  /// string keeps its spelling.
+  String get name {
+    if (key.isEmpty || !(key.startsWith('"') || key.startsWith("'"))) {
+      return key;
+    }
+    try {
+      final decoded = loadYaml(key);
+      return decoded is String ? decoded : key;
+    } on YamlException {
+      return key;
+    }
+  }
+
   /// Every line of the block, each ending in `\n`, comments included.
   final String text;
 
@@ -119,7 +135,7 @@ final class Doc {
   ///
   /// A value that is not valid YAML counts as false.
   bool get isDraft {
-    final block = frontmatter?.where((b) => b.key == 'draft').firstOrNull;
+    final block = frontmatter?.where((b) => b.name == 'draft').firstOrNull;
     if (block == null) return false;
     try {
       return loadYaml(block.valueText) == true;

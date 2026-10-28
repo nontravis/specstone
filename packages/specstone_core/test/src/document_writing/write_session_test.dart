@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -248,4 +250,109 @@ void main() {
     expect(readDoc(root, story1), edited);
     expect(readDoc(root, story2), isNot('x\n'));
   }, skip: unreadablePathSkipReason() ?? false);
+
+  test('f02/us01/fr01/e13, nfr-di01, H05: an unreadable doc is output_not_writable cannot read <DocPath>, bytes unchanged', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final base = getDoc(root, target)['base']! as String;
+    final file = docFile(root, story1);
+    final before = file.readAsBytesSync();
+    addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+    expect(
+      () => writeIn(root, (s) {
+        Process.runSync('chmod', ['000', file.path]);
+        return answerSet(s, SetRequest.parse(target, base: base), 'New.\n');
+      }),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith('cannot read $story1: '),
+            ),
+      ),
+    );
+    Process.runSync('chmod', ['644', file.path]);
+    expect(file.readAsBytesSync(), before);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test(
+    'dw-s03/inv2: an unknown doc type in a target is doc_type_unknown',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(root, (s) => s.target('no_such_type:login/email_login')),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.docTypeUnknown,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('dw-s03/inv3, dw-s03/inv9: a replay waits for the write lock', () async {
+    final root = await writeWriteProject();
+    // An old mtime keeps the open's refresh from taking the lock, so only the
+    // replay can meet the busy store.
+    final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+    for (final file in root.listSync(recursive: true).whereType<File>()) {
+      file.setLastModifiedSync(anHourAgo);
+    }
+    writeIn(root, (_) {}); // creates the index
+    writeJournal(root, [
+      const MoveStep('docs/prds/personas/buyer', 'docs/prds/personas/shopper'),
+    ]);
+    final journal = File('${root.path}/${MoveJournal.journalPath}');
+    final journalText = journal.readAsStringSync();
+    final other = IndexStore.open(root, busyTimeout: Duration.zero);
+    addTearDown(other.close);
+    other.write(() {
+      expect(
+        () => writeIn(root, (_) {}, busyTimeout: Duration.zero),
+        throwsA(_faultCode(IndexFaultCode.indexBusy)),
+      );
+    });
+    expect(journal.readAsStringSync(), journalText);
+    expect(hasDoc(root, persona), isTrue);
+    expect(hasDoc(root, 'prds/personas/shopper/PERSONA.md'), isFalse);
+  });
+
+  test(
+    'dw-s03/inv9: a replay fault rolls back and releases the lock',
+    () async {
+      final root = await writeWriteProject();
+      final journal = File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('not json');
+      expect(() => writeIn(root, (_) {}), throwsA(isA<RenderFault>()));
+      expect(journal.existsSync(), isTrue);
+      final other = IndexStore.open(root, busyTimeout: Duration.zero);
+      addTearDown(other.close);
+      other.write(() {});
+    },
+  );
+
+  test('dw-s03/inv2, H07: writeDoc refuses a path that is not a .md under the docs root', () async {
+    final root = await writeWriteProject();
+    for (final path in [
+      'notes.txt',
+      '../x.md',
+      '${root.path}/x.md',
+      'prds//x.md',
+      'prds/../x.md',
+      r'prds\x.md',
+    ]) {
+      expect(
+        () => writeIn(root, (s) => s.writeDoc(path, 'x\n', LineEnding.lf)),
+        throwsArgumentError,
+        reason: path,
+      );
+    }
+    expect(File('${root.path}/x.md').existsSync(), isFalse);
+    expect(File('${root.path}/docs/notes.txt').existsSync(), isFalse);
+  });
 }

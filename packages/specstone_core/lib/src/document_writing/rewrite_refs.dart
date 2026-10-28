@@ -8,7 +8,8 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/rendering/doc_reader.dart' show utf8Bom;
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
     show RenderFault;
@@ -21,7 +22,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 typedef PathMove = ({String from, String to});
 
 /// The byte-order mark as the one character a journal step's text carries.
-const _bom = '﻿';
+const _bom = '\uFEFF';
 
 /// A comment that ends a YAML value; `#` opens it only after a space.
 const _trailingComment = r'(?<tail>\s+#.*)?';
@@ -64,36 +65,40 @@ String relativeHref(String fromDocPath, String toDocPath) {
 /// with the `?` or `#` part kept. A link whose relative path is unchanged,
 /// a web address, and a path outside the docs root keep their text.
 ///
-/// The parser reports no source positions, so each `](href` or `]: href`
-/// occurrence is replaced only when a probe parse, with that one href
-/// swapped for a unique name, still yields a link to the name. An href in a
-/// code span or a fenced block keeps every byte. All proven occurrences
-/// change in one pass.
+/// Only the text after the frontmatter is read, as the doc model does, so a
+/// link-shaped frontmatter value keeps every byte. The parser reports no
+/// source positions, so each `](` or `]:` destination is taken as spelled,
+/// read alone for the href the parser makes of that spelling, and replaced
+/// only when a probe parse, with that span swapped for a unique name, still
+/// yields a link to the name. An href in a code span or a fenced block keeps
+/// every byte. All proven occurrences change in one pass.
 String? rewriteDocLinks(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
 }) {
-  if (!lfText.contains('](') && !lfText.contains(']:')) return null;
+  final body = Doc.parse(lfText).afterFrontmatter;
+  if (!body.contains('](') && !body.contains(']:')) return null;
   final edits = <({int start, int end, String text})>[];
-  for (final href in _hrefsOf(lfText)) {
-    final newHref = _movedHref(href, docPath, moves);
-    if (newHref == null) continue;
-    final occurrence = RegExp(r'\](?:\(|:)\s*<?' + RegExp.escape(href));
-    for (final match in occurrence.allMatches(lfText)) {
-      final start = match.end - href.length;
-      if (_yieldsLinkAt(lfText, start, match.end)) {
-        edits.add((start: start, end: match.end, text: newHref));
-      }
+  for (final match in RegExp(r'\](?:\(|:)\s*').allMatches(body)) {
+    final span = _destinationAt(body, match.end);
+    if (span == null) continue;
+    final href = _hrefOfSpelling(
+      body.substring(span.start, span.end),
+      span.angle,
+    );
+    final newHref = href == null ? null : _movedHref(href, docPath, moves);
+    if (newHref != null && _yieldsLinkAt(body, span.start, span.end)) {
+      edits.add((start: span.start, end: span.end, text: newHref));
     }
   }
   if (edits.isEmpty) return null;
   edits.sort((a, b) => b.start.compareTo(a.start));
-  var result = lfText;
+  var result = body;
   for (final edit in edits) {
     result = result.replaceRange(edit.start, edit.end, edit.text);
   }
-  return result;
+  return lfText.substring(0, lfText.length - body.length) + result;
 }
 
 /// Returns [lfText] with each `doc_ref` value in [renamed] set to its new
@@ -102,8 +107,10 @@ String? rewriteDocLinks(
 /// [renamed] maps `(doc type id, old name)` to the new name. Only a key
 /// block of a `doc_ref` field in [fields] changes; a value is a block-list
 /// item, an inline scalar, or a flow-list item, quoted or not, and a value
-/// in the field's `docTypes` is matched by its doc type, any type when the
-/// field names none. Prose, comments, and other fields keep their text.
+/// in the field's `docTypes` is matched by its doc type. A field that names
+/// none changes a value only when every renamed doc it names agrees on one
+/// new name. Of two blocks with one name only the first counts. Prose,
+/// comments, and other fields keep their text.
 String? rewriteDocRefs(
   String lfText, {
   required List<MergedField> fields,
@@ -112,11 +119,13 @@ String? rewriteDocRefs(
   final blocks = Doc.parse(lfText).frontmatter;
   if (blocks == null || renamed.isEmpty) return null;
   var result = lfText;
+  final seen = <String>{};
   for (final block in blocks) {
+    if (!seen.add(block.name)) continue;
     for (final field in fields) {
-      if (field.type != FieldType.docRef || field.id != block.key) continue;
-      final text = _renameInBlock(block.text, field, renamed);
-      if (text != block.text) result = withKeyBlock(result, block.key, text);
+      if (field.type != FieldType.docRef || field.id != block.name) continue;
+      final text = _renameInBlock(block.text, block.key, field, renamed);
+      if (text != block.text) result = withKeyBlock(result, block.name, text);
     }
   }
   return result == lfText ? null : result;
@@ -172,16 +181,12 @@ WriteStep? _stepFor(
       linked;
   if (text == null) return null;
   session.requireWritable(doc.docPath);
-  final bom = _startsWithBom(bytes) ? _bom : '';
+  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
   return WriteStep(
     session.projectPathOf(movedPath(doc.docPath, moves)),
     '$bom${LineEnding.of(raw).apply(text)}',
   );
 }
-
-bool _startsWithBom(List<int> bytes) =>
-    bytes.length >= utf8Bom.length &&
-    utf8Bom.indexed.every((e) => bytes[e.$1] == e.$2);
 
 /// Whether [doc] carries a `doc_ref` value that [renamed] renames.
 bool _namesRenamedDoc(
@@ -202,6 +207,9 @@ bool _namesRenamedDoc(
 }
 
 /// Returns the new name of [value] in [field], or null when it is not renamed.
+///
+/// A field with no `docTypes` takes the rename only when every renamed doc
+/// called [value] agrees on the new name; two different names leave it.
 String? _newName(
   MergedField field,
   String value,
@@ -209,7 +217,11 @@ String? _newName(
 ) {
   final types = field.docTypes;
   if (types == null) {
-    return renamed.entries.where((e) => e.key.$2 == value).firstOrNull?.value;
+    final names = {
+      for (final e in renamed.entries)
+        if (e.key.$2 == value) e.value,
+    };
+    return names.length == 1 ? names.single : null;
   }
   return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
 }
@@ -228,6 +240,47 @@ Set<String> _hrefsOf(String lfText) {
 
   visit(Document(extensionSet: ExtensionSet.gitHubFlavored).parse(lfText));
   return hrefs;
+}
+
+/// Where a link destination sits in a text, and whether it is `<...>`.
+typedef _Destination = ({int start, int end, bool angle});
+
+/// Returns the destination that begins at [from], as spelled, or null.
+///
+/// An angle destination ends at the first `>` no backslash escapes; a plain
+/// one ends at whitespace or at the `)` that closes the link, parentheses in
+/// it balanced.
+_Destination? _destinationAt(String text, int from) {
+  final angle = from < text.length && text[from] == '<';
+  final start = angle ? from + 1 : from;
+  var depth = 0;
+  var i = start;
+  while (i < text.length) {
+    final c = text[i];
+    if (c == r'\') {
+      i += 2;
+      continue;
+    }
+    if (angle ? (c == '>' || c == '\n') : c.trim().isEmpty) break;
+    if (!angle && c == '(') depth++;
+    if (!angle && c == ')') {
+      if (depth == 0) break;
+      depth--;
+    }
+    i++;
+  }
+  final end = i.clamp(start, text.length);
+  if (end == start || (angle && (i >= text.length || text[i] != '>'))) {
+    return null;
+  }
+  return (start: start, end: end, angle: angle);
+}
+
+/// Returns the href the markdown parser makes of [raw] alone, or null when it
+/// does not make exactly one link of it.
+String? _hrefOfSpelling(String raw, bool angle) {
+  final hrefs = _hrefsOf(angle ? '[x](<$raw>)' : '[x]($raw)');
+  return hrefs.length == 1 ? hrefs.single : null;
 }
 
 /// Whether swapping `[start, end)` of [lfText] for a unique name yields a
@@ -254,8 +307,11 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.
+///
+/// [key] is the key as spelled in the block, quotes included.
 String _renameInBlock(
   String text,
+  String key,
   MergedField field,
   Map<(String, String), String> renamed,
 ) {
@@ -266,12 +322,12 @@ String _renameInBlock(
     final line = lines[i];
     if (_isTrivia(line)) continue;
     final match = i == keyLine
-        ? line.startsWith(field.id)
-              ? keyRest.firstMatch(line.substring(field.id.length))
+        ? line.startsWith(key)
+              ? keyRest.firstMatch(line.substring(key.length))
               : null
         : RegExp(r'^(\s*-\s+)(.*)$').firstMatch(line);
     if (match == null) continue;
-    final head = i == keyLine ? field.id + match[1]! : match[1]!;
+    final head = i == keyLine ? key + match[1]! : match[1]!;
     lines[i] = head + _renameValues(match[2]!, field, renamed);
   }
   return lines.join('\n');
@@ -286,7 +342,7 @@ String _renameValues(
   MergedField field,
   Map<(String, String), String> renamed,
 ) {
-  final flow = RegExp(r'^\[(?<items>.*)\](?<tail>\s*(?:#.*)?)$');
+  final flow = RegExp(r'^\[(?<items>[^\]]*)\](?<tail>\s*(?:#.*)?)$');
   final flowMatch = flow.firstMatch(region);
   if (flowMatch != null) {
     final items = flowMatch.namedGroup('items')!.split(',').map((item) {

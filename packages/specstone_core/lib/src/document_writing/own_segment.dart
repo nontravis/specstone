@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
+    show PathMove;
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -209,11 +212,7 @@ List<SiblingEntry> siblingsOnDisk(
   try {
     children = container.listSync(followLinks: false);
   } on FileSystemException catch (error) {
-    throw RenderFault(
-      RenderFaultCode.outputNotWritable,
-      'cannot read ${folder.replaceAll(Platform.pathSeparator, '/')}: '
-      '${error.osError?.message ?? error.message}',
-    );
+    throw cannotRead(folder.replaceAll(Platform.pathSeparator, '/'), error);
   }
   for (final entity in children) {
     final isOwn = shape.ownIsFile ? entity is File : entity is Directory;
@@ -239,6 +238,32 @@ List<SiblingEntry> siblingsOnDisk(
   });
 }
 
+/// Whether [shape] is a spec doc's (dw INV-8): a file with no placeholder of
+/// its own, so its parent names the folder it sits in.
+bool isSpecDocShape(DocPathShape shape) =>
+    shape.ownIsFile && !shape.numbered && !shape.slugged;
+
+/// Returns the child doc types of [docType] whose docs sit in a folder
+/// outside [docType]'s own segment, with that folder for [values].
+///
+/// A child counts when its own segment is its last segment and holds no
+/// placeholder (a feature's spec docs).
+Iterable<(MergedDocType, String)> _specChildren(
+  MergedSet set,
+  MergedDocType docType,
+  DocPathShape shape,
+  List<String> values,
+) sync* {
+  final own = shape.ownPathOf(shape.build(values));
+  for (final child in set.docTypes) {
+    if (child.parent != docType.id) continue;
+    final childShape = DocPathShape.of(child, set);
+    if (childShape == null || !isSpecDocShape(childShape)) continue;
+    final folder = childShape.containerOf(values);
+    if (folder.isNotEmpty && !folder.startsWith(own)) yield (child, folder);
+  }
+}
+
 /// Returns the folders of the docs that [docType] holds outside its own
 /// segment, for the doc whose placeholder [values] are given.
 ///
@@ -252,15 +277,33 @@ List<String> specFoldersOf(
 ) {
   final shape = DocPathShape.of(docType, set);
   if (shape == null) return const [];
-  final own = shape.ownPathOf(shape.build(values));
-  final folders = <String>{};
-  for (final child in set.docTypes) {
-    if (child.parent != docType.id) continue;
-    final childShape = DocPathShape.of(child, set);
-    if (childShape == null || !childShape.ownIsFile) continue;
-    if (childShape.numbered || childShape.slugged) continue;
-    final folder = childShape.containerOf(values);
-    if (folder.isNotEmpty && !folder.startsWith(own)) folders.add(folder);
+  return {
+    for (final (_, folder) in _specChildren(set, docType, shape, values))
+      folder,
+  }.toList()..sort();
+}
+
+/// Returns the spec folder moves that follow [docType]'s doc from
+/// [oldValues] to [newValues], each folder paired with the one the same child
+/// doc type holds after the move, sorted by old folder; a folder that does
+/// not change is left out.
+List<PathMove> specFolderMovesOf(
+  MergedSet set,
+  MergedDocType docType,
+  List<String> oldValues,
+  List<String> newValues,
+) {
+  final shape = DocPathShape.of(docType, set);
+  if (shape == null) return const [];
+  final newFolders = {
+    for (final (child, folder) in _specChildren(set, docType, shape, newValues))
+      child.id: folder,
+  };
+  final moves = <String, PathMove>{};
+  for (final (child, from) in _specChildren(set, docType, shape, oldValues)) {
+    final to = newFolders[child.id];
+    if (to == null || to == from) continue;
+    moves[from] = (from: from, to: to);
   }
-  return folders.toList()..sort();
+  return [for (final key in moves.keys.toList()..sort()) moves[key]!];
 }

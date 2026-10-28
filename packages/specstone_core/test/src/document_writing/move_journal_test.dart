@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -13,6 +14,124 @@ import '../../helpers/write_fixture.dart';
 const _login = 'prds/features/f01_login';
 const _trashDocs = '.specstone/trash/files/docs';
 
+/// Returns a folder on another volume than the temp folder, else null.
+///
+/// Reads `SPECSTONE_OTHER_VOLUME`; on Linux falls back to `/dev/shm` when its
+/// device id differs from the temp folder's.
+Directory? _otherVolume() {
+  final given = Platform.environment['SPECSTONE_OTHER_VOLUME'];
+  if (given != null && given.isNotEmpty) return Directory(given);
+  if (!Platform.isLinux || !Directory('/dev/shm').existsSync()) return null;
+  String deviceOf(String path) =>
+      Process.runSync('stat', ['-c', '%d', path]).stdout.toString().trim();
+  return deviceOf('/dev/shm') == deviceOf(Directory.systemTemp.path)
+      ? null
+      : Directory('/dev/shm');
+}
+
+/// A `Directory` whose probe folders refuse to be removed, as a disk that
+/// turns read-only mid-run does.
+final class _StuckProbeDirectory implements Directory {
+  const new(this._inner);
+
+  final Directory _inner;
+
+  static Directory _wrap(Directory inner) => _StuckProbeDirectory(inner);
+
+  @override
+  void deleteSync({bool recursive = false}) {
+    if (path.split(RegExp(r'[/\\]')).last.startsWith('.specstone-probe-')) {
+      throw FileSystemException('Permission denied', path);
+    }
+    _inner.deleteSync(recursive: recursive);
+  }
+
+  @override
+  Directory renameSync(String newPath) => _wrap(_inner.renameSync(newPath));
+
+  @override
+  Directory createTempSync([String? prefix]) =>
+      _wrap(_inner.createTempSync(prefix));
+
+  @override
+  String get path => _inner.path;
+
+  @override
+  Uri get uri => _inner.uri;
+
+  @override
+  bool existsSync() => _inner.existsSync();
+
+  @override
+  void createSync({bool recursive = false}) =>
+      _inner.createSync(recursive: recursive);
+
+  @override
+  Directory get absolute => _wrap(_inner.absolute);
+
+  @override
+  Directory get parent => _wrap(_inner.parent);
+
+  @override
+  bool get isAbsolute => _inner.isAbsolute;
+
+  @override
+  Future<Directory> create({bool recursive = false}) =>
+      _inner.create(recursive: recursive);
+
+  @override
+  Future<Directory> createTemp([String? prefix]) => _inner.createTemp(prefix);
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) =>
+      _inner.delete(recursive: recursive);
+
+  @override
+  // ignore: avoid_slow_async_io, forwards the Directory interface
+  Future<bool> exists() => _inner.exists();
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => _inner.list(recursive: recursive, followLinks: followLinks);
+
+  @override
+  List<FileSystemEntity> listSync({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => _inner.listSync(recursive: recursive, followLinks: followLinks);
+
+  @override
+  Future<Directory> rename(String newPath) => _inner.rename(newPath);
+
+  @override
+  Future<String> resolveSymbolicLinks() => _inner.resolveSymbolicLinks();
+
+  @override
+  String resolveSymbolicLinksSync() => _inner.resolveSymbolicLinksSync();
+
+  @override
+  // ignore: avoid_slow_async_io, forwards the Directory interface
+  Future<FileStat> stat() => _inner.stat();
+
+  @override
+  FileStat statSync() => _inner.statSync();
+
+  @override
+  Stream<FileSystemEvent> watch({
+    int events = FileSystemEvent.all,
+    bool recursive = false,
+  }) => _inner.watch(events: events, recursive: recursive);
+}
+
+/// Makes every `Directory` the code under test opens a [_StuckProbeDirectory].
+final class _StuckProbeHook extends IOOverrides {
+  @override
+  Directory createDirectory(String path) =>
+      _StuckProbeDirectory(super.createDirectory(path));
+}
+
 void main() {
   late Directory root;
 
@@ -24,6 +143,17 @@ void main() {
       Directory('${root.path}/$relative').existsSync();
   bool journalExists() =>
       File('${root.path}/${MoveJournal.journalPath}').existsSync();
+
+  /// Drops the one link into [story3], so a delete of its unit is not refused.
+  void dropLinkIntoStory3() {
+    final file = docFile(root, fr12);
+    file.writeAsStringSync(
+      file.readAsStringSync().replaceFirst(
+        ' See [reset](../us03_reset_password/USER_STORY.md#use-case).',
+        '',
+      ),
+    );
+  }
 
   /// Moves `docs/<path>` to the trash, as a stopped run would have.
   void moveToTrash(String path) {
@@ -332,4 +462,186 @@ void main() {
     );
     expect(journal.existsSync(), isTrue);
   }, skip: unreadablePathSkipReason() ?? false);
+
+  test(
+    'f02/us04/fr03, dw-s03/inv9, HD1: a docs root on another volume refuses before the journal',
+    () async {
+      final volume = _otherVolume()!;
+      final outside = volume.createTempSync('specstone_docs_');
+      addTearDown(() => outside.deleteSync(recursive: true));
+      final unlinked = writeProject['docs/$fr12']!.replaceFirst(
+        ' See [reset](../us03_reset_password/USER_STORY.md#use-case).',
+        '',
+      );
+      for (final MapEntry(:key, :value) in {
+        ...writeProject,
+        'docs/$fr12': unlinked,
+      }.entries) {
+        if (!key.startsWith('docs/')) continue;
+        File('${outside.path}/${key.substring(5)}')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+      final linked = await writeWriteProject(
+        without: {
+          for (final k in writeProject.keys)
+            if (k.startsWith('docs/')) k,
+        },
+      );
+      Link('${linked.path}/docs').createSync(outside.path);
+
+      expect(
+        () => writeIn(
+          linked,
+          (s) => answerDelete(
+            s,
+            'user_story:login/reset_password',
+            interactive: false,
+            readLine: () => null,
+            prompts: StringBuffer(),
+          ),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (e) => e.message,
+                'message',
+                startsWith('cannot move docs into .specstone/trash: '),
+              ),
+        ),
+      );
+      expect(
+        Directory('${linked.path}/.specstone/trash').existsSync(),
+        isFalse,
+      );
+      expect(File('${outside.path}/$story3').existsSync(), isTrue);
+      expect(
+        outside.listSync().map((e) => e.path.split('/').last),
+        isNot(contains(startsWith('.specstone-probe-'))),
+      );
+      writeIn(linked, (_) {});
+    },
+    skip: Platform.isWindows
+        ? 'links need privileges on Windows'
+        : _otherVolume() == null
+        ? 'no second volume: set SPECSTONE_OTHER_VOLUME'
+        : false,
+  );
+
+  test('f02/us04/fr03, dw-s03/inv9, HD1: a docs root without write permission still deletes a unit whose folder is writable', () async {
+    final docs = '${root.path}/docs';
+    addTearDown(() => Process.runSync('chmod', ['755', docs]));
+    dropLinkIntoStory3();
+    Process.runSync('chmod', ['555', docs]);
+
+    writeIn(
+      root,
+      (s) => answerDelete(
+        s,
+        'user_story:login/reset_password',
+        interactive: false,
+        readLine: () => null,
+        prompts: StringBuffer(),
+      ),
+    );
+
+    expect(hasDoc(root, story3), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test(
+    'f02/us04/fr03, dw-s03/inv9, HD1: a folder linked to another volume refuses before the journal',
+    () {
+      final outside = _otherVolume()!.createTempSync('specstone_folder_');
+      addTearDown(() => outside.deleteSync(recursive: true));
+      File('${outside.path}/note.md').writeAsStringSync('note\n');
+      Link('${root.path}/docs/prds/elsewhere').createSync(outside.path);
+
+      expect(
+        () => const MoveJournal([
+          MoveStep(
+            'docs/prds/elsewhere/note.md',
+            '$_trashDocs/prds/elsewhere/note.md',
+          ),
+        ]).run(openProject(root)),
+        throwsA(
+          isA<RenderFault>()
+              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (e) => e.message,
+                'message',
+                startsWith('cannot move docs into .specstone/trash: '),
+              ),
+        ),
+      );
+      expect(dirExists(MoveJournal.trashPath), isFalse);
+      expect(File('${outside.path}/note.md').existsSync(), isTrue);
+      expect(
+        outside.listSync().map((e) => e.uri.pathSegments.last),
+        isNot(contains(startsWith('.specstone-probe-'))),
+      );
+      writeIn(root, (_) {});
+    },
+    skip: Platform.isWindows
+        ? 'links need privileges on Windows'
+        : _otherVolume() == null
+        ? 'no second volume: set SPECSTONE_OTHER_VOLUME'
+        : false,
+  );
+
+  test('f02/us04/fr03, dw-s03/inv9, HD1: a probe folder that cannot be removed does not hide the move', () {
+    IOOverrides.runWithIOOverrides(
+      () =>
+          const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+              .run(openProject(root)),
+      _StuckProbeHook(),
+    );
+
+    expect(hasDoc(root, story3), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  });
+
+  test('f02/us04/fr03, dw-s03/inv9, HD1: a refused probe whose folder cannot be removed still comes back as the refusal', () {
+    Directory('${root.path}/.specstone').createSync();
+    File('${root.path}/${MoveJournal.trashPath}').writeAsStringSync('');
+
+    expect(
+      () => IOOverrides.runWithIOOverrides(
+        () =>
+            const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+                .run(openProject(root)),
+        _StuckProbeHook(),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith('cannot move docs into .specstone/trash: '),
+            ),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('dw-s03/inv9, H09: a move step moves a symlink as itself', () {
+    final outside = Directory.systemTemp.createTempSync('specstone_link_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    File('${outside.path}/keep.md').writeAsStringSync('keep\n');
+    final link = Link('${root.path}/docs/prds/shortcut')
+      ..createSync(outside.path);
+
+    const MoveStep(
+      'docs/prds/shortcut',
+      '$_trashDocs/prds/shortcut',
+    ).apply(openProject(root));
+
+    final landed = Link('${root.path}/$_trashDocs/prds/shortcut');
+    expect(landed.existsSync(), isTrue);
+    expect(landed.targetSync(), outside.path);
+    expect(link.existsSync(), isFalse);
+    expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 }

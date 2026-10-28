@@ -178,6 +178,23 @@ void main() {
     expect((bases['sections']! as Map)['rules'], emptyBaseHash);
     expect((bases['fields']! as Map)['status'], 'e721f319d794');
     expect((bases['fields']! as Map)['approved'], emptyBaseHash);
+    expect((bases['sections']! as Map).keys, [
+      'use_case',
+      'rules',
+      'acceptance_criteria',
+      'open_questions',
+    ]);
+    expect((bases['fields']! as Map).keys, [
+      'slug',
+      'status',
+      'draft',
+      'approved',
+      'reference',
+      'vision',
+      'goals',
+      'persona',
+      'implements',
+    ]);
     expect(story.containsKey('base'), isFalse);
     final untyped =
         (answerGet(index, 'prds/d01_context.md').json['docs']! as List).single
@@ -193,7 +210,15 @@ void main() {
     );
   });
 
-  test('f02/us01/s3, PD4: bases hash the first of two key blocks of one field; a quoted key is its own field', () async {
+  test('f01/us04/fr02/e10, PD16, H27: a doc with no title has the base of empty text', () async {
+    final untitled = await indexWith({'docs/untitled.md': '## A\nx\n'});
+    final doc =
+        (answerGet(untitled, 'untitled.md').json['docs']! as List).single
+            as Map;
+    expect((doc['bases']! as Map)['title'], emptyBaseHash);
+  });
+
+  test('f02/us01/s3, PD4, HD4: bases hash the first of two key blocks of one field, a quoted spelling included', () async {
     final dup = await indexWith({
       'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
           '---\nstatus: planned\nvision:\n  - PV-01\nstatus: implemented\n---\n\n'
@@ -211,7 +236,7 @@ void main() {
     final feature =
         (answerGet(dup, 'feature:login').json['docs']! as List).single as Map;
     final fields = (feature['bases']! as Map)['fields']! as Map;
-    expect(fields['status'], emptyBaseHash);
-    expect(fields['"status"'], baseHashOf('"status": planned\n'));
+    expect(fields['status'], baseHashOf('"status": planned\n'));
+    expect(fields.containsKey('"status"'), isFalse);
   });
 }

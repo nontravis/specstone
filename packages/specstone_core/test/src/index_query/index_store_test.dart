@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -33,6 +34,47 @@ void main() {
         'index.sqlite*\nbuild/\ntrash/\n',
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
+    });
+    test('f01/us01/fr04, s03/inv22: two cold first opens in two isolates both open the index', () async {
+      for (var i = 0; i < 20; i++) {
+        final r = await root();
+        final path = r.path;
+        await Future.wait([
+          for (var n = 0; n < 2; n++)
+            Isolate.run(() => IndexStore.open(Directory(path)).close()),
+        ]);
+        expect(
+          file(r, '.specstone/.gitignore').readAsStringSync(),
+          'index.sqlite*\nbuild/\ntrash/\n',
+        );
+      }
+    });
+    test('f01/us01/fr05/e05, s03/inv23: a first open waits busyTimeout on a held write lock before it faults indexBusy', () async {
+      final r = await root();
+      file(r, '.specstone/index.sqlite').writeAsBytesSync(const []);
+      final holder = sqlite3.open(file(r, '.specstone/index.sqlite').path)
+        ..execute('BEGIN IMMEDIATE');
+      addTearDown(() {
+        holder
+          ..execute('ROLLBACK')
+          ..close();
+      });
+      const timeout = Duration(milliseconds: 300);
+      final watch = Stopwatch()..start();
+
+      expect(
+        () => IndexStore.open(r, busyTimeout: timeout),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexBusy,
+          ),
+        ),
+      );
+      watch.stop();
+
+      expect(watch.elapsed, greaterThanOrEqualTo(timeout));
     });
     test('f01/us01/fr04/e03: the root .gitignore is never written', () async {
       final r = await writeTree({

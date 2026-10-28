@@ -67,4 +67,34 @@ void main() {
     expect(await runner.run(['rename', '--to', 'x']), 64);
     expect(err.toString(), startsWith('rename needs a target'));
   });
+  test(
+    'f02/us06/fr01/e10: two positionals are a usage error, exit 64',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['rename', 'a', 'b']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains(
+          'Expected one target, got 2.\n\n'
+          'Usage: specstone rename <type>:<name> --to <slug> [--json]\n',
+        ),
+      );
+    },
+  );
+  test(
+    'f02/us06/fr01/e07: rename with no --to is argument_missing, exit 64',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run(['rename', 'user_story:login/reset_password']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account\n',
+      );
+    },
+  );
 }

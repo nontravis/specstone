@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_doc.dart';
@@ -9,7 +10,10 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/failing_rename.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -80,7 +84,7 @@ void main() {
     );
   });
 
-  test('fix round 2, f02/us04/fr03/e03, dw-s03/inv9: a stopped reorder replays and the phase-1 stage skip fires on a taken slot', () async {
+  test('f02/us04/fr03/e03, dw-s03/inv9: a replay skips a phase-1 move whose stage slot is taken', () async {
     final root = await writeWriteProject();
     final moves = [
       ('us03_reset_password', 'us01_reset_password'),
@@ -318,7 +322,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr01/e06: a doc gone from disk since the index is doc_not_found, not a crash', () async {
+  test('f02/us05/fr01/e10, f02/us06/fr01/e10: a doc gone from disk since the index is doc_not_found, not a crash', () async {
     Future<void> expectNotFound(void Function(WriteSession) body) async {
       final fresh = await writeWriteProject();
       expect(
@@ -343,6 +347,126 @@ void main() {
     await expectNotFound(
       (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
     );
+  });
+
+  test('f02/us06/fr01/e06, dw-s03/inv8, H18: a spec doc whose feature is not indexed still names its feature', () async {
+    final root = await writeWriteProject(without: {'docs/$signupFeature'});
+    expect(
+      () => rename(root, 'architecture:signup', 'register'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having(
+              (f) => f.message,
+              'message',
+              'architecture:signup takes its name from its feature; '
+                  'rename feature:signup instead',
+            ),
+      ),
+    );
+  });
+
+  test('dw-s03/inv8, H18: a parented file type numbered but unslugged is told it carries no slug', () async {
+    final root = await writeWriteProject(
+      extra: {
+        '.specstone/templates/note.yaml': 'id: note\ndescription: A numbered note\npath: specs/f{nn}_{slug}/note_{nn}.md\nparent: feature\n',
+        'docs/specs/f01_login/note_01.md': '# A note\n',
+      },
+    );
+    expect(
+      () => rename(root, 'note:login', 'other'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having(
+              (f) => f.message,
+              'message',
+              'note docs carry no slug, so rename cannot rename them',
+            ),
+      ),
+    );
+  });
+
+  test('f02/us06/fr01/e02, dw-s03/inv7, H22: two spec folders that sort differently after the rename each move to their own new path', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      '.specstone/templates/spec_a.yaml': 'id: spec_a\ndescription: Spec A\npath: specs/f{nn}_{slug}_a/A.md\nparent: feature\n',
+      '.specstone/templates/spec_b.yaml': 'id: spec_b\ndescription: Spec B\npath: specs/f{nn}_b_{slug}/B.md\nparent: feature\n',
+      'docs/prds/features/f01_z/FEATURE.md': '# Z\n',
+      'docs/specs/f01_z_a/A.md': '# A\n',
+      'docs/specs/f01_b_z/B.md': '# B\n',
+    });
+    expect(rename(root, 'feature:z', 'a').json['moved'], [
+      {'from': 'prds/features/f01_z/', 'to': 'prds/features/f01_a/'},
+      {'from': 'specs/f01_b_z/', 'to': 'specs/f01_b_a/'},
+      {'from': 'specs/f01_z_a/', 'to': 'specs/f01_a_a/'},
+    ]);
+    expect(hasDoc(root, 'specs/f01_b_a/B.md'), isTrue);
+    expect(hasDoc(root, 'specs/f01_a_a/A.md'), isTrue);
+  });
+
+  test(
+    'f02/us05/fr01/e05, H20: a feature with no spec folder on disk moves alone',
+    () async {
+      final root = await writeWriteProject();
+      Directory('${root.path}/docs/specs/f02_signup')
+          .deleteSync(recursive: true);
+      expect(reorder(root, 'feature:signup', '1').json['moved'], [
+        {
+          'from': 'prds/features/f02_signup/',
+          'to': 'prds/features/f01_signup/',
+        },
+        {'from': 'prds/features/f01_login/', 'to': 'prds/features/f02_login/'},
+        {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
+      ]);
+      expect(hasDoc(root, 'prds/features/f01_signup/FEATURE.md'), isTrue);
+    },
+  );
+
+  test('f02/us05/fr01, dw-s03/inv9, X4, H21: the reorder journal lists every stage move first, then every target move, then the rewrites', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => IOOverrides.runWithIOOverrides(
+        () => reorder(root, 'user_story:login/reset_password', '1'),
+        FailingRenameHook('docs/$f/us03_reset_password'),
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (e) => e.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      ),
+    );
+
+    final journal = jsonDecode(
+      File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+    ) as Map<String, Object?>;
+    final steps = (journal['steps']! as List).cast<Map<String, Object?>>();
+    String stage(int i) => '${MoveJournal.stagePath}/$i';
+    String path(String name) => 'docs/$f/$name';
+    const moves = [
+      ('us03_reset_password', 'us01_reset_password'),
+      ('us01_email_login', 'us02_email_login'),
+      ('us02_sign_out', 'us03_sign_out'),
+    ];
+    expect(steps.take(6).toList(), [
+      for (final (i, (from, _)) in moves.indexed)
+        {
+          'move': {'from': path(from), 'to': stage(i)},
+        },
+      for (final (i, (_, to)) in moves.indexed)
+        {
+          'move': {'from': stage(i), 'to': path(to)},
+        },
+    ]);
+    expect(steps.skip(6).map((s) => s.keys.single).toSet(), {'write'});
+    expect(steps.length, greaterThan(6));
+
+    writeIn(root, (_) {});
+
+    expect(hasDoc(root, '$f/us01_reset_password/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$f/us03_sign_out/USER_STORY.md'), isTrue);
   });
 
   test('f02/us05/fr02, dw-s03/inv10, final Important 2: a read-only rewrite target stops a rename', () async {

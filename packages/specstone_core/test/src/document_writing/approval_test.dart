@@ -55,6 +55,19 @@ void main() {
     expect(holdsApproved(Doc.parse('# A\n')), isFalse);
   });
 
+  test('dw-s03/inv5, HD4: a quoted "approved": true holds approved', () {
+    expect(
+      holdsApproved(
+        Doc.parse('---\ndraft: true\n"approved": true\n---\n# A\n'),
+      ),
+      isTrue,
+    );
+    expect(
+      approvalOf(Doc.parse("---\ndraft: true\n'approved': true\n---\n# A\n")),
+      Approval.approved,
+    );
+  });
+
   test('f02/us03/s2, f02/us03/fr02/e01, dw-s03/inv11: the newest committed copy without draft is found', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');
@@ -145,6 +158,62 @@ void main() {
       garbled.lastApproved(Directory.systemTemp, 'docs/$story1'),
       isA<UnknownHistory>(),
     );
+  });
+
+  test('f02/us03/fr02/e01, dw-s03/inv11, H28: a file deleted and added again finds its older approved copy', () async {
+    const path = 'docs/$signupFeature';
+    final repo = await _repo({path: _approvedText});
+    commitAll(repo, 'approved');
+    expect(git(repo, ['rm', '-q', path]).exitCode, 0);
+    commitAll(repo, 'deleted');
+    File('${repo.path}/$path')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(_draftText);
+    commitAll(repo, 'added again as draft');
+
+    expect(
+      const ApprovalHistory().lastApproved(repo, path),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e01, dw-s03/inv11, H29: a non-ASCII path finds its approved copy', () async {
+    const path =
+        'docs/prds/features/f01_login/us01_\u0e25\u0e47\u0e2d\u0e01/USER_STORY.md';
+    final repo = await _repo({path: _approvedText});
+    // A user's global core.quotepath=false must not hide the quoting.
+    expect(git(repo, ['config', 'core.quotepath', 'true']).exitCode, 0);
+    commitAll(repo, 'approved');
+    File('${repo.path}/$path').writeAsStringSync(_draftText);
+    commitAll(repo, 'edited as draft');
+
+    expect(
+      const ApprovalHistory().lastApproved(repo, path),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
+
+  test(
+    'f02/us03/fr02/e04, dw-s03/inv11: a failing git show is UnknownHistory',
+    () {
+      final sha = 'a' * 40;
+      final failing = ApprovalHistory(
+        runGit: (arguments, {required workingDirectory}) =>
+            arguments.first == 'log'
+            ? ProcessResult(0, 0, '$sha\x00\ndocs/$story1\x00', '')
+            : ProcessResult(0, 128, '', 'fatal: bad object'),
+      );
+      expect(
+        failing.lastApproved(Directory.systemTemp, 'docs/$story1'),
+        isA<UnknownHistory>(),
+      );
+    },
+  );
+
+  test('dw-s03/inv5: an approved value that is no YAML holds no approval', () {
+    final doc = Doc.parse('---\ndraft: true\napproved: [\n---\n# A\n');
+    expect(holdsApproved(doc), isFalse);
+    expect(approvalOf(doc), Approval.neverApproved);
   });
 
   test('f02/us03/fr02, dw-s03/inv11: changed hunks name the lines that differ and carry no context', () {

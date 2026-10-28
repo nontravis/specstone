@@ -16,6 +16,21 @@ const emptyBaseHash = 'e3b0c44298fc';
 String baseHashOf(String text) =>
     sha256.convert(utf8.encode(text)).toString().substring(0, 12);
 
+/// Returns [lf] without its trailing blank lines: the first newline of the
+/// all-whitespace tail, and everything after it.
+///
+/// Scans back from the end, so a long run of whitespace lines costs one pass.
+String withoutTrailingBlankLines(String lf) {
+  var tail = lf.length;
+  while (tail > 0 && _isBlankChar(lf.codeUnitAt(tail - 1))) {
+    tail--;
+  }
+  final cut = lf.indexOf('\n', tail);
+  return cut < 0 ? lf : lf.substring(0, cut);
+}
+
+bool _isBlankChar(int unit) => unit == 0x0A || unit == 0x20 || unit == 0x09;
+
 /// Returns [lfText] with the body of section [section] replaced by [body].
 ///
 /// The header line and the blank lines after the old body stay.
@@ -51,7 +66,7 @@ String withoutSection(String lfText, int section) {
 ///
 /// With [before], the section lands ahead of the section at that index,
 /// followed by one blank line. Without it, the section lands at the end after
-/// one blank line, and the text first gains a final `\n`.
+/// exactly one blank line, whatever blank lines the text ended in.
 String withSectionAdded(
   String lfText, {
   required String headerLine,
@@ -60,8 +75,8 @@ String withSectionAdded(
 }) {
   final added = '$headerLine\n${_endWithNewline(body)}';
   if (before == null) {
-    if (lfText.isEmpty) return added;
-    return '${_endWithNewline(lfText)}\n$added';
+    final kept = withoutTrailingBlankLines(lfText);
+    return kept.isEmpty ? added : '$kept\n\n$added';
   }
   final doc = Doc.parse(lfText);
   final lines = _lines(doc.afterFrontmatter);
@@ -84,7 +99,7 @@ String withKeyBlock(String lfText, String key, String? blockText) {
   }
   var start = lfText.indexOf('\n') + 1;
   for (final existing in blocks) {
-    if (existing.key == key) {
+    if (existing.name == key) {
       final end = start + existing.text.length;
       return lfText.substring(0, start) + (block ?? '') + lfText.substring(end);
     }

@@ -98,6 +98,15 @@ void main() {
     );
   });
 
+  test('dw-s03/inv9, H13: startsWithUtf8Bom is true exactly for a leading '
+      'EF BB BF', () {
+    expect(startsWithUtf8Bom([0xEF, 0xBB, 0xBF]), isTrue);
+    expect(startsWithUtf8Bom([0xEF, 0xBB, 0xBF, 0x61]), isTrue);
+    expect(startsWithUtf8Bom([0xEF, 0xBB]), isFalse);
+    expect(startsWithUtf8Bom([0x61, 0xEF, 0xBB, 0xBF]), isFalse);
+    expect(startsWithUtf8Bom(const []), isFalse);
+  });
+
   test('a doc type is matched before the bytes are decoded', () async {
     final read = await _read(_notes, '', bytes: [0xFF, 0xFE]);
 

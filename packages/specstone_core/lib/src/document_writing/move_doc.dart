@@ -42,8 +42,9 @@ int parsePlace(String? value) {
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc type that numbers no
 /// doc and `position_out_of_range` for a place outside 1 to the sibling
-/// count; an `IndexFault` for a bad address or [place]; `index_busy` when
-/// another call holds the lock.
+/// count; an `IndexFault` for a bad address or [place], or `doc_not_found`
+/// when the doc is gone from disk; `index_busy` when another call holds the
+/// lock.
 ReadAnswer answerReorder(
   WriteSession session,
   String address, {
@@ -88,8 +89,9 @@ ReadAnswer answerReorder(
 /// Throws [WriteFault] `doc_type_not_movable` for a doc type that carries no
 /// slug, a spec doc included, and `doc_exists` when a sibling carries
 /// [slug] or a path on disk is where the renamed segment would land; an
-/// `IndexFault` for a missing or bad [slug] or a bad address;
-/// `index_busy` when another call holds the lock.
+/// `IndexFault` for a missing or bad [slug] or a bad address, or
+/// `doc_not_found` when the doc is gone from disk; `index_busy` when another
+/// call holds the lock.
 ReadAnswer answerRename(
   WriteSession session,
   String address, {
@@ -135,13 +137,23 @@ WriteFault _noSlugFault(
   DocPathShape? shape,
 ) {
   final parentType = docType.parent;
-  final parent = session.index.parentOf(target);
-  if (parentType != null && parent != null && (shape?.ownIsFile ?? false)) {
-    return WriteFault(
-      WriteFaultCode.docTypeNotMovable,
-      '$address takes its name from its $parentType; '
-      'rename $parentType:${parent.name} instead',
-    );
+  if (parentType != null && shape != null && isSpecDocShape(shape)) {
+    final parentDocType = session.index.set.lookup(parentType);
+    final parentShape = parentDocType == null
+        ? null
+        : DocPathShape.of(parentDocType, session.index.set);
+    final values = shape.valuesOf(target.docPath);
+    if (parentDocType != null && parentShape != null && values != null) {
+      final parentName = docNameOf(
+        parentShape.build(values.take(shape.parentCount).toList()),
+        parentDocType,
+      );
+      return WriteFault(
+        WriteFaultCode.docTypeNotMovable,
+        '$address takes its name from its $parentType; '
+        'rename $parentType:$parentName instead',
+      );
+    }
   }
   return WriteFault(
     WriteFaultCode.docTypeNotMovable,
@@ -189,12 +201,8 @@ List<PathMove> _renameMoves(
   final moves = [
     (from: shape.ownPathOf(target.docPath), to: shape.ownPathOf(newDocPath)),
   ];
-  final oldFolders = specFoldersOf(set, docType, oldValues);
-  final newFolders = specFoldersOf(set, docType, newValues);
-  for (var i = 0; i < oldFolders.length; i++) {
-    if (_folderExists(session, oldFolders[i])) {
-      moves.add((from: oldFolders[i], to: newFolders[i]));
-    }
+  for (final move in specFolderMovesOf(set, docType, oldValues, newValues)) {
+    if (_folderExists(session, move.from)) moves.add(move);
   }
   _checkNoClash(
     session,
@@ -334,13 +342,8 @@ List<PathMove> _movesFor(
     final to = shape.ownPathOf(shape.build(newValues));
     if (from == to) continue;
     moves.add((from: from, to: to));
-    final oldFolders = specFoldersOf(set, docType, oldValues);
-    final newFolders = specFoldersOf(set, docType, newValues);
-    for (var i = 0; i < oldFolders.length; i++) {
-      if (oldFolders[i] != newFolders[i] &&
-          _folderExists(session, oldFolders[i])) {
-        moves.add((from: oldFolders[i], to: newFolders[i]));
-      }
+    for (final move in specFolderMovesOf(set, docType, oldValues, newValues)) {
+      if (_folderExists(session, move.from)) moves.add(move);
     }
   }
   return moves;

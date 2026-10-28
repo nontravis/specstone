@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/failing_rename.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -300,27 +301,25 @@ void main() {
     final locked = Directory(
       '${root.path}/docs/prds/features/f01_login/us03_reset_password',
     );
-    Process.runSync('chmod', ['555', locked.path]);
-    addTearDown(() => Process.runSync('chmod', ['755', locked.path]));
     expect(
-      () => del(root, 'user_story:login/reset_password'),
+      () => IOOverrides.runWithIOOverrides(
+        () => del(root, 'user_story:login/reset_password'),
+        FailingRenameHook('docs/$fr31'),
+      ),
       throwsA(
-        isA<RenderFault>().having(
-          (f) => f.code,
-          'code',
-          RenderFaultCode.outputNotWritable,
-        ),
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.message, 'message', contains(fr31)),
       ),
     );
     expect(
       File('${root.path}/${MoveJournal.journalPath}').existsSync(),
       isTrue,
     );
-    Process.runSync('chmod', ['755', locked.path]);
     writeIn(root, (s) => s.index.docs.length);
     expect(locked.existsSync(), isFalse);
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-  }, skip: unreadablePathSkipReason() ?? false);
+  });
 
   test(
     'f02/us04/fr02/e05: a doc carrying draft and approved counts as approved',
@@ -444,8 +443,125 @@ void main() {
     expect(Directory('${root.path}/docs/specs').existsSync(), isTrue);
   });
 
-  test('f02/us04/fr01/e06: referrersOf: doc_ref referrers, then link referrers, each once in tree order', () async {
-    final root = await writeWriteProject();
+  test('f02/us04/fr01, dw-s03/inv7, H09: an empty subfolder and a symlink in the unit go, and so does the unit folder', () async {
+    final root = await writeWriteProject(extra: withoutLink);
+    final outside = Directory.systemTemp.createTempSync('specstone_keep_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    File('${outside.path}/keep.md').writeAsStringSync('keep\n');
+    final unit =
+        '${root.path}/docs/prds/features/f01_login/us03_reset_password';
+    Directory('$unit/empty/deeper').createSync(recursive: true);
+    Link('$unit/shortcut').createSync(outside.path);
+    Link('$unit/dangling').createSync('${outside.path}/missing.md');
+
+    del(root, 'user_story:login/reset_password');
+
+    expect(Directory(unit).existsSync(), isFalse);
+    expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  test('f02/us04/fr02/e07, dw-s03/inv7, HD2: a link added while the prompt waits refuses doc_referenced', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final outsider = docFile(root, story1);
+    final before = outsider.readAsStringSync();
+    Object? caught;
+    try {
+      writeIn(
+        root,
+        (s) => answerDelete(
+          s,
+          'user_story:login/sign_out',
+          interactive: true,
+          readLine: () {
+            outsider.writeAsStringSync(
+              '$before\nSee [out](../us02_sign_out/fr01_end_session.md).\n',
+            );
+            return 'y';
+          },
+          prompts: StringBuffer(),
+        ),
+      );
+    } on WriteFault catch (fault) {
+      caught = fault;
+    }
+    expect(caught, isA<WriteFault>());
+    final fault = caught! as WriteFault;
+    expect(fault.code, WriteFaultCode.docReferenced);
+    expect(fault.relatedFiles, [story1]);
+    expect(hasDoc(root, '$_signOut/fr01_end_session.md'), isTrue);
+    expect(hasDoc(root, story2), isTrue);
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+  });
+
+  test('f02/us04/fr02/e07, nfr-di01, dw-s03/inv9: a replay fault during the refresh after y is a RenderFault and the session closes once', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerDelete(
+          s,
+          'user_story:login/sign_out',
+          interactive: true,
+          readLine: () {
+            File('${root.path}/${MoveJournal.journalPath}')
+              ..parent.createSync(recursive: true)
+              ..writeAsStringSync('not json');
+            return 'y';
+          },
+          prompts: StringBuffer(),
+        ),
+      ),
+      throwsA(isA<RenderFault>()),
+    );
+    expect(hasDoc(root, story2), isTrue);
+  });
+
+  test('f02/us04/fr02/e07, H12: a byte changed while the prompt waits lists the unit and prompts again', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final changed = docFile(root, '$_signOut/fr01_end_session.md');
+    final prompts = StringBuffer();
+    var asked = 0;
+    final answer = writeIn(
+      root,
+      (s) => answerDelete(
+        s,
+        'user_story:login/sign_out',
+        interactive: true,
+        readLine: () {
+          asked++;
+          if (asked == 1) {
+            changed.writeAsStringSync(
+              '---\napproved: true\n---\n\n# End sessioN\n',
+            );
+          }
+          return 'y';
+        },
+        prompts: prompts,
+      ),
+    );
+    expect(asked, 2);
+    expect(
+      'delete 3 files? [y/N] '.allMatches(prompts.toString()),
+      hasLength(2),
+    );
+    expect(answer.json['removed'], hasLength(3));
+    expect(Directory('${root.path}/docs/$_signOut').existsSync(), isFalse);
+  });
+
+  test('f02/us04/fr01/e06, H11: referrersOf: doc_ref referrers, then link referrers, each once in tree order', () async {
+    // The persona refers to story1 by doc_ref and by link: still listed once,
+    // in the doc_ref group. d01_context and fr11 link to it; d01_context comes
+    // first in tree order.
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$persona': '---\ndraft: true\nreference:\n  - login/email_login\n---\n\n# Buyer\n\n## Profile\nBuys things. See [login](../../features/f01_login/us01_email_login/USER_STORY.md).\n',
+        'docs/prds/d01_context.md': '# Context\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md) and [login](features/f01_login/us01_email_login/USER_STORY.md).\n',
+        'docs/$fr11': writeProject['docs/$fr11']!.replaceFirst(
+          'The system shall check',
+          'See [story](USER_STORY.md). The system shall check',
+        ),
+      },
+    );
     List<String> referrers(String docPath) => writeIn(
       root,
       (s) => [
@@ -453,7 +569,7 @@ void main() {
           doc.docPath,
       ],
     );
-    expect(referrers(story1), [persona]);
+    expect(referrers(story1), [persona, 'prds/d01_context.md', fr11]);
     expect(referrers(story3), [fr12]);
   });
 }

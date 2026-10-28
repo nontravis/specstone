@@ -41,6 +41,24 @@ void main() {
       );
     },
   );
+  test('f02/us01/fr01, PD11, H25: a section added at the end of a doc ending in a blank line follows exactly one blank line', () {
+    expect(
+      withSectionAdded('# T\n\n## A\na\n\n', headerLine: '## R', body: 'r'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+    expect(
+      withSectionAdded('# T\n\n## A\na\n\n\n', headerLine: '## R', body: 'r'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+  });
+  test('f02/us01/fr01, PD5, H24: trailing blank lines go from the first newline of the whitespace tail', () {
+    expect(withoutTrailingBlankLines('a\n \n\t'), 'a');
+    expect(withoutTrailingBlankLines('a  \n'), 'a  ');
+    expect(withoutTrailingBlankLines('a'), 'a');
+    expect(withoutTrailingBlankLines('  \n '), '  ');
+    expect(withoutTrailingBlankLines('\n'), '');
+    expect(withoutTrailingBlankLines('a\t'), 'a\t');
+  });
   test('dw-s03/inv13: review focus 2: a ## line inside a fence is no section, so no splice lands on it', () {
     const fenced = '# T\n\n## A\n```\n## B\n```\n\n## B\nreal\n';
     final parsed = Doc.parse(fenced);
@@ -72,6 +90,17 @@ void main() {
       '---\ndraft: true\n---\n# T\n',
     );
   });
+  test(
+    'doc_model/s03/inv6, HD4: withKeyBlock replaces a quoted block by its name',
+    () {
+      const quoted = '---\n"a": 1\nb: 2\n---\n# T\n';
+      expect(
+        withKeyBlock(quoted, 'a', 'a: 9\n'),
+        '---\na: 9\nb: 2\n---\n# T\n',
+      );
+      expect(withKeyBlock(quoted, 'a', null), '---\nb: 2\n---\n# T\n');
+    },
+  );
   test('dw-s03/inv14: removing the only key block keeps the delimiters with nothing between', () {
     expect(
       withKeyBlock('---\ndraft: true\n---\n# T\n', 'draft', null),

@@ -45,4 +45,15 @@ void main() {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['approve', '--json']), 64);
   });
+  test('f02/us03/fr01: two positionals are a usage error, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['approve', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected at most one name, got 2.\n\nUsage: specstone approve [<name>]\n',
+      ),
+    );
+  });
 }

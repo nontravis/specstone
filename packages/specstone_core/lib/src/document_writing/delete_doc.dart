@@ -12,7 +12,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
 typedef _UnitFiles = Map<String, List<int>>;
@@ -25,8 +24,9 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// An approved `.md` file in the unit (an untyped one included) leaves the
 /// delete to the Owner: [prompts] lists the files and asks, one answer from
 /// [readLine] outside the lock; anything but `y`, or the end of input, keeps
-/// them all. When a file or its bytes change while the prompt waits, the list
-/// shows again. Emptied folders go up to the docs root.
+/// them all. After a `y` the index is read afresh and the referrers are
+/// checked again; when a file or its bytes change while the prompt waits, the
+/// list shows again. Emptied folders go up to the docs root.
 ///
 /// Throws [WriteFault] `doc_referenced` for a referred doc and
 /// `owner_terminal_required` for an approved unit when [interactive] is
@@ -39,8 +39,8 @@ ReadAnswer answerDelete(
   required String? Function() readLine,
   required StringSink prompts,
 }) {
-  final target = session.target(address);
-  final roots = _unitRootsOf(session, target);
+  var target = session.target(address);
+  var roots = _unitRootsOf(session, target);
   _refuseIfReferenced(session, address, target, roots);
   while (true) {
     final shown = _readUnit(session, roots);
@@ -55,6 +55,10 @@ ReadAnswer answerDelete(
         ..writeln(shown.keys.join('\n'))
         ..write('delete ${shown.length} files? [y/N] ');
       if (readLine() != 'y') return _answerFor(const []);
+      session.refresh();
+      target = session.target(address);
+      roots = _unitRootsOf(session, target);
+      _refuseIfReferenced(session, address, target, roots);
     }
     final removed = session.locked(() {
       final current = _readUnit(session, roots);
@@ -113,7 +117,8 @@ void _refuseIfReferenced(
   );
 }
 
-/// Returns the DocPath of every file under [root], a folder or a file.
+/// Returns the DocPath of every entry under [root], a folder or a file, that
+/// is no folder; a symbolic link counts and is never followed.
 Iterable<String> _filesUnder(WriteSession session, String root) sync* {
   if (!root.endsWith('/')) {
     if (session.fileOf(root).existsSync()) yield root;
@@ -128,10 +133,10 @@ Iterable<String> _filesUnder(WriteSession session, String root) sync* {
   try {
     entities = folder.listSync(recursive: true, followLinks: false);
   } on FileSystemException catch (error) {
-    throw _notReadable(root, error);
+    throw cannotRead(root.substring(0, root.length - 1), error);
   }
   for (final entity in entities) {
-    if (entity is! File) continue;
+    if (entity is Directory) continue;
     yield entity.path
         .substring(prefixLength)
         .split(Platform.pathSeparator)
@@ -139,30 +144,46 @@ Iterable<String> _filesUnder(WriteSession session, String root) sync* {
   }
 }
 
+/// Returns the project path of every folder under [root], a folder ending
+/// in `/`.
+Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
+  final folder = Directory(
+    session.fileOf(root.substring(0, root.length - 1)).path,
+  );
+  if (!folder.existsSync()) return;
+  final prefixLength = session.project.docsRoot.path.length + 1;
+  for (final entity in folder.listSync(recursive: true, followLinks: false)) {
+    if (entity is! Directory) continue;
+    yield session.projectPathOf(
+      entity.path
+          .substring(prefixLength)
+          .split(Platform.pathSeparator)
+          .join('/'),
+    );
+  }
+}
+
 /// Reads every file of the unit; the keys are sorted by code point.
+///
+/// A symbolic link is never followed: its bytes are its target text.
 _UnitFiles _readUnit(WriteSession session, List<String> roots) {
   final docPaths = {
     for (final root in roots) ..._filesUnder(session, root),
   }.toList()..sort();
   final files = <String, List<int>>{};
   for (final docPath in docPaths) {
+    final file = session.fileOf(docPath);
     try {
-      files[docPath] = session.fileOf(docPath).readAsBytesSync();
+      files[docPath] = FileSystemEntity.isLinkSync(file.path)
+          ? utf8.encode(Link(file.path).targetSync())
+          : file.readAsBytesSync();
     } on PathNotFoundException {
       continue;
     } on FileSystemException catch (error) {
-      throw _notReadable(docPath, error);
+      throw cannotRead(docPath, error);
     }
   }
   return files;
-}
-
-RenderFault _notReadable(String path, FileSystemException error) {
-  final shown = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
-  return RenderFault(
-    RenderFaultCode.outputNotWritable,
-    'cannot read $shown: ${error.osError?.message ?? error.message}',
-  );
 }
 
 /// Whether a `.md` file of [files] was ever approved.
@@ -195,7 +216,7 @@ bool _sameFiles(_UnitFiles a, _UnitFiles b) {
 }
 
 /// Returns the journal steps: each file to the trash, then the pruning of
-/// every folder the move may leave empty.
+/// every folder the move may leave empty, the deepest first.
 List<JournalStep> _stepsFor(
   WriteSession session,
   List<String> roots,
@@ -205,9 +226,11 @@ List<JournalStep> _stepsFor(
   final folders = {
     for (final path in projectPaths) path.substring(0, path.lastIndexOf('/')),
     for (final root in roots)
-      if (root.endsWith('/'))
+      if (root.endsWith('/')) ...[
         session.projectPathOf(root.substring(0, root.length - 1)),
-  };
+        ..._foldersUnder(session, root),
+      ],
+  }.toList()..sort((a, b) => b.compareTo(a));
   return [
     for (final path in projectPaths)
       MoveStep(path, '${MoveJournal.trashPath}/files/$path'),

@@ -74,13 +74,34 @@ void main() {
       },
     );
 
-    test('names the temp .<name>.<pid>.specstone.tmp in the target folder', () {
+    test(
+      'names the temp .<name>.<pid>.<hex>.specstone.tmp beside the target',
+      () {
+        final file = File('${folder.path}/FEATURE.md');
+
+        final temp = writeTempSibling(file, utf8.encode('x'));
+
+        expect(
+          temp.uri.pathSegments.last,
+          matches(
+            RegExp(
+              '^\\.FEATURE\\.md\\.$pid\\.[0-9a-f]{16}\\.specstone\\.tmp\$',
+            ),
+          ),
+        );
+        expect(temp.parent.path, file.parent.path);
+      },
+    );
+
+    test('two calls for one target write two temps', () {
       final file = File('${folder.path}/FEATURE.md');
 
-      final temp = writeTempSibling(file, utf8.encode('x'));
+      final first = writeTempSibling(file, utf8.encode('a'));
+      final second = writeTempSibling(file, utf8.encode('b'));
 
-      expect(temp.uri.pathSegments.last, '.FEATURE.md.$pid.specstone.tmp');
-      expect(temp.parent.path, file.parent.path);
+      expect(second.path, isNot(first.path));
+      expect(first.readAsStringSync(), 'a');
+      expect(second.readAsStringSync(), 'b');
     });
   });
 

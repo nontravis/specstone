@@ -97,4 +97,19 @@ void main() {
     expect(await runner.run(['delete']), 64);
     expect(err.toString(), startsWith('delete needs a target'));
   });
+  test(
+    'f02/us04/fr01/e10: two positionals are a usage error, exit 64',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['delete', 'a', 'b']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains(
+          'Expected one target, got 2.\n\n'
+          'Usage: specstone delete <type>:<name> [--json]\n',
+        ),
+      );
+    },
+  );
 }
