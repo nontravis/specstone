@@ -24,14 +24,18 @@ abstract interface class Console {
 final class SystemConsole implements Console {
   /// Creates the console of the process.
   ///
-  /// [input] replaces stdin for [readAll] only; [readLine] and the terminal
-  /// checks read the process's own stdin.
-  new({Stream<List<int>>? input}) : _input = input ?? stdin;
+  /// [input] replaces stdin for [readAll] and makes [stdinIsTerminal] false,
+  /// since an injected stream is never a terminal. [readLine] and
+  /// [stdoutIsTerminal] still read the process's own stdin and stdout.
+  new({Stream<List<int>>? input})
+    : _input = input ?? stdin,
+      _injected = input != null;
 
   final Stream<List<int>> _input;
+  final bool _injected;
 
   @override
-  bool get stdinIsTerminal => stdin.hasTerminal;
+  bool get stdinIsTerminal => !_injected && stdin.hasTerminal;
 
   @override
   bool get stdoutIsTerminal => stdout.hasTerminal;
