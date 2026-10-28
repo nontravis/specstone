@@ -2,10 +2,38 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+
+/// What a [JournalStep] acts on: the two roots and the `git` runner.
+///
+/// A legacy tree has no `.specstone/config.yaml`, so no [DocsProject]; every
+/// step needs only these.
+final class JournalTarget {
+  const new({
+    required this.projectRoot,
+    required this.docsRoot,
+    this.runGit = runRealGit,
+  });
+
+  /// Returns the target of an opened [project].
+  factory of(DocsProject project) => JournalTarget(
+    projectRoot: project.projectRoot,
+    docsRoot: project.docsRoot,
+  );
+
+  /// The folder every step path is relative to.
+  final Directory projectRoot;
+
+  /// The folder of the docs, in the form the steps compare paths against.
+  final Directory docsRoot;
+
+  /// Starts `git`; replaced in tests.
+  final RunGit runGit;
+}
 
 /// One idempotent step of a [MoveJournal].
 ///
@@ -17,10 +45,20 @@ sealed class JournalStep {
   /// Returns the step as the single-key JSON object the journal stores.
   Map<String, Object> toJson();
 
-  /// Applies the step to [project].
+  /// Returns one line that tells what the step does.
+  String describe();
+
+  /// Whether the step's effect is already in place on [target].
   ///
-  /// Throws [RenderFault] `output_not_writable` when the disk refuses.
-  void apply(DocsProject project);
+  /// Throws [FileSystemException] or [ProcessException] when the state cannot
+  /// be read.
+  bool isDone(JournalTarget target);
+
+  /// Applies the step to [target]; returns at once when it [isDone].
+  ///
+  /// Throws [RenderFault] `output_not_writable` when the disk refuses, and
+  /// [GitCommandFailed] when `git` refuses a [CommitStep].
+  void apply(JournalTarget target);
 
   /// Reads one step back from its [json] form.
   ///
@@ -39,6 +77,25 @@ sealed class JournalStep {
             {'path': final String path, 'text': final String text},
           ):
             return WriteStep(path, text);
+          case (
+            'create',
+            {'path': final String path, 'text': final String text},
+          ):
+            return CreateStep(path, text);
+          case (
+                'commit',
+                {
+                  'message': final String message,
+                  'paths': final List<Object?> paths,
+                  'base': final String base,
+                },
+              )
+              when paths.every((path) => path is String):
+            return CommitStep(
+              message: message,
+              paths: paths.cast<String>(),
+              base: base,
+            );
         }
       }
     }
@@ -67,21 +124,26 @@ final class MoveStep extends JournalStep {
   };
 
   @override
-  void apply(DocsProject project) {
-    final source = _absolute(project, from);
-    if (FileSystemEntity.typeSync(source, followLinks: false) ==
-        FileSystemEntityType.notFound) {
-      return;
-    }
-    final target = _absolute(project, to);
+  String describe() => 'move $from -> $to';
+
+  @override
+  bool isDone(JournalTarget target) =>
+      FileSystemEntity.typeSync(_absolute(target, from), followLinks: false) ==
+      FileSystemEntityType.notFound;
+
+  @override
+  void apply(JournalTarget target) {
+    if (isDone(target)) return;
+    final source = _absolute(target, from);
+    final destination = _absolute(target, to);
     if (to.startsWith('${MoveJournal.stagePath}/') &&
-        FileSystemEntity.typeSync(target, followLinks: false) !=
+        FileSystemEntity.typeSync(destination, followLinks: false) !=
             FileSystemEntityType.notFound) {
       return;
     }
     try {
-      Directory(File(target).parent.path).createSync(recursive: true);
-      _entityAt(source).renameSync(target);
+      Directory(File(destination).parent.path).createSync(recursive: true);
+      _entityAt(source).renameSync(destination);
     } on FileSystemException catch (error) {
       throw _notWritable('move', from, error);
     }
@@ -101,10 +163,17 @@ final class PruneStep extends JournalStep {
   };
 
   @override
-  void apply(DocsProject project) {
+  String describe() => 'prune $folder';
+
+  @override
+  bool isDone(JournalTarget target) =>
+      !Directory(_underDocsRoot(target, folder)).existsSync();
+
+  @override
+  void apply(JournalTarget target) {
     try {
-      final docsRoot = project.docsRoot.path;
-      var current = Directory(_underDocsRoot(project, folder));
+      final docsRoot = target.docsRoot.path;
+      var current = Directory(_underDocsRoot(target, folder));
       while (current.path != docsRoot && _isInside(docsRoot, current.path)) {
         if (current.existsSync()) {
           if (current.listSync().isNotEmpty) return;
@@ -134,17 +203,132 @@ final class WriteStep extends JournalStep {
   };
 
   @override
-  void apply(DocsProject project) {
-    final file = File(_absolute(project, path));
+  String describe() => 'write $path';
+
+  @override
+  bool isDone(JournalTarget target) {
+    final file = File(_absolute(target, path));
+    return !file.existsSync() || file.readAsStringSync() == text;
+  }
+
+  @override
+  void apply(JournalTarget target) {
     try {
-      if (!file.existsSync() || file.readAsStringSync() == text) return;
-      writeFileAtomic(file, utf8.encode(text));
+      if (isDone(target)) return;
+      writeFileAtomic(File(_absolute(target, path)), utf8.encode(text));
     } on FileSystemException catch (error) {
       throw _notWritable('write', path, error);
     } on FormatException catch (error) {
       throw _notWritable('write', path, error);
     }
   }
+}
+
+/// Writes [text] to a path that does not exist yet, creating its parent
+/// folders; never overwrites.
+final class CreateStep extends JournalStep {
+  const new(this.path, this.text);
+
+  /// The file to create.
+  final String path;
+
+  /// The UTF-8 text of the new file.
+  final String text;
+
+  @override
+  Map<String, Object> toJson() => {
+    'create': {'path': path, 'text': text},
+  };
+
+  @override
+  String describe() => 'create $path';
+
+  @override
+  bool isDone(JournalTarget target) =>
+      FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
+      FileSystemEntityType.notFound;
+
+  @override
+  void apply(JournalTarget target) {
+    if (isDone(target)) return;
+    final file = File(_absolute(target, path));
+    try {
+      file.parent.createSync(recursive: true);
+      writeFileAtomic(file, utf8.encode(text));
+    } on FileSystemException catch (error) {
+      throw _notWritable('create', path, error);
+    }
+  }
+}
+
+/// Commits [paths] with [message], once.
+///
+/// [base] is the HEAD sha when the journal was written; the step is done when
+/// a commit after [base] carries [message] as a line, so a replay after any
+/// crash point makes the commit exactly once.
+final class CommitStep extends JournalStep {
+  const new({required this.message, required this.paths, required this.base});
+
+  /// The commit message.
+  final String message;
+
+  /// The paths to stage, relative to the project root and `/`-separated.
+  final List<String> paths;
+
+  /// The HEAD sha when the journal was written.
+  final String base;
+
+  @override
+  Map<String, Object> toJson() => {
+    'commit': {'message': message, 'paths': paths, 'base': base},
+  };
+
+  @override
+  String describe() => 'commit "$message"';
+
+  @override
+  bool isDone(JournalTarget target) {
+    final log = target.runGit([
+      'log',
+      '--format=%B',
+      '$base..HEAD',
+    ], workingDirectory: target.projectRoot.path);
+    return log.exitCode == 0 &&
+        const LineSplitter().convert(log.stdout as String).contains(message);
+  }
+
+  @override
+  void apply(JournalTarget target) {
+    if (isDone(target)) return;
+    _runWrite(target, 'add', ['add', '-A', '--', ...paths]);
+    _runWrite(target, 'commit', ['commit', '-q', '-m', message]);
+  }
+}
+
+/// Runs the `git` write [arguments] for [verb].
+///
+/// Throws [GitCommandFailed] when git exits non-zero.
+void _runWrite(JournalTarget target, String verb, List<String> arguments) {
+  final result = target.runGit(
+    arguments,
+    workingDirectory: target.projectRoot.path,
+  );
+  if (result.exitCode != 0) {
+    throw GitCommandFailed(verb, _decisiveLine(result.stderr as String));
+  }
+}
+
+/// Returns the first line of [stderr] that starts `fatal:` or `error:`, else
+/// its last non-empty line, else the empty string.
+String _decisiveLine(String stderr) {
+  final lines = [
+    for (final line in const LineSplitter().convert(stderr))
+      if (line.trim().isNotEmpty) line.trim(),
+  ];
+  return lines.firstWhere(
+    (line) => line.startsWith('fatal:') || line.startsWith('error:'),
+    orElse: () => lines.lastOrNull ?? '',
+  );
 }
 
 /// The steps of one move, rename, reorder, or delete, applied crash-safely.
@@ -186,8 +370,8 @@ final class MoveJournal {
   /// folder a file moves out of sits on another volume than the trash (before
   /// any file moves), or when a step or the journal write fails; the journal
   /// stays in the last case.
-  void run(DocsProject project) {
-    final specstone = Directory(_join(project.projectRoot.path, '.specstone'));
+  void run(JournalTarget target) {
+    final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);
       ensureSpecstoneGitignore(specstone);
@@ -198,17 +382,17 @@ final class MoveJournal {
         'command again',
       );
     }
-    if (steps.any(_movesToTrash)) _requireSameVolume(project, steps);
+    if (steps.any(_movesToTrash)) _requireSameVolume(target, steps);
     try {
-      Directory(_join(project.projectRoot.path, trashPath)).createSync();
+      Directory(_join(target.projectRoot.path, trashPath)).createSync();
       writeFileAtomic(
-        File(_join(project.projectRoot.path, journalPath)),
+        File(_join(target.projectRoot.path, journalPath)),
         utf8.encode(jsonEncode(toJson())),
       );
     } on FileSystemException catch (error) {
       throw _notWritable('write', journalPath, error);
     }
-    _finish(project, steps);
+    _finish(target, steps);
   }
 
   /// Finishes an unfinished journal, then removes the trash folder.
@@ -219,27 +403,40 @@ final class MoveJournal {
   ///
   /// Throws [RenderFault] `output_not_writable` when a step fails, the journal
   /// stays, so the next replay resumes, or when the journal cannot be parsed.
-  static void replay(DocsProject project) {
-    final journal = File(
-      _join(project.projectRoot.path, MoveJournal.journalPath),
-    );
-    if (!journal.existsSync()) {
-      _removeTrash(project);
+  static void replay(JournalTarget target) {
+    final steps = _pendingSteps(target);
+    if (steps == null) {
+      _removeTrash(target);
       return;
     }
-    final List<JournalStep> steps;
-    try {
-      steps = _stepsOf(jsonDecode(journal.readAsStringSync()));
-    } on FormatException catch (error) {
-      throw RenderFault(
-        RenderFaultCode.outputNotWritable,
-        'cannot replay ${MoveJournal.journalPath}: ${error.message}; '
-        'fix or remove it',
-      );
-    } on FileSystemException catch (error) {
-      throw _notWritable('read', MoveJournal.journalPath, error);
-    }
-    _finish(project, steps);
+    _finish(target, steps);
+  }
+
+  /// Returns the steps of the unfinished journal that are not done yet; empty
+  /// when no journal exists.
+  ///
+  /// Throws [RenderFault] `output_not_writable` when the journal cannot be
+  /// parsed.
+  static List<JournalStep> remaining(JournalTarget target) => [
+    for (final step in _pendingSteps(target) ?? const <JournalStep>[])
+      if (!step.isDone(target)) step,
+  ];
+}
+
+/// Returns the steps of the journal file, or null when there is none.
+List<JournalStep>? _pendingSteps(JournalTarget target) {
+  final journal = File(_join(target.projectRoot.path, MoveJournal.journalPath));
+  if (!journal.existsSync()) return null;
+  try {
+    return _stepsOf(jsonDecode(journal.readAsStringSync()));
+  } on FormatException catch (error) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot replay ${MoveJournal.journalPath}: ${error.message}; '
+      'fix or remove it',
+    );
+  } on FileSystemException catch (error) {
+    throw _notWritable('read', MoveJournal.journalPath, error);
   }
 }
 
@@ -266,15 +463,15 @@ bool _movesToTrash(JournalStep step) =>
 /// the trash folder it made. A probe folder that cannot be removed stays;
 /// the next replay removes it from the trash, and a source folder keeps it as
 /// a dot folder.
-void _requireSameVolume(DocsProject project, List<JournalStep> steps) {
+void _requireSameVolume(JournalTarget target, List<JournalStep> steps) {
   final trash = Directory(
-    _join(project.projectRoot.path, MoveJournal.trashPath),
+    _join(target.projectRoot.path, MoveJournal.trashPath),
   );
   final trashExisted = trash.existsSync();
   final sources = {
     for (final step in steps)
       if (step is MoveStep && _movesToTrash(step))
-        File(_absolute(project, step.from)).parent.path,
+        File(_absolute(target, step.from)).parent.path,
   };
   try {
     for (final source in sources) {
@@ -330,24 +527,24 @@ List<JournalStep> _stepsOf(Object? journal) {
 }
 
 /// Applies [steps], then deletes the journal and the trash folder.
-void _finish(DocsProject project, List<JournalStep> steps) {
+void _finish(JournalTarget target, List<JournalStep> steps) {
   for (final step in steps) {
-    step.apply(project);
+    step.apply(target);
   }
   try {
     final journal = File(
-      _join(project.projectRoot.path, MoveJournal.journalPath),
+      _join(target.projectRoot.path, MoveJournal.journalPath),
     );
     if (journal.existsSync()) journal.deleteSync();
   } on FileSystemException catch (error) {
     throw _notWritable('remove', MoveJournal.journalPath, error);
   }
-  _removeTrash(project);
+  _removeTrash(target);
 }
 
-void _removeTrash(DocsProject project) {
+void _removeTrash(JournalTarget target) {
   final trash = Directory(
-    _join(project.projectRoot.path, MoveJournal.trashPath),
+    _join(target.projectRoot.path, MoveJournal.trashPath),
   );
   try {
     if (trash.existsSync()) trash.deleteSync(recursive: true);
@@ -362,15 +559,15 @@ String _join(String root, String relative) =>
     '$root${Platform.pathSeparator}'
     '${relative.split('/').join(Platform.pathSeparator)}';
 
-String _absolute(DocsProject project, String relative) =>
-    _join(project.projectRoot.path, relative);
+String _absolute(JournalTarget target, String relative) =>
+    _join(target.projectRoot.path, relative);
 
 /// Resolves a `docs/`-relative [relative] against the canonical docs root, so
 /// a linked `docs` folder still compares equal to it.
-String _underDocsRoot(DocsProject project, String relative) =>
+String _underDocsRoot(JournalTarget target, String relative) =>
     relative.startsWith('docs/')
-    ? _join(project.docsRoot.path, relative.substring(5))
-    : _absolute(project, relative);
+    ? _join(target.docsRoot.path, relative.substring(5))
+    : _absolute(target, relative);
 
 bool _isInside(String root, String path) =>
     path.startsWith('$root${Platform.pathSeparator}');

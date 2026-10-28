@@ -284,7 +284,7 @@ ReadSession _openReplayed({
   if (!MoveJournal.pending(read.project.projectRoot)) return read;
   try {
     read.store.endSnapshot();
-    read.store.write(() => MoveJournal.replay(read.project));
+    read.store.write(() => MoveJournal.replay(JournalTarget.of(read.project)));
   } finally {
     read.store.close();
   }

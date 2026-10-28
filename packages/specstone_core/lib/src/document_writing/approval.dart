@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:yaml/yaml.dart';
 
@@ -52,26 +52,10 @@ final class UnknownHistory extends ApprovalLookup {
   const new();
 }
 
-/// Runs `git` with [arguments] in [workingDirectory].
-typedef RunGit = ProcessResult Function(
-  List<String> arguments, {
-  required String workingDirectory,
-});
-
-ProcessResult _runRealGit(
-  List<String> arguments, {
-  required String workingDirectory,
-}) => Process.runSync(
-  'git',
-  arguments,
-  workingDirectory: workingDirectory,
-  stdoutEncoding: utf8,
-);
-
-/// Finds the last approved copy of a doc in git; the only code that starts git.
+/// Finds the last approved copy of a doc in git.
 final class ApprovalHistory {
   /// [runGit] replaces the real `git` process, for tests.
-  const new({RunGit? runGit}) : _runGit = runGit ?? _runRealGit;
+  const new({RunGit? runGit}) : _runGit = runGit ?? runRealGit;
 
   final RunGit _runGit;
 
