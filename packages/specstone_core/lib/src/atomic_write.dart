@@ -65,25 +65,18 @@ bool _isBlockedByHandle(FileSystemException error) =>
     Platform.isWindows &&
     _windowsBlockedByHandle.contains(error.osError?.errorCode);
 
-/// Replaces [target] with [bytes] so a reader never sees a partial file.
-///
-/// Deletes the temp sibling and rethrows when the write or the rename fails.
-/// Creates no parent folder.
+/// Renames [entity] to [newPath], returning the renamed entity.
 ///
 /// On Windows a rename onto a file that another handle holds open fails with
 /// error 5 or 32, because Windows refuses the replace unless that handle was
 /// opened with FILE_SHARE_DELETE. The rename retries every 10 ms for up to 1 s
 /// after the first try, as git for Windows does in `mingw_rename`. Any other
 /// error, and every other OS, fails at once.
-///
-/// Throws [FileSystemException] when the folder is missing or the rename fails.
-void writeFileAtomic(File target, List<int> bytes) {
-  final temp = writeTempSibling(target, bytes);
+T renameSyncRetrying<T extends FileSystemEntity>(T entity, String newPath) {
   final clock = Stopwatch()..start();
   while (true) {
     try {
-      temp.renameSync(target.path);
-      return;
+      return entity.renameSync(newPath) as T;
     } on FileSystemException catch (error) {
       final retry =
           _isBlockedByHandle(error) && clock.elapsed < _renameRetryLimit;
@@ -91,8 +84,23 @@ void writeFileAtomic(File target, List<int> bytes) {
         sleep(_renameRetryPause);
         continue;
       }
-      if (temp.existsSync()) temp.deleteSync();
       rethrow;
     }
+  }
+}
+
+/// Replaces [target] with [bytes] so a reader never sees a partial file.
+///
+/// Deletes the temp sibling and rethrows when the write or the rename fails.
+/// Creates no parent folder.
+///
+/// Throws [FileSystemException] when the folder is missing or the rename fails.
+void writeFileAtomic(File target, List<int> bytes) {
+  final temp = writeTempSibling(target, bytes);
+  try {
+    renameSyncRetrying(temp, target.path);
+  } on FileSystemException {
+    if (temp.existsSync()) temp.deleteSync();
+    rethrow;
   }
 }
