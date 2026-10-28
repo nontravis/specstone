@@ -48,4 +48,15 @@ void main() {
     );
     expect(await readRunner(pinned).runner.run(['get', 'login']), 78);
   });
+  test('f01/us04/s8: get prints the section base on the naming line', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run([
+        'get',
+        'user_story:login/email_login#acceptance_criteria',
+      ]),
+      0,
+    );
+    expect(out.toString(), contains('USER_STORY.md · base '));
+  });
 }

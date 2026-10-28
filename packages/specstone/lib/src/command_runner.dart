@@ -3,17 +3,24 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:specstone/src/commands/approve_command.dart';
 import 'package:specstone/src/commands/build_command.dart';
 import 'package:specstone/src/commands/check_command.dart';
 import 'package:specstone/src/commands/context_command.dart';
+import 'package:specstone/src/commands/delete_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/get_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
 import 'package:specstone/src/commands/list_command.dart';
 import 'package:specstone/src/commands/mcp_command.dart';
+import 'package:specstone/src/commands/new_command.dart';
 import 'package:specstone/src/commands/refs_command.dart';
+import 'package:specstone/src/commands/rename_command.dart';
+import 'package:specstone/src/commands/reorder_command.dart';
 import 'package:specstone/src/commands/search_command.dart';
+import 'package:specstone/src/commands/set_command.dart';
 import 'package:specstone/src/commands/structure_command.dart';
+import 'package:specstone/src/console.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Exit status for a usage error (`EX_USAGE` from sysexits), returned when an
@@ -46,6 +53,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Directory? homeDirectory,
     BrowserHost? browserHost,
     Duration busyTimeout = indexBusyTimeout,
+    Console? console,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _templates = templates ?? TemplateResolver(),
@@ -53,6 +61,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        _browserHost = browserHost ?? BrowserHost.system(),
        _busyTimeout = busyTimeout,
+       _console = console ?? SystemConsole(),
        super(
          'specstone',
          'Keeps PRD and spec documents for spec-driven development.',
@@ -73,6 +82,12 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(ContextCommand());
     addCommand(McpCommand());
     addCommand(CheckCommand());
+    addCommand(SetCommand());
+    addCommand(NewCommand());
+    addCommand(ApproveCommand());
+    addCommand(DeleteCommand());
+    addCommand(ReorderCommand());
+    addCommand(RenameCommand());
   }
 
   final StringSink _out;
@@ -82,6 +97,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final Directory? _homeDirectory;
   final BrowserHost _browserHost;
   final Duration _busyTimeout;
+  final Console _console;
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -109,6 +125,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
 
   /// How long a read command waits on another call's index write.
   Duration get busyTimeout => _busyTimeout;
+
+  /// The terminal facts and input the write commands read.
+  Console get console => _console;
 
   @override
   void printUsage() => _out.writeln(usage);

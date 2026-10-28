@@ -171,9 +171,9 @@ void expectSections(MergedDocType docType, List<SectionSpec> expected) {
   );
 }
 
-const _builtInFieldIds = {'slug', 'status', 'draft', 'reference'};
+const _builtInFieldIds = {'slug', 'status', 'draft', 'approved', 'reference'};
 
-/// Expects the fields other than the built-in four, each with a description.
+/// Expects the fields other than the built-in five, each with a description.
 void expectOwnFields(MergedDocType docType, List<FieldSpec> expected) {
   final own = [
     for (final f in docType.fields)

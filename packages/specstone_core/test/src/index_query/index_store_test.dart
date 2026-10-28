@@ -29,7 +29,7 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\n',
+        'index.sqlite*\nbuild/\ntrash/\n',
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
     });
@@ -49,13 +49,13 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        '*.tmp\nindex.sqlite*\nbuild/\n',
+        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\n',
       );
     });
     test(
-      'f01/us01/fr04/e05: a file holding both lines is left untouched',
+      'f01/us01/fr04/e05: a file holding all three lines is left untouched',
       () async {
-        const text = 'build/\n# mine\nindex.sqlite*\n';
+        const text = 'build/\n# mine\ntrash/\nindex.sqlite*\n';
         final r = await writeTree({
           '.specstone/config.yaml': '',
           '.specstone/.gitignore': text,
@@ -64,6 +64,17 @@ void main() {
         expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
       },
     );
+    test('f01/us01/fr04/e05, f02/us04/fr03/e06: a file holding the two F-01 lines gains trash/ at its end', () async {
+      final r = await writeTree({
+        '.specstone/config.yaml': '',
+        '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
+      });
+      ensureSpecstoneGitignore(Directory('${r.path}/.specstone'));
+      expect(
+        file(r, '.specstone/.gitignore').readAsStringSync(),
+        'index.sqlite*\nbuild/\ntrash/\n',
+      );
+    });
     test(
       'f01/us01/fr04/e06, s03/inv23: a read-only .specstone/ is index_not_writable, exit 73, and writes nothing',
       skip: unreadablePathSkipReason(),
@@ -139,7 +150,7 @@ void main() {
         expect(store.readStamp(), isNull);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\n',
+          'index.sqlite*\nbuild/\ntrash/\n',
         );
       },
     );

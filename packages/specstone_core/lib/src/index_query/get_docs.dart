@@ -1,7 +1,11 @@
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _sectionSeparator = '#';
 
@@ -16,18 +20,36 @@ ReadAnswer answerGet(DocIndex index, String address) {
   final name = hash < 0 ? address : address.substring(0, hash);
   final key = hash < 0 ? null : address.substring(hash + 1);
 
-  final blocks = <(IndexedDoc, String)>[];
+  final blocks = <_GetBlock>[];
   for (final doc in index.resolve(name)) {
     final content = index.contentOf(doc);
+    final docType = index.typeOf(doc);
     if (key == null) {
-      blocks.add((doc, content.text));
+      blocks.add(
+        _GetBlock(doc, content.text, bases: basesOf(content, docType)),
+      );
       continue;
     }
     final held = [
       for (final section in content.sections)
-        if (section.key == key) '${section.text}\n',
+        if (section.key == key) section,
     ];
-    if (held.isNotEmpty) blocks.add((doc, held.join()));
+    if (held.isNotEmpty) {
+      blocks.add(
+        _GetBlock(
+          doc,
+          held.map((section) => '${section.text}\n').join(),
+          base: baseHashOf(held.first.body),
+        ),
+      );
+      continue;
+    }
+    final template = docType?.sections.where((s) => s.id == key).firstOrNull;
+    if (template != null) {
+      blocks.add(
+        _GetBlock(doc, '## ${template.header}\n', base: emptyBaseHash),
+      );
+    }
   }
   if (blocks.isEmpty) {
     throw IndexFault(
@@ -37,23 +59,78 @@ ReadAnswer answerGet(DocIndex index, String address) {
   }
 
   return ReadAnswer(
-    text: [
-      for (final (doc, text) in blocks)
-        '${namingLine(doc)}\n${_endedLine(text)}',
-    ].join('\n'),
+    text: [for (final block in blocks) block.printed].join('\n'),
     json: {
       'docs': [
-        for (final (doc, text) in blocks)
+        for (final block in blocks)
           {
-            'name': doc.name,
-            'docType': ?doc.docTypeId,
-            'path': doc.docPath,
+            'name': block.doc.name,
+            'docType': ?block.doc.docTypeId,
+            'path': block.doc.docPath,
             'section': ?key,
-            'text': text,
+            'base': ?block.base,
+            'bases': ?block.bases,
+            'text': block.text,
           },
       ],
     },
   );
+}
+
+/// Returns the base of the title, of each section, and of each field of a doc.
+///
+/// A base is the [baseHashOf] of the target's text: the title with no `# `,
+/// a section's body, a field's whole key block. The result holds `title`,
+/// `sections` keyed by section key, and `fields` keyed by field id. [docType],
+/// when given, lists its sections and fields first, in its order, an absent
+/// one with [emptyBaseHash]; held ones its template lacks follow in file order.
+/// Of two sections or two field blocks sharing a key, the first counts; a doc
+/// with no title has the base of empty text.
+Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
+  final doc = Doc.parse(toLf(content.text));
+
+  final sections = <String, String>{
+    for (final section in docType?.sections ?? const <MergedSection>[])
+      section.id: emptyBaseHash,
+  };
+  final seen = <String>{};
+  for (final section in content.sections) {
+    if (seen.add(section.key)) sections[section.key] = baseHashOf(section.body);
+  }
+
+  final fields = <String, String>{
+    for (final field in docType?.fields ?? const <MergedField>[])
+      field.id: emptyBaseHash,
+  };
+  final seenFields = <String>{};
+  for (final block in doc.frontmatter ?? const <KeyBlock>[]) {
+    if (block.key.isNotEmpty && seenFields.add(block.key)) {
+      fields[block.key] = baseHashOf(block.text);
+    }
+  }
+
+  return {
+    'title': baseHashOf(doc.title ?? ''),
+    'sections': sections,
+    'fields': fields,
+  };
+}
+
+/// One doc `answerGet` prints: its [text] and the base or bases it names.
+final class _GetBlock {
+  const new(this.doc, this.text, {this.base, this.bases});
+
+  final IndexedDoc doc;
+  final String text;
+
+  /// The base of the section [text] holds; null for a whole-doc read.
+  final String? base;
+
+  /// The bases of every target of the doc; null for a section read.
+  final Map<String, Object>? bases;
+
+  /// The naming line, then [text] ended by a line break.
+  String get printed => '${namingLine(doc, base: base)}\n${_endedLine(text)}';
 }
 
 /// Returns [text] ended by a line break, adding one only when it lacks it.
