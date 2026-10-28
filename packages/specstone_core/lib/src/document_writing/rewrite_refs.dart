@@ -107,8 +107,9 @@ String? rewriteDocLinks(
 /// [renamed] maps `(doc type id, old name)` to the new name. Only a key
 /// block of a `doc_ref` field in [fields] changes; a value is a block-list
 /// item, an inline scalar, or a flow-list item, quoted or not, and a value
-/// in the field's `docTypes` is matched by its doc type, any type when the
-/// field names none. Prose, comments, and other fields keep their text.
+/// in the field's `docTypes` is matched by its doc type. A field that names
+/// none changes a value only when every renamed doc it names agrees on one
+/// new name. Prose, comments, and other fields keep their text.
 String? rewriteDocRefs(
   String lfText, {
   required List<MergedField> fields,

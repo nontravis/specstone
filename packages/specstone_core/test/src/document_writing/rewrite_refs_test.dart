@@ -243,6 +243,17 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02, dw-s03/inv10, H17: an href with an entity spelling follows the move', () {
+    expect(
+      rewriteDocLinks(
+        'See [reset](../us03&#95;reset&#95;password/USER_STORY.md).\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      ),
+      'See [reset](../us01_reset_password/USER_STORY.md).\n',
+    );
+  });
+
   test('f02/us06/fr02, H15: a flow list followed by a comment holding brackets renames its item', () {
     const reference = MergedField(
       id: 'reference',
