@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -209,11 +210,7 @@ List<SiblingEntry> siblingsOnDisk(
   try {
     children = container.listSync(followLinks: false);
   } on FileSystemException catch (error) {
-    throw RenderFault(
-      RenderFaultCode.outputNotWritable,
-      'cannot read ${folder.replaceAll(Platform.pathSeparator, '/')}: '
-      '${error.osError?.message ?? error.message}',
-    );
+    throw cannotRead(folder.replaceAll(Platform.pathSeparator, '/'), error);
   }
   for (final entity in children) {
     final isOwn = shape.ownIsFile ? entity is File : entity is Directory;

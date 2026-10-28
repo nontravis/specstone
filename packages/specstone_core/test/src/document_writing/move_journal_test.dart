@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -12,6 +13,21 @@ import '../../helpers/write_fixture.dart';
 
 const _login = 'prds/features/f01_login';
 const _trashDocs = '.specstone/trash/files/docs';
+
+/// Returns a folder on another volume than the temp folder, else null.
+///
+/// Reads `SPECSTONE_OTHER_VOLUME`; on Linux falls back to `/dev/shm` when its
+/// device id differs from the temp folder's.
+Directory? _otherVolume() {
+  final given = Platform.environment['SPECSTONE_OTHER_VOLUME'];
+  if (given != null && given.isNotEmpty) return Directory(given);
+  if (!Platform.isLinux || !Directory('/dev/shm').existsSync()) return null;
+  String deviceOf(String path) =>
+      Process.runSync('stat', ['-c', '%d', path]).stdout.toString().trim();
+  return deviceOf('/dev/shm') == deviceOf(Directory.systemTemp.path)
+      ? null
+      : Directory('/dev/shm');
+}
 
 void main() {
   late Directory root;
@@ -332,4 +348,89 @@ void main() {
     );
     expect(journal.existsSync(), isTrue);
   }, skip: unreadablePathSkipReason() ?? false);
+
+  test(
+    'f02/us04/fr03, dw-s03/inv9, HD1: a docs root on another volume refuses before the journal',
+    () async {
+      final volume = _otherVolume()!;
+      final outside = volume.createTempSync('specstone_docs_');
+      addTearDown(() => outside.deleteSync(recursive: true));
+      final unlinked = writeProject['docs/$fr12']!.replaceFirst(
+        ' See [reset](../us03_reset_password/USER_STORY.md#use-case).',
+        '',
+      );
+      for (final MapEntry(:key, :value) in {
+        ...writeProject,
+        'docs/$fr12': unlinked,
+      }.entries) {
+        if (!key.startsWith('docs/')) continue;
+        File('${outside.path}/${key.substring(5)}')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+      final linked = await writeWriteProject(
+        without: {
+          for (final k in writeProject.keys)
+            if (k.startsWith('docs/')) k,
+        },
+      );
+      Link('${linked.path}/docs').createSync(outside.path);
+
+      expect(
+        () => writeIn(
+          linked,
+          (s) => answerDelete(
+            s,
+            'user_story:login/reset_password',
+            interactive: false,
+            readLine: () => null,
+            prompts: StringBuffer(),
+          ),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (e) => e.message,
+                'message',
+                startsWith('cannot move docs into .specstone/trash: '),
+              ),
+        ),
+      );
+      expect(
+        Directory('${linked.path}/.specstone/trash').existsSync(),
+        isFalse,
+      );
+      expect(File('${outside.path}/$story3').existsSync(), isTrue);
+      expect(
+        File('${outside.path}/.specstone-move-probe').existsSync(),
+        isFalse,
+      );
+      writeIn(linked, (_) {});
+    },
+    skip: Platform.isWindows
+        ? 'links need privileges on Windows'
+        : _otherVolume() == null
+        ? 'no second volume: set SPECSTONE_OTHER_VOLUME'
+        : false,
+  );
+
+  test('dw-s03/inv9, H09: a move step moves a symlink as itself', () {
+    final outside = Directory.systemTemp.createTempSync('specstone_link_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    File('${outside.path}/keep.md').writeAsStringSync('keep\n');
+    final link = Link('${root.path}/docs/prds/shortcut')
+      ..createSync(outside.path);
+
+    const MoveStep(
+      'docs/prds/shortcut',
+      '$_trashDocs/prds/shortcut',
+    ).apply(openProject(root));
+
+    final landed = Link('${root.path}/$_trashDocs/prds/shortcut');
+    expect(landed.existsSync(), isTrue);
+    expect(landed.targetSync(), outside.path);
+    expect(link.existsSync(), isFalse);
+    expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 }

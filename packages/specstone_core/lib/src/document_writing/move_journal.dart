@@ -46,7 +46,8 @@ sealed class JournalStep {
   }
 }
 
-/// Moves a file or a folder, creating the parent folders of the target.
+/// Moves a file, a folder, or a symbolic link as itself, creating the parent
+/// folders of the target.
 ///
 /// Skipped when [from] is gone, because an earlier run already moved it, and
 /// when [to] is a stage slot that is taken, so a replay never lands on what
@@ -80,11 +81,7 @@ final class MoveStep extends JournalStep {
     }
     try {
       Directory(File(target).parent.path).createSync(recursive: true);
-      if (FileSystemEntity.isDirectorySync(source)) {
-        Directory(source).renameSync(target);
-      } else {
-        File(source).renameSync(target);
-      }
+      _entityAt(source).renameSync(target);
     } on FileSystemException catch (error) {
       throw _notWritable('move', from, error);
     }
@@ -185,8 +182,10 @@ final class MoveJournal {
   /// trash folder.
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
-  /// cannot be written, and [RenderFault] `output_not_writable` when a step
-  /// or the journal write fails; the journal stays in the second case.
+  /// cannot be written, and [RenderFault] `output_not_writable` when the docs
+  /// root sits on another volume than the trash (before any file moves), or
+  /// when a step or the journal write fails; the journal stays in the last
+  /// case.
   void run(DocsProject project) {
     final specstone = Directory(_join(project.projectRoot.path, '.specstone'));
     try {
@@ -199,6 +198,7 @@ final class MoveJournal {
         'command again',
       );
     }
+    if (steps.any(_movesToTrash)) _requireSameVolume(project);
     try {
       Directory(_join(project.projectRoot.path, trashPath)).createSync();
       writeFileAtomic(
@@ -240,6 +240,49 @@ final class MoveJournal {
       throw _notWritable('read', MoveJournal.journalPath, error);
     }
     _finish(project, steps);
+  }
+}
+
+/// Returns [path] as the kind of entity it is, never following a link.
+FileSystemEntity _entityAt(String path) =>
+    switch (FileSystemEntity.typeSync(path, followLinks: false)) {
+      FileSystemEntityType.link => Link(path),
+      FileSystemEntityType.directory => Directory(path),
+      _ => File(path),
+    };
+
+/// Whether [step] moves a file or folder into the trash folder.
+bool _movesToTrash(JournalStep step) =>
+    step is MoveStep && step.to.startsWith('${MoveJournal.trashPath}/');
+
+/// The name of the file [_requireSameVolume] renames and removes.
+const _probeName = 'move-probe';
+
+/// Throws [RenderFault] `output_not_writable` when a file cannot be renamed
+/// from the docs root into `.specstone/`, as a docs root linked to another
+/// volume cannot.
+///
+/// Probes with a throwaway file, so the refusal comes before the journal and
+/// nothing is left half moved.
+void _requireSameVolume(DocsProject project) {
+  final probe = File(_join(project.docsRoot.path, '.specstone-$_probeName'));
+  final landing = File(
+    _join(project.projectRoot.path, '.specstone/$_probeName'),
+  );
+  try {
+    probe
+      ..writeAsStringSync('')
+      ..renameSync(landing.path);
+  } on FileSystemException catch (error) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot move docs into ${MoveJournal.trashPath}: '
+      '${error.osError?.message ?? error.message}',
+    );
+  } finally {
+    for (final file in [probe, landing]) {
+      if (file.existsSync()) file.deleteSync();
+    }
   }
 }
 
