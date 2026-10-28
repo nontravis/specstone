@@ -1,9 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
-import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -210,6 +208,13 @@ ParsedDoc parseIndexedDoc({
   final sections = [
     for (final section in doc.sections) _sectionOf(section, docType),
   ];
+  final lineFacts = LineFacts.of(
+    lfText: lfText,
+    docPath: docPath,
+    doc: doc,
+    sectionCounts: [for (final section in sections) sectionCountsOf(section)],
+    frontmatterErrorLine: yaml?.errorLine,
+  );
   final content = DocContent(
     text: text,
     frontmatterText: doc.frontmatter == null
@@ -217,13 +222,8 @@ ParsedDoc parseIndexedDoc({
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
     head: doc.head,
     sections: sections,
-    links: _linksOf(doc.afterFrontmatter, docPath),
-    lineFacts: LineFacts.of(
-      lfText: lfText,
-      doc: doc,
-      sectionCounts: [for (final section in sections) sectionCountsOf(section)],
-      frontmatterErrorLine: yaml?.errorLine,
-    ),
+    links: {for (final place in lineFacts.links) place.target}.toList(),
+    lineFacts: lineFacts,
   );
   final indexed = IndexedDoc(
     docPath: docPath,
@@ -292,28 +292,3 @@ Object? _plain(Object? value) => switch (value) {
   double(isInfinite: true) => '.inf',
   _ => value,
 };
-
-List<String> _linksOf(String lfBody, String docPath) {
-  // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
-  // is absolute, so it never resolves to a doc.
-  if (!lfBody.contains('](') && !lfBody.contains(']:')) return const [];
-  final links = <String>{};
-  void visit(List<Node> nodes) {
-    for (final node in nodes) {
-      if (node is! Element) continue;
-      if (node.tag == 'a') {
-        final target = resolveDocLink(node.attributes['href'] ?? '', docPath);
-        if (target is DocTarget &&
-            target.docPath.endsWith('.md') &&
-            target.docPath != docPath) {
-          links.add(target.docPath);
-        }
-      }
-      final children = node.children;
-      if (children != null) visit(children);
-    }
-  }
-
-  visit(Document(extensionSet: ExtensionSet.gitHubFlavored).parse(lfBody));
-  return links.toList();
-}

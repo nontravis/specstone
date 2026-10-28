@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:yaml/yaml.dart';
@@ -43,8 +44,8 @@ final class DocLines {
   /// The code points of the LF text.
   int get charCount => _facts.charCount;
 
-  /// The line of the first `# ` head line, or null without one.
-  int? get titleLine => _facts.titleLine;
+  /// The doc links that resolve to another `.md` doc, in source order.
+  List<LinkPlace> get links => _facts.links;
 
   /// The header line of each section, in the order of `Doc.sections`.
   List<int> get sectionLines => _facts.sectionLines;

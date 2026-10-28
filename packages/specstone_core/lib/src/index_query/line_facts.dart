@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
 
@@ -46,8 +47,7 @@ List<String> lfLinesOf(String lfText) {
 /// A check reads these instead of parsing the text again.
 final class LineFacts {
   const new({
-    required this.bodyLine,
-    required this.titleLine,
+    required this.links,
     required this.sectionLines,
     required this.sectionCounts,
     required this.fenced,
@@ -56,13 +56,14 @@ final class LineFacts {
     required this.frontmatterErrorLine,
   });
 
-  /// Computes the facts of [lfText], its [doc], and the [sectionCounts] of
-  /// each section of [doc].
+  /// Computes the facts of [lfText], its [doc] at [docPath], and the
+  /// [sectionCounts] of each section of [doc].
   ///
   /// [lfText] is the file text with LF line ends, and [frontmatterErrorLine]
   /// is `FrontmatterYaml.errorLine` of its frontmatter.
   factory of({
     required String lfText,
+    required String docPath,
     required Doc doc,
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
@@ -71,11 +72,13 @@ final class LineFacts {
         ? ''
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
     final bodyStart = _lineCount(prefix);
-    final titleIndex = doc.titleLineIndex;
     final whole = scanText(lfText);
     return LineFacts(
-      bodyLine: bodyStart + 1,
-      titleLine: titleIndex == null ? null : bodyStart + titleIndex + 1,
+      links: linkPlacesOf(
+        doc.afterFrontmatter,
+        docPath: docPath,
+        firstLine: bodyStart + 1,
+      ),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
@@ -93,8 +96,15 @@ final class LineFacts {
   }) {
     final fenced = json['fenced']! as List<Object?>;
     return LineFacts(
-      bodyLine: json['body']! as int,
-      titleLine: json['title'] as int?,
+      links: [
+        for (final place
+            in (json['links']! as List<Object?>).cast<List<Object?>>())
+          (
+            target: place[0]! as String,
+            line: place[1]! as int,
+            shown: place[2]! as String,
+          ),
+      ],
       sectionLines: (json['sections']! as List<Object?>).cast<int>(),
       sectionCounts: sectionCounts,
       fenced: [
@@ -107,11 +117,8 @@ final class LineFacts {
     );
   }
 
-  /// The line the doc body starts on: after the frontmatter, else 1.
-  final int bodyLine;
-
-  /// The line of the first `# ` head line, or null without one.
-  final int? titleLine;
+  /// The doc links that resolve to another `.md` doc, in source order.
+  final List<LinkPlace> links;
 
   /// The header line of each section, in the order of `Doc.sections`.
   final List<int> sectionLines;
@@ -158,8 +165,9 @@ final class LineFacts {
 
   /// Returns the facts as JSON values, apart from [sectionCounts].
   Map<String, Object?> toJson() => {
-    'body': bodyLine,
-    'title': titleLine,
+    'links': [
+      for (final place in links) [place.target, place.line, place.shown],
+    ],
     'sections': sectionLines,
     'fenced': [
       for (final range in fenced) [range.first, range.last],

@@ -33,7 +33,7 @@ const _notWritableMessage =
 /// Bump it on every change to [_schema], so an index of another layout is
 /// rebuilt instead of failing a read (INV-2). An older build's reset recreates
 /// the meta row without it, so its index is rebuilt too.
-const _layoutVersion = 2;
+const _layoutVersion = 3;
 
 const _schema = '''
 CREATE TABLE meta (

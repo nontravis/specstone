@@ -337,7 +337,6 @@ void main() {
       expect(stored.lines, direct.lines);
       expect(stored.lineCount, direct.lineCount);
       expect(stored.charCount, direct.charCount);
-      expect(stored.titleLine, direct.titleLine);
       expect(stored.sectionLines, direct.sectionLines);
       expect(stored.sectionCounts, direct.sectionCounts);
       expect(stored.entriesOf('traced_from'), direct.entriesOf('traced_from'));
