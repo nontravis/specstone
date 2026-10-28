@@ -1,5 +1,5 @@
-import 'package:specstone_core/src/consistency_check/section_counts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:test/test.dart';
 
 void main() {

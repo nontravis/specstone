@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -32,7 +33,7 @@ const _notWritableMessage =
 /// Bump it on every change to [_schema], so an index of another layout is
 /// rebuilt instead of failing a read (INV-2). An older build's reset recreates
 /// the meta row without it, so its index is rebuilt too.
-const _layoutVersion = 1;
+const _layoutVersion = 2;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -57,6 +58,7 @@ CREATE TABLE docs (
   text TEXT NOT NULL,
   frontmatter_text TEXT,
   head TEXT NOT NULL,
+  line_facts TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
   stat_ctime INTEGER,
@@ -68,6 +70,8 @@ CREATE TABLE sections (
   section_key TEXT NOT NULL,
   header_line TEXT NOT NULL,
   body TEXT NOT NULL,
+  line_count INTEGER NOT NULL,
+  char_count INTEGER NOT NULL,
   PRIMARY KEY (doc_path, position)
 );
 CREATE TABLE links (
@@ -312,8 +316,8 @@ final class IndexStore {
     deleteDoc(doc.docPath);
     _db.execute(
       'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
-      'tokens, ord, warnings, content_hash, text, frontmatter_text, head) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'tokens, ord, warnings, content_hash, text, frontmatter_text, head, '
+      'line_facts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -327,6 +331,7 @@ final class IndexStore {
         content.text,
         content.frontmatterText,
         content.head,
+        jsonEncode(content.lineFacts.toJson()),
       ],
     );
     final docId = _db.lastInsertRowId;
@@ -347,10 +352,19 @@ final class IndexStore {
       );
     }
     for (final (position, section) in content.sections.indexed) {
+      final counts = content.lineFacts.sectionCounts[position];
       _db.execute(
         'INSERT INTO sections (doc_path, position, section_key, header_line, '
-        'body) VALUES (?, ?, ?, ?, ?)',
-        [doc.docPath, position, section.key, section.headerLine, section.body],
+        'body, line_count, char_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          doc.docPath,
+          position,
+          section.key,
+          section.headerLine,
+          section.body,
+          counts.lines,
+          counts.chars,
+        ],
       );
     }
     for (final (position, target) in content.links.indexed) {
@@ -447,19 +461,21 @@ final class IndexStore {
   /// Returns the text and structure of the doc at [docPath].
   DocContent loadContent(String docPath) {
     final doc = _db.select(
-      'SELECT text, frontmatter_text, head FROM docs WHERE doc_path = ?',
+      'SELECT text, frontmatter_text, head, line_facts FROM docs '
+      'WHERE doc_path = ?',
       [docPath],
     ).single;
+    final rows = _db.select(
+      'SELECT section_key, header_line, body, line_count, char_count '
+      'FROM sections WHERE doc_path = ? ORDER BY position',
+      [docPath],
+    );
     return DocContent(
       text: doc['text'] as String,
       frontmatterText: doc['frontmatter_text'] as String?,
       head: doc['head'] as String,
       sections: [
-        for (final row in _db.select(
-          'SELECT section_key, header_line, body FROM sections '
-          'WHERE doc_path = ? ORDER BY position',
-          [docPath],
-        ))
+        for (final row in rows)
           IndexedSection(
             key: row['section_key'] as String,
             headerLine: row['header_line'] as String,
@@ -473,6 +489,13 @@ final class IndexStore {
         ))
           row['target'] as String,
       ],
+      lineFacts: LineFacts.fromJson(
+        jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
+        sectionCounts: [
+          for (final row in rows)
+            (lines: row['line_count'] as int, chars: row['char_count'] as int),
+        ],
+      ),
     );
   }
 

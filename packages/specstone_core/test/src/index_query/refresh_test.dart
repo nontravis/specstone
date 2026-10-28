@@ -333,6 +333,37 @@ void main() {
       expect(result.fullBuild, isTrue);
       expect(paths(store), hasLength(25));
     });
+    test('f04/nfr-p03, s03/inv2: an index at layout 1, with no line facts, is rebuilt to layout 2 with them', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute('ALTER TABLE docs DROP COLUMN line_facts')
+        ..execute('ALTER TABLE sections DROP COLUMN line_count')
+        ..execute('ALTER TABLE sections DROP COLUMN char_count')
+        ..execute('UPDATE meta SET layout = 1')
+        ..close();
+      final (:result, :store) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      expect(paths(store), hasLength(25));
+      final facts = store
+          .loadContent('prds/features/f01_login/FEATURE.md')
+          .lineFacts;
+      expect(facts.lineCount, greaterThan(0));
+      final after = sqlite3.open('${project.path}/$indexFilePath');
+      addTearDown(after.close);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 2);
+    });
+    test(
+      'f04/nfr-p03, s03/inv2: an index at the current layout is not rebuilt',
+      () async {
+        final project = await writeLoginProject();
+        refresh(project);
+        backdate(project);
+        refresh(project);
+        final (:result, store: _) = refresh(project);
+        expect(result.fullBuild, isFalse);
+      },
+    );
     test('f01/us01/fr05/e01, s03/inv23: a call that waited for the lock finds the stamp current and does not rebuild', () async {
       final project = await writeLoginProject();
       refresh(project);

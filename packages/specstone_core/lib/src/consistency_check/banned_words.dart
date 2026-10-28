@@ -43,11 +43,7 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
     final prefix = template?.linePrefix;
     final headerLine = docLines.sectionLines[i];
     final sectionKey = template?.id ?? section.key;
-    for (final (lineIndex, line) in _sectionLines(
-      section,
-      docLines.lines,
-      headerLine,
-    )) {
+    for (final (lineIndex, line) in _sectionLines(section, headerLine)) {
       final onPrefixLine = prefix == null || line.startsWith(prefix);
       for (final (:word, :pattern) in onPrefixLine ? onPrefix : everywhere) {
         if (!pattern.hasMatch(line)) continue;
@@ -77,14 +73,13 @@ List<({String word, RegExp pattern})> _patternsOf(
       (word: word, pattern: context.bannedPatternOf(word)),
 ];
 
-/// Returns the header line and body lines of [section] at [headerLine], from
-/// [lines].
+/// Returns the header line and body lines of [section], which starts at file
+/// line [headerLine].
 Iterable<(int, String)> _sectionLines(
   IndexedSection section,
-  List<String> lines,
   int headerLine,
 ) sync* {
-  yield (headerLine, lines[headerLine - 1]);
+  yield (headerLine, section.headerLine);
   final body = section.body.split('\n');
   if (body.last.isEmpty && body.length > 1) body.removeLast();
   for (var j = 0; j < body.length; j++) {
