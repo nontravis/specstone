@@ -181,6 +181,77 @@ const duplicateGroupLegacy = <String, String>{
   'docs/prds/features/core/cr02_utilities/yy01_b/FEATURE.md': '# F-01 — B\n',
 };
 
+/// `acmeLegacy` plus a second feature and the spec files its rules must
+/// place, leave, or refuse.
+final specEdgeLegacy = <String, String>{
+  ...acmeLegacy,
+  'docs/prds/d04_glossary.md': '# Glossary\n',
+  'docs/prds/features/f02_billing/FEATURE.md': '''
+---
+name: Billing
+---
+
+# F-02 — Billing
+''',
+  'docs/specs/INDEX.md': '''
+# Spec index
+
+## Global SoT files
+
+| File | Holds |
+|------|-------|
+| `specs/schema.dbml` | schema |
+
+## Spec map
+
+| Code path | Spec path | feature_id | cross-cutting | Notes |
+|-----------|-----------|------------|---------------|-------|
+| `api/auth/` | `specs/api/auth/` | `f01_login` | — | auth API |
+| `shared/` | `specs/shared/` | — | yes | shared code |
+| `api/billing/` | `specs/api/billing/` | `f02_billing` | — | billing API |
+| `web/billing_ui/` | `specs/web/billing_ui/` | `f02_billing` | — | billing UI |
+| `two/` | `specs/two/` | `f01_login` | — | first owner |
+| `two/` | `specs/two/` | `f02_billing` | — | second owner |
+| `ghost/` | `specs/ghost/` | `f09_ghost` | — | no such feature |
+''',
+  'docs/specs/api/billing/s01_architecture.md': '''
+---
+name: Billing architecture
+feature_id: f02_billing
+---
+
+# S-01 — Billing architecture
+''',
+  'docs/specs/web/billing_ui/s01_architecture.md': '''
+---
+name: Billing UI architecture
+feature_id: f02_billing
+---
+
+# S-01 — Billing UI architecture
+
+See [domain](../../api/billing/s04_domain.md).
+''',
+  'docs/specs/api/billing/s04_domain.md': '# S-04 — Billing domain\n',
+  'docs/specs/api/billing/s02_errors.md': '# S-02 — Billing errors\n',
+  'docs/specs/api/billing/s07_sequence.md': '# S-07 — Billing sequence\n',
+  'docs/specs/orphan/s01_architecture.md': '# S-01 — Orphan\n',
+  'docs/specs/two/s01_architecture.md': '# S-01 — Two owners\n',
+  'docs/specs/ghost/s01_architecture.md': '# S-01 — Ghost\n',
+  'docs/specs/schema.dbml': 'Table t {}\n',
+  'docs/specs/architecture/caching.md': '''
+---
+name: Caching
+applies_to:
+  - api/auth/
+  - api/billing/
+---
+
+# Caching
+''',
+  'docs/specs/architecture/caching.schema.json': '{}\n',
+};
+
 /// Writes [files] under a new temp folder and commits them in a git repo.
 Future<Directory> gitFixture(Map<String, String> files) async {
   final root = await writeTree(files);
