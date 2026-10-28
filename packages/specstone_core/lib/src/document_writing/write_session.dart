@@ -8,7 +8,8 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
-import 'package:specstone_core/src/rendering/doc_reader.dart' show utf8Bom;
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show startsWithUtf8Bom, utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -203,10 +204,7 @@ final class WriteSession {
         'cannot write $docPath: not UTF-8 text',
       );
     }
-    final hasBom =
-        bytes.length >= utf8Bom.length &&
-        utf8Bom.indexed.every((e) => bytes[e.$1] == e.$2);
-    hasBom ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
+    startsWithUtf8Bom(bytes) ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
     return bytes;
   }
 

@@ -11,6 +11,11 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// The UTF-8 byte order mark, which `utf8.decode` drops from a decoded text.
 const utf8Bom = [0xEF, 0xBB, 0xBF];
 
+/// Whether [bytes] begin with the UTF-8 byte order mark.
+bool startsWithUtf8Bom(List<int> bytes) =>
+    bytes.length >= utf8Bom.length &&
+    utf8Bom.indexed.every((e) => bytes[e.$1] == e.$2);
+
 /// One doc file read and classified by [readDoc].
 sealed class DocRead {
   const new(this.path);
@@ -127,16 +132,9 @@ DocRead _readFile(DocsProject project, File file, String docPath) {
         path,
         text: text,
         lineEnding: LineEnding.of(text),
-        hasBom: _startsWithBom(bytes),
+        hasBom: startsWithUtf8Bom(bytes),
         docType: docType,
         doc: Doc.parse(toLf(text)),
       );
   }
 }
-
-bool _startsWithBom(List<int> bytes) =>
-    bytes.length >= utf8Bom.length &&
-    bytes
-        .sublist(0, utf8Bom.length)
-        .indexed
-        .every((e) => e.$2 == utf8Bom[e.$1]);

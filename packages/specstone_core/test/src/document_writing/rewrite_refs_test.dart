@@ -217,6 +217,75 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02, dw-s03/inv10, H14: a link-shaped frontmatter value keeps its text; the same link in the body follows', () {
+    const link = '[sign out](../us02_sign_out/USER_STORY.md)';
+    expect(
+      rewriteDocLinks(
+        '---\nsee: $link\n---\n\nSee $link.\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      ),
+      '---\nsee: $link\n---\n\n'
+      'See [sign out](../us03_sign_out/USER_STORY.md).\n',
+    );
+  });
+
+  test('f02/us05/fr02, dw-s03/inv10, H17: an href with a backslash escape follows the move', () {
+    expect(
+      rewriteDocLinks(
+        r'See [reset](../us03\_reset\_password/USER_STORY.md) and '
+        '[again](../us03_reset_password/USER_STORY.md).\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      ),
+      'See [reset](../us01_reset_password/USER_STORY.md) and '
+      '[again](../us01_reset_password/USER_STORY.md).\n',
+    );
+  });
+
+  test('f02/us06/fr02, H15: a flow list followed by a comment holding brackets renames its item', () {
+    const reference = MergedField(
+      id: 'reference',
+      type: FieldType.docRef,
+      list: true,
+    );
+    expect(
+      rewriteDocRefs(
+        '---\nreference: [a, buyer] # see [x]\n---\n',
+        fields: [reference],
+        renamed: {('persona', 'buyer'): 'shopper'},
+      ),
+      '---\nreference: [a, shopper] # see [x]\n---\n',
+    );
+  });
+
+  test('f02/us06/fr02, dw-s03/inv10, HD3: with no docTypes, a value two renamed docs take to different names keeps its text, and one they agree on follows', () {
+    const reference = MergedField(id: 'reference', type: FieldType.docRef);
+    const text = '---\nreference: buyer\n---\n';
+    expect(
+      rewriteDocRefs(
+        text,
+        fields: [reference],
+        renamed: {
+          ('persona', 'buyer'): 'shopper',
+          ('actor', 'buyer'): 'customer',
+        },
+      ),
+      isNull,
+    );
+    expect(
+      rewriteDocRefs(
+        text,
+        fields: [reference],
+        renamed: {
+          ('persona', 'buyer'): 'shopper',
+          ('actor', 'buyer'): 'shopper',
+        },
+      ),
+      '---\nreference: shopper\n---\n',
+    );
+  });
+
   test('f02/us05/fr02/e03, f02/us05/fr02/e06, f02/us05/fr02/e07, f02/us06/fr02/e04, f02/us06/fr02/e05: planRewrites reaches untyped referrers, never code, and keeps the marks', () async {
     root = await writeWriteProject(
       extra: {
