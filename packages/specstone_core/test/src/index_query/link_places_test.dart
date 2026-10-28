@@ -105,6 +105,18 @@ void main() {
       expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
     });
 
+    test('f04/us02/fr04, f04/nfr-p03, FN4: 40,000 escaped openers sharing one '
+        'close before a long destination are scanned within one second', () {
+      final body = '[${r'\[' * 40000}](${' ' * 40000}zzzzz)\n\n[l](b.md)\n';
+      final watch = Stopwatch()..start();
+
+      final places = placesOf(body);
+      watch.stop();
+
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
     test('f04/us02/fr04, FN4: a reference whose text has blank runs and '
         'capitals is placed at its use', () {
       final places = placesOf('[foo bar]: b.md\n\n[Foo   Bar]\n');

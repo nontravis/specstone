@@ -33,17 +33,13 @@ List<LinkPlace> linkPlacesOf(
     usesOf.putIfAbsent(_normalize(use.dest), () => []).add(use);
   }
   final taken = <String, int>{};
-  for (final href in placed) {
-    final docPathOf = switch (resolveDocLink(href, docPath)) {
-      DocTarget(:final docPath) => docPath,
-      _ => null,
-    };
+  for (final (:href, :docPath) in placed) {
     final sameHref = usesOf[href] ?? const <_Use>[];
     final nth = taken[href] ?? 0;
     taken[href] = nth + 1;
     final use = nth < sameHref.length ? sameHref[nth] : null;
     places.add((
-      target: docPathOf!,
+      target: docPath,
       line: use?.line ?? 1,
       shown: use?.dest ?? href,
     ));
@@ -54,16 +50,22 @@ List<LinkPlace> linkPlacesOf(
 /// A link written in the source: its destination as written and its line.
 typedef _Use = ({String dest, int line});
 
-/// Returns the hrefs [linkPlacesOf] places and the longest one's length.
+/// A placed href together with the doc path it resolved to.
+typedef _PlacedHref = ({String href, String docPath});
+
+/// Returns the hrefs [linkPlacesOf] places, each with the doc path it
+/// resolved to, and the longest placed href's length.
 ///
 /// The filter runs once here, for both consumers: `_scanUses` compares a
 /// candidate destination's length against the length (R2), and
-/// `linkPlacesOf` loops over the filtered hrefs to place each one.
-({List<String> placed, int longestHref}) _placedHrefs(
+/// `linkPlacesOf` loops over the filtered hrefs to place each one. Each
+/// href resolves exactly once: the caller reads the doc path from here
+/// instead of resolving again.
+({List<_PlacedHref> placed, int longestHref}) _placedHrefs(
   String docPath,
   List<String> hrefs,
 ) {
-  final placed = <String>[];
+  final placed = <_PlacedHref>[];
   var longest = 0;
   for (final href in hrefs) {
     final target = resolveDocLink(href, docPath);
@@ -72,7 +74,7 @@ typedef _Use = ({String dest, int line});
         target.docPath == docPath) {
       continue;
     }
-    placed.add(href);
+    placed.add((href: href, docPath: target.docPath));
     if (href.length > longest) longest = href.length;
   }
   return (placed: placed, longestHref: longest);
@@ -105,7 +107,9 @@ final _span = RegExp('`[^`\n]*`');
 ///   than [maxHref]; a longer one makes no use, because normalization never
 ///   shortens a destination and a use matters only for a placed href.
 /// - R3: the destination or label after a close is computed once per close
-///   offset, not once per opener that shares the close.
+///   offset, not once per opener that shares the close. A null result is
+///   cached too (`putIfAbsent`), because a null held by `??=` would never
+///   land in the map and every sharing opener would recompute it.
 List<_Use> _scanUses(String body, int firstLine, int maxHref) {
   final masked = _masked(body);
   final definitions = <String, String>{};
@@ -343,14 +347,20 @@ String? _destAfter(
     final end = parens[textEnd + 1];
     if (end == null) return null;
     // R3: the inline destination of a close is the same for every opener
-    // that shares it, so it is computed once per close offset.
-    return inlineByEnd[end] ??= _inlineDestByOffsets(
-      text,
-      textEnd + 1,
+    // that shares it, so it is computed once per close offset. A stored
+    // null (no destination) counts too, so `putIfAbsent`, not `??=`: a
+    // null held by `??=` would never land in the map and every opener
+    // that shares the close would recompute it.
+    return inlineByEnd.putIfAbsent(
       end,
-      nextAngle,
-      nextBlank,
-      maxHref,
+      () => _inlineDestByOffsets(
+        text,
+        textEnd + 1,
+        end,
+        nextAngle,
+        nextBlank,
+        maxHref,
+      ),
     );
   }
   if (after == '[') {
@@ -371,12 +381,11 @@ String? _destAfter(
       );
       return linkLabel == null ? null : definitions[linkLabel];
     }
-    final cached = labelByEnd[end] ??= _labelSpan(
-      text,
-      textEnd + 2,
+    // A stored null label counts too, so `putIfAbsent`, not `??=` (same
+    // reason as [inlineByEnd] above).
+    final cached = labelByEnd.putIfAbsent(
       end,
-      closes,
-      longestKey,
+      () => _labelSpan(text, textEnd + 2, end, closes, longestKey),
     );
     return cached == null ? null : definitions[cached];
   }
