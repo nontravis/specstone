@@ -322,7 +322,7 @@ void main() {
     test('f04/nfr-p03: the lines a check reads from a stored doc equal those it reads from the text', () async {
       const text =
           '---\ntraced_from:\n  - S1\n  - S2\n---\n\n# T\n\n'
-          '## A\nx\n```\n## no\n```\n';
+          '## A\nx [b](B.md)\n```\n## no\n```\n';
       final store = IndexStore.open(await root());
       addTearDown(store.close);
       store.write(() {
@@ -337,6 +337,8 @@ void main() {
       expect(stored.lines, direct.lines);
       expect(stored.lineCount, direct.lineCount);
       expect(stored.charCount, direct.charCount);
+      expect(stored.links, direct.links);
+      expect(stored.links, isNotEmpty);
       expect(stored.sectionLines, direct.sectionLines);
       expect(stored.sectionCounts, direct.sectionCounts);
       expect(stored.entriesOf('traced_from'), direct.entriesOf('traced_from'));

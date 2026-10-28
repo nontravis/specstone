@@ -13,7 +13,7 @@ import 'package:yaml/yaml.dart';
 /// `text` is the item's source text, its span.
 typedef YamlEntry = ({Object? value, int line, String text});
 
-/// The 1-based file lines of a doc's title, sections, and frontmatter items.
+/// The 1-based file lines of a doc's links, sections, and frontmatter items.
 ///
 /// The line facts come from the index. The lines of text and the frontmatter
 /// YAML are read on first use, so a rule that needs neither never pays for
@@ -23,6 +23,9 @@ final class DocLines {
 
   /// Reads [text], a file's decoded text with any line ends, the way a
   /// refresh stores it.
+  ///
+  /// The empty docPath resolves no link relative to a folder, so [links] are
+  /// those of a doc at the docs root. Only tests call this.
   factory of(String text) => DocLines.from(
     parseIndexedDoc(
       docPath: '',
