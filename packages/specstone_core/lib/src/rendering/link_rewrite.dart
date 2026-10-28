@@ -106,9 +106,13 @@ class _Attribute {
   /// The attribute name in ASCII lower case.
   final String name;
 
-  /// The span of the value, quotes excluded.
+  /// The index of the first character of the value, quotes excluded.
   final int start;
+
+  /// The index after the last character of the value, quotes excluded.
   final int end;
+
+  /// The value as written, between [start] and [end].
   final String value;
 }
 

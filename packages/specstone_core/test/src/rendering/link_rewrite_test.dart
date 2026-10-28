@@ -357,6 +357,60 @@ void main() {
       expect(html, contains('<a href="#doc-1-q">go</a>'));
     });
 
+    test('f05/us02/fr03/e04, s03/inv23, FM8: of a repeated attribute name the '
+        'first wins', () {
+      final html = body('<div id="a" id="b">x</div>\n\n[1](#a) [2](#b)\n');
+
+      expect(html, contains('<div id="doc-1-a" id="b">'));
+      expect(html, contains('<a href="#doc-1-a">1</a>'));
+      expect(html, contains('<a href="#doc-1">2</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: an end tag, a declaration, and a '
+        'processing instruction hold no id', () {
+      final html = body(
+        '<div id="a">x</div>\n\n</p id="e">\n\n<!DOCTYPE html id="d">\n\n'
+        '<?pi id="p"?>\n\n[1](#e) [2](#d) [3](#p)\n',
+      );
+
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains('id="e"'));
+      expect(html, contains('id="d"'));
+      expect(html, contains('id="p"'));
+      expect(html, isNot(contains('doc-1-e')));
+      expect(html, isNot(contains('doc-1-d')));
+      expect(html, isNot(contains('doc-1-p')));
+      expect('href="#doc-1"'.allMatches(html), hasLength(3));
+    });
+
+    test('f05/us02/fr03/e04, s03/inv23, FM8: a single-quoted and an upper-case '
+        'href reach the scoped fragment', () {
+      final html = body(
+        '<div id="a">x</div>\n\n<a href=\'#a\'>1</a> <a HREF="#a">2</a>\n',
+      );
+
+      expect(html, contains("<a href='#doc-1-a'>1</a>"));
+      expect(html, contains('<a HREF="#doc-1-a">2</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: an unterminated comment leaves '
+        'the rest of the text unchanged', () {
+      final html = body('<div id="a">x</div>\n\n<!-- <a id="c"></a>\n');
+
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains('<!-- <a id="c"></a>'));
+      expect(html, isNot(contains('doc-1-c')));
+    });
+
+    test('f05/us02/fr03/e04, s03/inv23, FM8: an unterminated quoted value '
+        'leaves the rest of the text unchanged', () {
+      final html = body('<div id="a">x</div>\n\n<div title="oops id="b">\n');
+
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains('<div title="oops id="b">'));
+      expect(html, isNot(contains('doc-1-b')));
+    });
+
     test(
       'f05/us02/fr03: two docs with a footnote [^1] and a raw id get '
       'distinct ids and every in-page link lands on an id of the page',
