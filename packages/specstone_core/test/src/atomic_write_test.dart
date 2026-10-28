@@ -1,8 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:test/test.dart';
+
+/// Opens [args].$1 for 300 ms, signalling `open` then `closed` on [args].$2.
+Future<void> _holdOpen((String, SendPort) args) async {
+  final (path, port) = args;
+  final handle = File(path).openSync();
+  port.send('open');
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+  handle.closeSync();
+  port.send('closed');
+}
 
 void main() {
   late Directory folder;
@@ -56,6 +68,31 @@ void main() {
       );
 
       expect(Directory('${folder.path}/missing').existsSync(), isFalse);
+    });
+
+    test('f01/us01/fr04, s03/inv22, NFR-DI01, FM2: a replace outwaits a reader that holds the target open for 300 ms', () async {
+      final file = File('${folder.path}/.gitignore')
+        ..writeAsStringSync('old\n');
+      final path = file.path;
+      final signal = ReceivePort();
+      final opened = Completer<void>();
+      final closed = Completer<void>();
+      signal.listen((message) {
+        if (message == 'open') opened.complete();
+        if (message == 'closed') closed.complete();
+      });
+      final holder = await Isolate.spawn(_holdOpen, (path, signal.sendPort));
+      await opened.future;
+      try {
+        writeFileAtomic(file, utf8.encode('new\n'));
+      } finally {
+        await closed.future;
+        signal.close();
+        holder.kill();
+      }
+
+      expect(file.readAsStringSync(), 'new\n');
+      expect(tempNames(), isEmpty);
     });
   });
 
