@@ -6,14 +6,46 @@ import 'dart:isolate';
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:test/test.dart';
 
-/// Opens [args].$1 for 300 ms, signalling `open` then `closed` on [args].$2.
-Future<void> _holdOpen((String, SendPort) args) async {
-  final (path, port) = args;
+/// Opens the path for the duration, signalling `open` then `closed`.
+Future<void> _holdOpen((String, Duration, SendPort) args) async {
+  final (path, hold, port) = args;
   final handle = File(path).openSync();
   port.send('open');
-  await Future<void>.delayed(const Duration(milliseconds: 300));
+  await Future<void>.delayed(hold);
   handle.closeSync();
   port.send('closed');
+}
+
+/// Runs [act] while another isolate holds [path] open for [hold].
+///
+/// Fails at once with the holder's error when the holder cannot open [path];
+/// otherwise waits for the holder to close before it returns.
+Future<void> _whileHeld(String path, Duration hold, void Function() act) async {
+  final signal = ReceivePort();
+  final opened = Completer<void>()..future.ignore();
+  final closed = Completer<void>()..future.ignore();
+  signal.listen((message) {
+    if (message is List) {
+      final failure = StateError('the holder isolate failed: ${message.first}');
+      if (!opened.isCompleted) opened.completeError(failure);
+      if (!closed.isCompleted) closed.completeError(failure);
+    }
+    if (message == 'open') opened.complete();
+    if (message == 'closed') closed.complete();
+  });
+  final holder = await Isolate.spawn(_holdOpen, (
+    path,
+    hold,
+    signal.sendPort,
+  ), onError: signal.sendPort);
+  try {
+    await opened.future;
+    act();
+    await closed.future;
+  } finally {
+    signal.close();
+    holder.kill();
+  }
 }
 
 void main() {
@@ -70,30 +102,49 @@ void main() {
       expect(Directory('${folder.path}/missing').existsSync(), isFalse);
     });
 
-    test('f01/us01/fr04, s03/inv22, NFR-DI01, FM2: a replace outwaits a reader that holds the target open for 300 ms', () async {
+    test('f01/us01/fr04, s03/inv22, NFR-DI01, FM2: a replace outwaits a reader '
+        'that holds the target open for 300 ms', () async {
       final file = File('${folder.path}/.gitignore')
         ..writeAsStringSync('old\n');
-      final path = file.path;
-      final signal = ReceivePort();
-      final opened = Completer<void>();
-      final closed = Completer<void>();
-      signal.listen((message) {
-        if (message == 'open') opened.complete();
-        if (message == 'closed') closed.complete();
-      });
-      final holder = await Isolate.spawn(_holdOpen, (path, signal.sendPort));
-      await opened.future;
-      try {
-        writeFileAtomic(file, utf8.encode('new\n'));
-      } finally {
-        await closed.future;
-        signal.close();
-        holder.kill();
-      }
+
+      await _whileHeld(
+        file.path,
+        const Duration(milliseconds: 300),
+        () => writeFileAtomic(file, utf8.encode('new\n')),
+      );
 
       expect(file.readAsStringSync(), 'new\n');
       expect(tempNames(), isEmpty);
     });
+
+    test(
+      'f01/us01/fr04, s03/inv22, NFR-DI01, FM2: a replace blocked for longer '
+      'than 1 s throws after 1 s and leaves no temp sibling',
+      () async {
+        final file = File('${folder.path}/.gitignore')
+          ..writeAsStringSync('old\n');
+        final clock = Stopwatch();
+        Object? thrown;
+
+        await _whileHeld(file.path, const Duration(milliseconds: 1500), () {
+          clock.start();
+          try {
+            writeFileAtomic(file, utf8.encode('new\n'));
+          } on FileSystemException catch (e) {
+            thrown = e;
+          }
+          clock.stop();
+        });
+
+        expect(thrown, isA<FileSystemException>());
+        expect(clock.elapsedMilliseconds, greaterThanOrEqualTo(1000));
+        expect(file.readAsStringSync(), 'old\n');
+        expect(tempNames(), isEmpty);
+      },
+      skip: Platform.isWindows
+          ? false
+          : 'only Windows refuses a replace of an open file',
+    );
   });
 
   group('writeTempSibling', () {
