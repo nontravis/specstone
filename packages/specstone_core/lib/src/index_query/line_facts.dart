@@ -2,6 +2,10 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
 
+const _space = 0x20;
+const _backtick = 0x60;
+const _tilde = 0x7E;
+
 /// The 1-based file lines `first` through `last`, both included.
 typedef LineRange = ({int first, int last});
 
@@ -63,19 +67,20 @@ final class LineFacts {
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
   }) {
-    final lines = lfLinesOf(lfText);
-    final bodyStart = doc.frontmatter == null
-        ? 0
-        : lines.length - _lineCount(doc.afterFrontmatter);
+    final prefix = doc.frontmatter == null
+        ? ''
+        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
+    final bodyStart = _lineCount(prefix);
     final titleIndex = doc.titleLineIndex;
+    final whole = scanText(lfText);
     return LineFacts(
       bodyLine: bodyStart + 1,
       titleLine: titleIndex == null ? null : bodyStart + titleIndex + 1,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
-      fenced: _rangesOf(fencedLines(lines.sublist(bodyStart)), bodyStart),
-      lineCount: lines.length,
-      charCount: lfText.runes.length,
+      fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
+      lineCount: _lineCount(lfText, breaks: whole.breaks),
+      charCount: lfText.length - whole.pairs,
       frontmatterErrorLine: frontmatterErrorLine,
     );
   }
@@ -165,25 +170,55 @@ final class LineFacts {
   };
 }
 
-int _lineCount(String text) {
+/// Returns the lines of [text], using [breaks] as its `\n` count when known.
+int _lineCount(String text, {int? breaks}) {
   if (text.isEmpty) return 0;
-  final breaks = '\n'.allMatches(text).length;
-  return text.endsWith('\n') ? breaks : breaks + 1;
+  final count = breaks ?? scanText(text).breaks;
+  return text.endsWith('\n') ? count : count + 1;
 }
 
-/// Returns the runs of true in [fenced] as file lines, where the first entry
-/// is file line `offset + 1`.
-List<LineRange> _rangesOf(List<bool> fenced, int offset) {
+/// Returns the runs of fenced lines of [body], the lines from file line
+/// `bodyStart + 1` on.
+///
+/// A body with no line that opens with a backtick or a tilde holds no fence,
+/// so its lines are never split.
+List<LineRange> _fencedRanges(String body, int bodyStart) {
+  if (!_mayHoldFence(body)) return const [];
+  final fenced = fencedLines(lfLinesOf(body));
   final ranges = <LineRange>[];
   int? first;
   for (var i = 0; i < fenced.length; i++) {
     if (fenced[i]) {
-      first ??= offset + i + 1;
+      first ??= bodyStart + i + 1;
     } else if (first != null) {
-      ranges.add((first: first, last: offset + i));
+      ranges.add((first: first, last: bodyStart + i));
       first = null;
     }
   }
-  if (first != null) ranges.add((first: first, last: offset + fenced.length));
+  if (first != null) {
+    ranges.add((first: first, last: bodyStart + fenced.length));
+  }
   return ranges;
+}
+
+/// Whether a line of [text] opens, after up to three spaces, with a backtick
+/// or a tilde: the least a fence line needs.
+bool _mayHoldFence(String text) {
+  var start = 0;
+  while (start < text.length) {
+    var at = start;
+    while (at < text.length &&
+        at - start < 3 &&
+        text.codeUnitAt(at) == _space) {
+      at++;
+    }
+    if (at < text.length) {
+      final unit = text.codeUnitAt(at);
+      if (unit == _backtick || unit == _tilde) return true;
+    }
+    final end = text.indexOf('\n', start);
+    if (end < 0) return false;
+    start = end + 1;
+  }
+  return false;
 }

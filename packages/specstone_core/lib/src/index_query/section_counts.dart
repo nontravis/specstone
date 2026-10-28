@@ -11,8 +11,8 @@ typedef SectionCounts = ({int lines, int chars});
 /// `text.runes.length` gives: a surrogate pair counts once, and the one line
 /// break that ends the section is not part of the text.
 SectionCounts sectionCountsOf(IndexedSection section) {
-  final header = _scan(section.headerLine);
-  final body = _scan(section.body);
+  final header = scanText(section.headerLine);
+  final body = scanText(section.body);
   // The text is header, a line break, then the body; a body that is empty or
   // ends in a line break leaves that final break out.
   final endsInBreak =
@@ -27,7 +27,10 @@ SectionCounts sectionCountsOf(IndexedSection section) {
   return (lines: breaks + 1, chars: units - header.pairs - body.pairs);
 }
 
-({int breaks, int pairs}) _scan(String text) {
+/// Returns the `\n` count and the surrogate pair count of [text] in one pass.
+///
+/// The code points of [text] are its length minus the pairs.
+({int breaks, int pairs}) scanText(String text) {
   var breaks = 0;
   var pairs = 0;
   var afterHigh = false;

@@ -111,6 +111,62 @@ void main() {
     });
   });
 
+  group('LineFacts sizes', () {
+    final texts = {
+      'empty': '',
+      'one line break': '\n',
+      'no final break': 'a',
+      'one line': 'a\n',
+      'blank last line': 'a\n\n',
+      'frontmatter only': '---\n---\n',
+      'frontmatter, no final break': '---\n---',
+      'frontmatter, then a blank line': '---\n---\n\n',
+      'frontmatter, body, no final break': '---\na: 1\n---\nbody',
+      'surrogate pairs': '# \u{1F600}\u{1F600}\n\n## \u{1F600}\nx \uD83D\n',
+      'tilde fence': '# T\n~~~\n## no\n~~~\n## yes\n',
+      'CRLF with a fence':
+          '---\r\na: 1\r\n---\r\n# T\r\n```\r\n## no\r\n```\r\n',
+    };
+    for (final MapEntry(key: name, value: raw) in texts.entries) {
+      test(
+        'f04/nfr-p03: $name: the line and code point counts are those of split and runes',
+        () {
+          final lf = raw.replaceAll('\r\n', '\n');
+          final lines = lf.isEmpty ? <String>[] : lf.split('\n');
+          if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
+          final facts = _factsOf(raw);
+          expect(facts.lineCount, lines.length);
+          expect(facts.charCount, lf.runes.length);
+          expect(facts.lineCount, lfLinesOf(lf).length);
+        },
+      );
+    }
+
+    test('f04/nfr-p03: the body starts after the frontmatter lines, whatever ends the file', () {
+      expect(_factsOf('---\n---\n').bodyLine, 3);
+      expect(_factsOf('---\n---').bodyLine, 3);
+      expect(_factsOf('---\n---\n\n').bodyLine, 3);
+      expect(_factsOf('---\na: 1\nb: 2\n---\nbody').bodyLine, 5);
+    });
+
+    test('f04/nfr-p03: a fence indented up to three spaces counts, four spaces is code, and the last line may open one', () {
+      expect(_factsOf('# T\n   ```\n## no\n   ```\n').fenced, [
+        (first: 2, last: 4),
+      ]);
+      expect(_factsOf('# T\n    ```\n## yes\n').fenced, isEmpty);
+      expect(_factsOf('# T\n```').fenced, [(first: 2, last: 2)]);
+    });
+
+    test('f04/nfr-p03: a tilde fence and a CRLF fence hide their ## lines', () {
+      final tilde = _factsOf(texts['tilde fence']!);
+      expect(tilde.fenced, [(first: 2, last: 4)]);
+      expect(tilde.sectionLines, [5]);
+      final crlf = _factsOf(texts['CRLF with a fence']!);
+      expect(crlf.fenced, [(first: 5, last: 7)]);
+      expect(crlf.sectionLines, isEmpty);
+    });
+  });
+
   group('LineFacts JSON', () {
     test('f04/nfr-p03: the JSON round-trips every fact but the section counts, which the section rows keep', () {
       final facts = _factsOf(text);
