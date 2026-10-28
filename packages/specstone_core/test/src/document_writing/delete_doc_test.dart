@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/failing_rename.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -300,27 +301,25 @@ void main() {
     final locked = Directory(
       '${root.path}/docs/prds/features/f01_login/us03_reset_password',
     );
-    Process.runSync('chmod', ['555', locked.path]);
-    addTearDown(() => Process.runSync('chmod', ['755', locked.path]));
     expect(
-      () => del(root, 'user_story:login/reset_password'),
+      () => IOOverrides.runWithIOOverrides(
+        () => del(root, 'user_story:login/reset_password'),
+        FailingRenameHook('docs/$fr31'),
+      ),
       throwsA(
-        isA<RenderFault>().having(
-          (f) => f.code,
-          'code',
-          RenderFaultCode.outputNotWritable,
-        ),
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.message, 'message', contains(fr31)),
       ),
     );
     expect(
       File('${root.path}/${MoveJournal.journalPath}').existsSync(),
       isTrue,
     );
-    Process.runSync('chmod', ['755', locked.path]);
     writeIn(root, (s) => s.index.docs.length);
     expect(locked.existsSync(), isFalse);
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-  }, skip: unreadablePathSkipReason() ?? false);
+  });
 
   test(
     'f02/us04/fr02/e05: a doc carrying draft and approved counts as approved',

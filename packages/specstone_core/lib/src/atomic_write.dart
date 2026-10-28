@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
-/// Source of the random part of a temp name; seeded per isolate.
+/// Source of the random part of a temp name; one per isolate.
 final _random = Random.secure();
 
 /// The owner write bit of a file mode.

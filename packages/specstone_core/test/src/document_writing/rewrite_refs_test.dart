@@ -217,6 +217,35 @@ void main() {
     );
   });
 
+  test('dw-s03/inv6, f02/us06/fr02: of two blocks with one name only the first counts, whatever the spelling', () {
+    const anyType = MergedField(id: 'reference', type: FieldType.docRef);
+    const renamed = {('persona', 'buyer'): 'shopper'};
+    expect(
+      rewriteDocRefs(
+        '---\nreference: keep\n"reference": buyer\n---\n',
+        fields: [anyType],
+        renamed: renamed,
+      ),
+      isNull,
+    );
+    expect(
+      rewriteDocRefs(
+        '---\nreference: buyer\n"reference": buyer\n---\n',
+        fields: [anyType],
+        renamed: renamed,
+      ),
+      '---\nreference: shopper\n"reference": buyer\n---\n',
+    );
+    expect(
+      rewriteDocRefs(
+        '---\nreference: keep\nreference: buyer\n---\n',
+        fields: [anyType],
+        renamed: renamed,
+      ),
+      isNull,
+    );
+  });
+
   test('f02/us05/fr02, dw-s03/inv10, H14: a link-shaped frontmatter value keeps its text; the same link in the body follows', () {
     const link = '[sign out](../us02_sign_out/USER_STORY.md)';
     expect(

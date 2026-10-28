@@ -109,7 +109,8 @@ String? rewriteDocLinks(
 /// item, an inline scalar, or a flow-list item, quoted or not, and a value
 /// in the field's `docTypes` is matched by its doc type. A field that names
 /// none changes a value only when every renamed doc it names agrees on one
-/// new name. Prose, comments, and other fields keep their text.
+/// new name. Of two blocks with one name only the first counts. Prose,
+/// comments, and other fields keep their text.
 String? rewriteDocRefs(
   String lfText, {
   required List<MergedField> fields,
@@ -118,7 +119,9 @@ String? rewriteDocRefs(
   final blocks = Doc.parse(lfText).frontmatter;
   if (blocks == null || renamed.isEmpty) return null;
   var result = lfText;
+  final seen = <String>{};
   for (final block in blocks) {
+    if (!seen.add(block.name)) continue;
     for (final field in fields) {
       if (field.type != FieldType.docRef || field.id != block.name) continue;
       final text = _renameInBlock(block.text, block.key, field, renamed);

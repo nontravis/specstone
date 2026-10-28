@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/failing_rename.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
@@ -424,11 +425,11 @@ void main() {
 
   test('f02/us05/fr01, dw-s03/inv9, X4, H21: the reorder journal lists every stage move first, then every target move, then the rewrites', () async {
     final root = await writeWriteProject();
-    final container = Directory('${root.path}/docs/$f');
-    Process.runSync('chmod', ['555', container.path]);
-    addTearDown(() => Process.runSync('chmod', ['755', container.path]));
     expect(
-      () => reorder(root, 'user_story:login/reset_password', '1'),
+      () => IOOverrides.runWithIOOverrides(
+        () => reorder(root, 'user_story:login/reset_password', '1'),
+        FailingRenameHook('docs/$f/us03_reset_password'),
+      ),
       throwsA(
         isA<RenderFault>().having(
           (e) => e.code,
@@ -437,7 +438,6 @@ void main() {
         ),
       ),
     );
-    Process.runSync('chmod', ['755', container.path]);
 
     final journal = jsonDecode(
       File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
@@ -467,7 +467,7 @@ void main() {
 
     expect(hasDoc(root, '$f/us01_reset_password/USER_STORY.md'), isTrue);
     expect(hasDoc(root, '$f/us03_sign_out/USER_STORY.md'), isTrue);
-  }, skip: unreadablePathSkipReason() ?? false);
+  });
 
   test('f02/us05/fr02, dw-s03/inv10, final Important 2: a read-only rewrite target stops a rename', () async {
     final root = await writeWriteProject();
