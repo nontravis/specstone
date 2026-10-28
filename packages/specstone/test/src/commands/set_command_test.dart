@@ -2,12 +2,45 @@ import 'dart:convert';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
+  test('f06/us01/s15: set refuses while a migration is unfinished', () async {
+    final root = await writeWriteProject();
+    writeJournal(root, [
+      const MoveStep('docs/prds/personas/buyer', 'docs/prds/personas/shopper'),
+      const CommitStep(
+        message: 'move',
+        paths: ['docs/prds/personas'],
+        base: '0000000',
+      ),
+    ]);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(input: 'x\n'),
+    );
+    expect(
+      await runner.run([
+        'set',
+        'user_story:login/email_login#use_case',
+        '--base',
+        '9042269552ff',
+      ]),
+      75,
+    );
+    expect(
+      err.toString(),
+      '.specstone/trash/journal.json: a migration is unfinished; ask the '
+      'Owner to run specstone migrate at an interactive terminal to finish '
+      'it, then run the command again\n',
+    );
+    expect(out.toString(), isEmpty);
+  });
+
   test('f02/us01/s1: set prints the naming line with the new base, exit 0', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(

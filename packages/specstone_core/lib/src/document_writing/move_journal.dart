@@ -375,6 +375,20 @@ final class MoveJournal {
   static bool pending(Directory projectRoot) =>
       Directory(_join(projectRoot.path, trashPath)).existsSync();
 
+  /// Whether the journal under [projectRoot] belongs to an unfinished
+  /// `specstone migrate`: it parses and holds a [CommitStep].
+  ///
+  /// An unreadable or unparsable journal is not a migrate journal, so F-02's
+  /// replay refuses it as before.
+  static bool pendingMigrate(Directory projectRoot) {
+    try {
+      final steps = _pendingSteps(projectRoot);
+      return steps?.any((step) => step is CommitStep) ?? false;
+    } on RenderFault {
+      return false;
+    }
+  }
+
   /// Saves the journal, applies each step, then removes the journal and the
   /// trash folder.
   ///
@@ -417,7 +431,7 @@ final class MoveJournal {
   /// Throws [RenderFault] `output_not_writable` when a step fails, the journal
   /// stays, so the next replay resumes, or when the journal cannot be parsed.
   static void replay(JournalTarget target) {
-    final steps = _pendingSteps(target);
+    final steps = _pendingSteps(target.projectRoot);
     if (steps == null) {
       _removeTrash(target);
       return;
@@ -431,14 +445,15 @@ final class MoveJournal {
   /// Throws [RenderFault] `output_not_writable` when the journal cannot be
   /// parsed.
   static List<JournalStep> remaining(JournalTarget target) => [
-    for (final step in _pendingSteps(target) ?? const <JournalStep>[])
+    for (final step
+        in _pendingSteps(target.projectRoot) ?? const <JournalStep>[])
       if (!step.isDone(target)) step,
   ];
 }
 
 /// Returns the steps of the journal file, or null when there is none.
-List<JournalStep>? _pendingSteps(JournalTarget target) {
-  final journal = File(_join(target.projectRoot.path, MoveJournal.journalPath));
+List<JournalStep>? _pendingSteps(Directory projectRoot) {
+  final journal = File(_join(projectRoot.path, MoveJournal.journalPath));
   if (!journal.existsSync()) return null;
   try {
     return _stepsOf(jsonDecode(journal.readAsStringSync()));

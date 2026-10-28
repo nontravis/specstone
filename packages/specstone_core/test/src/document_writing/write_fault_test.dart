@@ -81,10 +81,16 @@ void main() {
           ('position_out_of_range', 64),
           ('doc_type_not_movable', 64),
           ('owner_terminal_required', 77),
+          ('migrate_pending', 75),
         ],
       );
     },
   );
+
+  test('f06/us01/fr07/e06: migrate_pending exits 75', () {
+    expect(WriteFaultCode.migratePending.wire, 'migrate_pending');
+    expect(WriteFaultCode.migratePending.exitStatus, 75);
+  });
 
   test(
     'dw-s05: a text form with several relatedFiles joins them with commas',

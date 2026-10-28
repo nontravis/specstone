@@ -14,7 +14,8 @@ enum WriteFaultCode {
   docReferenced('doc_referenced', 64),
   positionOutOfRange('position_out_of_range', 64),
   docTypeNotMovable('doc_type_not_movable', 64),
-  ownerTerminalRequired('owner_terminal_required', 77);
+  ownerTerminalRequired('owner_terminal_required', 77),
+  migratePending('migrate_pending', 75);
 
   new(this.wire, this.exitStatus);
 
