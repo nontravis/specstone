@@ -54,7 +54,7 @@ List<LinkPlace> linkPlacesOf(
 typedef _Use = ({String dest, int line});
 
 final _definitionStart = RegExp(r'^ {0,3}\[', multiLine: true);
-final _definition = RegExp(r'\[([^\]]+)\]:[ \t]*(<[^>]*>|\S+)');
+final _bareDest = RegExp(r'\S+');
 final _span = RegExp('`[^`\n]*`');
 
 /// Returns the links of [body] in source order, outside fenced code.
@@ -95,25 +95,42 @@ List<_Use> _scanUses(String body, int firstLine) {
 /// Calls [found] with the offset, label, and destination of each definition
 /// (`[label]: dest`) in [text], in order.
 ///
-/// A label runs to the first `]`, over line ends. That `]` is looked up once
-/// for all the line-start `[` before it, so brackets that never close cost no
-/// rescan.
+/// A label runs to the first `]`, over line ends, and a `<` destination to the
+/// first `>`. Each is looked up once for all the starts before it, so a bracket
+/// or `<` that never closes costs no rescan.
 void _scanDefinitions(
   String text,
   void Function(int start, String label, String dest) found,
 ) {
   var resume = 0;
   var close = -1;
+  var angleClose = -1;
+  var noAngleClose = false;
   for (final candidate in _definitionStart.allMatches(text)) {
     final at = candidate.end - 1;
     if (at < resume) continue;
     if (close <= at) close = text.indexOf(']', at + 1);
     if (close < 0) return;
     if (close == at + 1 || !text.startsWith(':', close + 1)) continue;
-    final match = _definition.matchAsPrefix(text, at);
-    if (match == null) continue;
-    found(at, match[1]!, match[2]!);
-    resume = match.end;
+    var destAt = close + 2;
+    while (destAt < text.length &&
+        (text[destAt] == ' ' || text[destAt] == '\t')) {
+      destAt++;
+    }
+    var destEnd = -1;
+    if (text.startsWith('<', destAt)) {
+      if (!noAngleClose && angleClose <= destAt) {
+        angleClose = text.indexOf('>', destAt + 1);
+        noAngleClose = angleClose < 0;
+      }
+      if (!noAngleClose) destEnd = angleClose + 1;
+    }
+    if (destEnd < 0) {
+      destEnd = _bareDest.matchAsPrefix(text, destAt)?.end ?? -1;
+      if (destEnd < 0) continue;
+    }
+    found(at, text.substring(at + 1, close), text.substring(destAt, destEnd));
+    resume = destEnd;
   }
 }
 

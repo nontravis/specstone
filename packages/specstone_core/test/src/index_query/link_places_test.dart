@@ -53,5 +53,20 @@ void main() {
       expect(places.map((p) => p.target), ['b.md']);
       expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
     });
+
+    test('final-fix M2: 10,000 definitions with an unclosed < destination are '
+        'scanned within two seconds', () {
+      final body = [
+        for (var i = 0; i < 10000; i++) '[x$i]: <',
+        '[l](b.md)',
+        '',
+      ].join('\n');
+      final watch = Stopwatch()..start();
+
+      final places = placesOf(body);
+
+      expect(places.map((p) => p.target), ['b.md']);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    });
   });
 }
