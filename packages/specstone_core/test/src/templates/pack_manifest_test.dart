@@ -101,5 +101,38 @@ void main() {
         throwsA(_fault(FaultCode.unknownKey, key: 'owner')),
       );
     });
+
+    test('f06/us02/fr01/e02: a pack.yaml with no migrations key has none', () {
+      final manifest = _parse('name: p\nversion: 1.0.0\n');
+
+      expect(manifest.migrations, isEmpty);
+    });
+
+    test('f06/us02/fr01: pack.yaml accepts migrations', () {
+      final manifest = _parse('''
+name: p
+version: 1.0.0
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+  - from: 1.1.0
+    steps:
+      - rename_field: {doc_type: runbook, from: owner, to: on_call}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "ops/runbooks/{slug}.md"}
+''');
+
+      expect(manifest.migrations.map((m) => '${m.from}'), ['1.0.0', '1.1.0']);
+    });
+
+    test(
+      'f06/us02/fr01/e06: migrations that is not a list is unknown_value',
+      () {
+        expect(
+          () => _parse('name: p\nversion: 1.0.0\nmigrations: {}\n'),
+          throwsA(_fault(FaultCode.unknownValue, key: 'migrations')),
+        );
+      },
+    );
   });
 }
