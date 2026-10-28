@@ -13,13 +13,16 @@ final class FailingRenameHook extends IOOverrides {
 
   final String _pathEnd;
 
+  /// Whether [path] ends with the path given, `\` read as `/` (Windows).
+  bool _matches(String path) => path.replaceAll(r'\', '/').endsWith(_pathEnd);
+
   @override
-  File createFile(String path) => path.endsWith(_pathEnd)
+  File createFile(String path) => _matches(path)
       ? _FailingRenameFile(super.createFile(path))
       : super.createFile(path);
 
   @override
-  Directory createDirectory(String path) => path.endsWith(_pathEnd)
+  Directory createDirectory(String path) => _matches(path)
       ? _FailingRenameDirectory(super.createDirectory(path))
       : super.createDirectory(path);
 }

@@ -40,7 +40,7 @@ final class _StuckProbeDirectory implements Directory {
 
   @override
   void deleteSync({bool recursive = false}) {
-    if (path.split('/').last.startsWith('.specstone-probe-')) {
+    if (path.split(RegExp(r'[/\\]')).last.startsWith('.specstone-probe-')) {
       throw FileSystemException('Permission denied', path);
     }
     _inner.deleteSync(recursive: recursive);
