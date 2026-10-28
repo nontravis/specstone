@@ -28,11 +28,12 @@ const _notWritableMessage =
     'cannot write the index under .specstone/; make it writable and run the '
     'command again';
 
-/// The layout of [_schema], kept in the `layout` column of the meta row.
+/// The layout of the index, kept in the `layout` column of the meta row.
 ///
-/// Bump it on every change to [_schema], so an index of another layout is
-/// rebuilt instead of failing a read (INV-2). An older build's reset recreates
-/// the meta row without it, so its index is rebuilt too.
+/// Bump it on every change to what a row holds: [_schema], the line-facts JSON,
+/// and how that JSON is computed. An index of another layout is then rebuilt
+/// instead of failing a read (INV-2). An older build's reset recreates the meta
+/// row without it, so its index is rebuilt too.
 const _layoutVersion = 3;
 
 const _schema = '''

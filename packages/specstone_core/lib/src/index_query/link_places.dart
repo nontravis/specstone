@@ -12,9 +12,9 @@ typedef LinkPlace = ({String target, int line, String shown});
 /// [lfBody] is the doc text after the frontmatter, with LF line ends, and
 /// [firstLine] is its first file line. `markdown` decides which links exist.
 /// Each is then placed in the source text (see [_scanUses]) for its line and
-/// its destination as written. A link the scan cannot place takes line 1 and
-/// the href `markdown` gives as its destination; a link inside an indented
-/// code block is one such case.
+/// its destination as written: the nth link to an href takes the nth use of
+/// that href, so no other link moves it. A link the scan cannot place takes
+/// line 1 and the href `markdown` gives as its destination.
 List<LinkPlace> linkPlacesOf(
   String lfBody, {
   required String docPath,
@@ -25,7 +25,11 @@ List<LinkPlace> linkPlacesOf(
   if (!lfBody.contains('](') && !lfBody.contains(']:')) return const [];
   final uses = _scanUses(lfBody, firstLine);
   final places = <LinkPlace>[];
-  var next = 0;
+  final usesOf = <String, List<_Use>>{};
+  for (final use in uses) {
+    usesOf.putIfAbsent(_normalize(use.dest), () => []).add(use);
+  }
+  final taken = <String, int>{};
   for (final href in _hrefsOf(lfBody)) {
     final target = resolveDocLink(href, docPath);
     if (target is! DocTarget ||
@@ -33,12 +37,14 @@ List<LinkPlace> linkPlacesOf(
         target.docPath == docPath) {
       continue;
     }
-    final found = uses.indexWhere((use) => _normalize(use.dest) == href, next);
-    if (found >= 0) next = found + 1;
+    final sameHref = usesOf[href] ?? const <_Use>[];
+    final nth = taken[href] ?? 0;
+    taken[href] = nth + 1;
+    final use = nth < sameHref.length ? sameHref[nth] : null;
     places.add((
       target: target.docPath,
-      line: found >= 0 ? uses[found].line : 1,
-      shown: found >= 0 ? uses[found].dest : href,
+      line: use?.line ?? 1,
+      shown: use?.dest ?? href,
     ));
   }
   return places;
@@ -47,10 +53,8 @@ List<LinkPlace> linkPlacesOf(
 /// A link written in the source: its destination as written and its line.
 typedef _Use = ({String dest, int line});
 
-final _definition = RegExp(
-  r'^ {0,3}\[([^\]]+)\]:[ \t]*(<[^>]*>|\S+)',
-  multiLine: true,
-);
+final _definitionStart = RegExp(r'^ {0,3}\[', multiLine: true);
+final _definition = RegExp(r'\[([^\]]+)\]:[ \t]*(<[^>]*>|\S+)');
 final _span = RegExp('`[^`\n]*`');
 
 /// Returns the links of [body] in source order, outside fenced code.
@@ -64,22 +68,53 @@ List<_Use> _scanUses(String body, int firstLine) {
   final masked = _masked(body);
   final definitions = <String, String>{};
   final definitionStarts = <int>{};
-  for (final match in _definition.allMatches(masked)) {
-    definitionStarts.add(masked.indexOf('[', match.start));
-    definitions.putIfAbsent(_label(match[1]!), () => _bare(match[2]!));
-  }
+  _scanDefinitions(masked, (start, label, dest) {
+    definitionStarts.add(start);
+    definitions.putIfAbsent(_label(label), () => _bare(dest));
+  });
+  final texts = _pairs(masked, '[', ']');
+  final parens = _pairs(masked, '(', ')');
   final uses = <_Use>[];
+  var line = firstLine;
+  var counted = 0;
   for (var i = 0; i < masked.length; i++) {
     if (masked[i] != '[' || definitionStarts.contains(i)) continue;
     if (i > 0 && masked[i - 1] == '!') continue;
-    final textEnd = _closing(masked, i, '[', ']');
-    if (textEnd < 0) continue;
-    final dest = _destAfter(masked, i, textEnd, definitions);
+    final textEnd = texts[i];
+    if (textEnd == null) continue;
+    final dest = _destAfter(masked, i, textEnd, definitions, texts, parens);
     if (dest == null) continue;
-    final line = firstLine + '\n'.allMatches(body.substring(0, i)).length;
+    for (; counted < i; counted++) {
+      if (body.codeUnitAt(counted) == 0x0A) line++;
+    }
     uses.add((dest: dest, line: line));
   }
   return uses;
+}
+
+/// Calls [found] with the offset, label, and destination of each definition
+/// (`[label]: dest`) in [text], in order.
+///
+/// A label runs to the first `]`, over line ends. That `]` is looked up once
+/// for all the line-start `[` before it, so brackets that never close cost no
+/// rescan.
+void _scanDefinitions(
+  String text,
+  void Function(int start, String label, String dest) found,
+) {
+  var resume = 0;
+  var close = -1;
+  for (final candidate in _definitionStart.allMatches(text)) {
+    final at = candidate.end - 1;
+    if (at < resume) continue;
+    if (close <= at) close = text.indexOf(']', at + 1);
+    if (close < 0) return;
+    if (close == at + 1 || !text.startsWith(':', close + 1)) continue;
+    final match = _definition.matchAsPrefix(text, at);
+    if (match == null) continue;
+    found(at, match[1]!, match[2]!);
+    resume = match.end;
+  }
 }
 
 /// Returns [body] with fenced code lines and inline code spans blanked, the
@@ -96,22 +131,34 @@ String _masked(String body) {
   ].join('\n');
 }
 
-/// Returns the offset of the [close] that matches the [open] at [start], or -1.
+/// Maps the offset of each [open] in [text] to the offset of its matching
+/// [close]; an unmatched [open] has no entry.
 ///
-/// A backslash escapes the next character.
-int _closing(String text, int start, String open, String close) {
-  var depth = 0;
-  for (var i = start; i < text.length; i++) {
+/// A backslash escapes the next character. An escaped [open] is no opener for
+/// the brackets around it, yet a scan that starts at it still pairs it, so it
+/// is paired here with the first [close] that leaves the depth of its start.
+/// One pass makes the lookup linear, where a scan per bracket is quadratic.
+Map<int, int> _pairs(String text, String open, String close) {
+  final pairs = <int, int>{};
+  final opens = <int>[];
+  final escaped = <({int offset, int depth})>[];
+  for (var i = 0; i < text.length; i++) {
     final char = text[i];
     if (char == r'\') {
+      if (i + 1 < text.length && text[i + 1] == open) {
+        escaped.add((offset: i + 1, depth: opens.length));
+      }
       i++;
     } else if (char == open) {
-      depth++;
-    } else if (char == close && --depth == 0) {
-      return i;
+      opens.add(i);
+    } else if (char == close) {
+      while (escaped.isNotEmpty && escaped.last.depth == opens.length) {
+        pairs[escaped.removeLast().offset] = i;
+      }
+      if (opens.isNotEmpty) pairs[opens.removeLast()] = i;
     }
   }
-  return -1;
+  return pairs;
 }
 
 /// Returns the destination of the link whose text ends at [textEnd], or null
@@ -121,16 +168,18 @@ String? _destAfter(
   int textStart,
   int textEnd,
   Map<String, String> definitions,
+  Map<int, int> texts,
+  Map<int, int> parens,
 ) {
   final after = textEnd + 1 < text.length ? text[textEnd + 1] : '';
   final linkText = text.substring(textStart + 1, textEnd);
   if (after == '(') {
-    final end = _closing(text, textEnd + 1, '(', ')');
-    return end < 0 ? null : _inlineDest(text.substring(textEnd + 2, end));
+    final end = parens[textEnd + 1];
+    return end == null ? null : _inlineDest(text.substring(textEnd + 2, end));
   }
   if (after == '[') {
-    final end = _closing(text, textEnd + 1, '[', ']');
-    if (end < 0) return null;
+    final end = texts[textEnd + 1];
+    if (end == null) return null;
     final label = text.substring(textEnd + 2, end);
     return definitions[_label(label.isEmpty ? linkText : label)];
   }

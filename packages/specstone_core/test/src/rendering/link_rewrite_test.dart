@@ -349,6 +349,30 @@ void main() {
       expect(html, contains('<a href="#doc-1">go</a>'));
     });
 
+    test('f05/us02/fr03/e07, s03/inv23, FM8: <!--> is a comment closed at '
+        'once, so an id after it is scoped', () {
+      final html = body('<!-->\n\n<a id="c"></a>\n\n[go](#c)\n');
+
+      expect(html, contains('id="doc-1-c"'));
+      expect(html, contains('<a href="#doc-1-c">go</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: <!---> is a comment closed at '
+        'once, so an id after it is scoped', () {
+      final html = body('<!--->\n\n<a id="c"></a>\n\n[go](#c)\n');
+
+      expect(html, contains('id="doc-1-c"'));
+      expect(html, contains('<a href="#doc-1-c">go</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: a comment ends at --!>, so an '
+        'id after it is scoped', () {
+      final html = body('<!-- note --!>\n<a id="c"></a>\n-->\n\n[go](#c)\n');
+
+      expect(html, contains('id="doc-1-c"'));
+      expect(html, contains('<a href="#doc-1-c">go</a>'));
+    });
+
     test('f05/us02/fr03/e04, s03/inv23, FM8: a quoted > before the id does '
         'not end the tag', () {
       final html = body('<div title="a>b" id="q"></div>\n\n[go](#q)\n');

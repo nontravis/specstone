@@ -138,9 +138,9 @@ List<_Attribute> _scanAttributes(String html) {
     if (_isAsciiLetter(next)) {
       i = _scanStartTag(html, i + 1, found);
     } else if (html.startsWith('<!--', i)) {
-      final close = html.indexOf('-->', i + 4);
-      if (close < 0) return found;
-      i = close + 3;
+      final end = _commentEnd(html, i);
+      if (end < 0) return found;
+      i = end;
     } else if (next == 0x21 || next == 0x3F || next == 0x2F) {
       final close = html.indexOf('>', i + 2);
       if (close < 0) return found;
@@ -149,6 +149,19 @@ List<_Attribute> _scanAttributes(String html) {
       i += 1;
     }
   }
+}
+
+// Returns the index after the comment that opens at [open], or -1 when it is
+// unclosed. Per WHATWG, `<!-->` and `<!--->` close at once, and `-->` or
+// `--!>` ends any other comment.
+int _commentEnd(String html, int open) {
+  if (html.startsWith('>', open + 4)) return open + 5;
+  if (html.startsWith('->', open + 4)) return open + 6;
+  final plain = html.indexOf('-->', open + 4);
+  final bang = html.indexOf('--!>', open + 4);
+  if (plain < 0 && bang < 0) return -1;
+  if (bang < 0 || (plain >= 0 && plain < bang)) return plain + 3;
+  return bang + 4;
 }
 
 // Scans the start tag whose name begins at [from]; returns the index after it.
