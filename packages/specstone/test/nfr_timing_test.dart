@@ -100,11 +100,16 @@ void main() {
     expect(out, isNot(contains('implements_path_unresolved')));
     expect(out, isNot(contains('implements_symbol_unresolved')));
     expect(out, isNot(contains('code_uncovered')));
-    for (var i = 0; i < 5; i++) {
-      expect(
-        timed(call, exitCodes: {0, 1}),
-        lessThanOrEqualTo(const Duration(seconds: 2)),
-      );
+    final durations = [
+      for (var i = 0; i < 5; i++) timed(call, exitCodes: {0, 1}),
+    ];
+    // ignore: avoid_print, the gate reports every call so the margin under 2 s can be read.
+    print(
+      'diagnostic: check calls '
+      '${durations.map((d) => d.inMilliseconds).join(', ')} ms',
+    );
+    for (final duration in durations) {
+      expect(duration, lessThanOrEqualTo(const Duration(seconds: 2)));
     }
   });
 }

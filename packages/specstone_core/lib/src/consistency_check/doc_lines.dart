@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:yaml/yaml.dart';
@@ -12,7 +13,7 @@ import 'package:yaml/yaml.dart';
 /// `text` is the item's source text, its span.
 typedef YamlEntry = ({Object? value, int line, String text});
 
-/// The 1-based file lines of a doc's title, sections, and frontmatter items.
+/// The 1-based file lines of a doc's links, sections, and frontmatter items.
 ///
 /// The line facts come from the index. The lines of text and the frontmatter
 /// YAML are read on first use, so a rule that needs neither never pays for
@@ -22,6 +23,9 @@ final class DocLines {
 
   /// Reads [text], a file's decoded text with any line ends, the way a
   /// refresh stores it.
+  ///
+  /// The empty docPath resolves no link relative to a folder, so [links] are
+  /// those of a doc at the docs root. Only tests call this.
   factory of(String text) => DocLines.from(
     parseIndexedDoc(
       docPath: '',
@@ -43,8 +47,8 @@ final class DocLines {
   /// The code points of the LF text.
   int get charCount => _facts.charCount;
 
-  /// The line of the first `# ` head line, or null without one.
-  int? get titleLine => _facts.titleLine;
+  /// The doc links that resolve to another `.md` doc, in source order.
+  List<LinkPlace> get links => _facts.links;
 
   /// The header line of each section, in the order of `Doc.sections`.
   List<int> get sectionLines => _facts.sectionLines;

@@ -51,18 +51,48 @@ File writeTempSibling(File target, List<int> bytes) {
   return temp;
 }
 
+/// Windows error codes for a denied or shared-violation rename.
+const _windowsBlockedByHandle = {5, 32};
+
+/// Pause between two rename tries on Windows.
+const _renameRetryPause = Duration(milliseconds: 10);
+
+/// Longest a Windows rename keeps retrying, counted from the first try.
+const _renameRetryLimit = Duration(seconds: 1);
+
+/// Whether [error] is a Windows refusal caused by another open handle.
+bool _isBlockedByHandle(FileSystemException error) =>
+    Platform.isWindows &&
+    _windowsBlockedByHandle.contains(error.osError?.errorCode);
+
 /// Replaces [target] with [bytes] so a reader never sees a partial file.
 ///
 /// Deletes the temp sibling and rethrows when the write or the rename fails.
 /// Creates no parent folder.
 ///
+/// On Windows a rename onto a file that another handle holds open fails with
+/// error 5 or 32, because Windows refuses the replace unless that handle was
+/// opened with FILE_SHARE_DELETE. The rename retries every 10 ms for up to 1 s
+/// after the first try, as git for Windows does in `mingw_rename`. Any other
+/// error, and every other OS, fails at once.
+///
 /// Throws [FileSystemException] when the folder is missing or the rename fails.
 void writeFileAtomic(File target, List<int> bytes) {
   final temp = writeTempSibling(target, bytes);
-  try {
-    temp.renameSync(target.path);
-  } on FileSystemException {
-    if (temp.existsSync()) temp.deleteSync();
-    rethrow;
+  final clock = Stopwatch()..start();
+  while (true) {
+    try {
+      temp.renameSync(target.path);
+      return;
+    } on FileSystemException catch (error) {
+      final retry =
+          _isBlockedByHandle(error) && clock.elapsed < _renameRetryLimit;
+      if (retry) {
+        sleep(_renameRetryPause);
+        continue;
+      }
+      if (temp.existsSync()) temp.deleteSync();
+      rethrow;
+    }
   }
 }

@@ -6,13 +6,15 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:test/test.dart';
 
 /// The stored facts of [text], as refresh computes them.
-DocContent _contentOf(String text) => parseIndexedDoc(
-  docPath: 'doc.md',
-  bytes: utf8.encode(text),
-  match: const NoDocType(),
-).content;
+DocContent _contentOf(String text, {String docPath = 'doc.md'}) =>
+    parseIndexedDoc(
+      docPath: docPath,
+      bytes: utf8.encode(text),
+      match: const NoDocType(),
+    ).content;
 
-LineFacts _factsOf(String text) => _contentOf(text).lineFacts;
+LineFacts _factsOf(String text, {String docPath = 'doc.md'}) =>
+    _contentOf(text, docPath: docPath).lineFacts;
 
 void main() {
   // Line numbers are in the comments: the fence on 9-11 hides the `##` on 10.
@@ -35,13 +37,30 @@ void main() {
   group('LineFacts.of', () {
     test('f04/nfr-p03: a doc with frontmatter, title, sections, and a fence hiding a ## has 1-based file lines', () {
       final facts = _factsOf(text);
-      expect(facts.bodyLine, 4);
-      expect(facts.titleLine, 5);
       expect(facts.sectionLines, [7, 13]);
       expect(facts.fenced, [(first: 9, last: 11)]);
       expect(facts.lineCount, 14);
       expect(facts.charCount, text.runes.length);
       expect(facts.frontmatterErrorLine, isNull);
+    });
+
+    test("f04/nfr-p03, f04/us02/fr04, FM5: line facts hold each doc link's target, line, and destination as written", () {
+      const linked =
+          '---\na: 1\n---\n# T\n\nSee [s](us01_x/USER_STORY.md).\n\n'
+          '[w](https://e.com) [t](#top)\n';
+      const docPath = 'prds/f01_a/FEATURE.md';
+      const expected = [
+        (
+          target: 'prds/f01_a/us01_x/USER_STORY.md',
+          line: 6,
+          shown: 'us01_x/USER_STORY.md',
+        ),
+      ];
+      expect(_factsOf(linked, docPath: docPath).links, expected);
+      expect(
+        _factsOf(linked.replaceAll('\n', '\r\n'), docPath: docPath).links,
+        expected,
+      );
     });
 
     test('f04/nfr-p03: isFenced is true on a fence line and its content and false elsewhere', () {
@@ -72,14 +91,10 @@ void main() {
       expect(crlf.charCount, text.runes.length);
     });
 
-    test('f04/nfr-p03: a doc without frontmatter starts its body on line 1, and an empty doc has no lines', () {
+    test('f04/nfr-p03: a doc without frontmatter has its sections from line 1, and an empty doc has no lines', () {
       final bare = _factsOf('# T\n\n## S\nx\n');
-      expect(bare.bodyLine, 1);
-      expect(bare.titleLine, 1);
       expect(bare.sectionLines, [3]);
       final empty = _factsOf('');
-      expect(empty.bodyLine, 1);
-      expect(empty.titleLine, isNull);
       expect(empty.sectionLines, isEmpty);
       expect(empty.lineCount, 0);
       expect(empty.charCount, 0);
@@ -142,11 +157,20 @@ void main() {
       );
     }
 
-    test('f04/nfr-p03: the body starts after the frontmatter lines, whatever ends the file', () {
-      expect(_factsOf('---\n---\n').bodyLine, 3);
-      expect(_factsOf('---\n---').bodyLine, 3);
-      expect(_factsOf('---\n---\n\n').bodyLine, 3);
-      expect(_factsOf('---\na: 1\nb: 2\n---\nbody').bodyLine, 5);
+    test('f04/nfr-p03, f04/us02/fr04, FM5: a link is placed from the line after the frontmatter, whatever ends the file', () {
+      const docPath = 'prds/f01_a/FEATURE.md';
+      const link = '[s](x.md)';
+      final links = [
+        for (final (frontmatter, line) in [
+          ('---\n---\n', 3),
+          ('---\n---\n\n', 4),
+          ('---\na: 1\nb: 2\n---\n', 5),
+        ])
+          _factsOf('$frontmatter$link', docPath: docPath).links.single.line -
+              line,
+      ];
+      expect(links, [0, 0, 0]);
+      expect(_factsOf(link, docPath: docPath).links.single.line, 1);
     });
 
     test('f04/nfr-p03: a fence indented up to three spaces counts, four spaces is code, and the last line may open one', () {
@@ -176,8 +200,7 @@ void main() {
       );
       expect(back.toJson(), facts.toJson());
       expect(back.sectionCounts, facts.sectionCounts);
-      expect(back.bodyLine, 4);
-      expect(back.titleLine, 5);
+      expect(back.links, facts.links);
       expect(back.sectionLines, [7, 13]);
       expect(back.fenced, [(first: 9, last: 11)]);
       expect(back.isFenced(10), isTrue);

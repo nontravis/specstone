@@ -111,13 +111,14 @@ final class ApprovalHistory {
   }
 }
 
-final _sha = RegExp(r'^[0-9a-f]{40}$');
+final _sha = RegExp(r'^(?:[0-9a-f]{40}|[0-9a-f]{64})$');
 
 /// Pairs each commit of a `-z --format=%H --name-only` log with its listed
 /// path.
 ///
-/// `-z` ends each field with NUL and leaves a path unquoted whatever its
-/// bytes; git puts a newline between a commit's hash and its path.
+/// A hash is 40 or 64 hex, git's SHA-1 or SHA-256 object format (FM1). `-z`
+/// ends each field with NUL and leaves a path unquoted whatever its bytes; git
+/// puts a newline between a commit's hash and its path.
 Iterable<(String, String)> _commitsOf(String log) sync* {
   String? sha;
   for (final field in log.split('\x00')) {

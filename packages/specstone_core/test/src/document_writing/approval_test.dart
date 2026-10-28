@@ -15,15 +15,39 @@ final _longApproved =
     '# Recover\n\n${List.filled(8, 'A step of the flow.\n').join()}';
 const _draftText = '---\ndraft: true\n---\n# Signup\n\nDraft body.\n';
 
+/// Whether this machine's `git` can make a SHA-256 repository.
+final bool hasSha256Git = () {
+  if (!hasGit) return false;
+  final probe = Directory.systemTemp.createTempSync('specstone_sha256_');
+  try {
+    return git(probe, ['init', '-q', '--object-format=sha256']).exitCode == 0;
+  } finally {
+    probe.deleteSync(recursive: true);
+  }
+}();
+
 /// Starts a repo in a new temp folder holding [files].
-Future<Directory> _repo(Map<String, String> files) async {
+///
+/// [sha256] inits with git's SHA-256 object format instead of SHA-1.
+Future<Directory> _repo(
+  Map<String, String> files, {
+  bool sha256 = false,
+}) async {
   final root = await writeTree(files);
-  expect(git(root, ['init', '-q']).exitCode, 0);
+  expect(
+    git(root, ['init', '-q', if (sha256) '--object-format=sha256']).exitCode,
+    0,
+  );
   return root;
 }
 
 void main() {
   final skipGit = hasGit ? null : 'git is not available';
+  final skipSha256 = !hasGit
+      ? 'git is not available'
+      : hasSha256Git
+      ? null
+      : 'git cannot make a SHA-256 repository';
 
   test('dw-s03/inv5, f02/us04/fr02/e04, f02/us04/fr02/e05: approval reads the frontmatter only', () {
     expect(
@@ -102,6 +126,26 @@ void main() {
     },
     skip: skipGit,
   );
+
+  test('f02/us03/fr02/e02, dw-s03/inv11, FM1: a SHA-256 repository reaches the '
+      'approved copy under its old path', () async {
+    const oldPath = 'docs/$story3';
+    const newPath =
+        'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
+    final repo = await _repo({oldPath: _longApproved}, sha256: true);
+    commitAll(repo, 'approved');
+    Directory(File('${repo.path}/$newPath').parent.path)
+        .createSync(recursive: true);
+    expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
+    File('${repo.path}/$newPath')
+        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+    commitAll(repo, 'moved and drafted');
+
+    expect(
+      const ApprovalHistory().lastApproved(repo, newPath),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
+    );
+  }, skip: skipSha256);
 
   test('f02/us03/s3, f02/us03/fr02/e03, f02/us03/fr02/e05: no committed copy without draft is NoApprovedCopy', () async {
     final repo = await _repo({'docs/$signupFeature': _draftText});

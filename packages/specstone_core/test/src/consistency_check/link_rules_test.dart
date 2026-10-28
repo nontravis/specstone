@@ -1,12 +1,46 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 
 void main() {
+  test("f04/us02/fr04/e01, cc-s03/inv14, FM5: a broken link's line comes from the index, so check parses no doc text", () async {
+    final project = await writeCheckProject(
+      extra: doc(
+        loginFeature,
+        'Users forget passwords.',
+        'Users forget passwords; see [reset](us02_reset_password/USER_STORY.md).',
+      ),
+    );
+    final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+    for (final file in Directory(
+      '${project.path}/docs',
+    ).listSync(recursive: true).whereType<File>()) {
+      file.setLastModifiedSync(anHourAgo);
+    }
+    checkOf(project);
+    // The stat is unchanged, so the next refresh keeps the row with its text
+    // edited to hold no link.
+    sqlite3.open('${project.path}/$indexFilePath')
+      ..execute(
+        "UPDATE docs SET text = replace(text, '](', '] (') WHERE doc_path = ?",
+        [loginFeature],
+      )
+      ..close();
+    final report = checkOf(project);
+    expect(
+      report.findings.single.textLine,
+      '$loginFeature:11: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
+    );
+  });
+
   test('f04/us02/s5, f04/us02/fr04/e01: a link to a deleted story names the link and its line', () async {
     final report = checkOf(
       await writeCheckProject(

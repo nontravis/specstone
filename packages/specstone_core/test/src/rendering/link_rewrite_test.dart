@@ -309,6 +309,132 @@ void main() {
       );
     });
 
+    test('f05/us02/fr03/e04, s03/inv23, FM8: single-quoted, unquoted, and '
+        'upper-case ids are prefixed and their fragments follow', () {
+      final html = body(
+        "<div id='a'>x</div>\n<div id=b>y</div>\n<div ID=\"c\">z</div>\n\n"
+        '[1](#a) [2](#b) [3](#c)\n',
+      );
+
+      expect(html, contains("<div id='doc-1-a'>"));
+      expect(html, contains('<div id=doc-1-b>'));
+      expect(html, contains('<div ID="doc-1-c">'));
+      expect(html, contains('<a href="#doc-1-a">1</a>'));
+      expect(html, contains('<a href="#doc-1-b">2</a>'));
+      expect(html, contains('<a href="#doc-1-c">3</a>'));
+    });
+
+    test('f05/us02/fr03/e08, s03/inv23, FM8: a link to another doc keeps its '
+        'anchor when the body holds a raw id equal to it', () {
+      final html = body('<a id="doc-2"></a>\n\n[d](../d.md)\n');
+
+      expect(html, contains('<a href="#doc-2">d</a>'));
+      expect(html, contains('<a id="doc-1-doc-2"></a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv18, s03/inv23, FM8: an id in a tag the tag '
+        'filter escapes is text, not an id', () {
+      final html = body('x <textarea id="t"> y\n\n[go](#t)\n');
+
+      expect(html, contains('&lt;textarea id="t">'));
+      expect(html, contains('<a href="#doc-1">go</a>'));
+      expect(html, isNot(contains('doc-1-t')));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: an id inside an html comment is '
+        'no id', () {
+      final html = body('<!-- <a id="c"></a> -->\n\n[go](#c)\n');
+
+      expect(html, contains('<!-- <a id="c"></a> -->'));
+      expect(html, contains('<a href="#doc-1">go</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: <!--> is a comment closed at '
+        'once, so an id after it is scoped', () {
+      final html = body('<!-->\n\n<a id="c"></a>\n\n[go](#c)\n');
+
+      expect(html, contains('id="doc-1-c"'));
+      expect(html, contains('<a href="#doc-1-c">go</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: <!---> is a comment closed at '
+        'once, so an id after it is scoped', () {
+      final html = body('<!--->\n\n<a id="c"></a>\n\n[go](#c)\n');
+
+      expect(html, contains('id="doc-1-c"'));
+      expect(html, contains('<a href="#doc-1-c">go</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: a comment ends at --!>, so an '
+        'id after it is scoped', () {
+      final html = body('<!-- note --!>\n<a id="c"></a>\n-->\n\n[go](#c)\n');
+
+      expect(html, contains('id="doc-1-c"'));
+      expect(html, contains('<a href="#doc-1-c">go</a>'));
+    });
+
+    test('f05/us02/fr03/e04, s03/inv23, FM8: a quoted > before the id does '
+        'not end the tag', () {
+      final html = body('<div title="a>b" id="q"></div>\n\n[go](#q)\n');
+
+      expect(html, contains('id="doc-1-q"'));
+      expect(html, contains('<a href="#doc-1-q">go</a>'));
+    });
+
+    test('f05/us02/fr03/e04, s03/inv23, FM8: of a repeated attribute name the '
+        'first wins', () {
+      final html = body('<div id="a" id="b">x</div>\n\n[1](#a) [2](#b)\n');
+
+      expect(html, contains('<div id="doc-1-a" id="b">'));
+      expect(html, contains('<a href="#doc-1-a">1</a>'));
+      expect(html, contains('<a href="#doc-1">2</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: an end tag, a declaration, and a '
+        'processing instruction hold no id', () {
+      final html = body(
+        '<div id="a">x</div>\n\n</p id="e">\n\n<!DOCTYPE html id="d">\n\n'
+        '<?pi id="p"?>\n\n[1](#e) [2](#d) [3](#p)\n',
+      );
+
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains('id="e"'));
+      expect(html, contains('id="d"'));
+      expect(html, contains('id="p"'));
+      expect(html, isNot(contains('doc-1-e')));
+      expect(html, isNot(contains('doc-1-d')));
+      expect(html, isNot(contains('doc-1-p')));
+      expect('href="#doc-1"'.allMatches(html), hasLength(3));
+    });
+
+    test('f05/us02/fr03/e04, s03/inv23, FM8: a single-quoted and an upper-case '
+        'href reach the scoped fragment', () {
+      final html = body(
+        '<div id="a">x</div>\n\n<a href=\'#a\'>1</a> <a HREF="#a">2</a>\n',
+      );
+
+      expect(html, contains("<a href='#doc-1-a'>1</a>"));
+      expect(html, contains('<a HREF="#doc-1-a">2</a>'));
+    });
+
+    test('f05/us02/fr03/e07, s03/inv23, FM8: an unterminated comment leaves '
+        'the rest of the text unchanged', () {
+      final html = body('<div id="a">x</div>\n\n<!-- <a id="c"></a>\n');
+
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains('<!-- <a id="c"></a>'));
+      expect(html, isNot(contains('doc-1-c')));
+    });
+
+    test('f05/us02/fr03/e04, s03/inv23, FM8: an unterminated quoted value '
+        'leaves the rest of the text unchanged', () {
+      final html = body('<div id="a">x</div>\n\n<div title="oops id="b">\n');
+
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains('<div title="oops id="b">'));
+      expect(html, isNot(contains('doc-1-b')));
+    });
+
     test(
       'f05/us02/fr03: two docs with a footnote [^1] and a raw id get '
       'distinct ids and every in-page link lands on an id of the page',
