@@ -548,14 +548,35 @@ Database _connect(File file, Duration busyTimeout) {
   }
   final db = sqlite3.open(file.path);
   try {
-    db
-      ..execute('PRAGMA busy_timeout = ${busyTimeout.inMilliseconds}')
-      ..execute('PRAGMA journal_mode = WAL');
+    db.execute('PRAGMA busy_timeout = ${busyTimeout.inMilliseconds}');
+    _enterWal(db, busyTimeout);
     if (!_tableNames(db).contains('meta')) _createUnderLock(db, file.parent);
     return db;
   } on Object {
     db.close();
     rethrow;
+  }
+}
+
+/// Switches [db] to WAL, retrying on `SQLITE_BUSY` until [busyTimeout] lapses.
+///
+/// The switch promotes a read lock inside its own statement, and SQLite then
+/// skips the busy handler and returns `SQLITE_BUSY` at once so the caller can
+/// drop its lock; the wait is left to the caller. Rethrows the last busy error
+/// after the timeout, and any other error at once.
+void _enterWal(Database db, Duration busyTimeout) {
+  final watch = Stopwatch()..start();
+  while (true) {
+    try {
+      db.execute('PRAGMA journal_mode = WAL');
+      return;
+    } on SqliteException catch (e) {
+      if (e.resultCode != SqlError.SQLITE_BUSY ||
+          watch.elapsed >= busyTimeout) {
+        rethrow;
+      }
+      sleep(const Duration(milliseconds: 10));
+    }
   }
 }
 
@@ -602,12 +623,12 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
 };
 
 /// Adds each missing line of `index.sqlite*`, `build/`, and `trash/` to
-/// `.gitignore` in [folder].
+/// `.gitignore` in [specstoneFolder].
 ///
 /// Throws [FileSystemException] when a line is missing and the file is
 /// read-only: a rename would replace it whatever its mode.
-void ensureSpecstoneGitignore(Directory folder) {
-  final target = File.fromUri(folder.uri.resolve('.gitignore'));
+void ensureSpecstoneGitignore(Directory specstoneFolder) {
+  final target = File.fromUri(specstoneFolder.uri.resolve('.gitignore'));
   final text = target.existsSync() ? target.readAsStringSync() : '';
   final present = const LineSplitter().convert(text).toSet();
   final missing = [

@@ -142,9 +142,6 @@ void main() {
 
   test('f02/us02/s4, f02/us02/fr01/e03: two new calls under one parent at once take two numbers', () async {
     final root = await writeWriteProject();
-    // Two first opens of a project with no index file race on creating it
-    // (IndexStore); a read first, as the set test's concurrency case does.
-    getDoc(root, 'user_story:login/email_login');
     final path = root.path;
     String create(String slug) => WriteSession.run(
       (s) => answerNew(
