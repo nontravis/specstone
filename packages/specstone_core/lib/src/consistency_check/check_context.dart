@@ -50,7 +50,7 @@ final class CheckContext {
 
   /// Returns the line map of [doc], built on first use.
   DocLines linesOf(IndexedDoc doc) =>
-      _lines.putIfAbsent(doc.docPath, () => DocLines.of(contentOf(doc).text));
+      _lines.putIfAbsent(doc.docPath, () => DocLines.from(contentOf(doc)));
 
   /// Returns the text of the code file at [path], read once per run.
   ///

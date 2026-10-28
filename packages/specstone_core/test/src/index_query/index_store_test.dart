@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -254,6 +255,55 @@ void main() {
       expect(store.readStamp(), stamp);
       expect(IndexStamp.of(setWith('Another feature')), isNot(stamp));
       expect(stamp.binaryVersion, specstoneVersion);
+    });
+    test('f04/nfr-p03, s03/inv2: a stored doc loads back with its line facts and section counts', () async {
+      const text =
+          '---\nstatus: planned\n---\n\n# T\n\n## A\nx\n```\n## no\n```\n\n'
+          '## B\nhéllo \u{1F600}\n';
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      final written = parsed('A.md', text);
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(written);
+      });
+      final facts = store.loadContent('A.md').lineFacts;
+      expect(facts.toJson(), written.content.lineFacts.toJson());
+      expect(facts.sectionCounts, written.content.lineFacts.sectionCounts);
+      expect(facts.sectionLines, [7, 13]);
+      expect(facts.fenced, [(first: 9, last: 11)]);
+      expect(facts.sectionCounts.last, (lines: 2, chars: 12));
+    });
+    test('f04/nfr-p03: the lines a check reads from a stored doc equal those it reads from the text', () async {
+      const text =
+          '---\ntraced_from:\n  - S1\n  - S2\n---\n\n# T\n\n'
+          '## A\nx\n```\n## no\n```\n';
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(parsed('A.md', text.replaceAll('\n', '\r\n')));
+      });
+      final stored = DocLines.from(store.loadContent('A.md'));
+      final direct = DocLines.of(text);
+      expect(stored.lines, direct.lines);
+      expect(stored.lineCount, direct.lineCount);
+      expect(stored.charCount, direct.charCount);
+      expect(stored.titleLine, direct.titleLine);
+      expect(stored.sectionLines, direct.sectionLines);
+      expect(stored.sectionCounts, direct.sectionCounts);
+      expect(stored.entriesOf('traced_from'), direct.entriesOf('traced_from'));
+      expect(stored.keyLine('traced_from'), 2);
+      expect(
+        [for (var i = 1; i <= 14; i++) stored.isFenced(i)],
+        [for (var i = 1; i <= 14; i++) direct.isFenced(i)],
+      );
     });
     test('f01/us01/fr02/e02, s03/inv2: a meta row without the layout marker has no stamp, whatever the user_version', () async {
       final r = await root();

@@ -6,6 +6,8 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -141,6 +143,7 @@ final class DocContent {
     required this.head,
     required this.sections,
     required this.links,
+    required this.lineFacts,
   });
 
   /// The whole file as decoded, in its own line endings.
@@ -157,6 +160,9 @@ final class DocContent {
 
   /// The docPaths of the other docs this one links to, each once in order.
   final List<String> links;
+
+  /// The line facts of the file, stored by the refresh that parsed it.
+  final LineFacts lineFacts;
 }
 
 /// One parsed file: its index entry, its content, and its content hash.
@@ -196,17 +202,28 @@ ParsedDoc parseIndexedDoc({
       '${docTypeIds.join(', ')}',
     );
   }
-  final frontmatter = _frontmatterValues(doc.frontmatter, docPath, warnings);
+  final yaml = switch (doc.frontmatter) {
+    final blocks? => parseFrontmatterYaml(blocks.map((b) => b.text).join()),
+    null => null,
+  };
+  final frontmatter = _frontmatterValues(yaml, docPath, warnings);
+  final sections = [
+    for (final section in doc.sections) _sectionOf(section, docType),
+  ];
   final content = DocContent(
     text: text,
     frontmatterText: doc.frontmatter == null
         ? null
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
     head: doc.head,
-    sections: [
-      for (final section in doc.sections) _sectionOf(section, docType),
-    ],
+    sections: sections,
     links: _linksOf(doc.afterFrontmatter, docPath),
+    lineFacts: LineFacts.of(
+      lfText: lfText,
+      doc: doc,
+      sectionCounts: [for (final section in sections) sectionCountsOf(section)],
+      frontmatterErrorLine: yaml?.errorLine,
+    ),
   );
   final indexed = IndexedDoc(
     docPath: docPath,
@@ -244,23 +261,17 @@ IndexedSection _sectionOf(Section section, MergedDocType? docType) {
 }
 
 Map<String, Object?> _frontmatterValues(
-  List<KeyBlock>? blocks,
+  FrontmatterYaml? yaml,
   String docPath,
   List<String> warnings,
 ) {
-  if (blocks == null) return const {};
-  final Object? loaded;
-  try {
-    loaded = loadYaml(blocks.map((b) => b.text).join());
-  } on YamlException {
-    return _notIndexed(docPath, warnings);
-  }
-  // An empty frontmatter loads as null: valid YAML holding no values.
-  if (loaded == null) return const {};
-  if (loaded is! YamlMap) return _notIndexed(docPath, warnings);
-  return {
-    for (final entry in loaded.entries) '${entry.key}': _plain(entry.value),
-  };
+  if (yaml == null) return const {};
+  // An empty frontmatter has no mapping and no error: valid YAML with no
+  // values.
+  if (yaml.errorLine != null) return _notIndexed(docPath, warnings);
+  final map = yaml.map;
+  if (map == null) return const {};
+  return {for (final entry in map.entries) '${entry.key}': _plain(entry.value)};
 }
 
 Map<String, Object?> _notIndexed(String docPath, List<String> warnings) {

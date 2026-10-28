@@ -1,6 +1,5 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/section_counts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _projectType = 'project';
@@ -37,15 +36,15 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   }
   final docMaxLines = type.lint.maxLines;
   final docMaxChars = type.lint.maxChars;
-  if (docMaxLines != null && lines.lines.length > docMaxLines) {
+  if (docMaxLines != null && lines.lineCount > docMaxLines) {
     yield context.finding(
       doc,
       FindingKind.linesOverLimit,
       line: 1,
       message:
-          'the doc has ${lines.lines.length} lines; the limit is '
+          'the doc has ${lines.lineCount} lines; the limit is '
           '$docMaxLines',
-      keys: {'limit': docMaxLines, 'actual': lines.lines.length},
+      keys: {'limit': docMaxLines, 'actual': lines.lineCount},
     );
   }
   if (docMaxChars != null && lines.charCount > docMaxChars) {
@@ -76,7 +75,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
     }
     final maxLines = template?.maxLines ?? docMaxLines;
     final maxChars = template?.maxChars ?? docMaxChars;
-    final (lines: actualLines, chars: actualChars) = sectionCountsOf(section);
+    final (lines: actualLines, chars: actualChars) = lines.sectionCounts[i];
     if (maxLines != null && actualLines > maxLines) {
       yield context.finding(
         doc,

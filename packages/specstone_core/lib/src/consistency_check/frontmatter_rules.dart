@@ -44,20 +44,21 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
     }
   }
   for (final MapEntry(:key, :value) in doc.frontmatter.entries) {
-    final line = lines.keyLine(key) ?? 1;
+    // The key line reads the frontmatter YAML, so only a finding asks for it.
+    int lineOf() => lines.keyLine(key) ?? 1;
     final field = fieldsById[key];
     if (key == _statusKey && doc.docTypeId == _featureType) {
       yield context.finding(
         doc,
         FindingKind.featureStatusWritten,
-        line: line,
+        line: lineOf(),
         message: 'a FEATURE takes its status from its stories; remove status',
       );
     } else if (field == null) {
       yield context.finding(
         doc,
         FindingKind.fieldUndeclared,
-        line: line,
+        line: lineOf(),
         message: '$key is not a field of the ${type.id} doc type',
         keys: {'field': key},
       );
@@ -65,7 +66,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
       yield context.finding(
         doc,
         FindingKind.fieldValueMismatch,
-        line: line,
+        line: lineOf(),
         message: '$key is ${_written(value)}; it takes ${_takes(field)}',
         keys: {'field': key, 'value': _written(value)},
       );
