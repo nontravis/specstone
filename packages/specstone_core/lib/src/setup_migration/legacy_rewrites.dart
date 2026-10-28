@@ -176,7 +176,9 @@ String _withoutIndexes(String lf) {
     if (index < 0) break;
     text = withoutSection(text, index);
   }
-  if (text == lf || lf.endsWith('\n\n')) return text;
+  // Only a removed last section leaves a blank tail to trim; any other tail
+  // stays byte-equal.
+  if (text == lf || lf.endsWith('\n\n') || !text.endsWith('\n\n')) return text;
   return '${withoutTrailingBlankLines(text)}\n';
 }
 
@@ -186,12 +188,13 @@ String _withHeaderRenamed(String lf, String from, String to) {
   if (index < 0) return lf;
   final lines = doc.afterFrontmatter.split('\n');
   final lineAt = doc.sectionLineIndexes[index];
-  final start =
-      lf.length -
-      doc.afterFrontmatter.length +
-      lines.take(lineAt).fold<int>(0, (sum, line) => sum + line.length + 1);
-  final header = doc.sections[index].headerLine;
-  return lf.replaceRange(start, start + header.length, '## $to');
+  lines[lineAt] = lines[lineAt].replaceRange(
+    0,
+    doc.sections[index].headerLine.length,
+    '## $to',
+  );
+  final frontmatterLength = lf.length - doc.afterFrontmatter.length;
+  return lf.substring(0, frontmatterLength) + lines.join('\n');
 }
 
 String _withCoversKey(String lf) {

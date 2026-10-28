@@ -305,6 +305,62 @@ Kept.
       expect(result.changes, ['index tables removed']);
     });
 
+    test('f06/us01/fr04/e03: a doc with no title line gets the Feature name '
+        'as its title', () {
+      const feature = '''
+## Feature name
+
+- **Human:** Login
+
+## Feature goal
+
+Goal.
+''';
+
+      final result = rewriteLegacyDoc(feature, LegacyKind.feature);
+
+      expect(result.lf, '''
+# Login
+## Feature goal
+
+Goal.
+''');
+      expect(result.changes, ['title from Feature name']);
+    });
+
+    test('f06/us01/fr04/e12: an index section mid-doc keeps a tail with no '
+        'final newline', () {
+      const feature =
+          '# Login\n\n## User stories index\n\n| a |\n\n## Notes\n\nKept';
+
+      final result = rewriteLegacyDoc(feature, LegacyKind.feature);
+
+      expect(result.lf, '# Login\n\n## Notes\n\nKept');
+      expect(result.changes, ['index tables removed']);
+    });
+
+    test('f06/us01/fr04/e12: a doc that ends in a blank line keeps it when an '
+        'index section goes', () {
+      const feature =
+          '# Login\n\n## Notes\n\nKept\n\n## User stories index\n\n| a |\n\n';
+
+      final result = rewriteLegacyDoc(feature, LegacyKind.feature);
+
+      expect(result.lf, '# Login\n\n## Notes\n\nKept\n\n');
+      expect(result.changes, ['index tables removed']);
+    });
+
+    test('f06/us01/fr04/e12: an index section last in the doc leaves one '
+        'final newline', () {
+      const feature =
+          '# Login\n\n## Notes\n\nKept\n\n## User stories index\n\n| a |\n';
+
+      final result = rewriteLegacyDoc(feature, LegacyKind.feature);
+
+      expect(result.lf, '# Login\n\n## Notes\n\nKept\n');
+      expect(result.changes, ['index tables removed']);
+    });
+
     test('f06/us01/fr04/e07: Tier-2 decisions becomes Concerns and FR ↔ '
         'endpoint trace becomes FR trace', () {
       const architecture = '''
