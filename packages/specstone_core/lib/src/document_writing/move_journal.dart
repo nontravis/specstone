@@ -56,6 +56,9 @@ sealed class JournalStep {
 
   /// Applies the step to [target]; returns at once when it [isDone].
   ///
+  /// [PruneStep] is the exception: it always runs, so a replay still prunes
+  /// the parent folders an earlier run emptied.
+  ///
   /// Throws [RenderFault] `output_not_writable` when the disk refuses, and
   /// [GitCommandFailed] when `git` refuses a [CommitStep].
   void apply(JournalTarget target);
@@ -134,16 +137,19 @@ final class MoveStep extends JournalStep {
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
-    final source = _absolute(target, from);
     final destination = _absolute(target, to);
     if (to.startsWith('${MoveJournal.stagePath}/') &&
         FileSystemEntity.typeSync(destination, followLinks: false) !=
             FileSystemEntityType.notFound) {
       return;
     }
+    _moveEntity(_absolute(target, from), destination);
+  }
+
+  void _moveEntity(String source, String target) {
     try {
-      Directory(File(destination).parent.path).createSync(recursive: true);
-      _entityAt(source).renameSync(destination);
+      Directory(File(target).parent.path).createSync(recursive: true);
+      _entityAt(source).renameSync(target);
     } on FileSystemException catch (error) {
       throw _notWritable('move', from, error);
     }
@@ -165,6 +171,10 @@ final class PruneStep extends JournalStep {
   @override
   String describe() => 'prune $folder';
 
+  /// Whether [folder] is gone.
+  ///
+  /// [apply] does not return early when this holds: the folder may be gone
+  /// while its emptied parents remain.
   @override
   bool isDone(JournalTarget target) =>
       !Directory(_underDocsRoot(target, folder)).existsSync();
@@ -314,20 +324,23 @@ void _runWrite(JournalTarget target, String verb, List<String> arguments) {
     workingDirectory: target.projectRoot.path,
   );
   if (result.exitCode != 0) {
-    throw GitCommandFailed(verb, _decisiveLine(result.stderr as String));
+    throw GitCommandFailed(verb, _decisiveLine(result));
   }
 }
 
-/// Returns the first line of [stderr] that starts `fatal:` or `error:`, else
-/// its last non-empty line, else the empty string.
-String _decisiveLine(String stderr) {
-  final lines = [
-    for (final line in const LineSplitter().convert(stderr))
+/// Returns the first stderr line of [result] that starts `fatal:` or `error:`,
+/// else its last non-empty stderr line, else its last non-empty stdout line
+/// (`nothing to commit` goes there), else the empty string.
+String _decisiveLine(ProcessResult result) {
+  List<String> linesOf(Object? text) => [
+    for (final line in const LineSplitter().convert('$text'))
       if (line.trim().isNotEmpty) line.trim(),
   ];
-  return lines.firstWhere(
+  final errors = linesOf(result.stderr);
+  if (errors.isEmpty) return linesOf(result.stdout).lastOrNull ?? '';
+  return errors.firstWhere(
     (line) => line.startsWith('fatal:') || line.startsWith('error:'),
-    orElse: () => lines.lastOrNull ?? '',
+    orElse: () => errors.last,
   );
 }
 

@@ -5,6 +5,7 @@ import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
@@ -758,10 +759,17 @@ void main() {
         const CreateStep('.specstone/config.yaml', 'packs:\n'),
         CommitStep(
           message: 'rewrite',
-          paths: ['docs/prds/PROJECT.md', '.specstone/config.yaml'],
+          paths: [
+            'docs/prds/PROJECT.md',
+            '.specstone/config.yaml',
+            '.specstone/.gitignore',
+          ],
           base: base,
         ),
       ];
+      final specstone = Directory('${root.path}/.specstone')
+        ..createSync(recursive: true);
+      ensureSpecstoneGitignore(specstone);
       File('${root.path}/${MoveJournal.journalPath}')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
@@ -851,8 +859,9 @@ void main() {
 
     test('f06/us01/fr07/e09: the decisive line is the first fatal or error line, else the last line', () async {
       final root = await writeTree({});
-      ProcessResult failing(String stderr) => ProcessResult(0, 1, '', stderr);
-      void commitWith(String stderr) =>
+      ProcessResult failing(String stderr, String stdout) =>
+          ProcessResult(0, 1, stdout, stderr);
+      void commitWith(String stderr, {String stdout = ''}) =>
           const CommitStep(message: 'm', paths: [], base: 'b').apply(
             JournalTarget(
               projectRoot: root,
@@ -860,7 +869,7 @@ void main() {
               runGit: (arguments, {required workingDirectory}) =>
                   arguments.first == 'log'
                   ? ProcessResult(0, 0, '', '')
-                  : failing(stderr),
+                  : failing(stderr, stdout),
             ),
           );
 
@@ -877,6 +886,73 @@ void main() {
         throwsA(
           isA<GitCommandFailed>().having((e) => e.line, 'line', 'last words'),
         ),
+      );
+    });
+
+    test('f06/us01/fr07/e09: a failure with no stderr reports the last stdout line', () {
+      JournalTarget target() => JournalTarget(
+        projectRoot: Directory.systemTemp,
+        docsRoot: Directory.systemTemp,
+        runGit: (arguments, {required workingDirectory}) =>
+            arguments.first == 'log'
+            ? ProcessResult(0, 0, '', '')
+            : ProcessResult(0, 1, 'On branch x\nnothing to commit\n\n', ''),
+      );
+
+      expect(
+        () => const CommitStep(
+          message: 'm',
+          paths: [],
+          base: 'b',
+        ).apply(target()),
+        throwsA(
+          isA<GitCommandFailed>().having(
+            (e) => e.line,
+            'line',
+            'nothing to commit',
+          ),
+        ),
+      );
+    });
+
+    test('f06/us01/fr07: fromJson refuses a commit step whose path is not a string', () {
+      expect(
+        () => JournalStep.fromJson({
+          'commit': {
+            'message': 'm',
+            'paths': ['a', 1],
+            'base': 'b',
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test(
+      'f06/us01/fr07: a prune step is done when its folder is gone',
+      () async {
+        final root = await writeTree({'docs/keep.md': 'x'});
+        Directory('${root.path}/docs/a').createSync();
+
+        expect(const PruneStep('docs/a').isDone(_target(root)), isFalse);
+        const PruneStep('docs/a').apply(_target(root));
+        expect(const PruneStep('docs/a').isDone(_target(root)), isTrue);
+      },
+    );
+
+    test('f06/us01/fr07: a write step is done when the file already holds its text', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'same\n'});
+
+      expect(
+        const WriteStep('docs/prds/PROJECT.md', 'same\n').isDone(_target(root)),
+        isTrue,
+      );
+      expect(
+        const WriteStep(
+          'docs/prds/PROJECT.md',
+          'other\n',
+        ).isDone(_target(root)),
+        isFalse,
       );
     });
   });
