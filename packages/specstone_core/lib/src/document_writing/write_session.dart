@@ -73,6 +73,7 @@ final class WriteSession {
   final Duration _busyTimeout;
   ReadSession _read;
   bool _snapshotOpen = true;
+  bool _closed = false;
 
   /// The DocPaths whose last [readDocBytes] began with a UTF-8 BOM.
   final _bomDocs = <String>{};
@@ -90,6 +91,7 @@ final class WriteSession {
       homeDirectory: _homeDirectory,
       busyTimeout: _busyTimeout,
     );
+    _closed = false;
     _snapshotOpen = true;
     _bomDocs.clear();
   }
@@ -248,12 +250,15 @@ final class WriteSession {
     final segments = docPath.split('/');
     if (!docPath.endsWith('.md') ||
         segments.any((s) => s.isEmpty || s == '..') ||
+        docPath.contains(r'\') ||
         File(docPath).isAbsolute) {
       throw ArgumentError.value(docPath, 'docPath', 'not a .md under docs');
     }
   }
 
   void _close() {
+    if (_closed) return;
+    _closed = true;
     if (_snapshotOpen) {
       _read.close();
     } else {

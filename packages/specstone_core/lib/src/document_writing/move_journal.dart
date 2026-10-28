@@ -255,33 +255,35 @@ FileSystemEntity _entityAt(String path) =>
 bool _movesToTrash(JournalStep step) =>
     step is MoveStep && step.to.startsWith('${MoveJournal.trashPath}/');
 
-/// The name of the file [_requireSameVolume] renames and removes.
-const _probeName = 'move-probe';
-
-/// Throws [RenderFault] `output_not_writable` when a file cannot be renamed
-/// from the docs root into `.specstone/`, as a docs root linked to another
+/// Throws [RenderFault] `output_not_writable` when a folder cannot be renamed
+/// from the docs root into the trash folder, as a docs root linked to another
 /// volume cannot.
 ///
-/// Probes with a throwaway file, so the refusal comes before the journal and
-/// nothing is left half moved.
+/// Probes with a fresh empty folder, so the refusal comes before the journal,
+/// nothing is left half moved, and no user file is touched. A probe that
+/// fails also removes the trash folder it made.
 void _requireSameVolume(DocsProject project) {
-  final probe = File(_join(project.docsRoot.path, '.specstone-$_probeName'));
-  final landing = File(
-    _join(project.projectRoot.path, '.specstone/$_probeName'),
+  final trash = Directory(
+    _join(project.projectRoot.path, MoveJournal.trashPath),
   );
+  final trashExisted = trash.existsSync();
+  Directory? probe;
+  Directory? landed;
   try {
-    probe
-      ..writeAsStringSync('')
-      ..renameSync(landing.path);
+    probe = Directory(project.docsRoot.path)
+        .createTempSync('.specstone-probe-');
+    trash.createSync(recursive: true);
+    landed = probe.renameSync(_join(trash.path, 'move-probe'));
   } on FileSystemException catch (error) {
+    if (!trashExisted && trash.existsSync()) trash.deleteSync(recursive: true);
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
       'cannot move docs into ${MoveJournal.trashPath}: '
       '${error.osError?.message ?? error.message}',
     );
   } finally {
-    for (final file in [probe, landing]) {
-      if (file.existsSync()) file.deleteSync();
+    for (final folder in [?probe, ?landed]) {
+      if (folder.existsSync()) folder.deleteSync();
     }
   }
 }

@@ -344,6 +344,7 @@ void main() {
       '${root.path}/x.md',
       'prds//x.md',
       'prds/../x.md',
+      r'prds\x.md',
     ]) {
       expect(
         () => writeIn(root, (s) => s.writeDoc(path, 'x\n', LineEnding.lf)),

@@ -403,8 +403,8 @@ void main() {
       );
       expect(File('${outside.path}/$story3').existsSync(), isTrue);
       expect(
-        File('${outside.path}/.specstone-move-probe').existsSync(),
-        isFalse,
+        outside.listSync().map((e) => e.path.split('/').last),
+        isNot(contains(startsWith('.specstone-probe-'))),
       );
       writeIn(linked, (_) {});
     },

@@ -494,6 +494,29 @@ void main() {
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
   });
 
+  test('f02/us04/fr02/e07, nfr-di01, dw-s03/inv9: a replay fault during the refresh after y is a RenderFault and the session closes once', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerDelete(
+          s,
+          'user_story:login/sign_out',
+          interactive: true,
+          readLine: () {
+            File('${root.path}/${MoveJournal.journalPath}')
+              ..parent.createSync(recursive: true)
+              ..writeAsStringSync('not json');
+            return 'y';
+          },
+          prompts: StringBuffer(),
+        ),
+      ),
+      throwsA(isA<RenderFault>()),
+    );
+    expect(hasDoc(root, story2), isTrue);
+  });
+
   test('f02/us04/fr02/e07, H12: a byte changed while the prompt waits lists the unit and prompts again', () async {
     final root = await writeWriteProject(extra: approvedSignOut);
     final changed = docFile(root, '$_signOut/fr01_end_session.md');
