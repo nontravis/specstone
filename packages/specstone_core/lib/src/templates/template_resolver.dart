@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
+import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -51,6 +52,55 @@ final class TemplateResolver {
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
     return _merge(parsed, projectLayers);
+  }
+
+  /// Returns the manifest of each pack in [names] at the version this
+  /// Specstone or the home folder carries, keyed by name.
+  ///
+  /// A shipped name reads from the binary, any other name from
+  /// `~/.specstone/packs/<name>/pack.yaml` under [homeDirectory]. No pin is
+  /// checked; a missing or misnamed personal pack throws `pack_not_found` or
+  /// `pack_name_mismatch`.
+  Map<String, PackManifest> availableManifests(
+    Iterable<String> names, {
+    required Directory? homeDirectory,
+  }) => {
+    for (final pack in _availablePacks(names, homeDirectory))
+      pack.manifest.name: pack.manifest,
+  };
+
+  /// Resolves the doc types of [packNames] at their available versions.
+  ///
+  /// The packs merge with [projectLayers] and nothing else: no
+  /// `.specstone/config.yaml` is read and no pin is checked, so a tree with
+  /// no config resolves. Throws the first [TemplateFault] in load order.
+  MergedSet resolveCarried({
+    required Iterable<String> packNames,
+    required Directory? homeDirectory,
+    List<DocTypeLayer> projectLayers = const [],
+  }) {
+    final ordered = orderPacks(
+      _availablePacks(packNames, homeDirectory),
+      configFile: projectConfigPath,
+    );
+    final parsed = [
+      for (final pack in ordered) (pack: pack, layers: pack.parseDocTypes()),
+    ];
+    return _merge(parsed, projectLayers);
+  }
+
+  /// Loads the packs [names] at their available versions, by name in code
+  /// point order (INV-22), with no pin check.
+  List<LoadedPack> _availablePacks(Iterable<String> names, Directory? home) {
+    final shipped = _shippedPackNames();
+    final sorted = names.toList()..sort(compareCodePoints);
+    return [
+      for (final name in sorted)
+        if (shipped.contains(name))
+          loadShippedPackManifest(name, _shippedFiles)
+        else
+          _personalPack(name, home),
+    ];
   }
 
   /// Loads every shipped pack's manifest, by name in code point order
@@ -105,15 +155,7 @@ final class TemplateResolver {
         key: 'packs.$name',
       );
     }
-    if (compare > 0) {
-      throw TemplateFault(
-        FaultCode.packPinNewer,
-        'Pack $name is pinned at $pin, and this Specstone carries $carried. '
-        'Upgrade Specstone',
-        file: projectConfigPath,
-        key: 'packs.$name',
-      );
-    }
+    if (compare > 0) throw pinNewerFault(name, pin, carried);
     return pack;
   }
 
@@ -123,6 +165,24 @@ final class TemplateResolver {
     PackVersion pin,
     Directory? home,
   ) {
+    final pack = _personalPack(name, home);
+    final carried = pack.manifest.version;
+    if (carried != pin) {
+      throw TemplateFault(
+        FaultCode.personalPackVersionDiffers,
+        'Pack $name is pinned at $pin, and the personal pack carries $carried',
+        file: projectConfigPath,
+        key: 'packs.$name',
+      );
+    }
+    return pack;
+  }
+
+  /// Loads the personal pack [name] from [home], with no pin check.
+  ///
+  /// Throws `pack_not_found` when [home] holds no folder for it and
+  /// `pack_name_mismatch` when its `pack.yaml` names another pack.
+  LoadedPack _personalPack(String name, Directory? home) {
     if (home == null ||
         !Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'))
             .existsSync()) {
@@ -141,15 +201,6 @@ final class TemplateResolver {
         'the key name must equal the pack folder name and the packs key',
         file: pack.manifest.file,
         key: 'name',
-      );
-    }
-    final carried = pack.manifest.version;
-    if (carried != pin) {
-      throw TemplateFault(
-        FaultCode.personalPackVersionDiffers,
-        'Pack $name is pinned at $pin, and the personal pack carries $carried',
-        file: projectConfigPath,
-        key: 'packs.$name',
       );
     }
     return pack;
@@ -443,3 +494,17 @@ final class TemplateResolver {
     return lists;
   }
 }
+
+/// Returns the `pack_pin_newer` fault for pack [name] pinned at [pin] while
+/// this Specstone carries [carried].
+TemplateFault pinNewerFault(
+  String name,
+  PackVersion pin,
+  PackVersion carried,
+) => TemplateFault(
+  FaultCode.packPinNewer,
+  'Pack $name is pinned at $pin, and this Specstone carries $carried. '
+  'Upgrade Specstone',
+  file: projectConfigPath,
+  key: 'packs.$name',
+);
