@@ -77,6 +77,17 @@ void main() {
     expect([padNumber(1), padNumber(99), padNumber(100)], ['01', '99', '100']);
   });
 
+  test('dw-s03/inv7, H22: spec folder moves pair each folder with the one its child doc type holds after the move', () {
+    final feature = set.lookup('feature')!;
+    expect(specFolderMovesOf(set, feature, ['01', 'login'], ['02', 'login']), [
+      (from: 'specs/f01_login/', to: 'specs/f02_login/'),
+    ]);
+    expect(
+      specFolderMovesOf(set, feature, ['01', 'login'], ['01', 'login']),
+      isEmpty,
+    );
+  });
+
   test('dw-s03/inv6: the own segment index and the parent count', () {
     expect(
       [
