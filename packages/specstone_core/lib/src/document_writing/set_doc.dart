@@ -18,7 +18,6 @@ const _targetExample =
     '--base 3f9a1c0b7e21';
 
 final _headerLine = RegExp(r'^## .*$', multiLine: true);
-final _trailingBlankLines = RegExp(r'(\n[ \t]*)+$');
 
 /// What a `set` call writes: a section, a frontmatter field, or the title.
 sealed class SetTarget {
@@ -170,7 +169,7 @@ ReadAnswer _setField(
   }
 
   final lf = toLf(stdin);
-  final stripped = lf.replaceFirst(_trailingBlankLines, '');
+  final stripped = withoutTrailingBlankLines(lf);
   final empty = stripped.trim().isEmpty;
   if (!empty) {
     _checkedValue(doc, field, stripped);
@@ -378,7 +377,7 @@ ReadAnswer _setSection(
       'the body holds the header line "${header[0]}"; send the body only',
     );
   }
-  final stripped = lf.replaceFirst(_trailingBlankLines, '');
+  final stripped = withoutTrailingBlankLines(lf);
   final body = stripped.trim().isEmpty ? '' : '$stripped\n';
 
   final doc = session.target(request.address);

@@ -41,6 +41,16 @@ void main() {
       );
     },
   );
+  test('f02/us01/fr01, PD11, H25: a section added at the end of a doc ending in a blank line follows exactly one blank line', () {
+    expect(
+      withSectionAdded('# T\n\n## A\na\n\n', headerLine: '## R', body: 'r'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+    expect(
+      withSectionAdded('# T\n\n## A\na\n\n\n', headerLine: '## R', body: 'r'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+  });
   test('dw-s03/inv13: review focus 2: a ## line inside a fence is no section, so no splice lands on it', () {
     const fenced = '# T\n\n## A\n```\n## B\n```\n\n## B\nreal\n';
     final parsed = Doc.parse(fenced);

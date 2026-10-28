@@ -78,12 +78,14 @@ final class ApprovalHistory {
   /// Returns the newest committed copy of [projectPath] without `draft`.
   ///
   /// [projectPath] is relative to [projectRoot], the repository root; the
-  /// history follows renames.
+  /// history follows renames and skips the commits that deleted the file.
   ApprovalLookup lastApproved(Directory projectRoot, String projectPath) {
     try {
       final log = _runGit([
         'log',
         '--follow',
+        '--diff-filter=d',
+        '-z',
         '--format=%H',
         '--name-only',
         '--',
@@ -111,14 +113,18 @@ final class ApprovalHistory {
 
 final _sha = RegExp(r'^[0-9a-f]{40}$');
 
-/// Pairs each commit of a `--format=%H --name-only` log with its listed path.
+/// Pairs each commit of a `-z --format=%H --name-only` log with its listed
+/// path.
+///
+/// `-z` ends each field with NUL and leaves a path unquoted whatever its
+/// bytes; git puts a newline between a commit's hash and its path.
 Iterable<(String, String)> _commitsOf(String log) sync* {
   String? sha;
-  for (final line in const LineSplitter().convert(log)) {
-    if (_sha.hasMatch(line)) {
-      sha = line;
-    } else if (line.isNotEmpty && sha != null) {
-      yield (sha, line);
+  for (final field in log.split('\x00')) {
+    if (_sha.hasMatch(field)) {
+      sha = field;
+    } else if (field.isNotEmpty && sha != null) {
+      yield (sha, field.startsWith('\n') ? field.substring(1) : field);
       sha = null;
     }
   }

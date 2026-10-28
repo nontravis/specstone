@@ -1256,4 +1256,15 @@ void main() {
     expect(String.fromCharCodes(after.skip(3)), contains('draft: true'));
     expect(String.fromCharCodes(after.skip(3)), contains('New.'));
   });
+
+  test('f02/us01/fr01, PD5, H24: stdin with many whitespace lines before its last character is read in linear time', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final stdin = 'a${'\n '.padRight(2) * 20000}x';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), stdin),
+    );
+    expect(answer.text, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 5)));
 }

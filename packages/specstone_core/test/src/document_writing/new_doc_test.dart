@@ -1,6 +1,3 @@
-// The plan's test literals are kept as written.
-// ignore_for_file: lines_longer_than_80_chars
-
 import 'dart:io';
 import 'dart:isolate';
 
@@ -20,6 +17,30 @@ Matcher indexFault(IndexFaultCode code, String message) => isA<IndexFault>()
     .having((f) => f.code, 'code', code)
     .having((f) => f.message, 'message', message);
 
+/// Runs `onCreate` with the path of each `File` the code under test makes.
+///
+/// A `File` made inside `onCreate` reaches the real file system: the hook is
+/// off while it runs.
+final class _CreateFileHook extends IOOverrides {
+  new(this._onCreate);
+
+  final void Function(String path) _onCreate;
+  var _inside = false;
+
+  @override
+  File createFile(String path) {
+    if (!_inside) {
+      _inside = true;
+      try {
+        _onCreate(path);
+      } finally {
+        _inside = false;
+      }
+    }
+    return super.createFile(path);
+  }
+}
+
 void main() {
   test('f02/us02/s1, f02/us02/fr01, f02/us02/fr01/e01, f02/us02/fr02, f02/us02/fr02/e01, dw-s03/inv6: a story with no text is the skeleton at the next number', () async {
     final root = await writeWriteProject();
@@ -37,12 +58,21 @@ void main() {
     final text = readDoc(root, path);
     expect(
       text,
-      startsWith(
-        '---\ndraft: true\n---\n\n# forgot_email\n\n## Use Case\n- **As a** <Role> [who <situation>]\n',
-      ),
+      '---\ndraft: true\n---\n\n# forgot_email\n\n'
+      '## Use Case\n'
+      '- **As a** <Role> [who <situation>]\n'
+      '- **I want to** <action>\n'
+      '- **so that** <benefit>\n\n'
+      '## Acceptance Criteria\n'
+      '### Scenario 1 — [happy] <what differs>\n'
+      '- **Given** <only the state the scenario needs>\n'
+      '- **When** <one trigger>\n'
+      '- **Then** <observed outcome>\n\n'
+      '### Scenario 2 — [error] <what differs> (BR-01)\n'
+      '- **Given** <only the state the scenario needs>\n'
+      '- **When** <one trigger>\n'
+      '- **Then** <what the person sees or what the system refuses>\n',
     );
-    expect(text, contains('\n## Acceptance Criteria\n'));
-    expect(text, isNot(contains('## Rules')));
   });
 
   test('f02/us02/s6, f02/us02/fr01/e08: a slug a sibling carries is doc_exists naming it, and no file is created', () async {
@@ -348,6 +378,62 @@ void main() {
       },
     );
   }, skip: unreadablePathSkipReason() ?? false);
+
+  test('f02/us02/fr01/e13, nfr-di01: a write that fails after the claim removes the claimed file and the folders new made', () async {
+    final root = await writeWriteProject();
+    final storyFolder = Directory(
+      '${root.path}/docs/prds/features/f01_login/us04_x',
+    );
+    expect(
+      () => IOOverrides.runWithIOOverrides(
+        () => writeIn(
+          root,
+          (s) =>
+              answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+        ),
+        _CreateFileHook((path) {
+          final name = path.split(Platform.pathSeparator).last;
+          if (name.startsWith('.USER_STORY.md.') &&
+              name.endsWith('.specstone.tmp')) {
+            throw FileSystemException('the temp name is taken', path);
+          }
+        }),
+      ),
+      throwsA(isA<RenderFault>()),
+    );
+    expect(storyFolder.existsSync(), isFalse);
+  });
+
+  test('f02/us02/fr01/e03, PD18: a path taken between the sibling count and the claim moves the new doc to the next number', () async {
+    final root = await writeWriteProject();
+    final taken = 'f01_login/us04_x/USER_STORY.md'.replaceAll(
+      '/',
+      Platform.pathSeparator,
+    );
+    var raced = false;
+    final answer = IOOverrides.runWithIOOverrides(
+      () => writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+      ),
+      _CreateFileHook((path) {
+        if (!raced && path.endsWith(taken)) {
+          raced = true;
+          File(path).createSync(recursive: true);
+        }
+      }),
+    );
+    expect(raced, isTrue);
+    expect(
+      answer.text,
+      startsWith('==> login/x (user_story) · prds/features/f01_login/us05_x/'),
+    );
+    expect(
+      hasDoc(root, 'prds/features/f01_login/us05_x/USER_STORY.md'),
+      isTrue,
+    );
+  });
 
   test(
     'f02/us02/fr02/e02: an fr skeleton writes its required fields empty',
