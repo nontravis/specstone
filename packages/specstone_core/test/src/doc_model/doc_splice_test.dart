@@ -73,7 +73,7 @@ void main() {
     );
   });
   test(
-    'doc-model inv6, HD4: withKeyBlock replaces a quoted block by its name',
+    'doc_model/s03/inv6, HD4: withKeyBlock replaces a quoted block by its name',
     () {
       const quoted = '---\n"a": 1\nb: 2\n---\n# T\n';
       expect(
