@@ -238,6 +238,11 @@ List<SiblingEntry> siblingsOnDisk(
   });
 }
 
+/// Whether [shape] is a spec doc's (dw INV-8): a file with no placeholder of
+/// its own, so its parent names the folder it sits in.
+bool isSpecDocShape(DocPathShape shape) =>
+    shape.ownIsFile && !shape.numbered && !shape.slugged;
+
 /// Returns the child doc types of [docType] whose docs sit in a folder
 /// outside [docType]'s own segment, with that folder for [values].
 ///
@@ -253,8 +258,7 @@ Iterable<(MergedDocType, String)> _specChildren(
   for (final child in set.docTypes) {
     if (child.parent != docType.id) continue;
     final childShape = DocPathShape.of(child, set);
-    if (childShape == null || !childShape.ownIsFile) continue;
-    if (childShape.numbered || childShape.slugged) continue;
+    if (childShape == null || !isSpecDocShape(childShape)) continue;
     final folder = childShape.containerOf(values);
     if (folder.isNotEmpty && !folder.startsWith(own)) yield (child, folder);
   }

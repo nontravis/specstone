@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
+import '../../helpers/prd_core.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -86,6 +87,28 @@ void main() {
       specFolderMovesOf(set, feature, ['01', 'login'], ['01', 'login']),
       isEmpty,
     );
+  });
+
+  test('dw-s03/inv7, H22: spec folder moves pair child folders that sort differently before and after by child type', () async {
+    final custom = await resolvePrdCore(
+      templates: {
+        'spec_a.yaml': 'id: spec_a\ndescription: Spec A\npath: specs/f{nn}_{slug}_a/A.md\nparent: feature\n',
+        'spec_b.yaml': 'id: spec_b\ndescription: Spec B\npath: specs/f{nn}_b_{slug}/B.md\nparent: feature\n',
+      },
+    );
+    final feature = custom.lookup('feature')!;
+    expect(specFoldersOf(custom, feature, ['01', 'z']), [
+      'specs/f01_b_z/',
+      'specs/f01_z_a/',
+    ]);
+    expect(specFoldersOf(custom, feature, ['01', 'a']), [
+      'specs/f01_a_a/',
+      'specs/f01_b_a/',
+    ]);
+    expect(specFolderMovesOf(custom, feature, ['01', 'z'], ['01', 'a']), [
+      (from: 'specs/f01_b_z/', to: 'specs/f01_b_a/'),
+      (from: 'specs/f01_z_a/', to: 'specs/f01_a_a/'),
+    ]);
   });
 
   test('dw-s03/inv6: the own segment index and the parent count', () {

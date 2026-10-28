@@ -137,7 +137,7 @@ WriteFault _noSlugFault(
   DocPathShape? shape,
 ) {
   final parentType = docType.parent;
-  if (parentType != null && shape != null && _isSpecDoc(shape)) {
+  if (parentType != null && shape != null && isSpecDocShape(shape)) {
     final parentDocType = session.index.set.lookup(parentType);
     final parentShape = parentDocType == null
         ? null
@@ -160,11 +160,6 @@ WriteFault _noSlugFault(
     '${docType.id} docs carry no slug, so rename cannot rename them',
   );
 }
-
-/// Whether [shape] is a spec doc's (INV-8): a file in a folder its parent
-/// names, with no placeholder of its own.
-bool _isSpecDoc(DocPathShape shape) =>
-    shape.ownIsFile && !shape.numbered && !shape.slugged;
 
 /// Returns the moves that give [target] the slug [slug]: its own segment,
 /// then the spec folders of a feature that exist; empty for the slug it
