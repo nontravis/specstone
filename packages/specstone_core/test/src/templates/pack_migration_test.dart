@@ -119,4 +119,113 @@ void main() {
       ),
     );
   });
+
+  test('f06/us02/fr01/e06: a move_file whose to pattern holds the from '
+      'placeholders in another order is unknown_value', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.0.0\n  steps:\n    - move_file: {doc_type: runbook, from: "a/{nn}_{slug}.md", to: "b/{slug}_{nn}.md"}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownValue,
+          key: 'migrations[0].steps[0].move_file.to',
+        ),
+      ),
+    );
+  });
+
+  test(
+    'f06/us02/fr01/e06: an entry that is not a mapping is unknown_value',
+    () {
+      expect(
+        () => parseMigrationsOf('- x\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'migrations[0]')),
+      );
+    },
+  );
+
+  test('f06/us02/fr01/e06: a step body that is not a mapping is '
+      'unknown_value', () {
+    expect(
+      () =>
+          parseMigrationsOf('- from: 1.0.0\n  steps:\n    - rename_field: x\n'),
+      throwsA(
+        _fault(
+          FaultCode.unknownValue,
+          key: 'migrations[0].steps[0].rename_field',
+        ),
+      ),
+    );
+  });
+
+  test('f06/us02/fr01/e06: a rename_section from that is not a mapping is '
+      'unknown_value', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.0.0\n  steps:\n    - rename_section: {doc_type: runbook,'
+        ' from: steps, to: {id: procedure, header: Procedure}}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownValue,
+          key: 'migrations[0].steps[0].rename_section.from',
+        ),
+      ),
+    );
+  });
+
+  test('f06/us02/fr01/e06: a rename_section to that is not a mapping is '
+      'unknown_value', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.0.0\n  steps:\n    - rename_section: {doc_type: runbook,'
+        ' from: {id: steps, header: Steps}, to: procedure}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownValue,
+          key: 'migrations[0].steps[0].rename_section.to',
+        ),
+      ),
+    );
+  });
+
+  test('f06/us02/fr01/e06: a rename_section side with an unknown key is '
+      'unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.0.0\n  steps:\n    - rename_section: {doc_type: runbook,'
+        ' from: {id: steps, header: Steps, note: x},'
+        ' to: {id: procedure, header: Procedure}}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].rename_section.from.note',
+        ),
+      ),
+    );
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.0.0\n  steps:\n    - rename_section: {doc_type: runbook,'
+        ' from: {id: steps, header: Steps},'
+        ' to: {id: procedure, header: Procedure, note: x}}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].rename_section.to.note',
+        ),
+      ),
+    );
+  });
+
+  test('f06/us02/fr01/e06: a step kind that is not a string is '
+      'unknown_value', () {
+    expect(
+      () => parseMigrationsOf('- from: 1.0.0\n  steps:\n    - 1: {a: b}\n'),
+      throwsA(_fault(FaultCode.unknownValue, key: 'migrations[0].steps[0]')),
+    );
+  });
 }

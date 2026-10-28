@@ -70,6 +70,16 @@ void main() {
     expect(() => _choose(beside), _pinNewer());
   });
 
+  test('f06/us02/fr01/e03: with two newer pins the refusal names the earlier '
+      'pack in code point order', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml':
+          'packs:\n  software-tech: 9.0.0\n  prd-core: 9.0.0\n',
+    });
+
+    expect(() => _choose(root), _pinNewer());
+  });
+
   test('f06/us02/fr01: an older pin is upgrade', () async {
     final root = await writeTree({
       '.specstone/config.yaml':

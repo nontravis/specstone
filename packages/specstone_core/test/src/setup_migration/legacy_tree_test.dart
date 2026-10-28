@@ -60,6 +60,39 @@ void main() {
       expect(readSpecMap('# Spec index\n\n## Global SoT files\n'), isEmpty);
     });
 
+    test('f06/us01/fr03: readSpecMap adds the trailing slash a spec path '
+        'lacks and reads a missing cell as empty', () {
+      const text = '''
+## Spec map
+
+| Code path | Spec path | feature_id |
+|---|---|---|
+| api/auth/ | specs/api/auth | f01_login |
+| shared/ | specs/shared/ |
+''';
+
+      final rows = readSpecMap(text);
+
+      expect(rows, hasLength(2));
+      expect(rows[0].specPath, 'specs/api/auth/');
+      expect(rows[1].specPath, 'specs/shared/');
+      expect(rows[1].featureId, '');
+    });
+
+    test('f06/us01/fr03: readSpecMap skips a table line that is a lone '
+        'pipe', () {
+      const text = '''
+## Spec map
+
+| Code path | Spec path | feature_id |
+|---|---|---|
+|
+| a/ | specs/a/ | f01_a |
+''';
+
+      expect(readSpecMap(text).map((r) => r.codePath), ['a/']);
+    });
+
     test('f06/us01/fr03: readSpecMap stops at the next heading', () {
       const text = '''
 ## Spec map
@@ -80,6 +113,20 @@ void main() {
   });
 
   group('scanLegacyFeatures', () {
+    test('f06/us01/fr03/e03: a gap folder between a feature and a deeper '
+        'FEATURE.md keeps the feature a feature', () {
+      final scan = scanLegacyFeatures([
+        'prds/features/f01_a/FEATURE.md',
+        'prds/features/f01_a/us01/ref/FEATURE.md',
+      ]);
+
+      expect(scan.containers, isEmpty);
+      expect(
+        scan.features.map((f) => f.folder),
+        contains('prds/features/f01_a/'),
+      );
+    });
+
     test('f06/us01/fr03/e03: a folder whose child holds FEATURE.md is a '
         'container', () {
       final scan = scanLegacyFeatures(_docPaths(containerLegacy));

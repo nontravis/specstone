@@ -14,7 +14,11 @@ const legacyContextPath = 'docs/prds/d01_context.md';
 Directory rootThroughDocsLink(Directory folder) {
   final docs = '${folder.path}${Platform.pathSeparator}docs';
   if (FileSystemEntity.isLinkSync(docs)) {
-    return Directory(Link(docs).resolveSymbolicLinksSync()).parent;
+    try {
+      return Directory(Link(docs).resolveSymbolicLinksSync()).parent;
+    } on FileSystemException {
+      // A dangling link has no target to stand for; the folder is the root.
+    }
   }
   return Directory(folder.resolveSymbolicLinksSync());
 }

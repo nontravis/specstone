@@ -67,6 +67,7 @@ List<SpecMapRow> readSpecMap(String indexLfText) {
 }
 
 List<String> _cellsOf(String row) {
+  if (row == '|') return const [];
   final inner = row.substring(1, row.endsWith('|') ? row.length - 1 : null);
   return [for (final cell in inner.split('|')) _unticked(cell.trim())];
 }
@@ -117,7 +118,7 @@ final class LegacyFeatures {
 /// Reads the features of the legacy tree whose docs are [docPaths].
 ///
 /// A feature folder holds `FEATURE.md` and no child folder holding one; a
-/// container holds `FEATURE.md` and a child folder that does (INV-3).
+/// container holds `FEATURE.md` and a direct child folder that does (INV-3).
 LegacyFeatures scanLegacyFeatures(List<String> docPaths) {
   final folders = [
     for (final path in docPaths)
@@ -128,7 +129,7 @@ LegacyFeatures scanLegacyFeatures(List<String> docPaths) {
   ]..sort(compareCodePoints);
 
   bool isContainer(String folder) =>
-      folders.any((other) => other != folder && other.startsWith(folder));
+      folders.any((other) => other != folder && _parentOf(other) == folder);
 
   final containers = [
     for (final folder in folders)

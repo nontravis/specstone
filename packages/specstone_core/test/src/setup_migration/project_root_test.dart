@@ -104,6 +104,19 @@ void main() {
   });
 
   group('rootThroughDocsLink', () {
+    test('f06/us01/fr01/e02: a dangling docs link leaves the folder as its '
+        'own root', () async {
+      final tree = await writeTree({'keep.txt': ''});
+      try {
+        Link('${tree.path}/docs').createSync('${tree.path}/missing/docs');
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return;
+      }
+
+      expect(_canonical(rootThroughDocsLink(tree)), _canonical(tree));
+    });
+
     test(
       'f06/us01/fr01/e02: a folder without a docs link stays itself',
       () async {
