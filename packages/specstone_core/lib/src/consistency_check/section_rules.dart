@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/section_counts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _projectType = 'project';
@@ -61,7 +62,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   for (var i = 0; i < held.length; i++) {
     final section = held[i];
     final headerLine = lines.sectionLines[i];
-    final template = context.templateSectionOf(type, section);
+    final template = context.templateSectionAt(doc, i);
     final sectionKey = template?.id ?? section.key;
     if (template == null) {
       final header = section.headerLine.trimLeft().substring(2).trim();
@@ -75,8 +76,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
     }
     final maxLines = template?.maxLines ?? docMaxLines;
     final maxChars = template?.maxChars ?? docMaxChars;
-    final actualLines = section.text.split('\n').length;
-    final actualChars = section.text.runes.length;
+    final (lines: actualLines, chars: actualChars) = sectionCountsOf(section);
     if (maxLines != null && actualLines > maxLines) {
       yield context.finding(
         doc,

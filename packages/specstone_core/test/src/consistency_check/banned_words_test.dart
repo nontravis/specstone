@@ -1,10 +1,12 @@
 // The expected texts are plan literals kept as written.
 
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
+import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
 
 void main() {
   test('f04/us01/s4, f04/us01/fr05/e01: fast counts in the Statement only, not in the Rationale', () async {
@@ -146,5 +148,44 @@ void main() {
     );
     expect(finding.toJson(), containsPair('section', 'acceptance_criteria'));
     expect(finding.message, 'sketch is a banned word in acceptance_criteria');
+  });
+
+  test('f04/us01/fr05/e02: a phrase and its last word are both reported on one line', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'lint:\n  banned_words: [as appropriate, appropriate]\n',
+          ...fr(
+            checkPasswordStatement,
+            'The system shall refuse a wrong password as appropriate.',
+          ),
+        },
+      ),
+    );
+    expect(
+      report.findings
+          .where((f) => f.kind == FindingKind.bannedWord)
+          .map((f) => f.toJson()['word']),
+      unorderedEquals(['as appropriate', 'appropriate']),
+    );
+  });
+
+  test('cc-s03/inv9: a word builds its pattern once per run', () async {
+    final session = openSession(await writeCheckProject());
+    addTearDown(session.close);
+    final context = CheckContext(session);
+    expect(
+      context.bannedPatternOf('fast'),
+      same(context.bannedPatternOf('fast')),
+    );
+    expect(
+      context.bannedPatternOf('fast'),
+      isNot(same(context.bannedPatternOf('safe'))),
+    );
+    expect(
+      context.bannedPatternOf('ad hoc').hasMatch('an ad  hoc rule'),
+      isTrue,
+    );
   });
 }

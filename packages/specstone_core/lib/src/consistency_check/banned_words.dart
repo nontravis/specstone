@@ -4,6 +4,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _edge = r'[\p{L}\p{N}_-]';
 const _space = r'[ \t]+';
+final _spaceRun = RegExp(_space);
 
 /// Returns the whole-word pattern of [word], letter case ignored.
 ///
@@ -11,7 +12,7 @@ const _space = r'[ \t]+';
 /// or `-` may touch the phrase on either side.
 RegExp bannedWordPattern(String word) => RegExp(
   '(?<!$_edge)'
-  '${word.split(RegExp(_space)).map(RegExp.escape).join(_space)}'
+  '${word.split(_spaceRun).map(RegExp.escape).join(_space)}'
   '(?!$_edge)',
   caseSensitive: false,
   unicode: true,
@@ -28,12 +29,17 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
   if (type == null) return;
   final docLines = context.linesOf(doc);
   final held = context.contentOf(doc).sections;
+  final docBanned = type.lint.bannedWords ?? const <String>[];
   for (var i = 0; i < held.length; i++) {
     final section = held[i];
-    final template = context.templateSectionOf(type, section);
+    final template = context.templateSectionAt(doc, i);
     final allowed = {...?type.lint.allowedWords, ...?template?.allowedWords};
-    final docBanned = type.lint.bannedWords ?? const <String>[];
-    final sectionBanned = template?.bannedWords ?? const <String>[];
+    final everywhere = _patternsOf(context, docBanned, allowed);
+    final onPrefix = _patternsOf(context, [
+      ...docBanned,
+      ...?template?.bannedWords,
+    ], allowed);
+    if (onPrefix.isEmpty) continue;
     final prefix = template?.linePrefix;
     final headerLine = docLines.sectionLines[i];
     final sectionKey = template?.id ?? section.key;
@@ -43,12 +49,7 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
       headerLine,
     )) {
       final onPrefixLine = prefix == null || line.startsWith(prefix);
-      final words = onPrefixLine
-          ? <String>{...docBanned, ...sectionBanned}
-          : <String>{...docBanned};
-      for (final word in words) {
-        if (allowed.contains(word)) continue;
-        final pattern = bannedWordPattern(word);
+      for (final (:word, :pattern) in onPrefixLine ? onPrefix : everywhere) {
         if (!pattern.hasMatch(line)) continue;
         for (final _ in pattern.allMatches(line)) {
           yield context.finding(
@@ -63,6 +64,18 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
     }
   }
 }
+
+/// Returns the distinct [words] not in [allowed] with their cached patterns,
+/// in order of first appearance.
+List<({String word, RegExp pattern})> _patternsOf(
+  CheckContext context,
+  Iterable<String> words,
+  Set<String> allowed,
+) => [
+  for (final word in {...words})
+    if (!allowed.contains(word))
+      (word: word, pattern: context.bannedPatternOf(word)),
+];
 
 /// Returns the header line and body lines of [section] at [headerLine], from
 /// [lines].
