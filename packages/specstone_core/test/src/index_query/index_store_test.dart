@@ -35,7 +35,7 @@ void main() {
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
     });
-    test('f01/us01/fr04, iq-inv22: two cold first opens in two isolates both open the index', () async {
+    test('f01/us01/fr04, s03/inv22: two cold first opens in two isolates both open the index', () async {
       for (var i = 0; i < 20; i++) {
         final r = await root();
         final path = r.path;
@@ -49,7 +49,7 @@ void main() {
         );
       }
     });
-    test('f01/us01/fr04, iq-inv22: a first open waits busyTimeout on a held write lock before it faults indexBusy', () async {
+    test('f01/us01/fr05/e05, s03/inv23: a first open waits busyTimeout on a held write lock before it faults indexBusy', () async {
       final r = await root();
       file(r, '.specstone/index.sqlite').writeAsBytesSync(const []);
       final holder = sqlite3.open(file(r, '.specstone/index.sqlite').path)
