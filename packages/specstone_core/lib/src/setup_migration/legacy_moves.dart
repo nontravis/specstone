@@ -226,6 +226,7 @@ _SpecFile? _readSpecFile(
   if (!path.startsWith(_specsFolder)) return null;
   final split = path.lastIndexOf('/') + 1;
   final folder = path.substring(0, split);
+  if (folder == _architectureFolder) return null;
   final name = path.substring(split);
   final ids = specFolders[folder]?.where((id) => id != _crossCutting).toList();
   if (ids == null) return null;
@@ -298,8 +299,10 @@ Map<String, _Placement> _resolveFeatureSpecs(List<_FeatureSpecFile> files) {
 
 /// Rule 8: drops each move onto a path a staying file or an earlier move takes.
 ///
-/// Keeps the placements of [sorted] in order. A dropped source stays, so it
-/// takes its own path; the pass repeats until no move drops.
+/// Also drops a move onto the source of a later move: the journal applies
+/// moves in `from` order, so that file has not left yet. Keeps the placements
+/// of [sorted] in order. A dropped source stays, so it takes its own path; the
+/// pass repeats until no move drops.
 Map<String, _Placement> _withoutBlockedMoves(
   List<String> sorted,
   Map<String, _Placement> placed,
@@ -313,11 +316,18 @@ Map<String, _Placement> _withoutBlockedMoves(
       for (final MapEntry(key: from, value: placement) in placed.entries)
         if (from == placement.to) from,
     };
+    final movers = {
+      for (final MapEntry(key: from, value: placement) in placed.entries)
+        if (from != placement.to && !dropped.contains(from)) from,
+    };
     for (final path in sorted) {
       final placement = placed[path];
       if (placement == null || dropped.contains(path)) continue;
       if (placement.to == path) continue;
-      if (taken.add(placement.to)) continue;
+      final onLaterSource =
+          movers.contains(placement.to) &&
+          compareCodePoints(placement.to, path) > 0;
+      if (!onLaterSource && taken.add(placement.to)) continue;
       dropped.add(path);
       changed = true;
     }

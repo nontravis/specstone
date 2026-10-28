@@ -348,5 +348,137 @@ void main() {
       expect(plan.moves.where((m) => m.from == m.to), isEmpty);
       expect(froms, [...froms]..sort());
     });
+
+    test('f06/us01/fr03/e06: a container inside a container keeps its outer '
+        'one and takes the last folder name as its slug', () {
+      final plan = _plan({
+        'docs/prds/features/a/FEATURE.md': '# A\n',
+        'docs/prds/features/a/b/FEATURE.md': '# B\n',
+        'docs/prds/features/a/b/x01_f/FEATURE.md': '# F-01 — F\n',
+      });
+
+      expect(plan.left, contains('prds/features/a/FEATURE.md'));
+      expect(
+        _movedTo(plan, 'prds/features/a/b/FEATURE.md'),
+        'prds/features/b/FEATURE.md',
+      );
+      expect(plan.kindOf, isNot(contains('prds/features/b/FEATURE.md')));
+    });
+
+    test('f06/us01/fr03/e12: a cross-cutting row for the architecture folder '
+        'leaves its non-markdown file where it lands without the row', () {
+      final tree = {
+        ...specEdgeLegacy,
+        'docs/specs/INDEX.md': _specIndex([
+          '| `architecture/` | `specs/architecture/` | — |',
+        ]),
+      };
+
+      final plan = _plan(tree);
+
+      expect(plan.left, contains('specs/architecture/caching.schema.json'));
+      expect(
+        _movedTo(plan, 'specs/architecture/caching.md'),
+        'specs/topics/caching.md',
+      );
+      expect(plan.kindOf['specs/topics/caching.md'], LegacyKind.topic);
+    });
+
+    test('f06/us01/fr05/e09: no move lands on a path a later move has not '
+        'yet left', () {
+      final tree = {
+        'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
+        'docs/specs/INDEX.md': _specIndex([
+          '| `topics/shared/` | `specs/topics/shared/` | `f01_login` |',
+          '| `shared/` | `specs/shared/` | — |',
+        ]),
+        'docs/specs/shared/s01_architecture.md': '# Shared\n',
+        'docs/specs/topics/shared/s01_architecture.md': '# Login\n',
+      };
+
+      final plan = _plan(tree);
+
+      expect(plan.moves, [
+        (
+          from: 'specs/topics/shared/s01_architecture.md',
+          to: 'specs/f01_login/ARCHITECTURE.md',
+        ),
+      ]);
+      expect(plan.left, contains('specs/shared/s01_architecture.md'));
+      expect(
+        plan.fromOf,
+        isNot(
+          contains(
+            'specs/topics/shared/'
+            's01_architecture.md',
+          ),
+        ),
+      );
+    });
+
+    test('f06/us01/fr05/e09: a dropped move blocks the move that targets '
+        'its source', () {
+      final tree = {
+        'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
+        'docs/specs/INDEX.md': _specIndex([
+          '| `topics/shared/` | `specs/topics/shared/` | `f01_login` |',
+          '| `shared/` | `specs/shared/` | — |',
+        ]),
+        'docs/specs/f01_login/ARCHITECTURE.md': '# In place\n',
+        'docs/specs/shared/s01_architecture.md': '# Shared\n',
+        'docs/specs/topics/shared/s01_architecture.md': '# Login\n',
+      };
+
+      final plan = _plan(tree);
+
+      expect(plan.moves, isEmpty);
+      expect(
+        plan.left,
+        containsAll([
+          'specs/f01_login/ARCHITECTURE.md',
+          'specs/shared/s01_architecture.md',
+          'specs/topics/shared/s01_architecture.md',
+        ]),
+      );
+    });
+
+    test('f06/us01/fr03/e08: a cross-cutting row beside one feature_id for '
+        'the same folder places the folder by that one id', () {
+      final tree = {
+        'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
+        'docs/specs/INDEX.md': _specIndex([
+          '| `a/` | `specs/a/` | — |',
+          '| `a/` | `specs/a/` | `f01_login` |',
+        ]),
+        'docs/specs/a/s01_architecture.md': '# A\n',
+      };
+
+      final plan = _plan(tree);
+
+      expect(
+        _movedTo(plan, 'specs/a/s01_architecture.md'),
+        'specs/f01_login/ARCHITECTURE.md',
+      );
+    });
+
+    test('f06/us01/fr03/e08: a feature_id two feature folders carry places '
+        'nothing', () {
+      final tree = {
+        'docs/prds/features/g1/f01_login/FEATURE.md': '# F-01 — Login\n',
+        'docs/prds/features/g2/f01_login/FEATURE.md': '# F-01 — Login\n',
+        'docs/specs/INDEX.md': _specIndex([
+          '| `x/` | `specs/x/` | `f01_login` |',
+        ]),
+        'docs/specs/x/s01_architecture.md': '# X\n',
+      };
+
+      final plan = _plan(tree);
+
+      expect(plan.left, contains('specs/x/s01_architecture.md'));
+      expect(
+        plan.moves.map((m) => m.from),
+        isNot(contains('specs/x/s01_architecture.md')),
+      );
+    });
   });
 }
