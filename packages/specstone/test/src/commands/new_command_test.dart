@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone/src/command_runner.dart';
+import 'package:specstone/src/console.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -117,5 +119,48 @@ void main() {
     );
     expect(await runner.run(['new']), 64);
     expect(err.toString(), startsWith('new needs a doc type'));
+  });
+  test('f02/us02/fr01: two positionals are a usage error, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['new', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected one doc type, got 2.\n\n'
+        'Usage: specstone new <doc type> [--parent <name>] '
+        '[--slug <slug>] [--json]\n',
+      ),
+    );
+  });
+  test('f02/us02/fr02: non-UTF-8 stdin is argument_invalid, stdin is not UTF-8 text, exit 64', () async {
+    final out = StringBuffer();
+    final err = StringBuffer();
+    final runner = SpecstoneCommandRunner(
+      out: out,
+      err: err,
+      workingDirectory: await writeWriteProject(),
+      homeDirectory: null,
+      console: SystemConsole(input: Stream.value([0xff, 0xfe])),
+    );
+    expect(
+      await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'login',
+        '--slug',
+        'recover_account',
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(jsonDecode(err.toString()), {
+      'error': {
+        'code': 'argument_invalid',
+        'message': 'stdin is not UTF-8 text',
+      },
+    });
   });
 }

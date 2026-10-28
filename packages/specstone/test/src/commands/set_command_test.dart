@@ -189,4 +189,17 @@ void main() {
     await read.runner.run(['get', 'user_story:login/email_login#use_case']);
     expect(read.out.toString(), contains('base 9042269552ff'));
   });
+  test('f02/us01/fr01: two positionals are a usage error, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['set', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected one target, got 2.\n\n'
+        'Usage: specstone set <type>:<name>[#<section key>] '
+        '[--field <id> | --title] --base <hash> [--json]\n',
+      ),
+    );
+  });
 }

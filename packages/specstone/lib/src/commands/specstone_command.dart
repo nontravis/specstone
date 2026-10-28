@@ -56,9 +56,7 @@ abstract class SpecstoneCommand extends Command<int> {
   /// Opens a read session, prints what [answer] returns, and returns its exit
   /// status.
   ///
-  /// Under [asJson] it prints one object, [ReadAnswer.json] with a `warnings`
-  /// array of the session's warnings then the answer's, on `out`. Else it
-  /// warns on `err` and writes [ReadAnswer.text] on `out`. A
+  /// Prints through [printAnswer] with the session's warnings. A
   /// [SpecstoneFault] from opening the session or from [answer] goes to
   /// [fail] with the warnings collected so far. [ReadSession.run] closes each
   /// session once and rebuilds an index [answer] finds damaged.
@@ -83,14 +81,28 @@ abstract class SpecstoneCommand extends Command<int> {
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);
     }
-    final warnings = [...sessionWarnings, ...read.warnings];
+    return printAnswer(read, sessionWarnings, asJson: asJson);
+  }
+
+  /// Prints [answer] and returns its exit status.
+  ///
+  /// Under [asJson] it prints one object, [ReadAnswer.json] with a `warnings`
+  /// array of [warnings] then the answer's, on `out`. Else it warns on `err`
+  /// and writes [ReadAnswer.text] on `out`.
+  int printAnswer(
+    ReadAnswer answer,
+    List<String> warnings, {
+    required bool asJson,
+  }) {
+    final out = specstoneRunner.out;
+    final allWarnings = [...warnings, ...answer.warnings];
     if (asJson) {
-      final printed = {...read.json, 'warnings': warnings};
-      runner.out.write('${SpecstoneCommand.pretty.convert(printed)}\n');
+      final printed = {...answer.json, 'warnings': allWarnings};
+      out.write('${pretty.convert(printed)}\n');
     } else {
-      warn(warnings);
-      runner.out.write(read.text);
+      warn(allWarnings);
+      out.write(answer.text);
     }
-    return read.exitStatus;
+    return answer.exitStatus;
   }
 }

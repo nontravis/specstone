@@ -22,8 +22,10 @@ abstract interface class Console {
 
 /// The [Console] of the running process.
 final class SystemConsole implements Console {
-  /// Creates the console of the process, reading [input] in place of stdin
-  /// when given.
+  /// Creates the console of the process.
+  ///
+  /// [input] replaces stdin for [readAll] only; [readLine] and the terminal
+  /// checks read the process's own stdin.
   new({Stream<List<int>>? input}) : _input = input ?? stdin;
 
   final Stream<List<int>> _input;
