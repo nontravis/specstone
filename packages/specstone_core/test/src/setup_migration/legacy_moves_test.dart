@@ -405,28 +405,25 @@ void main() {
         ),
       ]);
       expect(plan.left, contains('specs/shared/s01_architecture.md'));
-      expect(
-        plan.fromOf,
-        isNot(
-          contains(
-            'specs/topics/shared/'
-            's01_architecture.md',
-          ),
-        ),
-      );
+      expect(plan.fromOf, {
+        'prds/features/f01_login/FEATURE.md':
+            'prds/features/f01_login/FEATURE.md',
+        'specs/f01_login/ARCHITECTURE.md':
+            'specs/topics/shared/s01_architecture.md',
+      });
     });
 
-    test('f06/us01/fr05/e09: a dropped move blocks the move that targets '
-        'its source', () {
+    test('f06/us01/fr05/e09: a move dropped in the second pass leaves the '
+        'move onto its source blocked too', () {
       final tree = {
         'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
         'docs/specs/INDEX.md': _specIndex([
-          '| `topics/shared/` | `specs/topics/shared/` | `f01_login` |',
-          '| `shared/` | `specs/shared/` | — |',
+          '| `topics/b/` | `specs/topics/b/` | `f01_login` |',
+          '| `z/b/` | `specs/z/b/` | — |',
         ]),
         'docs/specs/f01_login/ARCHITECTURE.md': '# In place\n',
-        'docs/specs/shared/s01_architecture.md': '# Shared\n',
-        'docs/specs/topics/shared/s01_architecture.md': '# Login\n',
+        'docs/specs/topics/b/s01_architecture.md': '# Login\n',
+        'docs/specs/z/b/s01_architecture.md': '# Shared\n',
       };
 
       final plan = _plan(tree);
@@ -435,9 +432,8 @@ void main() {
       expect(
         plan.left,
         containsAll([
-          'specs/f01_login/ARCHITECTURE.md',
-          'specs/shared/s01_architecture.md',
-          'specs/topics/shared/s01_architecture.md',
+          'specs/topics/b/s01_architecture.md',
+          'specs/z/b/s01_architecture.md',
         ]),
       );
     });
