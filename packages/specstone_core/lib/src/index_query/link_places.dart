@@ -25,27 +25,25 @@ List<LinkPlace> linkPlacesOf(
   // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
   // is absolute, so it never resolves to a doc.
   if (!lfBody.contains('](') && !lfBody.contains(']:')) return const [];
-  final hrefs = _hrefsOf(lfBody);
-  final uses = _scanUses(lfBody, firstLine, _longestPlacedHref(docPath, hrefs));
+  final (:placed, :longestHref) = _placedHrefs(docPath, _hrefsOf(lfBody));
+  final uses = _scanUses(lfBody, firstLine, longestHref);
   final places = <LinkPlace>[];
   final usesOf = <String, List<_Use>>{};
   for (final use in uses) {
     usesOf.putIfAbsent(_normalize(use.dest), () => []).add(use);
   }
   final taken = <String, int>{};
-  for (final href in hrefs) {
-    final target = resolveDocLink(href, docPath);
-    if (target is! DocTarget ||
-        !target.docPath.endsWith('.md') ||
-        target.docPath == docPath) {
-      continue;
-    }
+  for (final href in placed) {
+    final docPathOf = switch (resolveDocLink(href, docPath)) {
+      DocTarget(:final docPath) => docPath,
+      _ => null,
+    };
     final sameHref = usesOf[href] ?? const <_Use>[];
     final nth = taken[href] ?? 0;
     taken[href] = nth + 1;
     final use = nth < sameHref.length ? sameHref[nth] : null;
     places.add((
-      target: target.docPath,
+      target: docPathOf!,
       line: use?.line ?? 1,
       shown: use?.dest ?? href,
     ));
@@ -56,12 +54,16 @@ List<LinkPlace> linkPlacesOf(
 /// A link written in the source: its destination as written and its line.
 typedef _Use = ({String dest, int line});
 
-/// Returns the length of the longest href [linkPlacesOf] places, 0 when none.
+/// Returns the hrefs [linkPlacesOf] places and the longest one's length.
 ///
-/// [_scanUses] compares a candidate destination's length against it (R2), so
-/// the scan needs it before it runs; computing it here repeats only the href
-/// filter `linkPlacesOf` applies, on the hrefs it already collected.
-int _longestPlacedHref(String docPath, List<String> hrefs) {
+/// The filter runs once here, for both consumers: `_scanUses` compares a
+/// candidate destination's length against the length (R2), and
+/// `linkPlacesOf` loops over the filtered hrefs to place each one.
+({List<String> placed, int longestHref}) _placedHrefs(
+  String docPath,
+  List<String> hrefs,
+) {
+  final placed = <String>[];
   var longest = 0;
   for (final href in hrefs) {
     final target = resolveDocLink(href, docPath);
@@ -70,9 +72,10 @@ int _longestPlacedHref(String docPath, List<String> hrefs) {
         target.docPath == docPath) {
       continue;
     }
+    placed.add(href);
     if (href.length > longest) longest = href.length;
   }
-  return longest;
+  return (placed: placed, longestHref: longest);
 }
 
 final _definitionStart = RegExp(r'^ {0,3}\[', multiLine: true);
@@ -154,24 +157,9 @@ List<_Use> _scanUses(String body, int firstLine, int maxHref) {
   return uses;
 }
 
-/// Returns whether [unit] is `String.trim` whitespace.
-bool _trim(int unit) =>
-    unit == 0x20 ||
-    unit == 0x09 ||
-    unit == 0x0A ||
-    unit == 0x0D ||
-    unit == 0x0B ||
-    unit == 0x0C ||
-    unit == 0x85 ||
-    unit == 0xA0 ||
-    unit == 0xFEFF ||
-    unit == 0x1680 ||
-    (unit >= 0x2000 && unit <= 0x200A) ||
-    unit == 0x2028 ||
-    unit == 0x2029 ||
-    unit == 0x202F ||
-    unit == 0x205F ||
-    unit == 0x3000;
+/// Returns whether [unit] is `String.trim` whitespace: RegExp `\s` plus
+/// U+0085, the one code unit `trim` strips that `\s` does not match.
+bool _trim(int unit) => _blank(unit) || unit == 0x85;
 
 /// Returns, per offset, how many `]` the span starting there holds ([0]) and
 /// its kept count of code units that are neither `String.trim` whitespace
@@ -193,24 +181,9 @@ Int32List _closeCounts(String text) {
 }
 
 /// Returns whether [unit] is neither `String.trim` whitespace nor RegExp
-/// `\s`, the code units `_label` can keep.
-bool _kept(int unit) =>
-    unit != 0x20 &&
-    unit != 0x09 &&
-    unit != 0x0A &&
-    unit != 0x0D &&
-    unit != 0x0B &&
-    unit != 0x0C &&
-    unit != 0x85 &&
-    unit != 0xA0 &&
-    unit != 0xFEFF &&
-    unit != 0x1680 &&
-    !(unit >= 0x2000 && unit <= 0x200A) &&
-    unit != 0x2028 &&
-    unit != 0x2029 &&
-    unit != 0x202F &&
-    unit != 0x205F &&
-    unit != 0x3000;
+/// `\s` — that is, neither `_trim` nor `_blank` — the code units `_label`
+/// can keep.
+bool _kept(int unit) => !_trim(unit) && !_blank(unit);
 
 /// Returns, per offset, the offset of the next [char] at or after it, or the
 /// text's length when none follows.
@@ -238,7 +211,9 @@ Int32List _nextBlank(String text) {
   return next;
 }
 
-/// Returns whether [unit] matches RegExp `\s`.
+/// Returns whether [unit] matches RegExp `\s`: ECMAScript WhiteSpace plus
+/// LineTerminator. U+0085 (Cc) matches neither, so it stays non-blank here
+/// even though `String.trim` strips it (`_trim`).
 bool _blank(int unit) =>
     unit == 0x09 ||
     unit == 0x0A ||
@@ -246,7 +221,6 @@ bool _blank(int unit) =>
     unit == 0x0C ||
     unit == 0x0D ||
     unit == 0x20 ||
-    unit == 0x85 ||
     unit == 0xA0 ||
     unit == 0x1680 ||
     (unit >= 0x2000 && unit <= 0x200A) ||
@@ -383,8 +357,20 @@ String? _destAfter(
     final end = texts[textEnd + 1];
     if (end == null) return null;
     // R3: the label between the brackets is the same for every opener that
-    // shares this close; the shortcut label (`[]`) falls back to the link
-    // text, which differs per opener, so it reads its own span.
+    // shares this close. A shortcut label is decided on the raw span being
+    // empty, not on the normalized label: a whitespace-only `[ ]` is no
+    // shortcut (b7bf9ff read `label.isEmpty` before `_label`), so it looks
+    // itself up and never falls back to the link text.
+    if (end == textEnd + 2) {
+      final linkLabel = _labelSpan(
+        text,
+        textStart + 1,
+        textEnd,
+        closes,
+        longestKey,
+      );
+      return linkLabel == null ? null : definitions[linkLabel];
+    }
     final cached = labelByEnd[end] ??= _labelSpan(
       text,
       textEnd + 2,
@@ -392,16 +378,7 @@ String? _destAfter(
       closes,
       longestKey,
     );
-    if (cached == null) return null;
-    if (cached.isNotEmpty) return definitions[cached];
-    final linkLabel = _labelSpan(
-      text,
-      textStart + 1,
-      textEnd,
-      closes,
-      longestKey,
-    );
-    return linkLabel == null ? null : definitions[linkLabel];
+    return cached == null ? null : definitions[cached];
   }
   // R1: a span that holds `]` or outlengths every key cannot be a label, so
   // the lookup would miss without copying the span.

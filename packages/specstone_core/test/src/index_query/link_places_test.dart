@@ -118,5 +118,19 @@ void main() {
 
       expect(places, [(target: 'b c.md', line: 3, shown: 'b c.md')]);
     });
+
+    test('f04/us02/fr04, FN4: a U+0085 inside an inline destination is not '
+        'blank, so the use keeps it', () {
+      final places = placesOf('[l](b\u0085c.md)\n');
+
+      expect(places, [(target: 'b\u0085c.md', line: 1, shown: 'b\u0085c.md')]);
+    });
+
+    test('f04/us02/fr04, FN4: a shortcut use with a whitespace-only label '
+        'does not fall back to the link text', () {
+      final places = placesOf('[k]: .md\n[k][ ]\n[k]\n');
+
+      expect(places, [(target: '.md', line: 3, shown: '.md')]);
+    });
   });
 }
