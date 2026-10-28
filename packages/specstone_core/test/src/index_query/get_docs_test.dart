@@ -193,7 +193,7 @@ void main() {
     );
   });
 
-  test('f02/us01/s3, PD4: bases hash the first of two key blocks of one field; a quoted key is its own field', () async {
+  test('f02/us01/s3, PD4, HD4: bases hash the first of two key blocks of one field, a quoted spelling included', () async {
     final dup = await indexWith({
       'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
           '---\nstatus: planned\nvision:\n  - PV-01\nstatus: implemented\n---\n\n'
@@ -211,7 +211,7 @@ void main() {
     final feature =
         (answerGet(dup, 'feature:login').json['docs']! as List).single as Map;
     final fields = (feature['bases']! as Map)['fields']! as Map;
-    expect(fields['status'], emptyBaseHash);
-    expect(fields['"status"'], baseHashOf('"status": planned\n'));
+    expect(fields['status'], baseHashOf('"status": planned\n'));
+    expect(fields.containsKey('"status"'), isFalse);
   });
 }

@@ -114,9 +114,9 @@ String? rewriteDocRefs(
   var result = lfText;
   for (final block in blocks) {
     for (final field in fields) {
-      if (field.type != FieldType.docRef || field.id != block.key) continue;
-      final text = _renameInBlock(block.text, field, renamed);
-      if (text != block.text) result = withKeyBlock(result, block.key, text);
+      if (field.type != FieldType.docRef || field.id != block.name) continue;
+      final text = _renameInBlock(block.text, block.key, field, renamed);
+      if (text != block.text) result = withKeyBlock(result, block.name, text);
     }
   }
   return result == lfText ? null : result;
@@ -254,8 +254,11 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.
+///
+/// [key] is the key as spelled in the block, quotes included.
 String _renameInBlock(
   String text,
+  String key,
   MergedField field,
   Map<(String, String), String> renamed,
 ) {
@@ -266,12 +269,12 @@ String _renameInBlock(
     final line = lines[i];
     if (_isTrivia(line)) continue;
     final match = i == keyLine
-        ? line.startsWith(field.id)
-              ? keyRest.firstMatch(line.substring(field.id.length))
+        ? line.startsWith(key)
+              ? keyRest.firstMatch(line.substring(key.length))
               : null
         : RegExp(r'^(\s*-\s+)(.*)$').firstMatch(line);
     if (match == null) continue;
-    final head = i == keyLine ? field.id + match[1]! : match[1]!;
+    final head = i == keyLine ? key + match[1]! : match[1]!;
     lines[i] = head + _renameValues(match[2]!, field, renamed);
   }
   return lines.join('\n');

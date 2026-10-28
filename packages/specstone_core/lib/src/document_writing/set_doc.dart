@@ -180,7 +180,7 @@ ReadAnswer _setField(
     final read = _readLocked(session, doc, match);
     final lfText = toLf(read.content.text);
     final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
-    final held = blocks.where((b) => b.key == fieldId).firstOrNull;
+    final held = blocks.where((b) => b.name == fieldId).firstOrNull;
     final currentText = held?.text ?? '';
     final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
     if (currentBase != request.base) {
@@ -217,7 +217,7 @@ ReadAnswer _setField(
     );
     final afterBlock =
         (Doc.parse(toLf(after.content.text)).frontmatter ?? const <KeyBlock>[])
-            .where((b) => b.key == fieldId)
+            .where((b) => b.name == fieldId)
             .firstOrNull;
     final base = afterBlock == null
         ? emptyBaseHash

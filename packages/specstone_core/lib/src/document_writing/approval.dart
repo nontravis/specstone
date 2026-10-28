@@ -20,7 +20,7 @@ Approval approvalOf(Doc doc) =>
 
 /// Whether the frontmatter `approved` key of [doc] holds YAML `true`.
 bool holdsApproved(Doc doc) {
-  final block = doc.frontmatter?.where((b) => b.key == 'approved').firstOrNull;
+  final block = doc.frontmatter?.where((b) => b.name == 'approved').firstOrNull;
   if (block == null) return false;
   try {
     return loadYaml(block.valueText) == true;

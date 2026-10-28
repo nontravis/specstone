@@ -23,7 +23,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// stdin.
 void _refuseApprovedMark(String lfText) {
   final marked =
-      Doc.parse(lfText).frontmatter?.any((b) => b.key == 'approved') ?? false;
+      Doc.parse(lfText).frontmatter?.any((b) => b.name == 'approved') ?? false;
   if (!marked) return;
   throw WriteFault(
     WriteFaultCode.fieldNotWritable,

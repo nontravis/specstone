@@ -197,6 +197,26 @@ void main() {
     );
   });
 
+  test('f02/us06/fr02, HD4: a quoted "reference": key follows the rename', () {
+    const anyType = MergedField(id: 'reference', type: FieldType.docRef);
+    expect(
+      rewriteDocRefs(
+        '---\n"reference": "buyer" # who\nnote: buyer\n---\n',
+        fields: [anyType],
+        renamed: {('persona', 'buyer'): 'shopper'},
+      ),
+      '---\n"reference": "shopper" # who\nnote: buyer\n---\n',
+    );
+    expect(
+      rewriteDocRefs(
+        "---\n'reference':\n  - buyer\n---\n",
+        fields: [anyType],
+        renamed: {('persona', 'buyer'): 'shopper'},
+      ),
+      "---\n'reference':\n  - shopper\n---\n",
+    );
+  });
+
   test('f02/us05/fr02/e03, f02/us05/fr02/e06, f02/us05/fr02/e07, f02/us06/fr02/e04, f02/us06/fr02/e05: planRewrites reaches untyped referrers, never code, and keeps the marks', () async {
     root = await writeWriteProject(
       extra: {

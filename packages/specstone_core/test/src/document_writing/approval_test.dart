@@ -55,6 +55,19 @@ void main() {
     expect(holdsApproved(Doc.parse('# A\n')), isFalse);
   });
 
+  test('dw-s03/inv5, HD4: a quoted "approved": true holds approved', () {
+    expect(
+      holdsApproved(
+        Doc.parse('---\ndraft: true\n"approved": true\n---\n# A\n'),
+      ),
+      isTrue,
+    );
+    expect(
+      approvalOf(Doc.parse("---\ndraft: true\n'approved': true\n---\n# A\n")),
+      Approval.approved,
+    );
+  });
+
   test('f02/us03/s2, f02/us03/fr02/e01, dw-s03/inv11: the newest committed copy without draft is found', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');

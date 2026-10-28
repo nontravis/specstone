@@ -112,6 +112,14 @@ void main() {
       expect(_keys(doc), ['"a b"', 'url', "'q'"]);
     });
 
+    test("doc-model inv6, HD4: a key block's name drops its YAML quotes", () {
+      final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
+
+      expect([for (final b in doc.frontmatter!) b.name], ['a b', 'url', 'q']);
+      expect(_keys(doc), ['"a b"', 'url', "'q'"]);
+      expect(Doc.parse('---\n# note\n---\n').frontmatter!.single.name, '');
+    });
+
     test('doc_model/s03/inv6: an empty frontmatter has no blocks', () {
       final doc = Doc.parse('---\n---\n# T\n');
 

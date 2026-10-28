@@ -1167,39 +1167,38 @@ void main() {
       ),
     );
   });
-  test('PD4, doc-model inv6: a quoted field key is its own field, and set treats it as undeclared', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$loginFeature': '---\nvision:\n  - PV-01\n"status": planned\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
-      },
-    );
-    const target = 'feature:login';
-    expect(fieldBase(root, target, 'status'), emptyBaseHash);
-    expect(
-      fieldBase(root, target, '"status"'),
-      baseHashOf('"status": planned\n'),
-    );
-    expect(
-      () => writeIn(
+  test(
+    'f02/us01/fr03, PD4, HD4: set --field writes a field whose key is quoted',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$story1':
+              '---\n"status": planned\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n\n'
+              '# Sign in with email\n\n## Use Case\nSign in with an email.\n\n'
+              '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n',
+        },
+      );
+      const target = 'user_story:login/email_login';
+      expect(
+        fieldBase(root, target, 'status'),
+        baseHashOf('"status": planned\n'),
+      );
+      writeIn(
         root,
         (s) => answerSet(
           s,
-          fieldReq(target, '"status"', baseHashOf('"status": planned\n')),
+          fieldReq(target, 'status', baseHashOf('"status": planned\n')),
           'implemented\n',
         ),
-      ),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.fieldUnknown)
-            .having(
-              (f) => f.message,
-              'message',
-              'feature declares no field "status"',
-            ),
-      ),
-    );
-    expect(readDoc(root, loginFeature), contains('"status": planned\n'));
-  });
+      );
+      expect(
+        readDoc(root, story1),
+        startsWith(
+          '---\nstatus: implemented\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n',
+        ),
+      );
+    },
+  );
   test('PD6: a multi-line value keeps its interior blank lines, each indented two spaces', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login';

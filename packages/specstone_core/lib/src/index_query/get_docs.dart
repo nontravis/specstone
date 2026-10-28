@@ -104,8 +104,8 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
   };
   final seenFields = <String>{};
   for (final block in doc.frontmatter ?? const <KeyBlock>[]) {
-    if (block.key.isNotEmpty && seenFields.add(block.key)) {
-      fields[block.key] = baseHashOf(block.text);
+    if (block.name.isNotEmpty && seenFields.add(block.name)) {
+      fields[block.name] = baseHashOf(block.text);
     }
   }
 

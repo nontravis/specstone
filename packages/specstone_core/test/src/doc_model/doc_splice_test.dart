@@ -72,6 +72,17 @@ void main() {
       '---\ndraft: true\n---\n# T\n',
     );
   });
+  test(
+    'doc-model inv6, HD4: withKeyBlock replaces a quoted block by its name',
+    () {
+      const quoted = '---\n"a": 1\nb: 2\n---\n# T\n';
+      expect(
+        withKeyBlock(quoted, 'a', 'a: 9\n'),
+        '---\na: 9\nb: 2\n---\n# T\n',
+      );
+      expect(withKeyBlock(quoted, 'a', null), '---\nb: 2\n---\n# T\n');
+    },
+  );
   test('dw-s03/inv14: removing the only key block keeps the delimiters with nothing between', () {
     expect(
       withKeyBlock('---\ndraft: true\n---\n# T\n', 'draft', null),

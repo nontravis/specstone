@@ -84,7 +84,7 @@ String withKeyBlock(String lfText, String key, String? blockText) {
   }
   var start = lfText.indexOf('\n') + 1;
   for (final existing in blocks) {
-    if (existing.key == key) {
+    if (existing.name == key) {
       final end = start + existing.text.length;
       return lfText.substring(0, start) + (block ?? '') + lfText.substring(end);
     }
