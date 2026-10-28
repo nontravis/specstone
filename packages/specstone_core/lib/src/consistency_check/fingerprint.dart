@@ -1,9 +1,5 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-
-const _fingerprintLength = 12;
 
 /// Returns [block] as LF text with its trailing blank lines dropped.
 ///
@@ -19,9 +15,6 @@ String upstreamText(String block) {
 
 /// Returns the first 12 lowercase hex characters of the SHA-256 of [block].
 ///
-/// The hash covers the UTF-8 bytes of [upstreamText]. F-04 owns this function
-/// until F-01 and F-02 share one (F4-D17).
-String fingerprintOf(String block) => sha256
-    .convert(utf8.encode(upstreamText(block)))
-    .toString()
-    .substring(0, _fingerprintLength);
+/// The hash is [baseHashOf] over [upstreamText], so one function holds the
+/// recipe (F4-D17).
+String fingerprintOf(String block) => baseHashOf(upstreamText(block));
