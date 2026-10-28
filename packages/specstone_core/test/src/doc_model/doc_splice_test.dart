@@ -51,6 +51,14 @@ void main() {
       '# T\n\n## A\na\n\n## R\nr\n',
     );
   });
+  test('f02/us01/fr01, PD5, H24: trailing blank lines go from the first newline of the whitespace tail', () {
+    expect(withoutTrailingBlankLines('a\n \n\t'), 'a');
+    expect(withoutTrailingBlankLines('a  \n'), 'a  ');
+    expect(withoutTrailingBlankLines('a'), 'a');
+    expect(withoutTrailingBlankLines('  \n '), '  ');
+    expect(withoutTrailingBlankLines('\n'), '');
+    expect(withoutTrailingBlankLines('a\t'), 'a\t');
+  });
   test('dw-s03/inv13: review focus 2: a ## line inside a fence is no section, so no splice lands on it', () {
     const fenced = '# T\n\n## A\n```\n## B\n```\n\n## B\nreal\n';
     final parsed = Doc.parse(fenced);

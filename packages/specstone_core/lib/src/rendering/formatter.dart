@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show withoutTrailingBlankLines;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The result of formatting one doc.
@@ -34,7 +36,6 @@ final class Refused extends FormatOutcome {
 }
 
 final _whitespaceRun = RegExp(r'\s+');
-final _trailingBlankLines = RegExp(r'(?:\n[ \t]*)+$');
 
 /// Returns [headerText] lowercased, trimmed, each whitespace run one space.
 String headerKey(String headerText) =>
@@ -120,7 +121,7 @@ List<KeyBlock> _orderedBlocks(List<KeyBlock> blocks, MergedDocType docType) {
 /// Returns the template text with trailing blank lines dropped, or nothing.
 String _addedBody(String? template) {
   if (template == null) return '';
-  final text = template.replaceFirst(_trailingBlankLines, '');
+  final text = withoutTrailingBlankLines(template);
   return text.isEmpty ? '' : '$text\n';
 }
 

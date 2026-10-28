@@ -1260,10 +1260,25 @@ void main() {
   test('f02/us01/fr01, PD5, H24: stdin with many whitespace lines before its last character is read in linear time', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#use_case';
-    final stdin = 'a${'\n '.padRight(2) * 20000}x';
+    final stdin = 'a${'\n ' * 20000}x';
     final answer = writeIn(
       root,
       (s) => answerSet(s, req(target, sectionBase(root, target)), stdin),
+    );
+    expect(answer.text, isNotEmpty);
+  }, timeout: const Timeout(Duration(seconds: 5)));
+
+  test('f02/us01/fr03, PD5, H24: a field value with many whitespace lines before its last character is read in linear time', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    final stdin = '- PV-01${'\n ' * 20000}\n- PV-02';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
+        stdin,
+      ),
     );
     expect(answer.text, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 5)));
