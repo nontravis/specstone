@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
@@ -28,6 +29,11 @@ final class CheckContext {
   final List<String> _codeWarnings = [];
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
+  final Map<String, RegExp> _bannedPatterns = {};
+  final Map<MergedDocType, Map<String, MergedSection>> _sectionsByHeader =
+      Map.identity();
+  final Map<String, ({List<MergedSection?> templates, Map<String, int> first})>
+  _heldTemplates = {};
 
   /// The index of the session's snapshot.
   DocIndex get index => _session.index;
@@ -90,16 +96,16 @@ final class CheckContext {
     keys: keys,
   );
 
-  /// Returns the template section of [type] that [held] maps to, or null.
+  /// Returns the pattern of the banned [word], built once per run.
+  RegExp bannedPatternOf(String word) =>
+      _bannedPatterns.putIfAbsent(word, () => bannedWordPattern(word));
+
+  /// Returns the template section the held section [index] of [doc] maps to,
+  /// or null.
   ///
   /// Both headers compare by `headerKey`, as F-05's `format` matches them.
-  MergedSection? templateSectionOf(MergedDocType type, IndexedSection held) {
-    final key = headerKey(_headerText(held));
-    for (final section in type.sections) {
-      if (headerKey(section.header) == key) return section;
-    }
-    return null;
-  }
+  MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
+      _heldTemplatesOf(doc).templates[index];
 
   /// Returns the first held section of [doc] that maps to [sectionId].
   IndexedSection? heldSection(IndexedDoc doc, String sectionId) {
@@ -107,15 +113,35 @@ final class CheckContext {
     return index == null ? null : contentOf(doc).sections[index];
   }
 
-  int? _heldIndex(IndexedDoc doc, String sectionId) {
-    final type = typeOf(doc);
-    if (type == null) return null;
+  int? _heldIndex(IndexedDoc doc, String sectionId) =>
+      _heldTemplatesOf(doc).first[sectionId];
+
+  /// Maps each held section of [doc] to its template section, built once.
+  ({List<MergedSection?> templates, Map<String, int> first}) _heldTemplatesOf(
+    IndexedDoc doc,
+  ) => _heldTemplates.putIfAbsent(doc.docPath, () {
     final held = contentOf(doc).sections;
-    for (var i = 0; i < held.length; i++) {
-      if (templateSectionOf(type, held[i])?.id == sectionId) return i;
+    final type = typeOf(doc);
+    final byHeader = type == null ? null : _sectionsByHeaderOf(type);
+    final templates = [
+      for (final section in held) byHeader?[headerKey(_headerText(section))],
+    ];
+    final first = <String, int>{};
+    for (final (i, template) in templates.indexed) {
+      if (template != null) first.putIfAbsent(template.id, () => i);
     }
-    return null;
-  }
+    return (templates: templates, first: first);
+  });
+
+  /// Maps each header key of [type] to its first template section.
+  Map<String, MergedSection> _sectionsByHeaderOf(MergedDocType type) =>
+      _sectionsByHeader.putIfAbsent(type, () {
+        final byHeader = <String, MergedSection>{};
+        for (final section in type.sections) {
+          byHeader.putIfAbsent(headerKey(section.header), () => section);
+        }
+        return byHeader;
+      });
 
   /// Returns the body lines of the held section at [index] of [doc].
   List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) {
@@ -278,7 +304,7 @@ final class CheckContext {
     if (type == null) return const [];
     final rows = <({String cell, int line})>[];
     for (var i = 0; i < held.length; i++) {
-      if (templateSectionOf(type, held[i])?.id != _frTraceSection) continue;
+      if (templateSectionAt(api, i)?.id != _frTraceSection) continue;
       var sawHeader = false;
       for (final line in bodyLinesOf(api, i)) {
         final text = line.text.trim();

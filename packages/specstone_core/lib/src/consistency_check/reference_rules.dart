@@ -98,7 +98,7 @@ Iterable<Finding> _unresolvedConcerns(
   };
   final folder = _folderOf(context, doc);
   for (var i = 0; i < held.length; i++) {
-    if (context.templateSectionOf(type, held[i])?.id != _concernsSection) {
+    if (context.templateSectionAt(doc, i)?.id != _concernsSection) {
       continue;
     }
     for (final line in context.bodyLinesOf(doc, i)) {
