@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -822,5 +823,12 @@ void main() {
         ]);
       },
     );
+
+    test('f04/us02/fr04, LA1: a CR before an LF that toLf leaves splits no '
+        'extra line', () {
+      final body = toLf('x\r\r\n[a\r\r\nb](c.md)\r\r\n');
+
+      expect(placesOf(body), [(target: 'c.md', line: 2, shown: 'c.md')]);
+    });
   });
 }

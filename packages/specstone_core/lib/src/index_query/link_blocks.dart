@@ -85,8 +85,10 @@ const _pipe = 0x7C;
 /// Returns the [LeafText] of [lfBody], a doc text with LF line ends.
 ///
 /// A lone CR ends a line, as `LineSplitter` makes it end one for `markdown`:
-/// the text holds an LF in its place, at the same offset. The file line of an
-/// offset still counts only the LFs of [lfBody], as `scanText` does.
+/// the text holds an LF in its place, at the same offset. The CR of a CRLF that
+/// `toLf` left (from `\r\r\n`) is the first half of one break, so the text
+/// holds a space in its place. The file line of an offset still counts only
+/// the LFs of [lfBody], as `scanText` does.
 ///
 /// The lines are walked once, in the order `markdown` tries its block syntaxes,
 /// and only the text it reads as inline text is a leaf: a paragraph or setext
@@ -113,7 +115,7 @@ const _pipe = 0x7C;
 /// nested past `maxMarkdownDepth` (1,000 levels), so the recursion stays
 /// bounded.
 LeafText leafTextOf(String lfBody) {
-  final body = lfBody.replaceAll('\r', '\n');
+  final body = lfBody.replaceAll('\r\n', ' \n').replaceAll('\r', '\n');
   final lines = body.split('\n');
   final starts = List.filled(lines.length, 0);
   var offset = 0;
