@@ -255,7 +255,7 @@ void main() {
     expect(build.html, isNot(contains('F-05 — Rendering')));
   });
 
-  test('f05/us03/fr02: every built page carries the page-break rule', () async {
+  test('f05/us02/fr05: every built page carries the page-break rule', () async {
     final build = await _build({_featurePath: _feature});
 
     expect(build.html, contains(pageStylesheet));

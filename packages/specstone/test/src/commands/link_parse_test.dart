@@ -7,7 +7,6 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/fake_browser_host.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -54,7 +53,6 @@ Future<CliRun> runIn(
     workingDirectory: project,
     homeDirectory: null,
     console: console ?? FakeConsole(),
-    browserHost: FakeBrowserHost.withChrome().host,
   );
   final code = await runner.run(args);
   return (code: code, out: out.toString(), err: err.toString());
@@ -113,18 +111,6 @@ final buildCommands = <CliCommand>[
   (
     name: 'build docs/prds/features/f01_login --output out.html',
     args: ['build', 'docs/prds/features/f01_login', '--output', 'out.html'],
-    console: null,
-  ),
-  (
-    name: 'build docs/prds/features/f01_login --format pdf --output out.pdf',
-    args: [
-      'build',
-      'docs/prds/features/f01_login',
-      '--format',
-      'pdf',
-      '--output',
-      'out.pdf',
-    ],
     console: null,
   ),
 ];
@@ -256,15 +242,15 @@ void main() {
   everyCommandAnswers(
     '\n[a]:<b\\',
     buildCommands,
-    tags: 'f05/us02/fr02/e08, f05/us03/fr02, LP5',
+    tags: 'f05/us02/fr02/e08, LP5',
   );
 
-  test('f05/us02/fr02/e08, f05/us03/fr02, LP5: build warns and keeps the '
+  test('f05/us02/fr02/e08, LP5: build warns and keeps the '
       'text', () async {
     final project = await caseProject('\n[a]:<b\\');
     const dir = 'docs/prds/features/f01_login';
 
-    for (final (format, output) in [('html', 'out.html'), ('pdf', 'out.pdf')]) {
+    for (final (format, output) in [('html', 'out.html')]) {
       final run = await runIn(project, [
         'build',
         dir,

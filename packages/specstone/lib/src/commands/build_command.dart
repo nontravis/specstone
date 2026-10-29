@@ -13,9 +13,9 @@ class BuildCommand extends SpecstoneCommand {
     argParser
       ..addOption(
         'format',
-        allowed: OutputFormat.values.map((format) => format.name),
+        valueHelp: 'html',
         defaultsTo: OutputFormat.html.name,
-        help: 'The kind of copy to build.',
+        help: 'The kind of copy to build: html.',
       )
       ..addOption(
         'output',
@@ -29,11 +29,11 @@ class BuildCommand extends SpecstoneCommand {
   String get name => 'build';
 
   @override
-  String get description => 'Build an html or pdf copy of docs.';
+  String get description => 'Build an html copy of docs.';
 
   @override
   String get invocation =>
-      'specstone build <target> [--format html|pdf] [--output <file>] '
+      'specstone build <target> [--format html] [--output <file>] '
       '[--json]';
 
   @override
@@ -46,12 +46,12 @@ class BuildCommand extends SpecstoneCommand {
     }
     final runner = specstoneRunner;
     final asJson = argResults!.flag('json');
-    final format = OutputFormat.values.byName(argResults!.option('format')!);
     final outputOption = argResults!.option('output');
 
     final BuildResult result;
     final warnings = <String>[];
     try {
+      final format = OutputFormat.parse(argResults!.option('format'));
       final project = DocsProject.open(
         templates: runner.templates,
         workingDirectory: runner.workingDirectory,
@@ -77,16 +77,11 @@ class BuildCommand extends SpecstoneCommand {
       }
       final build = buildHtml(project, target);
       warnings.addAll(build.warnings);
-      final List<int> bytes = switch (format) {
-        OutputFormat.html => utf8.encode(build.html),
-        OutputFormat.pdf => await printPdf(
-          build.html,
-          browser: locateBrowser(runner.browserHost),
-          host: runner.browserHost,
-          onWarning: warnings.add,
-        ),
-      };
-      writeBuildOutput(output, bytes, displayPath: displayPath);
+      writeBuildOutput(
+        output,
+        utf8.encode(build.html),
+        displayPath: displayPath,
+      );
       result = BuildResult(output: displayPath, warnings: warnings);
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: warnings);

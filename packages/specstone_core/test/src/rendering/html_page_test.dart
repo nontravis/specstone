@@ -33,7 +33,7 @@ String _body(Doc doc) => renderDocBody(
 
 void main() {
   group('pageStylesheet', () {
-    test('f05/us03/fr02: starts each doc on a new page', () {
+    test('f05/us02/fr05: starts each doc on a new page', () {
       expect(pageStylesheet, contains('section.doc { break-before: page; }'));
     });
 
