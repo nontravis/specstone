@@ -6,7 +6,8 @@ final class PathPattern {
   new(this.source)
     : _whole = _compile(source),
       _segments = [for (final part in source.split('/')) _compile(part)],
-      _slugs = _compile(source, slugGroups: true);
+      _slugs = _compile(source, slugGroups: true),
+      _values = _compile(source, allGroups: true);
 
   static final _placeholder = RegExp(r'\{nn\}|\{slug\}');
 
@@ -16,6 +17,7 @@ final class PathPattern {
   final RegExp _whole;
   final List<RegExp> _segments;
   final RegExp _slugs;
+  final RegExp _values;
 
   /// Returns whether the pattern matches all of [docPath].
   bool matches(String docPath) => _whole.hasMatch(docPath);
@@ -59,10 +61,48 @@ final class PathPattern {
     return [for (var i = 1; i <= match.groupCount; i++) match.group(i)!];
   }
 
+  /// Returns every `{nn}` and `{slug}` value of [docPath] in pattern order.
+  ///
+  /// Null when the pattern does not match all of [docPath]. A `{nn}` value
+  /// keeps its leading zeros.
+  List<String>? valuesOf(String docPath) {
+    final match = _values.firstMatch(docPath);
+    if (match == null) return null;
+    return [for (var i = 1; i <= match.groupCount; i++) match.group(i)!];
+  }
+
+  /// Returns the pattern with its placeholders replaced by [values], in order.
+  ///
+  /// Throws [ArgumentError] when [values] and the placeholders differ in count.
+  String fill(List<String> values) {
+    final tokens = _placeholder.allMatches(source).toList();
+    if (tokens.length != values.length) {
+      throw ArgumentError.value(
+        values,
+        'values',
+        'expected ${tokens.length} values for "$source"',
+      );
+    }
+    final buffer = StringBuffer();
+    var literalStart = 0;
+    for (final (index, token) in tokens.indexed) {
+      buffer
+        ..write(source.substring(literalStart, token.start))
+        ..write(values[index]);
+      literalStart = token.end;
+    }
+    return (buffer..write(source.substring(literalStart))).toString();
+  }
+
   /// Compiles [text] to an anchored expression.
   ///
-  /// Each `{nn}` is a group, or each `{slug}` when [slugGroups] is set.
-  static RegExp _compile(String text, {bool slugGroups = false}) {
+  /// Each `{nn}` is a group, or each `{slug}` when [slugGroups] is set, or
+  /// every placeholder when [allGroups] is set.
+  static RegExp _compile(
+    String text, {
+    bool slugGroups = false,
+    bool allGroups = false,
+  }) {
     final buffer = StringBuffer('^');
     var literalStart = 0;
     for (final token in _placeholder.allMatches(text)) {
@@ -71,7 +111,7 @@ final class PathPattern {
         ..write(
           token.group(0) == '{nn}'
               ? (slugGroups ? '[0-9]+' : '([0-9]+)')
-              : (slugGroups ? '([a-z0-9_]+)' : '[a-z0-9_]+'),
+              : (slugGroups || allGroups ? '([a-z0-9_]+)' : '[a-z0-9_]+'),
         );
       literalStart = token.end;
     }

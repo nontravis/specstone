@@ -167,4 +167,32 @@ void main() {
       }
     });
   });
+
+  group('PathPattern.valuesOf and fill', () {
+    test('f06/us02/fr02/e04: valuesOf and fill keep the placeholder values '
+        'in order', () {
+      expect(
+        PathPattern('prds/runbooks/{slug}/RUNBOOK.md')
+            .valuesOf('prds/runbooks/deploy/RUNBOOK.md'),
+        ['deploy'],
+      );
+      expect(PathPattern('ops/{slug}/r{nn}.md').valuesOf('ops/deploy/r03.md'), [
+        'deploy',
+        '03',
+      ]);
+      expect(
+        PathPattern('ops/{slug}/r{nn}.md').fill(['deploy', '03']),
+        'ops/deploy/r03.md',
+      );
+      expect(PathPattern('ops/{slug}/r{nn}.md').valuesOf('ops/x.md'), isNull);
+    });
+
+    test('f06/us02/fr02/e04: fill refuses a value count that differs from '
+        'the placeholder count', () {
+      expect(
+        () => PathPattern('ops/{slug}/r{nn}.md').fill(['deploy']),
+        throwsArgumentError,
+      );
+    });
+  });
 }
