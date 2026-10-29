@@ -64,6 +64,16 @@ void main() {
       },
     );
 
+    test('doc_model/s03/inv7, LP1: percentDecodesCleanly is false only when '
+        'an escape needs U+FFFD', () {
+      expect(percentDecodesCleanly('%DB.md'), isFalse);
+      expect(percentDecodesCleanly('a%C3%28b'), isFalse);
+      expect(percentDecodesCleanly('caf%C3%A9'), isTrue);
+      expect(percentDecodesCleanly('50%'), isTrue);
+      expect(percentDecodesCleanly('abc'), isTrue);
+      expect(percentDecodesCleanly('\u{FFFD}.md'), isTrue);
+    });
+
     test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
     });

@@ -301,6 +301,11 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
   if (target is! DocTarget || !target.docPath.endsWith('.md')) return null;
   final cut = href.indexOf(RegExp('[?#]'));
   if (cut == 0) return null;
+  // Re-encoding the decoded path would turn an escape that is not UTF-8 into
+  // U+FFFD, so the link keeps the bytes the author wrote.
+  if (!percentDecodesCleanly(cut < 0 ? href : href.substring(0, cut))) {
+    return null;
+  }
   final before = relativeHref(docPath, target.docPath);
   final after = relativeHref(
     movedPath(docPath, moves),

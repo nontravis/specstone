@@ -28,9 +28,32 @@ final class OutsideTarget extends DocLinkTarget {
 ///
 /// A `%` not followed by two hex digits stays as written.
 String percentDecoded(String text) {
+  final bytes = _percentDecodedBytes(text);
+  return bytes == null ? text : utf8.decode(bytes, allowMalformed: true);
+}
+
+/// Whether the escapes of [text] decode to valid UTF-8, so [percentDecoded]
+/// writes no U+FFFD that [text] did not hold.
+///
+/// A caller that re-encodes the decoded text must keep [text] when this is
+/// false, or the original bytes are lost.
+bool percentDecodesCleanly(String text) {
+  final bytes = _percentDecodedBytes(text);
+  if (bytes == null) return true;
+  try {
+    utf8.decode(bytes);
+    return true;
+  } on FormatException {
+    return false;
+  }
+}
+
+/// Returns the bytes [text] stands for once each escape is a byte, or null
+/// when [text] holds no escape.
+List<int>? _percentDecodedBytes(String text) {
   final firstPercent = text.indexOf('%');
   // A text with no escape decodes to itself, so most hrefs pay nothing.
-  if (firstPercent < 0) return text;
+  if (firstPercent < 0) return null;
   final bytes = <int>[];
   // Literal text is encoded a run at a time: a character outside the BMP is
   // two code units, and encoding each alone would turn it into two U+FFFD.
@@ -46,7 +69,7 @@ String percentDecoded(String text) {
     runStart = i + 1;
   }
   bytes.addAll(utf8.encode(text.substring(runStart)));
-  return utf8.decode(bytes, allowMalformed: true);
+  return bytes;
 }
 
 /// Returns the byte the two hex digits at [start] and [start] + 1 name, or
