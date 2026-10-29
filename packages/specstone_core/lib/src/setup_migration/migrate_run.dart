@@ -62,9 +62,16 @@ final class MigrateRequest {
 /// applying (index, render) follow the printed plan or the listed steps. A
 /// `git add` or `git commit` that fails throws `MigrateFault` `git_failed`,
 /// and the journal stays.
-int runMigrate(MigrateRequest request) {
+int runMigrate(MigrateRequest request) =>
+    _mappingGitFailures(() => _migrate(request));
+
+/// Runs [run], mapping a git failure to the fault a migrate run raises.
+///
+/// A [GitCommandFailed] becomes `git_failed`; a [ProcessException] becomes
+/// `git_work_tree_required`.
+int _mappingGitFailures(int Function() run) {
   try {
-    return _migrate(request);
+    return run();
   } on GitCommandFailed catch (error) {
     throw MigrateFault(
       MigrateFaultCode.gitFailed,
@@ -95,7 +102,6 @@ int _migrate(MigrateRequest request) {
       request.out.writeln('nothing to migrate');
       return 0;
     case RunKind.legacy:
-      return runLegacyAt(root, request);
     case RunKind.upgrade:
       return _plannedRun(request, root, kind);
     case RunKind.resume:
@@ -106,9 +112,10 @@ int _migrate(MigrateRequest request) {
 /// Runs the bare legacy migration of [root] from its git checks on.
 ///
 /// Prints the plan, then applies it on the Owner's `y`; `init` enters here
-/// when its root holds the legacy context doc (F6-D15).
+/// when its root holds the legacy context doc (F6-D15). Maps git failures as
+/// [runMigrate] does.
 int runLegacyAt(Directory root, MigrateRequest request) =>
-    _plannedRun(request, root, RunKind.legacy);
+    _mappingGitFailures(() => _plannedRun(request, root, RunKind.legacy));
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
 /// `y`.

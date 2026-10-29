@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
@@ -11,9 +12,6 @@ import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
-
-/// The packs a scaffolded project pins.
-const _carriedPacks = ['prd-core', 'software-tech'];
 
 /// What one `specstone init` call runs with.
 final class InitRequest {
@@ -91,8 +89,8 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
 /// Keeps each draft that already exists and names it `kept`; starts no git
 /// process, so the new files stay untracked (E06).
 int _scaffold(Directory root, InitRequest request) {
-  final set = request.templates.resolveCarried(
-    packNames: _carriedPacks,
+  final (:set, :pins) = request.templates.resolveCarriedPinned(
+    packNames: carriedPacks,
     homeDirectory: request.homeDirectory,
   );
   for (final docType in singularDocTypes(set)) {
@@ -105,16 +103,6 @@ int _scaffold(Directory root, InitRequest request) {
     writeFileAtomic(file, utf8.encode(skeletonOf(docType, docType.id)));
     request.out.writeln('created docs/${docType.path} (draft)');
   }
-  final pins = {
-    for (final MapEntry(:key, :value)
-        in request.templates
-            .availableManifests(
-              _carriedPacks,
-              homeDirectory: request.homeDirectory,
-            )
-            .entries)
-      key: value.version,
-  };
   final config = File.fromUri(root.uri.resolve(projectConfigPath));
   config.parent.createSync(recursive: true);
   writeFileAtomic(config, utf8.encode(configText(pins)));

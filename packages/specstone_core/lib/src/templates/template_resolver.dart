@@ -78,15 +78,30 @@ final class TemplateResolver {
     required Iterable<String> packNames,
     required Directory? homeDirectory,
     List<DocTypeLayer> projectLayers = const [],
+  }) => resolveCarriedPinned(
+    packNames: packNames,
+    homeDirectory: homeDirectory,
+    projectLayers: projectLayers,
+  ).set;
+
+  /// Resolves like [resolveCarried] and also returns each loaded pack's
+  /// version, keyed by name, from the same load.
+  ({MergedSet set, Map<String, PackVersion> pins}) resolveCarriedPinned({
+    required Iterable<String> packNames,
+    required Directory? homeDirectory,
+    List<DocTypeLayer> projectLayers = const [],
   }) {
-    final ordered = orderPacks(
-      _availablePacks(packNames, homeDirectory),
-      configFile: projectConfigPath,
-    );
+    final loaded = _availablePacks(packNames, homeDirectory);
+    final ordered = orderPacks(loaded, configFile: projectConfigPath);
     final parsed = [
       for (final pack in ordered) (pack: pack, layers: pack.parseDocTypes()),
     ];
-    return _merge(parsed, projectLayers);
+    return (
+      set: _merge(parsed, projectLayers),
+      pins: {
+        for (final pack in loaded) pack.manifest.name: pack.manifest.version,
+      },
+    );
   }
 
   /// Loads the packs [names] at their available versions, by name in code

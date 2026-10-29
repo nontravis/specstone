@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
+import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
@@ -21,7 +22,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
-const _carriedPacks = ['prd-core', 'software-tech'];
 const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
@@ -60,7 +60,7 @@ RunPlan planLegacyRun(
   );
 
   final carried = templates.resolveCarried(
-    packNames: _carriedPacks,
+    packNames: carriedPacks,
     homeDirectory: homeDirectory,
   );
   final gnfr = carried.lookup(_gnfrId);
@@ -86,18 +86,11 @@ RunPlan planLegacyRun(
     rewrites.gnfrSections,
     carriedGnfrIds,
   );
-  final projectSet = templates.resolveCarried(
-    packNames: _carriedPacks,
+  final (set: projectSet, :pins) = templates.resolveCarriedPinned(
+    packNames: carriedPacks,
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides(overrides),
   );
-  final pins = {
-    for (final MapEntry(:key, :value)
-        in templates
-            .availableManifests(_carriedPacks, homeDirectory: homeDirectory)
-            .entries)
-      key: value.version,
-  };
 
   final config = File.fromUri(root.uri.resolve(projectConfigPath));
   final configRewrite = config.existsSync()

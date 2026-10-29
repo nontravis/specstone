@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -263,6 +264,50 @@ void main() {
     expect(out.toString(), startsWith('legacy migration: '));
     expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
+      'exit 75, and the journal stays', () async {
+    final root = await gitFixture(acmeLegacy);
+
+    expect(
+      () => _run(
+        root,
+        interactive: true,
+        answers: ['y'],
+        runGit: (arguments, {required workingDirectory}) =>
+            arguments.first == 'commit'
+            ? ProcessResult(0, 1, '', 'error: commit refused\n')
+            : runRealGit(arguments, workingDirectory: workingDirectory),
+      ),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.gitFailed)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    expect(MoveJournal.pendingMigrate(root), isTrue);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: git that cannot start in the legacy entry is '
+      'git_work_tree_required', () async {
+    final root = await writeTree(acmeLegacy);
+
+    expect(
+      () => _run(
+        root,
+        interactive: true,
+        runGit: (arguments, {required workingDirectory}) =>
+            throw const ProcessException('git', []),
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.gitWorkTreeRequired,
+        ),
+      ),
+    );
+  });
 
   test('f06/us03/fr01/e03: a folder inside another project becomes its own '
       'project', () async {

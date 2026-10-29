@@ -57,8 +57,7 @@ export 'src/rendering/render_fault.dart';
 export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
     show MigrateFault, MigrateFaultCode;
-export 'src/setup_migration/migrate_run.dart'
-    show MigrateRequest, runLegacyAt, runMigrate;
+export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/template_fault.dart';
