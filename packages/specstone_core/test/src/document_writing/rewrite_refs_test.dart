@@ -77,6 +77,20 @@ void main() {
     );
   });
 
+  test(
+    'f02/us05/fr02/e04, LP1: a move keeps a link whose escape is not UTF-8',
+    () {
+      expect(
+        rewriteDocLinks(
+          '# T\n\n[x](%DB.md) [s](../us02/USER_STORY.md)\n',
+          docPath: 'prds/f/us01/fr01.md',
+          moves: [(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+        ),
+        '# T\n\n[x](%DB.md) [s](../us03/USER_STORY.md)\n',
+      );
+    },
+  );
+
   test('f02/us05/fr02/e04: web links, paths outside the docs root, and unmoved targets keep their text', () {
     expect(
       rewriteDocLinks(

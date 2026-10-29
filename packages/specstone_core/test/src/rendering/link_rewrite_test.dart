@@ -179,6 +179,15 @@ void main() {
       expect(_rewritten('[x](c.md)'), '<p><a href="#doc-1">x</a></p>');
     });
 
+    test('f05/us02/fr03/e10, LP1: a link whose escape is not UTF-8 shows its '
+        'path', () {
+      expect(
+        _rewritten('[x](%DB.md)', docPath: 'a/b/c.md'),
+        '<p><span class="outside-link">x '
+        '(<code>a/b/\u{FFFD}.md</code>)</span></p>',
+      );
+    });
+
     test('f05/us02/fr03: an unknown doc shows the resolved path, escaped', () {
       expect(
         _rewritten('[x](../e&f.md)'),

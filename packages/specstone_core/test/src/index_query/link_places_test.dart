@@ -144,5 +144,18 @@ void main() {
 
       expect(places, [(target: '.md', line: 3, shown: '.md')]);
     });
+
+    test('f04/us02/fr04/e08, LP1: a link whose escape is not UTF-8 is placed '
+        'at its line as written', () {
+      final places = linkPlacesOf(
+        'x\n\n[x](%DB.md)\n',
+        docPath: 'prds/f/us/fr01.md',
+        firstLine: 1,
+      );
+
+      expect(places, [
+        (target: 'prds/f/us/\u{FFFD}.md', line: 3, shown: '%DB.md'),
+      ]);
+    });
   });
 }

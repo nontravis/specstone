@@ -30,5 +30,28 @@ void main() {
         '../../../../x.md',
       );
     });
+
+    test('doc_model/s03/inv7, LP1: an escape that is not UTF-8 reads as '
+        'U+FFFD', () {
+      expect(
+        (resolveDocLink('%DB.md', from) as DocTarget).docPath,
+        'prds/f/us/\u{FFFD}.md',
+      );
+      expect(
+        (resolveDocLink('%C3%28.md', from) as DocTarget).docPath,
+        'prds/f/us/\u{FFFD}(.md',
+      );
+      expect(
+        (resolveDocLink('%ED%A0%80.md', from) as DocTarget).docPath,
+        contains('\u{FFFD}'),
+      );
+      expect(percentDecoded('caf%C3%A9'), 'café');
+      expect(percentDecoded('50%'), '50%');
+      expect(percentDecoded('a%2Fb'), 'a/b');
+    });
+
+    test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
+      expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
+    });
   });
 }
