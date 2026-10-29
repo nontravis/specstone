@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -145,5 +146,37 @@ void main() {
     expect(commits.single.subject, 'second');
     expect(head, startsWith(commits.single.sha));
     expect(commits.single.sha, matches(RegExp(r'^[0-9a-f]{7,}$')));
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us01/fr07/e03: commitsSince returns the whole message beside the '
+      'subject, so a prepended paragraph still shows the step line', () async {
+    final root = await gitFixture(acmeLegacy);
+    final base = headSha(root, runRealGit);
+    File.fromUri(root.uri.resolve('notes.txt')).writeAsStringSync('x\n');
+    expect(git(root, ['add', '-A']).exitCode, 0);
+    expect(
+      git(root, [
+        'commit',
+        '-q',
+        '-m',
+        'ticket: T-1',
+        '-m',
+        'the step line',
+      ]).exitCode,
+      0,
+    );
+
+    final commit = commitsSince(root, base, runRealGit).single;
+
+    expect(commit.subject, 'ticket: T-1');
+    expect(commit.message, startsWith('ticket: T-1\n\nthe step line'));
+    expect(
+      const CommitStep(
+        message: 'the step line',
+        paths: [],
+        base: '',
+      ).carriedBy(commit.message),
+      isTrue,
+    );
   }, skip: hasGit ? null : 'git is not available');
 }

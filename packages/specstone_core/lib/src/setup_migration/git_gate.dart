@@ -3,6 +3,11 @@ import 'dart:io';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 
+// `git log` prints these control characters for `%x01` and `%x02`; neither
+// appears in a commit message.
+const _commitStart = '\x01';
+const _fieldSeparator = '\x02';
+
 /// Refuses a [root] outside a git work tree with no first commit.
 ///
 /// Throws `MigrateFault` `git_work_tree_required` when `git` cannot start,
@@ -71,7 +76,9 @@ String headSha(Directory root, RunGit runGit) =>
         .trim();
 
 /// Returns every commit from [base] to HEAD, oldest first.
-List<({String sha, String subject})> commitsSince(
+///
+/// `subject` is the first paragraph; `message` is the whole text.
+List<({String sha, String subject, String message})> commitsSince(
   Directory root,
   String base,
   RunGit runGit,
@@ -79,18 +86,15 @@ List<({String sha, String subject})> commitsSince(
   final log = runGit([
     'log',
     '--reverse',
-    '--format=%h%x09%s',
+    '--format=%x01%h%x02%s%x02%B',
     '$base..HEAD',
   ], workingDirectory: root.path);
   return [
-    for (final line in (log.stdout as String).trim().split('\n'))
-      if (line.isNotEmpty)
+    for (final record in (log.stdout as String).split(_commitStart))
+      if (record.trim().isNotEmpty)
         () {
-          final tab = line.indexOf('\t');
-          return (
-            sha: line.substring(0, tab),
-            subject: line.substring(tab + 1),
-          );
+          final fields = record.split(_fieldSeparator);
+          return (sha: fields[0], subject: fields[1], message: fields[2]);
         }(),
   ];
 }

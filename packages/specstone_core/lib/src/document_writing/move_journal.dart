@@ -304,11 +304,17 @@ final class CommitStep extends JournalStep {
       '--format=%B',
       '$base..HEAD',
     ], workingDirectory: target.projectRoot.path);
-    return log.exitCode == 0 &&
-        const LineSplitter()
-            .convert(log.stdout as String)
-            .any((line) => line.contains(message));
+    return log.exitCode == 0 && carriedBy(log.stdout as String);
   }
+
+  /// Whether a line of [fullMessage], the whole text of one commit or of
+  /// several, holds this step's [message].
+  ///
+  /// A hook may prefix the subject or put its own paragraph first, so the
+  /// whole message is searched, not the subject alone.
+  bool carriedBy(String fullMessage) => const LineSplitter()
+      .convert(fullMessage)
+      .any((line) => line.contains(message));
 
   @override
   void apply(JournalTarget target) {
