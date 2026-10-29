@@ -373,6 +373,7 @@ final class CommitStep extends JournalStep {
       '--cached',
       '--name-only',
       '--no-renames',
+      '--relative',
       '-z',
       '--',
       ...scope,

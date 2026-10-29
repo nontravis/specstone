@@ -851,6 +851,30 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
+    test('f06/us01/fr01/e05, f06/us01/fr07: a project in a subfolder of its repository commits its own paths', () async {
+      final repo = await _gitTree({
+        'app/docs/prds/d01_context.md': '# D-01 — App context\n',
+        'docs/prds/d01_context.md': '# D-01 — Root context\n',
+      });
+      final app = Directory('${repo.path}${Platform.pathSeparator}app');
+      final base = _head(repo);
+
+      MoveJournal([
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+      ]).run(_target(app));
+
+      expect(_log(repo), ['move', 'initial']);
+      expect(
+        git(repo, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tapp/docs/prds/d01_context.md\tapp/docs/prds/PROJECT.md\n',
+      );
+    }, skip: skipGit);
+
     test('f06/us01/fr07: a path git ignores stays out of both commits and still moves', () async {
       final root = await _gitTree({
         '.gitignore': '*.local.md\n',
