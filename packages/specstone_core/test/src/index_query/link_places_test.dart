@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -177,5 +178,173 @@ void main() {
 
       expect(places, isEmpty);
     });
+  });
+
+  group('look-alikes', () {
+    List<LinkPlace> placesOf(String body, {int firstLine = 1}) =>
+        linkPlacesOf(body, docPath: 'x.md', firstLine: firstLine)!;
+
+    void placed(
+      String name,
+      String body,
+      List<LinkPlace> expected, {
+      int firstLine = 1,
+    }) {
+      test(name, () => expect(placesOf(body, firstLine: firstLine), expected));
+    }
+
+    placed(
+      'f04/us02/fr04, LA1: an escaped bracket before a link is no use',
+      '\\[a](b.md)\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a link after an escaped bang is placed at its line',
+      'x\n\\![a](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a link inside link text leaves the outer brackets '
+          'as text',
+      '[a [x](y.md)](b.md)\n[c](b.md)\n',
+      [
+        (target: 'y.md', line: 1, shown: 'y.md'),
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: an opener a link turned off stays off after a '
+          'later opener',
+      '[a [b](c.md) [d] e](f.md)\n[g](f.md)\n',
+      [
+        (target: 'c.md', line: 1, shown: 'c.md'),
+        (target: 'f.md', line: 2, shown: 'f.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: brackets inside a destination are no use',
+      '[a](x[q](b.md))\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a link in an image description is no use',
+      '![x [a](b.md)](i.png)\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a link in an image turns off the link around the '
+          'image',
+      '[![a [b](c.md)](i.png)](d.md)\n[e](d.md)\n',
+      [(target: 'd.md', line: 2, shown: 'd.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: parens that hold no valid title make no use',
+      '[a](b.md x)\n[d](b.md c.md)\n[c](b.md)\n',
+      [(target: 'b.md', line: 3, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: brackets never pair across a blank line',
+      '[a\n\nb](b.md)\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 5, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a failed inline link falls back to its shortcut '
+          'reference',
+      'x\n[r](no link\n\n[r]: b.md\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA2: a tab stays in a bare destination, as markdown '
+          'reads it',
+      'x\n[a](b\tc.md)\n',
+      [(target: 'b\tc.md', line: 2, shown: 'b\tc.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA2: a title after an open paren keeps the destination '
+          'open, as markdown reads it',
+      'x\n[a](b(c "t").md)\n',
+      [(target: 'b(c.md', line: 2, shown: 'b(c.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: pin: emphasis delimiters around brackets change no '
+          'link',
+      '*[a*](b.md)\n[c](b.md)\n',
+      [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: pin: collapsed and shortcut references are placed '
+          'at their uses',
+      '[r][]\n[r]\n\n[r]: b.md\n',
+      [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a body that starts after frontmatter keeps each '
+          'link on its line',
+      '\\[a](b.md)\n[c](b.md)\n',
+      [(target: 'b.md', line: 6, shown: 'b.md')],
+      firstLine: 5,
+    );
+
+    void within(String name, String body, List<(int, String?)> expected) {
+      test('f04/us02/fr04, f04/nfr-p03, LA6: $name within one second', () {
+        final watch = Stopwatch()..start();
+
+        final sources = linkSourcesOf(body, firstLine: 1);
+        watch.stop();
+
+        expect(sources.map((s) => (s.line, s.shown)), expected);
+        expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+      });
+    }
+
+    within(
+      '10,000 unclosed bare destinations are scanned',
+      '${'[a](b' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 unclosed titles are scanned',
+      '${'[a](b "t' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 unclosed angle destinations are scanned',
+      '${'[a](<b ' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 openers before one close are scanned',
+      'x ${'[a ' * 10000}](b.md)\n',
+      [(1, 'b.md')],
+    );
+
+    within(
+      '10,000 links in one image description are dropped',
+      '![${'[x](b.md) ' * 10000}](i.png)\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
   });
 }
