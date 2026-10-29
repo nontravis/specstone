@@ -1,5 +1,8 @@
+// dart:mirrors lets the failing-delete wrapper forward every member it does
+// not override; it exists in the VM that runs tests.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:mirrors';
 
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -133,6 +136,33 @@ final class _StuckProbeHook extends IOOverrides {
   @override
   Directory createDirectory(String path) =>
       _StuckProbeDirectory(super.createDirectory(path));
+}
+
+/// Makes `deleteSync` throw for the one file whose path ends with the path
+/// given, as a disk that refuses that one delete does.
+final class _FailingDeleteHook extends IOOverrides {
+  new(this._pathEnd);
+
+  final String _pathEnd;
+
+  @override
+  File createFile(String path) => path.replaceAll(r'\', '/').endsWith(_pathEnd)
+      ? _FailingDeleteFile(super.createFile(path))
+      : super.createFile(path);
+}
+
+final class _FailingDeleteFile implements File {
+  const new(this._inner);
+
+  final File _inner;
+
+  @override
+  void deleteSync({bool recursive = false}) =>
+      throw FileSystemException('Permission denied', _inner.path);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      reflect(_inner).delegate(invocation);
 }
 
 /// Records the path of every `File` the code under test opens.
@@ -1324,6 +1354,24 @@ void main() {
 
       expectChainLanded();
       expect(fileAt(stuck).readAsStringSync(), 'new\n');
+    });
+
+    test('dw-s03/inv9, F6-D35, final M4: a journal delete that fails keeps the cursor, so a replay leaves the chain landed', () {
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => const MoveJournal(chain).run(_target(tree)),
+          _FailingDeleteHook(MoveJournal.journalPath),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+
+      expect(journal().existsSync(), isTrue);
+      expect(cursorFile().readAsStringSync(), '${chain.length}');
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(MoveJournal.pending(tree), isFalse);
     });
 
     test('dw-s03/inv9, F6-D35: a crash between a step and its cursor write finishes on replay', () {
