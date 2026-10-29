@@ -93,9 +93,11 @@ RunPlan planUpgradeRun(
   final renameCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
-    final original = readDocText(
-      File.fromUri(docsRoot.uri.resolve(path)).readAsBytesSync(),
+    final original = readDocFile(
+      File.fromUri(docsRoot.uri.resolve(path)),
+      docPath: path,
     );
+    if (original == null) continue;
     final match = matcher.match(plannedPath);
     final docTypeId = match is MatchedDocType ? match.docType.id : null;
     var lf = original.lf;

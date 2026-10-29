@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show MoveStep;
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -512,6 +514,51 @@ sections:
       ),
     );
   });
+
+  test('f06/us02/fr02, final I2: every step skips a doc that is not UTF-8, '
+      'and the others still change', () async {
+    final fixture = await _fixture(
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': _runbookDoc,
+        'prds/runbooks/legacy/RUNBOOK.md': '',
+      },
+    );
+    // `## Steps` then `é` in Windows-1252: 0xe9 is no UTF-8 sequence.
+    File.fromUri(
+      fixture.project.uri.resolve('docs/prds/runbooks/legacy/RUNBOOK.md'),
+    ).writeAsBytesSync([...'## Steps\n'.codeUnits, 0xe9, 0x0a]);
+
+    final plan = _plan(fixture);
+
+    expect(plan.rewrites.map((r) => r.path), [
+      'docs/prds/runbooks/deploy/RUNBOOK.md',
+      _overridePath,
+      '.specstone/config.yaml',
+    ]);
+  });
+
+  test('f06/us02/fr02, final I2: a doc that cannot be read refuses '
+      'output_not_writable naming it', () async {
+    final fixture = await _fixture();
+    final runbook = File.fromUri(
+      fixture.project.uri.resolve('docs/prds/runbooks/deploy/RUNBOOK.md'),
+    );
+    expect(Process.runSync('chmod', ['000', runbook.path]).exitCode, 0);
+    addTearDown(() => Process.runSync('chmod', ['644', runbook.path]));
+
+    expect(
+      () => _plan(fixture),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith('cannot read prds/runbooks/deploy/RUNBOOK.md: '),
+            ),
+      ),
+    );
+  }, skip: unreadablePathSkipReason());
 
   test('f06/us02/fr02/e03: a renamed field keeps its value', () async {
     final plan = _plan(await _fixture());

@@ -141,7 +141,8 @@ List<String> _docPathsOf(Directory docsRoot) {
 List<SpecMapRow> _specMapOf(Directory docsRoot, List<String> docPaths) {
   if (!docPaths.contains(_specIndexPath)) return const [];
   final index = File.fromUri(docsRoot.uri.resolve(_specIndexPath));
-  return readSpecMap(readDocText(index.readAsBytesSync()).lf);
+  final text = readDocFile(index, docPath: _specIndexPath);
+  return text == null ? const [] : readSpecMap(text.lf);
 }
 
 typedef _Rewrites = ({List<PlannedRewrite> planned, List<String> gnfrSections});
@@ -169,8 +170,9 @@ final class _Work {
 
 /// Plans the rewrite of every markdown doc the run places or leaves.
 ///
-/// Only `.md` files are read; any other file moves untouched. A doc left in
-/// place gets the link rewrite and nothing else. The first fingerprints hash
+/// Only `.md` files are read, and only those that are UTF-8 text are
+/// rewritten; any other file moves untouched. A doc left in place gets the
+/// link rewrite and nothing else. The first fingerprints hash
 /// each FR as the run writes it, so the FR docs are rewritten first.
 _Rewrites _rewritesOf(
   Directory docsRoot,
@@ -190,14 +192,17 @@ _Rewrites _rewritesOf(
     for (final legacyPath in docPaths)
       if (legacyPath.endsWith('.md') &&
           (newOf.containsKey(legacyPath) || legacy.left.contains(legacyPath)))
-        _Work(
-          legacyPath,
-          newOf[legacyPath] ?? legacyPath,
-          legacy.kindOf[newOf[legacyPath]],
-          readDocText(
-            File.fromUri(docsRoot.uri.resolve(legacyPath)).readAsBytesSync(),
+        if (readDocFile(
+              File.fromUri(docsRoot.uri.resolve(legacyPath)),
+              docPath: legacyPath,
+            )
+            case final original?)
+          _Work(
+            legacyPath,
+            newOf[legacyPath] ?? legacyPath,
+            legacy.kindOf[newOf[legacyPath]],
+            original,
           ),
-        ),
   ];
 
   final gnfrSections = <String>[];

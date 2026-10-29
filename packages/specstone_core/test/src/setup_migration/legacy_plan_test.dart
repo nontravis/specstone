@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
@@ -11,6 +12,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
+import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 
 /// The dry-run example of `s02_api_migrate.md`, up to the `left` block.
@@ -341,6 +343,89 @@ name: Login API
       )),
     );
     expect(plan.rewrites.where((r) => r.path.endsWith('.png')), isEmpty);
+  });
+
+  group('f06/us01/fr03/e13, final I2: a .md file that is not UTF-8', () {
+    // `café` in Windows-1252: 0xe9 is no UTF-8 sequence.
+    const latin1 = [0x23, 0x20, 0x4e, 0x6f, 0x74, 0x65, 0x73, 0x0a, 0xe9, 0x0a];
+
+    Future<RunPlan> planWith(Map<String, List<int>> bytes) async {
+      final root = await writeTree(acmeLegacy);
+      for (final MapEntry(:key, :value) in bytes.entries) {
+        File('${root.path}/$key').writeAsBytesSync(value);
+      }
+      return planLegacyRun(
+        Directory(root.resolveSymbolicLinksSync()),
+        templates: TemplateResolver(),
+        homeDirectory: null,
+      );
+    }
+
+    test('f06/us01/fr03/e13: moves untouched with no rewrite, and the plan '
+        'prints its move; one left in place is skipped too', () async {
+      final plan = await planWith({
+        'docs/specs/shared/notes.md': latin1,
+        'docs/prds/d04_glossary.md': latin1,
+      });
+
+      expect(
+        plan.moves,
+        contains((
+          from: 'specs/shared/notes.md',
+          to: 'specs/topics/shared/notes.md',
+        )),
+      );
+      expect(
+        plan.toText(),
+        contains('  specs/shared/notes.md -> specs/topics/shared/notes.md\n'),
+      );
+      expect(
+        plan.rewrites.map((r) => r.path),
+        isNot(
+          anyOf(
+            contains('docs/specs/topics/shared/notes.md'),
+            contains('docs/prds/d04_glossary.md'),
+          ),
+        ),
+      );
+    });
+
+    test('f06/us01/fr03/e13: a Spec map that is not UTF-8 reads as no Spec '
+        'map', () async {
+      final plan = await planWith({'docs/specs/INDEX.md': latin1});
+
+      expect(
+        plan.rewrites.map((r) => r.path),
+        isNot(contains('docs/specs/INDEX.md')),
+      );
+      expect(plan.left, contains('specs/shared/s01_architecture.md'));
+    });
+
+    test('f06/us01/fr03: a .md file that cannot be read refuses '
+        'output_not_writable naming it', () async {
+      final root = await writeTree(acmeLegacy);
+      final glossary = File('${root.path}/docs/prds/d04_glossary.md')
+        ..writeAsStringSync('# Glossary\n');
+      expect(Process.runSync('chmod', ['000', glossary.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', glossary.path]));
+
+      expect(
+        () => planLegacyRun(
+          Directory(root.resolveSymbolicLinksSync()),
+          templates: TemplateResolver(),
+          homeDirectory: null,
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('cannot read prds/d04_glossary.md: '),
+              ),
+        ),
+      );
+    }, skip: unreadablePathSkipReason());
   });
 
   test('f06/us01/fr04/e11: a markdown doc left in place gets the link '

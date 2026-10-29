@@ -1,11 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove, rewriteDocLinksCounted;
+import 'package:specstone_core/src/document_writing/write_session.dart'
+    show cannotRead;
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 
 final _numberedTitle = RegExp(r'^[A-Z][A-Z0-9]*-\d+ — ');
@@ -56,6 +60,28 @@ DocText readDocText(List<int> bytes) {
     ending: LineEnding.of(text),
     bom: startsWithUtf8Bom(bytes),
   );
+}
+
+/// Reads the doc [file] at [docPath] into LF text, or returns null when its
+/// bytes are not UTF-8 text.
+///
+/// A run moves a doc it gets null for untouched and rewrites none of it, as
+/// it does a file that is not `.md` (US-01 FR-03 E13).
+///
+/// Throws [RenderFault] `output_not_writable` naming [docPath] when the file
+/// cannot be read.
+DocText? readDocFile(File file, {required String docPath}) {
+  final List<int> bytes;
+  try {
+    bytes = file.readAsBytesSync();
+  } on FileSystemException catch (error) {
+    throw cannotRead(docPath, error);
+  }
+  try {
+    return readDocText(bytes);
+  } on FormatException {
+    return null;
+  }
 }
 
 /// Returns [lf] in the line style of [original], the byte order mark first
