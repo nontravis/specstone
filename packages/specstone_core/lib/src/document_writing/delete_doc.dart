@@ -63,7 +63,8 @@ ReadAnswer answerDelete(
     final removed = session.locked(() {
       final current = _readUnit(session, roots);
       if (!_sameFiles(current, shown)) return null;
-      MoveJournal(_stepsFor(session, roots, current.keys)).run(session.project);
+      MoveJournal(_stepsFor(session, roots, current.keys))
+          .run(JournalTarget.of(session.project));
       return current.keys.toList();
     });
     if (removed != null) return _answerFor(removed);

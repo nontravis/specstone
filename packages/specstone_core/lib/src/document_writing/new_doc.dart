@@ -76,7 +76,7 @@ ReadAnswer answerNew(
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
   if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
   final lfText = text.isEmpty
-      ? _skeleton(docType, title)
+      ? skeletonOf(docType, title)
       : markDraft(toLf(text));
   final lineEnding = LineEnding.of(text);
 
@@ -287,7 +287,7 @@ void _remove(File? file, List<Directory> created) {
 
 /// Returns the template skeleton of [docType]: a draft frontmatter with each
 /// required field empty, the [title], and each required section.
-String _skeleton(MergedDocType docType, String title) {
+String skeletonOf(MergedDocType docType, String title) {
   final buffer = StringBuffer('---\ndraft: true\n');
   for (final field in docType.fields) {
     if (field.required) buffer.write('${field.id}:\n');

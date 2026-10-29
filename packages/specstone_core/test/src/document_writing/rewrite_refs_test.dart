@@ -66,6 +66,31 @@ void main() {
     );
   });
 
+  test(
+    'f02/us05/fr02: rewriteDocLinksCounted counts the destinations it changes',
+    () {
+      final result = rewriteDocLinksCounted(
+        'See [a](../us02_sign_out/USER_STORY.md) and [b](../us02_sign_out/USER_STORY.md#x) or [w](https://x.dev/a.md).\n',
+        docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        moves: reorderMoves,
+      );
+
+      expect(
+        result?.lfText,
+        'See [a](../us03_sign_out/USER_STORY.md) and [b](../us03_sign_out/USER_STORY.md#x) or [w](https://x.dev/a.md).\n',
+      );
+      expect(result?.count, 2);
+      expect(
+        rewriteDocLinksCounted(
+          '[w](https://x.dev/a.md)\n',
+          docPath: 'I.md',
+          moves: reorderMoves,
+        ),
+        isNull,
+      );
+    },
+  );
+
   test('f02/us05/fr02/e02: a link between two files of one moved folder is unchanged', () {
     expect(
       rewriteDocLinks(

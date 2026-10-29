@@ -1,12 +1,18 @@
+// dart:mirrors lets the failing-delete wrapper forward every member it does
+// not override; it exists in the VM that runs tests.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:mirrors';
 
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/git_repo.dart';
 import '../../helpers/hold_open.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
@@ -133,6 +139,85 @@ final class _StuckProbeHook extends IOOverrides {
       _StuckProbeDirectory(super.createDirectory(path));
 }
 
+/// Makes `deleteSync` throw for the one file whose path ends with the path
+/// given, as a disk that refuses that one delete does.
+final class _FailingDeleteHook extends IOOverrides {
+  new(this._pathEnd);
+
+  final String _pathEnd;
+
+  @override
+  File createFile(String path) => path.replaceAll(r'\', '/').endsWith(_pathEnd)
+      ? _FailingDeleteFile(super.createFile(path))
+      : super.createFile(path);
+}
+
+final class _FailingDeleteFile implements File {
+  const new(this._inner);
+
+  final File _inner;
+
+  @override
+  void deleteSync({bool recursive = false}) =>
+      throw FileSystemException('Permission denied', _inner.path);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      reflect(_inner).delegate(invocation);
+}
+
+/// Records the path of every `File` the code under test opens.
+final class _CreatedFiles extends IOOverrides {
+  final _paths = <String>[];
+
+  @override
+  File createFile(String path) {
+    _paths.add(path);
+    return super.createFile(path);
+  }
+
+  /// Returns the temp siblings an atomic write of [relative] created, one per
+  /// write.
+  List<String> tempsOf(String relative) {
+    final name = relative.split('/').last;
+    return [
+      for (final path in _paths)
+        if (path.split(Platform.pathSeparator).last case final file
+            when file.startsWith('.$name.') && file.endsWith('.specstone.tmp'))
+          file,
+    ];
+  }
+}
+
+JournalTarget _target(Directory root) => JournalTarget(
+  projectRoot: root,
+  docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+);
+
+/// Writes [files] as a git work tree with one commit.
+Future<Directory> _gitTree(Map<String, String> files) async {
+  final root = await writeTree(files);
+  expect(git(root, ['init', '-q']).exitCode, 0);
+  for (final setting in [
+    ['user.name', 't'],
+    ['user.email', 't@t'],
+    ['core.autocrlf', 'false'],
+  ]) {
+    expect(git(root, ['config', ...setting]).exitCode, 0);
+  }
+  commitAll(root, 'initial');
+  return root;
+}
+
+String _head(Directory root) =>
+    (git(root, ['rev-parse', 'HEAD']).stdout as String).trim();
+
+List<String> _log(Directory root) =>
+    (git(root, ['log', '--format=%s']).stdout as String)
+        .split('\n')
+        .where((line) => line.isNotEmpty)
+        .toList();
+
 void main() {
   late Directory root;
 
@@ -171,7 +256,7 @@ void main() {
       () => const MoveStep(
         'docs/$story3',
         '$_trashDocs/$story3',
-      ).apply(openProject(root)),
+      ).apply(JournalTarget.of(openProject(root))),
     );
 
     expect(File('${root.path}/$_trashDocs/$story3').existsSync(), isTrue);
@@ -186,7 +271,7 @@ void main() {
       () => const MoveStep(
         'docs/$_login/us02_sign_out',
         '${MoveJournal.stagePath}/us02_sign_out',
-      ).apply(openProject(root)),
+      ).apply(JournalTarget.of(openProject(root))),
     );
 
     expect(
@@ -214,7 +299,7 @@ void main() {
             const MoveStep(
               'docs/$story3',
               '$_trashDocs/$story3',
-            ).apply(openProject(root));
+            ).apply(JournalTarget.of(openProject(root)));
           } on RenderFault catch (error) {
             thrown = error;
           } finally {
@@ -244,7 +329,7 @@ void main() {
       MoveStep('docs/$fr32', '$_trashDocs/$fr32'),
       MoveStep('docs/$story3', '$_trashDocs/$story3'),
       PruneStep('docs/$_login/us03_reset_password'),
-    ]).run(openProject(root));
+    ]).run(JournalTarget.of(openProject(root)));
     expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
     expect(dirExists(MoveJournal.trashPath), isFalse);
     expect(hasDoc(root, story1), isTrue);
@@ -264,7 +349,7 @@ void main() {
     ]);
     moveToTrash(story3);
     moveToTrash(fr31);
-    MoveJournal.replay(openProject(root));
+    MoveJournal.replay(JournalTarget.of(openProject(root)));
     for (final path in files) {
       expect(hasDoc(root, path), isFalse, reason: path);
     }
@@ -290,7 +375,7 @@ void main() {
         .renameSync('${root.path}/docs/$renamed');
     expect(readDoc(root, fr12), contains('us03_reset_password'));
 
-    MoveJournal.replay(openProject(root));
+    MoveJournal.replay(JournalTarget.of(openProject(root)));
 
     expect(readDoc(root, fr12), rewritten);
     expect(hasDoc(root, '$renamed/USER_STORY.md'), isTrue);
@@ -314,7 +399,7 @@ void main() {
     Directory('${root.path}/$stage/0')
         .renameSync('${root.path}/docs/$_login/us03_email_login');
 
-    MoveJournal.replay(openProject(root));
+    MoveJournal.replay(JournalTarget.of(openProject(root)));
 
     expect(hasDoc(root, '$_login/us03_email_login/USER_STORY.md'), isTrue);
     expect(hasDoc(root, '$_login/us01_reset_password/USER_STORY.md'), isTrue);
@@ -336,7 +421,7 @@ void main() {
     addTearDown(() => Process.runSync('chmod', ['755', locked.path]));
 
     expect(
-      () => MoveJournal.replay(openProject(root)),
+      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
       throwsA(
         isA<RenderFault>()
             .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -351,7 +436,7 @@ void main() {
     expect(locked.existsSync(), isTrue);
 
     Process.runSync('chmod', ['755', locked.path]);
-    MoveJournal.replay(openProject(root));
+    MoveJournal.replay(JournalTarget.of(openProject(root)));
 
     expect(journalExists(), isFalse);
     expect(locked.existsSync(), isFalse);
@@ -362,7 +447,7 @@ void main() {
     final before = readDoc(root, story1);
     expect(MoveJournal.pending(root), isFalse);
 
-    MoveJournal.replay(openProject(root));
+    MoveJournal.replay(JournalTarget.of(openProject(root)));
 
     expect(readDoc(root, story1), before);
     expect(dirExists(MoveJournal.trashPath), isFalse);
@@ -392,7 +477,7 @@ void main() {
     final before = readDoc(root, story1);
 
     expect(
-      () => MoveJournal.replay(openProject(root)),
+      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
       throwsA(
         isA<RenderFault>()
             .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
@@ -424,7 +509,7 @@ void main() {
       );
 
     expect(
-      () => MoveJournal.replay(openProject(root)),
+      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
       notReplayable('not a journal step'),
     );
 
@@ -440,7 +525,7 @@ void main() {
       ..writeAsStringSync('staged');
     writeJournal(root, const [MoveStep(us01, '$stage/0')]);
 
-    MoveJournal.replay(openProject(root));
+    MoveJournal.replay(JournalTarget.of(openProject(root)));
 
     expect(hasDoc(root, story1), isTrue);
     expect(journalExists(), isFalse);
@@ -454,7 +539,7 @@ void main() {
     });
     Directory('${bare.path}/docs/a/b').createSync(recursive: true);
     Directory('${bare.path}/docs/keep/inner').createSync();
-    final project = openProject(bare);
+    final project = JournalTarget.of(openProject(bare));
 
     const PruneStep('docs/keep/inner').apply(project);
     const PruneStep('docs/a/b').apply(project);
@@ -466,7 +551,7 @@ void main() {
   });
 
   test('f02/us04/fr03: a WriteStep writes only a file that exists and differs, and a MoveStep skips a missing source', () {
-    final project = openProject(root);
+    final project = JournalTarget.of(openProject(root));
     final before = readDoc(root, story1);
 
     const WriteStep('docs/prds/missing.md', 'x').apply(project);
@@ -488,7 +573,7 @@ void main() {
     expect(
       () =>
           const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
-              .run(openProject(root)),
+              .run(JournalTarget.of(openProject(root))),
       throwsA(
         isA<IndexFault>().having(
           (e) => e.code,
@@ -505,7 +590,10 @@ void main() {
     docFile(root, story1).writeAsBytesSync([0xff, 0xfe, 0x41]);
 
     expect(
-      () => const WriteStep('docs/$story1', 'x').apply(openProject(root)),
+      () => const WriteStep(
+        'docs/$story1',
+        'x',
+      ).apply(JournalTarget.of(openProject(root))),
       throwsA(
         isA<RenderFault>()
             .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -525,7 +613,7 @@ void main() {
     addTearDown(() => Process.runSync('chmod', ['644', journal.path]));
 
     expect(
-      () => MoveJournal.replay(openProject(root)),
+      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
       throwsA(
         isA<RenderFault>()
             .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -640,7 +728,7 @@ void main() {
             'docs/prds/elsewhere/note.md',
             '$_trashDocs/prds/elsewhere/note.md',
           ),
-        ]).run(openProject(root)),
+        ]).run(JournalTarget.of(openProject(root))),
         throwsA(
           isA<RenderFault>()
               .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -670,7 +758,7 @@ void main() {
     IOOverrides.runWithIOOverrides(
       () =>
           const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
-              .run(openProject(root)),
+              .run(JournalTarget.of(openProject(root))),
       _StuckProbeHook(),
     );
 
@@ -686,7 +774,7 @@ void main() {
       () => IOOverrides.runWithIOOverrides(
         () =>
             const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
-                .run(openProject(root)),
+                .run(JournalTarget.of(openProject(root))),
         _StuckProbeHook(),
       ),
       throwsA(
@@ -712,7 +800,7 @@ void main() {
     const MoveStep(
       'docs/prds/shortcut',
       '$_trashDocs/prds/shortcut',
-    ).apply(openProject(root));
+    ).apply(JournalTarget.of(openProject(root)));
 
     final landed = Link('${root.path}/$_trashDocs/prds/shortcut');
     expect(landed.existsSync(), isTrue);
@@ -720,4 +808,871 @@ void main() {
     expect(link.existsSync(), isFalse);
     expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  group('f06/us01/fr07: create and commit steps', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    test('f06/us01/fr07: a create step writes an absent file and never overwrites one', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'old\n'});
+      final target = _target(root);
+      const CreateStep('docs/specs/TECH_STACK.md', 'draft\n').apply(target);
+      const CreateStep('docs/prds/PROJECT.md', 'new\n').apply(target);
+      expect(
+        File('${root.path}/docs/specs/TECH_STACK.md').readAsStringSync(),
+        'draft\n',
+      );
+      expect(
+        File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
+        'old\n',
+      );
+    });
+
+    test('f06/us01/fr07: a journal of moves, commit 1, writes, commit 2 makes two commits, the first pure renames', () async {
+      final root = await _gitTree({
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      });
+      final base = _head(root);
+      MoveJournal([
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep('docs/prds/PROJECT.md', '# Project context\n'),
+        const CreateStep('.specstone/config.yaml', 'packs:\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: [
+            'docs/prds/PROJECT.md',
+            '.specstone/config.yaml',
+            '.specstone/.gitignore',
+          ],
+          base: base,
+        ),
+      ]).run(_target(root));
+      expect(_log(root), ['rewrite', 'move', 'initial']);
+      expect(
+        git(root, [
+          'show',
+          '--name-status',
+          '-M',
+          '--format=',
+          'HEAD~1',
+        ]).stdout,
+        'R100\tdocs/prds/d01_context.md\tdocs/prds/PROJECT.md\n',
+      );
+      expect(git(root, ['status', '--porcelain']).stdout, '');
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07: a commit of 320 moves passes its paths in a file, never on the git command line', () async {
+      final names = [for (var i = 0; i < 320; i++) 'f${'$i'.padLeft(3, '0')}'];
+      final root = await _gitTree({
+        for (final name in names) 'docs/prds/old/$name.md': '# $name\n',
+      });
+      final paths = [
+        for (final name in names) ...[
+          'docs/prds/old/$name.md',
+          'docs/prds/new/$name.md',
+        ],
+      ];
+      final calls = <List<String>>[];
+      final target = JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+        runGit: (arguments, {required workingDirectory}) {
+          calls.add(arguments);
+          return runRealGit(arguments, workingDirectory: workingDirectory);
+        },
+      );
+
+      MoveJournal([
+        for (final name in names)
+          MoveStep('docs/prds/old/$name.md', 'docs/prds/new/$name.md'),
+        CommitStep(message: 'move', paths: paths, base: _head(root)),
+      ]).run(target);
+
+      expect(_log(root), ['move', 'initial']);
+      final renames =
+          (git(root, [
+                    'show',
+                    '--name-status',
+                    '-M',
+                    '--format=',
+                    'HEAD',
+                  ]).stdout
+                  as String)
+              .trim()
+              .split('\n');
+      expect(renames, hasLength(names.length));
+      expect(renames, everyElement(startsWith('R100')));
+      final named = {for (final call in calls) ...call}
+          .intersection({...paths});
+      expect(named, isEmpty);
+      for (final verb in ['add', 'commit']) {
+        expect(
+          calls.where((call) => call.first == verb).single,
+          containsAll(['--pathspec-file-nul']),
+          reason: verb,
+        );
+      }
+      expect(git(root, ['status', '--porcelain', '--', 'docs']).stdout, '');
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us01/fr01/e05, f06/us01/fr07: a project in a subfolder of its repository commits its own paths', () async {
+      final repo = await _gitTree({
+        'app/docs/prds/d01_context.md': '# D-01 — App context\n',
+        'docs/prds/d01_context.md': '# D-01 — Root context\n',
+      });
+      final app = Directory('${repo.path}${Platform.pathSeparator}app');
+      final base = _head(repo);
+
+      MoveJournal([
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+      ]).run(_target(app));
+
+      expect(_log(repo), ['move', 'initial']);
+      expect(
+        git(repo, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tapp/docs/prds/d01_context.md\tapp/docs/prds/PROJECT.md\n',
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07: a path git ignores stays out of both commits and still moves', () async {
+      final root = await _gitTree({
+        '.gitignore': '*.local.md\n',
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      });
+      File('${root.path}/docs/prds/notes.local.md')
+          .writeAsStringSync('# Notes\n');
+      final base = _head(root);
+
+      MoveJournal([
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        const MoveStep('docs/prds/notes.local.md', 'docs/specs/notes.local.md'),
+        CommitStep(
+          message: 'move',
+          paths: [
+            'docs/prds/d01_context.md',
+            'docs/prds/PROJECT.md',
+            'docs/prds/notes.local.md',
+            'docs/specs/notes.local.md',
+          ],
+          base: base,
+        ),
+        const WriteStep('docs/specs/notes.local.md', '# Local notes\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: ['docs/specs/notes.local.md', '.specstone/.gitignore'],
+          base: base,
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root), ['rewrite', 'move', 'initial']);
+      expect(
+        git(root, ['log', '--name-only', '--format=', '$base..HEAD']).stdout,
+        isNot(contains('notes.local.md')),
+      );
+      expect(
+        File('${root.path}/docs/specs/notes.local.md').readAsStringSync(),
+        '# Local notes\n',
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07, dw-s03/inv6: an untracked ignored file with the bytes of a moved tracked file stays out of the commit', () async {
+      final root = await _gitTree({
+        '.gitignore': '.DS_Store\n',
+        'docs/specs/shared/notes.txt': 'same bytes\n',
+      });
+      File('${root.path}/docs/specs/other/.DS_Store')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('same bytes\n');
+      final base = _head(root);
+      const moves = [
+        ('docs/specs/shared/notes.txt', 'docs/specs/topics/shared/notes.txt'),
+        ('docs/specs/other/.DS_Store', 'docs/specs/topics/other/.DS_Store'),
+      ];
+
+      MoveJournal([
+        for (final (from, to) in moves) MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: [
+            for (final (from, to) in moves) ...[from, to],
+          ],
+          base: base,
+          moves: [for (final (from, to) in moves) (from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tdocs/specs/shared/notes.txt\t'
+        'docs/specs/topics/shared/notes.txt\n',
+      );
+      expect(
+        git(root, ['ls-files', '--', 'docs/specs/topics/other']).stdout,
+        '',
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07, dw-s03/inv6: a tracked file moved onto an ignored path stays a rename, and an untracked one stays out', () async {
+      final root = await _gitTree({
+        '.gitignore': '.DS_Store\n',
+        'docs/specs/shared/s01_architecture.md': '# Shared\n',
+      });
+      File('${root.path}/docs/specs/shared/.DS_Store')
+          .writeAsStringSync('finder, committed\n');
+      expect(
+        git(root, ['add', '-f', 'docs/specs/shared/.DS_Store']).exitCode,
+        0,
+      );
+      expect(git(root, ['commit', '-q', '-m', 'finder']).exitCode, 0);
+      File('${root.path}/docs/specs/other/.DS_Store')
+          .createSync(recursive: true);
+      File('${root.path}/docs/specs/other/.DS_Store')
+          .writeAsStringSync('finder, never committed\n');
+      final base = _head(root);
+      const moves = [
+        ('docs/specs/shared/.DS_Store', 'docs/specs/topics/shared/.DS_Store'),
+        (
+          'docs/specs/shared/s01_architecture.md',
+          'docs/specs/topics/shared/s01_architecture.md',
+        ),
+        ('docs/specs/other/.DS_Store', 'docs/specs/topics/other/.DS_Store'),
+      ];
+
+      MoveJournal([
+        for (final (from, to) in moves) MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: [
+            for (final (from, to) in moves) ...[from, to],
+          ],
+          base: base,
+          moves: [for (final (from, to) in moves) (from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root).first, 'move');
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tdocs/specs/shared/.DS_Store\tdocs/specs/topics/shared/.DS_Store\n'
+        'R100\tdocs/specs/shared/s01_architecture.md\t'
+        'docs/specs/topics/shared/s01_architecture.md\n',
+      );
+      expect(
+        git(root, [
+          'ls-files',
+          '--',
+          'docs/specs/topics/shared/.DS_Store',
+          'docs/specs/topics/other/.DS_Store',
+        ]).stdout,
+        'docs/specs/topics/shared/.DS_Store\n',
+      );
+      expect(
+        File('${root.path}/docs/specs/topics/other/.DS_Store')
+            .readAsStringSync(),
+        'finder, never committed\n',
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07: a replay after commit 1 skips the done steps and makes commit 2 only', () async {
+      final root = await _gitTree({
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      });
+      final base = _head(root);
+      final steps = [
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep('docs/prds/PROJECT.md', '# Project context\n'),
+        const CreateStep('.specstone/config.yaml', 'packs:\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: [
+            'docs/prds/PROJECT.md',
+            '.specstone/config.yaml',
+            '.specstone/.gitignore',
+          ],
+          base: base,
+        ),
+      ];
+      final specstone = Directory('${root.path}/.specstone')
+        ..createSync(recursive: true);
+      ensureSpecstoneGitignore(specstone);
+      File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      steps[0].apply(_target(root));
+      steps[1].apply(_target(root));
+      expect(_log(root), ['move', 'initial']);
+
+      MoveJournal.replay(_target(root));
+
+      expect(_log(root), ['rewrite', 'move', 'initial']);
+      expect(
+        File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
+        '# Project context\n',
+      );
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07: remaining lists the steps not done, and describe prints each', () async {
+      final root = await _gitTree({
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      });
+      final base = _head(root);
+      final steps = [
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep('docs/prds/PROJECT.md', '# Project context\n'),
+        const CreateStep('.specstone/config.yaml', 'packs:\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: ['docs/prds/PROJECT.md'],
+          base: base,
+        ),
+      ];
+      expect(MoveJournal.remaining(_target(root)), isEmpty);
+      File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      expect(steps.map((s) => s.describe()), [
+        'move docs/prds/d01_context.md -> docs/prds/PROJECT.md',
+        'commit "move"',
+        'write docs/prds/PROJECT.md',
+        'create .specstone/config.yaml',
+        'commit "rewrite"',
+      ]);
+      steps[0].apply(_target(root));
+      steps[1].apply(_target(root));
+
+      expect(MoveJournal.remaining(_target(root)).map((s) => s.describe()), [
+        'write docs/prds/PROJECT.md',
+        'create .specstone/config.yaml',
+        'commit "rewrite"',
+      ]);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e03: a commit-msg hook that prefixes the subject does '
+        'not make a resume commit twice', () async {
+      final root = await _gitTree({'docs/prds/d01_context.md': 'x\n'});
+      final hook = File('${root.path}/.git/hooks/commit-msg')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          r'printf "[X] " | cat - "$1" > "$1.tmp" && mv "$1.tmp" "$1"'
+          '\n',
+        );
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final base = _head(root);
+      final steps = [
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep('docs/prds/PROJECT.md', 'y\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: ['docs/prds/PROJECT.md'],
+          base: base,
+        ),
+      ];
+      File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      steps[0].apply(_target(root));
+      steps[1].apply(_target(root));
+      expect(_log(root), ['[X] move', 'initial']);
+      expect(steps[1].isDone(_target(root)), isTrue);
+
+      MoveJournal.replay(_target(root));
+
+      expect(_log(root), ['[X] rewrite', '[X] move', 'initial']);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('f06/us01/fr07/e03: a commit whose paths stage nothing is done and '
+        'makes no empty commit', () async {
+      final root = await _gitTree({'docs/prds/PROJECT.md': 'x\n'});
+      final base = _head(root);
+
+      CommitStep(
+        message: 'rewrite',
+        paths: ['docs/prds/PROJECT.md'],
+        base: base,
+      ).apply(_target(root));
+
+      expect(_log(root), ['initial']);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e03: read returns the pending steps, null when none or '
+        'unparsable', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'x\n'});
+      expect(MoveJournal.read(root), isNull);
+      final journal = File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode(
+            const MoveJournal([WriteStep('docs/prds/PROJECT.md', 'y\n')])
+                .toJson(),
+          ),
+        );
+      expect(MoveJournal.read(root)!.map((s) => s.describe()), [
+        'write docs/prds/PROJECT.md',
+      ]);
+      journal.writeAsStringSync('{not json');
+      expect(MoveJournal.read(root), isNull);
+    });
+
+    test(
+      'f06/us01/fr07/e09: a commit git refuses leaves the journal pending',
+      () async {
+        final root = await _gitTree({'docs/prds/d01_context.md': 'x\n'});
+        final hook = File('${root.path}/.git/hooks/pre-commit')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+        Process.runSync('chmod', ['755', hook.path]);
+
+        expect(
+          () => MoveJournal([
+            const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+            CommitStep(
+              message: 'move',
+              paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+              base: _head(root),
+            ),
+          ]).run(_target(root)),
+          throwsA(
+            isA<GitCommandFailed>()
+                .having((e) => e.verb, 'verb', 'commit')
+                .having((e) => e.line, 'line', 'lint failed'),
+          ),
+        );
+        expect(MoveJournal.pending(root), isTrue);
+      },
+      skip: Platform.isWindows ? 'hooks need a shell script' : skipGit,
+    );
+
+    test('f06/us01/fr07/e09: the decisive line is the first fatal or error line, else the last line', () async {
+      final root = await writeTree({'x': ''});
+      ProcessResult failing(String stderr, String stdout) =>
+          ProcessResult(0, 1, stdout, stderr);
+      void commitWith(String stderr, {String stdout = ''}) =>
+          const CommitStep(message: 'm', paths: ['x'], base: 'b').apply(
+            JournalTarget(
+              projectRoot: root,
+              docsRoot: root,
+              runGit: (arguments, {required workingDirectory}) =>
+                  arguments.first == 'log'
+                  ? ProcessResult(0, 0, '', '')
+                  : failing(stderr, stdout),
+            ),
+          );
+
+      expect(
+        () => commitWith('hint: x\nfatal: bad thing\nerror: later\n'),
+        throwsA(
+          isA<GitCommandFailed>()
+              .having((e) => e.line, 'line', 'fatal: bad thing')
+              .having((e) => e.verb, 'verb', 'add'),
+        ),
+      );
+      expect(
+        () => commitWith('one\n\nlast words\n\n'),
+        throwsA(
+          isA<GitCommandFailed>().having((e) => e.line, 'line', 'last words'),
+        ),
+      );
+    });
+
+    test('f06/us01/fr07/e09: a failure with no stderr reports the last stdout line', () async {
+      final root = await writeTree({'x': ''});
+      JournalTarget target() => JournalTarget(
+        projectRoot: root,
+        docsRoot: root,
+        runGit: (arguments, {required workingDirectory}) =>
+            arguments.first == 'log'
+            ? ProcessResult(0, 0, '', '')
+            : ProcessResult(0, 1, 'On branch x\nnothing to commit\n\n', ''),
+      );
+
+      expect(
+        () => const CommitStep(
+          message: 'm',
+          paths: ['x'],
+          base: 'b',
+        ).apply(target()),
+        throwsA(
+          isA<GitCommandFailed>().having(
+            (e) => e.line,
+            'line',
+            'nothing to commit',
+          ),
+        ),
+      );
+    });
+
+    test('f06/us01/fr07: a commit step keeps its move pairs through JSON, and one without pairs writes no moves key', () {
+      const step = CommitStep(
+        message: 'm',
+        paths: ['docs/a.md', 'docs/b.md'],
+        base: 'b',
+        moves: [(from: 'docs/a.md', to: 'docs/b.md')],
+      );
+
+      expect(step.toJson(), {
+        'commit': {
+          'message': 'm',
+          'paths': ['docs/a.md', 'docs/b.md'],
+          'base': 'b',
+          'moves': [
+            {'from': 'docs/a.md', 'to': 'docs/b.md'},
+          ],
+        },
+      });
+      final back = JournalStep.fromJson(
+        jsonDecode(jsonEncode(step.toJson())),
+      ) as CommitStep;
+      expect(back.moves, step.moves);
+      expect(const CommitStep(message: 'm', paths: ['x'], base: 'b').toJson(), {
+        'commit': {
+          'message': 'm',
+          'paths': ['x'],
+          'base': 'b',
+        },
+      });
+      expect(
+        (JournalStep.fromJson(
+          const CommitStep(message: 'm', paths: ['x'], base: 'b').toJson(),
+        ) as CommitStep).moves,
+        isEmpty,
+      );
+    });
+
+    test('f06/us01/fr07: fromJson refuses a commit step whose moves are not from and to strings', () {
+      for (final moves in [
+        'docs/a.md',
+        [
+          {'from': 'docs/a.md'},
+        ],
+        [
+          {'from': 'docs/a.md', 'to': 1},
+        ],
+      ]) {
+        expect(
+          () => JournalStep.fromJson({
+            'commit': {
+              'message': 'm',
+              'paths': ['docs/a.md'],
+              'base': 'b',
+              'moves': moves,
+            },
+          }),
+          throwsFormatException,
+          reason: '$moves',
+        );
+      }
+    });
+
+    test('f06/us01/fr07: fromJson refuses a commit step whose path is not a string', () {
+      expect(
+        () => JournalStep.fromJson({
+          'commit': {
+            'message': 'm',
+            'paths': ['a', 1],
+            'base': 'b',
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test(
+      'f06/us01/fr07: a prune step is done when its folder is gone',
+      () async {
+        final root = await writeTree({'docs/keep.md': 'x'});
+        Directory('${root.path}/docs/a').createSync();
+
+        expect(const PruneStep('docs/a').isDone(_target(root)), isFalse);
+        const PruneStep('docs/a').apply(_target(root));
+        expect(const PruneStep('docs/a').isDone(_target(root)), isTrue);
+      },
+    );
+
+    test('f06/us01/fr07: a write step is done when the file already holds its text', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'same\n'});
+
+      expect(
+        const WriteStep('docs/prds/PROJECT.md', 'same\n').isDone(_target(root)),
+        isTrue,
+      );
+      expect(
+        const WriteStep(
+          'docs/prds/PROJECT.md',
+          'other\n',
+        ).isDone(_target(root)),
+        isFalse,
+      );
+    });
+  });
+
+  group('dw-s03/inv9, F6-D35: the journal cursor', () {
+    const x = 'docs/prds/x.md';
+    const y = 'docs/prds/y.md';
+    const z = 'docs/prds/z.md';
+    const stuck = 'docs/prds/stuck.md';
+    // `z -> x` refills the source of `x -> y`, as a chained upgrade move does.
+    const chain = [MoveStep(x, y), MoveStep(z, x)];
+    const stopped = [...chain, WriteStep(stuck, 'new\n')];
+    // A failing first step, then a park and its unpark: the unpark's source
+    // is absent until the park runs, so it reads as done with no cursor.
+    const firstFails = [
+      WriteStep(stuck, 'new\n'),
+      MoveStep(x, '${MoveJournal.stagePath}/0'),
+      MoveStep('${MoveJournal.stagePath}/0', y),
+    ];
+    late Directory tree;
+
+    setUp(() async {
+      tree = await writeTree({x: 'x body\n', z: 'z body\n', stuck: 'old\n'});
+    });
+
+    File fileAt(String path) => File('${tree.path}/$path');
+    File journal() => fileAt(MoveJournal.journalPath);
+    File cursorFile() => fileAt(MoveJournal.cursorPath);
+
+    /// Makes the write step fail, as a disk that refuses it would.
+    void jamStuck() => fileAt(stuck).writeAsBytesSync([0xff, 0xfe, 0x41]);
+    void unjamStuck() => fileAt(stuck).writeAsStringSync('old\n');
+
+    /// Writes [steps] as a journal whose cursor file holds [cursor].
+    void writeAt(List<JournalStep> steps, String cursor) {
+      writeJournal(tree, steps);
+      cursorFile().writeAsStringSync(cursor);
+    }
+
+    /// Runs [stopped] until its write step fails, after both chain moves.
+    void stopAfterChain() {
+      jamStuck();
+      expect(
+        () => const MoveJournal(stopped).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+    }
+
+    void expectChainLanded() {
+      expect(fileAt(y).readAsStringSync(), 'x body\n');
+      expect(fileAt(x).readAsStringSync(), 'z body\n');
+      expect(fileAt(z).existsSync(), isFalse);
+    }
+
+    test('dw-s03/inv9, F6-D35: a run records the count of steps finished in the cursor file', () {
+      stopAfterChain();
+
+      expect(cursorFile().readAsStringSync(), '2');
+      expect(
+        journal().readAsStringSync(),
+        jsonEncode(const MoveJournal(stopped).toJson()),
+      );
+    });
+
+    test('dw-s03/inv9, F6-D35: a run writes the journal once and the cursor before the first step and after each', () {
+      final files = _CreatedFiles();
+
+      IOOverrides.runWithIOOverrides(
+        () => const MoveJournal(stopped).run(_target(tree)),
+        files,
+      );
+
+      expect(files.tempsOf(MoveJournal.journalPath), hasLength(1));
+      expect(
+        files.tempsOf(MoveJournal.cursorPath),
+        hasLength(stopped.length + 1),
+      );
+    });
+
+    test(
+      'dw-s03/inv9, F6-D35: a finished run or replay leaves no cursor file',
+      () {
+        const MoveJournal(stopped).run(_target(tree));
+
+        expect(cursorFile().existsSync(), isFalse);
+        expect(journal().existsSync(), isFalse);
+
+        writeJournal(tree, const [MoveStep(y, z)]);
+        MoveJournal.replay(_target(tree));
+
+        expect(cursorFile().existsSync(), isFalse);
+        expect(MoveJournal.pending(tree), isFalse);
+      },
+    );
+
+    test('dw-s03/inv9, F6-D35, final M1: a run whose first step fails leaves cursor 0, so remaining keeps an unpark whose slot is still empty', () {
+      jamStuck();
+
+      expect(
+        () => const MoveJournal(firstFails).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      expect(cursorFile().readAsStringSync(), '0');
+      expect(
+        MoveJournal.remaining(_target(tree)).map((s) => s.describe()),
+        firstFails.map((s) => s.describe()),
+      );
+    });
+
+    test('dw-s03/inv9, F6-D35, final M2: a run resets a cursor file no journal owns before its first step', () {
+      Directory('${tree.path}/${MoveJournal.trashPath}')
+          .createSync(recursive: true);
+      cursorFile().writeAsStringSync('2');
+      jamStuck();
+
+      expect(
+        () => const MoveJournal(firstFails).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      expect(cursorFile().readAsStringSync(), '0');
+      expect(
+        MoveJournal.remaining(_target(tree)).first.describe(),
+        'write $stuck',
+      );
+    });
+
+    test('dw-s03/inv9, F6-D35: a run stopped after a chain replays from its cursor and leaves the landed doc alone', () {
+      stopAfterChain();
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test(
+      'dw-s03/inv9, F6-D35: remaining lists the steps from the cursor on',
+      () {
+        stopAfterChain();
+
+        expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+          'write $stuck',
+        ]);
+      },
+    );
+
+    test('dw-s03/inv9, F6-D35: a journal with no cursor replays every step, each skipped when done', () {
+      fileAt(x).renameSync(fileAt(y).path);
+      writeJournal(tree, chain);
+
+      expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+        'move $z -> $x',
+      ]);
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('dw-s03/inv9, F6-D35: a replay records the cursor too, so a second stop resumes past the chain', () {
+      writeJournal(tree, stopped);
+      jamStuck();
+      expect(
+        () => MoveJournal.replay(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+    });
+
+    test('dw-s03/inv9, F6-D35, final M4: a journal delete that fails keeps the cursor, so a replay leaves the chain landed', () {
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => const MoveJournal(chain).run(_target(tree)),
+          _FailingDeleteHook(MoveJournal.journalPath),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+
+      expect(journal().existsSync(), isTrue);
+      expect(cursorFile().readAsStringSync(), '${chain.length}');
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('dw-s03/inv9, F6-D35: a crash between a step and its cursor write finishes on replay', () {
+      for (final step in chain) {
+        step.apply(_target(tree));
+      }
+      writeAt(stopped, '1');
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('dw-s03/inv9, F6-D35, final Minor 2: a cursor that does not count the steps is refused and the trash stays', () {
+      for (final cursor in ['-1', '3', '+1', ' 1', '1.5', 'two', '']) {
+        writeAt(chain, cursor);
+
+        for (final read in [
+          () => MoveJournal.replay(_target(tree)),
+          () => MoveJournal.remaining(_target(tree)),
+        ]) {
+          expect(
+            read,
+            throwsA(
+              isA<RenderFault>()
+                  .having(
+                    (e) => e.code,
+                    'code',
+                    RenderFaultCode.outputNotWritable,
+                  )
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    'cannot replay ${MoveJournal.journalPath}: '
+                        '${MoveJournal.cursorPath} holds '
+                        '${jsonEncode(cursor)}, not a count of its 2 steps; '
+                        'fix or remove it',
+                  ),
+            ),
+            reason: cursor,
+          );
+        }
+        expect(journal().existsSync(), isTrue, reason: cursor);
+        expect(fileAt(x).readAsStringSync(), 'x body\n', reason: cursor);
+      }
+    });
+  });
 }

@@ -11,8 +11,10 @@ import 'package:specstone/src/commands/delete_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/get_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
+import 'package:specstone/src/commands/init_command.dart';
 import 'package:specstone/src/commands/list_command.dart';
 import 'package:specstone/src/commands/mcp_command.dart';
+import 'package:specstone/src/commands/migrate_command.dart';
 import 'package:specstone/src/commands/new_command.dart';
 import 'package:specstone/src/commands/refs_command.dart';
 import 'package:specstone/src/commands/rename_command.dart';
@@ -86,6 +88,8 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(DeleteCommand());
     addCommand(ReorderCommand());
     addCommand(RenameCommand());
+    addCommand(MigrateCommand());
+    addCommand(InitCommand());
   }
 
   final StringSink _out;

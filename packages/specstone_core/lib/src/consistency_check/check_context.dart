@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -305,18 +306,7 @@ final class CheckContext {
     final rows = <({String cell, int line})>[];
     for (var i = 0; i < held.length; i++) {
       if (templateSectionAt(api, i)?.id != _frTraceSection) continue;
-      var sawHeader = false;
-      for (final line in bodyLinesOf(api, i)) {
-        final text = line.text.trim();
-        if (line.fenced || !text.startsWith('|')) continue;
-        final cell = _firstCell(text);
-        if (!sawHeader) {
-          sawHeader = true;
-          continue;
-        }
-        if (_separatorCell.hasMatch(cell)) continue;
-        rows.add((cell: _unquoted(cell), line: line.line));
-      }
+      rows.addAll(readFrTraceRows(bodyLinesOf(api, i)));
     }
     return rows;
   }
@@ -335,17 +325,6 @@ final class CheckContext {
   ];
 }
 
-String _firstCell(String row) {
-  final inner = row.substring(1);
-  final end = inner.indexOf('|');
-  return (end < 0 ? inner : inner.substring(0, end)).trim();
-}
-
-String _unquoted(String cell) =>
-    cell.length > 1 && cell.startsWith('`') && cell.endsWith('`')
-    ? cell.substring(1, cell.length - 1)
-    : cell;
-
 String _headerText(IndexedSection section) =>
     section.headerLine.trimLeft().substring(2).trim();
 
@@ -357,7 +336,6 @@ const _acceptanceSection = 'acceptance_criteria';
 const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
-final _separatorCell = RegExp(r'^:?-+:?$');
 const _statementPrefix = '- **Statement:**';
 final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
 final _nfrHeading = RegExp(r'^### (\S+) — ');

@@ -19,7 +19,8 @@ const indexBusyTimeout = Duration(seconds: 10);
 const damagedIndexWarning =
     'the index was damaged and was rebuilt from the markdown files';
 
-const _gitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
+/// The lines of `.specstone/.gitignore`, one per ignored path.
+const specstoneGitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
 
 const _busyMessage =
     'the index is busy; run the command again once the other call finishes';
@@ -633,7 +634,7 @@ void ensureSpecstoneGitignore(Directory specstoneFolder) {
   final text = target.existsSync() ? target.readAsStringSync() : '';
   final present = const LineSplitter().convert(text).toSet();
   final missing = [
-    for (final line in _gitignoreLines)
+    for (final line in specstoneGitignoreLines)
       if (!present.contains(line)) '$line\n',
   ];
   if (missing.isEmpty) return;

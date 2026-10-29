@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -13,6 +14,8 @@ import 'package:specstone_core/src/rendering/doc_reader.dart'
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show projectConfigPath;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
 /// The docs root as a journal step spells it.
@@ -49,6 +52,7 @@ final class WriteSession {
     required Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
   }) {
+    _refuseMigratePending(workingDirectory);
     final session = WriteSession._(
       _openReplayed(
         templates: templates,
@@ -85,6 +89,7 @@ final class WriteSession {
   /// Call it outside the write lock, after a wait that let another command
   /// write; [index] and [project] are new objects afterwards.
   void refresh() {
+    _refuseMigratePending(_workingDirectory);
     _close();
     _read = _openReplayed(
       templates: _templates,
@@ -265,6 +270,32 @@ final class WriteSession {
   }
 }
 
+/// Throws [WriteFault] `migrate_pending` when a folder from [workingDirectory]
+/// up holds the journal of an unfinished `specstone migrate`.
+///
+/// The walk ends at the first folder holding the project config or at the
+/// filesystem root. It needs no config, so a legacy tree is refused too.
+/// Nothing is replayed.
+void _refuseMigratePending(Directory workingDirectory) {
+  var folder = workingDirectory.absolute;
+  while (true) {
+    if (MoveJournal.pendingMigrate(folder)) {
+      throw WriteFault(
+        WriteFaultCode.migratePending,
+        'a migration is unfinished; ask the Owner to run specstone migrate '
+        'at an interactive terminal to finish it, then run the command again',
+        file: MoveJournal.journalPath,
+      );
+    }
+    if (File.fromUri(folder.uri.resolve(projectConfigPath)).existsSync()) {
+      return;
+    }
+    final parent = folder.parent;
+    if (parent.path == folder.path) return;
+    folder = parent;
+  }
+}
+
 /// Opens the project, then replays an unfinished move journal inside the write
 /// lock and opens it again.
 ReadSession _openReplayed({
@@ -284,7 +315,7 @@ ReadSession _openReplayed({
   if (!MoveJournal.pending(read.project.projectRoot)) return read;
   try {
     read.store.endSnapshot();
-    read.store.write(() => MoveJournal.replay(read.project));
+    read.store.write(() => MoveJournal.replay(JournalTarget.of(read.project)));
   } finally {
     read.store.close();
   }

@@ -77,6 +77,14 @@ String? rewriteDocLinks(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
+}) => rewriteDocLinksCounted(lfText, docPath: docPath, moves: moves)?.lfText;
+
+/// Returns [rewriteDocLinks]'s text with the number of link destinations it
+/// changed, or null when no link changes.
+({String lfText, int count})? rewriteDocLinksCounted(
+  String lfText, {
+  required String docPath,
+  required List<PathMove> moves,
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
   if (!body.contains('](') && !body.contains(']:')) return null;
@@ -99,7 +107,10 @@ String? rewriteDocLinks(
   for (final edit in edits) {
     result = result.replaceRange(edit.start, edit.end, edit.text);
   }
-  return lfText.substring(0, lfText.length - body.length) + result;
+  return (
+    lfText: lfText.substring(0, lfText.length - body.length) + result,
+    count: edits.length,
+  );
 }
 
 /// Returns [lfText] with each `doc_ref` value in [renamed] set to its new

@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -26,6 +29,14 @@ Map<String, Uint8List> shipped({String prdCoreVersion = '1.1.0'}) => {
     'architecture/{slug}.md\n',
   ),
 };
+
+/// A [LayerFiles] holding no file.
+final class _NoFiles implements LayerFiles {
+  const new();
+
+  @override
+  bool exists(String layerRelativePath) => false;
+}
 
 /// True when an ancestor of the system temp folder holds a project config.
 bool _tempHasConfigAncestor() {
@@ -1968,6 +1979,105 @@ path: adr/{slug}.md
       expect(
         () => adr.reference!.add(adr.reference!.first),
         throwsUnsupportedError,
+      );
+    });
+  });
+
+  group('TemplateResolver.availableManifests and resolveCarried', () {
+    test('f06/us01/fr05: availableManifests gives the carried prd-core and '
+        'software-tech versions', () {
+      final manifests = TemplateResolver().availableManifests([
+        'prd-core',
+        'software-tech',
+      ], homeDirectory: null);
+
+      expect({
+        for (final e in manifests.entries) e.key: '${e.value.version}',
+      }, shippedPackVersions());
+    });
+
+    test("f06/us02/fr01: a personal pack's available version is its "
+        'home-folder pack.yaml version', () async {
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml':
+            'name: acme\nversion: 1.2.0\nextends: software-tech\n',
+      });
+
+      final manifests = TemplateResolver().availableManifests([
+        'acme',
+      ], homeDirectory: home);
+
+      expect('${manifests['acme']!.version}', '1.2.0');
+    });
+
+    test('f06/us02/fr01: a pack with no shipped name and no home folder is '
+        'pack_not_found', () {
+      expect(
+        () => TemplateResolver().availableManifests([
+          'acme',
+        ], homeDirectory: null),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packNotFound)
+              .having((f) => f.key, 'key', 'packs.acme'),
+        ),
+      );
+    });
+
+    test('f06/us02/fr01: a personal pack.yaml name unequal to its folder is '
+        'pack_name_mismatch', () async {
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml': 'name: other\nversion: 1.0.0\n',
+      });
+
+      expect(
+        () => TemplateResolver().availableManifests([
+          'acme',
+        ], homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.packNameMismatch,
+          ),
+        ),
+      );
+    });
+
+    test('f06/us01/fr05: resolveCarried merges the named packs and the given '
+        'layers and reads no config', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 0.1.0\n',
+        'sub/keep': '',
+      });
+      final resolver = TemplateResolver();
+      final inside = Directory.fromUri(project.uri.resolve('sub/'));
+
+      final carried = IOOverrides.runZoned(
+        () => resolver.resolveCarried(
+          packNames: ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        ),
+        getCurrentDirectory: () => inside,
+      );
+      final layered = resolver.resolveCarried(
+        packNames: ['prd-core', 'software-tech'],
+        homeDirectory: null,
+        projectLayers: [
+          DocTypeLayer.parse(
+            'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+            file: '.specstone/templates/feature.yaml',
+            docTypeId: 'feature',
+            kind: LayerKind.project,
+            files: const _NoFiles(),
+          ),
+        ],
+      );
+
+      expect(carried.lookup('tech_stack'), isNotNull);
+      expect(
+        layered.lookup('feature')!.path,
+        'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
       );
     });
   });

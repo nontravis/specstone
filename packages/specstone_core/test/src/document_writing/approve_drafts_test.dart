@@ -100,6 +100,9 @@ void main() {
       },
     );
     expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+    expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
     commitAll(root, 'approved');
     File('${root.path}/docs/$signupFeature').writeAsStringSync(
       '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\n',
@@ -126,6 +129,9 @@ void main() {
     () async {
       final root = await writeWriteProject();
       expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+      expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
       commitAll(root, 'only ever a draft');
       final out = StringBuffer();
       writeIn(

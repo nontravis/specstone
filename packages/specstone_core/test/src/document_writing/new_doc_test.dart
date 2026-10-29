@@ -546,4 +546,34 @@ void main() {
       getDoc(root, 'user_story:login/forgot_email')['bases'],
     );
   });
+
+  test('f06/us03/fr02: skeletonOf writes draft true, each required field '
+      'empty, the title, and each required section', () {
+    final set = TemplateResolver().resolveCarried(
+      packNames: ['prd-core', 'software-tech'],
+      homeDirectory: null,
+    );
+    final techStack = set.lookup('tech_stack')!;
+    final project = set.lookup('project')!;
+
+    final text = skeletonOf(techStack, 'tech_stack');
+    final headers = [
+      for (final s in techStack.sections)
+        if (s.required) '## ${s.header}',
+    ];
+
+    expect(text, startsWith('---\ndraft: true\n'));
+    expect(text, contains('\n# tech_stack\n'));
+    expect(headers, isNotEmpty);
+    var from = 0;
+    for (final header in headers) {
+      final at = text.indexOf(header, from);
+      expect(at, greaterThanOrEqualTo(0), reason: header);
+      from = at + header.length;
+    }
+    final projectText = skeletonOf(project, 'project');
+    for (final field in project.fields.where((f) => f.required)) {
+      expect(projectText, contains('\n${field.id}:\n'));
+    }
+  });
 }

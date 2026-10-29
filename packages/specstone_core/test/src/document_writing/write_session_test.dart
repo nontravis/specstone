@@ -2,11 +2,14 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -354,5 +357,101 @@ void main() {
     }
     expect(File('${root.path}/x.md').existsSync(), isFalse);
     expect(File('${root.path}/docs/notes.txt').existsSync(), isFalse);
+  });
+
+  group('f06/us01/fr07/e06: a pending migrate journal', () {
+    const move = MoveStep(
+      'docs/prds/personas/buyer',
+      'docs/prds/personas/shopper',
+    );
+    const commit = CommitStep(
+      message: 'move',
+      paths: ['docs/prds/personas'],
+      base: '0000000',
+    );
+
+    test(
+      'refuses every write with migrate_pending and replays nothing',
+      () async {
+        final root = await writeWriteProject();
+        writeJournal(root, [move, commit]);
+        expect(
+          () => writeIn(root, (session) => null),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.migratePending)
+                .having((f) => f.exitStatus, 'exit', 75),
+          ),
+        );
+        expect(
+          Directory('${root.path}/docs/prds/personas/buyer').existsSync(),
+          isTrue,
+        );
+        expect(
+          Directory('${root.path}/docs/prds/personas/shopper').existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test('refuses in a legacy tree whose config is not written yet', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': '# Legacy\n'});
+      writeJournal(root, [move, commit]);
+      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
+      expect(
+        () => writeIn(root, (session) => null),
+        throwsA(
+          isA<WriteFault>().having(
+            (f) => f.code,
+            'code',
+            WriteFaultCode.migratePending,
+          ),
+        ),
+      );
+    });
+
+    test('refuses from a folder below the project root', () async {
+      final root = await writeWriteProject();
+      writeJournal(root, [move, commit]);
+      final nested = Directory('${root.path}/docs/prds')
+        ..createSync(recursive: true);
+      expect(
+        () => WriteSession.run(
+          (session) => null,
+          templates: TemplateResolver(),
+          workingDirectory: nested,
+          homeDirectory: null,
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.migratePending)
+              .having((f) => f.file, 'file', '.specstone/trash/journal.json'),
+        ),
+      );
+    });
+
+    test(
+      'f02/us04/fr03/e05: a journal with no commit step is still replayed',
+      () async {
+        final root = await writeWriteProject();
+        writeJournal(root, [move]);
+        expect(
+          writeIn(root, (s) => s.target('persona:shopper').docPath),
+          'prds/personas/shopper/PERSONA.md',
+        );
+        expect(
+          Directory('${root.path}/.specstone/trash').existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test('an unparsable journal is not a migrate journal', () async {
+      final root = await writeWriteProject();
+      File('${root.path}/${MoveJournal.journalPath}')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{not json');
+      expect(MoveJournal.pendingMigrate(root), isFalse);
+    });
   });
 }
