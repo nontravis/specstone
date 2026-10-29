@@ -31,7 +31,8 @@ typedef LinkSource = ({int offset, int line, String? shown});
 /// destination, a title after an open paren keeps the destination open, and a
 /// bare URL runs through the brackets after it.
 ///
-/// The scan stays linear in the size of [lfBody]. Each `]` is decided once,
+/// Past the block pass (see [leafTextOf], O(size x nesting depth)), the scan
+/// stays linear in the size of [lfBody]. Each `]` is decided once,
 /// and each repeated attempt is decided from a table one pass fills per leaf:
 /// the end of a blank run, the escape-aware partner of a `(`, and the next
 /// unescaped space, `>`, `"`, `'`, or `)`. An atom pattern runs only where its
@@ -55,7 +56,7 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
   var counted = 0;
   for (final (:offset, :shown) in found) {
     for (; counted < offset; counted++) {
-      if (text.codeUnitAt(counted) == 0x0A) line++;
+      if (lfBody.codeUnitAt(counted) == 0x0A) line++;
     }
     sources.add((offset: offset, line: line, shown: shown));
   }

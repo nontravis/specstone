@@ -296,23 +296,115 @@ List<String>? markdownHrefs(String body) {
   return hrefs;
 }
 
+/// A destination the grammars write: `b.md`, `c.md`, `c d.md`, or the host of
+/// an autolink or bare URL.
+final _destination = RegExp(r'(b|c d|c)\.md|x\.y');
+
+/// The number [renumberDestinations] gives a destination, in a source's
+/// destination or in an href.
+final _destinationNumber = RegExp(r'[bcdx](\d+)');
+
+/// Returns [body] with each destination numbered by its place, `b.md` becoming
+/// `b1.md`, so no two links share a destination and a source can only pair
+/// with the href `markdown` gives its own link.
+String renumberDestinations(String body) {
+  var count = 0;
+  return body.replaceAllMapped(_destination, (match) {
+    count++;
+    final text = match[0]!;
+    return text == 'x.y' ? 'x$count.y' : '${match[1]}$count.md';
+  });
+}
+
+String? _numberIn(String destination) {
+  final String decoded;
+  try {
+    decoded = Uri.decodeFull(destination);
+  } on Object {
+    return _destinationNumber.firstMatch(destination)?[1];
+  }
+  return _destinationNumber.firstMatch(decoded)?[1];
+}
+
+/// Returns why source [index] of [sources] is not link [index] of [hrefs] in a
+/// [renumberDestinations] body whose first line is 1, or null when it is.
+///
+/// The source holds the number of the href `markdown` gives the link at the
+/// same index, it starts at the first character of a link, and its line is the
+/// line of its offset.
+String? misplacedSource(
+  String body,
+  List<LinkSource> sources,
+  List<String> hrefs,
+  int index,
+) {
+  final source = sources[index];
+  final shown = source.shown;
+  final expected = _numberIn(hrefs[index]);
+  if (shown != null) {
+    if (_numberIn(shown) != expected) {
+      return 'source $index shows ${jsonEncode(shown)}, markdown gives '
+          '${jsonEncode(hrefs[index])}';
+    }
+  } else {
+    final start = body.codeUnitAt(source.offset) == 0x3C ? 1 : 0;
+    final text = body.substring(source.offset + start).split(RegExp(r'[\s<>]'));
+    if (_numberIn(text.first) != expected) {
+      return 'source $index at ${source.offset} reads ${jsonEncode(text.first)}'
+          ', markdown gives ${jsonEncode(hrefs[index])}';
+    }
+  }
+  final line = '\n'.allMatches(body.substring(0, source.offset)).length + 1;
+  if (source.line != line) {
+    return 'source $index at ${source.offset} is on line $line, '
+        'the scan says ${source.line}';
+  }
+  return null;
+}
+
+/// The share of a grammar's bodies `markdown` may fail on before the run fails.
+const _maxUnparsableShare = 0.01;
+
 /// Fails on the first body of [grammar], over the seeds 1, 2, and 3 and 3,000
 /// bodies each, whose scanned sources and `markdown` hrefs disagree.
+///
+/// Each body is numbered by [renumberDestinations], so the sources must pair
+/// with the hrefs one to one, each on its own line. The bodies `markdown`
+/// fails on are not read (LP2); more than 1% of the run fails it, so a grammar
+/// that turns unparsable cannot pass with nothing tested.
 void expectReadersAgree(Grammar grammar) {
+  var bodies = 0;
+  var unparsable = 0;
   for (final seed in const [1, 2, 3]) {
     final random = Random(seed);
     for (var index = 0; index < 3000; index++) {
-      final body = grammar(random);
+      final body = renumberDestinations(grammar(random));
+      bodies++;
       final hrefs = markdownHrefs(body);
-      if (hrefs == null) continue;
+      if (hrefs == null) {
+        unparsable++;
+        continue;
+      }
       final sources = linkSourcesOf(body, firstLine: 1);
-      if (!readersAgree(sources, hrefs)) {
+      final misplaced = readersAgree(sources, hrefs)
+          ? [
+              for (var i = 0; i < sources.length; i++)
+                ?misplacedSource(body, sources, hrefs, i),
+            ]
+          : ['the readers disagree'];
+      if (misplaced.isNotEmpty) {
         fail(
           'seed $seed, index $index, body ${jsonEncode(body)}\n'
-          'scan: ${[for (final s in sources) (s.offset, s.shown)]}\n'
+          '${misplaced.first}\n'
+          'scan: ${[for (final s in sources) (s.offset, s.line, s.shown)]}\n'
           'markdown: $hrefs',
         );
       }
     }
   }
+  expect(
+    unparsable,
+    lessThanOrEqualTo((bodies * _maxUnparsableShare).floor()),
+    reason: '$unparsable of $bodies bodies are unparsable',
+  );
 }

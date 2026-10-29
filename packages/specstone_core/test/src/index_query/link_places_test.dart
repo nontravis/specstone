@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:test/test.dart';
@@ -536,6 +537,13 @@ void main() {
     );
 
     placed(
+      'f04/us02/fr04, LA3: pin: a GFM list item takes a lone dash as markdown '
+          'does, so the paragraph above it reads no link',
+      'x\n\n[a](b.md)\n-\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 6, shown: 'b.md')],
+    );
+
+    placed(
       'f04/us02/fr04, LA3: pin: a setext underline keeps the link above it',
       '[a](b.md)\n===\n[c](b.md)\n',
       [
@@ -776,6 +784,43 @@ void main() {
         (target: 'c.md', line: 2, shown: 'c.md'),
         (target: 'c.md', line: 3, shown: 'c.md'),
       ],
+    );
+  });
+
+  group('final-fix label and line folding', () {
+    List<LinkPlace> placesOf(String body) =>
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
+
+    test('f04/us02/fr04, LA1: a label folds the blanks markdown folds and '
+        'no other', () {
+      expect(linkLabel('  A \t\r\n B  '), 'a b');
+      for (final blank in ['\u00A0', '\v', '\f']) {
+        expect(linkLabel('a${blank}b'), isNot(linkLabel('a b')), reason: blank);
+      }
+    });
+
+    test('f04/us02/fr04, LA1: a label with a blank markdown does not fold '
+        'matches no definition', () {
+      for (final blank in ['\u00A0', '\v', '\f']) {
+        expect(placesOf('[a${blank}b]\n[c](b.md)\n\n[a b]: b.md\n'), [
+          (target: 'b.md', line: 2, shown: 'b.md'),
+        ], reason: blank);
+      }
+    });
+
+    test(
+      'f04/us02/fr04, LA1: a lone CR ends a line as it does for markdown',
+      () {
+        expect(placesOf('```\r[a](b.md)\r```\n[c](b.md)\n'), [
+          (target: 'b.md', line: 2, shown: 'b.md'),
+        ]);
+        expect(placesOf('    x\r    [a](b.md)\n\n[c](b.md)\n'), [
+          (target: 'b.md', line: 3, shown: 'b.md'),
+        ]);
+        expect(placesOf('x\r[a](b.md)\n'), [
+          (target: 'b.md', line: 1, shown: 'b.md'),
+        ]);
+      },
     );
   });
 }

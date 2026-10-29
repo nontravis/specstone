@@ -60,7 +60,8 @@ final _htmlEndConditions = <RegExp?>[
   null,
 ];
 
-final _blankRun = RegExp(r'\s+');
+/// The blanks `normalizeLinkLabel` folds (`util.dart:14`); `\s` would fold more.
+final _blankRun = RegExp('[ \n\r\t]+');
 final _hashes = RegExp(r'^#+$');
 
 const _tab = 0x09;
@@ -83,6 +84,10 @@ const _pipe = 0x7C;
 
 /// Returns the [LeafText] of [lfBody], a doc text with LF line ends.
 ///
+/// A lone CR ends a line, as `LineSplitter` makes it end one for `markdown`:
+/// the text holds an LF in its place, at the same offset. The file line of an
+/// offset still counts only the LFs of [lfBody], as `scanText` does.
+///
 /// The lines are walked once, in the order `markdown` tries its block syntaxes,
 /// and only the text it reads as inline text is a leaf: a paragraph or setext
 /// heading (the lines up to the block that ends them), an ATX heading's
@@ -98,12 +103,18 @@ const _pipe = 0x7C;
 /// definition, a fence, a heading, or indented code inside them is read as at
 /// the top. The cut parts are blanked too, also inside a leaf that spans lines.
 ///
-/// Every line is visited a fixed number of times: a definition is read forward
-/// once, and what it reads is the lines it consumes or the paragraph a failed
-/// read leaves behind. A title that finds no closer before the block ends is
-/// remembered, so a later definition in the block fails at its opener.
+/// Within one nesting level every line is visited a fixed number of times: a
+/// definition is read forward once, and what it reads is the lines it consumes
+/// or the paragraph a failed read leaves behind. A title that finds no closer
+/// before the block ends is remembered, so a later definition in the block
+/// fails at its opener. Each container level re-reads its lines, so the cost is
+/// O(size x nesting depth), as `markdown`'s own. The pass recurses once per
+/// level; `linkPlacesOf` runs `parseMarkdown` first, which refuses a body
+/// nested past `maxMarkdownDepth` (1,000 levels), so the recursion stays
+/// bounded.
 LeafText leafTextOf(String lfBody) {
-  final lines = lfBody.split('\n');
+  final body = lfBody.replaceAll('\r', '\n');
+  final lines = body.split('\n');
   final starts = List.filled(lines.length, 0);
   var offset = 0;
   for (var i = 0; i < lines.length; i++) {
@@ -112,7 +123,7 @@ LeafText leafTextOf(String lfBody) {
   }
   final sink = _Sink();
   _BlockPass(lines, starts, sink).run();
-  final units = Uint16List.fromList(lfBody.codeUnits);
+  final units = Uint16List.fromList(body.codeUnits);
   var kept = 0;
   for (final (:start, :end) in sink.leaves) {
     _blank(units, kept, start);
