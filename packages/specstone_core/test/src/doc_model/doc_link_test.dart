@@ -50,6 +50,20 @@ void main() {
       expect(percentDecoded('a%2Fb'), 'a/b');
     });
 
+    test('doc_model/s03/inv7, LP1: a character outside the BMP after an escape '
+        'keeps its UTF-8 bytes', () {
+      expect(percentDecoded('%41\u{1F600}'), 'A\u{1F600}');
+      expect(percentDecoded('\u{1F600}%41\u{1F600}'), '\u{1F600}A\u{1F600}');
+    });
+
+    test(
+      'doc_model/s03/inv7, LP1: a text with no escape decodes to itself',
+      () {
+        expect(percentDecoded('abc'), 'abc');
+        expect(percentDecoded('\u{1F600}.md'), '\u{1F600}.md');
+      },
+    );
+
     test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
     });

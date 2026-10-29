@@ -31,21 +31,21 @@ String percentDecoded(String text) {
   final firstPercent = text.indexOf('%');
   // A text with no escape decodes to itself, so most hrefs pay nothing.
   if (firstPercent < 0) return text;
-  final bytes = <int>[...utf8.encode(text.substring(0, firstPercent))];
+  final bytes = <int>[];
+  // Literal text is encoded a run at a time: a character outside the BMP is
+  // two code units, and encoding each alone would turn it into two U+FFFD.
+  var runStart = 0;
   for (var i = firstPercent; i < text.length; i++) {
-    final unit = text.codeUnitAt(i);
-    if (unit != 0x25 || i + 2 >= text.length) {
-      bytes.addAll(utf8.encode(text[i]));
-      continue;
-    }
+    if (text.codeUnitAt(i) != 0x25 || i + 2 >= text.length) continue;
     final byte = _hexByteAt(text, i + 1);
-    if (byte == null) {
-      bytes.addAll(utf8.encode(text[i]));
-      continue;
-    }
-    bytes.add(byte);
+    if (byte == null) continue;
+    bytes
+      ..addAll(utf8.encode(text.substring(runStart, i)))
+      ..add(byte);
     i += 2;
+    runStart = i + 1;
   }
+  bytes.addAll(utf8.encode(text.substring(runStart)));
   return utf8.decode(bytes, allowMalformed: true);
 }
 
