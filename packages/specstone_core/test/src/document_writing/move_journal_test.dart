@@ -1158,6 +1158,13 @@ void main() {
     // `z -> x` refills the source of `x -> y`, as a chained upgrade move does.
     const chain = [MoveStep(x, y), MoveStep(z, x)];
     const stopped = [...chain, WriteStep(stuck, 'new\n')];
+    // A failing first step, then a park and its unpark: the unpark's source
+    // is absent until the park runs, so it reads as done with no cursor.
+    const firstFails = [
+      WriteStep(stuck, 'new\n'),
+      MoveStep(x, '${MoveJournal.stagePath}/0'),
+      MoveStep('${MoveJournal.stagePath}/0', y),
+    ];
     late Directory tree;
 
     setUp(() async {
@@ -1204,7 +1211,7 @@ void main() {
       );
     });
 
-    test('dw-s03/inv9, F6-D35: a run writes the journal once and the cursor after each step', () {
+    test('dw-s03/inv9, F6-D35: a run writes the journal once and the cursor before the first step and after each', () {
       final files = _CreatedFiles();
 
       IOOverrides.runWithIOOverrides(
@@ -1213,7 +1220,10 @@ void main() {
       );
 
       expect(files.tempsOf(MoveJournal.journalPath), hasLength(1));
-      expect(files.tempsOf(MoveJournal.cursorPath), hasLength(stopped.length));
+      expect(
+        files.tempsOf(MoveJournal.cursorPath),
+        hasLength(stopped.length + 1),
+      );
     });
 
     test(
@@ -1232,19 +1242,40 @@ void main() {
       },
     );
 
-    test(
-      'dw-s03/inv9, F6-D35: a run ignores a cursor file no journal owns',
-      () {
-        Directory('${tree.path}/${MoveJournal.trashPath}')
-            .createSync(recursive: true);
-        cursorFile().writeAsStringSync('2');
+    test('dw-s03/inv9, F6-D35, final M1: a run whose first step fails leaves cursor 0, so remaining keeps an unpark whose slot is still empty', () {
+      jamStuck();
 
-        const MoveJournal(stopped).run(_target(tree));
+      expect(
+        () => const MoveJournal(firstFails).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
 
-        expectChainLanded();
-        expect(fileAt(stuck).readAsStringSync(), 'new\n');
-      },
-    );
+      expect(cursorFile().readAsStringSync(), '0');
+      expect(
+        MoveJournal.remaining(_target(tree)).map((s) => s.describe()),
+        firstFails.map((s) => s.describe()),
+      );
+    });
+
+    test('dw-s03/inv9, F6-D35, final M2: a run resets a cursor file no journal owns before its first step', () {
+      Directory('${tree.path}/${MoveJournal.trashPath}')
+          .createSync(recursive: true);
+      cursorFile().writeAsStringSync('2');
+      jamStuck();
+
+      expect(
+        () => const MoveJournal(firstFails).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      expect(cursorFile().readAsStringSync(), '0');
+      expect(
+        MoveJournal.remaining(_target(tree)).first.describe(),
+        'write $stuck',
+      );
+    });
 
     test('dw-s03/inv9, F6-D35: a run stopped after a chain replays from its cursor and leaves the landed doc alone', () {
       stopAfterChain();

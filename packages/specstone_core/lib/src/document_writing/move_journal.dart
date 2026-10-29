@@ -457,7 +457,8 @@ String _decisiveLine(ProcessResult result) {
 /// The steps of one move, rename, reorder, or delete, applied crash-safely.
 ///
 /// [run] saves the steps under [journalPath] once, before applying any, and
-/// the count of steps finished under [cursorPath] after each, so [replay]
+/// the count of steps finished under [cursorPath] before the first and after
+/// each, so [replay]
 /// finishes a run a crash stopped on the next command from where it stopped
 /// (F6-D35).
 final class MoveJournal {
@@ -515,14 +516,19 @@ final class MoveJournal {
     }
   }
 
-  /// Saves the journal, applies each step and saves the cursor after it, then
-  /// removes the journal, the cursor, and the trash folder.
+  /// Saves cursor 0 and then the journal, applies each step and saves the
+  /// cursor after it, then removes the journal, the cursor, and the trash
+  /// folder.
+  ///
+  /// Cursor 0 replaces any cursor no journal owns, which would skip this
+  /// journal's first steps, and spares [remaining] the no-cursor rule, which
+  /// reads an unpark whose slot is still empty as done.
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
   /// cannot be written, and [RenderFault] `output_not_writable` when a
   /// folder a file moves out of sits on another volume than the trash (before
-  /// any file moves), when the journal cannot be written, or when a step or a
-  /// cursor write fails; the journal stays in the last case.
+  /// any file moves), when cursor 0 or the journal cannot be written, or when
+  /// a step or a later cursor write fails; the journal stays in the last case.
   void run(JournalTarget target) {
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
@@ -538,8 +544,7 @@ final class MoveJournal {
     if (steps.any(_movesToTrash)) _requireSameVolume(target, steps);
     try {
       Directory(_join(target.projectRoot.path, trashPath)).createSync();
-      // A cursor no journal owns would skip this journal's first steps.
-      _deleteIfPresent(File(_join(target.projectRoot.path, cursorPath)));
+      _saveCursor(target, 0);
       writeFileAtomic(
         File(_join(target.projectRoot.path, journalPath)),
         utf8.encode(jsonEncode(toJson())),
@@ -555,8 +560,8 @@ final class MoveJournal {
   ///
   /// Every step before the cursor is done; the step at it, which a crash may
   /// have left half done, and each one after it skip themselves when done. A
-  /// journal with no cursor file, as an older binary or a crash before the
-  /// first cursor write leaves, starts at its first step. A journal or cursor
+  /// journal with no cursor file, as an older binary leaves, starts at its
+  /// first step. A journal or cursor
   /// that does not parse is refused and left with the trash, since its steps
   /// may be the only record of where the files went. Does nothing when no
   /// trash folder exists.
