@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
@@ -97,4 +98,44 @@ void main() {
     expect(await runner.run(['migrate', 'docs']), 64);
     expect(out.toString(), isEmpty);
   });
+
+  test("f06/us01/s1: the Owner's y at a terminal makes two commits", () async {
+    final root = await gitFixture(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+
+    expect(await runner.run(['migrate']), 0);
+    expect(err.toString(), isEmpty);
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects.take(2), [
+      'rewrite titles, keys, and links; add project configuration',
+      'move legacy docs to their new paths',
+    ]);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test("f06/us01/s13: an Agent's shell gets the plan and exit 77", () async {
+    final root = await gitFixture(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(stdinIsTerminal: false),
+    );
+
+    expect(await runner.run(['migrate']), 77);
+    expect(out.toString(), startsWith('legacy migration: '));
+    expect(
+      err.toString(),
+      'migrate applies only at an interactive terminal; ask the Owner to '
+      'run specstone migrate\n',
+    );
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
 }

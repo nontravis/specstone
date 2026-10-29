@@ -1,6 +1,9 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
@@ -46,7 +49,9 @@ final class MigrateRequest {
 
 /// Runs `specstone migrate` and returns its exit status.
 ///
-/// Throws a `SpecstoneFault` for a refused run, before anything prints.
+/// Throws a `SpecstoneFault` for a refused run, before anything prints, except
+/// `owner_terminal_required`, which follows the printed plan. A bare legacy run
+/// checks git first, prints the plan, and applies it only on the Owner's `y`.
 int runMigrate(MigrateRequest request) {
   final root = findMigrateRoot(request.workingDirectory);
   final kind = chooseRun(
@@ -59,15 +64,47 @@ int runMigrate(MigrateRequest request) {
       request.out.writeln('nothing to migrate');
       return 0;
     case RunKind.legacy:
+      if (!request.dryRun) {
+        requireGitWorkTree(root, request.runGit);
+        requireCleanWorkTree(root, request.runGit);
+      }
       final plan = planLegacyRun(
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
       );
-      if (!request.dryRun) throw StateError('applying a legacy run is M4-T13');
-      request.out
-        ..write(plan.toText())
-        ..writeln('dry run: nothing written');
+      if (request.dryRun) {
+        request.out
+          ..write(plan.toText())
+          ..writeln('dry run: nothing written');
+        return 0;
+      }
+      request.out.write(plan.toText());
+      if (!request.interactive) {
+        throw WriteFault(
+          WriteFaultCode.ownerTerminalRequired,
+          'migrate applies only at an interactive terminal; ask the Owner to '
+          'run specstone migrate',
+        );
+      }
+      request.out.write('apply? [y/N] ');
+      final answer = request.readLine()?.trim();
+      if (answer != 'y') return 0;
+      final base = headSha(root, request.runGit);
+      MoveJournal(plan.journalSteps(base: base)).run(
+        JournalTarget(
+          projectRoot: root,
+          docsRoot: Directory.fromUri(root.uri.resolve('docs')),
+          runGit: request.runGit,
+        ),
+      );
+      var n = plan.moves.isEmpty ? 2 : 1;
+      for (final (:sha, :subject) in commitsSince(root, base, request.runGit)) {
+        request.out.writeln('commit $n $sha: $subject');
+        n++;
+      }
+      final closingLine = plan.closingLine;
+      if (closingLine != null) request.out.writeln(closingLine);
       return 0;
     case RunKind.resume:
       throw StateError('resuming a migration is M4-T14');
