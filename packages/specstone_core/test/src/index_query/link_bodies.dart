@@ -38,22 +38,47 @@ const _tokens = <String>[
   '_',
 ];
 
+/// The tokens `atomGrammar` adds: code spans, autolinks, and raw HTML.
+const _atomTokens = <String>[
+  '`',
+  '``',
+  '<http://x.y/>',
+  '<a@b.md>',
+  'http://x.y/',
+  'www.x.y',
+  'a@b.md',
+  '<span title="',
+  '">',
+  '</span>',
+  '<!--',
+  '-->',
+  '<?',
+  '?>',
+  '<!X',
+  '<',
+  '>',
+  '&#46;',
+  '&amp;',
+  '~',
+];
+
 const _definitions = <String>['[r]: b.md', '[s]: <c d.md> "t"', '[r]: c.md'];
 
-String _line(Random random) {
+String _line(Random random, List<String> vocabulary) {
   final count = 1 + random.nextInt(8);
   final tokens = [
-    for (var i = 0; i < count; i++) _tokens[random.nextInt(_tokens.length)],
+    for (var i = 0; i < count; i++)
+      vocabulary[random.nextInt(vocabulary.length)],
   ];
   return 'x ${tokens.join()}';
 }
 
-String _paragraph(Random random) {
+String _paragraph(Random random, List<String> vocabulary) {
   final count = 1 + random.nextInt(3);
-  return [for (var i = 0; i < count; i++) _line(random)].join('\n');
+  return [for (var i = 0; i < count; i++) _line(random, vocabulary)].join('\n');
 }
 
-String _inlineBody(Random random) {
+String _inlineBody(Random random, List<String> vocabulary) {
   final count = 1 + random.nextInt(4);
   final separators = [
     for (var i = 1; i < count; i++)
@@ -67,7 +92,7 @@ String _inlineBody(Random random) {
     body.write(
       isDefinition
           ? _definitions[random.nextInt(_definitions.length)]
-          : _paragraph(random),
+          : _paragraph(random, vocabulary),
     );
     if (i < count - 1) body.write(separators[i]);
   }
@@ -77,7 +102,11 @@ String _inlineBody(Random random) {
 
 /// Bodies of one to four blocks: paragraphs of inline bracket syntax, and
 /// definition lines that stand alone between blank lines.
-const Grammar inlineGrammar = _inlineBody;
+String inlineGrammar(Random random) => _inlineBody(random, _tokens);
+
+/// [inlineGrammar] with code spans, autolinks, and raw HTML added.
+String atomGrammar(Random random) =>
+    _inlineBody(random, [..._tokens, ..._atomTokens]);
 
 /// Returns every `a` href of `parseMarkdown(body)`, in tree order.
 List<String> markdownHrefs(String body) {

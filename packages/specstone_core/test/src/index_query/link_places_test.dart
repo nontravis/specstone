@@ -305,6 +305,145 @@ void main() {
       firstLine: 5,
     );
 
+    placed(
+      'f04/us02/fr04, LA1: a code span of two backticks holds no use',
+      '``[a](b.md)``\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a code span over two lines holds no use',
+      '`x\n[a](b.md)`\n[c](b.md)\n',
+      [(target: 'b.md', line: 3, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: an escaped backtick opens no code span',
+      '\\`[a](b.md)`\n[c](b.md)\n',
+      [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ],
+    );
+
+    // U+2028 is a code unit `.` does not match, so `markdown` ends no code span
+    // at it unless it is the last code unit the span holds.
+    final lineSeparator = String.fromCharCode(0x2028);
+
+    placed(
+      'f04/us02/fr04, LA2: a line separator inside backticks makes no code '
+          'span, as markdown reads it',
+      '`[a](b.md)${lineSeparator}x`\n[c](b.md)\n',
+      [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA2: a line separator may end a code span, as markdown '
+          'reads it',
+      '`[a](b.md)$lineSeparator`\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    test('f04/us02/fr04, LA2: a bare URL gives back the closing parens it '
+        'does not balance, as markdown reads it', () {
+      final sources = linkSourcesOf(
+        'x\nhttp://a.b/))))))))(www.x.y)\n',
+        firstLine: 1,
+      );
+
+      expect(sources.map((s) => (s.line, s.shown)), [(2, null), (2, null)]);
+    });
+
+    placed(
+      'f04/us02/fr04, LA1: an autolink holds no use',
+      '<http://x.y/[a](b.md)>\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA2: a bare URL runs through the brackets after it, as '
+          'markdown reads it',
+      'see http://x.y/[a](b.md)\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      "f04/us02/fr04, LA2: a bare URL in link text runs through the link's "
+          'close, as markdown reads it',
+      '[see http://x.y/](b.md)\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA1: a raw HTML attribute holds no use',
+      'x <span title="[a](b.md)">y</span>\n[c](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    test('f04/us02/fr04, LA1: an HTML comment holds no use, on one line or '
+        'over lines', () {
+      expect(placesOf('x <!-- [a](b.md) -->\n[c](b.md)\n'), [
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ]);
+      expect(placesOf('x <!--\n[a](b.md)\n-->\n[c](b.md)\n'), [
+        (target: 'b.md', line: 4, shown: 'b.md'),
+      ]);
+    });
+
+    placed(
+      'f04/us02/fr04, LA4: a destination with an entity is placed at its use',
+      'x\n[a](b&#46;md)\n',
+      [(target: 'b.md', line: 2, shown: 'b&#46;md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA4: a destination with an escape is placed at its use',
+      'x\n[a](b\\_c.md)\n',
+      [(target: 'b_c.md', line: 2, shown: r'b\_c.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA4: pin: an email in link text leaves the link at its '
+          'line',
+      'x\n[a@b.md](c.md)\n',
+      [(target: 'c.md', line: 2, shown: 'c.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA4: pin: a doc with a footnote takes the nth-use '
+          'fallback',
+      'x[^1]\n\n[^1]: see [a](b.md)\n\n[c](b.md)\n',
+      [
+        (target: 'b.md', line: 3, shown: 'b.md'),
+        (target: 'b.md', line: 5, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA4: pin: two forms of one doc keep their own lines and '
+          'destinations',
+      '[a](./b.md)\n[c](b.md)\n',
+      [
+        (target: 'b.md', line: 1, shown: './b.md'),
+        (target: 'b.md', line: 2, shown: 'b.md'),
+      ],
+    );
+
+    test('f04/us02/fr04, LA1: a code span in a reference label is part of the '
+        'label', () {
+      expect(linkSourcesOf('x\n[`a`]\n\n[`b`]: c.md\n', firstLine: 1), isEmpty);
+      expect(
+        linkSourcesOf(
+          'x\n[`a`]\n\n[`a`]: c.md\n',
+          firstLine: 1,
+        ).map((s) => (s.line, s.shown)),
+        [(2, 'c.md')],
+      );
+    });
+
     void within(String name, String body, List<(int, String?)> expected) {
       test('f04/us02/fr04, f04/nfr-p03, LA6: $name within one second', () {
         final watch = Stopwatch()..start();
@@ -344,6 +483,43 @@ void main() {
     within(
       '10,000 links in one image description are dropped',
       '![${'[x](b.md) ' * 10000}](i.png)\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 unclosed processing instructions are scanned',
+      '${'x <? ' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 unclosed declarations are scanned',
+      '${'x <!X ' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 unclosed comments are scanned',
+      '${'x <!-- ' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 unclosed autolinks are scanned',
+      '${'<http://x' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '400 backtick runs of growing length are scanned',
+      '${List.generate(400, (i) => '${'`' * (i + 1)}a').join()}\n\n'
+          '[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      'a 50,000-letter word with no @ is scanned',
+      '${'a' * 50000}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
   });

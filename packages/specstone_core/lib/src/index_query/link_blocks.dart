@@ -17,15 +17,14 @@ typedef LeafText = ({
 
 final _definitionStart = RegExp(r'^ {0,3}\[', multiLine: true);
 final _bareDest = RegExp(r'\S+');
-final _span = RegExp('`[^`\n]*`');
 final _blankRun = RegExp(r'\s+');
 
 /// Returns the [LeafText] of [lfBody], a doc text with LF line ends.
 ///
-/// A leaf is a run of lines between blank lines. Fenced code lines, one-line
-/// code spans, and each definition (`[label]: dest`, from its `[` to the end of
-/// its destination) are blanked, so an offset in the text is an offset in
-/// [lfBody].
+/// A leaf is a run of lines between blank lines. Fenced code lines and each
+/// definition (`[label]: dest`, from its `[` to the end of its destination) are
+/// blanked, so an offset in the text is an offset in [lfBody]. Code spans stay:
+/// the reader skips them with the other atoms that bind tighter than brackets.
 LeafText leafTextOf(String lfBody) {
   final lines = lfBody.split('\n');
   final fenced = fencedLines(lines);
@@ -36,11 +35,7 @@ LeafText leafTextOf(String lfBody) {
   var leafEnd = 0;
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
-    masked.add(
-      fenced[i]
-          ? ' ' * line.length
-          : line.replaceAllMapped(_span, (m) => ' ' * m[0]!.length),
-    );
+    masked.add(fenced[i] ? ' ' * line.length : line);
     if (fenced[i] || _isBlankLine(line)) {
       if (leafStart >= 0) leaves.add((start: leafStart, end: leafEnd));
       leafStart = -1;

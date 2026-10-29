@@ -14,9 +14,11 @@ typedef LinkPlace = ({String target, int line, String shown});
 /// [firstLine] is its first file line. `markdown` decides which links exist.
 /// Each is then placed in the source text for its line and its destination as
 /// written: the scan reads the links by CommonMark's bracket procedure (see
-/// [linkSourcesOf]), and the nth link to an href takes the nth use of that
-/// href, so no other link moves it. A link the scan cannot place takes line 1
-/// and the href `markdown` gives as its destination.
+/// [linkSourcesOf]). When the scan and `markdown` agree on the links (see
+/// [readersAgree]), the nth link takes the nth source, so no other link moves
+/// it. Otherwise the nth link to an href takes the nth use of that href. A link
+/// the scan cannot place takes line 1 and the href `markdown` gives as its
+/// destination.
 ///
 /// Returns null when `markdown` fails on [lfBody] (see [parseMarkdown]), and
 /// `const []` for a body with no link syntax, which it never parses.
@@ -31,8 +33,28 @@ List<LinkPlace>? linkPlacesOf(
   final hrefs = _hrefsOf(lfBody);
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);
+  final sources = linkSourcesOf(lfBody, firstLine: firstLine);
+  if (readersAgree(sources, hrefs)) {
+    return [
+      for (final (:index, :href, :docPath) in placed)
+        (
+          target: docPath,
+          line: sources[index].line,
+          shown: sources[index].shown ?? href,
+        ),
+    ];
+  }
+  return _placedByUse(placed, sources);
+}
+
+/// Returns the places of [placed], each href taking its nth use among the
+/// destinations of [sources], or line 1 when it has no nth use.
+List<LinkPlace> _placedByUse(
+  List<_PlacedHref> placed,
+  List<LinkSource> sources,
+) {
   final usesOf = <String, List<LinkSource>>{};
-  for (final source in linkSourcesOf(lfBody, firstLine: firstLine)) {
+  for (final source in sources) {
     final shown = source.shown;
     if (shown != null) {
       usesOf.putIfAbsent(_normalize(shown), () => []).add(source);
@@ -40,7 +62,7 @@ List<LinkPlace>? linkPlacesOf(
   }
   final places = <LinkPlace>[];
   final taken = <String, int>{};
-  for (final (:href, :docPath) in placed) {
+  for (final (:href, :docPath, index: _) in placed) {
     final sameHref = usesOf[href] ?? const <LinkSource>[];
     final nth = taken[href] ?? 0;
     taken[href] = nth + 1;
@@ -67,24 +89,26 @@ bool readersAgree(List<LinkSource> sources, List<String> hrefs) {
   return true;
 }
 
-/// A placed href together with the doc path it resolved to.
-typedef _PlacedHref = ({String href, String docPath});
-
-/// Returns the hrefs [linkPlacesOf] places, each with the doc path it
+/// A placed href together with its index among the hrefs and the doc path it
 /// resolved to.
+typedef _PlacedHref = ({int index, String href, String docPath});
+
+/// Returns the hrefs [linkPlacesOf] places, each with its index in [hrefs] and
+/// the doc path it resolved to.
 ///
 /// Each href resolves exactly once: the caller reads the doc path from here
 /// instead of resolving again.
 List<_PlacedHref> _placedHrefs(String docPath, List<String> hrefs) {
   final placed = <_PlacedHref>[];
-  for (final href in hrefs) {
+  for (var index = 0; index < hrefs.length; index++) {
+    final href = hrefs[index];
     final target = resolveDocLink(href, docPath);
     if (target is! DocTarget ||
         !target.docPath.endsWith('.md') ||
         target.docPath == docPath) {
       continue;
     }
-    placed.add((href: href, docPath: target.docPath));
+    placed.add((index: index, href: href, docPath: target.docPath));
   }
   return placed;
 }
