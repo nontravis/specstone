@@ -88,7 +88,8 @@ const _pipe = 0x7C;
 ///
 /// Every line is visited a fixed number of times: a definition is read forward
 /// once, and what it reads is the lines it consumes or the paragraph a failed
-/// read leaves behind.
+/// read leaves behind. A title that finds no closer before the block ends is
+/// remembered, so a later definition in the block fails at its opener.
 LeafText leafTextOf(String lfBody) {
   final pass = _BlockPass(lfBody.split('\n'))..run();
   final units = Uint16List.fromList(lfBody.codeUnits);
@@ -167,6 +168,11 @@ final class _BlockPass {
 
   /// The first line of the open paragraph, or -1.
   var _paragraph = -1;
+
+  /// Per title closer, the last line of a title read that found no closer
+  /// before the block ended. A later title in a line up to it ends at the
+  /// same place without the rescan.
+  final _noCloser = <int, int>{};
 
   void run() {
     var i = 0;
@@ -298,9 +304,18 @@ final class _BlockPass {
     return _lines.length;
   }
 
-  /// Returns the line after the HTML block that starts at line [i]
+  /// Returns the line after the HTML block that starts at line [i], which
+  /// takes in each HTML block that starts on the line right after it
   /// (`HtmlBlockSyntax.parseChildLines`).
   int _skipHtml(int i) {
+    var next = _skipHtmlBlock(i);
+    while (next < _lines.length && _htmlStart.hasMatch(_lines[next])) {
+      next = _skipHtmlBlock(next);
+    }
+    return next;
+  }
+
+  int _skipHtmlBlock(int i) {
     final match = _htmlStart.firstMatch(_lines[i])!;
     var condition = 0;
     while (match.namedGroup('condition_${condition + 1}') == null) {
@@ -577,6 +592,11 @@ final class _BlockPass {
     final closer = opener == _openParen ? _closeParen : opener;
     cursor.advance();
     if (cursor.isDone) return false;
+    final failedTo = _noCloser[closer];
+    if (failedTo != null && failedTo >= cursor.line) {
+      cursor.moveToEnd(failedTo);
+      return false;
+    }
     while (true) {
       final unit = cursor.unit;
       if (unit == _backslash) {
@@ -585,7 +605,10 @@ final class _BlockPass {
         break;
       }
       cursor.advance();
-      if (cursor.isDone) return false;
+      if (cursor.isDone) {
+        _noCloser[closer] = cursor.line;
+        return false;
+      }
     }
     cursor.advance();
     return true;
@@ -649,6 +672,14 @@ final class _Cursor {
       line++;
       col = 0;
     }
+  }
+
+  /// Moves to the end of the text, which ends on [lastLine].
+  void moveToEnd(int lastLine) {
+    line = lastLine;
+    col = _lines[lastLine].length;
+    _joined = lastLine;
+    _stop = lastLine + 1 < _lines.length ? lastLine + 1 : -1;
   }
 
   /// Moves past the whitespace `LinkParser.moveThroughWhitespace` skips, line

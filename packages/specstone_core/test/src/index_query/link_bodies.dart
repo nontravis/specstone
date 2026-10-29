@@ -118,6 +118,8 @@ String _tokenLines(Random random, List<String> vocabulary) => [
   for (var i = random.nextInt(3); i > 0; i--) '\n${_line(random, vocabulary)}',
 ].join();
 
+const _delimiterCells = <String>['---', ':--', '--:', ':-:'];
+
 String _pick(Random random, List<String> choices) =>
     choices[random.nextInt(choices.length)];
 
@@ -140,9 +142,12 @@ String _tableBlock(Random random, List<String> vocabulary) {
     return '| ${texts.join(' | ')} |';
   }
 
+  final delimiters = [
+    for (var i = 0; i < columns; i++) _pick(random, _delimiterCells),
+  ];
   return [
     row(columns),
-    '|${'---|' * columns}',
+    '|${delimiters.join('|')}|',
     for (var i = random.nextInt(3); i > 0; i--) row(1 + random.nextInt(3)),
   ].join('\n');
 }

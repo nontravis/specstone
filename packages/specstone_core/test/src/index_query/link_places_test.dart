@@ -470,6 +470,16 @@ void main() {
       );
     });
 
+    test('f04/us02/fr04, LA3: an HTML block and an HTML start line right '
+        'after it are one block', () {
+      final sources = linkSourcesOf(
+        '<!-- c -->\n<div>\n|---|\n[a](b.md)\n',
+        firstLine: 1,
+      );
+
+      expect(sources, isEmpty);
+    });
+
     placed(
       'f04/us02/fr04, LA3: pin: a tag line cannot interrupt a paragraph',
       'x\n<x-y>\n[a](b.md)\n',
@@ -659,6 +669,13 @@ void main() {
       '10,000 table rows are scanned',
       '| h |\n|---|\n${'| x |\n' * 10000}\n[l](b.md)\n',
       [(10004, 'b.md')],
+    );
+
+    within(
+      '10,000 definitions with an unclosed paren title and a setext underline '
+          'are scanned',
+      '${'[r]: b.md (t\n===\n' * 10000}[l][r]\n',
+      [],
     );
 
     within(
