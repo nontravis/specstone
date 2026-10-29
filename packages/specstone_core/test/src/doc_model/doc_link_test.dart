@@ -30,5 +30,52 @@ void main() {
         '../../../../x.md',
       );
     });
+
+    test('doc_model/s03/inv7, LP1: an escape that is not UTF-8 reads as '
+        'U+FFFD', () {
+      expect(
+        (resolveDocLink('%DB.md', from) as DocTarget).docPath,
+        'prds/f/us/\u{FFFD}.md',
+      );
+      expect(
+        (resolveDocLink('%C3%28.md', from) as DocTarget).docPath,
+        'prds/f/us/\u{FFFD}(.md',
+      );
+      expect(
+        (resolveDocLink('%ED%A0%80.md', from) as DocTarget).docPath,
+        contains('\u{FFFD}'),
+      );
+      expect(percentDecoded('caf%C3%A9'), 'café');
+      expect(percentDecoded('50%'), '50%');
+      expect(percentDecoded('a%2Fb'), 'a/b');
+    });
+
+    test('doc_model/s03/inv7, LP1: a character outside the BMP after an escape '
+        'keeps its UTF-8 bytes', () {
+      expect(percentDecoded('%41\u{1F600}'), 'A\u{1F600}');
+      expect(percentDecoded('\u{1F600}%41\u{1F600}'), '\u{1F600}A\u{1F600}');
+    });
+
+    test(
+      'doc_model/s03/inv7, LP1: a text with no escape decodes to itself',
+      () {
+        expect(percentDecoded('abc'), 'abc');
+        expect(percentDecoded('\u{1F600}.md'), '\u{1F600}.md');
+      },
+    );
+
+    test('doc_model/s03/inv7, LP1: percentDecodesCleanly is false only when '
+        'an escape needs U+FFFD', () {
+      expect(percentDecodesCleanly('%DB.md'), isFalse);
+      expect(percentDecodesCleanly('a%C3%28b'), isFalse);
+      expect(percentDecodesCleanly('caf%C3%A9'), isTrue);
+      expect(percentDecodesCleanly('50%'), isTrue);
+      expect(percentDecodesCleanly('abc'), isTrue);
+      expect(percentDecodesCleanly('\u{FFFD}.md'), isTrue);
+    });
+
+    test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
+      expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
+    });
   });
 }

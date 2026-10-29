@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 void main() {
   group('linkPlacesOf', () {
     List<LinkPlace> placesOf(String body) =>
-        linkPlacesOf(body, docPath: 'x.md', firstLine: 1);
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
 
     test('final-fix M1: a link is placed by its own href, whatever the links '
         'before it matched', () {
@@ -67,6 +67,115 @@ void main() {
 
       expect(places.map((p) => p.target), ['b.md']);
       expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    });
+
+    test('f04/us02/fr04, f04/nfr-p03, FN4: 10,000 brackets nested around one '
+        'link are placed within one second', () {
+      final body = '${'[' * 10000}x](b.md)${']' * 9999}\n';
+      final watch = Stopwatch()..start();
+
+      final places = placesOf(body);
+      watch.stop();
+
+      expect(places, [(target: 'b.md', line: 1, shown: 'b.md')]);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('f04/us02/fr04, f04/nfr-p03, FN4: 10,000 nested inline destinations '
+        'are scanned within one second', () {
+      final body = '${'[a](' * 10000}x${')' * 10000}\n\n[l](b.md)\n';
+      final watch = Stopwatch()..start();
+
+      final places = placesOf(body);
+      watch.stop();
+
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('f04/us02/fr04, f04/nfr-p03, FN4: 10,000 escaped brackets before one '
+        'close are scanned within one second', () {
+      final body = '[${r'\[' * 10000}]\n\n[d]: b.md\n\n[l](b.md)\n';
+      final watch = Stopwatch()..start();
+
+      final places = placesOf(body);
+      watch.stop();
+
+      expect(places, [(target: 'b.md', line: 5, shown: 'b.md')]);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('f04/us02/fr04, f04/nfr-p03, FN4: 40,000 escaped openers sharing one '
+        'close before a long destination are scanned within one second', () {
+      final body = '[${r'\[' * 40000}](${' ' * 40000}zzzzz)\n\n[l](b.md)\n';
+      final watch = Stopwatch()..start();
+
+      final places = placesOf(body);
+      watch.stop();
+
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('f04/us02/fr04, FN4: a reference whose text has blank runs and '
+        'capitals is placed at its use', () {
+      final places = placesOf('[foo bar]: b.md\n\n[Foo   Bar]\n');
+
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+    });
+
+    test('f04/us02/fr04, FN4: an angle-bracket destination with a space is '
+        'placed at its use', () {
+      final places = placesOf('x\n\n[a](<b c.md>)\n');
+
+      expect(places, [(target: 'b c.md', line: 3, shown: 'b c.md')]);
+    });
+
+    test('f04/us02/fr04, FN4: a U+0085 inside an inline destination is not '
+        'blank, so the use keeps it', () {
+      final places = placesOf('[l](b\u0085c.md)\n');
+
+      expect(places, [(target: 'b\u0085c.md', line: 1, shown: 'b\u0085c.md')]);
+    });
+
+    test('f04/us02/fr04, FN4: a shortcut use with a whitespace-only label '
+        'does not fall back to the link text', () {
+      final places = placesOf('[k]: .md\n[k][ ]\n[k]\n');
+
+      expect(places, [(target: '.md', line: 3, shown: '.md')]);
+    });
+
+    test('f04/us02/fr04/e08, LP1: a link whose escape is not UTF-8 is placed '
+        'at its line as written', () {
+      final places = linkPlacesOf(
+        'x\n\n[x](%DB.md)\n',
+        docPath: 'prds/f/us/fr01.md',
+        firstLine: 1,
+      );
+
+      expect(places, [
+        (target: 'prds/f/us/\u{FFFD}.md', line: 3, shown: '%DB.md'),
+      ]);
+    });
+
+    test('s03/inv24, LP2: a body the parser fails on gives null', () {
+      final places = linkPlacesOf(
+        '[s](b.md)\n\n[a]:<b\\',
+        docPath: 'prds/f/us/fr01.md',
+        firstLine: 1,
+      );
+
+      expect(places, isNull);
+    });
+
+    test('s03/inv24, LP2: a body with no link syntax is never parsed', () {
+      final places = linkPlacesOf(
+        '${'> ' * 2000}x',
+        docPath: 'prds/f/us/fr01.md',
+        firstLine: 1,
+      );
+
+      expect(places, isEmpty);
     });
   });
 }

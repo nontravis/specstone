@@ -170,7 +170,7 @@ final class MoveStep extends JournalStep {
   void _moveEntity(String source, String target) {
     try {
       Directory(File(target).parent.path).createSync(recursive: true);
-      _entityAt(source).renameSync(target);
+      renameSyncRetrying(_entityAt(source), target);
     } on FileSystemException catch (error) {
       throw _notWritable('move', from, error);
     }
@@ -734,7 +734,7 @@ void _probeRename(String source, Directory trash) {
     probe = Directory(source).createTempSync('.specstone-probe-');
     trash.createSync(recursive: true);
     final name = probe.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
-    landed = probe.renameSync(_join(trash.path, name));
+    landed = renameSyncRetrying(probe, _join(trash.path, name));
   } finally {
     [?probe, ?landed].forEach(_removeQuietly);
   }
