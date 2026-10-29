@@ -222,7 +222,8 @@ void main() {
 
   test('f01/us01/fr03/e12, s03/inv24, LP3: structure warns on each read until '
       'the doc is fixed', () async {
-    final project = await caseProject('\n[a]:<b\\');
+    const tail = '\n[a]:<b\\';
+    final project = await caseProject(tail);
 
     final first = await runIn(project, ['structure']);
     final second = await runIn(project, ['structure']);
@@ -232,10 +233,14 @@ void main() {
     expect(second.code, 0, reason: second.out + second.err);
     expect(second.err, contains(unparsedWarning));
 
-    final fixed = await caseProject('');
-    final clean = await runIn(fixed, ['structure']);
+    final doc = File.fromUri(project.uri.resolve(frFile));
+    final text = doc.readAsStringSync();
+    doc.writeAsStringSync(text.substring(0, text.length - tail.length));
+    final fixed = await runIn(project, ['structure']);
 
-    expect(clean.err, isNot(contains('the markdown parser failed')));
+    expect(fixed.code, 0, reason: fixed.out + fixed.err);
+    expect(fixed.out, isNot(contains('the markdown parser failed')));
+    expect(fixed.err, isNot(contains('the markdown parser failed')));
   });
 
   for (final tail in [
