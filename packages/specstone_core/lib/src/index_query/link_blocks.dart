@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:markdown/markdown.dart'
     show
+        BlockquoteSyntax,
         CodeBlockSyntax,
         FencedCodeBlockSyntax,
         FootnoteDefSyntax,
@@ -9,7 +10,8 @@ import 'package:markdown/markdown.dart'
         HorizontalRuleSyntax,
         HtmlBlockSyntax,
         LinkReferenceDefinitionSyntax,
-        SetextHeaderSyntax;
+        SetextHeaderSyntax,
+        UnorderedListSyntax;
 
 /// The inline text of a body and the definitions its links resolve against.
 ///
@@ -34,6 +36,11 @@ final RegExp _fence = const FencedCodeBlockSyntax().pattern;
 final RegExp _thematicBreak = const HorizontalRuleSyntax().pattern;
 final RegExp _footnote = const FootnoteDefSyntax().pattern;
 final RegExp _definitionStart = const LinkReferenceDefinitionSyntax().pattern;
+final RegExp _blockquote = const BlockquoteSyntax().pattern;
+final RegExp _listItem = const UnorderedListSyntax().pattern;
+
+/// `ListSyntax.parseTaskListItem`'s checkbox (`list_syntax.dart:93`).
+final _checkbox = RegExp(r'^ {0,3}\[([ xX])\][ \t]');
 
 /// `markdown`'s `tablePattern` (`patterns.dart:53`), which `markdown.dart` does
 /// not export.
@@ -86,23 +93,39 @@ const _pipe = 0x7C;
 /// is an offset in [lfBody]. Code spans stay: the reader skips them with the
 /// other atoms that bind tighter than brackets.
 ///
+/// A blockquote and a list item hand their lines, cut of the `>`, the marker,
+/// the checkbox, and the indent `markdown` cuts, to a pass of their own, so a
+/// definition, a fence, a heading, or indented code inside them is read as at
+/// the top. The cut parts are blanked too, also inside a leaf that spans lines.
+///
 /// Every line is visited a fixed number of times: a definition is read forward
 /// once, and what it reads is the lines it consumes or the paragraph a failed
 /// read leaves behind. A title that finds no closer before the block ends is
 /// remembered, so a later definition in the block fails at its opener.
 LeafText leafTextOf(String lfBody) {
-  final pass = _BlockPass(lfBody.split('\n'))..run();
+  final lines = lfBody.split('\n');
+  final starts = List.filled(lines.length, 0);
+  var offset = 0;
+  for (var i = 0; i < lines.length; i++) {
+    starts[i] = offset;
+    offset += lines[i].length + 1;
+  }
+  final sink = _Sink();
+  _BlockPass(lines, starts, sink).run();
   final units = Uint16List.fromList(lfBody.codeUnits);
   var kept = 0;
-  for (final (:start, :end) in pass.leaves) {
+  for (final (:start, :end) in sink.leaves) {
     _blank(units, kept, start);
     kept = end;
   }
   _blank(units, kept, units.length);
+  for (final (:start, :end) in sink.prefixes) {
+    _blank(units, start, end);
+  }
   return (
     text: String.fromCharCodes(units),
-    leaves: pass.leaves,
-    definitions: pass.definitions,
+    leaves: sink.leaves,
+    definitions: sink.definitions,
   );
 }
 
@@ -139,23 +162,49 @@ enum _Stop {
   block,
 }
 
-/// The walk of the block pass over the lines of a body.
+/// What the block passes of one body produce together.
+final class _Sink {
+  final leaves = <({int start, int end})>[];
+  final definitions = <String, String>{};
+
+  /// The container markers and indents `markdown` cuts from a line before it
+  /// reads the rest. A leaf that spans lines holds them, so they are blanked
+  /// after the leaves are cut.
+  final prefixes = <({int start, int end})>[];
+}
+
+/// A line a container hands to its child pass: the text and the body offset of
+/// its first code unit.
+typedef _ChildLine = ({String text, int start});
+
+/// The walk of the block pass over the lines of a body, or over the child
+/// lines of one blockquote or list item.
 final class _BlockPass {
-  new(this._lines)
-    : _starts = List.filled(_lines.length, 0),
-      _delimiters = List.filled(_lines.length, null),
-      _endsBlock = List.filled(_lines.length, null) {
-    var offset = 0;
-    for (var i = 0; i < _lines.length; i++) {
-      _starts[i] = offset;
-      offset += _lines[i].length + 1;
-    }
-  }
+  new(
+    this._lines,
+    this._starts,
+    this._sink, {
+    this.listParent = false,
+    this.setextDisabled = false,
+  }) : _delimiters = List.filled(_lines.length, null),
+       _endsBlock = List.filled(_lines.length, null),
+       leaves = _sink.leaves,
+       definitions = _sink.definitions;
 
   final List<String> _lines;
 
-  /// The body offset of each line.
+  /// The body offset of each line's first code unit.
   final List<int> _starts;
+
+  final _Sink _sink;
+
+  /// Whether the lines are the child lines of a list item, where an ordered
+  /// item of any number can end a paragraph (`ListSyntax.canEndBlock`).
+  final bool listParent;
+
+  /// Whether a setext underline is a paragraph line, as in a blockquote that
+  /// ends with a lazy line (`BlockParser.setextHeadingDisabled`).
+  final bool setextDisabled;
 
   /// Per line, whether it is a table delimiter row; null until asked.
   final List<bool?> _delimiters;
@@ -163,8 +212,8 @@ final class _BlockPass {
   /// Per line, whether it ends a block; null until asked.
   final List<bool?> _endsBlock;
 
-  final leaves = <({int start, int end})>[];
-  final definitions = <String, String>{};
+  final List<({int start, int end})> leaves;
+  final Map<String, String> definitions;
 
   /// The first line of the open paragraph, or -1.
   var _paragraph = -1;
@@ -183,10 +232,17 @@ final class _BlockPass {
           i++;
           continue;
         }
-        _closeParagraph(i);
-        if (stop == _Stop.setext) {
-          i++;
-          continue;
+        if (stop == _Stop.setext && _startsListItem(_lines[i])) {
+          // A `-` and blanks underline the paragraph, but the GFM list syntax
+          // is tried before the setext one: the paragraph gives up its lines
+          // to the setext heading, and the list takes the underline.
+          _paragraph = -1;
+        } else {
+          _closeParagraph(i);
+          if (stop == _Stop.setext) {
+            i++;
+            continue;
+          }
         }
       }
       i = _startBlock(i);
@@ -217,10 +273,14 @@ final class _BlockPass {
     if (_opensFence(line) ||
         _headsTable(i) ||
         _isBlankLine(line) ||
-        _endsHtml(line)) {
+        _endsHtml(line) ||
+        _blockquote.hasMatch(line) ||
+        _endsAsListItem(line)) {
       return _Stop.block;
     }
-    if (_setextUnderline.hasMatch(line)) return _Stop.setext;
+    if (!setextDisabled && _setextUnderline.hasMatch(line)) {
+      return _Stop.setext;
+    }
     return _atxHeading.hasMatch(line) || _thematicBreak.hasMatch(line)
         ? _Stop.block
         : _Stop.none;
@@ -235,6 +295,21 @@ final class _BlockPass {
   };
 
   bool _opensFence(String line) => _fence.hasMatch(line);
+
+  /// Returns whether [line] starts a list item (`ListSyntax.canParse`).
+  bool _startsListItem(String line) =>
+      _listItem.hasMatch(line) && !_thematicBreak.hasMatch(line);
+
+  /// Returns whether a list item that starts at [line] can end a paragraph
+  /// (`ListSyntax.canEndBlock`): an ordered one only from 1 unless the lines
+  /// are a list item's, and never an empty one.
+  bool _endsAsListItem(String line) {
+    final match = _listItem.firstMatch(line);
+    if (match == null || _thematicBreak.hasMatch(line)) return false;
+    final number = match[1];
+    if (!listParent && number != null && number != '1') return false;
+    return match[2]?.isNotEmpty ?? false;
+  }
 
   /// Returns whether an HTML block that starts at [line] can end a paragraph:
   /// only start condition 7 cannot (`HtmlBlockSyntax.canEndBlock`).
@@ -261,6 +336,7 @@ final class _BlockPass {
       final end = _readTable(i);
       if (end != null) return end;
     }
+    if (_startsListItem(line)) return _readList(i);
     if (_isBlankLine(line)) return i + 1;
     if (_htmlStart.hasMatch(line)) return _skipHtml(i);
     if (_atxHeading.hasMatch(line)) {
@@ -268,6 +344,7 @@ final class _BlockPass {
       return i + 1;
     }
     if (_indentedCode.hasMatch(line)) return _skipIndentedCode(i);
+    if (_blockquote.hasMatch(line)) return _readQuote(i);
     if (_thematicBreak.hasMatch(line)) return i + 1;
     if (_definitionStart.hasMatch(line) && !_footnote.hasMatch(line)) {
       final next = _readDefinition(i);
@@ -276,6 +353,229 @@ final class _BlockPass {
     _paragraph = i;
     return i + 1;
   }
+
+  /// Adds the text of line [i] from [at] on to [into], and keeps the cut part
+  /// to be blanked.
+  void _cut(List<_ChildLine> into, int i, int at) {
+    final start = _starts[i];
+    _sink.prefixes.add((start: start, end: start + at));
+    into.add((text: _lines[i].substring(at), start: start + at));
+  }
+
+  /// Runs a pass over the child lines of a container.
+  void _readChildren(
+    List<_ChildLine> child, {
+    bool listParent = false,
+    bool setextDisabled = false,
+  }) {
+    _BlockPass(
+      [for (final line in child) line.text],
+      [for (final line in child) line.start],
+      _sink,
+      listParent: listParent,
+      setextDisabled: setextDisabled,
+    ).run();
+  }
+
+  /// Reads the blockquote that starts at line [i] as
+  /// `BlockquoteSyntax.parseChildLines` does (the `>` and one space or tab are
+  /// cut from each line, and a lazy line joins when it can only continue a
+  /// paragraph), reads its child lines, and returns the line after it.
+  int _readQuote(int i) {
+    final child = <_ChildLine>[];
+    var lazy = false;
+    var j = i;
+    while (j < _lines.length) {
+      final line = _lines[j];
+      if (_blockquote.hasMatch(line)) {
+        final marker = line.indexOf('>');
+        var end = marker + 1;
+        if (marker < line.length - 1) {
+          final next = line.codeUnitAt(marker + 1);
+          if (next == _tab || next == _space) end++;
+        }
+        _cut(child, j, end);
+        lazy = false;
+      } else if (_continuesQuote(j, child.last.text)) {
+        child.add((text: line, start: _starts[j]));
+        lazy = true;
+      } else {
+        break;
+      }
+      j++;
+    }
+    _readChildren(child, setextDisabled: lazy);
+    return j;
+  }
+
+  /// Returns whether line [i], which has no `>`, continues a blockquote whose
+  /// last child line is [last]: it is paragraph text, or indented code after a
+  /// line that is not indented code (`BlockquoteSyntax.parseChildLines`, which
+  /// asks for the first syntax that can parse the line).
+  bool _continuesQuote(int i, String last) {
+    final line = _lines[i];
+    if (_opensFence(line) ||
+        _headsTable(i) ||
+        _startsListItem(line) ||
+        _footnote.hasMatch(line) ||
+        _isBlankLine(line) ||
+        _htmlStart.hasMatch(line) ||
+        _atxHeading.hasMatch(line)) {
+      return false;
+    }
+    if (_indentedCode.hasMatch(line)) return !_indentedCode.hasMatch(last);
+    if (_thematicBreak.hasMatch(line) || _definitionStart.hasMatch(line)) {
+      return false;
+    }
+    return !_isBlankLine(last) && !_fence.hasMatch(last);
+  }
+
+  /// Reads the list that starts at line [i] as `ListSyntax.parse` does, reads
+  /// the child lines of each item, and returns the line after the list.
+  ///
+  /// An item's first line, and each line indented to its content, loses the
+  /// marker or the indent; any other line that does not end the list joins the
+  /// item as it is, and the item's pass decides what it is.
+  int _readList(int i) {
+    final items = <List<_ChildLine>>[];
+    var item = <_ChildLine>[];
+    String? listMarker;
+    int? indent;
+    int? blankLines;
+    var j = i;
+    while (j < _lines.length) {
+      final line = _lines[j];
+      if (_isBlankLine(line)) {
+        item.add((text: line, start: _starts[j]));
+        if (blankLines != null) blankLines++;
+      } else if (indent != null && indent <= _indentationOf(line)) {
+        if (blankLines != null && blankLines > 1) break;
+        _cut(item, j, _dedentedAt(line, indent));
+        if (blankLines != null) _cutCheckbox(item);
+      } else if (_thematicBreak.hasMatch(line)) {
+        break;
+      } else if (_listItem.hasMatch(line)) {
+        blankLines = null;
+        final (:marker, :isBlank, contentAt: content, indent: width) =
+            _itemStartOf(line);
+        if (listMarker != null &&
+            listMarker.codeUnitAt(listMarker.length - 1) !=
+                marker.codeUnitAt(marker.length - 1)) {
+          break;
+        }
+        if (item.isNotEmpty) {
+          items.add(item);
+          item = [];
+        }
+        listMarker = marker;
+        indent = width;
+        if (isBlank) {
+          blankLines = 1;
+          item.add((text: '', start: _starts[j] + line.length));
+        } else {
+          _cut(item, j, content!);
+          _cutCheckbox(item);
+        }
+      } else if (_endsBlockAt(j)) {
+        break;
+      } else {
+        if (item.isNotEmpty && _isBlankLine(item.last.text)) break;
+        item.add((text: line, start: _starts[j]));
+      }
+      j++;
+    }
+    if (item.isNotEmpty) items.add(item);
+    for (final lines in items) {
+      _readChildren(lines, listParent: true);
+    }
+    return j;
+  }
+
+  /// Cuts the checkbox (`[ ] `, `[x] `, or `[X] `) from the last line of
+  /// [item], as `ListSyntax.parseTaskListItem` does.
+  void _cutCheckbox(List<_ChildLine> item) {
+    final (:text, :start) = item.last;
+    final match = _checkbox.firstMatch(text);
+    if (match == null) return;
+    final end = match[0]!.length;
+    _sink.prefixes.add((start: start, end: start + end));
+    item[item.length - 1] = (text: text.substring(end), start: start + end);
+  }
+
+  /// Returns what `ListSyntax.parse` reads of the item marker that [line]
+  /// starts with: the marker, whether nothing but blanks follows it, the
+  /// offset where its content starts, and the column the item's lines are
+  /// indented to.
+  ({String marker, bool isBlank, int? contentAt, int indent}) _itemStartOf(
+    String line,
+  ) {
+    var pos = 0;
+    while (pos < line.length && _isParserBlank(line.codeUnitAt(pos))) {
+      pos++;
+    }
+    final preceding = pos;
+    final digits = _listItem.firstMatch(line)![1] ?? '';
+    pos += digits.length + 1;
+    final marker = line.substring(preceding, pos);
+    var isBlank = true;
+    var contentBlanks = 0;
+    int? contentAt;
+    if (pos < line.length) {
+      pos++;
+      contentAt = pos;
+      while (pos < line.length && _isParserBlank(line.codeUnitAt(pos))) {
+        pos++;
+        contentBlanks++;
+      }
+      isBlank = pos == line.length;
+    }
+    final width = preceding + digits.length + 2;
+    return (
+      marker: marker,
+      isBlank: isBlank,
+      contentAt: contentAt,
+      indent: isBlank || contentBlanks >= 4 ? width : width + contentBlanks,
+    );
+  }
+
+  /// Returns the columns of the blanks [line] starts with, a tab reaching the
+  /// next multiple of four (`StringExtensions.indentation`).
+  int _indentationOf(String line) {
+    var columns = 0;
+    for (var i = 0; i < line.length; i++) {
+      final unit = line.codeUnitAt(i);
+      if (unit != _space && unit != _tab) break;
+      columns += unit == _tab ? 4 - (columns % 4) : 1;
+    }
+    return columns;
+  }
+
+  /// Returns how many code units `StringExtensions.dedent` cuts from [line] to
+  /// remove [width] columns of blanks, a tab counting four.
+  int _dedentedAt(String line, int width) {
+    var cut = 0;
+    var columns = 0;
+    while (cut < line.length && cut < width) {
+      final unit = line.codeUnitAt(cut);
+      if (unit != _space && unit != _tab) break;
+      final isTab = unit == _tab;
+      columns += isTab ? 4 : 1;
+      if (columns >= width) {
+        if (columns == width || isTab) cut++;
+        break;
+      }
+      cut++;
+    }
+    return cut;
+  }
+
+  /// Returns whether [unit] is a blank to `TextParser.moveThroughWhitespace`.
+  bool _isParserBlank(int unit) =>
+      unit == _space ||
+      unit == _tab ||
+      unit == _verticalTab ||
+      unit == _carriageReturn ||
+      unit == _formFeed;
 
   ({String marker, String info})? _fenceMark(String line) {
     final match = _fence.firstMatch(line);

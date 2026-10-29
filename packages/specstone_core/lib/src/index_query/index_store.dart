@@ -35,7 +35,7 @@ const _notWritableMessage =
 /// and how that JSON is computed. An index of another layout is then rebuilt
 /// instead of failing a read (INV-2). An older build's reset recreates the meta
 /// row without it, so its index is rebuilt too.
-const _layoutVersion = 3;
+const _layoutVersion = 4;
 
 const _schema = '''
 CREATE TABLE meta (

@@ -683,5 +683,99 @@ void main() {
       '${'[r]: b.md "t\n\n' * 10000}[l](b.md)\n',
       [(20001, 'b.md')],
     );
+
+    within('10,000 list items are scanned', '${'- x\n' * 10000}\n[l](b.md)\n', [
+      (10002, 'b.md'),
+    ]);
+
+    within(
+      '10,000 blockquote lines are scanned',
+      '${'> x\n' * 10000}\n[l](b.md)\n',
+      [(10002, 'b.md')],
+    );
+  });
+
+  group('look-alikes in containers', () {
+    List<LinkPlace> placesOf(String body) =>
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
+
+    void placed(String name, String body, List<LinkPlace> expected) {
+      test(name, () => expect(placesOf(body), expected));
+    }
+
+    test('f04/us02/fr04, LA3: a definition in a blockquote or a list item is '
+        'read', () {
+      const expected = [
+        (target: 'b.md', line: 3, shown: 'b.md'),
+        (target: 'b.md', line: 4, shown: 'b.md'),
+      ];
+
+      expect(placesOf('> [r]: b.md\n\n[c](b.md)\n[d][r]\n'), expected);
+      expect(placesOf('- [r]: b.md\n\n[c](b.md)\n[d][r]\n'), expected);
+    });
+
+    placed(
+      'f04/us02/fr04, LA3: pin: a lazy line defines nothing',
+      '- x\n[r]: b.md\n\n[t][r]\n[c](b.md)\n',
+      [(target: 'b.md', line: 5, shown: 'b.md')],
+    );
+
+    test('f04/us02/fr04, LA3: list items end the brackets before them', () {
+      expect(placesOf('- [a\n- b](b.md)\n- [c](b.md)\n'), [
+        (target: 'b.md', line: 3, shown: 'b.md'),
+      ]);
+      expect(placesOf('x [a\n1. b](b.md)\n\n[c](b.md)\n'), [
+        (target: 'b.md', line: 4, shown: 'b.md'),
+      ]);
+    });
+
+    placed(
+      'f04/us02/fr04, LA3: pin: an ordered item numbered 2 does not interrupt '
+          'a paragraph',
+      'x [a\n2. b](b.md)\n',
+      [(target: 'b.md', line: 1, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: a checkbox is no shortcut reference',
+      '- [x] task\n\n[x]: b.md\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 5, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: indented code in a blockquote holds no use',
+      '>     [a](b.md)\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 3, shown: 'b.md')],
+    );
+
+    test('f04/us02/fr04, LA3: pin: blockquote and list lines keep their '
+        'links', () {
+      expect(placesOf('> ```\n> [a](b.md)\n> ```\n\n[c](b.md)\n'), [
+        (target: 'b.md', line: 5, shown: 'b.md'),
+      ]);
+      expect(placesOf('> [a](b.md\n> "t")\n\n[c](b.md)\n'), [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 4, shown: 'b.md'),
+      ]);
+      expect(placesOf('> [a\nb](b.md)\n'), [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+      ]);
+      expect(placesOf('- x\n\n    [a](b.md)\n'), [
+        (target: 'b.md', line: 3, shown: 'b.md'),
+      ]);
+      expect(placesOf('- a\n  [b](c.md)\n'), [
+        (target: 'c.md', line: 2, shown: 'c.md'),
+      ]);
+    });
+
+    placed(
+      'f04/us02/fr04, LA3: pin: links in a nested item and its continuation '
+          'keep their lines',
+      '- a\n  - [b](c.md)\n    [d](c.md)\n',
+      [
+        (target: 'c.md', line: 2, shown: 'c.md'),
+        (target: 'c.md', line: 3, shown: 'c.md'),
+      ],
+    );
   });
 }
