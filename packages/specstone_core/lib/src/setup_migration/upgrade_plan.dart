@@ -4,10 +4,15 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show MoveJournal;
+import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
+    show PathMove;
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
@@ -70,16 +75,23 @@ RunPlan planUpgradeRun(
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
-  final (:planned, :movedAt) = _plannedPaths(docPaths, steps);
-  final moves = [
+  final (:planned, :movedAt, :movedBy) = _plannedPaths(docPaths, steps);
+  _refuseMoveCollisions(
+    docPaths,
+    planned: planned,
+    movedBy: movedBy,
+    steps: steps,
+  );
+  final moves = orderedMoves([
     for (final path in docPaths)
       if (planned[path] != path) (from: path, to: planned[path]!),
-  ];
+  ]);
 
   final matcher = DocTypeMatcher(finalSet);
   final docRewrites = <PlannedRewrite>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
+  final moveCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
     final original = readDocText(
@@ -100,10 +112,43 @@ RunPlan planUpgradeRun(
         RenameField() => _withKeyRenamed(lf, step.from, step.to),
         MoveFile() => lf,
       };
-      if (renamed == lf) continue;
-      lf = renamed;
-      changes.add(_describe(step));
-      (changedAt[index] ??= []).add(plannedPath);
+      if (renamed != lf) {
+        // Held is read from the text before the rename: `renamed` holds the
+        // target by construction.
+        final held = switch (step) {
+          RenameSection() => Doc.parse(
+            lf,
+          ).sections.any((section) => section.headerText == step.toHeader),
+          RenameField() =>
+            Doc.parse(lf).frontmatter?.any((block) => block.name == step.to) ??
+                false,
+          MoveFile() => false,
+        };
+        if (held) {
+          final message = switch (step) {
+            RenameSection() =>
+              'rename_section of ${step.docType} renames ${step.fromHeader} '
+                  'to ${step.toHeader}, which the doc already holds; '
+                  '$_resolveCollision',
+            RenameField() =>
+              'rename_field of ${step.docType} renames ${step.from} to '
+                  '${step.to}, which the doc already holds; '
+                  '$_resolveCollision',
+            MoveFile() => '',
+          };
+          moveCollisions.add(
+            MigrateFault(
+              MigrateFaultCode.upgradeCollision,
+              message,
+              file: path,
+            ),
+          );
+          continue;
+        }
+        lf = renamed;
+        changes.add(_describe(step));
+        (changedAt[index] ??= []).add(plannedPath);
+      }
     }
     if (moves.isNotEmpty) {
       final links = rewriteLinks(lf, docPath: path, moves: moves);
@@ -123,6 +168,7 @@ RunPlan planUpgradeRun(
       ),
     );
   }
+  _throwCollisions(moveCollisions);
 
   final overrideRewrites = [
     for (final file in overrideFiles)
@@ -297,28 +343,142 @@ PlannedRewrite _configRewriteOf(Directory root, List<PackUpgrade> upgrades) {
   );
 }
 
-/// Returns where each doc of [docPaths] sits after every `move_file` step, and
-/// the paths each move step leaves its docs at.
-({Map<String, String> planned, Map<int, List<String>> movedAt}) _plannedPaths(
-  List<String> docPaths,
-  List<_Step> steps,
-) {
+/// Returns where each doc of [docPaths] sits after every `move_file` step, the
+/// paths each move step leaves its docs at, and the move step of each moved
+/// doc.
+///
+/// A step matches a doc at the path the doc holds when the step runs; a doc
+/// no earlier step moved sits at its original path. A doc moves at most once:
+/// the first matching step wins, so two steps trading paths keep their finals
+/// distinct.
+({
+  Map<String, String> planned,
+  Map<int, List<String>> movedAt,
+  Map<String, int> movedBy,
+})
+_plannedPaths(List<String> docPaths, List<_Step> steps) {
   final planned = {for (final path in docPaths) path: path};
   final movedAt = <int, List<String>>{};
+  final movedBy = <String, int>{};
   for (final (index, (:step, from: _)) in steps.indexed) {
     if (step is! MoveFile) continue;
     final from = PathPattern(step.from);
     final to = PathPattern(step.to);
-    for (final entry in planned.entries) {
+    for (final entry in planned.entries.toList()) {
+      if (movedBy[entry.key] != null) continue;
       final values = from.valuesOf(entry.value);
       if (values == null) continue;
       final moved = to.fill(values);
       if (moved == entry.value) continue;
       (movedAt[index] ??= []).add(moved);
       planned[entry.key] = moved;
+      movedBy[entry.key] = index;
     }
   }
-  return (planned: planned, movedAt: movedAt);
+  return (planned: planned, movedAt: movedAt, movedBy: movedBy);
+}
+
+const _resolveCollision =
+    'move, rename, or merge each listed doc or entry so the step no longer '
+    'lands on it, then run specstone migrate again';
+
+/// Throws `upgrade_collision` for every [faults] entry, the first as the
+/// fault and the rest chained through `more`.
+void _throwCollisions(List<MigrateFault> faults) {
+  if (faults.isEmpty) return;
+  final first = faults.first;
+  throw MigrateFault(
+    first.code,
+    first.message,
+    file: first.file,
+    key: first.key,
+    more: faults.sublist(1),
+  );
+}
+
+/// Throws `upgrade_collision` when a `move_file` step lands on a path the
+/// Owner still holds: a doc no step moves, or a second doc of the same move.
+///
+/// Two docs moved onto one path each fault on their own line. A move onto
+/// another moved doc's old path is fine: [orderedMoves] orders those.
+void _refuseMoveCollisions(
+  List<String> docPaths, {
+  required Map<String, String> planned,
+  required Map<String, int> movedBy,
+  required List<_Step> steps,
+}) {
+  final faults = <MigrateFault>[];
+  for (final source in docPaths) {
+    final destination = planned[source]!;
+    if (destination == source) continue;
+    final step = steps[movedBy[source]!].step;
+    if (step is! MoveFile) continue;
+    // A stayer holds its ground: the mover's destination is its own path.
+    final stayer = docPaths.any(
+      (path) => path == destination && movedBy[path] == null,
+    );
+    // Another mover with the same final path: each fault names the other. A
+    // stayer never counts; it is the stayer fault below.
+    final rivals = docPaths.where(
+      (path) =>
+          path != source &&
+          movedBy[path] != null &&
+          planned[path] == destination,
+    );
+    if (stayer) {
+      faults.add(_collisionFault(step, source, 'the doc already there holds'));
+    }
+    for (final rival in rivals) {
+      faults.add(_collisionFault(step, source, '$rival also moves to'));
+    }
+  }
+  _throwCollisions(faults);
+}
+
+MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
+    MigrateFault(
+      MigrateFaultCode.upgradeCollision,
+      'move_file of ${step.docType} moves ${step.from} to ${step.to}, '
+      'which $holder; '
+      '$_resolveCollision',
+      file: source,
+    );
+
+/// Orders [moves] so no move lands on a path another move still occupies.
+///
+/// A move whose target is another move's source runs after it. A cycle, such
+/// as two docs trading places, has no such order, so every doc parks in the
+/// journal's staging folder first, then each takes its final path.
+List<PathMove> orderedMoves(List<PathMove> moves) {
+  final byTarget = {for (final move in moves) move.to: move};
+  final ordered = <PathMove>[];
+  final placed = <String>{};
+  void place(PathMove move) {
+    if (!placed.add(move.from)) return;
+    final blocker = byTarget[move.from];
+    if (blocker != null && blocker.from != move.from) place(blocker);
+    ordered.add(move);
+  }
+
+  moves.forEach(place);
+  final remaining = <PathMove>[];
+  final freed = <String>{};
+  for (final move in ordered) {
+    if (freed.contains(move.to) || !moves.any((m) => m.from == move.to)) {
+      freed.add(move.from);
+    } else {
+      remaining.add(move);
+    }
+  }
+  if (remaining.isEmpty) return ordered;
+
+  // A cycle: every doc parks in the stage, then each takes its final path.
+  return [
+    for (final (i, move) in moves.indexed)
+      (from: move.from, to: '${MoveJournal.stagePath}/$i'),
+    for (final (i, move) in moves.indexed)
+      (from: '${MoveJournal.stagePath}/$i', to: move.to),
+  ];
 }
 
 /// Returns [lf] with the frontmatter key [from] written as [to], its value

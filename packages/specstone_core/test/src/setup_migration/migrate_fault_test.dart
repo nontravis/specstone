@@ -21,6 +21,11 @@ void main() {
       expect(MigrateFaultCode.groupSlugDuplicate.exitStatus, 65);
     });
 
+    test('f06/us02/fr02/e08: upgrade_collision exits 65', () {
+      expect(MigrateFaultCode.upgradeCollision.wire, 'upgrade_collision');
+      expect(MigrateFaultCode.upgradeCollision.exitStatus, 65);
+    });
+
     test('f06/us02/fr03: override_dangling exits 78', () {
       expect(MigrateFaultCode.overrideDangling.wire, 'override_dangling');
       expect(MigrateFaultCode.overrideDangling.exitStatus, 78);

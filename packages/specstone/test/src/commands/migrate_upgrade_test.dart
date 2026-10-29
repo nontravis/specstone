@@ -43,6 +43,31 @@ migrations:
       - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "ops/runbooks/{slug}/RUNBOOK.md"}
 ''';
 
+const _swapMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+''';
+
+const _collideMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/PLAYBOOK.md"}
+''';
+
+const _heldRenamedMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+  - from: 1.1.0
+    steps:
+      - rename_field: {doc_type: runbook, from: owner, to: on_call}
+''';
+
 String _pack(String version, String migrations) =>
     'name: acme\nversion: $version\nextends: software-tech\n$migrations';
 
@@ -394,5 +419,98 @@ void main() {
       expect(resumed.out, isNot(contains('specstone check')));
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+
+    test('f06/us02/fr02/e08: a move onto a staying doc refuses in the dry '
+        'run and in bare migrate, exits 65, and writes nothing', () async {
+      final home = await _home(
+        migrations: _collideMigrations,
+        type: _runbookType('prds/runbooks/{slug}/PLAYBOOK.md', 'steps'),
+      );
+      final root = await _project(
+        files: {
+          _runbookPath: _runbookDoc,
+          'docs/prds/runbooks/deploy/PLAYBOOK.md': '# Kept\n\n## Steps\n\ny\n',
+        },
+      );
+      final before = _bytesUnder(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+        expect(result.status, 65, reason: args.join(' '));
+        expect(
+          result.err,
+          'prds/runbooks/deploy/RUNBOOK.md: move_file of runbook moves '
+          'prds/runbooks/{slug}/RUNBOOK.md to prds/runbooks/{slug}/PLAYBOOK.md, '
+          'which the doc already there holds; move, rename, or merge each '
+          'listed doc or entry so the step no longer lands on it, then run '
+          'specstone migrate again\n',
+        );
+        expect(result.out, isEmpty);
+      }
+      expect(_bytesUnder(root), before);
+    });
+
+    test('f06/us02/fr02/e08: a rename onto a header or key the doc already '
+        'holds refuses, exits 65', () async {
+      final home = await _home(
+        migrations: _heldRenamedMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      final root = await _project(
+        files: {
+          _runbookPath:
+              '---\nowner: sre\non_call: ira\n---\n# Deploy\n\n## Steps\n\n'
+              'x\n\n## Procedure\n\ny\n',
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 65);
+      expect(
+        result.err,
+        'prds/runbooks/deploy/RUNBOOK.md: rename_section of runbook renames '
+        'Steps to Procedure, which the doc already holds; move, rename, or '
+        'merge each listed doc or entry so the step no longer lands on it, '
+        'then run specstone migrate again\n'
+        'prds/runbooks/deploy/RUNBOOK.md: rename_field of runbook renames '
+        'owner to on_call, which the doc already holds; move, rename, or '
+        'merge each listed doc or entry so the step no longer lands on it, '
+        'then run specstone migrate again\n',
+      );
+      expect(_subjects(root).single, 'legacy');
+    });
+
+    test(
+      'f06/us02/fr02/e08: two docs trading places both keep their bytes',
+      () async {
+        final home = await _home(
+          migrations: _swapMigrations,
+          type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+        );
+        const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+        const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+        final root = await _project(
+          files: {
+            _runbookPath: runbookText,
+            'docs/prds/runbooks/deploy/NOTES.md': notesText,
+          },
+        );
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_read(root, _runbookPath), notesText);
+        expect(_read(root, 'docs/prds/runbooks/deploy/NOTES.md'), runbookText);
+        expect(
+          Directory('${root.path}/.specstone/trash/stage').existsSync(),
+          isFalse,
+        );
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      },
+    );
   }, skip: hasGit ? null : 'git is not available');
 }

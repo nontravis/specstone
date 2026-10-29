@@ -8,6 +8,7 @@ enum MigrateFaultCode {
   workingTreeDirty('working_tree_dirty', 75),
   gitWorkTreeRequired('git_work_tree_required', 78),
   groupSlugDuplicate('group_slug_duplicate', 65),
+  upgradeCollision('upgrade_collision', 65),
   overrideDangling('override_dangling', 78),
   configExists('config_exists', 64),
   gitFailed('git_failed', 75);

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -59,7 +60,8 @@ Future<({Directory project, Directory home})> _fixture({
 }) async {
   final home = await writeTree({
     '.specstone/packs/acme/pack.yaml': packYaml,
-    '.specstone/packs/acme/runbook.yaml': runbookType,
+    for (final type in runbookType.split('---\n'))
+      '.specstone/packs/acme/${_idOf(type) ?? 'runbook'}.yaml': type,
   });
   final project = await writeTree({
     '.specstone/config.yaml': _config(acmePin),
@@ -75,10 +77,170 @@ RunPlan _plan(({Directory project, Directory home}) fixture) => planUpgradeRun(
   homeDirectory: fixture.home,
 );
 
+/// The `id:` value of a doc-type text, or null.
+String? _idOf(String type) =>
+    RegExp(r'^id: (\S+)$', multiLine: true).firstMatch(type)?.group(1);
+
 PlannedRewrite _rewriteAt(RunPlan plan, String path) =>
     plan.rewrites.singleWhere((rewrite) => rewrite.path == path);
 
 void main() {
+  test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
+      'prints', () async {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/PLAYBOOK.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/PLAYBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/runbooks/deploy/PLAYBOOK.md': '# Kept\n\n## Steps\n\ny\n',
+      },
+    );
+
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.upgradeCollision)
+            .having((f) => f.exitStatus, 'exitStatus', 65)
+            .having(
+              (f) => f.toText(),
+              'text',
+              'prds/runbooks/deploy/RUNBOOK.md: move_file of runbook moves '
+                  'prds/runbooks/{slug}/RUNBOOK.md to '
+                  'prds/runbooks/{slug}/PLAYBOOK.md, which the doc already '
+                  'there holds; move, rename, or merge each listed doc or '
+                  'entry so the step no longer lands on it, then run '
+                  'specstone migrate again',
+            ),
+      ),
+    );
+    expect(
+      File.fromUri(
+        fixture.project.uri.resolve('docs/prds/runbooks/deploy/PLAYBOOK.md'),
+      ).readAsStringSync(),
+      '# Kept\n\n## Steps\n\ny\n',
+    );
+  });
+
+  test('f06/us02/fr02/e08: two docs moved onto one path refuse once, each on '
+      'its own line', () async {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/NOTES.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/ops/deploy/RUNBOOK.md': '# Live\n\n## Steps\n\ny\n',
+      },
+    );
+
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.more, 'more', hasLength(1))
+            .having(
+              (f) => f.toText(),
+              'text',
+              'prds/ops/deploy/RUNBOOK.md: move_file of runbook moves '
+                  'prds/ops/{slug}/RUNBOOK.md to '
+                  'prds/runbooks/{slug}/NOTES.md, which '
+                  'prds/runbooks/deploy/RUNBOOK.md also moves to; move, '
+                  'rename, or merge each listed doc or entry so the step no '
+                  'longer lands on it, then run specstone migrate again\n'
+                  'prds/runbooks/deploy/RUNBOOK.md: move_file of runbook moves '
+                  'prds/runbooks/{slug}/RUNBOOK.md to '
+                  'prds/runbooks/{slug}/NOTES.md, which '
+                  'prds/ops/deploy/RUNBOOK.md also moves to; move, rename, '
+                  'or merge each listed doc or entry so the step no longer '
+                  'lands on it, then run specstone migrate again',
+            ),
+      ),
+    );
+  });
+
+  test('f06/us02/fr02/e08: Scenario B moves land with no content lost, and a '
+      'two-move cycle goes through the stage', () async {
+    const swapPack = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: notes, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+''';
+    const types = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+---
+id: notes
+description: Notes.
+path: prds/runbooks/{slug}/NOTES.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final fixture = await _fixture(
+      packYaml: swapPack,
+      runbookType: types,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
+      },
+    );
+    final plan = _plan(fixture);
+
+    expect(
+      [for (final move in plan.moves) (move.from, move.to)],
+      [
+        ('prds/runbooks/deploy/NOTES.md', '.specstone/trash/stage/0'),
+        ('prds/runbooks/deploy/RUNBOOK.md', '.specstone/trash/stage/1'),
+        ('.specstone/trash/stage/0', 'prds/runbooks/deploy/RUNBOOK.md'),
+        ('.specstone/trash/stage/1', 'prds/runbooks/deploy/NOTES.md'),
+      ],
+    );
+    expect(plan.toText(), contains('stage'));
+  });
+
   test('f06/us02/fr02, f06/us02/s2: the s02 upgrade plan', () async {
     final plan = _plan(await _fixture());
 
