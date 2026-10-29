@@ -10,13 +10,30 @@ import '../../helpers/write_runner.dart';
 /// One `check --json` finding.
 typedef _Finding = ({String kind, String path, String message});
 
-/// Every file under [root] outside `.git`, by path, with its bytes.
+/// Whether [path] has a segment that is exactly `.git`.
+bool _inGitFolder(String path) =>
+    path.replaceAll(r'\', '/').split('/').contains('.git');
+
+/// Every file under [root] outside a `.git` folder, by path, with its bytes.
 Map<String, List<int>> _bytesUnder(Directory root) => {
   for (final entity in root.listSync(recursive: true, followLinks: false))
-    if (entity is File &&
-        !entity.path.contains('${Platform.pathSeparator}.git'))
+    if (entity is File && !_inGitFolder(entity.path))
       entity.path: entity.readAsBytesSync(),
 };
+
+/// Asserts each of [present] exists and each of [gone] does not, under [root].
+void _expectFiles(
+  Directory root, {
+  List<String> present = const [],
+  List<String> gone = const [],
+}) {
+  for (final path in present) {
+    expect(File('${root.path}/$path').existsSync(), isTrue, reason: path);
+  }
+  for (final path in gone) {
+    expect(File('${root.path}/$path').existsSync(), isFalse, reason: path);
+  }
+}
 
 FakeConsole _owner() =>
     FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true, answers: ['y']);
@@ -85,6 +102,20 @@ Future<(Directory, List<_Finding>)> _layout(Map<String, String> files) async {
   return (root, findings);
 }
 
+/// Writes [files] under [path] and commits them in a new git repository.
+Future<Directory> _gitRepoAt(String path, Map<String, String> files) async {
+  final root = Directory(path)..createSync(recursive: true);
+  for (final MapEntry(:key, :value) in files.entries) {
+    final file = File('$path/$key');
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(value);
+  }
+  expect(git(root, ['init', '-q']).exitCode, 0);
+  expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+  commitAll(root, 'legacy');
+  return root;
+}
+
 Iterable<String> _untyped(List<_Finding> findings) => [
   for (final f in findings)
     if (f.kind == 'untyped_doc') f.path,
@@ -129,21 +160,40 @@ void main() {
       _untyped(findings),
       contains('prds/features/brick_module/README.md'),
     );
-    final overrides = [
+    expect(
+      File('${root.path}/.specstone/templates/feature.yaml').readAsStringSync(),
+      'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+    );
+    final onDisk = [
       for (final f in Directory('${root.path}/.specstone/templates').listSync())
-        if (f is File && f.readAsStringSync().startsWith('path: ')) f.path,
+        if (f is File && !f.path.endsWith('gnfr.yaml')) f.path,
     ];
-    expect(overrides, hasLength(10));
     final tracked =
-        git(root, ['ls-files', '.specstone/templates']).stdout as String;
-    expect(tracked.trim().split('\n'), hasLength(greaterThanOrEqualTo(10)));
+        (git(root, ['ls-files', '.specstone/templates']).stdout as String)
+            .trim()
+            .split('\n')
+            .where((path) => !path.endsWith('gnfr.yaml'));
+    expect(onDisk, hasLength(10));
+    expect(tracked, hasLength(onDisk.length));
   }, skip: skip);
 
   test('f06/us01/fr03/e06: containers, as stratum_ui', () async {
-    final (_, findings) = await _layout({
+    final (root, findings) = await _layout({
       ...containerLegacy,
       _context: '# D-01 — Context\n',
     });
+
+    _expectFiles(
+      root,
+      present: [
+        'docs/prds/features/utilities/FEATURE.md',
+        'docs/prds/features/utilities/f01_slot/FEATURE.md',
+      ],
+      gone: [
+        'docs/prds/features/components/co01_utilities/FEATURE.md',
+        'docs/prds/features/components/co01_utilities/co01_01_slot/FEATURE.md',
+      ],
+    );
 
     final untyped = _untyped(findings);
     expect(untyped, contains('prds/features/utilities/FEATURE.md'));
@@ -155,8 +205,20 @@ void main() {
 
   group('specEdgeLegacy', () {
     test('f06/us01/fr03/e08: pre-renumber spec numbers', () async {
-      final (_, findings) = await _layout(specEdgeLegacy);
+      final (root, findings) = await _layout(specEdgeLegacy);
 
+      _expectFiles(
+        root,
+        present: [
+          'docs/specs/f02_billing/DOMAIN.md',
+          'docs/specs/f02_billing/ERROR.md',
+          'docs/specs/api/billing/s07_sequence.md',
+        ],
+        gone: [
+          'docs/specs/api/billing/s04_domain.md',
+          'docs/specs/api/billing/s02_errors.md',
+        ],
+      );
       final untyped = _untyped(findings);
       expect(untyped, contains('specs/api/billing/s07_sequence.md'));
       expect(untyped, isNot(contains('specs/f02_billing/DOMAIN.md')));
@@ -292,6 +354,7 @@ void main() {
     final missing = findings.where(
       (f) =>
           f.kind == 'required_field_missing' &&
+          f.path.endsWith('validate_credentials.md') &&
           f.message.contains('traced_from'),
     );
     expect(missing, isNotEmpty);
@@ -319,11 +382,17 @@ name: Login API
 
     final (root, findings) = await _layout(files);
 
-    final api = Directory('${root.path}/docs/specs')
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.readAsStringSync().contains('confirmed:'));
-    expect(api, isNotEmpty);
+    final api = File('${root.path}/docs/specs/f01_login/API.md');
+    expect(api.existsSync(), isTrue);
+    expect(
+      api.readAsStringSync(),
+      matches(
+        RegExp(
+          r'^confirmed:\n  - email_login/validate_credentials [0-9a-f]{12}$',
+          multiLine: true,
+        ),
+      ),
+    );
     expect(findings.where((f) => f.kind == 'suspect'), isEmpty);
     expect(
       findings.where(
@@ -337,39 +406,47 @@ name: Login API
 
   test('f06/us01/s10: docs reached through a link migrate in the repository '
       'that holds them', () async {
-    final docsRepo = await gitFixture(acmeLegacy);
-    final docsRepoSub = Directory('${docsRepo.path}/docs');
-    final code = await gitFixture({'src/main.dart': 'void main() {}\n'});
+    final parent = await Directory.systemTemp.createTemp('specstone_link_');
+    addTearDown(() => parent.delete(recursive: true));
+    final docsRepo = await _gitRepoAt('${parent.path}/docsrepo', acmeLegacy);
+    final code = await _gitRepoAt('${parent.path}/code', {
+      'src/main.dart': 'void main() {}\n',
+    });
     try {
-      Link('${code.path}/docs').createSync(docsRepoSub.path);
+      Link('${code.path}/docs').createSync('../docsrepo/docs');
     } on FileSystemException {
       markTestSkipped('this machine cannot create a link');
       return;
     }
-    // The link is a tracked entry of `code/`, so its tree starts clean.
     commitAll(code, 'link docs');
-    final codeCount =
-        (git(code, ['rev-list', '--count', 'HEAD']).stdout as String).trim();
-    final docsCount =
-        (git(docsRepo, ['rev-list', '--count', 'HEAD']).stdout as String)
-            .trim();
+    int commits(Directory repo) => int.parse(
+      (git(repo, ['rev-list', '--count', 'HEAD']).stdout as String).trim(),
+    );
+    final codeCommits = commits(code);
+    final docsCommits = commits(docsRepo);
+
+    final before = _bytesUnder(code);
+    final docsBefore = _bytesUnder(docsRepo);
+    final dry = await _run(code, ['migrate', '--dry-run']);
+    expect(dry.status, 0, reason: dry.err);
+    expect(_bytesUnder(code), before);
+    expect(_bytesUnder(docsRepo), docsBefore);
 
     final run = await _run(code, ['migrate'], console: _owner());
 
     expect(run.status, 0, reason: run.err);
-    expect(
-      (git(docsRepo, ['rev-list', '--count', 'HEAD']).stdout as String).trim(),
-      '${int.parse(docsCount) + 2}',
-    );
+    expect(commits(docsRepo), docsCommits + 2);
     expect(
       File('${docsRepo.path}/.specstone/config.yaml').existsSync(),
       isTrue,
     );
-    expect(
-      (git(code, ['rev-list', '--count', 'HEAD']).stdout as String).trim(),
-      codeCount,
-    );
+    expect(git(docsRepo, ['status', '--porcelain']).stdout, isEmpty);
+    expect(commits(code), codeCommits);
     expect(git(code, ['status', '--porcelain']).stdout, isEmpty);
     expect(Directory('${code.path}/.specstone').existsSync(), isFalse);
+
+    final findings = await _check(docsRepo);
+    expect(findings.where((f) => f.kind == 'suspect'), isEmpty);
+    await _migrateAgain(docsRepo);
   }, skip: skip);
 }
