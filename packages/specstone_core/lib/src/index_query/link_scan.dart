@@ -301,7 +301,10 @@ final class _Reader {
   /// [unit] is the code unit at [at], one an email can hold. The pattern runs
   /// at a URL scheme, or in a run of email code units that ends in `@`. Every
   /// start in a run shares the text after the `@`, so once the pattern finds
-  /// no email in a run, the run is dead for the rest of its starts.
+  /// no email in a run, the run is dead for the rest of its starts. A URL that
+  /// follows a code unit no URL may follow is no link, and in a dead run no
+  /// email either, so that start is rejected before the pattern, which would
+  /// scan to the end of the word, runs.
   int _extensionAutolink(int at, int unit) {
     final startsUrl = _startsUrl(at, unit);
     if (at >= _emailRunEnd) {
@@ -312,7 +315,7 @@ final class _Reader {
       _emailRunEnd = runEnd;
       _emailRunDead = runEnd >= _end || text.codeUnitAt(runEnd) != _atSign;
     }
-    if (!startsUrl && _emailRunDead) return at + 1;
+    if (_emailRunDead && !(startsUrl && _mayFollow(at))) return at + 1;
     final leaf = _leafText;
     final from = at - _start;
     final match = _extensionPattern.matchAsPrefix(leaf, from);
@@ -321,9 +324,7 @@ final class _Reader {
       return at + 1;
     }
     if (match[1] != null) {
-      if (from > 0 && !_urlPrecedents.contains(text.codeUnitAt(at - 1))) {
-        return at + 1;
-      }
+      if (!_mayFollow(at)) return at + 1;
       found.add((offset: at, shown: null));
       return at + _urlLength(match[0]!);
     }
@@ -335,6 +336,11 @@ final class _Reader {
     found.add((offset: at, shown: null));
     return at + (match.end - from);
   }
+
+  /// Returns whether a GFM bare URL may start at [at]: at the start of the leaf
+  /// or after a code unit of [_urlPrecedents].
+  bool _mayFollow(int at) =>
+      at == _start || _urlPrecedents.contains(text.codeUnitAt(at - 1));
 
   /// Returns whether a URL scheme or `www.` starts at [at], where [unit] is the
   /// code unit there.

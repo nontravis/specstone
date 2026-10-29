@@ -522,5 +522,17 @@ void main() {
       '${'a' * 50000}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
+
+    within(
+      '10,000 http URL starts after a letter are scanned',
+      '${'xhttp://a.b' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 www URL starts after a letter are scanned',
+      '${'xwww.a.b' * 10000}\n\n[l](b.md)\n',
+      [(3, 'b.md')],
+    );
   });
 }
