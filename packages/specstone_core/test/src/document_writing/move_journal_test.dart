@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/hold_open.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -161,6 +162,81 @@ void main() {
     target.parent.createSync(recursive: true);
     docFile(root, path).renameSync(target.path);
   }
+
+  test('f02/us04/fr01, dw-s03/inv9, NFR-DI01, FN3: a delete move outwaits a '
+      'reader that holds the file open for 300 ms', () async {
+    await whileHeld(
+      docFile(root, story3).path,
+      const Duration(milliseconds: 300),
+      () => const MoveStep(
+        'docs/$story3',
+        '$_trashDocs/$story3',
+      ).apply(openProject(root)),
+    );
+
+    expect(File('${root.path}/$_trashDocs/$story3').existsSync(), isTrue);
+    expect(hasDoc(root, story3), isFalse);
+  });
+
+  test('f02/us05/fr01, dw-s03/inv9, FN3: a reorder move of a folder outwaits a '
+      'reader that holds a file inside it for 300 ms', () async {
+    await whileHeld(
+      docFile(root, story2).path,
+      const Duration(milliseconds: 300),
+      () => const MoveStep(
+        'docs/$_login/us02_sign_out',
+        '${MoveJournal.stagePath}/us02_sign_out',
+      ).apply(openProject(root)),
+    );
+
+    expect(
+      File(
+        '${root.path}/${MoveJournal.stagePath}/us02_sign_out/'
+        'USER_STORY.md',
+      ).existsSync(),
+      isTrue,
+    );
+  });
+
+  test(
+    'f02/us04/fr03, FN3: a move blocked past the 1 s limit fails with '
+    'output_not_writable',
+    () async {
+      final clock = Stopwatch();
+      Object? thrown;
+
+      await whileHeld(
+        docFile(root, story3).path,
+        const Duration(seconds: 3),
+        () {
+          clock.start();
+          try {
+            const MoveStep(
+              'docs/$story3',
+              '$_trashDocs/$story3',
+            ).apply(openProject(root));
+          } on RenderFault catch (error) {
+            thrown = error;
+          } finally {
+            clock.stop();
+          }
+        },
+      );
+
+      expect(
+        thrown,
+        isA<RenderFault>().having(
+          (e) => e.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      );
+      expect(clock.elapsed, lessThan(const Duration(milliseconds: 2500)));
+    },
+    skip: Platform.isWindows
+        ? false
+        : 'only Windows refuses to rename an open file',
+  );
 
   test('f02/us04/fr03, dw-s03/inv9, f02/us04/fr03/e06: run moves to the trash, prunes, then clears journal and trash', () {
     const MoveJournal([

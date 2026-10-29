@@ -1,52 +1,10 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:test/test.dart';
 
-/// Opens the path for the duration, signalling `open` then `closed`.
-Future<void> _holdOpen((String, Duration, SendPort) args) async {
-  final (path, hold, port) = args;
-  final handle = File(path).openSync();
-  port.send('open');
-  await Future<void>.delayed(hold);
-  handle.closeSync();
-  port.send('closed');
-}
-
-/// Runs [act] while another isolate holds [path] open for [hold].
-///
-/// Fails at once with the holder's error when the holder cannot open [path];
-/// otherwise waits for the holder to close before it returns.
-Future<void> _whileHeld(String path, Duration hold, void Function() act) async {
-  final signal = ReceivePort();
-  final opened = Completer<void>()..future.ignore();
-  final closed = Completer<void>()..future.ignore();
-  signal.listen((message) {
-    if (message is List) {
-      final failure = StateError('the holder isolate failed: ${message.first}');
-      if (!opened.isCompleted) opened.completeError(failure);
-      if (!closed.isCompleted) closed.completeError(failure);
-    }
-    if (message == 'open') opened.complete();
-    if (message == 'closed') closed.complete();
-  });
-  final holder = await Isolate.spawn(_holdOpen, (
-    path,
-    hold,
-    signal.sendPort,
-  ), onError: signal.sendPort);
-  try {
-    await opened.future;
-    act();
-    await closed.future;
-  } finally {
-    signal.close();
-    holder.kill();
-  }
-}
+import '../helpers/hold_open.dart';
 
 void main() {
   late Directory folder;
@@ -107,7 +65,7 @@ void main() {
       final file = File('${folder.path}/.gitignore')
         ..writeAsStringSync('old\n');
 
-      await _whileHeld(
+      await whileHeld(
         file.path,
         const Duration(milliseconds: 300),
         () => writeFileAtomic(file, utf8.encode('new\n')),
@@ -126,7 +84,7 @@ void main() {
         final clock = Stopwatch();
         Object? thrown;
 
-        await _whileHeld(file.path, const Duration(milliseconds: 1500), () {
+        await whileHeld(file.path, const Duration(milliseconds: 1500), () {
           clock.start();
           try {
             writeFileAtomic(file, utf8.encode('new\n'));
