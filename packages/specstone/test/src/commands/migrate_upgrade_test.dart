@@ -481,7 +481,7 @@ void main() {
     });
 
     test('f06/us02/fr02/e08: a rename onto a header or key the doc already '
-        'holds refuses, exits 65', () async {
+        'holds refuses, exits 65, listing the doc once', () async {
       final home = await _home(
         migrations: _heldRenamedMigrations,
         type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
@@ -501,10 +501,6 @@ void main() {
         result.err,
         'prds/runbooks/deploy/RUNBOOK.md: rename_section of runbook renames '
         'Steps to Procedure, which the doc already holds; move, rename, or '
-        'merge each listed doc or entry so the step no longer lands on it, '
-        'then run specstone migrate again\n'
-        'prds/runbooks/deploy/RUNBOOK.md: rename_field of runbook renames '
-        'owner to on_call, which the doc already holds; move, rename, or '
         'merge each listed doc or entry so the step no longer lands on it, '
         'then run specstone migrate again\n',
       );
