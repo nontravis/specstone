@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
@@ -10,7 +12,9 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart';
 
 const _commit1Message = 'move legacy docs to their new paths';
 const _commit2Message =
@@ -351,4 +355,191 @@ void main() {
     expect(_run(root, again), 0);
     expect(again.toString(), 'nothing to migrate\n');
   }, skip: hasGit ? null : 'git is not available');
+
+  group('f06/us01/fr07: resume and replay', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    test('f06/us01/fr07/e03, f06/us01/fr01/e07, f06/us01/s9: a run stopped '
+        'after commit 1 finishes with no second y', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      expect(hasDoc(root, 'prds/d01_context.md'), isFalse);
+      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
+      final out = StringBuffer();
+
+      final status = runMigrate(
+        MigrateRequest(
+          workingDirectory: root,
+          homeDirectory: null,
+          templates: TemplateResolver(),
+          dryRun: false,
+          interactive: true,
+          readLine: () => throw StateError('resume must not ask'),
+          out: out,
+        ),
+      );
+
+      expect(status, 0);
+      final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+          .trim()
+          .split('\n');
+      expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+      expect(MoveJournal.pending(root), isFalse);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      final lines = out.toString().trim().split('\n');
+      expect(lines[lines.length - 3], matches(r'^commit 1 [0-9a-f]{7,}: .*$'));
+      expect(lines[lines.length - 3], endsWith(_commit1Message));
+      expect(lines[lines.length - 2], matches(r'^commit 2 [0-9a-f]{7,}: .*$'));
+      expect(lines[lines.length - 2], endsWith(_commit2Message));
+      expect(lines.last, 'run specstone check to list what is left to fill');
+      expect(
+        out.toString(),
+        startsWith('pending migration: ${root.resolveSymbolicLinksSync()} '),
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e04: --dry-run lists the remaining steps and writes '
+        'nothing', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final head = headOf(root);
+      final journal = File('${root.path}/${MoveJournal.journalPath}')
+          .readAsStringSync();
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true), 0);
+
+      final lines = out.toString().trim().split('\n');
+      expect(
+        lines.first,
+        'pending migration: ${root.resolveSymbolicLinksSync()} '
+        '(.specstone/trash/journal.json)',
+      );
+      expect(lines[1], 'remaining steps:');
+      expect(lines, contains('  write docs/prds/PROJECT.md'));
+      expect(lines.last, 'dry run: nothing written');
+      expect(headOf(root), head);
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+        journal,
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e05: bare migrate with no terminal lists the '
+        'remaining steps and exits 77', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final head = headOf(root);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, interactive: false),
+        throwsA(
+          isA<WriteFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                WriteFaultCode.ownerTerminalRequired,
+              )
+              .having((f) => f.exitStatus, 'exit', 77),
+        ),
+      );
+      expect(out.toString(), contains('remaining steps:\n'));
+      expect(out.toString(), contains('  write docs/prds/PROJECT.md\n'));
+      expect(headOf(root), head);
+      expect(MoveJournal.pending(root), isTrue);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e07: a pending F-02 journal is replayed, then the '
+        'clean-tree check runs', () async {
+      final files = {
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/prds/a.md': 'x\n',
+      };
+      final root = await gitFixture(files);
+      writeJournal(root, [const MoveStep('docs/prds/a.md', 'docs/prds/b.md')]);
+
+      expect(
+        () => _run(root, StringBuffer()),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+      expect(hasDoc(root, 'prds/a.md'), isFalse);
+      expect(hasDoc(root, 'prds/b.md'), isTrue);
+
+      final dry = await gitFixture(files);
+      writeJournal(dry, [const MoveStep('docs/prds/a.md', 'docs/prds/b.md')]);
+      _run(dry, StringBuffer(), dryRun: true);
+      expect(hasDoc(dry, 'prds/a.md'), isTrue);
+      expect(hasDoc(dry, 'prds/b.md'), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e09: a commit a hook refuses stops the run, and the '
+        'next migrate resumes it', () async {
+      final root = await gitFixture(acmeLegacy);
+      final hook = File('${root.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+
+      expect(
+        () => _run(root, StringBuffer(), answers: ['y']),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.gitFailed)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                'git commit failed: lint failed; fix the cause, then run '
+                    'specstone migrate at an interactive terminal to finish '
+                    'the run',
+              ),
+        ),
+      );
+      expect(MoveJournal.pending(root), isTrue);
+
+      hook.deleteSync();
+      final out = StringBuffer();
+      expect(_run(root, out), 0);
+
+      final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+          .trim()
+          .split('\n');
+      expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+  });
+}
+
+/// Returns the full sha HEAD of [root] points at.
+String headOf(Directory root) =>
+    (git(root, ['rev-parse', 'HEAD']).stdout as String).trim();
+
+/// Leaves [root] as a crash after commit 1 of the legacy plan does: the
+/// journal saved, its steps applied through the first commit.
+void _stopAfterCommit1(Directory root) {
+  final steps = planLegacyRun(
+    root,
+    templates: TemplateResolver(),
+    homeDirectory: null,
+  ).journalSteps(base: headOf(root));
+  final specstone = Directory('${root.path}/.specstone')
+    ..createSync(recursive: true);
+  ensureSpecstoneGitignore(specstone);
+  Directory('${root.path}/${MoveJournal.trashPath}').createSync();
+  writeJournal(root, steps);
+  final target = JournalTarget(
+    projectRoot: root,
+    docsRoot: Directory('${root.path}/docs'),
+  );
+  for (final step in steps) {
+    step.apply(target);
+    if (step is CommitStep) break;
+  }
 }

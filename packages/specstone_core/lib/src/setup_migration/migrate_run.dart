@@ -5,9 +5,13 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+
+// A resume has no plan to carry the line; it equals the legacy plan's.
+const _resumeClosingLine = 'run specstone check to list what is left to fill';
 
 /// What one `specstone migrate` call runs with.
 final class MigrateRequest {
@@ -52,11 +56,35 @@ final class MigrateRequest {
 /// A bare legacy run checks git first, prints the plan, and applies it only on
 /// the Owner's `y`.
 ///
+/// A pending journal is finished first: an F-02 journal is replayed before the
+/// git checks, and a migrate journal is resumed with no second `y`.
+///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal and the faults of
-/// applying (index, render, git) follow the printed plan.
+/// applying (index, render) follow the printed plan or the listed steps. A
+/// `git add` or `git commit` that fails throws `MigrateFault` `git_failed`,
+/// and the journal stays.
 int runMigrate(MigrateRequest request) {
+  try {
+    return _migrate(request);
+  } on GitCommandFailed catch (error) {
+    throw MigrateFault(
+      MigrateFaultCode.gitFailed,
+      'git ${error.verb} failed: ${error.line}; fix the cause, then run '
+      'specstone migrate at an interactive terminal to finish the run',
+    );
+  }
+}
+
+int _migrate(MigrateRequest request) {
   final root = findMigrateRoot(request.workingDirectory);
+  if (!request.dryRun &&
+      !MoveJournal.pendingMigrate(root) &&
+      MoveJournal.pending(root)) {
+    MoveJournal.replay(_targetOf(root, request));
+    requireGitWorkTree(root, request.runGit);
+    requireCleanWorkTree(root, request.runGit);
+  }
   final kind = chooseRun(
     root,
     templates: request.templates,
@@ -94,24 +122,64 @@ int runMigrate(MigrateRequest request) {
       final answer = request.readLine()?.trim();
       if (answer != 'y') return 0;
       final base = headSha(root, request.runGit);
-      MoveJournal(plan.journalSteps(base: base)).run(
-        JournalTarget(
-          projectRoot: root,
-          docsRoot: Directory.fromUri(root.uri.resolve('docs')),
-          runGit: request.runGit,
-        ),
-      );
-      var n = plan.moves.isEmpty ? 2 : 1;
-      for (final (:sha, :subject) in commitsSince(root, base, request.runGit)) {
-        request.out.writeln('commit $n $sha: $subject');
-        n++;
-      }
+      MoveJournal(plan.journalSteps(base: base)).run(_targetOf(root, request));
+      _printCommits(request, root, base, plan.moves.isEmpty ? 2 : 1);
       final closingLine = plan.closingLine;
       if (closingLine != null) request.out.writeln(closingLine);
       return 0;
     case RunKind.resume:
-      throw StateError('resuming a migration is M4-T14');
+      return _resume(request, root);
     case RunKind.upgrade:
       throw StateError('upgrading pack pins is M5-T18');
+  }
+}
+
+/// Finishes the migrate journal a stopped run left, with no second `y`: the
+/// Owner's first `y` approved its steps.
+int _resume(MigrateRequest request, Directory root) {
+  final target = _targetOf(root, request);
+  final out = request.out
+    ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')
+    ..writeln('remaining steps:');
+  for (final step in MoveJournal.remaining(target)) {
+    out.writeln('  ${step.describe()}');
+  }
+  if (request.dryRun) {
+    out.writeln('dry run: nothing written');
+    return 0;
+  }
+  if (!request.interactive) {
+    throw WriteFault(
+      WriteFaultCode.ownerTerminalRequired,
+      'migrate applies only at an interactive terminal; ask the Owner to '
+      'run specstone migrate',
+    );
+  }
+  final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
+  MoveJournal.replay(target);
+  _printCommits(request, root, commits.first.base, 3 - commits.length);
+  out.writeln(_resumeClosingLine);
+  return 0;
+}
+
+JournalTarget _targetOf(Directory root, MigrateRequest request) =>
+    JournalTarget(
+      projectRoot: root,
+      docsRoot: Directory.fromUri(root.uri.resolve('docs')),
+      runGit: request.runGit,
+    );
+
+/// Prints a `commit <n> <sha>: <subject>` line per commit since [base],
+/// numbering from [first].
+void _printCommits(
+  MigrateRequest request,
+  Directory root,
+  String base,
+  int first,
+) {
+  var n = first;
+  for (final (:sha, :subject) in commitsSince(root, base, request.runGit)) {
+    request.out.writeln('commit $n $sha: $subject');
+    n++;
   }
 }

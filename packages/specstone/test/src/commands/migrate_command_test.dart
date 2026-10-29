@@ -122,6 +122,54 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  test(
+    'f06/us01/fr07/e09, f06/us01/fr07/e03: a refused commit exits 75, and '
+    'the next migrate at a terminal resumes with no answer',
+    () async {
+      final root = await gitFixture(acmeLegacy);
+      final hook = File('${root.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final first = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+        ),
+      );
+
+      expect(await first.runner.run(['migrate']), 75);
+      expect(
+        first.err.toString(),
+        'git commit failed: lint failed; fix the cause, then run specstone '
+        'migrate at an interactive terminal to finish the run\n',
+      );
+
+      hook.deleteSync();
+      final second = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true),
+      );
+
+      expect(await second.runner.run(['migrate']), 0);
+      expect(second.err.toString(), isEmpty);
+      expect(second.out.toString(), startsWith('pending migration: '));
+      final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+          .trim()
+          .split('\n');
+      expect(subjects.take(2), [
+        'rewrite titles, keys, and links; add project configuration',
+        'move legacy docs to their new paths',
+      ]);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+    },
+    skip: Platform.isWindows
+        ? 'the hook is a sh script'
+        : (hasGit ? null : 'git is not available'),
+  );
+
   test("f06/us01/s13: an Agent's shell gets the plan and exit 77", () async {
     final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(

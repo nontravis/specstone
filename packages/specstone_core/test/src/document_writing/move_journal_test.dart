@@ -828,6 +828,79 @@ void main() {
       ]);
     }, skip: skipGit);
 
+    test('f06/us01/fr07/e03: a commit-msg hook that prefixes the subject does '
+        'not make a resume commit twice', () async {
+      final root = await _gitTree({'docs/prds/d01_context.md': 'x\n'});
+      final hook = File('${root.path}/.git/hooks/commit-msg')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          r'printf "[X] " | cat - "$1" > "$1.tmp" && mv "$1.tmp" "$1"'
+          '\n',
+        );
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final base = _head(root);
+      final steps = [
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep('docs/prds/PROJECT.md', 'y\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: ['docs/prds/PROJECT.md'],
+          base: base,
+        ),
+      ];
+      File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      steps[0].apply(_target(root));
+      steps[1].apply(_target(root));
+      expect(_log(root), ['[X] move', 'initial']);
+      expect(steps[1].isDone(_target(root)), isTrue);
+
+      MoveJournal.replay(_target(root));
+
+      expect(_log(root), ['[X] rewrite', '[X] move', 'initial']);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('f06/us01/fr07/e03: a commit whose paths stage nothing is done and '
+        'makes no empty commit', () async {
+      final root = await _gitTree({'docs/prds/PROJECT.md': 'x\n'});
+      final base = _head(root);
+
+      CommitStep(
+        message: 'rewrite',
+        paths: ['docs/prds/PROJECT.md'],
+        base: base,
+      ).apply(_target(root));
+
+      expect(_log(root), ['initial']);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e03: read returns the pending steps, null when none or '
+        'unparsable', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'x\n'});
+      expect(MoveJournal.read(root), isNull);
+      final journal = File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode(
+            const MoveJournal([WriteStep('docs/prds/PROJECT.md', 'y\n')])
+                .toJson(),
+          ),
+        );
+      expect(MoveJournal.read(root)!.map((s) => s.describe()), [
+        'write docs/prds/PROJECT.md',
+      ]);
+      journal.writeAsStringSync('{not json');
+      expect(MoveJournal.read(root), isNull);
+    });
+
     test(
       'f06/us01/fr07/e09: a commit git refuses leaves the journal pending',
       () async {
@@ -858,11 +931,11 @@ void main() {
     );
 
     test('f06/us01/fr07/e09: the decisive line is the first fatal or error line, else the last line', () async {
-      final root = await writeTree({});
+      final root = await writeTree({'x': ''});
       ProcessResult failing(String stderr, String stdout) =>
           ProcessResult(0, 1, stdout, stderr);
       void commitWith(String stderr, {String stdout = ''}) =>
-          const CommitStep(message: 'm', paths: [], base: 'b').apply(
+          const CommitStep(message: 'm', paths: ['x'], base: 'b').apply(
             JournalTarget(
               projectRoot: root,
               docsRoot: root,

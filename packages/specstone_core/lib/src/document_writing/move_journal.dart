@@ -274,8 +274,9 @@ final class CreateStep extends JournalStep {
 /// Commits [paths] with [message], once.
 ///
 /// [base] is the HEAD sha when the journal was written; the step is done when
-/// a commit after [base] carries [message] as a line, so a replay after any
-/// crash point makes the commit exactly once.
+/// a commit after [base] carries [message] within a line (a hook may prefix
+/// the subject), so a replay after any crash point makes the commit exactly
+/// once. A step whose [paths] stage nothing is done and commits nothing.
 final class CommitStep extends JournalStep {
   const new({required this.message, required this.paths, required this.base});
 
@@ -304,15 +305,51 @@ final class CommitStep extends JournalStep {
       '$base..HEAD',
     ], workingDirectory: target.projectRoot.path);
     return log.exitCode == 0 &&
-        const LineSplitter().convert(log.stdout as String).contains(message);
+        const LineSplitter()
+            .convert(log.stdout as String)
+            .any((line) => line.contains(message));
   }
 
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
-    _runWrite(target, 'add', ['add', '-A', '--', ...paths]);
+    final known = paths.where((path) => _isKnown(target, path)).toList();
+    if (known.isNotEmpty) {
+      _runWrite(target, 'add', ['add', '-A', '--', ...known]);
+    }
+    if (_nothingStaged(target)) return;
     _runWrite(target, 'commit', ['commit', '-q', '-m', message]);
   }
+
+  /// Whether [path] sits in the work tree or the index.
+  ///
+  /// `git add` refuses a pathspec that matches neither, as a moved-away path
+  /// does once an earlier, refused attempt already staged its deletion.
+  bool _isKnown(JournalTarget target, String path) {
+    final absolute = _absolute(target, path);
+    if (FileSystemEntity.typeSync(absolute, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      return true;
+    }
+    final listed = target.runGit([
+      'ls-files',
+      '--',
+      path,
+    ], workingDirectory: target.projectRoot.path);
+    return listed.exitCode == 0 && '${listed.stdout}'.trim().isNotEmpty;
+  }
+
+  /// Whether the staged changes under [paths] are empty, as when a hook that
+  /// rewrote the subject hid an earlier commit from [isDone].
+  bool _nothingStaged(JournalTarget target) =>
+      target.runGit([
+        'diff',
+        '--cached',
+        '--quiet',
+        '--',
+        ...paths,
+      ], workingDirectory: target.projectRoot.path).exitCode ==
+      0;
 }
 
 /// Runs the `git` write [arguments] for [verb].
@@ -386,6 +423,16 @@ final class MoveJournal {
       return steps?.any((step) => step is CommitStep) ?? false;
     } on RenderFault {
       return false;
+    }
+  }
+
+  /// Returns every step of the pending journal under [projectRoot], or null
+  /// when there is none or it does not parse.
+  static List<JournalStep>? read(Directory projectRoot) {
+    try {
+      return _pendingSteps(projectRoot);
+    } on RenderFault {
+      return null;
     }
   }
 
