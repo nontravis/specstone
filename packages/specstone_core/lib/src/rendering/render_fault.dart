@@ -9,8 +9,7 @@ enum RenderFaultCode {
   targetMissing('target_missing', 64),
   targetNotFound('target_not_found', 64),
   targetOutsideDocsRoot('target_outside_docs_root', 64),
-  browserNotFound('browser_not_found', 69),
-  browserPrintFailed('browser_print_failed', 70),
+  argumentInvalid('argument_invalid', 64),
   outputNotWritable('output_not_writable', 73);
 
   new(this.wire, this.exitStatus);

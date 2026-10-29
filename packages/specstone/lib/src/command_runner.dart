@@ -51,7 +51,6 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     TemplateResolver? templates,
     Directory? workingDirectory,
     Directory? homeDirectory,
-    BrowserHost? browserHost,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
   }) : _out = out ?? stdout,
@@ -59,7 +58,6 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
        _templates = templates ?? TemplateResolver(),
        _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
-       _browserHost = browserHost ?? BrowserHost.system(),
        _busyTimeout = busyTimeout,
        _console = console ?? SystemConsole(),
        super(
@@ -95,7 +93,6 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final TemplateResolver _templates;
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
-  final BrowserHost _browserHost;
   final Duration _busyTimeout;
   final Console _console;
 
@@ -119,9 +116,6 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// Home folder that holds the personal packs, `~`, or null when the
   /// environment names none.
   Directory? get homeDirectory => _homeDirectory;
-
-  /// The machine facts `build --format pdf` finds and runs the browser with.
-  BrowserHost get browserHost => _browserHost;
 
   /// How long a read command waits on another call's index write.
   Duration get busyTimeout => _busyTimeout;
