@@ -25,6 +25,28 @@ void main() {
       }
     });
 
+    test('doc_model/s03/inv8, LP2: a tree deeper than 1,000 levels gives '
+        'null; one within the bound gives its nodes', () {
+      final tooDeep = '${'*' * 2400}a${'*' * 2400}';
+      final withinBound = '${'*' * 1900}a${'*' * 1900}';
+
+      expect(
+        () =>
+            Document(extensionSet: ExtensionSet.gitHubFlavored).parse(tooDeep),
+        returnsNormally,
+        reason: 'the parser itself builds the deep tree',
+      );
+      expect(parseMarkdown(tooDeep), isNull);
+      expect(parseMarkdown(withinBound), isNotNull);
+      expect(
+        parseMarkdown('${'>' * 1500} a [y](other.md)'),
+        isNull,
+        reason:
+            'a blockquote the parser still reads is cut at the same bound, '
+            'so the answer no longer depends on the stack depth of the caller',
+      );
+    });
+
     test(
       'doc_model/s03/inv8, LP2: a body the parser reads gives its nodes',
       () {

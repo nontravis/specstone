@@ -181,6 +181,11 @@ void main() {
     ...buildCommands,
   ], tags: 'f01/us01/fr02, f05/us02/fr03/e10, LP1');
 
+  everyCommandAnswers('\n${'*' * 21000}a${'*' * 21000}\n[x](other.md)\n', [
+    ...readWriteCommands,
+    ...buildCommands,
+  ], tags: 'f01/us01/fr03/e12, s03/inv8, LP2');
+
   test('f04/us02/fr04/e08, LP1: check reports the link as written', () async {
     final run = await runIn(await caseProject('\n[x](%DB.md)\n'), ['check']);
 
