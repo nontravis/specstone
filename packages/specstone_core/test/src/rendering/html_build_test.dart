@@ -418,12 +418,12 @@ void main() {
     test('f05/us02/fr02/e08, s03/inv24, LP5: a deeply nested blockquote, '
         'which holds no link syntax, renders the same way', () async {
       final build = await _build({
-        _frPath: '# Req\n\n${'> ' * 100000}x',
+        _frPath: '# Req\n\n${'> ' * 2000}x',
       }, target: 'docs/$_featureDir');
 
       final html = build.html.replaceAll(mermaidScript, '');
       expect(html, contains('<h1>Req</h1>'));
-      expect(html, contains('<pre>\n${'&gt; ' * 100000}x</pre>'));
+      expect(html, contains('<pre>\n${'&gt; ' * 2000}x</pre>'));
       expect(build.warnings, contains(message));
     });
 

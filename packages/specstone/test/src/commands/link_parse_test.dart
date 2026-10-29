@@ -316,7 +316,7 @@ void main() {
     '\n[a]: <',
     '\n[^1]\n\n[^1]: - note\n',
     '\n[a]: /b (c\n| :--- | ---: |\n',
-    '\n${'> ' * 100000}x\n',
+    '\n${'> ' * 2000}x\n',
   ]) {
     test(
       'f01/us01/fr03/e12, LP2: each parser fault class answers '

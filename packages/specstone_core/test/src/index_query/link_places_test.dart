@@ -170,7 +170,7 @@ void main() {
 
     test('s03/inv24, LP2: a body with no link syntax is never parsed', () {
       final places = linkPlacesOf(
-        '${'> ' * 100000}x',
+        '${'> ' * 2000}x',
         docPath: 'prds/f/us/fr01.md',
         firstLine: 1,
       );

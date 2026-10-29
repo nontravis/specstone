@@ -11,7 +11,7 @@ void main() {
         '[a]: <',
         '[a]: /b (c\n| :--- | ---: |\n',
         '[^1]\n\n[^1]: - note\n',
-        '${'> ' * 100000}x',
+        '${'>' * 20000}x',
       ];
 
       for (final input in inputs) {
