@@ -4,6 +4,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
 import 'package:specstone_core/src/rendering/html_page.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
+import 'package:specstone_core/src/rendering/page_setup.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -35,6 +36,7 @@ Future<HtmlBuild> _build(
   Map<String, String> docs, {
   String? target,
   Map<String, String> extra = const {},
+  PageSetup page = PageSetup.defaults,
   void Function(Directory root)? beforeBuild,
 }) async {
   final root = await fixtureProject({
@@ -53,10 +55,22 @@ Future<HtmlBuild> _build(
       workingDirectory: root,
       defaultsToDocsRoot: true,
     ),
+    page: page,
   );
 }
 
 void main() {
+  test('f05/us02/fr05: buildHtml carries the page it is given', () async {
+    final build = await _build({
+      _featurePath: _feature,
+    }, page: PageSetup.parse(paper: 'legal'));
+
+    expect(
+      build.html,
+      contains('@page { size: legal portrait; margin: 20mm; }'),
+    );
+  });
+
   test('f05/us02/fr02, f05/us02/fr01: a folder renders its docs in tree '
       'order, each in a numbered section the toc links to', () async {
     final build = await _build({

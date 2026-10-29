@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/html_page.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
+import 'package:specstone_core/src/rendering/page_setup.dart';
 import 'package:test/test.dart';
 
 String _page(List<RenderedDoc> docs, {String title = 'docs'}) =>
@@ -53,6 +54,24 @@ void main() {
       expect(pageStylesheet, contains('.draft'));
       expect(pageStylesheet, contains('border:'));
     });
+
+    test('f05/us02/fr05, DP4: print keeps colors and drops the body box', () {
+      const screenBody =
+          'margin: 2rem auto; max-width: 56rem; padding: 0 1rem;';
+      const printColors =
+          'html { -webkit-print-color-adjust: exact; '
+          'print-color-adjust: exact; }';
+      const printBody =
+          '@media print { body { margin: 0; max-width: none; padding: 0; } }';
+
+      expect(pageStylesheet, contains(screenBody));
+      expect(pageStylesheet, contains(printColors));
+      expect(pageStylesheet, contains(printBody));
+      expect(
+        pageStylesheet.indexOf(printBody),
+        greaterThan(pageStylesheet.indexOf(screenBody)),
+      );
+    });
   });
 
   group('renderPage', () {
@@ -66,7 +85,12 @@ void main() {
       expect(html, startsWith('<!DOCTYPE html>'));
       expect(html, contains('<meta charset="utf-8">'));
       expect(html, contains('<title>prds/features</title>'));
-      expect(html, contains('<style>$pageStylesheet</style>'));
+      expect(
+        html,
+        contains(
+          '<style>$pageStylesheet${PageSetup.defaults.pageRule}</style>',
+        ),
+      );
       expect(html, contains('<nav class="toc">'));
       expect(
         html.indexOf('<a href="#doc-1">One</a>'),
@@ -82,6 +106,30 @@ void main() {
         html.indexOf('</nav>'),
         lessThan(html.indexOf('<section class="doc" id="doc-1">')),
       );
+    });
+
+    test('f05/us02/fr05, s03/inv25: the stylesheet ends with the page '
+        'rule', () {
+      const rule = '@page { size: A4 portrait; margin: 20mm; }';
+      final html = _page(const [_oneDoc]);
+
+      expect(rule.allMatches(html), hasLength(1));
+      expect(html.indexOf(rule), greaterThan(html.indexOf(pageStylesheet)));
+
+      final landscape = renderPage(
+        title: 'docs',
+        docs: const [_oneDoc],
+        page: PageSetup.parse(paper: 'a5', landscape: true, margin: '1in'),
+      );
+      expect(landscape, contains('@page { size: A5 landscape; margin: 1in; }'));
+    });
+
+    test('f05/us02/fr05, s03/inv25: no page number or header', () {
+      final html = _page(const [_oneDoc]);
+
+      expect(html, isNot(contains('@top-')));
+      expect(html, isNot(contains('@bottom-')));
+      expect(html, isNot(contains('counter(page')));
     });
 
     test('f05/us02/fr02/e05: escapes a toc entry and the title', () {

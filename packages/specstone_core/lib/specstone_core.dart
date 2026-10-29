@@ -50,6 +50,7 @@ export 'src/rendering/build_output.dart'
 export 'src/rendering/docs_project.dart' show DocsProject, Target;
 export 'src/rendering/format_run.dart' show FormatReport, runFormat;
 export 'src/rendering/html_build.dart' show HtmlBuild, buildHtml;
+export 'src/rendering/page_setup.dart' show PageSetup, Paper;
 export 'src/rendering/render_fault.dart';
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
