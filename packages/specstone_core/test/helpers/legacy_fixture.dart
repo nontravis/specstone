@@ -252,6 +252,14 @@ applies_to:
   'docs/specs/architecture/caching.schema.json': '{}\n',
 };
 
+/// Two legacy projects in one repository: the root and `example-app/`.
+final nestedLegacy = <String, String>{
+  'docs/prds/d01_context.md': '# D-01 — Root context\n',
+  'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
+  'example-app/docs/prds/d01_context.md': '# D-01 — App context\n',
+  'example-app/docs/prds/features/f01_cart/FEATURE.md': '# F-01 — Cart\n',
+};
+
 /// Writes [files] under a new temp folder and commits them in a git repo.
 Future<Directory> gitFixture(Map<String, String> files) async {
   final root = await writeTree(files);
