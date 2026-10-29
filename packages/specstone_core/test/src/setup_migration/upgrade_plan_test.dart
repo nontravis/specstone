@@ -138,6 +138,36 @@ void main() {
     );
   });
 
+  test('f06/us02/fr02/e03: an override field with the old id takes the new '
+      'id and keeps every other key', () async {
+    final plan = _plan(
+      await _fixture(
+        overrides: const {
+          _overridePath:
+              'fields:\n'
+              '  - id: owner\n'
+              '    type: string\n'
+              '    description: Kept.\n',
+        },
+      ),
+    );
+
+    expect(
+      _rewriteAt(plan, _overridePath).text,
+      'fields:\n'
+      '  - id: on_call\n'
+      '    type: string\n'
+      '    description: Kept.\n',
+    );
+    expect(
+      plan.toText(),
+      contains(
+        'from 1.1.0: rename_field runbook owner -> on_call: '
+        'prds/runbooks/deploy/RUNBOOK.md, .specstone/templates/runbook.yaml\n',
+      ),
+    );
+  });
+
   test('f06/us02/fr02/e03: a renamed field keeps its value', () async {
     final plan = _plan(await _fixture());
 

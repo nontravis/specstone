@@ -148,7 +148,7 @@ void main() {
     expect(commits.single.sha, matches(RegExp(r'^[0-9a-f]{7,}$')));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr07/e03: commitsSince returns the whole message beside the '
+  test('f06/us01/fr07: commitsSince returns the whole message beside the '
       'subject, so a prepended paragraph still shows the step line', () async {
     final root = await gitFixture(acmeLegacy);
     final base = headSha(root, runRealGit);

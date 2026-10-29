@@ -170,7 +170,9 @@ int _resume(MigrateRequest request, Directory root) {
   final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
-  out.writeln(legacyClosingLine);
+  if (commits.last.message == legacyCommit2Message) {
+    out.writeln(legacyClosingLine);
+  }
   return 0;
 }
 

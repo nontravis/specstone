@@ -4,9 +4,9 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
+import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
+    show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
@@ -92,7 +92,7 @@ RunPlan planUpgradeRun(
     for (final (index, (:step, from: _)) in steps.indexed) {
       if (step.docType != docTypeId) continue;
       final renamed = switch (step) {
-        RenameSection() => _withHeaderRenamed(
+        RenameSection() => withHeaderRenamed(
           lf,
           step.fromHeader,
           step.toHeader,
@@ -163,7 +163,7 @@ RunPlan planUpgradeRun(
   return RunPlan(
     header: 'pack upgrade: ${upgraded.join(', ')}',
     moves: moves,
-    prunes: _prunesOf(moves),
+    prunes: prunesOf(moves),
     rewrites: [...docRewrites, ...overrideRewrites, configRewrite],
     creates: const [],
     left: const [],
@@ -321,23 +321,6 @@ PlannedRewrite _configRewriteOf(Directory root, List<PackUpgrade> upgrades) {
   return (planned: planned, movedAt: movedAt);
 }
 
-/// Returns [lf] with the `##` header [from] written as [to], or [lf] when it
-/// has no such section.
-String _withHeaderRenamed(String lf, String from, String to) {
-  final doc = Doc.parse(lf);
-  final index = doc.sections.indexWhere((s) => s.headerText == from);
-  if (index < 0) return lf;
-  final lines = doc.afterFrontmatter.split('\n');
-  final lineAt = doc.sectionLineIndexes[index];
-  lines[lineAt] = lines[lineAt].replaceRange(
-    0,
-    doc.sections[index].headerLine.length,
-    '## $to',
-  );
-  final frontmatterLength = lf.length - doc.afterFrontmatter.length;
-  return lf.substring(0, frontmatterLength) + lines.join('\n');
-}
-
 /// Returns [lf] with the frontmatter key [from] written as [to], its value
 /// kept, or [lf] when it has no such key.
 String _withKeyRenamed(String lf, String from, String to) {
@@ -373,12 +356,6 @@ String _shownPaths({
   ];
   return shown.isEmpty ? 'no doc changes' : shown.join(', ');
 }
-
-/// Returns the folders the moves empty, the deepest first, as ProjectPaths.
-List<String> _prunesOf(List<PathMove> moves) => {
-  for (final move in moves)
-    '$_docsFolder${move.from.substring(0, move.from.lastIndexOf('/'))}',
-}.toList()..sort((a, b) => compareCodePoints(b, a));
 
 /// Returns the DocPath of every Markdown file under [docsRoot].
 List<String> _docPathsOf(Directory docsRoot) {

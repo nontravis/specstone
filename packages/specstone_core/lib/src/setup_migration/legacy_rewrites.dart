@@ -122,7 +122,7 @@ DocRewrite rewriteLegacyDoc(
   }
   final rename = _headerRenames[kind];
   if (rename != null) {
-    apply(rename.$2, (t) => _withHeaderRenamed(t, rename.$1, rename.$2));
+    apply(rename.$2, (t) => withHeaderRenamed(t, rename.$1, rename.$2));
   }
   if (kind == LegacyKind.topic) {
     apply('covers from applies_to', _withCoversKey);
@@ -201,7 +201,9 @@ String _withoutIndexes(String lf) {
   return '${withoutTrailingBlankLines(text)}\n';
 }
 
-String _withHeaderRenamed(String lf, String from, String to) {
+/// Returns [lf] with the `##` header [from] written as [to], or [lf] when it
+/// has no such section.
+String withHeaderRenamed(String lf, String from, String to) {
   final doc = Doc.parse(lf);
   final index = doc.sections.indexWhere((s) => s.headerText == from);
   if (index < 0) return lf;

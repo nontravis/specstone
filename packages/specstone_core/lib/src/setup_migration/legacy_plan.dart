@@ -27,7 +27,9 @@ const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
 const _commit1Message = 'move legacy docs to their new paths';
-const _commit2Message =
+
+/// The message of a legacy migration's second commit.
+const legacyCommit2Message =
     'rewrite titles, keys, and links; add project configuration';
 
 /// What an applied or resumed migration prints after its commit lines.
@@ -105,7 +107,7 @@ RunPlan planLegacyRun(
   return RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
     moves: legacy.moves,
-    prunes: _prunesOf(legacy.moves),
+    prunes: prunesOf(legacy.moves),
     rewrites: [...rewrites.planned, ?configRewrite],
     creates: [
       if (!config.existsSync())
@@ -122,7 +124,7 @@ RunPlan planLegacyRun(
     ],
     left: legacy.left,
     commit1Message: _commit1Message,
-    commit2Message: _commit2Message,
+    commit2Message: legacyCommit2Message,
     closingLine: legacyClosingLine,
   );
 }
@@ -325,7 +327,7 @@ Map<String, String> _overridesOf(
 }
 
 /// Returns the folders the moves empty, the deepest first, as ProjectPaths.
-List<String> _prunesOf(List<PathMove> moves) => {
+List<String> prunesOf(List<PathMove> moves) => {
   for (final move in moves)
     '$_docsFolder${move.from.substring(0, move.from.lastIndexOf('/'))}',
 }.toList()..sort((a, b) => compareCodePoints(b, a));
