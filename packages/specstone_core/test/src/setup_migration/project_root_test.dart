@@ -101,6 +101,25 @@ void main() {
 
       expect(_canonical(root), _canonical(tree));
     });
+
+    test('f06/us01/fr01/e07, final M8: a pending journal beside the linked '
+        'docs marks the root from the code folder', () async {
+      final tree = await writeTree({
+        'acme-docs/${MoveJournal.journalPath}': _journal,
+        'acme-docs/docs/prds/PROJECT.md': '# Project\n',
+        'acme/lib/keep.txt': '',
+      });
+      try {
+        Link('${tree.path}/acme/docs').createSync('../acme-docs/docs');
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return;
+      }
+
+      final root = findMigrateRoot(Directory('${tree.path}/acme'));
+
+      expect(_canonical(root), _canonical(Directory('${tree.path}/acme-docs')));
+    });
   });
 
   group('rootThroughDocsLink', () {
