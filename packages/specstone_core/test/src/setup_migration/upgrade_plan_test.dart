@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show MoveStep;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
@@ -273,8 +275,8 @@ sections:
     },
   );
 
-  test('f06/us02/fr02/e08: Scenario B moves land with no content lost, and a '
-      'two-move cycle goes through the stage', () async {
+  test('f06/us02/fr02/e08: Scenario B orders a move onto the old path of '
+      'another doc after the move that frees it', () async {
     const swapPack = '''
 name: acme
 version: 1.2.0
@@ -309,6 +311,116 @@ sections:
         ('prds/ops/deploy/RUNBOOK.md', 'prds/runbooks/deploy/RUNBOOK.md'),
         ('prds/runbooks/deploy/NOTES.md', 'prds/ops/deploy/RUNBOOK.md'),
       ],
+    );
+  });
+
+  test('f06/us02/fr02/e08, F6-D34: a rotation through a temporary name plans '
+      'the final paths and parks one doc in the stage', () async {
+    const rotationPack = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/TMP.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/TMP.md", to: "prds/runbooks/{slug}/NOTES.md"}
+''';
+    const types = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    const runbook = 'prds/runbooks/deploy/RUNBOOK.md';
+    const notes = 'prds/runbooks/deploy/NOTES.md';
+    final fixture = await _fixture(
+      packYaml: rotationPack,
+      runbookType: types,
+      overrides: const {},
+      docs: const {
+        runbook: '# Deploy\n\n## Steps\n\nx\n',
+        notes: '# Notes\n\n## Steps\n\ny\n',
+      },
+    );
+
+    final plan = _plan(fixture);
+
+    expect(
+      [for (final move in plan.moves) (move.from, move.to)],
+      [(runbook, notes), (notes, runbook)],
+    );
+    expect(plan.toText(), isNot(contains('.specstone/trash')));
+    expect(
+      [
+        for (final step in plan.journalSteps(base: 'abc'))
+          if (step is MoveStep) step.describe(),
+      ],
+      [
+        'move docs/$runbook -> .specstone/trash/stage/0',
+        'move docs/$notes -> docs/$runbook',
+        'move .specstone/trash/stage/0 -> docs/$notes',
+      ],
+    );
+  });
+
+  test('f06/us02/fr02/e08: one refusal lists a move collision and a rename '
+      'collision together', () async {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/PLAYBOOK.md"}
+      - rename_field: {doc_type: runbook, from: owner, to: on_call}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/PLAYBOOK.md
+fields:
+  - {id: on_call, type: string}
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/runbooks/deploy/PLAYBOOK.md': '# Kept\n\n## Steps\n\ny\n',
+        'prds/runbooks/other/PLAYBOOK.md':
+            '---\nowner: sre\non_call: ira\n---\n# Other\n\n## Steps\n\nz\n',
+      },
+    );
+
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.upgradeCollision)
+            .having((f) => f.more, 'more', hasLength(1))
+            .having(
+              (f) => f.toText(),
+              'text',
+              'prds/runbooks/deploy/RUNBOOK.md: move_file of runbook moves '
+                  'prds/runbooks/{slug}/RUNBOOK.md to '
+                  'prds/runbooks/{slug}/PLAYBOOK.md, which the doc already '
+                  'there holds; move, rename, or merge each listed doc or '
+                  'entry so the step no longer lands on it, then run '
+                  'specstone migrate again\n'
+                  'prds/runbooks/other/PLAYBOOK.md: rename_field of runbook '
+                  'renames owner to on_call, which the doc already holds; '
+                  'move, rename, or merge each listed doc or entry so the '
+                  'step no longer lands on it, then run specstone migrate '
+                  'again',
+            ),
+      ),
     );
   });
 

@@ -1030,4 +1030,147 @@ void main() {
       );
     });
   });
+
+  group('dw-s03/inv9, F6-D35: the journal cursor', () {
+    const x = 'docs/prds/x.md';
+    const y = 'docs/prds/y.md';
+    const z = 'docs/prds/z.md';
+    const stuck = 'docs/prds/stuck.md';
+    // `z -> x` refills the source of `x -> y`, as a chained upgrade move does.
+    const chain = [MoveStep(x, y), MoveStep(z, x)];
+    const stopped = [...chain, WriteStep(stuck, 'new\n')];
+    late Directory tree;
+
+    setUp(() async {
+      tree = await writeTree({x: 'x body\n', z: 'z body\n', stuck: 'old\n'});
+    });
+
+    File fileAt(String path) => File('${tree.path}/$path');
+    File journal() => fileAt(MoveJournal.journalPath);
+
+    /// Makes the write step fail, as a disk that refuses it would.
+    void jamStuck() => fileAt(stuck).writeAsBytesSync([0xff, 0xfe, 0x41]);
+    void unjamStuck() => fileAt(stuck).writeAsStringSync('old\n');
+
+    /// Writes [steps] as a journal whose `cursor` is [cursor].
+    void writeAt(List<JournalStep> steps, Object cursor) {
+      journal()
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode({...MoveJournal(steps).toJson(), 'cursor': cursor}),
+        );
+    }
+
+    /// Runs [stopped] until its write step fails, after both chain moves.
+    void stopAfterChain() {
+      jamStuck();
+      expect(
+        () => const MoveJournal(stopped).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+    }
+
+    void expectChainLanded() {
+      expect(fileAt(y).readAsStringSync(), 'x body\n');
+      expect(fileAt(x).readAsStringSync(), 'z body\n');
+      expect(fileAt(z).existsSync(), isFalse);
+    }
+
+    test('dw-s03/inv9, F6-D35: a run records the count of steps finished after each step', () {
+      stopAfterChain();
+
+      expect((jsonDecode(journal().readAsStringSync()) as Map)['cursor'], 2);
+    });
+
+    test('dw-s03/inv9, F6-D35: a run stopped after a chain replays from its cursor and leaves the landed doc alone', () {
+      stopAfterChain();
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test(
+      'dw-s03/inv9, F6-D35: remaining lists the steps from the cursor on',
+      () {
+        stopAfterChain();
+
+        expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+          'write $stuck',
+        ]);
+      },
+    );
+
+    test('dw-s03/inv9, F6-D35: a journal with no cursor replays every step, each skipped when done', () {
+      fileAt(x).renameSync(fileAt(y).path);
+      writeJournal(tree, chain);
+
+      expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+        'move $z -> $x',
+      ]);
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('dw-s03/inv9, F6-D35: a replay records the cursor too, so a second stop resumes past the chain', () {
+      writeJournal(tree, stopped);
+      jamStuck();
+      expect(
+        () => MoveJournal.replay(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+    });
+
+    test('dw-s03/inv9, F6-D35: a crash between a step and its cursor write finishes on replay', () {
+      for (final step in chain) {
+        step.apply(_target(tree));
+      }
+      writeAt(stopped, 1);
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('dw-s03/inv9, F6-D35, final Minor 2: a cursor that does not count the steps is refused and the trash stays', () {
+      for (final cursor in <Object>[-1, 3, '1', 1.5]) {
+        writeAt(chain, cursor);
+
+        expect(
+          () => MoveJournal.replay(_target(tree)),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (e) => e.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'cannot replay ${MoveJournal.journalPath}: cursor '
+                      '${jsonEncode(cursor)} is not a count of its steps; '
+                      'fix or remove it',
+                ),
+          ),
+          reason: '$cursor',
+        );
+        expect(journal().existsSync(), isTrue, reason: '$cursor');
+        expect(fileAt(x).readAsStringSync(), 'x body\n', reason: '$cursor');
+      }
+    });
+  });
 }

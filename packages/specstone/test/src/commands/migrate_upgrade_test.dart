@@ -58,6 +58,26 @@ migrations:
       - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/PLAYBOOK.md"}
 ''';
 
+/// Moves a doc onto the path the next step's doc leaves.
+const _chainMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/ops/{slug}/RUNBOOK.md"}
+''';
+
+/// Swaps RUNBOOK.md and NOTES.md through a temporary name, so the two docs
+/// trade places.
+const _rotationMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/TMP.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/TMP.md", to: "prds/runbooks/{slug}/NOTES.md"}
+''';
+
 const _heldRenamedMigrations = '''
 migrations:
   - from: 1.0.0
@@ -143,6 +163,18 @@ String _head(Directory root) => _gitOut(root, ['rev-parse', 'HEAD']).trim();
 
 String _read(Directory root, String path) =>
     File('${root.path}/$path').readAsStringSync();
+
+/// Installs a commit-msg hook that refuses commit 2, so a run stops after
+/// commit 1; returns the hook, to delete before the resume.
+File _refuseCommit2(Directory root) {
+  final hook = File('${root.path}/.git/hooks/commit-msg')
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(
+      '#!/bin/sh\ngrep -q "upgrade pack pins" "\$1" && exit 1\nexit 0\n',
+    );
+  expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+  return hook;
+}
 
 Map<String, String> _bytesUnder(Directory root) => {
   for (final entity in root.listSync(recursive: true, followLinks: false))
@@ -399,12 +431,7 @@ void main() {
         type: _runbookType('ops/runbooks/{slug}/RUNBOOK.md', 'steps'),
       );
       final root = await _project(files: {_runbookPath: _runbookDoc});
-      final hook = File('${root.path}/.git/hooks/commit-msg')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(
-          '#!/bin/sh\ngrep -q "upgrade pack pins" "\$1" && exit 1\nexit 0\n',
-        );
-      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final hook = _refuseCommit2(root);
 
       final stopped = await _run(root, home, ['migrate'], console: _owner());
       expect(stopped.status, 75, reason: stopped.err);
@@ -516,15 +543,8 @@ void main() {
 
     test('f06/us02/fr02/e08: a chained move through a freed path lands with no '
         'content lost', () async {
-      const migrations = '''
-migrations:
-  - from: 1.0.0
-    steps:
-      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
-      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/ops/{slug}/RUNBOOK.md"}
-''';
       final home = await _home(
-        migrations: migrations,
+        migrations: _chainMigrations,
         type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
       );
       const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
@@ -542,6 +562,81 @@ migrations:
       expect(_read(root, _runbookPath), runbookText);
       expect(_read(root, 'docs/prds/ops/deploy/RUNBOOK.md'), notesText);
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('f06/us02/fr02/e08, F6-D35: a chained move stopped after commit 1 '
+        'resumes without overwriting the doc it landed', () async {
+      final home = await _home(
+        migrations: _chainMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      final root = await _project(
+        files: {
+          'docs/prds/ops/deploy/RUNBOOK.md': runbookText,
+          'docs/prds/runbooks/deploy/NOTES.md': notesText,
+        },
+      );
+      final hook = _refuseCommit2(root);
+      final stopped = await _run(root, home, ['migrate'], console: _owner());
+      expect(stopped.status, 75, reason: stopped.err);
+      hook.deleteSync();
+
+      final resumed = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(resumed.status, 0, reason: resumed.err);
+      expect(_read(root, _runbookPath), runbookText);
+      expect(_read(root, 'docs/prds/ops/deploy/RUNBOOK.md'), notesText);
+      expect(_subjects(root).first, 'upgrade pack pins');
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+
+    group('f06/us02/fr02/e08, F6-D34: a rotation through a temporary name', () {
+      const notesPath = 'docs/prds/runbooks/deploy/NOTES.md';
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      late Directory home;
+      late Directory root;
+
+      setUp(() async {
+        home = await _home(
+          migrations: _rotationMigrations,
+          type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+        );
+        root = await _project(
+          files: {_runbookPath: runbookText, notesPath: notesText},
+        );
+      });
+
+      void expectTraded() {
+        expect(_read(root, notesPath), runbookText);
+        expect(_read(root, _runbookPath), notesText);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      }
+
+      test('f06/us02/fr02/e08, F6-D34: trades the two docs and prints no '
+          'stage path', () async {
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(result.out, isNot(contains('.specstone/trash')));
+        expectTraded();
+      });
+
+      test('f06/us02/fr02/e08, F6-D35: stopped after commit 1, resumes '
+          'without trading them back', () async {
+        final hook = _refuseCommit2(root);
+        final stopped = await _run(root, home, ['migrate'], console: _owner());
+        expect(stopped.status, 75, reason: stopped.err);
+        hook.deleteSync();
+
+        final resumed = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(resumed.status, 0, reason: resumed.err);
+        expect(resumed.out, isNot(contains('.specstone/trash/stage')));
+        expectTraded();
+      }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
     });
   }, skip: hasGit ? null : 'git is not available');
 }

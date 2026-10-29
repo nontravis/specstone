@@ -4,8 +4,6 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
-import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show MoveJournal;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
@@ -36,9 +34,10 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// Selects every pinned pack's steps, refuses an override the new versions
 /// leave dangling, then plans the moves, the section and field renames in the
 /// docs and the overrides, the link rewrites, and the new pins. Writes
-/// nothing. Throws `MigrateFault` `override_dangling` and a `TemplateFault`
-/// before it returns, so a refused run prints nothing. [homeDirectory] is the
-/// personal pack home, or null.
+/// nothing. Throws `MigrateFault` `override_dangling`, `MigrateFault`
+/// `upgrade_collision` listing every move and rename collision at once, and a
+/// `TemplateFault` before it returns, so a refused run prints nothing.
+/// [homeDirectory] is the personal pack home, or null.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
@@ -76,7 +75,7 @@ RunPlan planUpgradeRun(
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
   final (:planned, :movedAt, :movedBy) = _plannedPaths(docPaths, steps);
-  _refuseMoveCollisions(
+  final moveCollisions = _moveCollisions(
     docPaths,
     planned: planned,
     movedBy: movedBy,
@@ -91,7 +90,7 @@ RunPlan planUpgradeRun(
   final docRewrites = <PlannedRewrite>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
-  final moveCollisions = <MigrateFault>[];
+  final renameCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
     final original = readDocText(
@@ -136,7 +135,7 @@ RunPlan planUpgradeRun(
                   '$_resolveCollision',
             MoveFile() => '',
           };
-          moveCollisions.add(
+          renameCollisions.add(
             MigrateFault(
               MigrateFaultCode.upgradeCollision,
               message,
@@ -168,7 +167,7 @@ RunPlan planUpgradeRun(
       ),
     );
   }
-  _throwCollisions(moveCollisions);
+  _throwCollisions([...moveCollisions, ...renameCollisions]);
 
   final overrideRewrites = [
     for (final file in overrideFiles)
@@ -394,12 +393,13 @@ void _throwCollisions(List<MigrateFault> faults) {
   );
 }
 
-/// Throws `upgrade_collision` when a `move_file` step lands on a path the
-/// Owner still holds: a doc no step moves, or a second doc of the same move.
+/// Returns an `upgrade_collision` fault for each `move_file` step that lands on
+/// a path the Owner still holds: a doc no step moves, or a second doc of the
+/// same move.
 ///
 /// Two docs moved onto one path each fault on their own line. A move onto
 /// another moved doc's old path is fine: [orderedMoves] orders those.
-void _refuseMoveCollisions(
+List<MigrateFault> _moveCollisions(
   List<String> docPaths, {
   required Map<String, String> planned,
   required Map<String, int> movedBy,
@@ -430,7 +430,7 @@ void _refuseMoveCollisions(
       faults.add(_collisionFault(step, source, '$rival also moves to'));
     }
   }
-  _throwCollisions(faults);
+  return faults;
 }
 
 MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
@@ -442,12 +442,11 @@ MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
       file: source,
     );
 
-/// Orders [moves] so no move lands on a path another move still occupies.
+/// Orders [moves] so a move whose target is another move's original path runs
+/// after that move.
 ///
-/// A move whose target is another move's original path runs after it. A
-/// cycle, such as two docs trading places, has no such order, so every doc
-/// parks in the journal's staging folder first, then each takes its final
-/// path.
+/// A cycle, such as two docs trading places, has no such order;
+/// [RunPlan.journalSteps] parks one of its moves in the stage.
 List<PathMove> orderedMoves(List<PathMove> moves) {
   final bySource = {for (final move in moves) move.from: move};
   final ordered = <PathMove>[];
@@ -460,25 +459,7 @@ List<PathMove> orderedMoves(List<PathMove> moves) {
   }
 
   moves.forEach(place);
-  // A move whose target a LATER move still leaves is part of a cycle.
-  final freed = <String>{};
-  final acyclic = <PathMove>[];
-  for (final move in ordered) {
-    if (freed.contains(move.to)) {
-      freed.add(move.from);
-    } else {
-      acyclic.add(move);
-    }
-  }
-  if (acyclic.length == ordered.length) return ordered;
-
-  // A cycle: every doc parks in the stage, then each takes its final path.
-  return [
-    for (final (i, move) in moves.indexed)
-      (from: move.from, to: '${MoveJournal.stagePath}/$i'),
-    for (final (i, move) in moves.indexed)
-      (from: '${MoveJournal.stagePath}/$i', to: move.to),
-  ];
+  return ordered;
 }
 
 /// Returns [lf] with the frontmatter key [from] written as [to], its value

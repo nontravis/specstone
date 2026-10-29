@@ -63,7 +63,10 @@ final class RunPlan {
   /// The first line the plan prints.
   final String header;
 
-  /// The renames of commit 1, as DocPaths.
+  /// The renames of commit 1, as DocPaths, in the order they run.
+  ///
+  /// Each is a doc's original and final path; a cycle's stage slot shows up
+  /// only in [journalSteps].
   final List<PathMove> moves;
 
   /// The ProjectPath folders the moves empty, the deepest first.
@@ -130,8 +133,7 @@ final class RunPlan {
       specstoneGitignorePath,
     };
     return [
-      for (final move in moves)
-        MoveStep('$_docsPrefix${move.from}', '$_docsPrefix${move.to}'),
+      ..._moveSteps(),
       for (final folder in prunes) PruneStep(folder),
       if (moves.isNotEmpty)
         CommitStep(message: commit1Message, paths: movedPaths, base: base),
@@ -143,6 +145,31 @@ final class RunPlan {
         base: base,
       ),
     ];
+  }
+
+  /// Returns one [MoveStep] per move, in order, except that a move onto the
+  /// source of a move not yet run parks in a stage slot first and takes its
+  /// target once every move has run.
+  ///
+  /// A cycle, such as two docs trading places, has no order in which each
+  /// target is free; parking one of its moves breaks it (F6-D34).
+  List<MoveStep> _moveSteps() {
+    final unmoved = {for (final move in moves) move.from};
+    final steps = <MoveStep>[];
+    final unparks = <MoveStep>[];
+    for (final (index, move) in moves.indexed) {
+      unmoved.remove(move.from);
+      final from = '$_docsPrefix${move.from}';
+      final to = '$_docsPrefix${move.to}';
+      if (unmoved.contains(move.to)) {
+        final slot = '${MoveJournal.stagePath}/$index';
+        steps.add(MoveStep(from, slot));
+        unparks.add(MoveStep(slot, to));
+      } else {
+        steps.add(MoveStep(from, to));
+      }
+    }
+    return [...steps, ...unparks];
   }
 
   List<String> _rewriteLines() => [
