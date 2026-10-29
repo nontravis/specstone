@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -362,7 +363,7 @@ void main() {
       'repo/code/keep.txt': 'x\n',
     });
     try {
-      Link('${tree.path}/repo/code/docs').createSync('../../docsrepo/docs');
+      createRelativeLink('${tree.path}/repo/code/docs', '../../docsrepo/docs');
     } on FileSystemException {
       markTestSkipped('symbolic links need privileges on this machine');
       return;

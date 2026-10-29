@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
+import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../helpers/write_runner.dart';
 
 /// One `check --json` finding.
@@ -111,6 +112,8 @@ Future<Directory> _gitRepoAt(String path, Map<String, String> files) async {
     file.writeAsStringSync(value);
   }
   expect(git(root, ['init', '-q']).exitCode, 0);
+  expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+  expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
   expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
   commitAll(root, 'legacy');
   return root;
@@ -413,7 +416,7 @@ name: Login API
       'src/main.dart': 'void main() {}\n',
     });
     try {
-      Link('${code.path}/docs').createSync('../docsrepo/docs');
+      createRelativeLink('${code.path}/docs', '../docsrepo/docs');
     } on FileSystemException {
       markTestSkipped('this machine cannot create a link');
       return;

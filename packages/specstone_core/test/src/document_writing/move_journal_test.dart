@@ -197,13 +197,7 @@ JournalTarget _target(Directory root) => JournalTarget(
 /// Writes [files] as a git work tree with one commit.
 Future<Directory> _gitTree(Map<String, String> files) async {
   final root = await writeTree(files);
-  expect(
-    Process.runSync('git', [
-      'init',
-      '-q',
-    ], workingDirectory: root.path).exitCode,
-    0,
-  );
+  expect(git(root, ['init', '-q']).exitCode, 0);
   for (final setting in [
     ['user.name', 't'],
     ['user.email', 't@t'],

@@ -6,6 +6,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 
 final String _journal = jsonEncode(
@@ -60,7 +61,10 @@ void main() {
         'repo/code/lib/keep.txt': '',
       });
       try {
-        Link('${tree.path}/repo/code/docs').createSync('../../docsrepo/docs');
+        createRelativeLink(
+          '${tree.path}/repo/code/docs',
+          '../../docsrepo/docs',
+        );
       } on FileSystemException {
         markTestSkipped('symbolic links need privileges on this machine');
         return;
@@ -110,7 +114,7 @@ void main() {
         'acme/lib/keep.txt': '',
       });
       try {
-        Link('${tree.path}/acme/docs').createSync('../acme-docs/docs');
+        createRelativeLink('${tree.path}/acme/docs', '../acme-docs/docs');
       } on FileSystemException {
         markTestSkipped('symbolic links need privileges on this machine');
         return;

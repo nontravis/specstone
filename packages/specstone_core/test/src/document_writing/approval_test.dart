@@ -38,6 +38,9 @@ Future<Directory> _repo(
     git(root, ['init', '-q', if (sha256) '--object-format=sha256']).exitCode,
     0,
   );
+  expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+  expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+  expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
   return root;
 }
 
