@@ -1,13 +1,28 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 
-/// Returns the `doc_ref_unresolved` and `link_unresolved` findings of [doc].
+/// Returns the `doc_ref_unresolved`, `link_unresolved`, and `markdown_unparsed`
+/// findings of [doc].
 ///
-/// A typed doc is checked for both, an untyped doc of a checked folder for
-/// links only.
+/// A typed doc is checked for both references and links, an untyped doc of a
+/// checked folder for links only. A doc the markdown parser failed on gets a
+/// `markdown_unparsed` finding stating the F-01 warning, since its links go
+/// unchecked.
 Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
+  final unparsed = markdownUnparsedWarning(doc.docPath);
+  if (doc.warnings.contains(unparsed)) {
+    context.state(unparsed);
+    yield context.finding(
+      doc,
+      FindingKind.markdownUnparsed,
+      line: 1,
+      message:
+          'the markdown parser failed on this doc; its links are not checked',
+    );
+  }
   if (doc.isTyped) yield* _unresolvedDocRefs(context, doc);
   yield* _unresolvedLinks(context, doc);
 }

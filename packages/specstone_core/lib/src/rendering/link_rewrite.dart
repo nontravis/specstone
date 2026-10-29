@@ -222,18 +222,9 @@ bool _isTagNameEnd(int unit) => _isSpace(unit) || unit == 0x2F || unit == 0x3E;
 
 bool _isNameEnd(int unit) => _isTagNameEnd(unit) || unit == 0x3D;
 
-final _brokenPercent = RegExp('%(?![0-9A-Fa-f]{2})');
-
 // A fragment may be written percent-encoded, an id never is.
-bool _namesId(String fragment, Set<String> ids) {
-  if (ids.contains(fragment)) return true;
-  if (_brokenPercent.hasMatch(fragment)) return false;
-  try {
-    return ids.contains(Uri.decodeComponent(fragment));
-  } on FormatException {
-    return false;
-  }
-}
+bool _namesId(String fragment, Set<String> ids) =>
+    ids.contains(fragment) || ids.contains(percentDecoded(fragment));
 
 // The renderer writes a Text as given, so the path is escaped here.
 Element _outsideSpan(Element link, String shown) => Element('span', [

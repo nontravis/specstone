@@ -25,8 +25,11 @@ const _oneDoc = RenderedDoc(
   bodyHtml: '<h1>One</h1>',
 );
 
-String _body(Doc doc) =>
-    renderDocBody(doc, docPath: 'doc.md', anchors: const {'doc.md': 'doc-1'});
+String _body(Doc doc) => renderDocBody(
+  doc,
+  docPath: 'doc.md',
+  anchors: const {'doc.md': 'doc-1'},
+).html;
 
 void main() {
   group('pageStylesheet', () {

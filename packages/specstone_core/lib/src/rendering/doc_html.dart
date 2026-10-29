@@ -1,5 +1,6 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 import 'package:specstone_core/src/rendering/link_rewrite.dart';
 
@@ -15,9 +16,13 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// anchor; a bare fragment keeps a page anchor, else follows an id it names,
 /// else goes to the doc's anchor.
 ///
+/// When `parseMarkdown` fails on the body, the body part is its escaped text in
+/// one `<pre>`, the title, frontmatter table, and draft label render as above,
+/// and `bodyParsed` is false.
+///
 /// - [docPath]: the path of [doc] relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath.
-String renderDocBody(
+({String html, bool bodyParsed}) renderDocBody(
   Doc doc, {
   required String docPath,
   required Map<String, String> anchors,
@@ -25,16 +30,20 @@ String renderDocBody(
   final title = shownTitle(doc);
   final anchor = anchors[docPath];
   final frontmatter = doc.frontmatter;
-  final body = Document(extensionSet: ExtensionSet.gitHubFlavored)
-      .parse(_withoutTitleLine(doc));
-  rewriteLinks(body, docPath: docPath, anchors: anchors);
-  return [
+  final text = _withoutTitleLine(doc);
+  final body = parseMarkdown(text);
+  if (body != null) rewriteLinks(body, docPath: docPath, anchors: anchors);
+  final html = [
     if (title != null) '<h1>${escapeText(title)}</h1>',
     if (frontmatter != null && frontmatter.isNotEmpty)
       _frontmatterTable(frontmatter),
     if (doc.isDraft) '<p class="draft">Draft</p>',
-    _bodyHtml(body, anchor, anchors).trimRight(),
+    if (body == null)
+      '<pre>${escapeText(text)}</pre>'
+    else
+      _bodyHtml(body, anchor, anchors).trimRight(),
   ].where((part) => part.isNotEmpty).join('\n');
+  return (html: html, bodyParsed: body != null);
 }
 
 // A doc with no anchor is not on the page, so its ids have nothing to scope to.

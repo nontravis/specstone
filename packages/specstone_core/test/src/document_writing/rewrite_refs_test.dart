@@ -77,6 +77,55 @@ void main() {
     );
   });
 
+  test(
+    'f02/us05/fr02/e04, LP1: a move keeps a link whose escape is not UTF-8',
+    () {
+      expect(
+        rewriteDocLinks(
+          '# T\n\n[x](%DB.md) [s](../us02/USER_STORY.md)\n',
+          docPath: 'prds/f/us01/fr01.md',
+          moves: [(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+        ),
+        '# T\n\n[x](%DB.md) [s](../us03/USER_STORY.md)\n',
+      );
+    },
+  );
+
+  test('f02/us05/fr02/e04, LP1: a move keeps the text of a link whose escape is not UTF-8, whichever side moves', () {
+    expect(
+      rewriteDocLinks(
+        '# T\n\n[x](../other/%DB.md)\n',
+        docPath: 'prds/f/us01/fr01.md',
+        moves: [(from: 'prds/f/us01/', to: 'prds/g/us01/')],
+      ),
+      isNull,
+      reason: 'the holder moves',
+    );
+    expect(
+      rewriteDocLinks(
+        '# T\n\n[x](us01/%DB.md) [s](us02/USER_STORY.md)\n',
+        docPath: 'prds/f/fr.md',
+        moves: [
+          (from: 'prds/f/us01/', to: 'prds/f/us03/'),
+          (from: 'prds/f/us02/', to: 'prds/f/us04/'),
+        ],
+      ),
+      '# T\n\n[x](us01/%DB.md) [s](us04/USER_STORY.md)\n',
+      reason: 'the target folder moves; the lossy link keeps its bytes',
+    );
+  });
+
+  test('f02/us05/fr02/e04, LP1: a move still re-encodes a valid escape', () {
+    expect(
+      rewriteDocLinks(
+        '# T\n\n[x](us01/caf%C3%A9.md)\n',
+        docPath: 'prds/f/fr.md',
+        moves: [(from: 'prds/f/us01/', to: 'prds/f/us03/')],
+      ),
+      '# T\n\n[x](us03/caf%C3%A9.md)\n',
+    );
+  });
+
   test('f02/us05/fr02/e04: web links, paths outside the docs root, and unmoved targets keep their text', () {
     expect(
       rewriteDocLinks(
@@ -280,6 +329,17 @@ void main() {
         moves: reorderMoves,
       ),
       'See [reset](../us01_reset_password/USER_STORY.md).\n',
+    );
+  });
+
+  test('f02/us05/fr02/e08, dw-s03/inv10, LP3: a doc the parser fails on keeps its links in a move', () {
+    expect(
+      rewriteDocLinks(
+        '# T\n\n[s](../us02/USER_STORY.md)\n\n[a]:<b\\',
+        docPath: 'prds/f/us01/fr01.md',
+        moves: [(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+      ),
+      isNull,
     );
   });
 

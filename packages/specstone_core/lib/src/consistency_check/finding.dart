@@ -30,6 +30,7 @@ enum FindingKind {
   codeUncovered('code_uncovered'),
   docRefUnresolved('doc_ref_unresolved'),
   linkUnresolved('link_unresolved'),
+  markdownUnparsed('markdown_unparsed'),
   referenceDocUnresolved('reference_doc_unresolved'),
   listedFileMissing('listed_file_missing'),
   concernsTargetUnresolved('concerns_target_unresolved'),
