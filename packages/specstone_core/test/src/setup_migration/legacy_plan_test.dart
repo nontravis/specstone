@@ -1,9 +1,12 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -278,7 +281,11 @@ name: Login API
     () async {
       final plan = await _plan(containerLegacy);
 
-      expect(plan.moves.map((m) => m.to), isNotEmpty);
+      expect(
+        plan.moves.map((m) => m.from),
+        contains('prds/features/components/co01_utilities/FEATURE.md'),
+        reason: 'the container doc has a planned path',
+      );
       expect(
         plan.left,
         isNot(contains('prds/features/components/co01_utilities/FEATURE.md')),
@@ -311,6 +318,151 @@ name: Login API
       plan.closingLine,
       'run specstone check to list what is left to fill',
     );
+  });
+
+  test('f06/us01/fr03/e13: a binary file in a moved folder moves untouched '
+      'and is never read as text', () async {
+    final root = await writeTree(acmeLegacy);
+    File('${root.path}/docs/specs/shared/logo.png').writeAsBytesSync([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, //
+    ]);
+
+    final plan = planLegacyRun(
+      Directory(root.resolveSymbolicLinksSync()),
+      templates: TemplateResolver(),
+      homeDirectory: null,
+    );
+
+    expect(
+      plan.moves,
+      contains((
+        from: 'specs/shared/logo.png',
+        to: 'specs/topics/shared/logo.png',
+      )),
+    );
+    expect(plan.rewrites.where((r) => r.path.endsWith('.png')), isEmpty);
+  });
+
+  test('f06/us01/fr04/e11: a markdown doc left in place gets the link '
+      'rewrite only', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/prds/d04_glossary.md': [
+        '# Glossary\n\nSee [FR](features/f01_login/us01_email_login/',
+        'functional_requirements/fr01_validate_credentials.md).\n',
+      ].join(),
+    });
+
+    final rewrite = _rewrite(plan, 'prds/d04_glossary.md');
+
+    expect(rewrite.changes, ['1 link']);
+    expect(
+      rewrite.text,
+      contains('(features/f01_login/us01_email_login/fr01_validate'),
+    );
+    expect(rewrite.text, isNot(contains('functional_requirements')));
+    expect(plan.left, contains('prds/d04_glossary.md'));
+  });
+
+  test('f06/us01/fr06/e01: the fingerprint hashes the Statement as the run '
+      'writes it', () async {
+    final plan = await _plan(
+      {
+        ...acmeLegacy,
+        'docs/prds/features/f01_login/us01_email_login/functional_requirements/'
+            'fr01_validate_credentials.md': '''
+---
+name: Validate credentials
+status: planned
+---
+
+# FR-01 — Validate credentials
+
+## Statement
+
+The system checks the credentials against [the NFRs](../../../../d03_non_functional.md).
+''',
+        'docs/specs/api/auth/s02_api_login.md': '''
+---
+name: Login API
+---
+
+# S-02 — Login API
+
+## FR trace
+
+| FR id | Method |
+|-------|--------|
+| `us01_email_login/fr01_validate_credentials` | CLI |
+''',
+      }..remove('docs/specs/api/auth/s02_api_session.md'),
+    );
+
+    final fr = _rewrite(
+      plan,
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+    );
+    final api = _rewrite(plan, 'specs/f01_login/API.md');
+
+    final statement = Doc.parse(fr.text).sections
+        .singleWhere((s) => s.headerText == 'Statement')
+        .body;
+    expect(statement, contains('(../../../GNFR.md)'));
+    expect(
+      api.text,
+      contains(
+        'email_login/validate_credentials ${fingerprintOf(statement)}\n',
+      ),
+    );
+  });
+
+  test('f06/us01/fr05/e04: a legacy header whose id a carried section holds '
+      'is added, not merged into it', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/prds/d03_non_functional.md': '''
+---
+name: NFR
+---
+
+# D-03 — Project-wide non-functional requirements
+
+## Safety!
+
+| ID | Requirement |
+|----|-------------|
+| NFR-01 | Be safe. |
+''',
+    });
+
+    final override = plan.creates.singleWhere(
+      (c) => c.path == '.specstone/templates/gnfr.yaml',
+    );
+
+    expect(override.text, contains('id: safety_2\n'));
+    expect(override.text, contains("header: 'Safety!'"));
+  });
+
+  test('f06/us01/fr01/e03: an existing config is rewritten with the carried '
+      'pins and keeps its other pins', () async {
+    final versions = shippedPackVersions();
+    final plan = await _plan({
+      ...acmeLegacy,
+      '.specstone/config.yaml': 'packs:\n  prd-core: 0.0.1\n  my-pack: 1.0.0\n',
+    });
+
+    final rewrite = plan.rewrites.singleWhere(
+      (r) => r.path == '.specstone/config.yaml',
+    );
+
+    expect(rewrite.changes, ['pins']);
+    expect(
+      rewrite.text,
+      'packs:\n  my-pack: 1.0.0\n  prd-core: ${versions['prd-core']}\n'
+      '  software-tech: ${versions['software-tech']}\n',
+    );
+    expect(_createdPaths(plan), isNot(contains('.specstone/config.yaml')));
+    expect(plan.toText(), contains('  .specstone/config.yaml: pins\n'));
   });
 
   test(

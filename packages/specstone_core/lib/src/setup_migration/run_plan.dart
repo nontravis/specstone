@@ -3,7 +3,10 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 
 const _docsPrefix = 'docs/';
-const _gitignorePath = '.specstone/.gitignore';
+
+/// The ProjectPath of the index's ignore file; `MoveJournal.run` creates it
+/// before any step.
+const specstoneGitignorePath = '.specstone/.gitignore';
 
 /// A doc commit 2 rewrites in place.
 final class PlannedRewrite {
@@ -124,7 +127,7 @@ final class RunPlan {
     final commit2Paths = {
       for (final rewrite in rewrites) rewrite.path,
       for (final create in creates) create.path,
-      _gitignorePath,
+      specstoneGitignorePath,
     };
     return [
       for (final move in moves)

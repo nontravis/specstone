@@ -22,7 +22,6 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 const _carriedPacks = ['prd-core', 'software-tech'];
 const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
-const _gitignorePath = '.specstone/.gitignore';
 const _gitignoreText = 'index.sqlite*\nbuild/\ntrash/\n';
 const _gnfrId = 'gnfr';
 const _commit1Message = 'move legacy docs to their new paths';
@@ -63,6 +62,10 @@ RunPlan planLegacyRun(
     if (gnfr != null)
       for (final section in gnfr.sections) section.header,
   };
+  final carriedGnfrIds = <String>{
+    if (gnfr != null)
+      for (final section in gnfr.sections) section.id,
+  };
 
   final rewrites = _rewritesOf(
     docsRoot,
@@ -72,7 +75,11 @@ RunPlan planLegacyRun(
     features: features,
     carriedGnfr: carriedGnfr,
   );
-  final overrides = _overridesOf(features, rewrites.gnfrSections);
+  final overrides = _overridesOf(
+    features,
+    rewrites.gnfrSections,
+    carriedGnfrIds,
+  );
   final projectSet = templates.resolveCarried(
     packNames: _carriedPacks,
     homeDirectory: homeDirectory,
@@ -86,19 +93,25 @@ RunPlan planLegacyRun(
       key: value.version,
   };
 
+  final config = File.fromUri(root.uri.resolve(projectConfigPath));
+  final configRewrite = config.existsSync()
+      ? _configRewriteOf(root, config, pins)
+      : null;
+
   return RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
     moves: legacy.moves,
     prunes: _prunesOf(legacy.moves),
-    rewrites: rewrites.planned,
+    rewrites: [...rewrites.planned, ?configRewrite],
     creates: [
-      PlannedCreate(
-        path: projectConfigPath,
-        text: configText(pins),
-        note: ': ${_pinList(pins)}',
-      ),
-      if (!File.fromUri(root.uri.resolve(_gitignorePath)).existsSync())
-        const PlannedCreate(path: _gitignorePath, text: _gitignoreText),
+      if (!config.existsSync())
+        PlannedCreate(
+          path: projectConfigPath,
+          text: configText(pins),
+          note: ': ${_pinList(pins)}',
+        ),
+      if (!File.fromUri(root.uri.resolve(specstoneGitignorePath)).existsSync())
+        const PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
       for (final path in overrides.keys.toList()..sort(compareCodePoints))
         PlannedCreate(path: path, text: overrides[path]!),
       ..._draftsOf(projectSet, docPaths, legacy.moves),
@@ -112,22 +125,15 @@ RunPlan planLegacyRun(
 
 /// Returns the DocPath of every file under `prds/` and `specs/`.
 List<String> _docPathsOf(Directory docsRoot) {
-  final separator = Platform.pathSeparator;
-  final prefixLength = docsRoot.path.endsWith(separator)
-      ? docsRoot.path.length
-      : docsRoot.path.length + 1;
+  // A file URI path always uses `/`, so no platform separator is split on.
+  final prefixLength = docsRoot.uri.path.length;
   final paths = <String>[];
   for (final folder in const ['prds', 'specs']) {
     final dir = Directory.fromUri(docsRoot.uri.resolve('$folder/'));
     if (!dir.existsSync()) continue;
     for (final entity in dir.listSync(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
-      paths.add(
-        entity.path
-            .substring(prefixLength)
-            .split(Platform.pathSeparator)
-            .join('/'),
-      );
+      paths.add(Uri.decodeComponent(entity.uri.path.substring(prefixLength)));
     }
   }
   return paths;
@@ -141,6 +147,32 @@ List<SpecMapRow> _specMapOf(Directory docsRoot, List<String> docPaths) {
 
 typedef _Rewrites = ({List<PlannedRewrite> planned, List<String> gnfrSections});
 
+/// One markdown doc on its way to commit 2.
+final class _Work {
+  new(this.legacyPath, this.newPath, this.kind, this.original)
+    : lf = original.lf;
+
+  final String legacyPath;
+  final String newPath;
+  final LegacyKind? kind;
+  final DocText original;
+  String lf;
+  final List<String> changes = [];
+  String note = '';
+
+  /// Whether the doc is an API doc renamed to `API.md`, whose fingerprints
+  /// need the rewritten FR texts.
+  bool get awaitsFingerprints =>
+      kind == LegacyKind.api &&
+      legacyPath != newPath &&
+      newPath.endsWith('/API.md');
+}
+
+/// Plans the rewrite of every markdown doc the run places or leaves.
+///
+/// Only `.md` files are read; any other file moves untouched. A doc left in
+/// place gets the link rewrite and nothing else. The first fingerprints hash
+/// each FR as the run writes it, so the FR docs are rewritten first.
 _Rewrites _rewritesOf(
   Directory docsRoot,
   List<String> docPaths, {
@@ -150,89 +182,125 @@ _Rewrites _rewritesOf(
   required Set<String> carriedGnfr,
 }) {
   final carriedKeys = {for (final header in carriedGnfr) headerKey(header)};
-  final newPaths = legacy.fromOf.keys.toList()
-    ..sort((a, b) => compareCodePoints(legacy.fromOf[a]!, legacy.fromOf[b]!));
-  final planned = <PlannedRewrite>[];
+  final newOf = {
+    for (final MapEntry(key: newPath, value: legacyPath)
+        in legacy.fromOf.entries)
+      legacyPath: newPath,
+  };
+  final works = [
+    for (final legacyPath in docPaths)
+      if (legacyPath.endsWith('.md') &&
+          (newOf.containsKey(legacyPath) || legacy.left.contains(legacyPath)))
+        _Work(
+          legacyPath,
+          newOf[legacyPath] ?? legacyPath,
+          legacy.kindOf[newOf[legacyPath]],
+          readDocText(
+            File.fromUri(docsRoot.uri.resolve(legacyPath)).readAsBytesSync(),
+          ),
+        ),
+  ];
+
   final gnfrSections = <String>[];
   final seenKeys = <String>{};
-
-  for (final newPath in newPaths) {
-    final legacyPath = legacy.fromOf[newPath]!;
-    final original = readDocText(
-      File.fromUri(docsRoot.uri.resolve(legacyPath)).readAsBytesSync(),
-    );
-    var lf = original.lf;
-    final changes = <String>[];
-    var note = '';
-
-    void label(String? text) {
-      if (text != null) changes.add(text);
+  for (final work in works) {
+    final kind = work.kind;
+    if (kind == null) continue;
+    final rewrite = rewriteLegacyDoc(work.lf, kind, gnfrHeaders: carriedGnfr);
+    work.lf = rewrite.lf;
+    work.changes.addAll(rewrite.changes);
+    final missing = [
+      for (final header in rewrite.gnfrSections)
+        if (!carriedKeys.contains(headerKey(header)) &&
+            seenKeys.add(headerKey(header)))
+          header,
+    ];
+    if (missing.isNotEmpty) {
+      gnfrSections.addAll(missing);
+      work.note =
+          '; project-layer section${missing.length == 1 ? '' : 's'} '
+          '${missing.join(', ')}';
     }
-
-    final kind = legacy.kindOf[newPath];
-    if (kind != null) {
-      final rewrite = rewriteLegacyDoc(lf, kind, gnfrHeaders: carriedGnfr);
-      lf = rewrite.lf;
-      changes.addAll(rewrite.changes);
-      final missing = [
-        for (final header in rewrite.gnfrSections)
-          if (!carriedKeys.contains(headerKey(header)) &&
-              seenKeys.add(headerKey(header)))
-            header,
-      ];
-      if (missing.isNotEmpty) {
-        gnfrSections.addAll(missing);
-        note =
-            '; project-layer section${missing.length == 1 ? '' : 's'} '
-            '${missing.join(', ')}';
-      }
-
-      final renamed = legacyPath != newPath;
-      if (renamed && kind == LegacyKind.architecture) {
-        final covers = coversOf(_folderOf(legacyPath), specMap);
-        if (covers != null) {
-          lf = withKeyBlock(lf, 'covers', covers.block);
-          changes.add(covers.label);
-        }
-      }
-      if (renamed && kind == LegacyKind.api && newPath.endsWith('/API.md')) {
-        final fingerprints = writeFirstFingerprints(
-          lf,
-          featureFrs: _featureFrsOf(docsRoot, docPaths, features, newPath),
-        );
-        lf = fingerprints.lf;
-        label(fingerprints.label);
+    if (work.legacyPath != work.newPath && kind == LegacyKind.architecture) {
+      final covers = coversOf(_folderOf(work.legacyPath), specMap);
+      if (covers != null) {
+        work.lf = withKeyBlock(work.lf, 'covers', covers.block);
+        work.changes.add(covers.label);
       }
     }
+  }
 
-    final links = rewriteLinks(lf, docPath: legacyPath, moves: legacy.moves);
-    lf = links.lf;
-    label(links.label);
-
-    if (changes.isEmpty) continue;
-    planned.add(
-      PlannedRewrite(
-        path: '$_docsFolder$newPath',
-        text: writtenText(original, lf),
-        changes: changes,
-        note: note,
+  final textOf = {for (final work in works) work.legacyPath: work};
+  for (final work in works) {
+    if (work.awaitsFingerprints) continue;
+    _rewriteLinks(work, legacy.moves);
+  }
+  for (final work in works.where((work) => work.awaitsFingerprints)) {
+    final fingerprints = writeFirstFingerprints(
+      work.lf,
+      featureFrs: _featureFrsOf(
+        docsRoot,
+        docPaths,
+        features,
+        work.newPath,
+        rewritten: textOf,
       ),
     );
+    work.lf = fingerprints.lf;
+    final label = fingerprints.label;
+    if (label != null) work.changes.add(label);
+    _rewriteLinks(work, legacy.moves);
   }
-  return (planned: planned, gnfrSections: gnfrSections);
+
+  return (
+    planned: [
+      for (final work in works)
+        if (work.changes.isNotEmpty)
+          PlannedRewrite(
+            path: '$_docsFolder${work.newPath}',
+            text: writtenText(work.original, work.lf),
+            changes: work.changes,
+            note: work.note,
+          ),
+    ],
+    gnfrSections: gnfrSections,
+  );
+}
+
+void _rewriteLinks(_Work work, List<PathMove> moves) {
+  final links = rewriteLinks(work.lf, docPath: work.legacyPath, moves: moves);
+  work.lf = links.lf;
+  final label = links.label;
+  if (label != null) work.changes.add(label);
+}
+
+/// Returns the config rewrite that sets the carried [pins] and keeps every
+/// other pin of the existing [config], or null when the text stays.
+PlannedRewrite? _configRewriteOf(
+  Directory root,
+  File config,
+  Map<String, PackVersion> pins,
+) {
+  final text = configText({...ProjectConfig.read(root).pins, ...pins});
+  if (text == config.readAsStringSync()) return null;
+  return PlannedRewrite(path: projectConfigPath, text: text, changes: ['pins']);
 }
 
 String _folderOf(String docPath) =>
     docPath.substring(0, docPath.lastIndexOf('/') + 1);
 
-/// Returns the LF text of each legacy FR file of the feature that holds the
-/// API doc at [apiPath] (`specs/<FeaturePath>/API.md`), by legacy DocPath.
+/// Returns the LF text of each FR file of the feature that holds the API doc
+/// at [apiPath] (`specs/<FeaturePath>/API.md`), by legacy DocPath.
+///
+/// The text is the one the run writes, taken from [rewritten] by legacy
+/// DocPath.
 Map<String, String> _featureFrsOf(
   Directory docsRoot,
   List<String> docPaths,
   LegacyFeatures features,
-  String apiPath,
-) {
+  String apiPath, {
+  required Map<String, _Work> rewritten,
+}) {
   final featurePath = _folderOf(apiPath)
       .substring('specs/'.length)
       .replaceFirst(RegExp(r'/$'), '');
@@ -244,9 +312,11 @@ Map<String, String> _featureFrsOf(
   return {
     for (final path in docPaths)
       if (path.startsWith(folder) && _frFile.hasMatch(path))
-        path: readDocText(
-          File.fromUri(docsRoot.uri.resolve(path)).readAsBytesSync(),
-        ).lf,
+        path:
+            rewritten[path]?.lf ??
+            readDocText(
+              File.fromUri(docsRoot.uri.resolve(path)).readAsBytesSync(),
+            ).lf,
   };
 }
 
@@ -254,8 +324,9 @@ Map<String, String> _featureFrsOf(
 Map<String, String> _overridesOf(
   LegacyFeatures features,
   List<String> gnfrSections,
+  Set<String> carriedGnfrIds,
 ) {
-  final gnfr = gnfrOverride(gnfrSections);
+  final gnfr = gnfrOverride(gnfrSections, carriedIds: carriedGnfrIds);
   return {
     if (features.grouped) ...groupedPathOverrides(),
     if (gnfr != null) gnfr.key: gnfr.value,

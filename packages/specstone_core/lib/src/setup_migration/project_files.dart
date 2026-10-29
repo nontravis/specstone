@@ -79,9 +79,15 @@ Map<String, String> groupedPathOverrides() => {
 /// `[a-z0-9]` runs joined by `_`, `category_<n>` (n the 1-based position) when
 /// none remain, and suffixed `_2`, `_3`, ... to the first id no earlier header
 /// took, so ids stay unique for any header list.
-MapEntry<String, String>? gnfrOverride(List<String> headers) {
+///
+/// [carriedIds] are the section ids the carried `gnfr` already holds; they
+/// count as taken, so an override adds a section and never replaces one.
+MapEntry<String, String>? gnfrOverride(
+  List<String> headers, {
+  Set<String> carriedIds = const {},
+}) {
   if (headers.isEmpty) return null;
-  final used = <String>{};
+  final used = {...carriedIds};
   final sections = <String>[];
   for (final (index, header) in headers.indexed) {
     final base = _sectionId(header) ?? 'category_${index + 1}';

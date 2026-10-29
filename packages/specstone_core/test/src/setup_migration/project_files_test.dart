@@ -139,6 +139,14 @@ void main() {
       expect(gnfrOverride([]), isNull);
     });
 
+    test('f06/us01/fr05/e04: an id a carried section holds is taken, so the '
+        'override adds a section', () {
+      final entry = gnfrOverride(['Safety!'], carriedIds: {'safety'})!;
+
+      expect(entry.value, contains('id: safety_2\n'));
+      expect(entry.value, isNot(contains('id: safety\n')));
+    });
+
     test('f06/us01/fr05/e06, f06/us01/fr05/e07: the singular doc types are '
         'project, features, gnfr, tech_stack', () {
       final set = TemplateResolver().resolveCarried(
