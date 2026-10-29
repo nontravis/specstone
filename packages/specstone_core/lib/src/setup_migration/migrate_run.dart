@@ -60,28 +60,34 @@ final class MigrateRequest {
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal and the faults of
 /// applying (index, render) follow the printed plan or the listed steps. A
-/// `git add` or `git commit` that fails throws `MigrateFault` `git_failed`,
-/// and the journal stays.
+/// `git add` or `git commit` that fails, or a git that cannot start past the
+/// git checks, throws `MigrateFault` `git_failed`, and the journal stays.
 int runMigrate(MigrateRequest request) =>
     _mappingGitFailures(() => _migrate(request));
 
 /// Runs [run], mapping a git failure to the fault a migrate run raises.
 ///
-/// A [GitCommandFailed] becomes `git_failed`; a [ProcessException] becomes
+/// A [GitCommandFailed], or a [ProcessException] from a git that cannot start
+/// past the git checks, becomes `git_failed`; the checks map their own to
 /// `git_work_tree_required`.
 int _mappingGitFailures(int Function() run) {
   try {
     return run();
   } on GitCommandFailed catch (error) {
-    throw MigrateFault(
-      MigrateFaultCode.gitFailed,
-      'git ${error.verb} failed: ${error.line}; fix the cause, then run '
-      'specstone migrate at an interactive terminal to finish the run',
+    throw _gitFailed('git ${error.verb}', error.line);
+  } on ProcessException catch (error) {
+    throw _gitFailed(
+      ['git', ...error.arguments.take(1)].join(' '),
+      'cannot start git: ${error.message}',
     );
-  } on ProcessException {
-    throw workTreeRequiredFault();
   }
 }
+
+MigrateFault _gitFailed(String command, String line) => MigrateFault(
+  MigrateFaultCode.gitFailed,
+  '$command failed: $line; fix the cause, then run specstone migrate at an '
+  'interactive terminal to finish the run',
+);
 
 int _migrate(MigrateRequest request) {
   final root = findMigrateRoot(request.workingDirectory);
@@ -163,7 +169,11 @@ int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the
 /// Owner's first `y` approved its steps.
+///
+/// A bare resume checks the git work tree and version first, as its commits
+/// need them; the stopped run leaves the tree dirty, so it is not checked.
 int _resume(MigrateRequest request, Directory root) {
+  if (!request.dryRun) requireGitWorkTree(root, request.runGit);
   final target = _targetOf(root, request);
   final out = request.out
     ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')

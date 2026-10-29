@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -600,6 +601,80 @@ void main() {
           ),
         ),
       );
+    }, skip: skipGit);
+
+    test('f06/us01/fr07, f06/us01/fr02/e03: a resume under a git older than '
+        '2.25 is git_work_tree_required, and no step runs', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final before = _bytesUnder(root);
+
+      expect(
+        () => runMigrate(
+          MigrateRequest(
+            workingDirectory: root,
+            homeDirectory: null,
+            templates: TemplateResolver(),
+            dryRun: false,
+            interactive: true,
+            readLine: () => null,
+            out: StringBuffer(),
+            runGit: (arguments, {required workingDirectory}) =>
+                arguments.first == '--version'
+                ? ProcessResult(0, 0, 'git version 2.24.4\n', '')
+                : runRealGit(arguments, workingDirectory: workingDirectory),
+          ),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitWorkTreeRequired,
+          ),
+        ),
+      );
+      expect(_bytesUnder(root), before);
+      expect(MoveJournal.pendingMigrate(root), isTrue);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e09: git that cannot start after the checks is '
+        'git_failed naming the command, and the journal stays', () async {
+      final root = await gitFixture(acmeLegacy);
+
+      expect(
+        () => runMigrate(
+          MigrateRequest(
+            workingDirectory: root,
+            homeDirectory: null,
+            templates: TemplateResolver(),
+            dryRun: false,
+            interactive: true,
+            readLine: () => 'y',
+            out: StringBuffer(),
+            runGit: (arguments, {required workingDirectory}) =>
+                arguments.first == 'add'
+                ? throw ProcessException(
+                    'git',
+                    arguments,
+                    'The filename or extension is too long.',
+                    206,
+                  )
+                : runRealGit(arguments, workingDirectory: workingDirectory),
+          ),
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.gitFailed)
+              .having(
+                (f) => f.message,
+                'message',
+                'git add failed: cannot start git: The filename or extension '
+                    'is too long.; fix the cause, then run specstone migrate '
+                    'at an interactive terminal to finish the run',
+              ),
+        ),
+      );
+      expect(MoveJournal.pendingMigrate(root), isTrue);
     }, skip: skipGit);
   });
 }

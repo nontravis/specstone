@@ -71,6 +71,61 @@ void main() {
     );
   });
 
+  group('f06/us01/fr02/e03: the git version floor', () {
+    /// A `RunGit` that prints [version] for `git --version` and runs the real
+    /// `git` for every other call.
+    RunGit gitAt(String version) =>
+        (arguments, {required workingDirectory}) =>
+            arguments.first == '--version'
+            ? ProcessResult(0, 0, '$version\n', '')
+            : runRealGit(arguments, workingDirectory: workingDirectory);
+
+    test('f06/us01/fr02/e03: a git older than 2.25 is git_work_tree_required '
+        'naming 2.25', () async {
+      final root = await gitFixture(acmeLegacy);
+
+      expect(
+        () => requireGitWorkTree(root, gitAt('git version 2.24.4')),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.gitWorkTreeRequired,
+              )
+              .having(
+                (f) => f.message,
+                'message',
+                'specstone migrate needs git 2.25 or later, and this git is '
+                    '2.24.4; upgrade git, then run specstone migrate again',
+              ),
+        ),
+      );
+      expect(
+        () => requireGitWorkTree(root, gitAt('git version 1.9.5')),
+        throwsA(isA<MigrateFault>()),
+      );
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('f06/us01/fr02/e03: git 2.25 or later passes, vendor suffixes '
+        'included', () async {
+      final root = await gitFixture(acmeLegacy);
+
+      for (final version in [
+        'git version 2.25.0',
+        'git version 2.39.3 (Apple Git-145)',
+        'git version 2.45.1.windows.1',
+        'git version 3.0.0',
+      ]) {
+        expect(
+          () => requireGitWorkTree(root, gitAt(version)),
+          returnsNormally,
+          reason: version,
+        );
+      }
+    }, skip: hasGit ? null : 'git is not available');
+  });
+
   test('f06/us01/fr02/e04, f06/us01/s11: an uncommitted change is '
       'working_tree_dirty', () async {
     final root = await gitFixture(acmeLegacy);

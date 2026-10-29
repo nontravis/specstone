@@ -8,15 +8,26 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 const _commitStart = '\x01';
 const _fieldSeparator = '\x02';
 
-/// Refuses a [root] outside a git work tree with no first commit.
+/// The oldest git whose `add` and `commit` take `--pathspec-from-file`, which
+/// a migrate commit passes its paths through.
+const ({int major, int minor}) _gitFloor = (major: 2, minor: 25);
+
+/// The version `git --version` prints, as `git version 2.39.3 (Apple Git-145)`
+/// or `git version 2.45.1.windows.1` do.
+final _gitVersion = RegExp(r'^git version ((\d+)\.(\d+)\S*)');
+
+/// Refuses a [root] outside a git work tree with no first commit, or a git
+/// older than 2.25.
 ///
 /// Throws `MigrateFault` `git_work_tree_required` when `git` cannot start,
-/// `git rev-parse --is-inside-work-tree` does not print `true`, or HEAD names
-/// no commit.
+/// `git --version` names a version below 2.25, `git rev-parse
+/// --is-inside-work-tree` does not print `true`, or HEAD names no commit. A
+/// version line it cannot read passes.
 void requireGitWorkTree(Directory root, RunGit runGit) {
   final bool inside;
   final bool hasHead;
   try {
+    _requireGitFloor(root, runGit);
     final insideResult = runGit([
       'rev-parse',
       '--is-inside-work-tree',
@@ -37,6 +48,26 @@ void requireGitWorkTree(Directory root, RunGit runGit) {
     throw workTreeRequiredFault();
   }
   if (!inside || !hasHead) throw workTreeRequiredFault();
+}
+
+/// Throws `git_work_tree_required` when `git --version` names a version
+/// below [_gitFloor].
+void _requireGitFloor(Directory root, RunGit runGit) {
+  final printed = runGit(['--version'], workingDirectory: root.path).stdout;
+  final match = _gitVersion.firstMatch('$printed'.trim());
+  if (match == null) return;
+  final major = int.parse(match[2]!);
+  final minor = int.parse(match[3]!);
+  final belowFloor =
+      major < _gitFloor.major ||
+      (major == _gitFloor.major && minor < _gitFloor.minor);
+  if (!belowFloor) return;
+  throw MigrateFault(
+    MigrateFaultCode.gitWorkTreeRequired,
+    'specstone migrate needs git ${_gitFloor.major}.${_gitFloor.minor} or '
+    'later, and this git is ${match[1]}; upgrade git, then run specstone '
+    'migrate again',
+  );
 }
 
 /// Returns the fault for a project outside a git work tree with a first

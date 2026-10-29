@@ -283,7 +283,7 @@ final class CommitStep extends JournalStep {
   /// The commit message.
   final String message;
 
-  /// The paths to stage, relative to the project root and `/`-separated.
+  /// The files to stage, relative to the project root and `/`-separated.
   final List<String> paths;
 
   /// The HEAD sha when the journal was written.
@@ -316,63 +316,100 @@ final class CommitStep extends JournalStep {
       .convert(fullMessage)
       .any((line) => line.contains(message));
 
+  /// Stages and commits the [paths] git can take, passing them through a
+  /// pathspec file so no path reaches the command line.
+  ///
+  /// A path git cannot stage is skipped: one in neither the work tree nor the
+  /// index, as a moved-away path is once an earlier, refused attempt already
+  /// staged its deletion. A path HEAD holds stays committable, so the commit
+  /// records its staged deletion. No commit runs when none of them is staged,
+  /// as when a hook that rewrote the subject hid an earlier commit from
+  /// [isDone].
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
-    final stageable = paths
-        .where((path) => _inTreeOrIndex(target, path))
-        .toList();
+    final scope = {for (final path in paths) path.split('/').first}.toList();
+    final indexed = _listed(target, ['ls-files', '-z', '--', ...scope]);
+    final stageable = {
+      for (final path in paths)
+        if (_onDisk(target, path) || indexed.contains(path)) path,
+    };
     if (stageable.isNotEmpty) {
-      _runWrite(target, 'add', ['add', '-A', '--', ...stageable]);
+      _runWrite(target, 'add', [
+        'add',
+        '-A',
+        ..._pathspecFile(target, stageable),
+      ]);
     }
-    final committable = paths
-        .where((path) => stageable.contains(path) || _inHead(target, path))
-        .toList();
-    if (committable.isEmpty || _nothingStaged(target, committable)) return;
+    final inHead = _listed(target, [
+      'ls-tree',
+      '-r',
+      '-z',
+      '--name-only',
+      'HEAD',
+      '--',
+      ...scope,
+    ]);
+    final committable = [
+      for (final path in paths)
+        if (stageable.contains(path) || inHead.contains(path)) path,
+    ];
+    final staged = _listed(target, [
+      'diff',
+      '--cached',
+      '--name-only',
+      '--no-renames',
+      '-z',
+      '--',
+      ...scope,
+    ]);
+    if (!committable.any(staged.contains)) return;
     _runWrite(target, 'commit', [
       'commit',
       '-q',
       '-m',
       message,
-      '--',
-      ...committable,
+      ..._pathspecFile(target, committable),
     ]);
   }
 
-  /// Whether [path] sits in the work tree or the index.
-  ///
-  /// `git add` refuses a pathspec that matches neither, as a moved-away path
-  /// does once an earlier, refused attempt already staged its deletion.
-  bool _inTreeOrIndex(JournalTarget target, String path) =>
+  bool _onDisk(JournalTarget target, String path) =>
       FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
-          FileSystemEntityType.notFound ||
-      _lists(target, ['ls-files', '--', path]);
+      FileSystemEntityType.notFound;
 
-  /// Whether HEAD holds [path], so a commit limited to it can record its
-  /// staged deletion.
-  bool _inHead(JournalTarget target, String path) =>
-      _lists(target, ['ls-tree', '--name-only', 'HEAD', '--', path]);
-
-  bool _lists(JournalTarget target, List<String> arguments) {
+  /// Returns the paths a `-z` git listing prints, or none when git fails.
+  Set<String> _listed(JournalTarget target, List<String> arguments) {
     final listed = target.runGit(
       arguments,
       workingDirectory: target.projectRoot.path,
     );
-    return listed.exitCode == 0 && '${listed.stdout}'.trim().isNotEmpty;
+    if (listed.exitCode != 0) return const {};
+    return {
+      for (final path in '${listed.stdout}'.split('\x00'))
+        if (path.isNotEmpty) path,
+    };
   }
 
-  /// Whether the staged changes under [pathspecs] are empty, as when a hook
-  /// that rewrote the subject hid an earlier commit from [isDone].
-  bool _nothingStaged(JournalTarget target, List<String> pathspecs) =>
-      target.runGit([
-        'diff',
-        '--cached',
-        '--quiet',
-        '--',
-        ...pathspecs,
-      ], workingDirectory: target.projectRoot.path).exitCode ==
-      0;
+  /// Writes [pathspecs] NUL-separated to the pathspec file in the trash, and
+  /// returns the options that make `git add` or `git commit` read it.
+  ///
+  /// Throws [RenderFault] `output_not_writable` when the file cannot be
+  /// written.
+  List<String> _pathspecFile(JournalTarget target, Iterable<String> pathspecs) {
+    final file = File(_absolute(target, _pathspecPath));
+    try {
+      file.parent.createSync(recursive: true);
+      writeFileAtomic(file, utf8.encode(pathspecs.join('\x00')));
+    } on FileSystemException catch (error) {
+      throw _notWritable('write', _pathspecPath, error);
+    }
+    return ['--pathspec-from-file=${file.path}', '--pathspec-file-nul'];
+  }
 }
+
+/// The file a [CommitStep] passes its paths to git through, relative to the
+/// project root; the trash folder takes it away with the journal.
+const _pathspecPath = '${MoveJournal.trashPath}/commit.pathspec';
 
 /// Runs the `git` write [arguments] for [verb].
 ///

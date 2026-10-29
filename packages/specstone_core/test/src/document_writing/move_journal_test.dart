@@ -766,6 +766,61 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
+    test('f06/us01/fr07: a commit of 320 moves passes its paths in a file, never on the git command line', () async {
+      final names = [for (var i = 0; i < 320; i++) 'f${'$i'.padLeft(3, '0')}'];
+      final root = await _gitTree({
+        for (final name in names) 'docs/prds/old/$name.md': '# $name\n',
+      });
+      final paths = [
+        for (final name in names) ...[
+          'docs/prds/old/$name.md',
+          'docs/prds/new/$name.md',
+        ],
+      ];
+      final calls = <List<String>>[];
+      final target = JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+        runGit: (arguments, {required workingDirectory}) {
+          calls.add(arguments);
+          return runRealGit(arguments, workingDirectory: workingDirectory);
+        },
+      );
+
+      MoveJournal([
+        for (final name in names)
+          MoveStep('docs/prds/old/$name.md', 'docs/prds/new/$name.md'),
+        CommitStep(message: 'move', paths: paths, base: _head(root)),
+      ]).run(target);
+
+      expect(_log(root), ['move', 'initial']);
+      final renames =
+          (git(root, [
+                    'show',
+                    '--name-status',
+                    '-M',
+                    '--format=',
+                    'HEAD',
+                  ]).stdout
+                  as String)
+              .trim()
+              .split('\n');
+      expect(renames, hasLength(names.length));
+      expect(renames, everyElement(startsWith('R100')));
+      final named = {for (final call in calls) ...call}
+          .intersection({...paths});
+      expect(named, isEmpty);
+      for (final verb in ['add', 'commit']) {
+        expect(
+          calls.where((call) => call.first == verb).single,
+          containsAll(['--pathspec-file-nul']),
+          reason: verb,
+        );
+      }
+      expect(git(root, ['status', '--porcelain', '--', 'docs']).stdout, '');
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
     test('f06/us01/fr07: a replay after commit 1 skips the done steps and makes commit 2 only', () async {
       final root = await _gitTree({
         'docs/prds/d01_context.md': '# D-01 — Project context\n',
