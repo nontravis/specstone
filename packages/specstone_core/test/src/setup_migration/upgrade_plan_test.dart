@@ -197,6 +197,81 @@ sections:
     );
   });
 
+  group(
+    'f06/us02/fr02/e08, final M5: upgrade_collision lists each doc once',
+    () {
+      /// The DocPath each line of [fault] starts with.
+      List<String?> filesOf(MigrateFault fault) => [
+        fault.file,
+        for (final next in fault.more) next.file,
+      ];
+
+      test('f06/us02/fr02/e08: three docs moved onto one path print one line '
+          'each', () async {
+        const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: runbook, from: "prds/old/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+''';
+        const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/NOTES.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+        final fixture = await _fixture(
+          packYaml: packYaml,
+          runbookType: type,
+          overrides: const {},
+          docs: const {
+            'prds/runbooks/deploy/RUNBOOK.md': '# A\n\n## Steps\n\nx\n',
+            'prds/ops/deploy/RUNBOOK.md': '# B\n\n## Steps\n\ny\n',
+            'prds/old/deploy/RUNBOOK.md': '# C\n\n## Steps\n\nz\n',
+          },
+        );
+
+        expect(
+          () => _plan(fixture),
+          throwsA(
+            isA<MigrateFault>().having(filesOf, 'files', [
+              'prds/old/deploy/RUNBOOK.md',
+              'prds/ops/deploy/RUNBOOK.md',
+              'prds/runbooks/deploy/RUNBOOK.md',
+            ]),
+          ),
+        );
+      });
+
+      test('f06/us02/fr02/e08: a doc whose section and field renames both '
+          'collide prints one line', () async {
+        final fixture = await _fixture(
+          overrides: const {},
+          docs: const {
+            'prds/runbooks/deploy/RUNBOOK.md':
+                '---\nowner: sre\non_call: ops\n---\n# Deploy\n\n## Steps\n\n'
+                'x\n\n## Procedure\n\ny\n',
+          },
+        );
+
+        expect(
+          () => _plan(fixture),
+          throwsA(
+            isA<MigrateFault>().having(filesOf, 'files', [
+              'prds/runbooks/deploy/RUNBOOK.md',
+            ]),
+          ),
+        );
+      });
+    },
+  );
+
   test('f06/us02/fr02/e05: a chained move_file path ends at the last step, '
       'one move from the original path', () async {
     const packYaml = '''

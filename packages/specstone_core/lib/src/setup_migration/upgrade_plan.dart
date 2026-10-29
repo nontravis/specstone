@@ -381,17 +381,25 @@ const _resolveCollision =
     'move, rename, or merge each listed doc or entry so the step no longer '
     'lands on it, then run specstone migrate again';
 
-/// Throws `upgrade_collision` for every [faults] entry, the first as the
-/// fault and the rest chained through `more`.
+/// Throws `upgrade_collision` for the first of [faults] on each doc, the
+/// first as the fault and the rest chained through `more`.
+///
+/// A doc can collide once per rival and once per step; it is listed once
+/// (INV-16).
 void _throwCollisions(List<MigrateFault> faults) {
-  if (faults.isEmpty) return;
-  final first = faults.first;
+  final seen = <String?>{};
+  final perDoc = [
+    for (final fault in faults)
+      if (seen.add(fault.file)) fault,
+  ];
+  if (perDoc.isEmpty) return;
+  final first = perDoc.first;
   throw MigrateFault(
     first.code,
     first.message,
     file: first.file,
     key: first.key,
-    more: faults.sublist(1),
+    more: perDoc.sublist(1),
   );
 }
 
