@@ -297,6 +297,17 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02/e08, dw-s03/inv10, LP3: a doc the parser fails on keeps its links in a move', () {
+    expect(
+      rewriteDocLinks(
+        '# T\n\n[s](../us02/USER_STORY.md)\n\n[a]:<b\\',
+        docPath: 'prds/f/us01/fr01.md',
+        moves: [(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+      ),
+      isNull,
+    );
+  });
+
   test('f02/us06/fr02, H15: a flow list followed by a comment holding brackets renames its item', () {
     const reference = MergedField(
       id: 'reference',

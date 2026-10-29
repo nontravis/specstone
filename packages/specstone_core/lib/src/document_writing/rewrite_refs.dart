@@ -4,6 +4,7 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -227,7 +228,11 @@ String? _newName(
 }
 
 /// Returns the hrefs of every link the markdown parser finds in [lfText].
+///
+/// Returns none when the parser fails on it, so no span of it proves a link.
 Set<String> _hrefsOf(String lfText) {
+  final nodes = parseMarkdown(lfText);
+  if (nodes == null) return const {};
   final hrefs = <String>{};
   void visit(List<Node> nodes) {
     for (final node in nodes) {
@@ -238,7 +243,7 @@ Set<String> _hrefsOf(String lfText) {
     }
   }
 
-  visit(Document(extensionSet: ExtensionSet.gitHubFlavored).parse(lfText));
+  visit(nodes);
   return hrefs;
 }
 

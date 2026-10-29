@@ -7,6 +7,10 @@ const _space = 0x20;
 const _backtick = 0x60;
 const _tilde = 0x7E;
 
+/// The warning for [docPath] whose markdown the parser fails on.
+String markdownUnparsedWarning(String docPath) =>
+    '$docPath: the markdown parser failed; its links are not indexed';
+
 /// The 1-based file lines `first` through `last`, both included.
 typedef LineRange = ({int first, int last});
 
@@ -60,25 +64,30 @@ final class LineFacts {
   /// [sectionCounts] of each section of [doc].
   ///
   /// [lfText] is the file text with LF line ends, and [frontmatterErrorLine]
-  /// is `FrontmatterYaml.errorLine` of its frontmatter.
+  /// is `FrontmatterYaml.errorLine` of its frontmatter. A body the markdown
+  /// parser fails on has no links, and [markdownUnparsedWarning] joins
+  /// [warnings].
   factory of({
     required String lfText,
     required String docPath,
     required Doc doc,
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
+    required List<String> warnings,
   }) {
     final prefix = doc.frontmatter == null
         ? ''
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
     final bodyStart = _lineCount(prefix);
     final whole = scanText(lfText);
+    final links = linkPlacesOf(
+      doc.afterFrontmatter,
+      docPath: docPath,
+      firstLine: bodyStart + 1,
+    );
+    if (links == null) warnings.add(markdownUnparsedWarning(docPath));
     return LineFacts(
-      links: linkPlacesOf(
-        doc.afterFrontmatter,
-        docPath: docPath,
-        firstLine: bodyStart + 1,
-      ),
+      links: links ?? const [],
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),

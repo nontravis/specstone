@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 void main() {
   group('linkPlacesOf', () {
     List<LinkPlace> placesOf(String body) =>
-        linkPlacesOf(body, docPath: 'x.md', firstLine: 1);
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
 
     test('final-fix M1: a link is placed by its own href, whatever the links '
         'before it matched', () {
@@ -156,6 +156,26 @@ void main() {
       expect(places, [
         (target: 'prds/f/us/\u{FFFD}.md', line: 3, shown: '%DB.md'),
       ]);
+    });
+
+    test('s03/inv24, LP2: a body the parser fails on gives null', () {
+      final places = linkPlacesOf(
+        '[s](b.md)\n\n[a]:<b\\',
+        docPath: 'prds/f/us/fr01.md',
+        firstLine: 1,
+      );
+
+      expect(places, isNull);
+    });
+
+    test('s03/inv24, LP2: a body with no link syntax is never parsed', () {
+      final places = linkPlacesOf(
+        '${'> ' * 100000}x',
+        docPath: 'prds/f/us/fr01.md',
+        firstLine: 1,
+      );
+
+      expect(places, isEmpty);
     });
   });
 }

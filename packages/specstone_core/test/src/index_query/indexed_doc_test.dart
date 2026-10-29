@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/software_tech.dart';
@@ -224,6 +225,18 @@ void main() {
       ]);
     },
   );
+
+  test('f01/us01/fr03/e12, s03/inv24, LP3: a doc the parser fails on is indexed with no links and the warning', () {
+    final parsed = parseIndexedDoc(
+      docPath: 'prds/x.md',
+      bytes: utf8.encode('# X\n\n## A\nSee [y](y.md).\n\n[a]:<b\\'),
+      match: const NoDocType(),
+    );
+
+    expect(parsed.content.links, isEmpty);
+    expect(parsed.doc.warnings, [markdownUnparsedWarning('prds/x.md')]);
+    expect(parsed.content.sections.map((s) => s.key), ['a']);
+  });
 
   test('s03/inv4: heading slugs lowercase, drop punctuation, and turn spaces into hyphens', () {
     expect(headingSlug('Project vision'), 'project-vision');

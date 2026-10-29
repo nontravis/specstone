@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart';
 
 /// A doc link of a doc: the docPath it resolves to, the file line it is
 /// written on, and its destination as written.
@@ -17,7 +18,10 @@ typedef LinkPlace = ({String target, int line, String shown});
 /// its destination as written: the nth link to an href takes the nth use of
 /// that href, so no other link moves it. A link the scan cannot place takes
 /// line 1 and the href `markdown` gives as its destination.
-List<LinkPlace> linkPlacesOf(
+///
+/// Returns null when `markdown` fails on [lfBody] (see [parseMarkdown]), and
+/// `const []` for a body with no link syntax, which it never parses.
+List<LinkPlace>? linkPlacesOf(
   String lfBody, {
   required String docPath,
   required int firstLine,
@@ -25,7 +29,9 @@ List<LinkPlace> linkPlacesOf(
   // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
   // is absolute, so it never resolves to a doc.
   if (!lfBody.contains('](') && !lfBody.contains(']:')) return const [];
-  final (:placed, :longestHref) = _placedHrefs(docPath, _hrefsOf(lfBody));
+  final hrefs = _hrefsOf(lfBody);
+  if (hrefs == null) return null;
+  final (:placed, :longestHref) = _placedHrefs(docPath, hrefs);
   final uses = _scanUses(lfBody, firstLine, longestHref);
   final places = <LinkPlace>[];
   final usesOf = <String, List<_Use>>{};
@@ -459,8 +465,11 @@ String _normalize(String dest) => dest.splitMapJoin(
   onNonMatch: Uri.encodeFull,
 );
 
-/// Returns the hrefs of the links in [body], in order.
-List<String> _hrefsOf(String body) {
+/// Returns the hrefs of the links in [body], in order, or null when `markdown`
+/// fails on it.
+List<String>? _hrefsOf(String body) {
+  final nodes = parseMarkdown(body);
+  if (nodes == null) return null;
   final hrefs = <String>[];
   void visit(List<Node> nodes) {
     for (final node in nodes) {
@@ -472,6 +481,6 @@ List<String> _hrefsOf(String body) {
     }
   }
 
-  visit(Document(extensionSet: ExtensionSet.gitHubFlavored).parse(body));
+  visit(nodes);
   return hrefs;
 }

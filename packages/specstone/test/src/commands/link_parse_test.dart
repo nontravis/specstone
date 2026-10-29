@@ -170,6 +170,11 @@ Future<String> statementBase() async {
   return (bases['sections'] as Map)['statement']! as String;
 }
 
+const unparsedWarning =
+    '\u26A0\uFE0F WARNING: '
+    'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md: '
+    'the markdown parser failed; its links are not indexed';
+
 void main() {
   everyCommandAnswers('\n[x](%DB.md)\n', [
     ...readWriteCommands,
@@ -208,4 +213,108 @@ void main() {
       ),
     );
   });
+
+  everyCommandAnswers(
+    '\n[a]:<b\\',
+    readWriteCommands,
+    tags: 'f01/us01/fr03/e12, s03/inv24, LP3',
+  );
+
+  test('f01/us01/fr03/e12, s03/inv24, LP3: structure warns on each read until '
+      'the doc is fixed', () async {
+    final project = await caseProject('\n[a]:<b\\');
+
+    final first = await runIn(project, ['structure']);
+    final second = await runIn(project, ['structure']);
+
+    expect(first.code, 0, reason: first.out + first.err);
+    expect(first.err, contains(unparsedWarning));
+    expect(second.code, 0, reason: second.out + second.err);
+    expect(second.err, contains(unparsedWarning));
+
+    final fixed = await caseProject('');
+    final clean = await runIn(fixed, ['structure']);
+
+    expect(clean.err, isNot(contains('the markdown parser failed')));
+  });
+
+  for (final tail in [
+    '\n[a]: <',
+    '\n[^1]\n\n[^1]: - note\n',
+    '\n[a]: /b (c\n| :--- | ---: |\n',
+    '\n${'> ' * 100000}x\n',
+  ]) {
+    test(
+      'f01/us01/fr03/e12, LP2: each parser fault class answers '
+      '(${tail.length > 40 ? 'deep blockquote' : jsonEncode(tail)})',
+      () async {
+        final run = await runIn(await caseProject(tail), ['structure']);
+
+        expect(run.code, 0, reason: run.out + run.err);
+        expect(run.err, contains(unparsedWarning));
+      },
+    );
+  }
+
+  test(
+    'f01/us07/fr01/e11, LP3: refs lists no link from the unparsed doc',
+    () async {
+      final unparsed = await runIn(await caseProject('\n[a]:<b\\'), [
+        'refs',
+        story,
+        '--json',
+      ]);
+      final clean = await runIn(await caseProject(''), [
+        'refs',
+        story,
+        '--json',
+      ]);
+
+      expect(unparsed.code, 0, reason: unparsed.out + unparsed.err);
+      expect(_linkEntries(unparsed.out), isEmpty);
+      expect(_linkEntries(clean.out), isNotEmpty);
+    },
+  );
+
+  test('f02/us05/fr02/e08, dw-s03/inv10, LP3: a rename keeps every byte of the '
+      'unparsed doc and warns', () async {
+    final project = await caseProject('\n[a]:<b\\');
+    final before = File.fromUri(project.uri.resolve(frFile)).readAsBytesSync();
+
+    final run = await runIn(project, [
+      'rename',
+      'user_story:$story',
+      '--to',
+      'email_signin',
+    ]);
+
+    expect(run.code, 0, reason: run.out + run.err);
+    expect(
+      run.err,
+      contains('the markdown parser failed; its links are not indexed'),
+    );
+    final moved = File.fromUri(
+      project.uri.resolve(
+        'docs/prds/features/f01_login/us01_email_signin/'
+        'fr01_validate_credentials.md',
+      ),
+    );
+    expect(moved.readAsBytesSync(), before);
+  });
+}
+
+/// The entries of kind `link` in the `refs --json` output [out].
+List<Object?> _linkEntries(String out) {
+  final found = <Object?>[];
+  void visit(Object? node) {
+    if (node is Map) {
+      if (node['kind'] == 'link') found.add(node);
+      node.values.forEach(visit);
+    } else if (node is List) {
+      node.forEach(visit);
+    }
+  }
+
+  visit(jsonDecode(out));
+  return found;
 }

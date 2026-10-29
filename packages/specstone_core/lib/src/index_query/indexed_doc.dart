@@ -214,6 +214,7 @@ ParsedDoc parseIndexedDoc({
     doc: doc,
     sectionCounts: [for (final section in sections) sectionCountsOf(section)],
     frontmatterErrorLine: yaml?.errorLine,
+    warnings: warnings,
   );
   final content = DocContent(
     text: text,
