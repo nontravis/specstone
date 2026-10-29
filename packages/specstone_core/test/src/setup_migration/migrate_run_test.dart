@@ -10,29 +10,38 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
+import '../../helpers/temp_tree.dart';
 
 const _commit1Message = 'move legacy docs to their new paths';
 const _commit2Message =
     'rewrite titles, keys, and links; add project configuration';
 
-Map<String, String> _bytesUnder(Directory root) => {
-  for (final entity in root.listSync(recursive: true, followLinks: false))
-    if (entity is File &&
-        !entity.path.contains('/.git/') &&
-        !entity.path.contains('/.specstone/trash/'))
-      entity.path: entity.readAsStringSync(),
-};
+/// The text of every file under [root] outside `.git` and the trash, keyed by
+/// its `/`-separated path relative to [root].
+Map<String, String> _bytesUnder(Directory root) {
+  final prefix = '${root.path}${Platform.pathSeparator}';
+  final texts = <String, String>{};
+  for (final entity in root.listSync(recursive: true, followLinks: false)) {
+    if (entity is! File) continue;
+    final relative = entity.path
+        .substring(prefix.length)
+        .replaceAll(Platform.pathSeparator, '/');
+    if (relative.startsWith('.git/') ||
+        relative.startsWith('.specstone/trash/')) {
+      continue;
+    }
+    texts[relative] = entity.readAsStringSync();
+  }
+  return texts;
+}
 
 /// Writes the fixture under `<tmp>/NTD OS/acme/` and commits it.
 Future<Directory> _spacedFixture(Map<String, String> files) async {
-  final tmp = await Directory.systemTemp.createTemp('specstone_test_');
-  addTearDown(() => tmp.delete(recursive: true));
+  final tmp = await writeTree({
+    for (final MapEntry(:key, :value) in files.entries)
+      'NTD OS/acme/$key': value,
+  });
   final root = Directory.fromUri(tmp.uri.resolve('NTD OS/acme/'));
-  for (final MapEntry(:key, :value) in files.entries) {
-    final file = File.fromUri(root.uri.resolve(key));
-    await file.parent.create(recursive: true);
-    await file.writeAsString(value);
-  }
   expect(git(root, ['init', '-q']).exitCode, 0);
   expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
   expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
@@ -93,11 +102,19 @@ void main() {
                   as String)
               .trim()
               .split('\n');
-      expect(names, contains('.specstone/config.yaml'));
-      expect(names, contains('.specstone/.gitignore'));
-      expect(names, contains('.specstone/templates/gnfr.yaml'));
-      expect(names, contains('docs/specs/TECH_STACK.md'));
-      expect(names.where((n) => n.startsWith('docs/')), hasLength(8));
+      expect(names.toSet(), {
+        '.specstone/config.yaml',
+        '.specstone/.gitignore',
+        '.specstone/templates/gnfr.yaml',
+        'docs/specs/TECH_STACK.md',
+        'docs/prds/PROJECT.md',
+        'docs/prds/FEATURES.md',
+        'docs/prds/GNFR.md',
+        'docs/prds/features/f01_login/FEATURE.md',
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+        'docs/specs/f01_login/ARCHITECTURE.md',
+      });
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
       expect(
         Directory.fromUri(root.uri.resolve('.specstone/trash/')).existsSync(),
@@ -148,8 +165,8 @@ void main() {
       expect(_run(root, out, answers: ['y']), 0);
 
       for (final file in _bytesUnder(root).entries) {
-        if (file.key.endsWith('.specstone/.gitignore')) continue;
-        if (file.key.endsWith('TECH_STACK.md')) continue;
+        if (file.key == '.specstone/.gitignore') continue;
+        if (file.key == 'docs/specs/TECH_STACK.md') continue;
         expect(file.value, isNot(contains('draft:')), reason: file.key);
       }
       expect(

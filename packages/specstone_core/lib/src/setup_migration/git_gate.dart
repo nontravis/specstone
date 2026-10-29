@@ -29,23 +29,30 @@ void requireGitWorkTree(Directory root, RunGit runGit) {
             ], workingDirectory: root.path).exitCode ==
             0;
   } on ProcessException {
-    throw _workTreeRequired(root);
+    throw _workTreeRequired();
   }
-  if (!inside || !hasHead) throw _workTreeRequired(root);
+  if (!inside || !hasHead) throw _workTreeRequired();
 }
 
-MigrateFault _workTreeRequired(Directory root) => MigrateFault(
+MigrateFault _workTreeRequired() => MigrateFault(
   MigrateFaultCode.gitWorkTreeRequired,
-  '${root.path} is not in a git work tree with a first commit; put the '
+  'the project is not in a git work tree with a first commit; put the '
   'project under git, git init and a first commit, then run specstone '
   'migrate again',
 );
 
 /// Refuses a [root] whose work tree holds an uncommitted change (PD12).
 ///
-/// Untracked files count; ignored ones do not.
+/// Untracked files count; ignored ones do not. `s05_errors.md` names no code
+/// for a `git status` that fails, so that case is `git_work_tree_required`.
 void requireCleanWorkTree(Directory root, RunGit runGit) {
-  final status = runGit(['status', '--porcelain'], workingDirectory: root.path);
+  final ProcessResult status;
+  try {
+    status = runGit(['status', '--porcelain'], workingDirectory: root.path);
+  } on ProcessException {
+    throw _workTreeRequired();
+  }
+  if (status.exitCode != 0) throw _workTreeRequired();
   if ((status.stdout as String).trim().isNotEmpty) {
     throw MigrateFault(
       MigrateFaultCode.workingTreeDirty,
@@ -55,13 +62,9 @@ void requireCleanWorkTree(Directory root, RunGit runGit) {
   }
 }
 
-/// Returns the short sha HEAD points at.
+/// Returns the full sha HEAD points at.
 String headSha(Directory root, RunGit runGit) =>
-    (runGit([
-              'rev-parse',
-              '--short',
-              'HEAD',
-            ], workingDirectory: root.path).stdout
+    (runGit(['rev-parse', 'HEAD'], workingDirectory: root.path).stdout
             as String)
         .trim();
 

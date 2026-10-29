@@ -49,9 +49,12 @@ final class MigrateRequest {
 
 /// Runs `specstone migrate` and returns its exit status.
 ///
-/// Throws a `SpecstoneFault` for a refused run, before anything prints, except
-/// `owner_terminal_required`, which follows the printed plan. A bare legacy run
-/// checks git first, prints the plan, and applies it only on the Owner's `y`.
+/// A bare legacy run checks git first, prints the plan, and applies it only on
+/// the Owner's `y`.
+///
+/// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
+/// the plan, before anything prints. The terminal refusal and the faults of
+/// applying (index, render, git) follow the printed plan.
 int runMigrate(MigrateRequest request) {
   final root = findMigrateRoot(request.workingDirectory);
   final kind = chooseRun(

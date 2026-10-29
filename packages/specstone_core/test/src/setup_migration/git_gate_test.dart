@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
+import '../../helpers/temp_tree.dart';
 
 /// A `RunGit` that throws `ProcessException`, as a missing `git` does.
 ProcessResult _gitMissing(
@@ -29,9 +30,9 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              '${outside.path} is not in a git work tree with a first '
-                  'commit; put the project under git, git init and a first '
-                  'commit, then run specstone migrate again',
+              'the project is not in a git work tree with a first commit; '
+                  'put the project under git, git init and a first commit, '
+                  'then run specstone migrate again',
             ),
       ),
     );
@@ -55,7 +56,7 @@ void main() {
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us01/fr02/e03: git missing is git_work_tree_required', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await writeTree(acmeLegacy);
 
     expect(
       () => requireGitWorkTree(root, _gitMissing),
@@ -110,17 +111,39 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr07: headSha returns the HEAD short sha; commitsSince '
-      'lists commits since a base', () async {
+  test('f06/us01/fr02/e04: a git status that fails is '
+      'git_work_tree_required', () async {
+    final root = await writeTree(acmeLegacy);
+    ProcessResult failing(
+      List<String> arguments, {
+      required String workingDirectory,
+    }) => ProcessResult(0, 128, '', 'fatal: not a git repository');
+
+    expect(
+      () => requireCleanWorkTree(root, failing),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.gitWorkTreeRequired,
+        ),
+      ),
+    );
+  });
+
+  test('f06/us01/fr07: headSha returns the full HEAD sha; commitsSince '
+      'lists commits since a base with short shas', () async {
     final root = await gitFixture(acmeLegacy);
     final base = headSha(root, runRealGit);
     File.fromUri(root.uri.resolve('notes.txt')).writeAsStringSync('x\n');
     commitAll(root, 'second');
     final head = headSha(root, runRealGit);
 
-    expect(head, matches(RegExp(r'^[0-9a-f]{7,}$')));
-    expect(commitsSince(root, base, runRealGit), [
-      (sha: head, subject: 'second'),
-    ]);
+    expect(base, matches(RegExp(r'^[0-9a-f]{40}$')));
+    final commits = commitsSince(root, base, runRealGit);
+    expect(commits, hasLength(1));
+    expect(commits.single.subject, 'second');
+    expect(head, startsWith(commits.single.sha));
+    expect(commits.single.sha, matches(RegExp(r'^[0-9a-f]{7,}$')));
   }, skip: hasGit ? null : 'git is not available');
 }
