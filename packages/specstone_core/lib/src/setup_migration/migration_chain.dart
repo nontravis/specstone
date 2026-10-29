@@ -29,9 +29,15 @@ final class PackUpgrade {
 /// Returns one [PackUpgrade] per pack whose pin is older than its available
 /// version, in code point order of the pack name.
 ///
-/// A pack without an available manifest is skipped. `steps` holds, for every
-/// entry with `pin <= from < target` in ascending `from` order, its steps in
-/// list order (INV-10); a pack with no such entry changes its pin only.
+/// `steps` holds, for every entry with `pin <= from < target` in ascending
+/// `from` order, its steps in list order (INV-10); a pack with no such entry
+/// changes its pin only.
+///
+/// A pin newer than the available version yields no upgrade: `chooseRun`
+/// refuses `pack_pin_newer` before any upgrade is planned.
+///
+/// Throws [StateError] when a pinned pack has no available manifest; the
+/// resolver refuses `pack_not_found` first, so that is a programming error.
 List<PackUpgrade> selectUpgrades(
   Map<String, PackVersion> pins,
   Map<String, PackManifest> available,
@@ -39,14 +45,18 @@ List<PackUpgrade> selectUpgrades(
   final upgrades = <PackUpgrade>[];
   for (final pack in pins.keys.toList()..sort(compareCodePoints)) {
     final pin = pins[pack]!;
-    final target = available[pack]?.version;
-    if (target == null || pin.compareTo(target) >= 0) continue;
+    final manifest = available[pack];
+    if (manifest == null) {
+      throw StateError('No available manifest for pinned pack "$pack".');
+    }
+    final target = manifest.version;
+    if (pin.compareTo(target) >= 0) continue;
     upgrades.add(
       PackUpgrade(
         pack: pack,
         pin: pin,
         target: target,
-        steps: _stepsBetween(available[pack]!.migrations, pin, target),
+        steps: _stepsBetween(manifest.migrations, pin, target),
       ),
     );
   }

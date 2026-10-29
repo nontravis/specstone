@@ -145,10 +145,21 @@ migrations:
     expect(upgrades, isEmpty);
   });
 
-  test('f06/us02/fr01: upgrades come in code point order of the pack name, '
-      'and a pin with no available pack is skipped', () {
+  test('f06/us02/fr01: a pin newer than the available version gives no '
+      'upgrade for that pack', () {
     final upgrades = selectUpgrades(
-      {'zeta': _v('1.0.0'), 'alpha': _v('1.0.0'), 'gone': _v('1.0.0')},
+      {'acme': _v('1.3.0')},
+      {
+        'acme': _manifest('1.2.0', entries: [_entry('1.1.0', 'B')]),
+      },
+    );
+
+    expect(upgrades, isEmpty);
+  });
+
+  test('f06/us02/fr01: upgrades come in code point order of the pack name', () {
+    final upgrades = selectUpgrades(
+      {'zeta': _v('1.0.0'), 'alpha': _v('1.0.0')},
       {
         'zeta': _manifest('2.0.0', name: 'zeta'),
         'alpha': _manifest('2.0.0', name: 'alpha'),
@@ -156,5 +167,18 @@ migrations:
     );
 
     expect([for (final u in upgrades) u.pack], ['alpha', 'zeta']);
+  });
+
+  test('f06/us02/fr01: a pin with no available pack throws a StateError '
+      'naming the pack', () {
+    expect(
+      () => selectUpgrades(
+        {'alpha': _v('1.0.0'), 'gone': _v('1.0.0')},
+        {'alpha': _manifest('2.0.0', name: 'alpha')},
+      ),
+      throwsA(
+        isA<StateError>().having((e) => e.message, 'message', contains('gone')),
+      ),
+    );
   });
 }
