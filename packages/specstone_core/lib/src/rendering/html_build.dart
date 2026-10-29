@@ -5,6 +5,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/html_page.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/page_setup.dart';
 
 /// The html copy of a target and the warnings raised while building it.
 final class HtmlBuild {
@@ -23,8 +24,12 @@ final class HtmlBuild {
 ///
 /// Docs render as on disk, never reordered. A doc that cannot be read is
 /// skipped with a warning; one that does not match its template renders and
-/// warns.
-HtmlBuild buildHtml(DocsProject project, Target target) {
+/// warns. The page prints as [page] sets.
+HtmlBuild buildHtml(
+  DocsProject project,
+  Target target, {
+  PageSetup page = PageSetup.defaults,
+}) {
   final readable = <(String, ReadableDoc)>[];
   final warnings = <String>[];
   final parseWarnings = <String>[];
@@ -72,6 +77,7 @@ HtmlBuild buildHtml(DocsProject project, Target target) {
     html: renderPage(
       title: target.isDocsRoot ? 'docs' : target.docPath,
       docs: rendered,
+      page: page,
     ),
     warnings: [...warnings, ...parseWarnings],
   );

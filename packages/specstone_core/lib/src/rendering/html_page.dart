@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
+import 'package:specstone_core/src/rendering/page_setup.dart';
 
 /// The page stylesheet: system fonts only, nothing fetched.
+///
+/// The last two rules act in print: colors stay as drawn, and the body box
+/// that frames the screen gives way to the `@page` margin.
 const String pageStylesheet = '''
 body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5; margin: 2rem auto; max-width: 56rem; padding: 0 1rem; }
 nav.toc ul { list-style: none; padding-left: 0; }
@@ -15,6 +19,8 @@ pre { background: #f4f4f4; overflow-x: auto; padding: 0.75rem; }
 pre.mermaid { background: none; text-align: center; }
 .draft { border: 2px solid #b00020; color: #b00020; display: inline-block; font-weight: bold; padding: 0.1rem 0.6rem; text-transform: uppercase; }
 .outside-link { color: #555; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+@media print { body { margin: 0; max-width: none; padding: 0; } }
 ''';
 
 const _escape = HtmlEscape(
@@ -61,8 +67,13 @@ final class RenderedDoc {
 ///
 /// The page loads nothing: the CSP meta denies every fetch and the mermaid
 /// script is inlined. Only the two page scripts carry the page's nonce, so a
-/// script written in a doc body does not run.
-String renderPage({required String title, required List<RenderedDoc> docs}) {
+/// script written in a doc body does not run. The stylesheet ends with the
+/// `@page` rule of [page].
+String renderPage({
+  required String title,
+  required List<RenderedDoc> docs,
+  PageSetup page = PageSetup.defaults,
+}) {
   final toc = [for (final doc in docs) _tocItem(doc)].join('\n');
   final sections = [for (final doc in docs) _section(doc)].join('\n');
   final nonce = _newNonce();
@@ -76,7 +87,7 @@ String renderPage({required String title, required List<RenderedDoc> docs}) {
       'content="${_contentSecurityPolicy(nonce)}">',
     )
     ..writeln('<title>${escapeText(title)}</title>')
-    ..writeln('<style>$pageStylesheet</style>')
+    ..writeln('<style>$pageStylesheet${page.pageRule}</style>')
     ..writeln('</head>')
     ..writeln('<body>')
     ..writeln('<nav class="toc"><ul>')

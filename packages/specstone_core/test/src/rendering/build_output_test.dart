@@ -37,10 +37,6 @@ void main() {
         outputName(_target(project, root, _featureDir), OutputFormat.html),
         '$_featureDir.html',
       );
-      expect(
-        outputName(_target(project, root, _featureDir), OutputFormat.pdf),
-        '$_featureDir.pdf',
-      );
     });
 
     test('f05/us02/fr04/e02: a file target keeps its .md', () async {
@@ -65,10 +61,6 @@ void main() {
       expect(
         outputName(_target(project, root, 'docs'), OutputFormat.html),
         'docs.html',
-      );
-      expect(
-        outputName(_target(project, root, null), OutputFormat.pdf),
-        'docs.pdf',
       );
     });
 
@@ -116,7 +108,24 @@ void main() {
   group('OutputFormat', () {
     test('wire value and extension are the name', () {
       expect(OutputFormat.html.name, 'html');
-      expect(OutputFormat.pdf.name, 'pdf');
+    });
+
+    test('f05/us02/fr04/e05, DP5: parse takes null and html, refuses the '
+        'rest', () {
+      expect(OutputFormat.parse(null), OutputFormat.html);
+      expect(OutputFormat.parse('html'), OutputFormat.html);
+      expect(
+        () => OutputFormat.parse('pdf'),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--format takes html, not pdf',
+              ),
+        ),
+      );
     });
   });
 

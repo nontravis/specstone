@@ -12,8 +12,7 @@ void main() {
           'target_missing': 64,
           'target_not_found': 64,
           'target_outside_docs_root': 64,
-          'browser_not_found': 69,
-          'browser_print_failed': 70,
+          'argument_invalid': 64,
           'output_not_writable': 73,
         },
       );
@@ -27,8 +26,7 @@ void main() {
           'target_missing',
           'target_not_found',
           'target_outside_docs_root',
-          'browser_not_found',
-          'browser_print_failed',
+          'argument_invalid',
           'output_not_writable',
         ],
       );

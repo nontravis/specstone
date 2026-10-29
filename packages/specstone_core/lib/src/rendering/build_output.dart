@@ -7,7 +7,20 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 /// A format `build` writes.
 ///
 /// The wire value and the file extension are the [name].
-enum OutputFormat { html, pdf }
+enum OutputFormat {
+  html;
+
+  /// Returns the format [value] names; null gives [html].
+  ///
+  /// Throws `argument_invalid` when [value] names no format.
+  static OutputFormat parse(String? value) {
+    if (value == null || value == 'html') return html;
+    throw RenderFault(
+      RenderFaultCode.argumentInvalid,
+      '--format takes html, not $value',
+    );
+  }
+}
 
 /// Returns the output file name of [target]: its path relative to the project
 /// root, `/`-separated, plus the [format] extension.
