@@ -4,6 +4,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
@@ -53,6 +54,34 @@ Future<Directory> _spacedFixture(Map<String, String> files) async {
   expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
   commitAll(root, 'legacy');
   return root;
+}
+
+/// A committed project pinning pack `acme` at 1.0.0, whose 1.1.0 in the
+/// returned home renames the runbook's `Steps` section, with one runbook.
+Future<({Directory project, Directory home})> _upgradeFixture() async {
+  final home = await writeTree({
+    '.specstone/packs/acme/pack.yaml': '''
+name: acme
+version: 1.1.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+''',
+    '.specstone/packs/acme/runbook.yaml': '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: procedure, header: Procedure, required: true}
+''',
+  });
+  final project = await gitFixture({
+    '.specstone/config.yaml': '${shippedPinsConfig()}  acme: 1.0.0\n',
+    'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nRun it.\n',
+  });
+  return (project: project, home: home);
 }
 
 int _run(
@@ -258,6 +287,140 @@ void main() {
     },
     skip: hasGit ? null : 'git is not available',
   );
+
+  group('f06/us01/fr02/e04, final I1: a change while the Owner reads the '
+      'plan', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    /// Runs bare migrate on [root] at a terminal, running [meanwhile] while
+    /// the prompt waits, then answering `y`.
+    int answerAfter(
+      Directory root,
+      void Function() meanwhile, {
+      Directory? home,
+      StringSink? out,
+    }) => runMigrate(
+      MigrateRequest(
+        workingDirectory: root,
+        homeDirectory: home,
+        templates: TemplateResolver(),
+        dryRun: false,
+        interactive: true,
+        readLine: () {
+          meanwhile();
+          return 'y';
+        },
+        out: out ?? StringBuffer(),
+      ),
+    );
+
+    test('f06/us01/fr02/e04: a doc edited before the y is '
+        'working_tree_dirty, and the edit and the tree stay', () async {
+      final root = await gitFixture(acmeLegacy);
+      final head = headOf(root);
+      final context = File('${root.path}/docs/prds/d01_context.md');
+
+      expect(
+        () => answerAfter(
+          root,
+          () => context.writeAsStringSync('# D-01 — Project context\n\nedit\n'),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+      expect(headOf(root), head);
+      expect(context.readAsStringSync(), '# D-01 — Project context\n\nedit\n');
+      expect(_bytesUnder(root), {
+        ...acmeLegacy,
+        'docs/prds/d01_context.md': '# D-01 — Project context\n\nedit\n',
+      });
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e04: a commit made before the y is '
+        'working_tree_dirty, and nothing is written', () async {
+      final root = await gitFixture(acmeLegacy);
+
+      expect(
+        () => answerAfter(root, () {
+          File('${root.path}/notes.txt').writeAsStringSync('x\n');
+          commitAll(root, 'meanwhile');
+        }),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having(
+                (f) => f.message,
+                'message',
+                'the repository that holds the docs gained a commit while '
+                    'the plan was shown; run specstone migrate again to plan '
+                    'from it',
+              ),
+        ),
+      );
+      expect(_bytesUnder(root), {...acmeLegacy, 'notes.txt': 'x\n'});
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us02/fr02: an upgrade doc edited before the y is '
+        'working_tree_dirty, and the edit stays', () async {
+      final (:project, :home) = await _upgradeFixture();
+      final runbook = File(
+        '${project.path}/docs/prds/runbooks/deploy/RUNBOOK.md',
+      );
+      final out = StringBuffer();
+
+      expect(
+        () => answerAfter(
+          project,
+          () => runbook.writeAsStringSync('# Deploy\n\n## Steps\n\nedited\n'),
+          home: home,
+          out: out,
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+      expect(out.toString(), contains('apply? [y/N] '));
+      expect(runbook.readAsStringSync(), '# Deploy\n\n## Steps\n\nedited\n');
+      expect(MoveJournal.pending(project), isFalse);
+    }, skip: skipGit);
+  });
+
+  test('f06/us01/fr07/e04, final M7: a dry run over a journal that does not '
+      'parse refuses as bare migrate does', () async {
+    final root = await gitFixture(acmeLegacy);
+    File('${root.path}/${MoveJournal.journalPath}')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('{');
+
+    Matcher refusal() => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having(
+            (f) => f.message,
+            'message',
+            startsWith('cannot replay ${MoveJournal.journalPath}: '),
+          ),
+    );
+    final dryOut = StringBuffer();
+    expect(() => _run(root, dryOut, dryRun: true), refusal());
+    expect(dryOut.toString(), isEmpty);
+    expect(() => _run(root, StringBuffer(), answers: ['y']), refusal());
+    expect(
+      File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+      '{',
+    );
+  }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us01/fr02/e02, f06/us01/s13: no interactive terminal prints the '
       'plan, then refuses owner_terminal_required, exit 77', () async {

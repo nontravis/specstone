@@ -8,6 +8,7 @@ import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
+import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
@@ -52,16 +53,18 @@ final class MigrateRequest {
 /// Runs `specstone migrate` and returns its exit status.
 ///
 /// A bare legacy or upgrade run checks git first, prints the plan, and applies
-/// it only on the Owner's `y`.
+/// it only on the Owner's `y`, after checking git again.
 ///
 /// A pending journal is finished first: an F-02 journal is replayed before the
-/// git checks, and a migrate journal is resumed with no second `y`.
+/// git checks, and a migrate journal is resumed with no second `y`. A dry run
+/// replays nothing, but refuses a journal the replay would refuse.
 ///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
-/// the plan, before anything prints. The terminal refusal and the faults of
-/// applying (index, render) follow the printed plan or the listed steps. A
-/// `git add` or `git commit` that fails, or a git that cannot start past the
-/// git checks, throws `MigrateFault` `git_failed`, and the journal stays.
+/// the plan, before anything prints. The terminal refusal, the git checks
+/// after the `y`, and the faults of applying (index, render) follow the
+/// printed plan or the listed steps. A `git add` or `git commit` that fails,
+/// or a git that cannot start past the git checks, throws `MigrateFault`
+/// `git_failed`, and the journal stays.
 int runMigrate(MigrateRequest request) =>
     _mappingGitFailures(() => _migrate(request));
 
@@ -91,12 +94,17 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
 
 int _migrate(MigrateRequest request) {
   final root = findMigrateRoot(request.workingDirectory);
-  if (!request.dryRun &&
-      !MoveJournal.pendingMigrate(root) &&
-      MoveJournal.pending(root)) {
-    MoveJournal.replay(_targetOf(root, request));
-    requireGitWorkTree(root, request.runGit);
-    requireCleanWorkTree(root, request.runGit);
+  if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
+    final target = _targetOf(root, request);
+    if (request.dryRun) {
+      // Reads the journal and its cursor only, so a dry run refuses one that
+      // does not parse as the replay does, and writes nothing.
+      MoveJournal.remaining(target);
+    } else {
+      MoveJournal.replay(target);
+      requireGitWorkTree(root, request.runGit);
+      requireCleanWorkTree(root, request.runGit);
+    }
   }
   final kind = chooseRun(
     root,
@@ -125,28 +133,22 @@ int runLegacyAt(Directory root, MigrateRequest request) =>
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
 /// `y`.
+///
+/// The git checks run again after the `y`, since the Owner may read the plan
+/// for minutes: a change to the tree or a new commit in that time refuses
+/// `working_tree_dirty` with nothing written, as F-02's delete and approve
+/// re-check after their prompt (INV-3).
 int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
-  if (!request.dryRun) {
-    requireGitWorkTree(root, request.runGit);
-    requireCleanWorkTree(root, request.runGit);
-  }
-  final plan = kind == RunKind.upgrade
-      ? planUpgradeRun(
-          root,
-          templates: request.templates,
-          homeDirectory: request.homeDirectory,
-        )
-      : planLegacyRun(
-          root,
-          templates: request.templates,
-          homeDirectory: request.homeDirectory,
-        );
   if (request.dryRun) {
     request.out
-      ..write(plan.toText())
+      ..write(_planOf(request, root, kind).toText())
       ..writeln('dry run: nothing written');
     return 0;
   }
+  requireGitWorkTree(root, request.runGit);
+  requireCleanWorkTree(root, request.runGit);
+  final base = headSha(root, request.runGit);
+  final plan = _planOf(request, root, kind);
   request.out.write(plan.toText());
   if (!request.interactive) {
     throw WriteFault(
@@ -158,7 +160,14 @@ int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
   request.out.write('apply? [y/N] ');
   final answer = request.readLine()?.trim();
   if (answer != 'y') return 0;
-  final base = headSha(root, request.runGit);
+  requireCleanWorkTree(root, request.runGit);
+  if (headSha(root, request.runGit) != base) {
+    throw MigrateFault(
+      MigrateFaultCode.workingTreeDirty,
+      'the repository that holds the docs gained a commit while the plan was '
+      'shown; run specstone migrate again to plan from it',
+    );
+  }
   final steps = plan.journalSteps(base: base);
   MoveJournal(steps).run(_targetOf(root, request));
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
@@ -166,6 +175,19 @@ int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
   if (closingLine != null) request.out.writeln(closingLine);
   return 0;
 }
+
+RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
+    kind == RunKind.upgrade
+    ? planUpgradeRun(
+        root,
+        templates: request.templates,
+        homeDirectory: request.homeDirectory,
+      )
+    : planLegacyRun(
+        root,
+        templates: request.templates,
+        homeDirectory: request.homeDirectory,
+      );
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the
 /// Owner's first `y` approved its steps.
