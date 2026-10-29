@@ -67,6 +67,19 @@ void main() {
     bool exists(Directory project, String path) =>
         File.fromUri(project.uri.resolve(path)).existsSync();
 
+    /// The refusal under test must have written nothing: no `.specstone/build`
+    /// entry of any kind, and no file at [output].
+    void expectNothingWritten(Directory project, String output) {
+      expect(
+        FileSystemEntity.typeSync(
+          project.uri.resolve('.specstone/build').toFilePath(),
+        ),
+        FileSystemEntityType.notFound,
+        reason: 'the refusal left a .specstone/build entry',
+      );
+      expect(exists(project, output), isFalse);
+    }
+
     test('f05/us02/fr04/e01, f05/us02/s1: a folder builds to its mirrored '
         'path with the docs in tree order', () async {
       final project = await fixtureProject(_fixture);
@@ -525,7 +538,7 @@ void main() {
         err.toString(),
         '--paper takes a4, a5, letter, or legal, not b5\n',
       );
-      expect(exists(project, '.specstone/build'), isFalse);
+      expectNothingWritten(project, '.specstone/build/$_featureDir.html');
 
       err.clear();
       expect(
@@ -539,6 +552,42 @@ void main() {
           'message': '--paper takes a4, a5, letter, or legal, not b5',
         },
       });
+    });
+
+    test('f05/us02/s11, f05/us02/s12, DP1: a bad paper reports before a bad '
+        'margin', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(
+        await runner.run([
+          'build',
+          _featureDir,
+          '--paper',
+          'b5',
+          '--margin',
+          '5',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--paper takes a4, a5, letter, or legal, not b5\n',
+      );
+      expectNothingWritten(project, '.specstone/build/$_featureDir.html');
+    });
+
+    test('f05/us02/fr04/e05, f05/us02/s11, DP5: a bad format reports before '
+        'a bad paper', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(
+        await runner.run(['build', 'docs', '--format', 'pdf', '--paper', 'b5']),
+        64,
+      );
+      expect(err.toString(), '--format takes html, not pdf\n');
+      expectNothingWritten(project, '.specstone/build/docs.html');
     });
 
     test('f05/us02/s12, f05/us02/fr05/e04, DP1: a negative margin refuses by '
@@ -557,6 +606,7 @@ void main() {
           '--margin takes a length in mm, cm, or in, such as 20mm, '
           'not -5mm\n',
         );
+        expectNothingWritten(project, '.specstone/build/$_featureDir.html');
       }
     });
 
@@ -575,6 +625,7 @@ void main() {
         err.toString(),
         '--margin takes less than 105mm on a4, not 105mm\n',
       );
+      expectNothingWritten(project, '.specstone/build/$_featureDir.html');
     });
 
     test('f05/us02/fr05/e08, DP1: a bad option outside a project is '
@@ -609,7 +660,7 @@ void main() {
         expect(await runner.run(['build', 'docs', '--format', format]), 64);
         expect(out.toString(), isEmpty);
         expect(err.toString(), '--format takes html, not $format\n');
-        expect(exists(project, '.specstone/build'), isFalse);
+        expectNothingWritten(project, '.specstone/build/docs.html');
 
         err.clear();
         expect(
@@ -623,7 +674,7 @@ void main() {
             'message': '--format takes html, not $format',
           },
         });
-        expect(exists(project, '.specstone/build'), isFalse);
+        expectNothingWritten(project, '.specstone/build/docs.html');
       });
     }
 
