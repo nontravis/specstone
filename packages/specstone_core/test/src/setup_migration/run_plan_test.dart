@@ -90,4 +90,18 @@ void main() {
       '  $_notes -> $_runbook\n',
     );
   });
+
+  test('f06/us01/fr07, dw-s03/inv6: commit 1 carries each move once as a '
+      'ProjectPath pair, the stage hops left out; commit 2 carries none', () {
+    final commits = _planOf(_cycle)
+        .journalSteps(base: 'abc')
+        .whereType<CommitStep>()
+        .toList();
+
+    expect(commits.first.moves, [
+      (from: 'docs/$_runbook', to: 'docs/$_notes'),
+      (from: 'docs/$_notes', to: 'docs/$_runbook'),
+    ]);
+    expect(commits.last.moves, isEmpty);
+  });
 }

@@ -119,7 +119,9 @@ final class RunPlan {
   /// Returns the journal steps that apply the plan on top of HEAD [base].
   ///
   /// Moves and prunes, commit 1 when any file moves, the writes and creates,
-  /// then commit 2. No step deletes a file (INV-6).
+  /// then commit 2. No step deletes a file (INV-6). Commit 1 carries each move
+  /// once as a ProjectPath pair, its stage hops left out, so a tracked file
+  /// moved onto an ignored path still commits as a rename.
   List<JournalStep> journalSteps({required String base}) {
     final movedPaths = [
       for (final move in moves) ...[
@@ -136,7 +138,15 @@ final class RunPlan {
       ..._moveSteps(),
       for (final folder in prunes) PruneStep(folder),
       if (moves.isNotEmpty)
-        CommitStep(message: commit1Message, paths: movedPaths, base: base),
+        CommitStep(
+          message: commit1Message,
+          paths: movedPaths,
+          base: base,
+          moves: [
+            for (final move in moves)
+              (from: '$_docsPrefix${move.from}', to: '$_docsPrefix${move.to}'),
+          ],
+        ),
       for (final rewrite in rewrites) WriteStep(rewrite.path, rewrite.text),
       for (final create in creates) CreateStep(create.path, create.text),
       CommitStep(

@@ -916,6 +916,43 @@ void main() {
       );
     }, skip: skipGit);
 
+    test('f06/us01/fr07, dw-s03/inv6: an untracked ignored file with the bytes of a moved tracked file stays out of the commit', () async {
+      final root = await _gitTree({
+        '.gitignore': '.DS_Store\n',
+        'docs/specs/shared/notes.txt': 'same bytes\n',
+      });
+      File('${root.path}/docs/specs/other/.DS_Store')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('same bytes\n');
+      final base = _head(root);
+      const moves = [
+        ('docs/specs/shared/notes.txt', 'docs/specs/topics/shared/notes.txt'),
+        ('docs/specs/other/.DS_Store', 'docs/specs/topics/other/.DS_Store'),
+      ];
+
+      MoveJournal([
+        for (final (from, to) in moves) MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: [
+            for (final (from, to) in moves) ...[from, to],
+          ],
+          base: base,
+          moves: [for (final (from, to) in moves) (from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tdocs/specs/shared/notes.txt\t'
+        'docs/specs/topics/shared/notes.txt\n',
+      );
+      expect(
+        git(root, ['ls-files', '--', 'docs/specs/topics/other']).stdout,
+        '',
+      );
+    }, skip: skipGit);
+
     test('f06/us01/fr07, dw-s03/inv6: a tracked file moved onto an ignored path stays a rename, and an untracked one stays out', () async {
       final root = await _gitTree({
         '.gitignore': '.DS_Store\n',
@@ -950,6 +987,7 @@ void main() {
             for (final (from, to) in moves) ...[from, to],
           ],
           base: base,
+          moves: [for (final (from, to) in moves) (from: from, to: to)],
         ),
       ]).run(_target(root));
 
@@ -1220,6 +1258,68 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('f06/us01/fr07: a commit step keeps its move pairs through JSON, and one without pairs writes no moves key', () {
+      const step = CommitStep(
+        message: 'm',
+        paths: ['docs/a.md', 'docs/b.md'],
+        base: 'b',
+        moves: [(from: 'docs/a.md', to: 'docs/b.md')],
+      );
+
+      expect(step.toJson(), {
+        'commit': {
+          'message': 'm',
+          'paths': ['docs/a.md', 'docs/b.md'],
+          'base': 'b',
+          'moves': [
+            {'from': 'docs/a.md', 'to': 'docs/b.md'},
+          ],
+        },
+      });
+      final back = JournalStep.fromJson(
+        jsonDecode(jsonEncode(step.toJson())),
+      ) as CommitStep;
+      expect(back.moves, step.moves);
+      expect(const CommitStep(message: 'm', paths: ['x'], base: 'b').toJson(), {
+        'commit': {
+          'message': 'm',
+          'paths': ['x'],
+          'base': 'b',
+        },
+      });
+      expect(
+        (JournalStep.fromJson(
+          const CommitStep(message: 'm', paths: ['x'], base: 'b').toJson(),
+        ) as CommitStep).moves,
+        isEmpty,
+      );
+    });
+
+    test('f06/us01/fr07: fromJson refuses a commit step whose moves are not from and to strings', () {
+      for (final moves in [
+        'docs/a.md',
+        [
+          {'from': 'docs/a.md'},
+        ],
+        [
+          {'from': 'docs/a.md', 'to': 1},
+        ],
+      ]) {
+        expect(
+          () => JournalStep.fromJson({
+            'commit': {
+              'message': 'm',
+              'paths': ['docs/a.md'],
+              'base': 'b',
+              'moves': moves,
+            },
+          }),
+          throwsFormatException,
+          reason: '$moves',
+        );
+      }
     });
 
     test('f06/us01/fr07: fromJson refuses a commit step whose path is not a string', () {

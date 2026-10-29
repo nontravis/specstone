@@ -98,6 +98,7 @@ sealed class JournalStep {
               message: message,
               paths: paths.cast<String>(),
               base: base,
+              moves: _movesOf(value['moves']),
             );
         }
       }
@@ -105,6 +106,26 @@ sealed class JournalStep {
     throw FormatException('not a journal step', json);
   }
 }
+
+/// Returns the move pairs of a commit step's `moves` entry, none when the
+/// entry is absent.
+///
+/// Throws [FormatException] when [json] is not a list of `{from, to}` string
+/// pairs.
+List<({String from, String to})> _movesOf(Object? json) => switch (json) {
+  null => const [],
+  List<Object?>() => [
+    for (final move in json)
+      switch (move) {
+        {'from': final String from, 'to': final String to} => (
+          from: from,
+          to: to,
+        ),
+        _ => throw FormatException('not a commit move', move),
+      },
+  ],
+  _ => throw FormatException('not a list of commit moves', json),
+};
 
 /// Moves a file, a folder, or a symbolic link as itself, creating the parent
 /// folders of the target.
@@ -278,7 +299,12 @@ final class CreateStep extends JournalStep {
 /// the subject), so a replay after any crash point makes the commit exactly
 /// once. A step whose [paths] stage nothing is done and commits nothing.
 final class CommitStep extends JournalStep {
-  const new({required this.message, required this.paths, required this.base});
+  const new({
+    required this.message,
+    required this.paths,
+    required this.base,
+    this.moves = const [],
+  });
 
   /// The commit message.
   final String message;
@@ -289,9 +315,21 @@ final class CommitStep extends JournalStep {
   /// The HEAD sha when the journal was written.
   final String base;
 
+  /// The moves this commit records, each once, by the original and final
+  /// path of [paths]; an ignored final path is staged only through its pair.
+  final List<({String from, String to})> moves;
+
   @override
   Map<String, Object> toJson() => {
-    'commit': {'message': message, 'paths': paths, 'base': base},
+    'commit': {
+      'message': message,
+      'paths': paths,
+      'base': base,
+      if (moves.isNotEmpty)
+        'moves': [
+          for (final move in moves) {'from': move.from, 'to': move.to},
+        ],
+    },
   };
 
   @override
@@ -319,23 +357,30 @@ final class CommitStep extends JournalStep {
   /// Stages and commits the [paths] git can take, passing them through a
   /// pathspec file so no path reaches the command line.
   ///
-  /// A path an ignore rule matches and HEAD lacks is staged only as a tracked
-  /// file's new path (see [_stageTrackedMoves]); any other such path stays on
-  /// disk out of both commits. A path in neither the work tree nor the index
-  /// is skipped, as a moved-away path is once an earlier, refused attempt
-  /// already staged its deletion. A path HEAD holds stays committable, so the
-  /// commit records its staged deletion. No commit runs when none of them is
-  /// staged, as when a hook that rewrote the subject hid an earlier commit
-  /// from [isDone].
+  /// A path an ignore rule matches and HEAD lacks is force-staged only as the
+  /// `to` of one of [moves] whose `from` HEAD tracks, so a tracked file moved
+  /// onto an ignored path stays a rename (INV-6); any other such path stays
+  /// on disk out of both commits. A path in neither the work tree nor the
+  /// index is skipped, as a moved-away path is once an earlier, refused
+  /// attempt already staged its deletion. A path HEAD holds stays committable,
+  /// so the commit records its staged deletion. No commit runs when none of
+  /// them is staged, as when a hook that rewrote the subject hid an earlier
+  /// commit from [isDone].
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
     final scope = {for (final path in paths) path.split('/').first}.toList();
-    final head = _blobsBy(
-      _listed(target, ['ls-tree', '-r', '-z', 'HEAD', '--', ...scope]),
-      field: 2,
-    );
-    // `--cached` keeps a path an interrupted attempt force-staged in the set.
+    final head = _listed(target, [
+      'ls-tree',
+      '-r',
+      '-z',
+      '--name-only',
+      'HEAD',
+      '--',
+      ...scope,
+    ]);
+    // `--cached` keeps a path an interrupted attempt force-staged under the
+    // same rule on the replay.
     final matchingIgnore = _listed(target, [
       'ls-files',
       '-z',
@@ -348,7 +393,11 @@ final class CommitStep extends JournalStep {
     ]);
     final ignored = {
       for (final path in paths)
-        if (matchingIgnore.contains(path) && !head.containsKey(path)) path,
+        if (matchingIgnore.contains(path) && !head.contains(path)) path,
+    };
+    final forced = {
+      for (final move in moves)
+        if (ignored.contains(move.to) && head.contains(move.from)) move.to,
     };
     final indexed = _listed(target, ['ls-files', '-z', '--', ...scope]);
     final stageable = {
@@ -364,12 +413,14 @@ final class CommitStep extends JournalStep {
         ..._pathspecFile(target, stageable),
       ]);
     }
-    final kept = _stageTrackedMoves(target, ignored, head: head, scope: scope);
+    if (forced.isNotEmpty) {
+      _runWrite(target, 'add', ['add', '-f', ..._pathspecFile(target, forced)]);
+    }
     final committable = [
       for (final path in paths)
         if (stageable.contains(path) ||
-            kept.contains(path) ||
-            head.containsKey(path))
+            forced.contains(path) ||
+            head.contains(path))
           path,
     ];
     final staged = _listed(target, [
@@ -391,52 +442,6 @@ final class CommitStep extends JournalStep {
       ..._pathspecFile(target, committable),
     ]);
   }
-
-  /// Force-stages each of the [ignored] paths whose content HEAD holds at a
-  /// path of this step that has left the disk, and returns them.
-  ///
-  /// Such a path is a tracked file's new place: staged, it pairs with its
-  /// source's deletion as a rename (INV-6). The step names no move pairs, but
-  /// a move keeps the bytes, so git's staged blob finds the source. Every
-  /// other ignored path was never tracked; it is unstaged again.
-  Set<String> _stageTrackedMoves(
-    JournalTarget target,
-    Set<String> ignored, {
-    required Map<String, String> head,
-    required List<String> scope,
-  }) {
-    if (ignored.isEmpty) return const {};
-    _runWrite(target, 'add', ['add', '-f', ..._pathspecFile(target, ignored)]);
-    final staged = _blobsBy(
-      _listed(target, ['ls-files', '-s', '-z', '--', ...scope]),
-      field: 1,
-    );
-    final sourceBlobs = [
-      for (final path in paths)
-        if (head[path] case final blob? when !_onDisk(target, path)) blob,
-    ];
-    final kept = <String>{};
-    for (final path in ignored) {
-      if (sourceBlobs.remove(staged[path])) kept.add(path);
-    }
-    final untracked = ignored.difference(kept);
-    if (untracked.isNotEmpty) {
-      _runWrite(target, 'reset', [
-        'reset',
-        '-q',
-        ..._pathspecFile(target, untracked),
-      ]);
-    }
-    return kept;
-  }
-
-  /// Returns the blob of each `<fields>\t<path>` entry of a git listing, by
-  /// path; the blob is the space-separated field at [field].
-  Map<String, String> _blobsBy(Set<String> entries, {required int field}) => {
-    for (final entry in entries)
-      if (entry.indexOf('\t') case final tab when tab > 0)
-        entry.substring(tab + 1): entry.substring(0, tab).split(' ')[field],
-  };
 
   bool _onDisk(JournalTarget target, String path) =>
       FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
