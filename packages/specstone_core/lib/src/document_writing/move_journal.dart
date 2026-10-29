@@ -521,8 +521,8 @@ final class MoveJournal {
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
   /// cannot be written, and [RenderFault] `output_not_writable` when a
   /// folder a file moves out of sits on another volume than the trash (before
-  /// any file moves), or when a step, the journal write, or a cursor write
-  /// fails; the journal stays in the last two cases.
+  /// any file moves), when the journal cannot be written, or when a step or a
+  /// cursor write fails; the journal stays in the last case.
   void run(JournalTarget target) {
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
