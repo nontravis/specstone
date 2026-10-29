@@ -238,4 +238,23 @@ void main() {
       ],
     );
   });
+
+  test('f04/us02/fr04/e09, cc-s03/inv15, LP4: a doc the parser fails on gets markdown_unparsed at line 1', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'Users forget passwords.\n\n[a]:<b\\',
+        ),
+      ),
+    );
+    expect(
+      [for (final f in report.findings) f.textLine],
+      [
+        '$loginFeature:1: markdown_unparsed: the markdown parser failed on this doc; its links are not checked',
+      ],
+    );
+    expect(report.warnings, isEmpty);
+  });
 }

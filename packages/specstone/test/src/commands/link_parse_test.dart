@@ -194,6 +194,34 @@ void main() {
     expect(run.err, isNot(contains('Unhandled exception')));
   });
 
+  test('f04/us02/fr04/e09, LP4: check reports markdown_unparsed and no '
+      'warning repeats it', () async {
+    final project = await caseProject('\n[a]:<b\\');
+    const finding =
+        'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md'
+        ':1: markdown_unparsed: the markdown parser failed on this doc; its '
+        'links are not checked';
+
+    final text = await runIn(project, ['check']);
+
+    expect(text.code, 1, reason: text.out + text.err);
+    expect(text.out, contains(finding));
+    expect(text.err, isNot(contains('its links are not indexed')));
+
+    final json = await runIn(project, ['check', '--json']);
+    final report = jsonDecode(json.out) as Map<String, Object?>;
+
+    expect(json.code, 1, reason: json.out + json.err);
+    expect([
+      for (final f in report['findings']! as List<Object?>)
+        (f! as Map<String, Object?>)['kind'],
+    ], contains('markdown_unparsed'));
+    expect([
+      for (final w in (report['warnings'] ?? const <Object>[]) as List<Object?>)
+        if ((w! as String).contains('the markdown parser failed')) w,
+    ], isEmpty);
+  });
+
   test('f05/us02/fr03/e10, LP1: build shows the path', () async {
     final project = await caseProject('\n[x](%DB.md)\n');
     final run = await runIn(project, [
