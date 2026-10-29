@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
@@ -54,7 +55,7 @@ final class InitRequest {
 /// refuses `config_exists`; a root holding the legacy context doc enters the
 /// legacy migrate run at its git checks (F6-D15); otherwise the drafts are
 /// written and the config last (F6-D23). Throws a `SpecstoneFault` for a
-/// refused run.
+/// refused run, `output_not_writable` naming the file the disk refuses.
 int runInit(InitRequest request) {
   final root = rootThroughDocsLink(request.workingDirectory);
   if (File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
@@ -99,17 +100,38 @@ int _scaffold(Directory root, InitRequest request) {
       request.out.writeln('kept docs/${docType.path}: exists');
       continue;
     }
-    file.parent.createSync(recursive: true);
-    writeFileAtomic(file, utf8.encode(skeletonOf(docType, docType.id)));
+    _writeNew(
+      file,
+      skeletonOf(docType, docType.id),
+      shown: 'docs/${docType.path}',
+    );
     request.out.writeln('created docs/${docType.path} (draft)');
   }
-  final config = File.fromUri(root.uri.resolve(projectConfigPath));
-  config.parent.createSync(recursive: true);
-  writeFileAtomic(config, utf8.encode(configText(pins)));
+  _writeNew(
+    File.fromUri(root.uri.resolve(projectConfigPath)),
+    configText(pins),
+    shown: projectConfigPath,
+  );
   final list = [
     for (final name in pins.keys.toList()..sort(compareCodePoints))
       '$name ${pins[name]}',
   ].join(', ');
   request.out.writeln('created $projectConfigPath: $list');
   return 0;
+}
+
+/// Writes [text] to [file], creating its folders.
+///
+/// Throws [RenderFault] `output_not_writable` naming [shown], the file's
+/// ProjectPath, when the disk refuses.
+void _writeNew(File file, String text, {required String shown}) {
+  try {
+    file.parent.createSync(recursive: true);
+    writeFileAtomic(file, utf8.encode(text));
+  } on FileSystemException catch (error) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $shown: ${error.osError?.message ?? error.message}',
+    );
+  }
 }

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -12,6 +13,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
+import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -308,6 +310,26 @@ void main() {
       ),
     );
   });
+
+  test('f06/us03/fr01, final M6: a folder that refuses writes is '
+      'output_not_writable naming the path', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    expect(Process.runSync('chmod', ['555', root.path]).exitCode, 0);
+    addTearDown(() => Process.runSync('chmod', ['755', root.path]));
+
+    expect(
+      () => _run(root),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith('cannot write docs/prds/PROJECT.md: '),
+            ),
+      ),
+    );
+  }, skip: unreadablePathSkipReason());
 
   test('f06/us03/fr01/e03: a folder inside another project becomes its own '
       'project', () async {
