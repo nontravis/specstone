@@ -95,12 +95,20 @@ int _migrate(MigrateRequest request) {
       request.out.writeln('nothing to migrate');
       return 0;
     case RunKind.legacy:
+      return runLegacyAt(root, request);
     case RunKind.upgrade:
       return _plannedRun(request, root, kind);
     case RunKind.resume:
       return _resume(request, root);
   }
 }
+
+/// Runs the bare legacy migration of [root] from its git checks on.
+///
+/// Prints the plan, then applies it on the Owner's `y`; `init` enters here
+/// when its root holds the legacy context doc (F6-D15).
+int runLegacyAt(Directory root, MigrateRequest request) =>
+    _plannedRun(request, root, RunKind.legacy);
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
 /// `y`.
