@@ -15,12 +15,17 @@ typedef _Finding = ({String kind, String path, String message});
 bool _inGitFolder(String path) =>
     path.replaceAll(r'\', '/').split('/').contains('.git');
 
-/// Every file under [root] outside a `.git` folder, by path, with its bytes.
-Map<String, List<int>> _bytesUnder(Directory root) => {
-  for (final entity in root.listSync(recursive: true, followLinks: false))
-    if (entity is File && !_inGitFolder(entity.path))
-      entity.path: entity.readAsBytesSync(),
-};
+/// Every file under [root] outside a `.git` folder, by its `/`-separated path
+/// relative to [root], with its bytes.
+Map<String, List<int>> _bytesUnder(Directory root) {
+  final prefix = root.path.replaceAll(r'\', '/').length + 1;
+  return {
+    for (final entity in root.listSync(recursive: true, followLinks: false))
+      if (entity is File && !_inGitFolder(entity.path))
+        entity.path.replaceAll(r'\', '/').substring(prefix): entity
+            .readAsBytesSync(),
+  };
+}
 
 /// Asserts each of [present] exists and each of [gone] does not, under [root].
 void _expectFiles(
@@ -295,7 +300,7 @@ void main() {
       await _migrate(app, repo: root);
       final afterApp = _bytesUnder(root);
       for (final path in {...beforeRoot.keys, ...afterApp.keys}) {
-        if (!path.startsWith('${app.path}${Platform.pathSeparator}')) {
+        if (!path.startsWith('example-app/')) {
           expect(afterApp[path], beforeRoot[path], reason: path);
         }
       }
@@ -303,8 +308,7 @@ void main() {
 
       final beforeApp = <String, List<int>>{
         for (final e in afterApp.entries)
-          if (e.key.startsWith('${app.path}${Platform.pathSeparator}'))
-            e.key: e.value,
+          if (e.key.startsWith('example-app/')) e.key: e.value,
       };
       await _migrate(root);
       final afterRoot = _bytesUnder(root);
