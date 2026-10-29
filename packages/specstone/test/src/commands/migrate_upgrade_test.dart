@@ -484,33 +484,64 @@ void main() {
       expect(_subjects(root).single, 'legacy');
     });
 
-    test(
-      'f06/us02/fr02/e08: two docs trading places both keep their bytes',
-      () async {
-        final home = await _home(
-          migrations: _swapMigrations,
-          type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
-        );
-        const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
-        const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
-        final root = await _project(
-          files: {
-            _runbookPath: runbookText,
-            'docs/prds/runbooks/deploy/NOTES.md': notesText,
-          },
-        );
+    test('f06/us02/fr02/e08: a swap composes onto one path and refuses at the '
+        'terminal', () async {
+      final home = await _home(
+        migrations: _swapMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      final root = await _project(
+        files: {
+          _runbookPath: runbookText,
+          'docs/prds/runbooks/deploy/NOTES.md': notesText,
+        },
+      );
 
-        final result = await _run(root, home, ['migrate'], console: _owner());
+      final result = await _run(root, home, ['migrate'], console: _owner());
 
-        expect(result.status, 0, reason: result.err);
-        expect(_read(root, _runbookPath), notesText);
-        expect(_read(root, 'docs/prds/runbooks/deploy/NOTES.md'), runbookText);
-        expect(
-          Directory('${root.path}/.specstone/trash/stage').existsSync(),
-          isFalse,
-        );
-        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
-      },
-    );
+      expect(result.status, 65);
+      expect(
+        result.err,
+        startsWith(
+          'prds/runbooks/deploy/NOTES.md: move_file of runbook moves '
+          'prds/runbooks/{slug}/NOTES.md to prds/runbooks/{slug}/RUNBOOK.md',
+        ),
+      );
+      expect(_read(root, _runbookPath), runbookText);
+      expect(_read(root, 'docs/prds/runbooks/deploy/NOTES.md'), notesText);
+      expect(_subjects(root).single, 'legacy');
+    });
+
+    test('f06/us02/fr02/e08: a chained move through a freed path lands with no '
+        'content lost', () async {
+      const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/ops/{slug}/RUNBOOK.md"}
+''';
+      final home = await _home(
+        migrations: migrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      final root = await _project(
+        files: {
+          'docs/prds/ops/deploy/RUNBOOK.md': runbookText,
+          'docs/prds/runbooks/deploy/NOTES.md': notesText,
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), runbookText);
+      expect(_read(root, 'docs/prds/ops/deploy/RUNBOOK.md'), notesText);
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
   }, skip: hasGit ? null : 'git is not available');
 }

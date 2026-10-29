@@ -343,14 +343,12 @@ PlannedRewrite _configRewriteOf(Directory root, List<PackUpgrade> upgrades) {
   );
 }
 
-/// Returns where each doc of [docPaths] sits after every `move_file` step, the
-/// paths each move step leaves its docs at, and the move step of each moved
-/// doc.
+/// Returns the final path of each doc of [docPaths], the final paths each
+/// move step's docs end at, and the last move step that touched each doc.
 ///
-/// A step matches a doc at the path the doc holds when the step runs; a doc
-/// no earlier step moved sits at its original path. A doc moves at most once:
-/// the first matching step wins, so two steps trading paths keep their finals
-/// distinct.
+/// Each `move_file` step, in step order, matches every doc at its CURRENT
+/// path, the result of the earlier steps, so moves chain: a doc at `A` under
+/// `A` → `B` then `B` → `C` ends at `C` (F6-D22, INV-10).
 ({
   Map<String, String> planned,
   Map<int, List<String>> movedAt,
@@ -365,12 +363,12 @@ _plannedPaths(List<String> docPaths, List<_Step> steps) {
     final from = PathPattern(step.from);
     final to = PathPattern(step.to);
     for (final entry in planned.entries.toList()) {
-      if (movedBy[entry.key] != null) continue;
       final values = from.valuesOf(entry.value);
       if (values == null) continue;
       final moved = to.fill(values);
       if (moved == entry.value) continue;
-      (movedAt[index] ??= []).add(moved);
+      final touched = movedAt[index] ??= [];
+      if (!touched.contains(moved)) touched.add(moved);
       planned[entry.key] = moved;
       movedBy[entry.key] = index;
     }
@@ -446,31 +444,33 @@ MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
 
 /// Orders [moves] so no move lands on a path another move still occupies.
 ///
-/// A move whose target is another move's source runs after it. A cycle, such
-/// as two docs trading places, has no such order, so every doc parks in the
-/// journal's staging folder first, then each takes its final path.
+/// A move whose target is another move's original path runs after it. A
+/// cycle, such as two docs trading places, has no such order, so every doc
+/// parks in the journal's staging folder first, then each takes its final
+/// path.
 List<PathMove> orderedMoves(List<PathMove> moves) {
-  final byTarget = {for (final move in moves) move.to: move};
+  final bySource = {for (final move in moves) move.from: move};
   final ordered = <PathMove>[];
   final placed = <String>{};
   void place(PathMove move) {
     if (!placed.add(move.from)) return;
-    final blocker = byTarget[move.from];
+    final blocker = bySource[move.to];
     if (blocker != null && blocker.from != move.from) place(blocker);
     ordered.add(move);
   }
 
   moves.forEach(place);
-  final remaining = <PathMove>[];
+  // A move whose target a LATER move still leaves is part of a cycle.
   final freed = <String>{};
+  final acyclic = <PathMove>[];
   for (final move in ordered) {
-    if (freed.contains(move.to) || !moves.any((m) => m.from == move.to)) {
+    if (freed.contains(move.to)) {
       freed.add(move.from);
     } else {
-      remaining.add(move);
+      acyclic.add(move);
     }
   }
-  if (remaining.isEmpty) return ordered;
+  if (acyclic.length == ordered.length) return ordered;
 
   // A cycle: every doc parks in the stage, then each takes its final path.
   return [

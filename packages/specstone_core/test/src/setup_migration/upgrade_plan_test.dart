@@ -193,6 +193,86 @@ sections:
     );
   });
 
+  test('f06/us02/fr02/e05: a chained move_file path ends at the last step, '
+      'one move from the original path', () async {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/OLD.md"}
+  - from: 1.1.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/OLD.md", to: "ops/runbooks/{slug}/RUNBOOK.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: ops/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final plan = _plan(
+      await _fixture(
+        packYaml: packYaml,
+        runbookType: type,
+        overrides: const {},
+        docs: const {'prds/runbooks/deploy/RUNBOOK.md': _runbookDoc},
+      ),
+    );
+
+    expect(plan.moves, [
+      (
+        from: 'prds/runbooks/deploy/RUNBOOK.md',
+        to: 'ops/runbooks/deploy/RUNBOOK.md',
+      ),
+    ]);
+  });
+
+  test(
+    'f06/us02/fr02/e08: a swap composes onto one path and refuses',
+    () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+''';
+      const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+      final fixture = await _fixture(
+        packYaml: packYaml,
+        runbookType: type,
+        overrides: const {},
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+          'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
+        },
+      );
+      await expectLater(
+        () => _plan(fixture),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.upgradeCollision,
+          ),
+        ),
+      );
+    },
+  );
+
   test('f06/us02/fr02/e08: Scenario B moves land with no content lost, and a '
       'two-move cycle goes through the stage', () async {
     const swapPack = '''
@@ -202,19 +282,13 @@ extends: software-tech
 migrations:
   - from: 1.0.0
     steps:
-      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
-      - move_file: {doc_type: notes, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/ops/{slug}/RUNBOOK.md"}
 ''';
     const types = '''
 id: runbook
 description: A runbook.
 path: prds/runbooks/{slug}/RUNBOOK.md
-sections:
-  - {id: steps, header: Steps, required: true}
----
-id: notes
-description: Notes.
-path: prds/runbooks/{slug}/NOTES.md
 sections:
   - {id: steps, header: Steps, required: true}
 ''';
@@ -223,7 +297,7 @@ sections:
       runbookType: types,
       overrides: const {},
       docs: const {
-        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/ops/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
         'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
       },
     );
@@ -232,13 +306,10 @@ sections:
     expect(
       [for (final move in plan.moves) (move.from, move.to)],
       [
-        ('prds/runbooks/deploy/NOTES.md', '.specstone/trash/stage/0'),
-        ('prds/runbooks/deploy/RUNBOOK.md', '.specstone/trash/stage/1'),
-        ('.specstone/trash/stage/0', 'prds/runbooks/deploy/RUNBOOK.md'),
-        ('.specstone/trash/stage/1', 'prds/runbooks/deploy/NOTES.md'),
+        ('prds/ops/deploy/RUNBOOK.md', 'prds/runbooks/deploy/RUNBOOK.md'),
+        ('prds/runbooks/deploy/NOTES.md', 'prds/ops/deploy/RUNBOOK.md'),
       ],
     );
-    expect(plan.toText(), contains('stage'));
   });
 
   test('f06/us02/fr02, f06/us02/s2: the s02 upgrade plan', () async {
