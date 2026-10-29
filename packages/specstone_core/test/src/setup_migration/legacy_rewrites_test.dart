@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
+import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
@@ -473,6 +474,92 @@ and tabs\there.
 
 Let a user sign in.
 ''');
+    });
+  });
+
+  group('rewriteLinks', () {
+    final paths = [
+      for (final key in acmeLegacy.keys) key.substring('docs/'.length),
+    ];
+    final moves = planLegacyMoves(
+      paths,
+      specMap: readSpecMap(acmeLegacy['docs/specs/INDEX.md']!),
+      features: scanLegacyFeatures(paths),
+    ).moves;
+
+    test('f06/us01/fr04/e10: links to moved files point at the new paths', () {
+      final result = rewriteLinks(
+        _acme('features/f01_login/FEATURE.md'),
+        docPath: 'prds/features/f01_login/FEATURE.md',
+        moves: moves,
+      );
+
+      expect(
+        result.lf,
+        contains('[FR-01](us01_email_login/fr01_validate_credentials.md)'),
+      );
+      expect(result.lf, contains('[NFRs](../../GNFR.md)'));
+      expect(result.label, '2 links');
+    });
+
+    test('f06/us01/fr04/e10: a link to a file that stays keeps its target, '
+        "and a moved doc's link is recomputed", () {
+      const fr = '''
+# FR-01 — Validate credentials
+
+See [story](../USER_STORY.md) and [index](../../../../../specs/INDEX.md).
+''';
+
+      final result = rewriteLinks(
+        fr,
+        docPath:
+            'prds/features/f01_login/us01_email_login/'
+            'functional_requirements/fr01_validate_credentials.md',
+        moves: moves,
+      );
+
+      expect(
+        result.lf,
+        fr
+            .replaceFirst('(../USER_STORY.md)', '(USER_STORY.md)')
+            .replaceFirst(
+              '(../../../../../specs/INDEX.md)',
+              '(../../../../specs/INDEX.md)',
+            ),
+      );
+      expect(result.label, '2 links');
+    });
+
+    test('f06/us01/fr04/e10: no link change gives a null label and the same '
+        'text', () {
+      const lf = 'See [web](https://x.dev/a.md).\n';
+
+      final result = rewriteLinks(lf, docPath: 'specs/INDEX.md', moves: moves);
+
+      expect(result.lf, lf);
+      expect(result.label, isNull);
+    });
+
+    test('f06/us01/fr04/e11: an untyped moved doc gets the link rewrite '
+        'only', () {
+      const doc = '''
+---
+name: login
+---
+
+# S-02 — login API
+
+[arch](s01_architecture.md)
+''';
+
+      final result = rewriteLinks(
+        doc,
+        docPath: 'specs/api/auth/s02_api_login.md',
+        moves: moves,
+      );
+
+      expect(result.lf, doc.replaceFirst('s01_architecture', 'ARCHITECTURE'));
+      expect(result.label, '1 link');
     });
   });
 
