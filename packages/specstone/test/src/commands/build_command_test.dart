@@ -9,8 +9,9 @@ import '../../helpers/fixture_packs.dart';
 import '../../helpers/temp_tree.dart';
 
 const _buildUsage =
-    'Usage: specstone build <target> [--format html] [--output <file>] '
-    '[--json]';
+    'Usage: specstone build <target> [--format html] '
+    '[--paper a4|a5|letter|legal] [--landscape] [--margin <length>] '
+    '[--output <file>] [--json]';
 
 const _featureDir = 'docs/prds/features/f03_template_packs';
 const _feature = '$_featureDir/FEATURE.md';
@@ -480,6 +481,123 @@ void main() {
           },
         });
       });
+    });
+
+    test('f05/us02/s9, f05/us02/fr05/e02, DP1: --paper letter --landscape '
+        '--margin 1in writes the page rule', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(
+        await runner.run([
+          'build', _featureDir, //
+          '--paper', 'letter', '--landscape', '--margin', '1in',
+        ]),
+        0,
+      );
+      expect(out.toString(), '.specstone/build/$_featureDir.html\n');
+      expect(
+        read(project, '.specstone/build/$_featureDir.html'),
+        contains('@page { size: letter landscape; margin: 1in; }'),
+      );
+    });
+
+    test('f05/us02/s10, f05/us02/fr05/e01, DP1: no page options write A4 '
+        'portrait with 20mm', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', _featureDir]), 0);
+      expect(
+        read(project, '.specstone/build/$_featureDir.html'),
+        contains('@page { size: A4 portrait; margin: 20mm; }'),
+      );
+    });
+
+    test('f05/us02/s11, f05/us02/fr05/e03, f05/us02/fr05/e07, DP1: --paper '
+        'b5 is 64 in text and json and writes nothing', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', _featureDir, '--paper', 'b5']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        '--paper takes a4, a5, letter, or legal, not b5\n',
+      );
+      expect(exists(project, '.specstone/build'), isFalse);
+
+      err.clear();
+      expect(
+        await runner.run(['build', _featureDir, '--paper', 'b5', '--json']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(jsonDecode(err.toString()), {
+        'error': {
+          'code': 'argument_invalid',
+          'message': '--paper takes a4, a5, letter, or legal, not b5',
+        },
+      });
+    });
+
+    test('f05/us02/s12, f05/us02/fr05/e04, DP1: a negative margin refuses by '
+        'the length rule in both spellings', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      for (final args in [
+        ['build', _featureDir, '--margin', '-5mm'],
+        ['build', _featureDir, '--margin=-5mm'],
+      ]) {
+        err.clear();
+        expect(await runner.run(args), 64);
+        expect(
+          err.toString(),
+          '--margin takes a length in mm, cm, or in, such as 20mm, '
+          'not -5mm\n',
+        );
+      }
+    });
+
+    test('f05/us02/s12, f05/us02/fr05/e05, DP3: half the a4 short side '
+        'refuses in landscape too', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(
+        await runner.run([
+          'build', _featureDir, '--landscape', '--margin', '105mm', //
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--margin takes less than 105mm on a4, not 105mm\n',
+      );
+    });
+
+    test('f05/us02/fr05/e08, DP1: a bad option outside a project is '
+        'argument_invalid', () async {
+      final bare = await writeTree({'docs/a.md': '# a\n'});
+      final runner = await runnerIn(bare);
+
+      expect(await runner.run(['build', 'docs', '--paper', 'b5']), 64);
+      expect(
+        err.toString(),
+        '--paper takes a4, a5, letter, or legal, not b5\n',
+      );
+
+      err.clear();
+      expect(await runner.run(['build', 'docs', '--margin', '5']), 64);
+      expect(
+        err.toString(),
+        '--margin takes a length in mm, cm, or in, such as 20mm, not 5\n',
+      );
+
+      err.clear();
+      expect(await runner.run(['build', 'docs', '--format', 'pdf']), 64);
+      expect(err.toString(), '--format takes html, not pdf\n');
     });
 
     for (final format in ['pdf', 'docx']) {
