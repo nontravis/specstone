@@ -220,6 +220,42 @@ void main() {
     tags: 'f01/us01/fr03/e12, s03/inv24, LP3',
   );
 
+  everyCommandAnswers(
+    '\n[a]:<b\\',
+    buildCommands,
+    tags: 'f05/us02/fr02/e08, f05/us03/fr02, LP5',
+  );
+
+  test('f05/us02/fr02/e08, f05/us03/fr02, LP5: build warns and keeps the '
+      'text', () async {
+    final project = await caseProject('\n[a]:<b\\');
+    const dir = 'docs/prds/features/f01_login';
+
+    for (final (format, output) in [('html', 'out.html'), ('pdf', 'out.pdf')]) {
+      final run = await runIn(project, [
+        'build',
+        dir,
+        '--format',
+        format,
+        '--output',
+        output,
+      ]);
+
+      expect(run.code, 0, reason: '$format: ${run.out}${run.err}');
+      expect(
+        run.err,
+        contains(
+          '⚠️ WARNING: $dir/us01_email_login/fr01_validate_credentials.md: '
+          'the markdown parser failed; its body is shown as plain text',
+        ),
+        reason: format,
+      );
+    }
+    final html = File.fromUri(project.uri.resolve('out.html'))
+        .readAsStringSync();
+    expect(html, matches(RegExp(r'<pre>[^]*\[a\]:&lt;b\\[^]*</pre>')));
+  });
+
   test('f01/us01/fr03/e12, s03/inv24, LP3: structure warns on each read until '
       'the doc is fixed', () async {
     const tail = '\n[a]:<b\\';

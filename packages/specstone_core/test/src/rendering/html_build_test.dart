@@ -395,6 +395,59 @@ void main() {
     expect(html, isNot(contains('<h1')));
   });
 
+  group('a doc the markdown parser fails on', () {
+    const message =
+        'docs/$_frPath: the markdown parser failed; its body is shown as '
+        'plain text';
+    const draftRow = '<tr><th>draft</th><td>true</td></tr>';
+
+    test('f05/us02/fr02/e08, s03/inv24, LP5: renders its body as plain text '
+        'and warns', () async {
+      final build = await _build({
+        _frPath: '# Req\n\n## A\nx < y [s](b.md)\n\n[a]:<b\\',
+      }, target: 'docs/$_featureDir');
+
+      final html = build.html.replaceAll(mermaidScript, '');
+      expect(html, contains('<h1>Req</h1>'));
+      expect(html, matches(RegExp(r'<pre>[^]*x &lt; y \[s\]\(b\.md\)[^]*')));
+      expect(html, matches(RegExp(r'<pre>[^]*\[a\]:&lt;b\\[^]*</pre>')));
+      expect(html, isNot(contains('<a href="b.md"')));
+      expect(build.warnings, contains(message));
+    });
+
+    test('f05/us02/fr02/e08, s03/inv24, LP5: a deeply nested blockquote, '
+        'which holds no link syntax, renders the same way', () async {
+      final build = await _build({
+        _frPath: '# Req\n\n${'> ' * 100000}x',
+      }, target: 'docs/$_featureDir');
+
+      final html = build.html.replaceAll(mermaidScript, '');
+      expect(html, contains('<h1>Req</h1>'));
+      expect(html, contains('<pre>\n${'&gt; ' * 100000}x</pre>'));
+      expect(build.warnings, contains(message));
+    });
+
+    test('f05/us02/fr02/e08, LP5: keeps the frontmatter table and the draft '
+        'label', () async {
+      final build = await _build({
+        _frPath: '---\ndraft: true\n---\n# Req\n\n[a]:<b\\',
+      }, target: 'docs/$_featureDir');
+
+      final html = build.html.replaceAll(mermaidScript, '');
+      expect(
+        html,
+        contains(
+          [
+            '<h1>Req</h1>',
+            '<table class="frontmatter">$draftRow</table>',
+            '<p class="draft">Draft</p>',
+            '<pre>\n[a]:&lt;b\\</pre>',
+          ].join('\n'),
+        ),
+      );
+    });
+  });
+
   group('an unreadable path', () {
     test(
       'f05/us02/fr02: a doc that cannot be read is skipped with a warning and '

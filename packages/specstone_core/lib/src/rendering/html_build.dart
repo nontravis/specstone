@@ -13,7 +13,9 @@ final class HtmlBuild {
   /// The self-contained page.
   final String html;
 
-  /// One message per doc skipped or rendered off its template, in tree order.
+  /// One message per doc skipped or rendered off its template, in tree order,
+  /// then one per doc whose body the markdown parser failed on and that shows
+  /// as plain text, in tree order.
   final List<String> warnings;
 }
 
@@ -25,6 +27,7 @@ final class HtmlBuild {
 HtmlBuild buildHtml(DocsProject project, Target target) {
   final readable = <(String, ReadableDoc)>[];
   final warnings = <String>[];
+  final parseWarnings = <String>[];
   for (final entry in collectDocEntries(target, project.matcher)) {
     switch (readDoc(project, entry)) {
       case UnmatchedDoc(:final warning):
@@ -48,20 +51,29 @@ HtmlBuild buildHtml(DocsProject project, Target target) {
     for (final (index, (docPath, _)) in readable.indexed)
       docPath: _anchorOf(index),
   };
-  final rendered = [
-    for (final (index, (docPath, read)) in readable.indexed)
+  final rendered = <RenderedDoc>[];
+  for (final (index, (docPath, read)) in readable.indexed) {
+    final body = renderDocBody(read.doc, docPath: docPath, anchors: anchors);
+    if (!body.bodyParsed) {
+      parseWarnings.add(
+        '${read.path}: the markdown parser failed; its body is shown as plain '
+        'text',
+      );
+    }
+    rendered.add(
       RenderedDoc(
         anchor: _anchorOf(index),
         tocEntry: shownTitle(read.doc) ?? docPath,
-        bodyHtml: renderDocBody(read.doc, docPath: docPath, anchors: anchors),
+        bodyHtml: body.html,
       ),
-  ];
+    );
+  }
   return HtmlBuild(
     html: renderPage(
       title: target.isDocsRoot ? 'docs' : target.docPath,
       docs: rendered,
     ),
-    warnings: warnings,
+    warnings: [...warnings, ...parseWarnings],
   );
 }
 

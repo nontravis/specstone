@@ -223,7 +223,7 @@ void main() {
           Doc.parse(markdown),
           docPath: 'a/b/c.md',
           anchors: anchors ?? const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
-        );
+        ).html;
 
     test('f05/us02/fr03: every id is prefixed with the doc anchor, and the '
         'footnote links follow', () {
