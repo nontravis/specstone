@@ -28,8 +28,10 @@ const _groupedPaths = {
 /// Singular doc types print and write first in this order (PD16).
 const _draftOrder = ['project', 'features', 'gnfr', 'tech_stack'];
 
-final _otherCharacters = RegExp('[^a-z0-9]+');
-final _edgeUnderscores = RegExp(r'^_+|_+$');
+final _idRun = RegExp('[a-z0-9]+');
+final _plainId = RegExp(r'^[a-z][a-z0-9_]*$');
+const _yamlWords = {'true', 'false', 'null'};
+final _plainPath = RegExp(r'^[A-Za-z0-9_][A-Za-z0-9_./-]*$');
 
 /// Returns the `config.yaml` text pinning each of [pins] (INV-15).
 ///
@@ -43,18 +45,20 @@ String configText(Map<String, PackVersion> pins) {
 /// Returns the `covers:` block of the spec folder [legacyFolder], or null.
 ///
 /// Lists the Code path of every [specMap] row naming [legacyFolder], in row
-/// order. `label` is the line the dry run prints for the block.
+/// order, skipping empty paths. `label` is the line the dry run prints for the
+/// block.
 ({String block, String label})? coversOf(
   String legacyFolder,
   List<SpecMapRow> specMap,
 ) {
   final paths = [
     for (final row in specMap)
-      if (row.specPath == legacyFolder) row.codePath,
+      if (row.specPath == legacyFolder && row.codePath.isNotEmpty) row.codePath,
   ];
   if (paths.isEmpty) return null;
+  final lines = [for (final path in paths) '  - ${_coverPath(path)}\n'].join();
   return (
-    block: 'covers:\n${[for (final path in paths) '  - $path\n'].join()}',
+    block: 'covers:\n$lines',
     label: paths.length == 1
         ? 'covers (1 path)'
         : 'covers (${paths.length} paths)',
@@ -71,14 +75,21 @@ Map<String, String> groupedPathOverrides() => {
 
 /// Returns the `gnfr` section override for [headers], null when empty.
 ///
-/// Each section id is its header lowercased, every run of characters other than
-/// `[a-z0-9]` turned to `_`, and trimmed of `_`.
+/// Each header is a single-quoted YAML scalar. Its id is the lowercased
+/// `[a-z0-9]` runs joined by `_`, `category_<n>` (n the 1-based position) when
+/// none remain, and suffixed `_2`, `_3`, ... when an earlier id repeats.
 MapEntry<String, String>? gnfrOverride(List<String> headers) {
   if (headers.isEmpty) return null;
-  final sections = [
-    for (final header in headers)
-      '  - id: ${_sectionId(header)}\n    header: $header\n',
-  ];
+  final seen = <String, int>{};
+  final sections = <String>[];
+  for (final (index, header) in headers.indexed) {
+    final base = _sectionId(header) ?? 'category_${index + 1}';
+    final count = seen[base] = (seen[base] ?? 0) + 1;
+    final id = count == 1 ? base : '${base}_$count';
+    sections.add(
+      '  - id: ${_sectionIdScalar(id)}\n    header: ${_quoted(header)}\n',
+    );
+  }
   return MapEntry(
     '$_templatesFolder/gnfr.yaml',
     'sections:\n${sections.join()}',
@@ -97,33 +108,48 @@ List<MergedDocType> singularDocTypes(MergedSet set) {
   return singular..sort(_byDraftOrder);
 }
 
-/// Parses each of [files] as a project-layer doc type, keyed by its path.
+/// Parses the doc-type files among [files] as project-layer doc types.
 ///
-/// A malformed override throws a `TemplateFault` here, in the plan, not after
-/// commit 2.
-List<DocTypeLayer> parseOverrides(Map<String, String> files) => [
-  for (final MapEntry(:key, :value) in files.entries)
-    DocTypeLayer.parse(
-      value,
-      file: key,
-      docTypeId: _docTypeId(key),
-      kind: LayerKind.project,
-      files: const _NoFiles(),
-    ),
-];
-
-String _sectionId(String header) => header
-    .toLowerCase()
-    .replaceAll(_otherCharacters, '_')
-    .replaceAll(_edgeUnderscores, '');
-
-/// Returns the file name of [path] without its folder and `.yaml`.
-String _docTypeId(String path) {
-  final name = path.substring(path.lastIndexOf('/') + 1);
-  return name.endsWith('.yaml')
-      ? name.substring(0, name.length - '.yaml'.length)
-      : name;
+/// Keys are `.specstone/templates/<id>.yaml`; like the project loader it reads
+/// only top-level `<id>.yaml` files, not `pack.yaml`, in code point order of
+/// the name (INV-22). A malformed override throws a `TemplateFault` here, in
+/// the plan, not after commit 2.
+List<DocTypeLayer> parseOverrides(Map<String, String> files) {
+  const prefix = '$_templatesFolder/';
+  final names = [
+    for (final key in files.keys)
+      if (key.startsWith(prefix) &&
+          isDocTypeFileName(key.substring(prefix.length)))
+        key.substring(prefix.length),
+  ]..sort(compareCodePoints);
+  return [
+    for (final name in names)
+      DocTypeLayer.parse(
+        files['$prefix$name']!,
+        file: '$prefix$name',
+        docTypeId: name.substring(0, name.length - '.yaml'.length),
+        kind: LayerKind.project,
+        files: const _NoFiles(),
+      ),
+  ];
 }
+
+/// Returns the lowercased `[a-z0-9]` runs of [header] joined by `_`, or null.
+String? _sectionId(String header) {
+  final runs = _idRun.allMatches(header.toLowerCase());
+  return runs.isEmpty ? null : runs.map((run) => run[0]).join('_');
+}
+
+/// Returns [text] as a single-quoted YAML scalar, `'` doubled.
+String _quoted(String text) => "'${text.replaceAll("'", "''")}'";
+
+/// Returns the section [id] as written when YAML reads a string, else quoted.
+String _sectionIdScalar(String id) =>
+    _plainId.hasMatch(id) && !_yamlWords.contains(id) ? id : _quoted(id);
+
+/// Returns [path] as written when plain YAML reads it back, else quoted.
+String _coverPath(String path) =>
+    _plainPath.hasMatch(path) ? path : _quoted(path);
 
 bool _isSingular(String? path) =>
     path != null && !path.contains('{nn}') && !path.contains('{slug}');

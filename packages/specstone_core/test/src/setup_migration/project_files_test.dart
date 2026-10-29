@@ -123,9 +123,9 @@ void main() {
         entry?.value,
         'sections:\n'
         '  - id: data_integrity\n'
-        '    header: Data integrity\n'
+        "    header: 'Data integrity'\n"
         '  - id: token_efficiency\n'
-        '    header: Token efficiency\n',
+        "    header: 'Token efficiency'\n",
       );
       final set = TemplateResolver().resolveCarried(
         packNames: _packs,
@@ -152,6 +152,91 @@ void main() {
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
       ]);
+    });
+
+    test('f06/us01/fr05/e04: free-text legacy headers round-trip through the '
+        'gnfr override', () {
+      const headers = [
+        'Cost: low',
+        'ความปลอดภัย',
+        'Data integrity',
+        'Data-integrity',
+        'true',
+        'a # b',
+        "it's",
+        '2024',
+        '&anchor',
+      ];
+
+      final entry = gnfrOverride(headers)!;
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+        projectLayers: parseOverrides({entry.key: entry.value}),
+      );
+
+      final sections = set.lookup('gnfr')!.sections;
+      final ids = [for (final section in sections) section.id];
+      expect(ids.toSet(), hasLength(ids.length));
+      final merged = sections.map((section) => section.header);
+      for (final header in headers) {
+        expect(merged, contains(header));
+      }
+      expect(entry.value, contains('id: category_2\n'));
+      expect(entry.value, contains("id: 'true'\n"));
+      expect(entry.value, contains('id: data_integrity\n'));
+      expect(entry.value, contains('id: data_integrity_2\n'));
+    });
+
+    test('f06/us01/fr05/e01: covers skips an empty Code path and quotes a '
+        'path holding a colon', () {
+      final rows = [
+        const SpecMapRow(codePath: '', specPath: 'specs/a/', featureId: 'f01'),
+        const SpecMapRow(
+          codePath: 'lib/x: y/',
+          specPath: 'specs/a/',
+          featureId: 'f01',
+        ),
+        const SpecMapRow(codePath: '', specPath: 'specs/b/', featureId: 'f02'),
+      ];
+
+      final covers = coversOf('specs/a/', rows);
+
+      expect(covers?.block, "covers:\n  - 'lib/x: y/'\n");
+      expect(covers?.label, 'covers (1 path)');
+      expect(coversOf('specs/b/', rows), isNull);
+    });
+
+    test('f06/us01/fr05/e06: a project-layer singular doc type follows the '
+        'four by DocPath', () {
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+        projectLayers: parseOverrides({
+          '.specstone/templates/extra.yaml':
+              'id: extra\ndescription: Extra.\npath: prds/EXTRA.md\n',
+        }),
+      );
+
+      expect(singularDocTypes(set).map((type) => type.path), [
+        'prds/PROJECT.md',
+        'prds/FEATURES.md',
+        'prds/GNFR.md',
+        'specs/TECH_STACK.md',
+        'prds/EXTRA.md',
+      ]);
+    });
+
+    test('f06/us01/fr05: parseOverrides reads only doc-type files, in code '
+        'point order', () {
+      final layers = parseOverrides({
+        '.specstone/templates/zeta.yaml': 'path: z/{slug}.md\n',
+        '.specstone/templates/pack.yaml': 'not: a doc type\n',
+        '.specstone/templates/sub/inner.yaml': 'bad: key\n',
+        '.specstone/templates/alpha.yaml': 'path: a/{slug}.md\n',
+      });
+
+      expect(layers.map((layer) => layer.docTypeId), ['alpha', 'zeta']);
     });
   });
 }
