@@ -357,6 +357,32 @@ void main() {
     expect(again.toString(), 'nothing to migrate\n');
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us01/fr07, f06/us01/fr03: a git-ignored file in a moved '
+      'cross-cutting folder moves on disk and stays out of both '
+      'commits', () async {
+    final root = await gitFixture({...acmeLegacy, '.gitignore': '.DS_Store\n'});
+    File('${root.path}/docs/specs/shared/.DS_Store')
+        .writeAsStringSync('finder\n');
+    final out = StringBuffer();
+
+    expect(_run(root, out, answers: ['y']), 0);
+
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+    expect(
+      File('${root.path}/docs/specs/topics/shared/.DS_Store')
+          .readAsStringSync(),
+      'finder\n',
+    );
+    final committed =
+        git(root, ['log', '--name-only', '--format=', 'HEAD~2..HEAD']).stdout
+            as String;
+    expect(committed, isNot(contains('.DS_Store')));
+    expect(MoveJournal.pending(root), isFalse);
+  }, skip: hasGit ? null : 'git is not available');
+
   group('f06/us01/fr07: resume and replay', () {
     final skipGit = hasGit ? null : 'git is not available';
 

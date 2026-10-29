@@ -821,6 +821,47 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
+    test('f06/us01/fr07: a path git ignores stays out of both commits and still moves', () async {
+      final root = await _gitTree({
+        '.gitignore': '*.local.md\n',
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      });
+      File('${root.path}/docs/prds/notes.local.md')
+          .writeAsStringSync('# Notes\n');
+      final base = _head(root);
+
+      MoveJournal([
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        const MoveStep('docs/prds/notes.local.md', 'docs/specs/notes.local.md'),
+        CommitStep(
+          message: 'move',
+          paths: [
+            'docs/prds/d01_context.md',
+            'docs/prds/PROJECT.md',
+            'docs/prds/notes.local.md',
+            'docs/specs/notes.local.md',
+          ],
+          base: base,
+        ),
+        const WriteStep('docs/specs/notes.local.md', '# Local notes\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: ['docs/specs/notes.local.md', '.specstone/.gitignore'],
+          base: base,
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root), ['rewrite', 'move', 'initial']);
+      expect(
+        git(root, ['log', '--name-only', '--format=', '$base..HEAD']).stdout,
+        isNot(contains('notes.local.md')),
+      );
+      expect(
+        File('${root.path}/docs/specs/notes.local.md').readAsStringSync(),
+        '# Local notes\n',
+      );
+    }, skip: skipGit);
+
     test('f06/us01/fr07: a replay after commit 1 skips the done steps and makes commit 2 only', () async {
       final root = await _gitTree({
         'docs/prds/d01_context.md': '# D-01 — Project context\n',

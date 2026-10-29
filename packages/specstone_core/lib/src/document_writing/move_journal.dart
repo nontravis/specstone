@@ -319,20 +319,32 @@ final class CommitStep extends JournalStep {
   /// Stages and commits the [paths] git can take, passing them through a
   /// pathspec file so no path reaches the command line.
   ///
-  /// A path git cannot stage is skipped: one in neither the work tree nor the
-  /// index, as a moved-away path is once an earlier, refused attempt already
-  /// staged its deletion. A path HEAD holds stays committable, so the commit
-  /// records its staged deletion. No commit runs when none of them is staged,
-  /// as when a hook that rewrote the subject hid an earlier commit from
-  /// [isDone].
+  /// A path git cannot stage is skipped: one git ignores, which `git add`
+  /// refuses by name and which stays on disk out of both commits, and one in
+  /// neither the work tree nor the index, as a moved-away path is once an
+  /// earlier, refused attempt already staged its deletion. A path HEAD holds
+  /// stays committable, so the commit records its staged deletion. No commit
+  /// runs when none of them is staged, as when a hook that rewrote the subject
+  /// hid an earlier commit from [isDone].
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
     final scope = {for (final path in paths) path.split('/').first}.toList();
+    final ignored = _listed(target, [
+      'ls-files',
+      '-z',
+      '--others',
+      '--ignored',
+      '--exclude-standard',
+      '--',
+      ...scope,
+    ]);
     final indexed = _listed(target, ['ls-files', '-z', '--', ...scope]);
     final stageable = {
       for (final path in paths)
-        if (_onDisk(target, path) || indexed.contains(path)) path,
+        if (!ignored.contains(path) &&
+            (_onDisk(target, path) || indexed.contains(path)))
+          path,
     };
     if (stageable.isNotEmpty) {
       _runWrite(target, 'add', [
@@ -352,7 +364,9 @@ final class CommitStep extends JournalStep {
     ]);
     final committable = [
       for (final path in paths)
-        if (stageable.contains(path) || inHead.contains(path)) path,
+        if (!ignored.contains(path) &&
+            (stageable.contains(path) || inHead.contains(path)))
+          path,
     ];
     final staged = _listed(target, [
       'diff',
