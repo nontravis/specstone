@@ -77,15 +77,18 @@ Map<String, String> groupedPathOverrides() => {
 ///
 /// Each header is a single-quoted YAML scalar. Its id is the lowercased
 /// `[a-z0-9]` runs joined by `_`, `category_<n>` (n the 1-based position) when
-/// none remain, and suffixed `_2`, `_3`, ... when an earlier id repeats.
+/// none remain, and suffixed `_2`, `_3`, ... to the first id no earlier header
+/// took, so ids stay unique for any header list.
 MapEntry<String, String>? gnfrOverride(List<String> headers) {
   if (headers.isEmpty) return null;
-  final seen = <String, int>{};
+  final used = <String>{};
   final sections = <String>[];
   for (final (index, header) in headers.indexed) {
     final base = _sectionId(header) ?? 'category_${index + 1}';
-    final count = seen[base] = (seen[base] ?? 0) + 1;
-    final id = count == 1 ? base : '${base}_$count';
+    var id = base;
+    for (var suffix = 2; !used.add(id); suffix++) {
+      id = '${base}_$suffix';
+    }
     sections.add(
       '  - id: ${_sectionIdScalar(id)}\n    header: ${_quoted(header)}\n',
     );

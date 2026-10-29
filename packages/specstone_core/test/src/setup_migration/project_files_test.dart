@@ -188,6 +188,26 @@ void main() {
       expect(entry.value, contains('id: data_integrity_2\n'));
     });
 
+    test('f06/us01/fr05/e01: headers Cost, cost and Cost 2 get three distinct '
+        'ids and keep three sections', () {
+      final entry = gnfrOverride(['Cost', 'cost', 'Cost 2'])!;
+
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+        projectLayers: parseOverrides({entry.key: entry.value}),
+      );
+
+      final sections = [
+        for (final section in set.lookup('gnfr')!.sections)
+          if (const ['Cost', 'cost', 'Cost 2'].contains(section.header))
+            section,
+      ];
+      final ids = [for (final section in sections) section.id];
+      expect(sections, hasLength(3));
+      expect(ids.toSet(), hasLength(3));
+    });
+
     test('f06/us01/fr05/e01: covers skips an empty Code path and quotes a '
         'path holding a colon', () {
       final rows = [

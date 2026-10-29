@@ -362,6 +362,17 @@ Goal.
       expect(result.changes, ['index tables removed']);
     });
 
+    test('f06/us01/fr04/e12: an index section last in a doc with no final '
+        'newline leaves one final newline', () {
+      const feature =
+          '# Login\n\n## Notes\n\nKept\n\n## User stories index\n\n| a |';
+
+      final result = rewriteLegacyDoc(feature, LegacyKind.feature);
+
+      expect(result.lf, '# Login\n\n## Notes\n\nKept\n');
+      expect(result.changes, ['index tables removed']);
+    });
+
     test('f06/us01/fr04/e07: Tier-2 decisions becomes Concerns and FR ↔ '
         'endpoint trace becomes FR trace', () {
       const architecture = '''
