@@ -50,12 +50,17 @@ MigrateFault workTreeRequiredFault() => MigrateFault(
 
 /// Refuses a [root] whose work tree holds an uncommitted change (PD12).
 ///
-/// Untracked files count; ignored ones do not. `s05_errors.md` names no code
-/// for a `git status` that fails, so that case is `git_work_tree_required`.
+/// Untracked files count, whatever `status.showUntrackedFiles` says; ignored
+/// ones do not. `s05_errors.md` names no code for a `git status` that fails,
+/// so that case is `git_work_tree_required`.
 void requireCleanWorkTree(Directory root, RunGit runGit) {
   final ProcessResult status;
   try {
-    status = runGit(['status', '--porcelain'], workingDirectory: root.path);
+    status = runGit([
+      'status',
+      '--porcelain',
+      '--untracked-files=normal',
+    ], workingDirectory: root.path);
   } on ProcessException {
     throw workTreeRequiredFault();
   }

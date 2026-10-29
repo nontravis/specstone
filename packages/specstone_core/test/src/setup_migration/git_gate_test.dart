@@ -112,6 +112,27 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us01/fr02/e04: an untracked file is working_tree_dirty when '
+      'the git config hides untracked files', () async {
+    final root = await gitFixture(acmeLegacy);
+    expect(
+      git(root, ['config', 'status.showUntrackedFiles', 'no']).exitCode,
+      0,
+    );
+    File.fromUri(root.uri.resolve('notes.txt')).writeAsStringSync('x\n');
+
+    expect(
+      () => requireCleanWorkTree(root, runRealGit),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.workingTreeDirty,
+        ),
+      ),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us01/fr02/e04: a git status that fails is '
       'git_work_tree_required', () async {
     final root = await writeTree(acmeLegacy);
