@@ -916,6 +916,66 @@ void main() {
       );
     }, skip: skipGit);
 
+    test('f06/us01/fr07, dw-s03/inv6: a tracked file moved onto an ignored path stays a rename, and an untracked one stays out', () async {
+      final root = await _gitTree({
+        '.gitignore': '.DS_Store\n',
+        'docs/specs/shared/s01_architecture.md': '# Shared\n',
+      });
+      File('${root.path}/docs/specs/shared/.DS_Store')
+          .writeAsStringSync('finder, committed\n');
+      expect(
+        git(root, ['add', '-f', 'docs/specs/shared/.DS_Store']).exitCode,
+        0,
+      );
+      expect(git(root, ['commit', '-q', '-m', 'finder']).exitCode, 0);
+      File('${root.path}/docs/specs/other/.DS_Store')
+          .createSync(recursive: true);
+      File('${root.path}/docs/specs/other/.DS_Store')
+          .writeAsStringSync('finder, never committed\n');
+      final base = _head(root);
+      const moves = [
+        ('docs/specs/shared/.DS_Store', 'docs/specs/topics/shared/.DS_Store'),
+        (
+          'docs/specs/shared/s01_architecture.md',
+          'docs/specs/topics/shared/s01_architecture.md',
+        ),
+        ('docs/specs/other/.DS_Store', 'docs/specs/topics/other/.DS_Store'),
+      ];
+
+      MoveJournal([
+        for (final (from, to) in moves) MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: [
+            for (final (from, to) in moves) ...[from, to],
+          ],
+          base: base,
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root).first, 'move');
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tdocs/specs/shared/.DS_Store\tdocs/specs/topics/shared/.DS_Store\n'
+        'R100\tdocs/specs/shared/s01_architecture.md\t'
+        'docs/specs/topics/shared/s01_architecture.md\n',
+      );
+      expect(
+        git(root, [
+          'ls-files',
+          '--',
+          'docs/specs/topics/shared/.DS_Store',
+          'docs/specs/topics/other/.DS_Store',
+        ]).stdout,
+        'docs/specs/topics/shared/.DS_Store\n',
+      );
+      expect(
+        File('${root.path}/docs/specs/topics/other/.DS_Store')
+            .readAsStringSync(),
+        'finder, never committed\n',
+      );
+    }, skip: skipGit);
+
     test('f06/us01/fr07: a replay after commit 1 skips the done steps and makes commit 2 only', () async {
       final root = await _gitTree({
         'docs/prds/d01_context.md': '# D-01 — Project context\n',

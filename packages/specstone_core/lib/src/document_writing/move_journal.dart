@@ -319,26 +319,37 @@ final class CommitStep extends JournalStep {
   /// Stages and commits the [paths] git can take, passing them through a
   /// pathspec file so no path reaches the command line.
   ///
-  /// A path git cannot stage is skipped: one git ignores, which `git add`
-  /// refuses by name and which stays on disk out of both commits, and one in
-  /// neither the work tree nor the index, as a moved-away path is once an
-  /// earlier, refused attempt already staged its deletion. A path HEAD holds
-  /// stays committable, so the commit records its staged deletion. No commit
-  /// runs when none of them is staged, as when a hook that rewrote the subject
-  /// hid an earlier commit from [isDone].
+  /// A path an ignore rule matches and HEAD lacks is staged only as a tracked
+  /// file's new path (see [_stageTrackedMoves]); any other such path stays on
+  /// disk out of both commits. A path in neither the work tree nor the index
+  /// is skipped, as a moved-away path is once an earlier, refused attempt
+  /// already staged its deletion. A path HEAD holds stays committable, so the
+  /// commit records its staged deletion. No commit runs when none of them is
+  /// staged, as when a hook that rewrote the subject hid an earlier commit
+  /// from [isDone].
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
     final scope = {for (final path in paths) path.split('/').first}.toList();
-    final ignored = _listed(target, [
+    final head = _blobsBy(
+      _listed(target, ['ls-tree', '-r', '-z', 'HEAD', '--', ...scope]),
+      field: 2,
+    );
+    // `--cached` keeps a path an interrupted attempt force-staged in the set.
+    final matchingIgnore = _listed(target, [
       'ls-files',
       '-z',
       '--others',
+      '--cached',
       '--ignored',
       '--exclude-standard',
       '--',
       ...scope,
     ]);
+    final ignored = {
+      for (final path in paths)
+        if (matchingIgnore.contains(path) && !head.containsKey(path)) path,
+    };
     final indexed = _listed(target, ['ls-files', '-z', '--', ...scope]);
     final stageable = {
       for (final path in paths)
@@ -353,19 +364,12 @@ final class CommitStep extends JournalStep {
         ..._pathspecFile(target, stageable),
       ]);
     }
-    final inHead = _listed(target, [
-      'ls-tree',
-      '-r',
-      '-z',
-      '--name-only',
-      'HEAD',
-      '--',
-      ...scope,
-    ]);
+    final kept = _stageTrackedMoves(target, ignored, head: head, scope: scope);
     final committable = [
       for (final path in paths)
-        if (!ignored.contains(path) &&
-            (stageable.contains(path) || inHead.contains(path)))
+        if (stageable.contains(path) ||
+            kept.contains(path) ||
+            head.containsKey(path))
           path,
     ];
     final staged = _listed(target, [
@@ -387,6 +391,52 @@ final class CommitStep extends JournalStep {
       ..._pathspecFile(target, committable),
     ]);
   }
+
+  /// Force-stages each of the [ignored] paths whose content HEAD holds at a
+  /// path of this step that has left the disk, and returns them.
+  ///
+  /// Such a path is a tracked file's new place: staged, it pairs with its
+  /// source's deletion as a rename (INV-6). The step names no move pairs, but
+  /// a move keeps the bytes, so git's staged blob finds the source. Every
+  /// other ignored path was never tracked; it is unstaged again.
+  Set<String> _stageTrackedMoves(
+    JournalTarget target,
+    Set<String> ignored, {
+    required Map<String, String> head,
+    required List<String> scope,
+  }) {
+    if (ignored.isEmpty) return const {};
+    _runWrite(target, 'add', ['add', '-f', ..._pathspecFile(target, ignored)]);
+    final staged = _blobsBy(
+      _listed(target, ['ls-files', '-s', '-z', '--', ...scope]),
+      field: 1,
+    );
+    final sourceBlobs = [
+      for (final path in paths)
+        if (head[path] case final blob? when !_onDisk(target, path)) blob,
+    ];
+    final kept = <String>{};
+    for (final path in ignored) {
+      if (sourceBlobs.remove(staged[path])) kept.add(path);
+    }
+    final untracked = ignored.difference(kept);
+    if (untracked.isNotEmpty) {
+      _runWrite(target, 'reset', [
+        'reset',
+        '-q',
+        ..._pathspecFile(target, untracked),
+      ]);
+    }
+    return kept;
+  }
+
+  /// Returns the blob of each `<fields>\t<path>` entry of a git listing, by
+  /// path; the blob is the space-separated field at [field].
+  Map<String, String> _blobsBy(Set<String> entries, {required int field}) => {
+    for (final entry in entries)
+      if (entry.indexOf('\t') case final tab when tab > 0)
+        entry.substring(tab + 1): entry.substring(0, tab).split(' ')[field],
+  };
 
   bool _onDisk(JournalTarget target, String path) =>
       FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
