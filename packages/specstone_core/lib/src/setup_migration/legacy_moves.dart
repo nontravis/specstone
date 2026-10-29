@@ -195,6 +195,7 @@ _Placement? _placeContainer(String path, LegacyFeatures features) {
   if (!features.features.any((f) => f.group == folder)) return null;
   final name = folder.substring(0, folder.length - 1);
   final slug = groupSlugOf(name.substring(name.lastIndexOf('/') + 1));
+  if (slug == null) return null;
   return (to: '$_featuresFolder$slug/FEATURE.md', kind: null);
 }
 

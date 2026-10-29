@@ -7,6 +7,7 @@ const _specMapHeading = '## Spec map';
 
 final _featureName = RegExp(r'^[a-z]+(\d+)((?:_\d+)*)_([a-z0-9_]+)$');
 final _groupPrefix = RegExp('^[a-z]+[0-9]+_');
+final _groupSlug = RegExp(r'^[a-z0-9_]+$');
 final _separatorCell = RegExp(r'^:?-+:?$');
 
 /// One row of the legacy `specs/INDEX.md` Spec map table.
@@ -92,8 +93,8 @@ final class LegacyFeature {
 
   /// The FeaturePath the run moves the feature to, or null when it stays.
   ///
-  /// Null for a name with no `<prefix><NN>_<slug>` form and for a flat
-  /// feature of a grouped tree.
+  /// Null for a name with no `<prefix><NN>_<slug>` form, for a flat feature
+  /// of a grouped tree, and for a feature whose group has no GroupSlug.
   final String? featurePath;
 }
 
@@ -162,15 +163,21 @@ String? _featurePathIn(String featureFolder, {required bool grouped}) {
   if (group == null) {
     return grouped ? null : featurePathOf(_nameOf(featureFolder));
   }
-  return featurePathOf(
-    _nameOf(featureFolder),
-    groupSlug: groupSlugOf(_nameOf(group)),
-  );
+  final groupSlug = groupSlugOf(_nameOf(group));
+  if (groupSlug == null) return null;
+  return featurePathOf(_nameOf(featureFolder), groupSlug: groupSlug);
 }
 
-/// Returns [folderName] with its leading `[a-z]+[0-9]+_` removed.
-String groupSlugOf(String folderName) =>
-    folderName.replaceFirst(_groupPrefix, '');
+/// Returns the GroupSlug of the group folder [folderName], its leading
+/// `[a-z]+[0-9]+_` removed, or null when what remains is not `[a-z0-9_]+`.
+///
+/// A group with no GroupSlug stays in place with its features (INV-2): the
+/// grouped doc types match a `{slug}` only, so a moved feature would be
+/// untyped.
+String? groupSlugOf(String folderName) {
+  final slug = folderName.replaceFirst(_groupPrefix, '');
+  return _groupSlug.hasMatch(slug) ? slug : null;
+}
 
 /// Returns the FeaturePath of the feature folder [folderName], or null.
 ///
@@ -187,14 +194,16 @@ String? featurePathOf(String folderName, {String? groupSlug}) {
 }
 
 /// Throws [MigrateFault] `group_slug_duplicate` when two group folders give
-/// one GroupSlug (INV-3).
+/// one GroupSlug (INV-3); a group with no GroupSlug stays, so never clashes.
 ///
 /// One entry per duplicated slug in code point order of the slug, the second
 /// and later chained under `more`.
 void refuseDuplicateGroups(LegacyFeatures features) {
   final foldersBySlug = <String, Set<String>>{};
   for (final group in features.features.map((f) => f.group).nonNulls) {
-    (foldersBySlug[groupSlugOf(_nameOf(group))] ??= {}).add(group);
+    if (groupSlugOf(_nameOf(group)) case final slug?) {
+      (foldersBySlug[slug] ??= {}).add(group);
+    }
   }
 
   final duplicates = [

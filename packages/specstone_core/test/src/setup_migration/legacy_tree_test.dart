@@ -197,6 +197,31 @@ void main() {
       );
     });
 
+    test('f06/us01/fr03/e04, final I5: a group whose slug is not '
+        '[a-z0-9_]+ gives its features no FeaturePath', () {
+      final scan = scanLegacyFeatures([
+        'prds/features/co01_tool-module/tm01_stripe/FEATURE.md',
+        'prds/features/co02_/cc01_slot/FEATURE.md',
+        'prds/features/ai_module/ai05_chat/FEATURE.md',
+      ]);
+
+      expect(
+        _featureAt(
+          scan,
+          'prds/features/co01_tool-module/tm01_stripe/',
+        ).featurePath,
+        isNull,
+      );
+      expect(
+        _featureAt(scan, 'prds/features/co02_/cc01_slot/').featurePath,
+        isNull,
+      );
+      expect(
+        _featureAt(scan, 'prds/features/ai_module/ai05_chat/').featurePath,
+        'ai_module/f05_chat',
+      );
+    });
+
     test('f06/us01/fr03/e02: a flat name with no prefix stays in place', () {
       final scan = scanLegacyFeatures(['prds/features/notes/FEATURE.md']);
 
@@ -210,6 +235,8 @@ void main() {
         'takes f and its last number', () {
       expect(groupSlugOf('co01_utilities'), 'utilities');
       expect(groupSlugOf('ai_module'), 'ai_module');
+      expect(groupSlugOf('co01_tool-module'), isNull);
+      expect(groupSlugOf('co01_'), isNull);
 
       expect(
         featurePathOf('co01_01_slot', groupSlug: 'utilities'),
@@ -267,6 +294,16 @@ void main() {
           'prds/features/c/cc01_y',
         ]);
       }
+    });
+
+    test('f06/us01/fr03/e09, final I5: groups whose slug is no slug never '
+        'refuse as duplicates', () {
+      refuseDuplicateGroups(
+        scanLegacyFeatures([
+          'prds/features/co01_/xx01_a/FEATURE.md',
+          'prds/features/co02_/yy01_b/FEATURE.md',
+        ]),
+      );
     });
 
     test('f06/us01/fr03/e09: distinct group slugs pass', () {

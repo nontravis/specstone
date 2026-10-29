@@ -295,6 +295,33 @@ name: Login API
     },
   );
 
+  test('f06/us01/fr03/e04, final I5: a group whose slug is not [a-z0-9_]+ '
+      'stays in place with its container and prints under left', () async {
+    const toolContainer = 'prds/features/co01_tool-module/FEATURE.md';
+    const stripe = 'prds/features/co01_tool-module/tm01_stripe/FEATURE.md';
+    const slot = 'prds/features/co02_/cc01_slot/FEATURE.md';
+    final plan = await _plan({
+      'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      'docs/$toolContainer': '# Tool module\n',
+      'docs/$stripe': '# F-01 — Stripe\n',
+      'docs/$slot': '# F-01 — Slot\n',
+      'docs/prds/features/ai_module/ai05_chat/FEATURE.md': '# F-05 — Chat\n',
+    });
+
+    expect(
+      plan.moves,
+      contains((
+        from: 'prds/features/ai_module/ai05_chat/FEATURE.md',
+        to: 'prds/features/ai_module/f05_chat/FEATURE.md',
+      )),
+    );
+    expect(
+      plan.moves.map((m) => m.from),
+      isNot(anyOf(contains(toolContainer), contains(stripe), contains(slot))),
+    );
+    expect(plan.left, containsAll([toolContainer, stripe, slot]));
+  });
+
   test('f06/us01/fr07: the journal commits the moves, then the rewrites and '
       'creates with .specstone/.gitignore', () async {
     final plan = await _plan(acmeLegacy);
