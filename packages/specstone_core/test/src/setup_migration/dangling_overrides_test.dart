@@ -165,8 +165,22 @@ void main() {
     expect(fixture.run, returnsNormally);
   });
 
-  test('f06/us02/fr03: a layer that writes path: defines its own doc type and '
-      'is skipped', () async {
+  test('f06/us02/fr03: a path: override of a pack doc type is still checked '
+      'for dangling entries', () async {
+    final fault = _refusal(
+      await _case({
+        'runbook':
+            'path: custom/{slug}.md\n'
+            'sections: [{id: checklist, required: true}]',
+      }),
+    );
+
+    expect(fault.code, MigrateFaultCode.overrideDangling);
+    expect(fault.key, 'sections.checklist');
+  });
+
+  test('f06/us02/fr03: a layer that writes path: for a new doc type defines '
+      'its own and is skipped', () async {
     final fixture = await _case({
       'playbook':
           'path: prds/playbooks/{slug}/PLAYBOOK.md\n'

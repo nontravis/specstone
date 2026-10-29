@@ -13,7 +13,8 @@ const _editThenMigrate = 'edit the override, then run specstone migrate again';
 ///
 /// [target] is the listed packs at their target versions with no project
 /// layer. An entry is spared when a selected step in [upgrades] renames it. A
-/// layer that writes `path:` defines its own doc type and is skipped. The
+/// layer that writes `path:` for a doc type no pack defines defines its own
+/// and is skipped; one for a pack doc type is still checked. The
 /// fault is the first dangling entry; `more` holds the rest in file order,
 /// then entry order.
 void refuseDanglingOverrides(
@@ -37,7 +38,7 @@ void refuseDanglingOverrides(
 
   final faults = <MigrateFault>[
     for (final layer in overrides)
-      if (layer.path == null)
+      if (target.lookup(layer.docTypeId) != null || layer.path == null)
         ..._danglingOf(
           layer,
           target.lookup(layer.docTypeId),
@@ -77,10 +78,10 @@ List<MigrateFault> _danglingOf(
   }
   final pack = defined.pack;
   final version = pack == null ? null : targetVersions[pack];
-  final owner = [?pack, ?version].join(' ');
+  final owner = ['pack', ?pack, ?version].join(' ');
   MigrateFault fault(String kind, String id) => MigrateFault(
     MigrateFaultCode.overrideDangling,
-    'pack $owner defines no $kind $id and no step renames it; '
+    '$owner defines no $kind $id and no step renames it; '
     '$_editThenMigrate',
     file: layer.file,
     key: '${kind}s.$id',
