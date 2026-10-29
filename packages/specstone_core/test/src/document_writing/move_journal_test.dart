@@ -135,6 +135,29 @@ final class _StuckProbeHook extends IOOverrides {
       _StuckProbeDirectory(super.createDirectory(path));
 }
 
+/// Records the path of every `File` the code under test opens.
+final class _CreatedFiles extends IOOverrides {
+  final _paths = <String>[];
+
+  @override
+  File createFile(String path) {
+    _paths.add(path);
+    return super.createFile(path);
+  }
+
+  /// Returns the temp siblings an atomic write of [relative] created, one per
+  /// write.
+  List<String> tempsOf(String relative) {
+    final name = relative.split('/').last;
+    return [
+      for (final path in _paths)
+        if (path.split(Platform.pathSeparator).last case final file
+            when file.startsWith('.$name.') && file.endsWith('.specstone.tmp'))
+          file,
+    ];
+  }
+}
+
 JournalTarget _target(Directory root) => JournalTarget(
   projectRoot: root,
   docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
@@ -1047,18 +1070,16 @@ void main() {
 
     File fileAt(String path) => File('${tree.path}/$path');
     File journal() => fileAt(MoveJournal.journalPath);
+    File cursorFile() => fileAt(MoveJournal.cursorPath);
 
     /// Makes the write step fail, as a disk that refuses it would.
     void jamStuck() => fileAt(stuck).writeAsBytesSync([0xff, 0xfe, 0x41]);
     void unjamStuck() => fileAt(stuck).writeAsStringSync('old\n');
 
-    /// Writes [steps] as a journal whose `cursor` is [cursor].
-    void writeAt(List<JournalStep> steps, Object cursor) {
-      journal()
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(
-          jsonEncode({...MoveJournal(steps).toJson(), 'cursor': cursor}),
-        );
+    /// Writes [steps] as a journal whose cursor file holds [cursor].
+    void writeAt(List<JournalStep> steps, String cursor) {
+      writeJournal(tree, steps);
+      cursorFile().writeAsStringSync(cursor);
     }
 
     /// Runs [stopped] until its write step fails, after both chain moves.
@@ -1077,11 +1098,57 @@ void main() {
       expect(fileAt(z).existsSync(), isFalse);
     }
 
-    test('dw-s03/inv9, F6-D35: a run records the count of steps finished after each step', () {
+    test('dw-s03/inv9, F6-D35: a run records the count of steps finished in the cursor file', () {
       stopAfterChain();
 
-      expect((jsonDecode(journal().readAsStringSync()) as Map)['cursor'], 2);
+      expect(cursorFile().readAsStringSync(), '2');
+      expect(
+        journal().readAsStringSync(),
+        jsonEncode(const MoveJournal(stopped).toJson()),
+      );
     });
+
+    test('dw-s03/inv9, F6-D35: a run writes the journal once and the cursor after each step', () {
+      final files = _CreatedFiles();
+
+      IOOverrides.runWithIOOverrides(
+        () => const MoveJournal(stopped).run(_target(tree)),
+        files,
+      );
+
+      expect(files.tempsOf(MoveJournal.journalPath), hasLength(1));
+      expect(files.tempsOf(MoveJournal.cursorPath), hasLength(stopped.length));
+    });
+
+    test(
+      'dw-s03/inv9, F6-D35: a finished run or replay leaves no cursor file',
+      () {
+        const MoveJournal(stopped).run(_target(tree));
+
+        expect(cursorFile().existsSync(), isFalse);
+        expect(journal().existsSync(), isFalse);
+
+        writeJournal(tree, const [MoveStep(y, z)]);
+        MoveJournal.replay(_target(tree));
+
+        expect(cursorFile().existsSync(), isFalse);
+        expect(MoveJournal.pending(tree), isFalse);
+      },
+    );
+
+    test(
+      'dw-s03/inv9, F6-D35: a run ignores a cursor file no journal owns',
+      () {
+        Directory('${tree.path}/${MoveJournal.trashPath}')
+            .createSync(recursive: true);
+        cursorFile().writeAsStringSync('2');
+
+        const MoveJournal(stopped).run(_target(tree));
+
+        expectChainLanded();
+        expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      },
+    );
 
     test('dw-s03/inv9, F6-D35: a run stopped after a chain replays from its cursor and leaves the landed doc alone', () {
       stopAfterChain();
@@ -1136,7 +1203,7 @@ void main() {
       for (final step in chain) {
         step.apply(_target(tree));
       }
-      writeAt(stopped, 1);
+      writeAt(stopped, '1');
 
       MoveJournal.replay(_target(tree));
 
@@ -1146,30 +1213,36 @@ void main() {
     });
 
     test('dw-s03/inv9, F6-D35, final Minor 2: a cursor that does not count the steps is refused and the trash stays', () {
-      for (final cursor in <Object>[-1, 3, '1', 1.5]) {
+      for (final cursor in ['-1', '3', '+1', ' 1', '1.5', 'two', '']) {
         writeAt(chain, cursor);
 
-        expect(
+        for (final read in [
           () => MoveJournal.replay(_target(tree)),
-          throwsA(
-            isA<RenderFault>()
-                .having(
-                  (e) => e.code,
-                  'code',
-                  RenderFaultCode.outputNotWritable,
-                )
-                .having(
-                  (e) => e.message,
-                  'message',
-                  'cannot replay ${MoveJournal.journalPath}: cursor '
-                      '${jsonEncode(cursor)} is not a count of its steps; '
-                      'fix or remove it',
-                ),
-          ),
-          reason: '$cursor',
-        );
-        expect(journal().existsSync(), isTrue, reason: '$cursor');
-        expect(fileAt(x).readAsStringSync(), 'x body\n', reason: '$cursor');
+          () => MoveJournal.remaining(_target(tree)),
+        ]) {
+          expect(
+            read,
+            throwsA(
+              isA<RenderFault>()
+                  .having(
+                    (e) => e.code,
+                    'code',
+                    RenderFaultCode.outputNotWritable,
+                  )
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    'cannot replay ${MoveJournal.journalPath}: '
+                        '${MoveJournal.cursorPath} holds '
+                        '${jsonEncode(cursor)}, not a count of its 2 steps; '
+                        'fix or remove it',
+                  ),
+            ),
+            reason: cursor,
+          );
+        }
+        expect(journal().existsSync(), isTrue, reason: cursor);
+        expect(fileAt(x).readAsStringSync(), 'x body\n', reason: cursor);
       }
     });
   });

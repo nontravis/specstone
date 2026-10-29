@@ -405,14 +405,19 @@ String _decisiveLine(ProcessResult result) {
 
 /// The steps of one move, rename, reorder, or delete, applied crash-safely.
 ///
-/// [run] saves the steps under [journalPath] before applying any, and its
-/// cursor, the count of steps finished, after each, so [replay] finishes a run
-/// a crash stopped on the next command from where it stopped (F6-D35).
+/// [run] saves the steps under [journalPath] once, before applying any, and
+/// the count of steps finished under [cursorPath] after each, so [replay]
+/// finishes a run a crash stopped on the next command from where it stopped
+/// (F6-D35).
 final class MoveJournal {
   const new(this.steps);
 
   /// The journal file, relative to the project root.
   static const journalPath = '.specstone/trash/journal.json';
+
+  /// The file holding the journal's cursor, the count of its steps finished,
+  /// as decimal ASCII text, relative to the project root.
+  static const cursorPath = '.specstone/trash/journal.cursor';
 
   /// The folder holding the journal and the deleted files, relative to the
   /// project root.
@@ -425,11 +430,9 @@ final class MoveJournal {
   /// The steps, applied in order.
   final List<JournalStep> steps;
 
-  /// Returns the journal as JSON: `{'steps': [<step>...]}`, with `cursor` when
-  /// [cursor], the count of steps finished, is given.
-  Map<String, Object> toJson({int? cursor}) => {
+  /// Returns the journal as JSON: `{'steps': [<step>...]}`.
+  Map<String, Object> toJson() => {
     'steps': [for (final step in steps) step.toJson()],
-    'cursor': ?cursor,
   };
 
   /// Whether a trash folder, so an unfinished journal or its leftovers, sits
@@ -444,8 +447,8 @@ final class MoveJournal {
   /// replay refuses it as before.
   static bool pendingMigrate(Directory projectRoot) {
     try {
-      final journal = _pendingJournal(projectRoot);
-      return journal?.steps.any((step) => step is CommitStep) ?? false;
+      final steps = _pendingSteps(projectRoot);
+      return steps?.any((step) => step is CommitStep) ?? false;
     } on RenderFault {
       return false;
     }
@@ -455,20 +458,20 @@ final class MoveJournal {
   /// finished ones included, or null when there is none or it does not parse.
   static List<JournalStep>? read(Directory projectRoot) {
     try {
-      return _pendingJournal(projectRoot)?.steps;
+      return _pendingSteps(projectRoot);
     } on RenderFault {
       return null;
     }
   }
 
-  /// Saves the journal with cursor 0, applies each step and saves the cursor
-  /// after it, then removes the journal and the trash folder.
+  /// Saves the journal, applies each step and saves the cursor after it, then
+  /// removes the journal, the cursor, and the trash folder.
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
   /// cannot be written, and [RenderFault] `output_not_writable` when a
   /// folder a file moves out of sits on another volume than the trash (before
-  /// any file moves), or when a step or the journal write fails; the journal
-  /// stays in the last case.
+  /// any file moves), or when a step, the journal write, or a cursor write
+  /// fails; the journal stays in the last two cases.
   void run(JournalTarget target) {
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
@@ -484,10 +487,15 @@ final class MoveJournal {
     if (steps.any(_movesToTrash)) _requireSameVolume(target, steps);
     try {
       Directory(_join(target.projectRoot.path, trashPath)).createSync();
+      // A cursor no journal owns would skip this journal's first steps.
+      _deleteIfPresent(File(_join(target.projectRoot.path, cursorPath)));
+      writeFileAtomic(
+        File(_join(target.projectRoot.path, journalPath)),
+        utf8.encode(jsonEncode(toJson())),
+      );
     } on FileSystemException catch (error) {
       throw _notWritable('write', journalPath, error);
     }
-    _save(target, steps, cursor: 0);
     _finish(target, steps, cursor: 0);
   }
 
@@ -496,34 +504,36 @@ final class MoveJournal {
   ///
   /// Every step before the cursor is done; the step at it, which a crash may
   /// have left half done, and each one after it skip themselves when done. A
-  /// journal with no cursor, as an older binary wrote, starts at its first
-  /// step. A journal that does not parse is refused and left with the trash,
-  /// since its steps may be the only record of where the files went. Does
-  /// nothing when no trash folder exists.
+  /// journal with no cursor file, as an older binary or a crash before the
+  /// first cursor write leaves, starts at its first step. A journal or cursor
+  /// that does not parse is refused and left with the trash, since its steps
+  /// may be the only record of where the files went. Does nothing when no
+  /// trash folder exists.
   ///
   /// Throws [RenderFault] `output_not_writable` when a step fails, the journal
-  /// stays, so the next replay resumes, or when the journal cannot be parsed.
+  /// stays, so the next replay resumes, or when the journal or its cursor
+  /// cannot be read or parsed.
   static void replay(JournalTarget target) {
-    final journal = _pendingJournal(target.projectRoot);
-    if (journal == null) {
+    final steps = _pendingSteps(target.projectRoot);
+    if (steps == null) {
       _removeTrash(target);
       return;
     }
-    _finish(target, journal.steps, cursor: journal.cursor ?? 0);
+    _finish(target, steps, cursor: _cursorOf(target.projectRoot, steps) ?? 0);
   }
 
   /// Returns the steps of the unfinished journal a replay still runs: the step
   /// at its cursor unless done, then every step after it; empty when no
   /// journal exists.
   ///
-  /// A journal with no cursor lists each of its steps not done.
+  /// A journal with no cursor file lists each of its steps not done.
   ///
-  /// Throws [RenderFault] `output_not_writable` when the journal cannot be
-  /// parsed.
+  /// Throws [RenderFault] `output_not_writable` when the journal or its cursor
+  /// cannot be read or parsed.
   static List<JournalStep> remaining(JournalTarget target) {
-    final journal = _pendingJournal(target.projectRoot);
-    if (journal == null) return const [];
-    final (:steps, :cursor) = journal;
+    final steps = _pendingSteps(target.projectRoot);
+    if (steps == null) return const [];
+    final cursor = _cursorOf(target.projectRoot, steps);
     if (cursor == null) {
       return [
         for (final step in steps)
@@ -537,16 +547,12 @@ final class MoveJournal {
   }
 }
 
-/// The steps of a journal file and its cursor, null when an older binary
-/// wrote it without one.
-typedef _Journal = ({List<JournalStep> steps, int? cursor});
-
-/// Returns the journal file, or null when there is none.
-_Journal? _pendingJournal(Directory projectRoot) {
+/// Returns the steps of the journal file, or null when there is none.
+List<JournalStep>? _pendingSteps(Directory projectRoot) {
   final journal = File(_join(projectRoot.path, MoveJournal.journalPath));
   if (!journal.existsSync()) return null;
   try {
-    return _journalOf(jsonDecode(journal.readAsStringSync()));
+    return _stepsOf(jsonDecode(journal.readAsStringSync()));
   } on FormatException catch (error) {
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
@@ -631,50 +637,62 @@ void _removeQuietly(Directory folder, {bool recursive = false}) {
   }
 }
 
-/// Returns the steps and the cursor of a decoded [journal].
+/// Returns the steps of a decoded [journal].
 ///
-/// Throws [FormatException] when [journal] is not `{'steps': [<step>...]}`,
-/// or when its `cursor` is not a count from 0 to the number of its steps.
-_Journal _journalOf(Object? journal) {
-  if (journal is! Map<String, Object?> || journal['steps'] is! List<Object?>) {
-    throw const FormatException('not a journal');
+/// Throws [FormatException] when [journal] is not `{'steps': [<step>...]}`.
+List<JournalStep> _stepsOf(Object? journal) {
+  if (journal is Map<String, Object?> && journal['steps'] is List<Object?>) {
+    return [
+      for (final step in journal['steps']! as List<Object?>)
+        JournalStep.fromJson(step),
+    ];
   }
-  final steps = [
-    for (final step in journal['steps']! as List<Object?>)
-      JournalStep.fromJson(step),
-  ];
-  return switch (journal['cursor']) {
-    null => (steps: steps, cursor: null),
-    final int cursor when cursor >= 0 && cursor <= steps.length => (
-      steps: steps,
-      cursor: cursor,
-    ),
-    final cursor => throw FormatException(
-      'cursor ${jsonEncode(cursor)} is not a count of its steps',
-    ),
-  };
+  throw const FormatException('not a journal');
 }
 
-/// Writes [steps] with [cursor] as the journal file, atomically.
+/// Decimal ASCII digits and nothing else, so no sign, space, or point.
+final _count = RegExp(r'^[0-9]+$');
+
+/// Returns the count of [steps] done that the cursor file holds, or null when
+/// there is no cursor file.
+///
+/// Throws [RenderFault] `output_not_writable` when the file cannot be read, or
+/// holds anything but a count from 0 to the number of [steps].
+int? _cursorOf(Directory projectRoot, List<JournalStep> steps) {
+  final file = File(_join(projectRoot.path, MoveJournal.cursorPath));
+  if (!file.existsSync()) return null;
+  final String text;
+  try {
+    text = String.fromCharCodes(file.readAsBytesSync());
+  } on FileSystemException catch (error) {
+    throw _notWritable('read', MoveJournal.cursorPath, error);
+  }
+  final cursor = _count.hasMatch(text) ? int.tryParse(text) : null;
+  if (cursor != null && cursor <= steps.length) return cursor;
+  throw RenderFault(
+    RenderFaultCode.outputNotWritable,
+    'cannot replay ${MoveJournal.journalPath}: ${MoveJournal.cursorPath} '
+    'holds ${jsonEncode(text)}, not a count of its ${steps.length} steps; '
+    'fix or remove it',
+  );
+}
+
+/// Writes [cursor] to the cursor file, atomically.
 ///
 /// Throws [RenderFault] `output_not_writable` when the disk refuses.
-void _save(
-  JournalTarget target,
-  List<JournalStep> steps, {
-  required int cursor,
-}) {
+void _saveCursor(JournalTarget target, int cursor) {
   try {
     writeFileAtomic(
-      File(_join(target.projectRoot.path, MoveJournal.journalPath)),
-      utf8.encode(jsonEncode(MoveJournal(steps).toJson(cursor: cursor))),
+      File(_join(target.projectRoot.path, MoveJournal.cursorPath)),
+      ascii.encode('$cursor'),
     );
   } on FileSystemException catch (error) {
-    throw _notWritable('write', MoveJournal.journalPath, error);
+    throw _notWritable('write', MoveJournal.cursorPath, error);
   }
 }
 
 /// Applies [steps] from the one at [cursor] on, saving the cursor after each,
-/// then deletes the journal and the trash folder.
+/// then deletes the journal, the cursor, and the trash folder.
 ///
 /// A crash between a step and its save leaves the cursor on that step, which
 /// skips itself when the replay finds it done.
@@ -685,17 +703,22 @@ void _finish(
 }) {
   for (var index = cursor; index < steps.length; index++) {
     steps[index].apply(target);
-    _save(target, steps, cursor: index + 1);
+    _saveCursor(target, index + 1);
   }
-  try {
-    final journal = File(
-      _join(target.projectRoot.path, MoveJournal.journalPath),
-    );
-    if (journal.existsSync()) journal.deleteSync();
-  } on FileSystemException catch (error) {
-    throw _notWritable('remove', MoveJournal.journalPath, error);
+  // The journal goes first: a cursor left alone is ignored, while a journal
+  // left without its cursor would replay every step.
+  for (final path in [MoveJournal.journalPath, MoveJournal.cursorPath]) {
+    try {
+      _deleteIfPresent(File(_join(target.projectRoot.path, path)));
+    } on FileSystemException catch (error) {
+      throw _notWritable('remove', path, error);
+    }
   }
   _removeTrash(target);
+}
+
+void _deleteIfPresent(File file) {
+  if (file.existsSync()) file.deleteSync();
 }
 
 void _removeTrash(JournalTarget target) {
