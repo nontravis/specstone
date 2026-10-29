@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 
@@ -6,8 +7,6 @@ const _traceHeader = 'FR trace';
 final _traceCell = RegExp(
   r'^us(\d+)(?:_([a-z0-9_]+))?/fr(\d+)(?:_([a-z0-9_]+))?$',
 );
-final _separatorRow = RegExp(r'^\|[\s:|-]+\|$');
-final _sectionHeader = RegExp(r'^ {0,3}##(?:[ \t]|$)');
 final _frPath = RegExp(
   r'^.*/us(\d+)_([^/]+)/functional_requirements/fr(\d+)_(.+)\.md$',
 );
@@ -17,7 +16,10 @@ typedef FirstFingerprints = ({String lf, String? label});
 
 /// One FR file of the feature as a trace cell can name it (PD11).
 final class _NamedFr {
-  const new(this.story, this.fr, this.storySlug, this.frSlug);
+  const new(this.path, this.story, this.fr, this.storySlug, this.frSlug);
+
+  /// The legacy DocPath of the FR file.
+  final String path;
 
   /// The story folder's number.
   final int story;
@@ -38,9 +40,10 @@ final class _NamedFr {
 /// Writes the first `confirmed` entries of an API doc's FR trace (F6-D18).
 ///
 /// [lf] is an `API.md` renamed one to one, after `rewriteLegacyDoc`. Each
-/// `## FR trace` cell that names exactly one FR of [featureFrs] becomes the
-/// FRRef `<story slug>/<fr slug>`, backticks and spaces kept, and the doc's
-/// `confirmed:` list gains that FRRef with its `## Statement` fingerprint.
+/// `## FR trace` row `check` tracks, whose cell names exactly one FR of
+/// [featureFrs], becomes the FRRef `<story slug>/<fr slug>`, backticks and
+/// spaces kept, and the doc's `confirmed:` list gains that FRRef with its
+/// `## Statement` fingerprint.
 ///
 /// A cell that names no single FR stays as written and gains no entry.
 FirstFingerprints writeFirstFingerprints(
@@ -53,22 +56,40 @@ FirstFingerprints writeFirstFingerprints(
   );
   if (index < 0) return (lf: lf, label: null);
 
+  final lines = doc.afterFrontmatter.split('\n');
+  final hits = <String, String>{};
   final named = _namedFrs(featureFrs.keys);
-  final refs = <String>{};
-  var text = _withRenamedCells(lf, doc, index, named, refs);
-  if (refs.isEmpty) return (lf: lf, label: null);
+  for (final row in readFrTraceRows(_bodyLines(doc, index))) {
+    final hit = _frNamedBy(row.cell, named);
+    if (hit == null) continue;
+    final at = row.line - 1;
+    lines[at] = lines[at].replaceFirst(row.cell, hit.ref);
+    hits[hit.ref] = hit.path;
+  }
+  if (hits.isEmpty) return (lf: lf, label: null);
 
-  final statements = <String, String>{
-    for (final path in featureFrs.keys)
-      ?_frRefOf(path): _statementOf(featureFrs[path]!),
-  };
-  final block = _existingBlock(doc);
+  final frontmatterLength = lf.length - doc.afterFrontmatter.length;
+  final renamed = lf.substring(0, frontmatterLength) + lines.join('\n');
   final added = [
-    for (final ref in refs)
-      '  - $ref ${fingerprintOf(statements[ref] ?? '')}\n',
+    for (final MapEntry(key: ref, value: path) in hits.entries)
+      '  - $ref ${fingerprintOf(_statementOf(featureFrs[path]!))}\n',
   ].join();
-  text = withKeyBlock(text, 'confirmed', '$block$added');
-  return (lf: text, label: 'confirmed (${refs.length})');
+  return (
+    lf: withKeyBlock(renamed, 'confirmed', '${_existingBlock(doc)}$added'),
+    label: 'confirmed (${hits.length})',
+  );
+}
+
+/// Returns the body lines of section [index] of [doc], numbered by their
+/// 1-based line among the lines after the frontmatter.
+List<TraceBodyLine> _bodyLines(Doc doc, int index) {
+  final body = doc.sections[index].body.split('\n');
+  final fenced = fencedLines(body);
+  final first = doc.sectionLineIndexes[index] + 2;
+  return [
+    for (var k = 0; k < body.length; k++)
+      (text: body[k], line: first + k, fenced: fenced[k]),
+  ];
 }
 
 /// Returns the existing `confirmed:` block of [doc], every line ending in
@@ -86,6 +107,7 @@ List<_NamedFr> _namedFrs(Iterable<String> paths) => [
   for (final path in paths)
     if (_frPath.firstMatch(path) case final RegExpMatch match)
       _NamedFr(
+        path,
         int.parse(match.group(1)!),
         int.parse(match.group(3)!),
         match.group(2)!,
@@ -93,76 +115,19 @@ List<_NamedFr> _namedFrs(Iterable<String> paths) => [
       ),
 ];
 
-/// Returns the FRRef of [path], or null on a path of another shape.
-String? _frRefOf(String path) {
-  final match = _frPath.firstMatch(path);
-  return match == null ? null : '${match.group(2)}/${match.group(4)}';
+/// Returns the one FR of [named] that [cell] names, or null (PD11).
+_NamedFr? _frNamedBy(String cell, List<_NamedFr> named) {
+  final match = _traceCell.firstMatch(cell);
+  if (match == null) return null;
+  final hits = named.where(
+    (candidate) =>
+        candidate.story == int.parse(match.group(1)!) &&
+        candidate.fr == int.parse(match.group(3)!) &&
+        (match.group(2) == null || candidate.storySlug == match.group(2)) &&
+        (match.group(4) == null || candidate.frSlug == match.group(4)),
+  );
+  return hits.length == 1 ? hits.single : null;
 }
-
-/// Rewrites each trace cell that names exactly one FR of [named].
-///
-/// Adds each rewritten FRRef to [refs]; a cell that stays gains none.
-String _withRenamedCells(
-  String lf,
-  Doc doc,
-  int index,
-  List<_NamedFr> named,
-  Set<String> refs,
-) {
-  final lines = doc.afterFrontmatter.split('\n');
-  var sawHeader = false;
-  for (var i = doc.sectionLineIndexes[index] + 1; i < lines.length; i++) {
-    final text = lines[i].trim();
-    if (_sectionHeader.hasMatch(text)) break;
-    if (!text.startsWith('|')) continue;
-    if (sawHeader && !_separatorRow.hasMatch(text)) {
-      _renameCell(lines, i, text, named, refs);
-    } else {
-      sawHeader = true;
-    }
-  }
-  final frontmatterLength = lf.length - doc.afterFrontmatter.length;
-  return lf.substring(0, frontmatterLength) + lines.join('\n');
-}
-
-/// Renames the first cell of row [i] when it names exactly one FR.
-void _renameCell(
-  List<String> lines,
-  int i,
-  String row,
-  List<_NamedFr> named,
-  Set<String> refs,
-) {
-  final cell = _firstCell(row);
-  final unquoted = _unquoted(cell);
-  final match = _traceCell.firstMatch(unquoted);
-  if (match == null) return;
-  final hits = named
-      .where(
-        (candidate) =>
-            candidate.story == int.parse(match.group(1)!) &&
-            candidate.fr == int.parse(match.group(3)!) &&
-            (match.group(2) == null || candidate.storySlug == match.group(2)) &&
-            (match.group(4) == null || candidate.frSlug == match.group(4)),
-      )
-      .toList();
-  if (hits.length != 1) return;
-  lines[i] = lines[i].replaceFirst(unquoted, hits.single.ref);
-  refs.add(hits.single.ref);
-}
-
-/// Returns the first table cell of [row], trimmed.
-String _firstCell(String row) {
-  final inner = row.substring(1);
-  final end = inner.indexOf('|');
-  return (end < 0 ? inner : inner.substring(0, end)).trim();
-}
-
-/// Returns [cell] with one pair of backticks dropped.
-String _unquoted(String cell) =>
-    cell.length > 1 && cell.startsWith('`') && cell.endsWith('`')
-    ? cell.substring(1, cell.length - 1)
-    : cell;
 
 /// Returns the `## Statement` body of [frText], or '' when absent.
 String _statementOf(String frText) {

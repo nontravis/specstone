@@ -158,5 +158,49 @@ void main() {
       expect(out.lf, api);
       expect(out.label, isNull);
     });
+
+    test('f06/us01/fr06: a fenced example row is neither rewritten '
+        'nor fingerprinted', () {
+      const api =
+          '---\n---\n\n# check API\n\n## FR trace\n\n| FR id | Method |\n'
+          '|---|---|\n```\n| us01/fr01 | CLI |\n```\n';
+
+      final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+
+      expect(out.lf, api);
+      expect(out.label, isNull);
+    });
+
+    test('f06/us01/fr06: a fenced ## line does not end the trace', () {
+      const api =
+          '---\n---\n\n# check API\n\n## FR trace\n\n| FR id | Method |\n'
+          '|---|---|\n```\n## not a header\n```\n| `us01/fr01` | CLI |\n';
+
+      final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+
+      expect(out.lf, contains('| `find_template_breaks/check_target` | CLI |'));
+      expect(out.label, 'confirmed (1)');
+    });
+
+    test('f06/us01/fr06: two FR files sharing a slug keep their own '
+        'statements', () {
+      const first =
+          'prds/features/f04_check/us01_find/functional_requirements/'
+          'fr01_check.md';
+      const second =
+          'prds/features/f04_check/us01_find/functional_requirements/'
+          'fr02_check.md';
+      String fr(String statement) =>
+          '---\n---\n\n# FR\n\n## Statement\n'
+          '$statement\n';
+      final api = _api(['`us01/fr01`']);
+
+      final out = writeFirstFingerprints(
+        api,
+        featureFrs: {first: fr('First.'), second: fr('Second.')},
+      );
+
+      expect(out.lf, contains('  - find/check ${fingerprintOf('First.\n')}\n'));
+    });
   });
 }
