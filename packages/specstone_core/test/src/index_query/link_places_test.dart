@@ -444,6 +444,120 @@ void main() {
       );
     });
 
+    placed(
+      'f04/us02/fr04, LA3: pin: an HTML comment block holds no use',
+      '<!--\n[a](b.md)\n-->\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 5, shown: 'b.md')],
+    );
+
+    group('f04/us02/fr04, LA3: an HTML block runs to its end condition', () {
+      placed(
+        'a block of <details> runs to its closing tag',
+        '<details>\n[a](b.md)\n</details>\n\n[c](b.md)\n',
+        [(target: 'b.md', line: 5, shown: 'b.md')],
+      );
+
+      placed(
+        'a block of an unknown tag runs to the next blank line',
+        '<x-y>\n[a](b.md)\n\n[c](b.md)\n',
+        [(target: 'b.md', line: 4, shown: 'b.md')],
+      );
+
+      placed(
+        'a block of <pre> runs past a blank line to its closing tag',
+        '<pre>\n\n[a](b.md)\n</pre>\n\n[c](b.md)\n',
+        [(target: 'b.md', line: 6, shown: 'b.md')],
+      );
+    });
+
+    placed(
+      'f04/us02/fr04, LA3: pin: a tag line cannot interrupt a paragraph',
+      'x\n<x-y>\n[a](b.md)\n',
+      [(target: 'b.md', line: 3, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: an indented code block holds no use',
+      '    [a](b.md)\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 3, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: pin: an indented line after a paragraph line is '
+          'paragraph text',
+      'x\n    [a](b.md)\n',
+      [(target: 'b.md', line: 2, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: a definition-shaped line inside a paragraph '
+          'defines nothing',
+      'x\n[r]: b.md\n\n[d][r]\n[c](b.md)\n',
+      [(target: 'b.md', line: 5, shown: 'b.md')],
+    );
+
+    group('f04/us02/fr04, LA3: a heading and a thematic break end the '
+        'brackets before them', () {
+      placed('a heading ends them', '# [a\nb](b.md)\n[c](b.md)\n', [
+        (target: 'b.md', line: 3, shown: 'b.md'),
+      ]);
+
+      placed('a thematic break ends them', '[a\n***\nb](b.md)\n[c](b.md)\n', [
+        (target: 'b.md', line: 4, shown: 'b.md'),
+      ]);
+    });
+
+    placed(
+      'f04/us02/fr04, LA3: pin: a fence ends the brackets before it',
+      '[a\n```\nb](b.md)\n```\n[c](b.md)\n',
+      [(target: 'b.md', line: 5, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: a table cell ends at an unescaped pipe',
+      '| [a | b](b.md) |\n|---|---|\n\n[c](b.md)\n',
+      [(target: 'b.md', line: 4, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: pin: an escaped pipe stays in its cell',
+      '| [a \\| b](b.md) |\n|---|\n',
+      [(target: 'b.md', line: 1, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: pin: a setext underline keeps the link above it',
+      '[a](b.md)\n===\n[c](b.md)\n',
+      [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 3, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: pin: of two definitions of one label the first '
+          'wins',
+      '[t][r]\n\n[r]: b.md\n[r]: c.md\n',
+      [(target: 'b.md', line: 1, shown: 'b.md')],
+    );
+
+    placed(
+      'f04/us02/fr04, LA3: pin: links in a heading and a table cell keep '
+          'their lines',
+      '# [a](b.md)\n\n| h |\n|---|\n| [c](b.md) |\n',
+      [
+        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 5, shown: 'b.md'),
+      ],
+    );
+
+    placed(
+      "f04/us02/fr04, LA3: pin: a definition's title on the next line is "
+          'read with it',
+      '[r]: b.md\n"t"\n[d][r]\n',
+      [(target: 'b.md', line: 3, shown: 'b.md')],
+    );
+
     void within(String name, String body, List<(int, String?)> expected) {
       test('f04/us02/fr04, f04/nfr-p03, LA6: $name within one second', () {
         final watch = Stopwatch()..start();
@@ -533,6 +647,24 @@ void main() {
       '10,000 www URL starts after a letter are scanned',
       '${'xwww.a.b' * 10000}\n\n[l](b.md)\n',
       [(3, 'b.md')],
+    );
+
+    within(
+      '10,000 HTML blocks are scanned',
+      '${'<div>\n\n' * 10000}[l](b.md)\n',
+      [(20001, 'b.md')],
+    );
+
+    within(
+      '10,000 table rows are scanned',
+      '| h |\n|---|\n${'| x |\n' * 10000}\n[l](b.md)\n',
+      [(10004, 'b.md')],
+    );
+
+    within(
+      '10,000 definitions with an unclosed title are scanned',
+      '${'[r]: b.md "t\n\n' * 10000}[l](b.md)\n',
+      [(20001, 'b.md')],
     );
   });
 }

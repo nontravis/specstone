@@ -64,14 +64,16 @@ const _atomTokens = <String>[
 
 const _definitions = <String>['[r]: b.md', '[s]: <c d.md> "t"', '[r]: c.md'];
 
-String _line(Random random, List<String> vocabulary) {
+String _tokenRun(Random random, List<String> vocabulary) {
   final count = 1 + random.nextInt(8);
-  final tokens = [
+  return [
     for (var i = 0; i < count; i++)
       vocabulary[random.nextInt(vocabulary.length)],
-  ];
-  return 'x ${tokens.join()}';
+  ].join();
 }
+
+String _line(Random random, List<String> vocabulary) =>
+    'x ${_tokenRun(random, vocabulary)}';
 
 String _paragraph(Random random, List<String> vocabulary) {
   final count = 1 + random.nextInt(3);
@@ -107,6 +109,89 @@ String inlineGrammar(Random random) => _inlineBody(random, _tokens);
 /// [inlineGrammar] with code spans, autolinks, and raw HTML added.
 String atomGrammar(Random random) =>
     _inlineBody(random, [..._tokens, ..._atomTokens]);
+
+/// [_definitions] and a definition whose title sits on the next line.
+const _topDefinitions = <String>[..._definitions, '[s]: <c d.md>\n"t"'];
+
+/// Returns zero to two token lines, each led by a line end.
+String _tokenLines(Random random, List<String> vocabulary) => [
+  for (var i = random.nextInt(3); i > 0; i--) '\n${_line(random, vocabulary)}',
+].join();
+
+String _pick(Random random, List<String> choices) =>
+    choices[random.nextInt(choices.length)];
+
+String _htmlBlock(Random random, List<String> vocabulary) {
+  final lines = _tokenLines(random, vocabulary);
+  return switch (random.nextInt(4)) {
+    0 => '<!--$lines\n-->',
+    1 => '<details>$lines\n</details>',
+    2 => '<pre>${random.nextBool() ? '\n' : ''}$lines\n</pre>',
+    _ => '<x-y>$lines',
+  };
+}
+
+String _tableBlock(Random random, List<String> vocabulary) {
+  final columns = 1 + random.nextInt(3);
+  String row(int cells) {
+    final texts = [
+      for (var i = 0; i < cells; i++) _tokenRun(random, vocabulary),
+    ];
+    return '| ${texts.join(' | ')} |';
+  }
+
+  return [
+    row(columns),
+    '|${'---|' * columns}',
+    for (var i = random.nextInt(3); i > 0; i--) row(1 + random.nextInt(3)),
+  ].join('\n');
+}
+
+String _topBlock(
+  Random random,
+  List<String> vocabulary, {
+  required bool afterBlank,
+}) {
+  final kind = random.nextInt(11);
+  return switch (kind) {
+    0 => '# ${_tokenRun(random, vocabulary)}',
+    1 => '${_paragraph(random, vocabulary)}\n${_pick(random, ['===', '---'])}',
+    2 => '***',
+    3 =>
+      '```${_tokenLines(random, vocabulary)}'
+          '${_pick(random, ['', '\n```'])}',
+    4 => _htmlBlock(random, vocabulary),
+    5 when afterBlank => [
+      '    ${_tokenRun(random, vocabulary)}',
+      if (random.nextBool()) '    ${_tokenRun(random, vocabulary)}',
+    ].join(_pick(random, ['\n', '\n\n'])),
+    6 => _tableBlock(random, vocabulary),
+    7 => _topDefinitions[random.nextInt(_topDefinitions.length)],
+    8 =>
+      '${_line(random, vocabulary)}\n'
+          '${_topDefinitions[random.nextInt(_topDefinitions.length)]}',
+    _ => _paragraph(random, vocabulary),
+  };
+}
+
+/// Bodies of one to five blocks joined by a line end or a blank line:
+/// paragraphs, headings, setext headings, thematic breaks, fences, HTML blocks,
+/// indented code, tables, and definitions.
+String topBlockGrammar(Random random) {
+  final vocabulary = [..._tokens, ..._atomTokens];
+  final count = 1 + random.nextInt(5);
+  final body = StringBuffer();
+  var afterBlank = true;
+  for (var i = 0; i < count; i++) {
+    body.write(_topBlock(random, vocabulary, afterBlank: afterBlank));
+    if (i < count - 1) {
+      afterBlank = random.nextBool();
+      body.write(afterBlank ? '\n\n' : '\n');
+    }
+  }
+  body.write('\n');
+  return body.toString();
+}
 
 /// Returns every `a` href of `parseMarkdown(body)`, in tree order.
 List<String> markdownHrefs(String body) {
