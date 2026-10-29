@@ -313,41 +313,57 @@ final class CommitStep extends JournalStep {
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
-    final known = paths.where((path) => _isKnown(target, path)).toList();
-    if (known.isNotEmpty) {
-      _runWrite(target, 'add', ['add', '-A', '--', ...known]);
+    final stageable = paths
+        .where((path) => _inTreeOrIndex(target, path))
+        .toList();
+    if (stageable.isNotEmpty) {
+      _runWrite(target, 'add', ['add', '-A', '--', ...stageable]);
     }
-    if (_nothingStaged(target)) return;
-    _runWrite(target, 'commit', ['commit', '-q', '-m', message]);
+    final committable = paths
+        .where((path) => stageable.contains(path) || _inHead(target, path))
+        .toList();
+    if (committable.isEmpty || _nothingStaged(target, committable)) return;
+    _runWrite(target, 'commit', [
+      'commit',
+      '-q',
+      '-m',
+      message,
+      '--',
+      ...committable,
+    ]);
   }
 
   /// Whether [path] sits in the work tree or the index.
   ///
   /// `git add` refuses a pathspec that matches neither, as a moved-away path
   /// does once an earlier, refused attempt already staged its deletion.
-  bool _isKnown(JournalTarget target, String path) {
-    final absolute = _absolute(target, path);
-    if (FileSystemEntity.typeSync(absolute, followLinks: false) !=
-        FileSystemEntityType.notFound) {
-      return true;
-    }
-    final listed = target.runGit([
-      'ls-files',
-      '--',
-      path,
-    ], workingDirectory: target.projectRoot.path);
+  bool _inTreeOrIndex(JournalTarget target, String path) =>
+      FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
+          FileSystemEntityType.notFound ||
+      _lists(target, ['ls-files', '--', path]);
+
+  /// Whether HEAD holds [path], so a commit limited to it can record its
+  /// staged deletion.
+  bool _inHead(JournalTarget target, String path) =>
+      _lists(target, ['ls-tree', '--name-only', 'HEAD', '--', path]);
+
+  bool _lists(JournalTarget target, List<String> arguments) {
+    final listed = target.runGit(
+      arguments,
+      workingDirectory: target.projectRoot.path,
+    );
     return listed.exitCode == 0 && '${listed.stdout}'.trim().isNotEmpty;
   }
 
-  /// Whether the staged changes under [paths] are empty, as when a hook that
-  /// rewrote the subject hid an earlier commit from [isDone].
-  bool _nothingStaged(JournalTarget target) =>
+  /// Whether the staged changes under [pathspecs] are empty, as when a hook
+  /// that rewrote the subject hid an earlier commit from [isDone].
+  bool _nothingStaged(JournalTarget target, List<String> pathspecs) =>
       target.runGit([
         'diff',
         '--cached',
         '--quiet',
         '--',
-        ...paths,
+        ...pathspecs,
       ], workingDirectory: target.projectRoot.path).exitCode ==
       0;
 }

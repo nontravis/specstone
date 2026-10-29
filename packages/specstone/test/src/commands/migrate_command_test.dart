@@ -123,7 +123,8 @@ void main() {
   }, skip: hasGit ? null : 'git is not available');
 
   test(
-    'f06/us01/fr07/e09, f06/us01/fr07/e03: a refused commit exits 75, and '
+    'f06/us01/s9, f06/us01/fr07/e09, f06/us01/fr07/e03: a refused commit '
+    'exits 75, and '
     'the next migrate at a terminal resumes with no answer',
     () async {
       final root = await gitFixture(acmeLegacy);

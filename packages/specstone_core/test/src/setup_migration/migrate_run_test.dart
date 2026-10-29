@@ -514,6 +514,93 @@ void main() {
       expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
       expect(MoveJournal.pending(root), isFalse);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('f06/us01/fr07/e09: a resume commits only its own paths and leaves '
+        "the Owner's staged change staged", () async {
+      final root = await gitFixture(acmeLegacy);
+      final hook = File('${root.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      expect(
+        () => _run(root, StringBuffer(), answers: ['y']),
+        throwsA(isA<MigrateFault>()),
+      );
+      File('${root.path}/notes.txt').writeAsStringSync('mine\n');
+      expect(git(root, ['add', 'notes.txt']).exitCode, 0);
+      hook.deleteSync();
+
+      expect(_run(root, StringBuffer()), 0);
+
+      final renames =
+          git(root, [
+                'show',
+                '--name-status',
+                '-M',
+                '--format=',
+                'HEAD~1',
+              ]).stdout
+              as String;
+      for (final line in renames.trim().split('\n')) {
+        expect(line, startsWith('R100'), reason: line);
+      }
+      expect(
+        git(root, ['diff', '--cached', '--name-only']).stdout,
+        'notes.txt\n',
+      );
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('f06/us01/fr07/e03: the resume lists only the commits of the '
+        "journal's steps", () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      expect(
+        git(root, [
+          'commit',
+          '-q',
+          '--allow-empty',
+          '-m',
+          'owner work',
+        ]).exitCode,
+        0,
+      );
+      final out = StringBuffer();
+
+      expect(_run(root, out), 0);
+
+      expect(out.toString(), isNot(contains('owner work')));
+      expect(out.toString(), contains(': $_commit1Message\n'));
+      expect(out.toString(), contains('commit 2 '));
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e09: git that cannot start during a resume is '
+        'git_work_tree_required', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+
+      expect(
+        () => runMigrate(
+          MigrateRequest(
+            workingDirectory: root,
+            homeDirectory: null,
+            templates: TemplateResolver(),
+            dryRun: false,
+            interactive: true,
+            readLine: () => null,
+            out: StringBuffer(),
+            runGit: (arguments, {required workingDirectory}) =>
+                throw const ProcessException('git', []),
+          ),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitWorkTreeRequired,
+          ),
+        ),
+      );
+    }, skip: skipGit);
   });
 }
 

@@ -962,10 +962,11 @@ void main() {
       );
     });
 
-    test('f06/us01/fr07/e09: a failure with no stderr reports the last stdout line', () {
+    test('f06/us01/fr07/e09: a failure with no stderr reports the last stdout line', () async {
+      final root = await writeTree({'x': ''});
       JournalTarget target() => JournalTarget(
-        projectRoot: Directory.systemTemp,
-        docsRoot: Directory.systemTemp,
+        projectRoot: root,
+        docsRoot: root,
         runGit: (arguments, {required workingDirectory}) =>
             arguments.first == 'log'
             ? ProcessResult(0, 0, '', '')
@@ -975,7 +976,7 @@ void main() {
       expect(
         () => const CommitStep(
           message: 'm',
-          paths: [],
+          paths: ['x'],
           base: 'b',
         ).apply(target()),
         throwsA(

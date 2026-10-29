@@ -5,6 +5,8 @@ import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/index_query/index_store.dart'
+    show specstoneGitignoreLines;
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
@@ -22,12 +24,14 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 const _carriedPacks = ['prd-core', 'software-tech'];
 const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
-const _gitignoreText = 'index.sqlite*\nbuild/\ntrash/\n';
+final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
 const _commit1Message = 'move legacy docs to their new paths';
 const _commit2Message =
     'rewrite titles, keys, and links; add project configuration';
-const _closingLine = 'run specstone check to list what is left to fill';
+
+/// What an applied or resumed migration prints after its commit lines.
+const legacyClosingLine = 'run specstone check to list what is left to fill';
 
 final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 
@@ -111,7 +115,7 @@ RunPlan planLegacyRun(
           note: ': ${_pinList(pins)}',
         ),
       if (!File.fromUri(root.uri.resolve(specstoneGitignorePath)).existsSync())
-        const PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
+        PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
       for (final path in overrides.keys.toList()..sort(compareCodePoints))
         PlannedCreate(path: path, text: overrides[path]!),
       ..._draftsOf(projectSet, docPaths, legacy.moves),
@@ -119,7 +123,7 @@ RunPlan planLegacyRun(
     left: legacy.left,
     commit1Message: _commit1Message,
     commit2Message: _commit2Message,
-    closingLine: _closingLine,
+    closingLine: legacyClosingLine,
   );
 }
 
@@ -238,13 +242,7 @@ _Rewrites _rewritesOf(
   for (final work in works.where((work) => work.awaitsFingerprints)) {
     final fingerprints = writeFirstFingerprints(
       work.lf,
-      featureFrs: _featureFrsOf(
-        docsRoot,
-        docPaths,
-        features,
-        work.newPath,
-        rewritten: textOf,
-      ),
+      featureFrs: _featureFrsOf(features, work.newPath, rewritten: textOf),
     );
     work.lf = fingerprints.lf;
     final label = fingerprints.label;
@@ -295,8 +293,6 @@ String _folderOf(String docPath) =>
 /// The text is the one the run writes, taken from [rewritten] by legacy
 /// DocPath.
 Map<String, String> _featureFrsOf(
-  Directory docsRoot,
-  List<String> docPaths,
   LegacyFeatures features,
   String apiPath, {
   required Map<String, _Work> rewritten,
@@ -310,13 +306,8 @@ Map<String, String> _featureFrsOf(
       .firstOrNull;
   if (folder == null) return const {};
   return {
-    for (final path in docPaths)
-      if (path.startsWith(folder) && _frFile.hasMatch(path))
-        path:
-            rewritten[path]?.lf ??
-            readDocText(
-              File.fromUri(docsRoot.uri.resolve(path)).readAsBytesSync(),
-            ).lf,
+    for (final MapEntry(:key, :value) in rewritten.entries)
+      if (key.startsWith(folder) && _frFile.hasMatch(key)) key: value.lf,
   };
 }
 

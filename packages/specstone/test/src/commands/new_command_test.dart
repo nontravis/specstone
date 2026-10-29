@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -35,6 +36,35 @@ void main() {
     final text = File('${root.path}/docs/$newStory').readAsStringSync();
     expect(text, startsWith('---\ndraft: true\n---\n\n# recover_account\n'));
     expect(text, contains('## Use Case'));
+  });
+  test('f06/us01/s15: new refuses while a migration is unfinished', () async {
+    final root = await writeWriteProject();
+    writeJournal(root, [
+      const MoveStep('docs/prds/personas/buyer', 'docs/prds/personas/shopper'),
+      const CommitStep(
+        message: 'move',
+        paths: ['docs/prds/personas'],
+        base: '0000000',
+      ),
+    ]);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(stdinIsTerminal: true),
+    );
+
+    expect(
+      await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'login',
+        '--slug',
+        'recover_account',
+      ]),
+      75,
+    );
+    expect(err.toString(), contains('run specstone migrate'));
+    expect(out.toString(), isEmpty);
   });
   test('f02/us02/s2: piped stdin is the doc text', () async {
     final root = await writeWriteProject();

@@ -29,12 +29,14 @@ void requireGitWorkTree(Directory root, RunGit runGit) {
             ], workingDirectory: root.path).exitCode ==
             0;
   } on ProcessException {
-    throw _workTreeRequired();
+    throw workTreeRequiredFault();
   }
-  if (!inside || !hasHead) throw _workTreeRequired();
+  if (!inside || !hasHead) throw workTreeRequiredFault();
 }
 
-MigrateFault _workTreeRequired() => MigrateFault(
+/// Returns the fault for a project outside a git work tree with a first
+/// commit, or whose `git` cannot run.
+MigrateFault workTreeRequiredFault() => MigrateFault(
   MigrateFaultCode.gitWorkTreeRequired,
   'the project is not in a git work tree with a first commit; put the '
   'project under git, git init and a first commit, then run specstone '
@@ -50,9 +52,9 @@ void requireCleanWorkTree(Directory root, RunGit runGit) {
   try {
     status = runGit(['status', '--porcelain'], workingDirectory: root.path);
   } on ProcessException {
-    throw _workTreeRequired();
+    throw workTreeRequiredFault();
   }
-  if (status.exitCode != 0) throw _workTreeRequired();
+  if (status.exitCode != 0) throw workTreeRequiredFault();
   if ((status.stdout as String).trim().isNotEmpty) {
     throw MigrateFault(
       MigrateFaultCode.workingTreeDirty,

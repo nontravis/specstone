@@ -10,9 +10,6 @@ import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
-// A resume has no plan to carry the line; it equals the legacy plan's.
-const _resumeClosingLine = 'run specstone check to list what is left to fill';
-
 /// What one `specstone migrate` call runs with.
 final class MigrateRequest {
   const new({
@@ -73,6 +70,8 @@ int runMigrate(MigrateRequest request) {
       'git ${error.verb} failed: ${error.line}; fix the cause, then run '
       'specstone migrate at an interactive terminal to finish the run',
     );
+  } on ProcessException {
+    throw workTreeRequiredFault();
   }
 }
 
@@ -122,8 +121,9 @@ int _migrate(MigrateRequest request) {
       final answer = request.readLine()?.trim();
       if (answer != 'y') return 0;
       final base = headSha(root, request.runGit);
-      MoveJournal(plan.journalSteps(base: base)).run(_targetOf(root, request));
-      _printCommits(request, root, base, plan.moves.isEmpty ? 2 : 1);
+      final steps = plan.journalSteps(base: base);
+      MoveJournal(steps).run(_targetOf(root, request));
+      _printCommits(request, root, steps.whereType<CommitStep>().toList());
       final closingLine = plan.closingLine;
       if (closingLine != null) request.out.writeln(closingLine);
       return 0;
@@ -157,8 +157,8 @@ int _resume(MigrateRequest request, Directory root) {
   }
   final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
-  _printCommits(request, root, commits.first.base, 3 - commits.length);
-  out.writeln(_resumeClosingLine);
+  _printCommits(request, root, commits);
+  out.writeln(legacyClosingLine);
   return 0;
 }
 
@@ -169,17 +169,21 @@ JournalTarget _targetOf(Directory root, MigrateRequest request) =>
       runGit: request.runGit,
     );
 
-/// Prints a `commit <n> <sha>: <subject>` line per commit since [base],
-/// numbering from [first].
+/// Prints a `commit <n> <sha>: <subject>` line per commit of the [steps] since
+/// the first one's base, where `n` is the step's place in a two-commit run.
+///
+/// A commit whose subject holds no step's message, such as the Owner's own
+/// between two runs, is not listed.
 void _printCommits(
   MigrateRequest request,
   Directory root,
-  String base,
-  int first,
+  List<CommitStep> steps,
 ) {
-  var n = first;
-  for (final (:sha, :subject) in commitsSince(root, base, request.runGit)) {
-    request.out.writeln('commit $n $sha: $subject');
-    n++;
+  final firstNumber = 3 - steps.length;
+  final commits = commitsSince(root, steps.first.base, request.runGit);
+  for (final (:sha, :subject) in commits) {
+    final index = steps.indexWhere((step) => subject.contains(step.message));
+    if (index < 0) continue;
+    request.out.writeln('commit ${firstNumber + index} $sha: $subject');
   }
 }
