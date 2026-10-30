@@ -202,16 +202,26 @@ _Edit? _editFor(
   return _Edit(from: pair.open + 1, to: pair.end, replacement: inner);
 }
 
-/// Returns the pair of [kind] whose opening line is the first non-blank line
-/// from [from], or null.
+/// Returns the first pair of [kind] in the run of pairs that starts at the
+/// first non-blank line from [from], or null.
+///
+/// The run is the consecutive pairs with only blank lines between them.
 _Pair? _pairAt(_Lines lines, _Scan scan, int from, String kind) {
-  var index = from;
-  while (index < lines.length && lines[index].trim().isEmpty) {
-    index++;
+  int skipBlanks(int start) {
+    var index = start;
+    while (index < lines.length && lines[index].trim().isEmpty) {
+      index++;
+    }
+    return index;
   }
-  return scan.pairs
-      .where((pair) => pair.open == index && pair.kind == kind)
-      .firstOrNull;
+
+  var index = skipBlanks(from);
+  for (;;) {
+    final pair = scan.pairs.where((pair) => pair.open == index).firstOrNull;
+    if (pair == null) return null;
+    if (pair.kind == kind) return pair;
+    index = skipBlanks(pair.end + 1);
+  }
 }
 
 List<String> _innerLines(String text) {

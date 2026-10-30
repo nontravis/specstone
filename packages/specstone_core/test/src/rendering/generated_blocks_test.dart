@@ -232,6 +232,37 @@ void main() {
     });
 
     test(
+      'f05/us03/fr02: two kinds at one place settle after one write',
+      () async {
+        final type = await _noteType();
+        final tocAndEnd = [_block('T'), _block('E', kind: 'note_end')];
+        final below = [
+          _block('T', sectionId: 'steps', place: const BelowBodyLine(0)),
+          _block(
+            'E',
+            kind: 'note_end',
+            sectionId: 'steps',
+            place: const BelowBodyLine(0),
+          ),
+        ];
+
+        final top = _write('## Contents\nbody\n', type, tocAndEnd);
+        expect(_write(top, type, tocAndEnd), top);
+
+        final under = _write('## Steps\nanchor\n\n### N\n', type, below);
+        expect(_write(under, type, below), under);
+        expect(
+          _write('## Contents\n$_toc\nold\n$_end\n\n', type, tocAndEnd),
+          _write(
+            _write('## Contents\n$_toc\nold\n$_end\n\n', type, tocAndEnd),
+            type,
+            tocAndEnd,
+          ),
+        );
+      },
+    );
+
+    test(
       'f05/us03/fr02: sectionIndexOf matches headers by headerKey',
       () async {
         final type = await _noteType();
