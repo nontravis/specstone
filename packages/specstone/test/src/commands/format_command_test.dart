@@ -337,6 +337,83 @@ void main() {
       );
     }, skip: _readOnlyFolderSkipReason() ?? false);
 
+    group('generated blocks', () {
+      const noteDoc = '''
+id: note
+description: A note with a generated block.
+path: notes/{slug}.md
+generators: [note_toc]
+sections:
+  - id: contents
+    header: Contents
+''';
+      final toc = generatedOpenMarker('note_toc');
+      const end = generatedEndMarker;
+      const notePath = 'docs/notes/a.md';
+
+      Future<SpecstoneCommandRunner> noteRunnerIn(
+        Directory workingDirectory,
+      ) async {
+        final home = await writeTree({});
+        return SpecstoneCommandRunner(
+          out: out,
+          err: err,
+          templates: TemplateResolver(
+            shippedFiles: fixturePackFiles(extra: {'note.yaml': noteDoc}),
+            generatorKinds: {...shippedGeneratorKinds, 'note_toc'},
+          ),
+          generators: GeneratorRegistry<DocIndex>({
+            'note_toc': (doc, type, index) => [
+              const GeneratedBlock(
+                kind: 'note_toc',
+                sectionId: 'contents',
+                place: SectionTop(),
+                text: 'toc',
+              ),
+            ],
+          }),
+          workingDirectory: workingDirectory,
+          homeDirectory: home,
+        );
+      }
+
+      test('f05/us03/s7: specstone format prints refused: open generated '
+          'block note_toc and exits 1', () async {
+        final project = await fixtureProject({
+          notePath: '# A\n\n## Contents\n$toc\nno end\n',
+        });
+        final runner = await noteRunnerIn(project);
+
+        expect(await runner.run(['format']), 1);
+        expect(
+          out.toString(),
+          '$notePath: refused: open generated block note_toc\n',
+        );
+      });
+
+      test('f05/us03/fr01: format opens the index only when a doc type under '
+          'the Target lists generators', () async {
+        final shipped = await fixtureProject({_feature: _featureFormatted});
+        final plain = await noteRunnerIn(shipped);
+        const index = '.specstone/index.sqlite';
+
+        expect(await plain.run(['format']), 0);
+        expect(File.fromUri(shipped.uri.resolve(index)).existsSync(), isFalse);
+
+        final notes = await fixtureProject({
+          notePath: '# A\n\n## Contents\nbody\n',
+        });
+        final withNote = await noteRunnerIn(notes);
+
+        expect(await withNote.run(['format']), 0);
+        expect(File.fromUri(notes.uri.resolve(index)).existsSync(), isTrue);
+        expect(
+          read(notes, notePath),
+          '# A\n\n## Contents\n$toc\ntoc\n$end\nbody\n',
+        );
+      });
+    });
+
     test('help format prints the usage to out and exits 0', () async {
       final runner = await runnerIn(await fixtureProject({}));
 

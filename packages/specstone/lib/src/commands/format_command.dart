@@ -49,7 +49,23 @@ class FormatCommand extends SpecstoneCommand {
         workingDirectory: runner.workingDirectory,
         defaultsToDocsRoot: true,
       );
-      report = runFormat(project, target, check: argResults!.flag('check'));
+      report = runFormat<DocIndex>(
+        project,
+        target,
+        check: argResults!.flag('check'),
+        generators: GeneratorRun<DocIndex>(
+          registry: runner.generators,
+          open: () {
+            final session = ReadSession.open(
+              templates: runner.templates,
+              workingDirectory: runner.workingDirectory,
+              homeDirectory: runner.homeDirectory,
+              busyTimeout: runner.busyTimeout,
+            );
+            return (resolver: session.index, close: session.close);
+          },
+        ),
+      );
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson);
     }

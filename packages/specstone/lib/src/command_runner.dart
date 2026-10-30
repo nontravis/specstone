@@ -52,13 +52,19 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     StringSink? out,
     StringSink? err,
     TemplateResolver? templates,
+    GeneratorRegistry<DocIndex>? generators,
     Directory? workingDirectory,
     Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
-       _templates = templates ?? TemplateResolver(),
+       _generators = generators ?? GeneratorRegistry<DocIndex>({}),
+       _templates =
+           templates ??
+           TemplateResolver(
+             generatorKinds: generators?.kinds ?? shippedGeneratorKinds,
+           ),
        _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        _busyTimeout = busyTimeout,
@@ -97,6 +103,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final StringSink _out;
   final StringSink _err;
   final TemplateResolver _templates;
+  final GeneratorRegistry<DocIndex> _generators;
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
   final Duration _busyTimeout;
@@ -111,6 +118,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// Resolver that `guide` and `format` use to load and merge the doc type
   /// templates.
   TemplateResolver get templates => _templates;
+
+  /// The generators `format` runs for the doc types that list them.
+  GeneratorRegistry<DocIndex> get generators => _generators;
 
   /// Folder the project is looked up from, the process working folder by
   /// default.

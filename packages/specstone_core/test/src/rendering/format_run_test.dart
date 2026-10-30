@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -51,7 +54,89 @@ Future<_Run> _open(
   return (root: root, project: project);
 }
 
-FormatReport _run(_Run run, {bool check = false, String? target}) => runFormat(
+FormatReport _run(_Run run, {bool check = false, String? target}) =>
+    runFormat<void>(
+      run.project,
+      run.project.resolveTarget(
+        target,
+        workingDirectory: run.root,
+        defaultsToDocsRoot: true,
+      ),
+      check: check,
+    );
+
+File _file(_Run run, String path) =>
+    File('${run.root.path}${Platform.pathSeparator}$path');
+
+String _read(_Run run, String path) => _file(run, path).readAsStringSync();
+
+const _note = '''
+id: note
+description: A note with a generated block.
+path: notes/{slug}.md
+generators: [note_toc]
+sections:
+  - id: contents
+    header: Contents
+  - id: steps
+    header: Steps
+''';
+
+const String _noteA = 'docs/notes/a.md';
+const String _noteB = 'docs/notes/b.md';
+const String _end = generatedEndMarker;
+final String _toc = generatedOpenMarker('note_toc');
+
+/// Counts the calls a [GeneratorRun] gets.
+final class _Calls {
+  int opened = 0;
+  int closed = 0;
+  void Function()? onOpen;
+}
+
+GeneratorRun<String> _tocRun(
+  _Calls calls, {
+  String resolver = 'R1',
+  bool noBlocks = false,
+}) => GeneratorRun<String>(
+  registry: GeneratorRegistry<String>({
+    'note_toc': (doc, type, r) => noBlocks
+        ? const []
+        : [
+            GeneratedBlock(
+              kind: 'note_toc',
+              sectionId: 'contents',
+              place: const SectionTop(),
+              text: 'toc $r',
+            ),
+          ],
+  }),
+  open: () {
+    calls.opened++;
+    calls.onOpen?.call();
+    return (resolver: resolver, close: () => calls.closed++);
+  },
+);
+
+Future<_Run> _openNotes(Map<String, String> docs) async {
+  final root = await fixtureProject(docs);
+  final project = DocsProject.open(
+    templates: TemplateResolver(
+      shippedFiles: fixturePackFiles(extra: {'note.yaml': _note}),
+      generatorKinds: {...shippedGeneratorKinds, 'note_toc'},
+    ),
+    workingDirectory: root,
+    homeDirectory: null,
+  );
+  return (root: root, project: project);
+}
+
+FormatReport _runNotes(
+  _Run run,
+  GeneratorRun<String> generators, {
+  bool check = false,
+  String? target,
+}) => runFormat<String>(
   run.project,
   run.project.resolveTarget(
     target,
@@ -59,12 +144,15 @@ FormatReport _run(_Run run, {bool check = false, String? target}) => runFormat(
     defaultsToDocsRoot: true,
   ),
   check: check,
+  generators: generators,
 );
 
-File _file(_Run run, String path) =>
-    File('${run.root.path}${Platform.pathSeparator}$path');
+String _noteDoc(String block, {String front = ''}) =>
+    '$front# A\n\n## Contents\n$block\nbody\n\n## Steps\nx\n';
 
-String _read(_Run run, String path) => _file(run, path).readAsStringSync();
+String _fresh() => '$_toc\ntoc R1\n$_end';
+
+String _stale() => '$_toc\nold\n$_end';
 
 void main() {
   test('f05/us01/fr07/e01: a CRLF doc out of order is written with CRLF '
@@ -555,4 +643,219 @@ void main() {
     expect([for (final f in report.files) f.path], [_feature]);
     expect(report.files.single.status, FileStatus.formatted);
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  group('generated blocks', () {
+    test('f05/us03/s1, f05/us03/fr02/e01: format rewrites a stale block and '
+        'keeps every other byte, draft and confirmed included', () async {
+      const draft = '---\ndraft: true\n---\n';
+      const confirmed = '---\ndraft: false\n---\n';
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale(), front: draft),
+        _noteB: _noteDoc(_stale(), front: confirmed),
+      });
+
+      final report = _runNotes(run, _tocRun(_Calls()));
+
+      expect(
+        report.files.map((f) => f.status),
+        everyElement(FileStatus.formatted),
+      );
+      expect(_read(run, _noteA), _noteDoc(_fresh(), front: draft));
+      expect(_read(run, _noteB), _noteDoc(_fresh(), front: confirmed));
+    });
+
+    test(
+      'f05/us03/s2, f05/us03/fr02/e02: format inserts a missing block',
+      () async {
+        final run = await _openNotes({
+          _noteA: '# A\n\n## Contents\nbody\n\n## Steps\nx\n',
+        });
+
+        _runNotes(run, _tocRun(_Calls()));
+
+        expect(_read(run, _noteA), _noteDoc(_fresh()));
+      },
+    );
+
+    test('f05/us03/s3, f05/us03/fr03/e01, f05/us03/fr03/e03: format --check '
+        'lists a doc with a stale block, writes nothing, exits 1', () async {
+      final run = await _openNotes({_noteA: _noteDoc(_stale())});
+
+      final report = _runNotes(run, _tocRun(_Calls()), check: true);
+
+      expect(report.toText(), '$_noteA\n');
+      expect(report.exitStatus, 1);
+      expect(_read(run, _noteA), _noteDoc(_stale()));
+    });
+
+    test('f05/us03/fr03/e02: format, then format --check, lists nothing and '
+        'exits 0', () async {
+      final run = await _openNotes({_noteA: _noteDoc(_stale())});
+      final generators = _tocRun(_Calls());
+
+      _runNotes(run, generators);
+      final report = _runNotes(run, generators, check: true);
+
+      expect(report.toText(), '');
+      expect(report.exitStatus, 0);
+    });
+
+    test(
+      'f05/us03/fr03/e04: a block that cannot be resolved is not listed',
+      () async {
+        final run = await _openNotes({_noteA: _noteDoc(_stale())});
+
+        final report = _runNotes(
+          run,
+          _tocRun(_Calls(), noBlocks: true),
+          check: true,
+        );
+
+        expect(report.toText(), '');
+        expect(report.exitStatus, 0);
+        expect(_read(run, _noteA), _noteDoc(_stale()));
+      },
+    );
+
+    test('f05/us03/s4, f05/us03/fr02/e03: a hand edit inside a block is '
+        'replaced', () async {
+      final run = await _openNotes({
+        _noteA: _noteDoc('$_toc\nhand edit\nmore\n$_end'),
+      });
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      expect(_read(run, _noteA), _noteDoc(_fresh()));
+    });
+
+    test("f05/us03/s5, f05/us03/fr02/e08: an approved doc's block is "
+        'rewritten and no draft: true is added', () async {
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale(), front: '---\ndraft: false\n---\n'),
+      });
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      final text = _read(run, _noteA);
+      expect(text, contains('draft: false'));
+      expect(text, isNot(contains('draft: true')));
+      expect(text, contains('toc R1'));
+    });
+
+    test('f05/us03/s6, f05/us03/fr02/e07: a doc outside the Target is not '
+        'written, and a check over the docs root lists it', () async {
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale()),
+        _noteB: _noteDoc(_stale()),
+      });
+
+      _runNotes(run, _tocRun(_Calls()), target: _noteA);
+
+      expect(_read(run, _noteA), _noteDoc(_fresh()));
+      expect(_read(run, _noteB), _noteDoc(_stale()));
+      final report = _runNotes(run, _tocRun(_Calls()), check: true);
+      expect(report.toText(), '$_noteB\n');
+    });
+
+    test('f05/us03/s7, f05/us03/fr02/e06: an open block refuses the file and '
+        'the other files still format', () async {
+      final openDoc = '# A\n\n## Contents\n$_toc\nno end\n\n## Steps\nx\n';
+      final run = await _openNotes({
+        _noteA: openDoc,
+        _noteB: _noteDoc(_stale()),
+      });
+
+      final report = _runNotes(run, _tocRun(_Calls()));
+
+      final refused = report.files.firstWhere((f) => f.path == _noteA);
+      expect(refused.status, FileStatus.refused);
+      expect(refused.openBlock, _toc);
+      expect(
+        report.toText(),
+        contains('$_noteA: refused: open generated block note_toc'),
+      );
+      expect(refused.toJson()['openBlock'], _toc);
+      expect(report.exitStatus, 1);
+      expect(_read(run, _noteA), openDoc);
+      expect(_read(run, _noteB), _noteDoc(_fresh()));
+    });
+
+    test('f05/us03/fr01/e02: a run with no doc type listing generators never '
+        'calls open', () async {
+      final run = await _openNotes({_feature: _featureOutOfOrder});
+      final calls = _Calls();
+
+      _runNotes(run, _tocRun(calls));
+
+      expect(calls.opened, 0);
+      expect(calls.closed, 0);
+    });
+
+    test('f05/us03/fr01: open runs once per run, before the first write, and '
+        'close runs after the last', () async {
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale()),
+        _noteB: _noteDoc(_stale()),
+      });
+      final calls = _Calls();
+      final seen = <String>[];
+      calls.onOpen = () {
+        seen
+          ..add(_read(run, _noteA))
+          ..add(_read(run, _noteB));
+      };
+
+      _runNotes(run, _tocRun(calls));
+
+      expect(calls.opened, 1);
+      expect(calls.closed, 1);
+      expect(seen, [_noteDoc(_stale()), _noteDoc(_stale())]);
+      expect(_read(run, _noteB), _noteDoc(_fresh()));
+    });
+
+    test('f05/us03/fr01/e05: a fault from open stops the run and writes no '
+        'file', () async {
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale()),
+        _noteB: _noteDoc(_stale()),
+      });
+      final failing = GeneratorRun<String>(
+        registry: GeneratorRegistry<String>({}),
+        open: () => throw IndexFault(IndexFaultCode.indexBusy, 'busy'),
+      );
+
+      expect(() => _runNotes(run, failing), throwsA(isA<IndexFault>()));
+
+      expect(_read(run, _noteA), _noteDoc(_stale()));
+      expect(_read(run, _noteB), _noteDoc(_stale()));
+    });
+
+    test('f05/us01/fr03: sections out of order are reordered and each body '
+        'is kept byte for byte outside its block', () async {
+      final run = await _openNotes({
+        _noteA: '# A\n\n## Steps\nx\n  y\n\n## Contents\nbody\n',
+      });
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      expect(
+        _read(run, _noteA),
+        '# A\n\n## Contents\n${_fresh()}\nbody\n\n## Steps\nx\n  y\n',
+      );
+    });
+
+    test('f05/us03/fr02: a CRLF doc gets its block in CRLF, and a second run '
+        'is unchanged', () async {
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale()).replaceAll('\n', '\r\n'),
+      });
+      final generators = _tocRun(_Calls());
+
+      _runNotes(run, generators);
+      expect(_read(run, _noteA), _noteDoc(_fresh()).replaceAll('\n', '\r\n'));
+      final again = _runNotes(run, generators);
+
+      expect(again.files.single.status, FileStatus.unchanged);
+    });
+  });
 }

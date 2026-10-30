@@ -49,7 +49,9 @@ export 'src/rendering/build_output.dart'
         outputName,
         writeBuildOutput;
 export 'src/rendering/docs_project.dart' show DocsProject, Target;
-export 'src/rendering/format_run.dart' show FormatReport, runFormat;
+export 'src/rendering/format_run.dart'
+    show FormatReport, GeneratorRun, runFormat;
+export 'src/rendering/generated_blocks.dart';
 export 'src/rendering/html_build.dart' show HtmlBuild, buildHtml;
 export 'src/rendering/page_setup.dart' show PageSetup, Paper;
 export 'src/rendering/render_fault.dart';
@@ -57,6 +59,7 @@ export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
     show MigrateFault, MigrateFaultCode;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
+export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/template_fault.dart';
