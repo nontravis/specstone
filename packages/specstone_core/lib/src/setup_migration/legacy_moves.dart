@@ -83,6 +83,7 @@ LegacyMoves planLegacyMoves(
 }) {
   final sorted = [...docPaths]..sort(compareCodePoints);
   final specFolders = _specFoldersOf(specMap);
+  final crossCuttingClaimants = _crossCuttingClaimants(specFolders);
 
   final placed = <String, _Placement>{};
   final specFiles = <_FeatureSpecFile>[];
@@ -96,7 +97,12 @@ LegacyMoves planLegacyMoves(
       placed[path] = placement;
       continue;
     }
-    final specFile = _readSpecFile(path, specFolders, features);
+    final specFile = _readSpecFile(
+      path,
+      specFolders,
+      crossCuttingClaimants,
+      features,
+    );
     if (specFile is _CrossCuttingFile) placed[path] = specFile.placement;
     if (specFile is _FeatureSpecFile) specFiles.add(specFile);
   }
@@ -218,10 +224,33 @@ Map<String, Set<String>> _specFoldersOf(List<SpecMapRow> specMap) {
   return idsByFolder;
 }
 
+/// The cross-cutting folder that claims each last segment: the first in code
+/// point order. A folder whose last segment another claims places nothing.
+Map<String, String> _crossCuttingClaimants(
+  Map<String, Set<String>> specFolders,
+) {
+  final folders = [
+    for (final MapEntry(key: folder, value: ids) in specFolders.entries)
+      if (ids.length == 1 && ids.single == _crossCutting) folder,
+  ]..sort(compareCodePoints);
+  final claimantOfSegment = <String, String>{};
+  for (final folder in folders) {
+    claimantOfSegment.putIfAbsent(_lastSegmentOf(folder), () => folder);
+  }
+  return claimantOfSegment;
+}
+
+/// The last segment of a spec folder path ending in `/`.
+String _lastSegmentOf(String folder) {
+  final segments = folder.split('/');
+  return segments[segments.length - 2];
+}
+
 /// Rule 5: a direct file of a spec folder some Spec map row names.
 _SpecFile? _readSpecFile(
   String path,
   Map<String, Set<String>> specFolders,
+  Map<String, String> crossCuttingClaimants,
   LegacyFeatures features,
 ) {
   if (!path.startsWith(_specsFolder)) return null;
@@ -233,8 +262,8 @@ _SpecFile? _readSpecFile(
   if (ids == null) return null;
 
   if (ids.isEmpty) {
-    final segments = folder.split('/');
-    final last = segments[segments.length - 2];
+    final last = _lastSegmentOf(folder);
+    if (crossCuttingClaimants[last] != folder) return null;
     return _CrossCuttingFile((to: '$_topicsFolder$last/$name', kind: null));
   }
   if (ids.length != 1) return null;
