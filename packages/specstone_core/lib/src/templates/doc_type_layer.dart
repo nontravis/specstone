@@ -261,6 +261,7 @@ final class DocTypeLayer {
     required this.lint,
     required this.reference,
     required this.bundle,
+    required this.generators,
   });
 
   /// Parses one doc-type file; [docTypeId] is the file name without `.yaml`.
@@ -303,6 +304,7 @@ final class DocTypeLayer {
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
       reference: _parseReference(map, file: file, kind: kind, files: files),
       bundle: _parseBundle(map, file: file),
+      generators: _listWrite(map, 'generators', file: file, prefix: ''),
     );
   }
 
@@ -347,6 +349,12 @@ final class DocTypeLayer {
 
   /// The bundle modes this layer writes, plain or as changes, when written.
   final ListWrite<String>? bundle;
+
+  /// The generated-block kinds this layer writes, plain or as changes.
+  ///
+  /// Each entry is checked as a string only; `TemplateResolver` checks the
+  /// kind names against the registered kinds.
+  final ListWrite<String>? generators;
 }
 
 /// The bundle modes a doc type may name on the wire.
@@ -477,6 +485,7 @@ const _topKeys = {
   'lint',
   'reference',
   'bundle',
+  'generators',
 };
 
 const _fieldKeys = {

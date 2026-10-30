@@ -811,6 +811,49 @@ sections:
     });
   });
 
+  group('DocTypeMerger.apply generators', () {
+    test('f03/us03/fr01/e23: a plain generators list over a lower one is '
+        'list_override_needs_add_remove', () {
+      final base = project(shipped(), 'generators: [a]\n');
+      expect(
+        () => project(base, 'generators: [b]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
+      );
+
+      final empty = project(shipped(), 'generators: []\n');
+      expect(empty.generators, isEmpty);
+      expect(
+        () => project(empty, 'generators: [b]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
+      );
+    });
+
+    test('f03/us03/fr01: a plain generators list over a base that sets none '
+        'is accepted', () {
+      final merged = project(shipped(), 'generators: [a, b]\n');
+      expect(merged.generators, ['a', 'b']);
+      expect(shipped().generators, isNull);
+      expect(shipped().listedGenerators, isEmpty);
+    });
+
+    test('f03/us03/fr01: add appends a kind and remove drops one, in list '
+        'order', () {
+      final base = project(shipped(), 'generators: [a, b]\n');
+      final merged = project(base, 'generators: {add: [c], remove: [a]}\n');
+      expect(merged.generators, ['b', 'c']);
+      expect(merged.listedGenerators, ['b', 'c']);
+    });
+
+    test('f03/us03/fr01: a removed kind the lower list lacks is '
+        'unknown_value', () {
+      final base = project(shipped(), 'generators: [a]\n');
+      expect(
+        () => project(base, 'generators: {remove: [z]}\n'),
+        throwsA(fault(FaultCode.unknownValue, 'generators')),
+      );
+    });
+  });
+
   group('DocTypeMerger.apply bundle', () {
     test(
       'f03/us03/fr01, tpl-s03/inv23: the first layer that writes bundle sets '
