@@ -10,6 +10,7 @@ const _implementsKey = 'implements';
 const _tracedFromKey = 'traced_from';
 const _pathsOption = '--paths';
 const _codeOption = '--code';
+const _noPathLabel = 'no path';
 
 typedef _JourneyPart = ({
   List<String> lines,
@@ -91,8 +92,11 @@ _JourneyPart _pathsOf(DocIndex index, IndexedDoc journey, JourneySteps steps) {
       'steps': [for (final i in path) resolved[i].pathJson],
     });
   }
-  for (final i in steps.offPathIndexes) {
-    lines.addAll(resolved[i].scenarioLines);
+  if (steps.offPathIndexes.isNotEmpty) {
+    lines.add('journey:${journey.name} $_noPathLabel');
+    for (final i in steps.offPathIndexes) {
+      lines.addAll(resolved[i].scenarioLines);
+    }
   }
 
   final duplicates = {

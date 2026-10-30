@@ -196,8 +196,13 @@ void main() {
         'warning', () async {
       final answer = await _paths([_step('1', 1), _step('2', 2, after: '7')]);
 
-      expect(answer.text, contains('path 1\n${_stepLine('1', 1)}\n'));
-      expect(answer.text, endsWith('${_stepLine('2', 2)}\n${_lines(2)}\n'));
+      expect(
+        answer.text,
+        contains(
+          'journey:$_slug path 1\n${_stepLine('1', 1)}\n${_lines(1)}\n'
+          'journey:$_slug no path\n${_stepLine('2', 2)}\n${_lines(2)}\n',
+        ),
+      );
       expect('path '.allMatches(answer.text), hasLength(1));
       expect(answer.warnings, [
         '$_slug: step 2 follows no step above it, so it is on no path',
