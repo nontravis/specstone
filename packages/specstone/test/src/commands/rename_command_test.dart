@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show writeCheckProject;
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -97,4 +99,28 @@ void main() {
       );
     },
   );
+  test('f02/us06/fr03: rename --json lists the rewritten journey', () async {
+    const journey = 'prds/journeys/sign_in/JOURNEY.md';
+    final root = await writeCheckProject(
+      extra: {
+        'docs/$journey':
+            '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+            '### 1. Sign in\nstep: login/email_login S1\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/email_login',
+        '--to',
+        'password_login',
+        '--json',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    final rewritten = (jsonDecode(out.toString()) as Map)['rewritten'] as List;
+    expect(rewritten, contains(journey));
+  });
 }

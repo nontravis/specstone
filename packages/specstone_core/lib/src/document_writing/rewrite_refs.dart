@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -167,7 +168,10 @@ List<WriteStep> planRewrites(
         candidates[linker.docPath] = linker;
       }
     }
-    if (_namesRenamedDoc(index, doc, renamed)) candidates[doc.docPath] = doc;
+    if (_namesRenamedDoc(index, doc, renamed) ||
+        (renamed.isNotEmpty && carriesLinkLabels(doc.docTypeId))) {
+      candidates[doc.docPath] = doc;
+    }
   }
   final steps = [
     for (final doc in candidates.values)
@@ -188,9 +192,17 @@ WriteStep? _stepFor(
   final lfText = toLf(raw);
   final linked = rewriteDocLinks(lfText, docPath: doc.docPath, moves: moves);
   final fields = session.index.typeOf(doc)?.fields ?? const <MergedField>[];
-  final text =
+  final refs =
       rewriteDocRefs(linked ?? lfText, fields: fields, renamed: renamed) ??
       linked;
+  final text =
+      rewriteLinkLabels(
+        refs ?? lfText,
+        docType: session.index.typeOf(doc),
+        featureName: session.index.parentOf(doc)?.name,
+        renamed: renamed,
+      ) ??
+      refs;
   if (text == null) return null;
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
