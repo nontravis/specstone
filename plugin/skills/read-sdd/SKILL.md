@@ -31,10 +31,14 @@ Make this your first CLI call, before any other command or file read:
 specstone context <target> --for <mode> --budget 20000
 ```
 
-Then act on its exit status:
+Then act on its exit status, as the host reports it for the call. When the host shows none, tell it from the output:
+an over-budget answer says `over the budget` in its first line, and a bundle ends with a `==> bundle: …` line and its
+doc list.
 
-1. **0:** the printed bundle is the task's docs. Work from it as printed, and open none of its files. When a plan
-   words a requirement differently, the bundle wins: someone may have edited the doc since the plan was made.
+1. **0:** the printed bundle is the task's docs. Work from it as printed, and open none of its files. When the host
+   saves the output to a file and shows a preview, `Read` that file once: it is the printed bundle, so run no `tail`
+   or other command on it. When a plan words a requirement differently, the bundle wins: someone may have edited the
+   doc since the plan was made.
 2. **1:** the bundle is over 20,000 est. tokens, so the CLI printed only its size and doc list. Dispatch
    `specstone:sdd-reader` with the same target IDs, the mode, and the task in a sentence or two. Put no doc text in
    that prompt, and not the printed doc list either. The whole sections it returns, each cited by doc and section,
@@ -48,7 +52,8 @@ That call is also the project gate. Never look for `.specstone/` first with `ls`
 CLI searches each folder upward, so a run from a subfolder of a project goes on as normal; a look at the working
 directory alone would stop there by mistake and cost a tool call.
 
-The bundle is in hand within three tool calls of the first CLI call. At or under the budget, the one call does it.
+The bundle is in hand within three tool calls of the first CLI call. At or under the budget, the one call does it,
+plus one `Read` when the host saved its output to a file: two calls at most.
 
 ## Red flags
 
@@ -59,3 +64,4 @@ The bundle is in hand within three tool calls of the first CLI call. At or under
 | "Over budget: rerun with a bigger or no budget."   | Keep `--budget 20000`; dispatch the reader.         |
 | "Paste the doc list so the reader saves a call."   | Hand over target IDs only.                          |
 | "Open the doc files to be sure."                   | The bundle is the docs, as printed.                 |
+| "Tail the saved output for the exit status."       | Take the host's status; `Read` the file once.       |
