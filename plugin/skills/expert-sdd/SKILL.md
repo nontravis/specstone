@@ -15,6 +15,7 @@ prints each one as the project defines it.
    it, or they can keep using the old skills. Then stop: run nothing else, and neither read nor write a doc.
 3. Exit 0 or 1: the project is on the new format, even from a subfolder, since the CLI searches each parent folder
    for `.specstone/config.yaml`. Keep any findings as the baseline and go on.
+4. Any other non-zero exit: report the CLI's error to the Owner and stop.
 
 That call is the gate. Never look for `.specstone/` first with `ls`, a file read, or any other step: a look at the
 working directory alone misses a project root above it, and spends a tool call the gate already covers.
@@ -34,9 +35,10 @@ working directory alone misses a project root above it, and spends a tool call t
 4. **Confirm traced links.** When you write an FR (`fr`), an nf (`nf`), or an API row (`api`), record its
    `confirmed` entries: run `specstone check <target>` to print the current fingerprint of each link it traces, read
    the upstream block, then write the entries with `specstone set <target> --field confirmed --base <hash>`.
-   A `suspect` link means its upstream block moved on since the entry was recorded: re-read it and confirm again the
-   same way. Your approval request to the Owner then says what changed upstream.
-5. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` for the docs you
+   Take `<hash>` from `specstone get <target>`, never from a fingerprint `check` prints. A `suspect` link means its
+   upstream block moved on since the entry was recorded: re-read it and confirm again the same way. Your approval
+   request to the Owner then says what changed upstream.
+5. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
    touched, and fix each finding your edits added to the baseline. The post-edit hook does not replace this run: it
    checks one doc, and a shell rewrite triggers no hook. An `unconfirmed` link on a draft waits for the Owner's
    approval; leave it.
