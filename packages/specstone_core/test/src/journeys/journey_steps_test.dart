@@ -291,5 +291,26 @@ void main() {
       final read = _read(lines);
       expect(_numbers(read), ['1', '9', '2']);
     });
+
+    test('f10/us01/fr02: a steps body led by --- skips a pasted block between '
+        'two --- lines', () {
+      final lines = [
+        '---',
+        '### 1. A',
+        'step: a/b S1',
+        '<!-- specstone:generated scenario_copy (do not edit) -->',
+        '### 9. Inside',
+        'step: x/y S2',
+        'after: 1',
+        '<!-- specstone:generated end -->',
+        '---',
+        '### 2. B',
+      ];
+
+      final steps = _read(lines, blockKinds: {scenarioCopyKind});
+
+      expect(_numbers(steps), ['1', '2']);
+      expect(steps.steps.first.afterValue, isNull);
+    });
   });
 }

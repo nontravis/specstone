@@ -120,7 +120,7 @@ int? sectionIndexOf(Doc doc, MergedDocType docType, String sectionId) {
 /// a closed generated block of one of [kinds].
 List<bool> generatedBlockLines(List<String> lines, Set<String> kinds) {
   final marked = List.filled(lines.length, false);
-  final scan = _scan(_Lines(lines, endsWithNewline: true), kinds);
+  final scan = _scan(_Lines(lines, endsWithNewline: true), kinds, bodyStart: 0);
   for (final pair in scan.pairs) {
     for (var i = pair.open; i <= pair.end; i++) {
       marked[i] = true;
