@@ -20,8 +20,8 @@ String _step(String number, String heading, String scenario, {String? after}) =>
     '### $number. $heading\nstep: $_story $scenario\n'
     '${after == null ? '' : 'after: $after\n'}';
 
-String _journey(List<String> steps) =>
-    '# Sign in\n\n## Goal\nReach the home page.\n\n## Flow\n\n'
+String _journey(List<String> steps, {String frontMatter = ''}) =>
+    '$frontMatter# Sign in\n\n## Goal\nReach the home page.\n\n## Flow\n\n'
     '## Steps\n${steps.join('\n')}';
 
 final String _branched = _journey([
@@ -97,7 +97,14 @@ void main() {
 
   test('f10/us01/fr04/e02, f05/us03/s1: a story edit re-pastes the copy on '
       'the next format, confirmed and draft unchanged', () async {
-    final root = await _project(_journey([_step('1', 'Open', 'S1')]));
+    final root = await _project(
+      _journey(
+        [_step('1', 'Open', 'S1')],
+        frontMatter:
+            '---\nconfirmed:\n  - $_story#S1 ${fingerprintFor(loginScenario1)}\n'
+            'draft: false\n---\n\n',
+      ),
+    );
     _format(root);
     final before = _read(root);
     final storyFile = File.fromUri(root.uri.resolve('docs/$loginStory'));
