@@ -12,9 +12,11 @@ work from text a plan or brief quotes.
 
 - **Target:** the doc the task names. For a plan task, use the story it cites. In `implement` mode the story's bundle
   already holds its FRs, so one call covers the story and every FR ID the task lists. When a plan task cites several
-  stories, run one `specstone context <story> --for implement --budget 20000` per story, three calls at most; when
-  it cites more than three stories, or any call exits 1, give `specstone:sdd-reader` every ID the task cites and no
-  doc text.
+  stories, run one `specstone context <story> --for implement --budget 20000` per story. Every tool call from the
+  first CLI call counts toward three, a `Read` of a saved output included: run the next story's call only while the
+  calls so far, plus that call and its possible `Read`, stay within three. When the task cites more than three
+  stories, the next call would pass three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites
+  and no doc text.
 - **Mode:**
 
 | Task                                | `--for`     |
