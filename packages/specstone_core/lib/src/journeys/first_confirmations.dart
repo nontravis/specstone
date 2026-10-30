@@ -1,13 +1,10 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/confirmed_list.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:yaml/yaml.dart';
-
-const _confirmedKey = 'confirmed';
 
 /// Returns [lfText] with a first `confirmed` entry for each resolving step.
 ///
@@ -28,9 +25,9 @@ String withFirstConfirmations(
 ) {
   if (docType.id != journeyTypeId) return lfText;
   final doc = Doc.parse(lfText);
-  final held = _confirmedBlock(doc);
-  if (held != null && !_isBlockList(held)) return lfText;
-  final named = {for (final label in _heldLabels(held)) label};
+  final list = readConfirmedList(doc);
+  if (list == null) return lfText;
+  final named = {...list.labels};
   final added = <String>[];
   for (final step in stepsOfDoc(doc, docType).steps) {
     final target = step.target;
@@ -38,33 +35,13 @@ String withFirstConfirmations(
     final block = scenarioBlockOf(index, target);
     if (block == null) continue;
     named.add(target.label);
-    added.add('  - ${target.label} ${fingerprintOf(block)}\n');
+    added.add('${target.label} ${fingerprintOf(block)}');
   }
   if (added.isEmpty) return lfText;
-  return withKeyBlock(
+  return withConfirmedEntries(
     lfText,
-    _confirmedKey,
-    '${held?.text ?? '$_confirmedKey:\n'}${added.join()}',
+    list,
+    added,
     fieldOrder: [for (final field in docType.fields) field.id],
   );
-}
-
-KeyBlock? _confirmedBlock(Doc doc) =>
-    doc.frontmatter?.where((b) => b.name == _confirmedKey).firstOrNull;
-
-// An empty value or a `- ` list takes more lines; a flow list or a scalar does
-// not.
-bool _isBlockList(KeyBlock block) {
-  final value = block.valueText;
-  return value.isEmpty || value.startsWith('-');
-}
-
-// The link label each held entry starts with.
-Iterable<String> _heldLabels(KeyBlock? block) sync* {
-  if (block == null) return;
-  final value = loadYaml(block.valueText);
-  if (value is! YamlList) return;
-  for (final item in value) {
-    if (item is String) yield item.split(' ').first;
-  }
 }

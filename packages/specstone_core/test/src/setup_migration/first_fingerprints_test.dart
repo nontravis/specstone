@@ -33,6 +33,17 @@ void main() {
       expect(out.label, 'confirmed (1)');
     });
 
+    test('f06/us01/fr06: a flow-list confirmed stays valid YAML, as written, with no entry', () {
+      final api = _api([
+        '`us01/fr01_check_target`',
+      ], frontmatter: '---\nconfirmed: [x]\n---\n');
+
+      final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+
+      expect(out.lf, api);
+      expect(out.label, isNull);
+    });
+
     test('f06/us01/fr06/e02: a cell naming no FR, two FRs, or a missing FR stays and gets no entry', () {
       final api = _api([
         '—',
