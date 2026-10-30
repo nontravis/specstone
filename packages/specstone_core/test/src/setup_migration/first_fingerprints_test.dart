@@ -34,14 +34,21 @@ void main() {
       expect(out.label, 'confirmed (1)');
     });
 
-    test('f06/us01/fr06: a flow-list confirmed stays valid YAML, as written, with no entry', () {
+    test('f06/us01/fr06, s03/inv12: a flow-list confirmed stays as written, '
+        'with no entry, and the FR cell is still rewritten', () {
       final api = _api([
         '`us01/fr01_check_target`',
       ], frontmatter: '---\nconfirmed: [x]\n---\n');
 
       final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
 
-      expect(out.lf, api);
+      expect(
+        out.lf,
+        api.replaceFirst(
+          '`us01/fr01_check_target`',
+          '`find_template_breaks/check_target`',
+        ),
+      );
       expect(out.label, isNull);
     });
 

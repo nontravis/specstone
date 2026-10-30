@@ -47,7 +47,7 @@ final class _NamedFr {
 ///
 /// A cell that names no single FR stays as written and gains no entry. A
 /// `confirmed` value that takes no appended entries, a flow list or a scalar,
-/// leaves the whole doc as written.
+/// gains none and has no label, and the cells are still rewritten.
 FirstFingerprints writeFirstFingerprints(
   String lf, {
   required Map<String, String> featureFrs,
@@ -58,7 +58,6 @@ FirstFingerprints writeFirstFingerprints(
   );
   if (index < 0) return (lf: lf, label: null);
   final list = readConfirmedList(doc);
-  if (list == null) return (lf: lf, label: null);
 
   final lines = doc.afterFrontmatter.split('\n');
   final hits = <String, String>{};
@@ -74,6 +73,7 @@ FirstFingerprints writeFirstFingerprints(
 
   final frontmatterLength = lf.length - doc.afterFrontmatter.length;
   final renamed = lf.substring(0, frontmatterLength) + lines.join('\n');
+  if (list == null) return (lf: renamed, label: null);
   final added = [
     for (final MapEntry(key: ref, value: path) in hits.entries)
       '$ref ${fingerprintOf(_statementOf(featureFrs[path]!))}',
