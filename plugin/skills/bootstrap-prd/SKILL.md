@@ -7,7 +7,7 @@ description: Use when the PRD docs of a Specstone project lag behind its format 
 
 This skill takes the `specstone check` findings on paths under `prds/`. Findings under `specs/`, and those a spec doc
 fixes (`architecture_missing`, `code_uncovered`), go to `specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for
-every write: each one leaves a draft.
+every write: each one leaves a draft, a pointer write (`implements`) excepted.
 
 ## 1. Gate: the first call
 
@@ -23,8 +23,8 @@ specstone check
 
 ## 2. One finding at a time
 
-Take the first finding under `prds/` not yet handled, fix it, and run `specstone check` again. Repeat until only
-findings this skill leaves stay: those `specstone:bootstrap-spec` takes, and the keys named below the table.
+Take the first finding under `prds/` not yet handled, fix it, and run `specstone check` again. Repeat until the only
+findings left are those `specstone:bootstrap-spec` takes.
 
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
@@ -36,18 +36,19 @@ of `#<key>`); a section body leaves out its `## ` line. Exit 75 `base_mismatch`:
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text; ask the Owner for what it lacks |
 | `section_undeclared` | merge its text into the section that takes it, then pipe empty text to its own key to drop it |
 | `field_undeclared` on a feature's `implements` | step 3 |
-| `field_undeclared`, any other | write its value into the field that takes it |
+| `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
+| `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
 
-No command drops a leftover field (`field_unknown`, exit 64) or a feature's `status` (`feature_status_written`):
-leave the key, never edit the file by hand, and name it in step 6.
+To drop a key, pipe empty text to `specstone set <type>:<name> --field <id> --base <hash>`, the base from
+`bases.fields.<id>`. Never drop a key by editing the file.
 
 ## 3. Move a feature's code pointers
 
 Through `specstone set --field implements`, give each `implements:` entry of a `FEATURE.md` to the story or FR whose
 behavior that code does; ask the Owner when unsure. Pipe that doc's whole new list to
 `specstone set <type>:<name> --field implements --base <hash>`. A pointer write keeps the draft flag as it was, so
-name it in step 6 too, with the `implements:` key left on the feature.
+name it in step 6 too. Then drop the feature's `implements` key as step 2 says.
 
 ## 4. Merge an old file
 
@@ -80,7 +81,7 @@ print the command again.
 `features:features`, or `gnfr:gnfr`. Read each with `specstone get <type>:<name>` and fill each placeholder with the
 Owner.
 
-Last, name each change per draft, each moved pointer, and each key left from step 2. Then ask the Owner to run
+Last, name each change per draft, each moved pointer, and each dropped key. Then ask the Owner to run
 `specstone approve` at their own terminal: it shows each draft for a yes or no.
 
 ## Red flags
@@ -90,5 +91,5 @@ Last, name each change per draft, each moved pointer, and each key left from ste
 | "Merged, so I'll delete the old files." | Print the `delete`; the Owner runs it. |
 | "`git rm` is quicker." | Never: links break unseen. |
 | "Fix the old file's link in place." | Add the file to the set. |
-| "Hand-edit the feature to drop the key." | Leave it; name it to the Owner. |
+| "Hand-edit the feature to drop the key." | Pipe empty text to `specstone set` with `--field`. |
 | "Fix the `specs/` findings while I'm here." | `specstone:bootstrap-spec` takes them. |
