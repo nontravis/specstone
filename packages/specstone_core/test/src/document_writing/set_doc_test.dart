@@ -4,6 +4,8 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -13,6 +15,8 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show spots;
+import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -936,6 +940,187 @@ void main() {
             .having((f) => (f.file, f.key), 'location', (story1, 'size')),
       ),
     );
+  });
+  test('f08/us05/fr01/e02, f02/us01/fr03: empty stdin removes a held field the type does not declare', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1':
+            '---\nstatus: planned\ndraft: true\nsize: 1\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n\n'
+            '# Sign in with email\n\n## Use Case\nSign in with an email.\n\n'
+            '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n',
+      },
+    );
+    const target = 'user_story:login/email_login';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'size', fieldBase(root, target, 'size')),
+        '\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      startsWith(
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n',
+      ),
+    );
+    expect(answer.json['base'], emptyBaseHash);
+    expect(answer.json['draft'], isTrue);
+  });
+  test("f08/us05/fr01/e01, f02/us01/fr03: empty stdin removes a feature's written status", () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$loginFeature': '---\nstatus: implemented\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
+      },
+    );
+    const target = 'feature:login';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'status', fieldBase(root, target, 'status')),
+        '\n',
+      ),
+    );
+    expect(
+      readDoc(root, loginFeature),
+      startsWith('---\nvision:\n  - PV-01\ndraft: true\n---\n'),
+    );
+    expect(answer.json['base'], emptyBaseHash);
+    expect(answer.json['draft'], isTrue);
+  });
+  test('f02/us01/fr03/e10: a value for an undeclared field still refuses field_unknown', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1':
+            '---\nstatus: planned\ndraft: true\nsize: 1\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n\n'
+            '# Sign in with email\n\n## Use Case\nSign in with an email.\n\n'
+            '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n',
+      },
+    );
+    const target = 'user_story:login/email_login';
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(s, fieldReq(target, 'size', emptyBaseHash), '2\n'),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldUnknown)
+            .having(
+              (f) => f.message,
+              'message',
+              'user_story declares no field size',
+            )
+            .having((f) => (f.file, f.key), 'location', (story1, 'size')),
+      ),
+    );
+  });
+  test('f02/us01/fr03/e10: empty stdin on an undeclared field the doc does not hold refuses field_unknown', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(s, fieldReq(target, 'size', emptyBaseHash), '\n'),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldUnknown)
+            .having(
+              (f) => f.message,
+              'message',
+              'user_story declares no field size',
+            )
+            .having((f) => (f.file, f.key), 'location', (story1, 'size')),
+      ),
+    );
+  });
+  test("f02/us01/fr03: a value for a feature's status still refuses field_not_writable", () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$loginFeature': '---\nstatus: implemented\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
+      },
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq('feature:login', 'status', emptyBaseHash),
+          'deprecated\n',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'the status of a feature is computed from its stories',
+            )
+            .having((f) => (f.file, f.key), 'location', (
+              loginFeature,
+              'status',
+            )),
+      ),
+    );
+  });
+  test('f08/us05/fr01/e01, f08/us05/fr01/e02: after a removal runCheck reports no finding for the key', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1':
+            '---\nstatus: planned\ndraft: true\nsize: 1\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n\n'
+            '# Sign in with email\n\n## Use Case\nSign in with an email.\n\n'
+            '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n',
+        'docs/$loginFeature': '---\nstatus: implemented\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
+      },
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(
+          'user_story:login/email_login',
+          'size',
+          fieldBase(root, 'user_story:login/email_login', 'size'),
+        ),
+        '\n',
+      ),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(
+          'feature:login',
+          'status',
+          fieldBase(root, 'feature:login', 'status'),
+        ),
+        '\n',
+      ),
+    );
+    final session = openSession(root);
+    try {
+      final report = runCheck(session);
+      expect(
+        spots(
+          report,
+          FindingKind.fieldUndeclared,
+        ).where((s) => s.startsWith('$story1:')),
+        isEmpty,
+      );
+      expect(
+        spots(
+          report,
+          FindingKind.featureStatusWritten,
+        ).where((s) => s.startsWith('$loginFeature:')),
+        isEmpty,
+      );
+    } finally {
+      session.close();
+    }
   });
   test('f02/us01/fr03/e11, f02/us01/fr02/e02: a field changed after the read refuses with its block as current text', () async {
     final root = await writeWriteProject();

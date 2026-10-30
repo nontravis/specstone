@@ -39,7 +39,7 @@ const Map<String, String> approvedSignOut = {
 void main() {
   ReadAnswer del(
     Directory root,
-    String address, {
+    List<String> targets, {
     bool interactive = false,
     List<String?> answers = const [],
     StringBuffer? prompts,
@@ -49,7 +49,7 @@ void main() {
       root,
       (s) => answerDelete(
         s,
-        address,
+        targets,
         interactive: interactive,
         readLine: () => queue.isEmpty ? null : queue.removeAt(0),
         prompts: prompts ?? StringBuffer(),
@@ -75,7 +75,7 @@ void main() {
         if (key.startsWith('docs/')) key.substring(5): value,
     });
     Link('${root.path}/docs').createSync(outside.path);
-    del(root, 'user_story:login/reset_password');
+    del(root, ['user_story:login/reset_password']);
     expect(
       Directory('${outside.path}/prds/features/f01_login/us03_reset_password')
           .existsSync(),
@@ -86,11 +86,9 @@ void main() {
   test('f02/us04/s1, f02/us04/fr01, f02/us04/fr01/e01, f02/us04/fr01/e07, f02/us04/fr02/e01, dw-s03/inv7, dw-s03/inv9: a draft story goes with its requirements, siblings keep their numbers', () async {
     final root = await writeWriteProject(extra: withoutLink);
     final prompts = StringBuffer();
-    final answer = del(
-      root,
+    final answer = del(root, [
       'user_story:login/reset_password',
-      prompts: prompts,
-    );
+    ], prompts: prompts);
     expect(answer.text, '$story3\n$fr31\n$fr32\n');
     expect(answer.json, {
       'removed': [story3, fr31, fr32],
@@ -108,7 +106,7 @@ void main() {
   test('f02/us04/s5, f02/us04/fr01/e06: a doc outside that links into the unit is doc_referenced, and nothing is removed', () async {
     final root = await writeWriteProject();
     expect(
-      () => del(root, 'user_story:login/reset_password'),
+      () => del(root, ['user_story:login/reset_password']),
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
@@ -127,7 +125,7 @@ void main() {
   test('f02/us04/s6, f02/us04/fr02, f02/us04/fr02/e02, f02/us04/fr02/e04: an Agent deleting an approved doc is owner_terminal_required', () async {
     final root = await writeWriteProject();
     expect(
-      () => del(root, 'fr:login/email_login/validate_credentials'),
+      () => del(root, ['fr:login/email_login/validate_credentials']),
       throwsA(
         isA<WriteFault>()
             .having((f) => f.exitStatus, 'exitStatus', 77)
@@ -147,7 +145,7 @@ void main() {
     expect(
       del(
         root,
-        'user_story:login/sign_out',
+        ['user_story:login/sign_out'],
         interactive: true,
         answers: ['n'],
         prompts: prompts,
@@ -163,7 +161,7 @@ void main() {
     expect(
       del(
         root,
-        'user_story:login/sign_out',
+        ['user_story:login/sign_out'],
         interactive: true,
         answers: ['y'],
       ).json['removed'],
@@ -175,7 +173,7 @@ void main() {
   test('f02/us04/fr01/e02: an FR goes alone', () async {
     final root = await writeWriteProject();
     expect(
-      del(root, 'fr:login/reset_password/expire_reset_link').json['removed'],
+      del(root, ['fr:login/reset_password/expire_reset_link']).json['removed'],
       [fr32],
     );
     expect([hasDoc(root, fr31), hasDoc(root, story3)], [true, true]);
@@ -190,7 +188,7 @@ void main() {
           'docs/prds/d01_context.md': '# Context\n',
         },
       );
-      expect(del(root, 'feature:signup').json['removed'], [
+      expect(del(root, ['feature:signup']).json['removed'], [
         signupFeature,
         signupArch,
       ]);
@@ -211,14 +209,17 @@ void main() {
         'docs/$story1': '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\n---\n\n# Sign in with email\n\n## Use Case\nSign in with an email.\n',
       },
     );
-    expect(del(root, 'persona:buyer').json['removed'], [antiPersona, persona]);
+    expect(del(root, ['persona:buyer']).json['removed'], [
+      antiPersona,
+      persona,
+    ]);
     expect(Directory('${root.path}/docs/prds/personas').existsSync(), isFalse);
     expect(Directory('${root.path}/docs').existsSync(), isTrue);
   });
 
   test('f02/us04/fr01/e05: a spec doc goes alone', () async {
     final root = await writeWriteProject();
-    expect(del(root, 'architecture:signup').json['removed'], [signupArch]);
+    expect(del(root, ['architecture:signup']).json['removed'], [signupArch]);
     expect(hasDoc(root, signupFeature), isTrue);
   });
 
@@ -227,7 +228,7 @@ void main() {
     () async {
       final root = await writeWriteProject();
       expect(
-        () => del(root, 'user_story:login/email_login'),
+        () => del(root, ['user_story:login/email_login']),
         throwsA(
           isA<WriteFault>()
               .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
@@ -239,7 +240,7 @@ void main() {
 
   test('f02/us04/s7, f02/us04/fr01/e11: a set on a deleted doc is doc_not_found and recreates nothing', () async {
     final root = await writeWriteProject(extra: withoutLink);
-    del(root, 'user_story:login/reset_password');
+    del(root, ['user_story:login/reset_password']);
     expect(
       () => writeIn(
         root,
@@ -277,7 +278,7 @@ void main() {
           Process.runSync('chmod', [mode, entity]);
           return answerDelete(
             s,
-            'user_story:login/reset_password',
+            ['user_story:login/reset_password'],
             interactive: false,
             readLine: () => null,
             prompts: StringBuffer(),
@@ -303,7 +304,7 @@ void main() {
     );
     expect(
       () => IOOverrides.runWithIOOverrides(
-        () => del(root, 'user_story:login/reset_password'),
+        () => del(root, ['user_story:login/reset_password']),
         FailingRenameHook('docs/$fr31'),
       ),
       throwsA(
@@ -330,7 +331,7 @@ void main() {
         },
       );
       expect(
-        () => del(root, 'fr:login/reset_password/expire_reset_link'),
+        () => del(root, ['fr:login/reset_password/expire_reset_link']),
         refusesWith(WriteFaultCode.ownerTerminalRequired),
       );
       expect(hasDoc(root, fr32), isTrue);
@@ -343,7 +344,7 @@ void main() {
     expect(
       del(
         root,
-        'user_story:login/reset_password',
+        ['user_story:login/reset_password'],
         interactive: true,
         prompts: prompts,
       ).json['removed'],
@@ -360,7 +361,7 @@ void main() {
       root,
       (s) => answerDelete(
         s,
-        'user_story:login/sign_out',
+        ['user_story:login/sign_out'],
         interactive: true,
         readLine: () {
           asked++;
@@ -392,7 +393,7 @@ void main() {
       },
     );
     expect(
-      () => del(root, 'user_story:login/reset_password'),
+      () => del(root, ['user_story:login/reset_password']),
       refusesWith(WriteFaultCode.ownerTerminalRequired),
     );
     expect(hasDoc(root, story3), isTrue);
@@ -400,7 +401,7 @@ void main() {
 
   test('f02/us04/fr02/e03: review focus 5, PD9: the end of input at the delete prompt removes nothing', () async {
     final root = await writeWriteProject(extra: approvedSignOut);
-    final answer = del(root, 'user_story:login/sign_out', interactive: true);
+    final answer = del(root, ['user_story:login/sign_out'], interactive: true);
     expect(answer.text, isEmpty);
     expect(answer.json, {'removed': <String>[]});
     expect(hasDoc(root, story2), isTrue);
@@ -414,7 +415,7 @@ void main() {
       },
     );
     expect(
-      del(root, 'user_story:login/reset_password').json['removed'],
+      del(root, ['user_story:login/reset_password']).json['removed'],
       [
         story3,
         fr31,
@@ -436,7 +437,7 @@ void main() {
             '---\ndraft: true\ncovers:\n  - app/lib/\n---\n\n# Doc model\n',
       },
     );
-    expect(del(root, 'topic:doc_model').json['removed'], [
+    expect(del(root, ['topic:doc_model']).json['removed'], [
       'specs/topics/doc_model.md',
     ]);
     expect(Directory('${root.path}/docs/specs/topics').existsSync(), isFalse);
@@ -454,7 +455,7 @@ void main() {
     Link('$unit/shortcut').createSync(outside.path);
     Link('$unit/dangling').createSync('${outside.path}/missing.md');
 
-    del(root, 'user_story:login/reset_password');
+    del(root, ['user_story:login/reset_password']);
 
     expect(Directory(unit).existsSync(), isFalse);
     expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
@@ -470,7 +471,7 @@ void main() {
         root,
         (s) => answerDelete(
           s,
-          'user_story:login/sign_out',
+          ['user_story:login/sign_out'],
           interactive: true,
           readLine: () {
             outsider.writeAsStringSync(
@@ -500,7 +501,7 @@ void main() {
         root,
         (s) => answerDelete(
           s,
-          'user_story:login/sign_out',
+          ['user_story:login/sign_out'],
           interactive: true,
           readLine: () {
             File('${root.path}/${MoveJournal.journalPath}')
@@ -525,7 +526,7 @@ void main() {
       root,
       (s) => answerDelete(
         s,
-        'user_story:login/sign_out',
+        ['user_story:login/sign_out'],
         interactive: true,
         readLine: () {
           asked++;
@@ -571,5 +572,158 @@ void main() {
     );
     expect(referrers(story1), [persona, 'prds/d01_context.md', fr11]);
     expect(referrers(story3), [fr12]);
+  });
+
+  group('untyped DocPaths and several targets', () {
+    const notes = 'specs/f01_login/api_notes.md';
+    const errors = 'specs/f01_login/api_errors.md';
+    const index = 'specs/INDEX.md';
+    const scratch = 'specs/f01_login/scratch.md';
+    final untyped = <String, String>{
+      'docs/$notes': '# Notes\n\nSee [errors](api_errors.md).\n',
+      'docs/$errors': '# Errors\n\nSee [index](../INDEX.md).\n',
+      'docs/$index': '# Index\n\nNothing links here but api_errors.md.\n',
+      'docs/$scratch': '---\ndraft: true\n---\n\n# Scratch\n',
+    };
+
+    test(
+      'f02/us04/fr04/e01: an untyped DocPath deletes that one file only',
+      () async {
+        final root = await writeWriteProject(extra: untyped);
+        final answer = del(root, [scratch]);
+        expect(answer.json, {
+          'removed': [scratch],
+        });
+        expect(hasDoc(root, scratch), isFalse);
+        expect(hasDoc(root, loginArch), isTrue);
+      },
+    );
+
+    test("f02/us04/fr04/e02: an Agent's delete of an untyped doc with no draft is owner_terminal_required", () async {
+      final root = await writeWriteProject(extra: untyped);
+      expect(
+        () => del(root, [notes]),
+        refusesWith(WriteFaultCode.ownerTerminalRequired),
+      );
+      expect(hasDoc(root, notes), isTrue);
+    });
+
+    test('f02/us04/s8, f02/us04/fr04, f02/us04/fr04/e03: three untyped docs that link to each other go in one call', () async {
+      final root = await writeWriteProject(extra: untyped);
+      final prompts = StringBuffer();
+      final answer = del(
+        root,
+        [notes, errors, index],
+        interactive: true,
+        answers: ['y'],
+        prompts: prompts,
+      );
+      expect(prompts.toString(), endsWith('delete 3 files? [y/N] '));
+      expect(answer.json, {
+        'removed': [errors, notes, index]..sort(),
+      });
+      for (final path in [notes, errors, index]) {
+        expect(hasDoc(root, path), isFalse);
+      }
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    test(
+      'f02/us04/fr04/e02: several targets name the set in the Owner gate',
+      () async {
+        final root = await writeWriteProject(extra: untyped);
+        expect(
+          () => del(root, [notes, errors, index]),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.message,
+              'message',
+              'the delete set holds approved docs; only the Owner deletes '
+                  'them, at an interactive terminal',
+            ),
+          ),
+        );
+      },
+    );
+
+    test('f02/us04/s9, f02/us04/fr04/e04: a story outside two docs that links into one is doc_referenced, and neither goes', () async {
+      final root = await writeWriteProject(
+        extra: {
+          ...untyped,
+          'docs/$story1':
+              '${writeProject['docs/$story1']}\n'
+              'See [errors](../../../../specs/f01_login/api_errors.md).\n',
+        },
+      );
+      expect(
+        () => del(root, [notes, errors], interactive: true, answers: ['y']),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
+              .having(
+                (f) => f.message,
+                'message',
+                'docs outside the delete set link into it',
+              )
+              .having((f) => f.file, 'file', errors)
+              .having((f) => f.relatedFiles, 'relatedFiles', [story1]),
+        ),
+      );
+      expect(hasDoc(root, notes), isTrue);
+      expect(hasDoc(root, errors), isTrue);
+    });
+
+    test('f02/us04/fr04/e05: a target inside the unit of another counts each file once', () async {
+      final root = await writeWriteProject(extra: withoutLink);
+      final answer = del(root, [
+        'user_story:login/reset_password',
+        'fr:login/reset_password/expire_reset_link',
+      ]);
+      expect(answer.json, {
+        'removed': [story3, fr31, fr32],
+      });
+    });
+
+    test(
+      'f02/us04/fr04/e05: the same target twice removes its file once',
+      () async {
+        final root = await writeWriteProject(extra: untyped);
+        final answer = del(root, [scratch, scratch]);
+        expect(answer.json, {
+          'removed': [scratch],
+        });
+      },
+    );
+
+    test('f02/us04/fr04/e06: one target of several that names no doc is doc_not_found, and nothing goes', () async {
+      final root = await writeWriteProject(extra: untyped);
+      expect(
+        () => del(root, [scratch, 'user_story:login/no_such_story']),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having((f) => f.message, 'message', contains('no_such_story')),
+        ),
+      );
+      expect(hasDoc(root, scratch), isTrue);
+    });
+
+    test('f02/us04/fr01/e10: a bare typed name among several targets stays argument_invalid', () async {
+      final root = await writeWriteProject(extra: untyped);
+      expect(
+        () => del(root, [scratch, 'email_login']),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+      expect(hasDoc(root, scratch), isTrue);
+    });
   });
 }

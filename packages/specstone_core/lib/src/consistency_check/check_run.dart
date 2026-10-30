@@ -14,16 +14,24 @@ import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 
-/// Runs every rule over the scope of [target], or the whole project.
+/// Runs every rule over the scope of [target], the one doc at [docPath], or
+/// the whole project.
 ///
-/// Throws an `IndexFault` for a name no doc carries and a `TemplateFault` for
-/// an unknown doc type; both come from the index lookup.
-CheckReport runCheck(ReadSession session, {String? target}) {
+/// A [docPath] scope holds that doc's own findings and no project-level one.
+/// Throws an [ArgumentError] when both [target] and [docPath] are given, an
+/// `IndexFault` for a name no doc carries and a `TemplateFault` for an unknown
+/// doc type; the last two come from the index lookup.
+CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
+  if (target != null && docPath != null) {
+    throw ArgumentError('give either a target or a docPath, not both');
+  }
   final context = CheckContext(session);
   final index = context.index;
-  final scope = target == null
-      ? CheckScope.project()
-      : CheckScope.of(context, target);
+  final scope = switch ((target, docPath)) {
+    (final name?, _) => CheckScope.of(context, name),
+    (_, final path?) => CheckScope.doc(path),
+    _ => CheckScope.project(),
+  };
   final findings = <Finding>[];
   for (final doc in index.docs) {
     if (!scope.containsDoc(doc)) continue;

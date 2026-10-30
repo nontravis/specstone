@@ -1,3 +1,6 @@
+// The fixture texts are plan literals kept as written.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:convert';
 
 import 'package:specstone/src/command_runner.dart';
@@ -39,6 +42,35 @@ void main() {
       'it, then run the command again\n',
     );
     expect(out.toString(), isEmpty);
+  });
+
+  test('f08/us05/fr01/e02, f02/us01/fr03: set --field with empty stdin removes a held undeclared key, exit 0', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1':
+            '---\nstatus: planned\ndraft: true\nsize: 1\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n\n'
+            '# Sign in with email\n\n## Use Case\nSign in with an email.\n\n'
+            '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n',
+      },
+    );
+    const target = 'user_story:login/email_login';
+    final base =
+        ((getDoc(root, target)['bases']! as Map)['fields']! as Map)['size']!
+            as String;
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(input: '\n'),
+    );
+    expect(
+      await runner.run(['set', target, '--field', 'size', '--base', base]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), startsWith('==> login/email_login (user_story)'));
+    expect(
+      readDoc(root, story1),
+      startsWith('---\nstatus: planned\ndraft: true\nvision:\n'),
+    );
   });
 
   test('f02/us01/s1: set prints the naming line with the new base, exit 0', () async {

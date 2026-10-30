@@ -659,7 +659,7 @@ void main() {
           linked,
           (s) => answerDelete(
             s,
-            'user_story:login/reset_password',
+            ['user_story:login/reset_password'],
             interactive: false,
             readLine: () => null,
             prompts: StringBuffer(),
@@ -703,7 +703,7 @@ void main() {
       root,
       (s) => answerDelete(
         s,
-        'user_story:login/reset_password',
+        ['user_story:login/reset_password'],
         interactive: false,
         readLine: () => null,
         prompts: StringBuffer(),
