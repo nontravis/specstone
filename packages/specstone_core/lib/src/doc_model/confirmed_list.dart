@@ -33,6 +33,7 @@ ConfirmedList? readConfirmedList(Doc doc) {
   } on YamlException {
     return null;
   }
+  if (items != null && items is! YamlList) return null;
   return ConfirmedList(block.text, {
     if (items is YamlList)
       for (final item in items)

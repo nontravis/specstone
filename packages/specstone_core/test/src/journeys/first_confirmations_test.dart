@@ -291,6 +291,20 @@ void main() {
   );
 
   test(
+    'f10/us01/fr05: a dash-led scalar confirmed is written as given',
+    () async {
+      final root = await _project();
+      const held = 'confirmed: -foo\n';
+      final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
+
+      final text = _new(root, text: stdin);
+
+      expect(text, startsWith('---\ndraft: true\n$held---\n'));
+      expect(_count(text, '$_story#S1 '), 0);
+    },
+  );
+
+  test(
     'f05/us03/fr01: a doc type with no generators is written as before',
     () async {
       final plain = await _project();
