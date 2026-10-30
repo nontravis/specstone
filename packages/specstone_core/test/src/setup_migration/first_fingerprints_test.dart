@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 const _fr =
     'prds/features/f04_check/us01_find_template_breaks/functional_requirements/fr01_check_target.md';
@@ -130,6 +131,26 @@ void main() {
         ),
       );
     });
+
+    for (final (name, prefix) in [
+      ('zero-indent', '- '),
+      ('four-space', '    - '),
+    ])
+      test('f06/us01/fr06: a $name confirmed list gains the entry with its '
+          'own prefix, as its own item', () {
+        final api = _api([
+          '`us01/fr01`',
+        ], frontmatter: '---\nconfirmed:\n${prefix}S1 0123456789ab\n---\n');
+
+        final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+
+        final front = out.lf.substring(4, out.lf.indexOf('\n---\n', 4) + 1);
+        expect((loadYaml(front) as YamlMap)['confirmed'], [
+          'S1 0123456789ab',
+          'find_template_breaks/check_target ${fingerprintOf(_statement)}',
+        ]);
+        expect(out.lf, contains('${prefix}find_template_breaks/'));
+      });
 
     test('f06/us01/fr06: a doc without frontmatter gains one', () {
       const api =

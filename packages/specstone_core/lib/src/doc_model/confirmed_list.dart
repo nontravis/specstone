@@ -3,8 +3,10 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:yaml/yaml.dart';
 
 const _confirmedKey = 'confirmed';
+const _defaultItemPrefix = '  - ';
+final _itemPrefix = RegExp(r'^\s*-\s+', multiLine: true);
 
-/// The `confirmed` list of a doc that takes more entries as `  - ` lines.
+/// The `confirmed` list of a doc that takes more entries as item lines.
 final class ConfirmedList {
   const new(this.text, this.labels);
 
@@ -18,7 +20,7 @@ final class ConfirmedList {
 
 /// Reads the `confirmed` list of [doc].
 ///
-/// Null when the list cannot take appended `  - ` lines: a flow list, a
+/// Null when the list cannot take appended item lines: a flow list, a
 /// scalar, or text that is not YAML.
 ConfirmedList? readConfirmedList(Doc doc) {
   final block = doc.frontmatter
@@ -43,6 +45,9 @@ ConfirmedList? readConfirmedList(Doc doc) {
 
 /// Returns [lfText] with [entries] added at the end of [list].
 ///
+/// Each entry takes the item prefix of the list's first item, `  - ` for an
+/// empty list.
+///
 /// An absent `confirmed` key lands at its slot in [fieldOrder], as
 /// [withKeyBlock] reads it.
 String withConfirmedEntries(
@@ -50,9 +55,13 @@ String withConfirmedEntries(
   ConfirmedList list,
   Iterable<String> entries, {
   List<String>? fieldOrder,
-}) => withKeyBlock(
-  lfText,
-  _confirmedKey,
-  '${list.text}${[for (final entry in entries) '  - $entry\n'].join()}',
-  fieldOrder: fieldOrder,
-);
+}) {
+  final prefix = _itemPrefix.firstMatch(list.text)?.group(0);
+  return withKeyBlock(
+    lfText,
+    _confirmedKey,
+    '${list.text}'
+    '${[for (final entry in entries) '${prefix ?? _defaultItemPrefix}$entry\n'].join()}',
+    fieldOrder: fieldOrder,
+  );
+}

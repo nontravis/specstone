@@ -12,6 +12,7 @@ import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
@@ -123,6 +124,28 @@ void main() {
       expect(_check(root), isEmpty);
     },
   );
+
+  for (final (name, prefix) in [
+    ('zero-indent', '- '),
+    ('four-space', '    - '),
+  ])
+    test('f10/us01/fr05: a $name confirmed list gains each entry with its own '
+        'prefix, as its own item', () async {
+      final root = await _project();
+      final stdin =
+          '---\nconfirmed:\n${prefix}other/story#S1 bbbbbbbbbbbb\n---\n\n'
+          '${_body([_step(1, 1), _step(2, 2)])}';
+
+      final text = _new(root, text: stdin);
+
+      final front = text.substring(4, text.indexOf('\n---\n', 4) + 1);
+      expect((loadYaml(front) as YamlMap)['confirmed'], [
+        'other/story#S1 bbbbbbbbbbbb',
+        '${_label(1)} ${fingerprintOf(_blockOf(1))}',
+        '${_label(2)} ${fingerprintOf(_blockOf(2))}',
+      ]);
+      expect(text, contains('$prefix${_label(1)} '));
+    });
 
   test('f10/us01/s6, f10/us01/fr05/e02: a step naming a missing scenario gets '
       'no entry and no block', () async {
