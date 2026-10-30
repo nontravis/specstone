@@ -351,10 +351,10 @@ void main() {
       expect(facts.lineCount, greaterThan(0));
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 3);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 4);
     });
     test(
-      'f04/nfr-p03, s03/inv2, FM5: an index at layout 2 is rebuilt to layout 3',
+      'f04/nfr-p03, s03/inv2, FM5: an index at layout 2 is rebuilt to layout 4',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -365,7 +365,22 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 3);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 4);
+      },
+    );
+    test(
+      'f04/nfr-p03, s03/inv2, LA7: an index at layout 3 is rebuilt to layout 4',
+      () async {
+        final project = await writeLoginProject();
+        refresh(project);
+        sqlite3.open('${project.path}/$indexFilePath')
+          ..execute('UPDATE meta SET layout = 3')
+          ..close();
+        final (:result, store: _) = refresh(project);
+        expect(result.fullBuild, isTrue);
+        final after = sqlite3.open('${project.path}/$indexFilePath');
+        addTearDown(after.close);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 4);
       },
     );
     test(
