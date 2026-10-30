@@ -1,12 +1,14 @@
 // The file contents are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -181,5 +183,77 @@ void main() {
     );
     expect(readDoc(root, _journeyPath), journey);
     expect(readDoc(root, loginApi), api);
+  });
+
+  test(
+    'f02/us06/fr03: an unrelated non-UTF-8 api doc does not block a rename',
+    () async {
+      final root = await _project();
+      final api = docFile(root, loginApi);
+      api.writeAsBytesSync([...utf8.encode(api.readAsStringSync()), 0xff]);
+      // A feature rename leaves every FR cell as written, so the api names no
+      // renamed label.
+      expect(
+        _rename(root, 'feature:login', 'signin').json['moved'],
+        isNotEmpty,
+      );
+    },
+  );
+
+  test(
+    'f02/us06/fr03: an unrelated non-UTF-8 journey does not block a rename',
+    () async {
+      final root = await _project();
+      docFile(root, _journeyPath).writeAsBytesSync([
+        ...utf8.encode(
+          _journey().replaceAll('login/email_login', 'other/story'),
+        ),
+        0xff,
+      ]);
+      expect(
+        _rename(
+          root,
+          'user_story:login/email_login',
+          'password_login',
+        ).json['moved'],
+        isNotEmpty,
+      );
+    },
+  );
+
+  test('f02/us06/fr03: a non-UTF-8 journey that names a renamed story refuses the rename', () async {
+    final root = await _project();
+    final journey = docFile(root, _journeyPath);
+    journey.writeAsBytesSync([...journey.readAsBytesSync(), 0xff]);
+    expect(
+      () => _rename(root, 'user_story:login/email_login', 'password_login'),
+      throwsA(
+        isA<RenderFault>().having(
+          (e) => e.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      ),
+    );
+  });
+
+  test('f02/us06/fr03: a journey with no frontmatter or a leading blank line gets its step lines rewritten', () async {
+    for (final lead in ['', '\n']) {
+      final root = await writeCheckProject(
+        extra: {
+          'docs/$_journeyPath':
+              '$lead# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+              '### 1. Sign in\nstep: login/email_login S1\n\n'
+              '### 2. Next\nstep: login/email_login S2\nafter: 1\n',
+        },
+      );
+      _rename(root, 'user_story:login/email_login', 'password_login');
+      expect(
+        readDoc(root, _journeyPath),
+        '$lead# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+        '### 1. Sign in\nstep: login/password_login S1\n\n'
+        '### 2. Next\nstep: login/password_login S2\nafter: 1\n',
+      );
+    }
   });
 }

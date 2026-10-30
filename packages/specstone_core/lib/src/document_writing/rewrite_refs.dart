@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
@@ -149,7 +150,10 @@ String? rewriteDocRefs(
 ///
 /// The candidates are the docs, typed or untyped, that link to a doc under a
 /// moved path, and, for [renamed], the typed docs whose `doc_ref` values
-/// name a renamed doc. Each is read from disk before the moves; a step
+/// name a renamed doc and the `journey` and `api` docs whose step
+/// identities, FR trace cells, or `confirmed` labels do. A doc is chosen
+/// from a lenient read, so a non-UTF-8 doc that names nothing renamed never
+/// blocks. Each is read from disk before the moves; a step
 /// holds its text after the rewrites, in the file's line endings and BOM,
 /// at its project path after the moves. Steps are sorted by path. No draft
 /// or approved mark is touched.
@@ -169,7 +173,7 @@ List<WriteStep> planRewrites(
       }
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
-        (renamed.isNotEmpty && carriesLinkLabels(doc.docTypeId))) {
+        _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
     }
   }
@@ -210,6 +214,35 @@ WriteStep? _stepFor(
     session.projectPathOf(movedPath(doc.docPath, moves)),
     '$bom${LineEnding.of(raw).apply(text)}',
   );
+}
+
+/// Whether a `journey` or `api` [doc] holds a step identity, FR trace cell,
+/// or `confirmed` label that [renamed] renames.
+///
+/// Reads the file leniently, as the index does, so a doc that names no
+/// renamed doc is never read strictly and never refuses the rename.
+bool _namesRenamedLabel(
+  WriteSession session,
+  IndexedDoc doc,
+  Map<(String, String), String> renamed,
+) {
+  if (renamed.isEmpty || !carriesLinkLabels(doc.docTypeId)) return false;
+  final String text;
+  try {
+    text = utf8.decode(
+      session.fileOf(doc.docPath).readAsBytesSync(),
+      allowMalformed: true,
+    );
+  } on FileSystemException {
+    return false;
+  }
+  return rewriteLinkLabels(
+        toLf(text),
+        docType: session.index.typeOf(doc),
+        featureName: session.index.parentOf(doc)?.name,
+        renamed: renamed,
+      ) !=
+      null;
 }
 
 /// Whether [doc] carries a `doc_ref` value that [renamed] renames.
