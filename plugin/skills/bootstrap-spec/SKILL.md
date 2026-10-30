@@ -65,14 +65,15 @@ An `untyped_doc` under `specs/` is an old file the migration left as it was:
   to the API docs.
 
 Merge through `specstone set`; write nothing the doc already holds. Never target the old file: a write refuses an
-untyped doc. Add each file's path to the retire set, even when the doc already held its content.
+untyped doc, so it keeps its text. Add each file's path to the retire set, a list for this run only, even when the
+doc already held its content.
 
 ## 5. Retire the old files
 
-1. Run `specstone refs <path>` per file of the set; its `Inbound` lines name the docs linking in.
+1. Run `specstone refs <path>` per file of the set; its `Inbound` lines are the referrers.
 2. Links inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
    first (`specstone:bootstrap-prd` takes one under `prds/`). Repoint each other referrer's link to the doc now
-   holding the content, through `specstone set` on that section.
+   holding the content, through `specstone set`.
 3. Print one command naming every path of the set, quoting each path that holds a space; the Owner runs it at
    their own interactive terminal:
 
@@ -80,15 +81,16 @@ untyped doc. Add each file's path to the retire set, even when the doc already h
 specstone delete <path> <path> …
 ```
 
-Never run it yourself: the CLI refuses you on a file without `draft: true` (exit 77, `owner_terminal_required`).
-On the Owner's `doc_referenced` (exit 64), repoint the referrers it lists and print the command again.
+Never run it yourself: a file without `draft: true` counts as approved, so the CLI refuses you (exit 77,
+`owner_terminal_required`). On the Owner's `doc_referenced` (exit 64), repoint the referrers it lists and print the
+command again.
 
 ## 6. Fill the tech stack, then ask for approval
 
-The migration's `specs/TECH_STACK.md`, like each doc `specstone new` writes, holds a bare-name title and empty
-sections, which `specstone check` never lists. With the Owner, fill `tech_stack:tech_stack`: its title, each section
-`specstone guide tech_stack` names, and `code`, each code folder from the project root. Fill each doc step 3 or 4
-made the same way. Then run `specstone check` again: new roots can raise `code_uncovered`.
+The migration's `specs/TECH_STACK.md` holds a bare-name title and empty sections, which `specstone check` never
+lists. With the Owner, fill `tech_stack:tech_stack`: its title, each section `specstone guide tech_stack` names, and
+`code`, each code folder from the project root. Fill each doc step 3 or 4 made the same way. Then run
+`specstone check` again: new roots can raise `code_uncovered`.
 
 Last, name each change per draft, each moved pointer, each dropped key, and each finding no write clears. Then ask
 the Owner to run `specstone approve` at their own terminal, a yes or no per draft.
