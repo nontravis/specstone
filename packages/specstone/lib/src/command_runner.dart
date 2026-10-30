@@ -11,6 +11,7 @@ import 'package:specstone/src/commands/delete_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/get_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
+import 'package:specstone/src/commands/hook_command.dart';
 import 'package:specstone/src/commands/init_command.dart';
 import 'package:specstone/src/commands/list_command.dart';
 import 'package:specstone/src/commands/mcp_command.dart';
@@ -90,6 +91,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(RenameCommand());
     addCommand(MigrateCommand());
     addCommand(InitCommand());
+    addCommand(HookCommand());
   }
 
   final StringSink _out;
