@@ -15,7 +15,7 @@ class DeleteCommand extends WriteCommand {
   String get name => 'delete';
 
   @override
-  String get description => 'Delete docs and everything under them.';
+  String get description => 'Delete docs, each with the docs it owns.';
 
   @override
   String get invocation => 'specstone delete <target> [<target> …] [--json]';
