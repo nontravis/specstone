@@ -113,7 +113,9 @@ String? _problemOf(
       path = '$path ${sub.name}';
     }
   }
-  for (final token in rest.where((token) => token.startsWith('--'))) {
+  for (final token in rest.where(
+    (token) => token.startsWith('--') && token != '--',
+  )) {
     final flag = token.substring(2).split('=').first;
     if (flag != 'help' && !command.argParser.options.containsKey(flag)) {
       return 'specstone $path has no --$flag';

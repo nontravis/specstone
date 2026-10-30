@@ -53,6 +53,15 @@ void main() {
     );
   });
 
+  test('f08/us01/fr04: an end-of-options -- names no flag', () async {
+    expect(
+      await _problemsOf({
+        'skills/x/SKILL.md': 'Run `specstone set -- <path>`.',
+      }),
+      isEmpty,
+    );
+  });
+
   test('f08/us01/fr04: fenced lines and subcommands are checked', () async {
     expect(
       await _problemsOf({
