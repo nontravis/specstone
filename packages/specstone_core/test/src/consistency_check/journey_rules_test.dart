@@ -27,7 +27,12 @@ Future<List<Finding>> _check(
     ),
     docPath: _journeyPath,
   );
-  return report.findings;
+  // These journeys record no confirmed entry; tracked_links_test.dart owns
+  // the link-state findings.
+  return [
+    for (final f in report.findings)
+      if (f.kind != FindingKind.unconfirmed) f,
+  ];
 }
 
 List<Finding> _of(List<Finding> findings, FindingKind kind) => [

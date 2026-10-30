@@ -2,6 +2,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
@@ -399,5 +400,133 @@ void main() {
       ),
     );
     expect(spots(report), ['$loginFr:3: scenario_trace_unresolved']);
+  });
+
+  group('journey step links', () {
+    const journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
+    const label1 = 'login/email_login#S1';
+    const label2 = 'login/email_login#S2';
+    const stepOne = '### 1. Open\nstep: login/email_login S1';
+    const stepTwo = '### 2. Type\nstep: login/email_login S1';
+
+    String journey(
+      List<String> steps, {
+      List<String> confirmed = const [],
+      bool draft = false,
+    }) {
+      final entries = confirmed.map((e) => '  - $e\n').join();
+      return '---\n'
+          '${confirmed.isEmpty ? '' : 'confirmed:\n$entries'}'
+          '${draft ? 'draft: true\n' : ''}'
+          '---\n\n# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n'
+          '## Steps\n${steps.join('\n')}\n';
+    }
+
+    Future<CheckReport> check(
+      String text, {
+      Map<String, String> extra = const {},
+    }) async => checkOf(
+      await writeCheckProject(extra: {'docs/$journeyPath': text, ...extra}),
+      docPath: journeyPath,
+    );
+
+    test('f04/us04/s9, f04/us04/fr01/e10: an edit of Scenario 1 makes the journey suspect for that step', () async {
+      final newScenario = loginScenario1.replaceFirst(
+        'signs in',
+        'signs in again',
+      );
+      final report = await check(
+        journey([stepOne], confirmed: ['$label1 ${fp(loginScenario1)}']),
+        extra: doc(loginStory, loginScenario1, newScenario),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.suspect,
+      );
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('link', label1),
+          containsPair('upstream', loginStory),
+          containsPair('block', 'Scenario 1'),
+          containsPair('recorded', fp(loginScenario1)),
+          containsPair('fingerprint', fp(newScenario)),
+        ),
+      );
+    });
+
+    test('f04/us04/fr01: a matching entry is clean; no entry is unconfirmed; a draft journey is unconfirmed', () async {
+      final clean = await check(
+        journey([stepOne], confirmed: ['$label1 ${fp(loginScenario1)}']),
+      );
+      expect(clean.findings, isEmpty);
+
+      final missing = await check(journey([stepOne]));
+      expect(
+        missing.findings.single.textLine,
+        startsWith(
+          '$journeyPath:13: unconfirmed: $label1 has no confirmed entry: current ${fp(loginScenario1)}',
+        ),
+      );
+
+      final draft = await check(
+        journey(
+          [stepOne],
+          confirmed: ['$label1 ${fp(loginScenario1)}'],
+          draft: true,
+        ),
+      );
+      expect(
+        draft.findings.single.message,
+        "$label1 ${fp(loginScenario1)} is recorded in a draft; it waits for the Owner's approve",
+      );
+    });
+
+    test('f04/us04/fr01/e09: a journey has no parent, and its step links still run', () async {
+      final report = await check(journey([stepOne]));
+      expect(spots(report, FindingKind.unconfirmed), hasLength(1));
+    });
+
+    test('f04/us04/fr01: two steps naming one scenario track one link and need one entry', () async {
+      final entry = ['$label1 ${fp(loginScenario1)}'];
+      final report = await check(journey([stepOne, stepTwo], confirmed: entry));
+      expect(report.findings, isEmpty);
+
+      final bare = await check(journey([stepOne, stepTwo]));
+      expect(spots(bare, FindingKind.unconfirmed), hasLength(1));
+    });
+
+    test('f04/us04/fr03/e07: an entry for a scenario no step names is confirmed_entry_stale', () async {
+      final report = await check(
+        journey(
+          [stepOne],
+          confirmed: [
+            '$label1 ${fp(loginScenario1)}',
+            '$label2 ${fp(loginScenario2)}',
+          ],
+        ),
+      );
+      final finding = report.findings.single;
+      expect(finding.kind, FindingKind.confirmedEntryStale);
+      expect(finding.toJson(), containsPair('link', label2));
+    });
+
+    test('f04/us04/fr03/e09, f04/us02/fr06/e06: a step whose scenario was deleted keeps its link', () async {
+      final report = await check(
+        journey(
+          ['### 1. Open\nstep: login/email_login S9'],
+          confirmed: ['login/email_login#S9 ${fp(loginScenario1)}'],
+        ),
+      );
+      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+      expect(report.findings.single.kind, FindingKind.journeyStepUnresolved);
+    });
+
+    test('f04/us04/fr03: login/email_login#S1: 047e817f9707 (map form) is confirmed_entry_malformed', () async {
+      final report = await check(
+        journey([stepOne], confirmed: ['"login/email_login#S1: 047e817f9707"']),
+      );
+      expect(spots(report, FindingKind.confirmedEntryMalformed), hasLength(1));
+    });
   });
 }

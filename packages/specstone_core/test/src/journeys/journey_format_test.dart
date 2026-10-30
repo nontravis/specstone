@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/journeys/journey_generators.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -101,7 +103,8 @@ void main() {
       _journey(
         [_step('1', 'Open', 'S1')],
         frontMatter:
-            '---\nconfirmed:\n  - $_story#S1 ${fingerprintFor(loginScenario1)}\n'
+            '---\nconfirmed:\n'
+            '  - $_story#S1 ${fingerprintFor(loginScenario1)}\n'
             'draft: false\n---\n\n',
       ),
     );
@@ -158,5 +161,93 @@ void main() {
     expect(build.html, contains('flowchart TD'));
     expect(build.html, contains('s1 --&gt; s2'));
     expect(build.html, isNot(contains('src="http')));
+  });
+
+  group('tracked step links after a format', () {
+    const label1 = '$_story#S1';
+    const label2 = '$_story#S2';
+    const journeyDocPath = 'prds/journeys/sign_in/JOURNEY.md';
+    final scenario1 = fingerprintOf(loginScenario1);
+    final scenario2 = fingerprintOf(loginScenario2);
+
+    String front(List<String> entries, {bool draft = false}) =>
+        '---\nconfirmed:\n${entries.map((e) => '  - $e\n').join()}'
+        '${draft ? 'draft: true\n' : ''}---\n\n';
+
+    List<Finding> check(Directory root) =>
+        checkOf(root, docPath: journeyDocPath).findings;
+
+    void rewrite(Directory root, String Function(String) change) {
+      final file = File.fromUri(root.uri.resolve(_journeyKey));
+      file.writeAsStringSync(change(file.readAsStringSync()));
+    }
+
+    String withFront(String text, String frontMatter) =>
+        '$frontMatter${text.substring(text.indexOf('# Sign in'))}';
+
+    test('f04/us04/s9, f04/us04/fr01/e10: format re-pastes an edited '
+        'scenario and the journey stays suspect', () async {
+      final root = await _project(
+        _journey([
+          _step('1', 'Open', 'S1'),
+        ], frontMatter: front(['$label1 $scenario1'])),
+      );
+      final storyFile = File.fromUri(root.uri.resolve('docs/$loginStory'));
+      final edited = loginScenario1.replaceFirst('home page', 'dashboard');
+      storyFile.writeAsStringSync(
+        storyFile.readAsStringSync().replaceFirst(loginScenario1, edited),
+      );
+
+      _format(root);
+
+      expect(_read(root), contains('sees the dashboard'));
+      final suspect = check(root).single;
+      expect(suspect.kind, FindingKind.suspect);
+      expect(suspect.toJson(), containsPair('link', label1));
+
+      final recorded = fingerprintOf(edited);
+      rewrite(
+        root,
+        (text) => withFront(text, front(['$label1 $recorded'], draft: true)),
+      );
+      final waiting = check(root).single;
+      expect(waiting.kind, FindingKind.unconfirmed);
+      expect(waiting.message, contains("waits for the Owner's approve"));
+
+      rewrite(root, (text) => withFront(text, front(['$label1 $recorded'])));
+      expect(check(root), isEmpty);
+    });
+
+    test('f10/us01/s3: a step added by hand stays unconfirmed until the '
+        'Agent confirms it and the Owner approves', () async {
+      final root = await _project(
+        _journey([
+          _step('1', 'Open', 'S1'),
+        ], frontMatter: front(['$label1 $scenario1'])),
+      );
+      _format(root);
+      expect(check(root), isEmpty);
+      rewrite(
+        root,
+        (text) => '${text.trimRight()}\n\n${_step('2', 'Wrong', 'S2')}',
+      );
+
+      _format(root);
+
+      final added = check(root).single;
+      expect(added.kind, FindingKind.unconfirmed);
+      expect(added.toJson(), containsPair('link', label2));
+
+      final both = ['$label1 $scenario1', '$label2 $scenario2'];
+      rewrite(root, (text) => withFront(text, front(both, draft: true)));
+      expect(
+        check(root).map((f) => f.kind),
+        everyElement(FindingKind.unconfirmed),
+      );
+      expect(check(root), isNotEmpty);
+
+      rewrite(root, (text) => withFront(text, front(both)));
+      expect(check(root), isEmpty);
+    });
   });
 }
