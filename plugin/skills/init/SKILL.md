@@ -1,6 +1,6 @@
 ---
 name: init
-description: Use when the Owner wants a new Specstone project in a folder that holds no code, no docs, and no `.specstone/config.yaml`, such as starting a product from nothing, or when another `specstone:` skill names `specstone:init`.
+description: Use when the Owner wants a new Specstone project in a folder that holds no code, no docs, and no `.specstone/config.yaml`, such as starting a product from nothing.
 ---
 
 # Create a project, then fill its four starting drafts
