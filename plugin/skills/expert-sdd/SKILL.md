@@ -35,9 +35,9 @@ working directory alone misses a project root above it, and spends a tool call t
 4. **Confirm traced links.** When you write an FR (`fr`), an nf (`nf`), or an API row (`api`), record its
    `confirmed` entries: run `specstone check <target>` to print the current fingerprint of each link it traces, read
    the upstream block, then write the entries with `specstone set <target> --field confirmed --base <hash>`.
-   Take `<hash>` from `specstone get <target>`, never from a fingerprint `check` prints. A `suspect` link means its
-   upstream block moved on since the entry was recorded: re-read it and confirm again the same way. Your approval
-   request to the Owner then says what changed upstream.
+   Take `<hash>` from `bases.fields.confirmed` in `specstone get <target> --json`, never from a fingerprint `check`
+   prints. A `suspect` link means its upstream block moved on since the entry was recorded: re-read it and confirm
+   again the same way. Your approval request to the Owner then says what changed upstream.
 5. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
    touched, and fix each finding your edits added to the baseline. The post-edit hook does not replace this run: it
    checks one doc, and a shell rewrite triggers no hook. An `unconfirmed` link on a draft waits for the Owner's
