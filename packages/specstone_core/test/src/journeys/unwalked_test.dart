@@ -169,7 +169,6 @@ void main() {
       (d) => (d as Map)['name'],
     );
     expect(underNames, [_story]);
-    expect(allNames, containsAll([_story]));
-    expect(allNames.length, greaterThanOrEqualTo(underNames.length));
+    expect(allNames, [_story, _other]);
   });
 }

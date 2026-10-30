@@ -175,4 +175,23 @@ void main() {
     final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
     expect(docs.single, containsPair('unwalked', ['S1', 'S2']));
   });
+
+  test('f10/us04/s4, f10/us04/fr01/e05: list feature --unwalked exits 64 with the refusal', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['list', 'feature', '--unwalked']), 64);
+    expect(
+      err.toString(),
+      contains('--unwalked lists user_story docs only, not feature'),
+    );
+    expect(out.toString(), isEmpty);
+  });
+
+  test('f10/us04/fr01: list user_story --suspect --unwalked exits 0', () async {
+    final (:runner, :out, :err) = readRunner(await suspectProject());
+    expect(
+      await runner.run(['list', 'user_story', '--suspect', '--unwalked']),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+  });
 }
