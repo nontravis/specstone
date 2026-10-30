@@ -97,19 +97,94 @@ void main() {
     expect(await runner.run(['delete']), 64);
     expect(err.toString(), startsWith('delete needs a target'));
   });
-  test(
-    'f02/us04/fr01/e10: two positionals are a usage error, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(await runner.run(['delete', 'a', 'b']), 64);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        contains(
-          'Expected one target, got 2.\n\n'
-          'Usage: specstone delete <type>:<name> [--json]\n',
-        ),
-      );
-    },
-  );
+  const notes = 'specs/f01_login/api_notes.md';
+  const errors = 'specs/f01_login/api_errors.md';
+  const index = 'specs/INDEX.md';
+  final untyped = <String, String>{
+    'docs/$notes': '# Notes\n\nSee [errors](api_errors.md).\n',
+    'docs/$errors': '# Errors\n\nSee [index](../INDEX.md).\n',
+    'docs/$index': '# Index\n\nNothing links here but api_errors.md.\n',
+  };
+  test('f02/us04/fr01/e10, f02/us04/fr04: two targets delete both, one removed path per line', () async {
+    const one = 'specs/f01_login/one.md';
+    const two = 'specs/f01_login/two.md';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$one': '---\ndraft: true\n---\n\n# One\n',
+        'docs/$two': '---\ndraft: true\n---\n\n# Two\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['delete', one, two]), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), '$one\n$two\n');
+    expect(File('${root.path}/docs/$one').existsSync(), isFalse);
+    expect(File('${root.path}/docs/$two').existsSync(), isFalse);
+  });
+  test("f02/us04/fr04/e02: an Agent's delete of an untyped doc with no draft exits 77", () async {
+    final root = await writeWriteProject(extra: untyped);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['delete', notes]), 77);
+    expect(err.toString(), contains('only the Owner deletes them'));
+    expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+  });
+  test('f02/us04/s8, f02/us04/fr04/e03: at a terminal the Owner sees the list and the prompt, then the removed paths', () async {
+    final root = await writeWriteProject(extra: untyped);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+    expect(await runner.run(['delete', notes, errors, index]), 0);
+    expect(err.toString(), isEmpty);
+    // The core lists a delete set sorted by code point, not in call order.
+    const paths = '$index\n$errors\n$notes\n';
+    expect(out.toString(), '${paths}delete 3 files? [y/N] $paths');
+  });
+  test('f02/us04/s9, f02/us04/fr04/e04: a referrer outside the set exits 64 and is named after ; also', () async {
+    final root = await writeWriteProject(
+      extra: {
+        ...untyped,
+        'docs/$story1':
+            '${writeProject['docs/$story1']}\n'
+            'See [errors](../../../../specs/f01_login/api_errors.md).\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+    expect(await runner.run(['delete', notes, errors]), 64);
+    expect(
+      err.toString(),
+      '$errors: docs outside the delete set link into it; also $story1\n',
+    );
+    expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+    expect(File('${root.path}/docs/$errors').existsSync(), isTrue);
+  });
+  test('f02/us04/fr04: delete --help shows several targets', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['delete', '--help']), 0);
+    expect(
+      out.toString(),
+      contains('Usage: specstone delete <target> [<target> …] [--json]'),
+    );
+  });
+  test('f02/us04/fr04/e01: an untyped DocPath that holds a space deletes that file', () async {
+    const spaced = 'specs/f01_login/api notes.md';
+    final root = await writeWriteProject(
+      extra: {'docs/$spaced': '---\ndraft: true\n---\n\n# Notes\n'},
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['delete', spaced]), 0);
+    expect(out.toString(), '$spaced\n');
+    expect(File('${root.path}/docs/$spaced').existsSync(), isFalse);
+  });
 }

@@ -1,7 +1,7 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Deletes a doc with everything under it.
+/// Deletes one or more docs with everything under them.
 class DeleteCommand extends WriteCommand {
   new() {
     argParser.addFlag(
@@ -15,10 +15,10 @@ class DeleteCommand extends WriteCommand {
   String get name => 'delete';
 
   @override
-  String get description => 'Delete a doc and everything under it.';
+  String get description => 'Delete docs and everything under them.';
 
   @override
-  String get invocation => 'specstone delete <type>:<name> [--json]';
+  String get invocation => 'specstone delete <target> [<target> …] [--json]';
 
   @override
   Future<int> run() async {
@@ -35,14 +35,11 @@ class DeleteCommand extends WriteCommand {
         asJson: asJson,
       );
     }
-    if (rest.length > 1) {
-      usageException('Expected one target, got ${rest.length}.');
-    }
     final runner = specstoneRunner;
     return runWrite(
       (session) => answerDelete(
         session,
-        [rest.first],
+        rest,
         interactive: interactive,
         readLine: console.readLine,
         prompts: asJson ? runner.err : runner.out,
