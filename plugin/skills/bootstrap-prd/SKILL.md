@@ -24,8 +24,8 @@ specstone check
 ## 2. One finding at a time
 
 Take the first finding under `prds/` not yet handled, fix it, and run `specstone check` again. Repeat until each
-finding left is one `specstone:bootstrap-spec` takes or one that waits on the Owner, such as an `unconfirmed` link on
-a draft (`waits for the Owner's approve`).
+finding left is one `specstone:bootstrap-spec` takes, one no write clears, or one that waits on the Owner, such as an
+`unconfirmed` link that `waits for the Owner's approve`.
 
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
@@ -40,6 +40,7 @@ of `#<key>`); a section body leaves out its `## ` line. Exit 75 `base_mismatch`:
 | `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
+| any other under `prds/` | rewrite the section or field it names through `specstone set`, as a draft, per `specstone guide <type>`; one no write clears goes to step 6 |
 
 To drop a key, pipe empty text to `specstone set <type>:<name> --field <id> --base <hash>`, the base from
 `bases.fields.<id>`. Never drop a key by editing the file.
@@ -83,8 +84,8 @@ print the command again.
 `features:features`, or `gnfr:gnfr`. Read each with `specstone get <type>:<name>` and fill each placeholder with the
 Owner.
 
-Last, name each change per draft, each moved pointer, and each dropped key. Then ask the Owner to run
-`specstone approve` at their own terminal: it shows each draft for a yes or no.
+Last, name each change per draft, each moved pointer, each dropped key, and each finding no write clears. Then ask
+the Owner to run `specstone approve` at their own terminal: it shows each draft for a yes or no.
 
 ## Red flags
 

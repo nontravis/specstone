@@ -53,10 +53,11 @@ specstone context --code <path> --for implement
 
 1. Compare each section and field of each covering doc with the changed code. Leave a doc alone when it already
    matches the code.
-2. Rewrite each stale section or field. Take a section's base hash from the naming line of
-   `specstone get <target>#<section key>`, a field's from `bases.fields.<id>` in `specstone get <target> --json`. Then
-   pipe the new text to `specstone set <target>#<section key> --base <hash>` (a field: `--field <id>` in place of
-   `#<section key>`). Each such write turns the doc into a draft; only the Owner's `specstone approve` clears it.
+2. Rewrite each stale section or field; `<target>` is the doc's `<type>:<name>`. Take a section's base hash from the
+   naming line of `specstone get <target>#<section key>`, a field's from `bases.fields.<id>` in
+   `specstone get <target> --json`. Then pipe the new text to `specstone set <target>#<section key> --base <hash>` (a
+   field: `--field <id>` in place of `#<section key>`). Each such write turns the doc into a draft; only the Owner's
+   `specstone approve` clears it.
 3. Run `specstone check`. Take each finding on an `implements:` or `covers:` entry that a covering doc holds or that
    names a changed path, and fix it through `specstone set --field`: pipe the corrected list to
    `specstone set <target> --field implements --base <hash>` (or `--field covers`), the hash from

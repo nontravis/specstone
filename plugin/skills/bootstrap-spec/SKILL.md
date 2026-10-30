@@ -5,9 +5,9 @@ description: Use when the spec docs of a Specstone project lag behind its format
 
 # Bring the spec docs up to the new format
 
-This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`,
-which a spec doc fixes. Findings under `prds/` go to `specstone:bootstrap-prd`. Follow
-`specstone:expert-sdd` for every write: each one leaves a draft, a pointer write (`implements`) excepted.
+This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
+Findings under `prds/` go to `specstone:bootstrap-prd`. Follow `specstone:expert-sdd` for every write: each one
+leaves a draft, a pointer write (`implements`) excepted.
 
 ## 1. Gate: the first call
 
@@ -24,8 +24,8 @@ specstone check
 ## 2. One finding at a time
 
 Take the first unhandled finding of this skill, fix it, and run `specstone check` again with no target: a
-targeted run omits `code_uncovered`. Repeat until each finding left is one `specstone:bootstrap-prd` takes or one
-that waits on the Owner, such as an `unconfirmed` link on a draft (`waits for the Owner's approve`).
+targeted run omits `code_uncovered`. Repeat until each finding left is one `specstone:bootstrap-prd` takes, one no
+write clears, or one that waits on the Owner, such as an `unconfirmed` link that `waits for the Owner's approve`.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
@@ -38,10 +38,11 @@ Exit 75 `base_mismatch`: read again, merge, retry.
 | `section_undeclared` | merge its text into the section that takes it, then pipe empty text to its key |
 | `field_undeclared` on `implements`, `architecture_missing`, `code_uncovered` | step 3 |
 | `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
-| `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it from the list |
+| `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
+| any other of this skill | rewrite the section or field it names through `specstone set`, as a draft, per `specstone guide <type>`; one no write clears goes to step 6 |
 
-To drop a key, pipe empty text to `specstone set <type>:<name> --field <id> --base <hash>`; never edit the file.
+To drop a key, pipe empty text to its `--field <id>` write; never edit the file.
 
 ## 3. Point and cover code
 
@@ -64,8 +65,7 @@ An `untyped_doc` under `specs/` is an old file the migration left as it was:
   to the API docs.
 
 Merge through `specstone set`; write nothing the doc already holds. Never target the old file: a write refuses an
-untyped doc, so it keeps its text. Add each file's path to the retire set, a list for this run only, even when the
-doc already held its content.
+untyped doc. Add each file's path to the retire set, even when the doc already held its content.
 
 ## 5. Retire the old files
 
@@ -80,9 +80,8 @@ doc already held its content.
 specstone delete <path> <path> …
 ```
 
-Never run it yourself: a file without `draft: true` counts as approved, so the CLI refuses you (exit 77,
-`owner_terminal_required`). Never run `git rm`: links into the file would break unseen. On the Owner's
-`doc_referenced` (exit 64), repoint the referrers it lists and print the command again.
+Never run it yourself: the CLI refuses you on a file without `draft: true` (exit 77, `owner_terminal_required`).
+On the Owner's `doc_referenced` (exit 64), repoint the referrers it lists and print the command again.
 
 ## 6. Fill the tech stack, then ask for approval
 
@@ -91,8 +90,8 @@ sections, which `specstone check` never lists. With the Owner, fill `tech_stack:
 `specstone guide tech_stack` names, and `code`, each code folder from the project root. Fill each doc step 3 or 4
 made the same way. Then run `specstone check` again: new roots can raise `code_uncovered`.
 
-Last, name each change per draft, each moved pointer, and each dropped key. Then ask the Owner to run
-`specstone approve` at their own terminal, a yes or no per draft.
+Last, name each change per draft, each moved pointer, each dropped key, and each finding no write clears. Then ask
+the Owner to run `specstone approve` at their own terminal, a yes or no per draft.
 
 ## Red flags
 
