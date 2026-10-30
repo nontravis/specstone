@@ -97,8 +97,8 @@ void main() {
     expect(text, contains('- **When** the Agent types a'));
   });
 
-  test('f10/us01/fr04/e02, f05/us03/s1: a story edit re-pastes the copy on '
-      'the next format, confirmed and draft unchanged', () async {
+  test('f10/us01/fr04/e02, f05/us03/s1, f05/us03/s5: a story edit re-pastes '
+      'the copy on the next format, confirmed and draft unchanged', () async {
     final root = await _project(
       _journey(
         [_step('1', 'Open', 'S1')],
@@ -125,6 +125,7 @@ void main() {
     expect(after, contains('sees the dashboard'));
     expect(after, isNot(contains('sees the home page')));
     expect(after.replaceAll('dashboard', 'home page'), before);
+    expect(after, contains('draft: false'));
   });
 
   test('f10/us01/s2: a second format of a branched journey changes '
