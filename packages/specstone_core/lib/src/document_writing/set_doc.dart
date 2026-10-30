@@ -166,12 +166,7 @@ ReadAnswer _setField(
     );
   }
   if (field == null && !empty) {
-    throw WriteFault(
-      WriteFaultCode.fieldUnknown,
-      '${doc.docTypeId} declares no field $fieldId',
-      file: doc.docPath,
-      key: fieldId,
-    );
+    throw _fieldUnknown(doc, fieldId);
   }
   if (field != null && !empty) {
     _checkedValue(doc, field, stripped);
@@ -185,12 +180,7 @@ ReadAnswer _setField(
     // Empty stdin removes a held key the type does not declare; an unheld
     // one still refuses field_unknown.
     if (field == null && held == null) {
-      throw WriteFault(
-        WriteFaultCode.fieldUnknown,
-        '${doc.docTypeId} declares no field $fieldId',
-        file: doc.docPath,
-        key: fieldId,
-      );
+      throw _fieldUnknown(doc, fieldId);
     }
     final currentText = held?.text ?? '';
     final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
@@ -509,6 +499,14 @@ String _withTemplateSection(
     before: before,
   );
 }
+
+/// Returns the `field_unknown` fault for [fieldId] against [doc]'s doc type.
+WriteFault _fieldUnknown(IndexedDoc doc, String fieldId) => WriteFault(
+  WriteFaultCode.fieldUnknown,
+  '${doc.docTypeId} declares no field $fieldId',
+  file: doc.docPath,
+  key: fieldId,
+);
 
 /// Returns the `base_mismatch` fault for a [target] that changed since
 /// [sinceBase], carrying its current text so the caller can retry.
