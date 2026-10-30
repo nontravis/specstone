@@ -1,7 +1,10 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _storyType = 'user_story';
 
@@ -24,6 +27,17 @@ String? scenarioBlockOf(DocIndex index, StepTarget target) {
 String scenarioCopyOf(String block) {
   final newline = block.indexOf('\n');
   return newline < 0 ? '' : block.substring(newline + 1);
+}
+
+/// Reads the steps of the journey [doc], parsed against [docType].
+///
+/// Empty when [docType] holds no `steps` section or [doc] lacks its header.
+JourneySteps stepsOfDoc(Doc doc, MergedDocType docType) {
+  final section = sectionIndexOf(doc, docType, stepsSectionId);
+  return readJourneySteps(
+    section == null ? '' : doc.sections[section].body,
+    blockKinds: docType.listedGenerators.toSet(),
+  );
 }
 
 /// Reads the steps of the indexed [journey].

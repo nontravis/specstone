@@ -171,6 +171,24 @@ BlockWrite writeGeneratedBlocks(
   return BlocksWritten(lines.apply(edits) ?? lfText);
 }
 
+/// Returns [lfText] with the blocks of [docType]'s listed generators written.
+///
+/// [lfText] comes back unchanged when [docType] lists no generator and when
+/// it holds an opening marker with no end marker.
+String fillGeneratedBlocks<R>(
+  String lfText,
+  MergedDocType docType,
+  GeneratorRegistry<R> registry,
+  R resolver,
+) {
+  if (docType.listedGenerators.isEmpty) return lfText;
+  final blocks = runGenerators(Doc.parse(lfText), docType, registry, resolver);
+  return switch (writeGeneratedBlocks(lfText, docType, blocks)) {
+    BlocksWritten(lfText: final written) => written,
+    OpenBlock() => lfText,
+  };
+}
+
 String _slotKey(GeneratedBlock block) => switch (block.place) {
   SectionTop() => '${block.kind}\u0000${block.sectionId}\u0000top',
   BelowBodyLine(:final index) =>

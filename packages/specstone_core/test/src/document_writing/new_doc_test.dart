@@ -576,4 +576,37 @@ void main() {
       expect(projectText, contains('\n${field.id}:\n'));
     }
   });
+
+  test('f02/us02/fr02, f02/us02/fr02/e03: given text stays verbatim and draft lands at its field slot', () async {
+    final root = await writeWriteProject();
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n',
+    );
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'b',
+        text: '---\npersona:\n  - owner\nvision:\n  - PV-01\n---\n\n# Mine\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us05_b/USER_STORY.md'),
+      '---\ndraft: true\npersona:\n  - owner\n'
+      'vision:\n  - PV-01\n---\n\n# Mine\n',
+    );
+  });
 }

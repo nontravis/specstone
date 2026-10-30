@@ -41,7 +41,7 @@ List<GeneratedBlock> journeyFlowBlocks(
     kind: journeyFlowKind,
     sectionId: flowSectionId,
     place: const SectionTop(),
-    text: journeyFlowText(_stepsOf(doc, docType)),
+    text: journeyFlowText(stepsOfDoc(doc, docType)),
   ),
 ];
 
@@ -54,7 +54,7 @@ List<GeneratedBlock> scenarioCopyBlocks(
   MergedDocType docType,
   DocIndex index,
 ) => [
-  for (final step in _stepsOf(doc, docType).steps)
+  for (final step in stepsOfDoc(doc, docType).steps)
     if (step.target case final target?)
       if (scenarioBlockOf(index, target) case final block?)
         GeneratedBlock(
@@ -70,12 +70,4 @@ List<GeneratedBlock> scenarioCopyBlocks(
 String _nodeLine(JourneyStep step) {
   final heading = step.heading.replaceAll('"', '#quot;');
   return '  s${step.number}["${step.number}. $heading"]';
-}
-
-JourneySteps _stepsOf(Doc doc, MergedDocType docType) {
-  final section = sectionIndexOf(doc, docType, stepsSectionId);
-  return readJourneySteps(
-    section == null ? '' : doc.sections[section].body,
-    blockKinds: docType.listedGenerators.toSet(),
-  );
 }

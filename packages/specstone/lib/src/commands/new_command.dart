@@ -51,6 +51,8 @@ class NewCommand extends WriteCommand {
         parent: args.option('parent'),
         slug: args.option('slug'),
         text: text,
+        generators: specstoneRunner.generators,
+        firstConfirmations: withFirstConfirmations,
       ),
       asJson: asJson,
     );
