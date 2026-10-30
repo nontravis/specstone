@@ -330,10 +330,12 @@ void main() {
         'docs/specs/INDEX.md': _specIndex([
           '| `a/` | `specs/a/shared/` | — |',
           '| `b/` | `specs/b/shared/` | — |',
+          '| `c/` | `specs/c/shared/` | — |',
         ]),
         'docs/specs/a/shared/s01_architecture.md': '# A\n',
         'docs/specs/b/shared/s01_architecture.md': '# B\n',
         'docs/specs/b/shared/s02_api_other.md': '# B other\n',
+        'docs/specs/c/shared/s01_architecture.md': '# C\n',
       };
 
       final plan = _plan(tree);
@@ -348,6 +350,7 @@ void main() {
         'specs/INDEX.md',
         'specs/b/shared/s01_architecture.md',
         'specs/b/shared/s02_api_other.md',
+        'specs/c/shared/s01_architecture.md',
       ]);
     });
 
