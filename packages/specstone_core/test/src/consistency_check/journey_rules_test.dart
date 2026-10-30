@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -9,30 +10,41 @@ const _story = 'login/email_login';
 // The steps section starts at line 8; its body begins on the next line.
 const _firstStepLine = 9;
 
+// A journey with a scenario 1 step opens with a five-line front matter.
+const _entryLines = 5;
+
 String _journey(List<String> stepLines, {String frontmatter = ''}) =>
     '$frontmatter# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
     '${stepLines.join('\n')}\n';
 
+// Records the confirmed entry of scenario 1 when a step names it, so a valid
+// journey yields no finding of any kind.
+String _frontmatter(List<String> stepLines, List<String> fields) {
+  final entry = stepLines.contains('step: $_story S1')
+      ? 'confirmed:\n  - $_story#S1 ${fingerprintOf(loginScenario1)}\n'
+      : '';
+  final body = '${fields.map((f) => '$f\n').join()}$entry';
+  return body.isEmpty ? '' : '---\n$body---\n\n';
+}
+
 Future<List<Finding>> _check(
   List<String> stepLines, {
-  String frontmatter = '',
+  List<String> fields = const [],
   Map<String, String> extra = const {},
 }) async {
   final report = checkOf(
     await writeCheckProject(
       extra: {
-        'docs/$_journeyPath': _journey(stepLines, frontmatter: frontmatter),
+        'docs/$_journeyPath': _journey(
+          stepLines,
+          frontmatter: _frontmatter(stepLines, fields),
+        ),
         ...extra,
       },
     ),
     docPath: _journeyPath,
   );
-  // These journeys record no confirmed entry; tracked_links_test.dart owns
-  // the link-state findings.
-  return [
-    for (final f in report.findings)
-      if (f.kind != FindingKind.unconfirmed) f,
-  ];
+  return report.findings;
 }
 
 List<Finding> _of(List<Finding> findings, FindingKind kind) => [
@@ -83,7 +95,7 @@ void main() {
     ]);
     final after = _of(found, FindingKind.journeyAfterUnresolved);
     expect(after, hasLength(1));
-    expect(after.single.line, _firstStepLine + 12);
+    expect(after.single.line, _firstStepLine + _entryLines + 12);
     expect(after.single.message, 'after: 7 names no step written above it');
     expect(after.single.toJson(), containsPair('after', '7'));
     expect(found, hasLength(1));
@@ -111,7 +123,7 @@ void main() {
     ]);
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.journeyStepDuplicate);
-    expect(found.single.line, _firstStepLine + 2);
+    expect(found.single.line, _firstStepLine + _entryLines + 2);
     expect(found.single.message, 'step number 3 is carried by a step above');
     expect(found.single.toJson(), containsPair('number', '3'));
   });
@@ -142,10 +154,10 @@ void main() {
   test(
     'f04/us02/fr06: an approved journey is checked as a draft one is',
     () async {
-      final found = await _check([
-        '### 1. Sign in',
-        'step: $_story S9',
-      ], frontmatter: '---\nstatus: approved\n---\n\n');
+      final found = await _check(
+        ['### 1. Sign in', 'step: $_story S9'],
+        fields: ['status: approved'],
+      );
       expect(_of(found, FindingKind.journeyStepUnresolved), hasLength(1));
     },
   );
@@ -181,7 +193,7 @@ void main() {
       const names = ['buyer', 'seller', 'admin'];
       final found = await _check(
         steps,
-        frontmatter: '---\npersona: [${names.join(', ')}]\n---\n\n',
+        fields: ['persona: [${names.join(', ')}]'],
         extra: {
           for (final name in names)
             'docs/prds/personas/$name/PERSONA.md':
@@ -204,10 +216,7 @@ void main() {
 
     test('f10/us01/fr01/e05: persona: [buyer] with no persona buyer is '
         'doc_ref_unresolved', () async {
-      final found = await _check(
-        steps,
-        frontmatter: '---\npersona: [buyer]\n---\n\n',
-      );
+      final found = await _check(steps, fields: ['persona: [buyer]']);
       expect(found.map((f) => f.kind), [FindingKind.docRefUnresolved]);
       expect(found.single.toJson(), containsPair('value', 'buyer'));
     });
