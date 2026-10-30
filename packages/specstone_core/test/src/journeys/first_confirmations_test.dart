@@ -128,7 +128,7 @@ void main() {
   for (final (name, prefix) in [
     ('zero-indent', '- '),
     ('four-space', '    - '),
-  ])
+  ]) {
     test('f10/us01/fr05: a $name confirmed list gains each entry with its own '
         'prefix, as its own item', () async {
       final root = await _project();
@@ -146,6 +146,7 @@ void main() {
       ]);
       expect(text, contains('$prefix${_label(1)} '));
     });
+  }
 
   test('f10/us01/s6, f10/us01/fr05/e02: a step naming a missing scenario gets '
       'no entry and no block', () async {

@@ -460,7 +460,7 @@ sections:
       });
 
       test('f01/us01/fr05/e03: format prints one warning for a non-UTF-8 doc, '
-          'its own, not the index session\'s per-doc warning', () async {
+          'its own, not the index session per-doc warning', () async {
         final project = await fixtureProject({
           notePath: '# A\n\n## Contents\nbody\n',
         });

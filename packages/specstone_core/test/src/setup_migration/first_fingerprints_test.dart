@@ -142,7 +142,7 @@ void main() {
     for (final (name, prefix) in [
       ('zero-indent', '- '),
       ('four-space', '    - '),
-    ])
+    ]) {
       test('f06/us01/fr06: a $name confirmed list gains the entry with its '
           'own prefix, as its own item', () {
         final api = _api([
@@ -158,6 +158,7 @@ void main() {
         ]);
         expect(out.lf, contains('${prefix}find_template_breaks/'));
       });
+    }
 
     test('f06/us01/fr06: a doc without frontmatter gains one', () {
       const api =

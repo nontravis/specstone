@@ -57,11 +57,13 @@ String withConfirmedEntries(
   List<String>? fieldOrder,
 }) {
   final prefix = _itemPrefix.firstMatch(list.text)?.group(0);
+  final items = [
+    for (final entry in entries) '${prefix ?? _defaultItemPrefix}$entry\n',
+  ];
   return withKeyBlock(
     lfText,
     _confirmedKey,
-    '${list.text}'
-    '${[for (final entry in entries) '${prefix ?? _defaultItemPrefix}$entry\n'].join()}',
+    '${list.text}${items.join()}',
     fieldOrder: fieldOrder,
   );
 }
