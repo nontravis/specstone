@@ -38,6 +38,7 @@ class FormatCommand extends SpecstoneCommand {
     final asJson = argResults!.flag('json');
 
     final FormatReport report;
+    final sessionWarnings = <String>[];
     try {
       final project = DocsProject.open(
         templates: runner.templates,
@@ -62,19 +63,22 @@ class FormatCommand extends SpecstoneCommand {
               homeDirectory: runner.homeDirectory,
               busyTimeout: runner.busyTimeout,
             );
+            sessionWarnings.addAll(session.warnings);
             return (resolver: session.index, close: session.close);
           },
         ),
       );
     } on SpecstoneFault catch (fault) {
-      return fail(fault, asJson: asJson);
+      return fail(fault, asJson: asJson, warnings: sessionWarnings);
     }
 
+    final warnings = [...sessionWarnings, ...report.warnings];
     if (asJson) {
-      runner.out.write('${SpecstoneCommand.pretty.convert(report.toJson())}\n');
+      final json = {...report.toJson(), 'warnings': warnings};
+      runner.out.write('${SpecstoneCommand.pretty.convert(json)}\n');
     } else {
       runner.out.write(report.toText());
-      warn(report.warnings);
+      warn(warnings);
     }
     return report.exitStatus;
   }

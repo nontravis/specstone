@@ -92,6 +92,7 @@ final class _Calls {
   int opened = 0;
   int closed = 0;
   void Function()? onOpen;
+  void Function()? onClose;
 }
 
 GeneratorRun<String> _tocRun(
@@ -114,7 +115,13 @@ GeneratorRun<String> _tocRun(
   open: () {
     calls.opened++;
     calls.onOpen?.call();
-    return (resolver: resolver, close: () => calls.closed++);
+    return (
+      resolver: resolver,
+      close: () {
+        calls.closed++;
+        calls.onClose?.call();
+      },
+    );
   },
 );
 
@@ -798,20 +805,45 @@ void main() {
         _noteB: _noteDoc(_stale()),
       });
       final calls = _Calls();
-      final seen = <String>[];
-      calls.onOpen = () {
-        seen
-          ..add(_read(run, _noteA))
-          ..add(_read(run, _noteB));
-      };
+      final events = <String>[];
+      List<String> snapshot() => [_read(run, _noteA), _read(run, _noteB)];
+      final stale = _noteDoc(_stale());
+      final fresh = _noteDoc(_fresh());
+      String when(String docs, String yes, String no) =>
+          snapshot().join('|') == docs ? yes : no;
+      calls
+        ..onOpen = () {
+          final at = when('$stale|$stale', 'before writes', 'after a write');
+          events.add('open $at');
+        }
+        ..onClose = () {
+          final at = when(
+            '$fresh|$fresh',
+            'after last write',
+            'before last write',
+          );
+          events.add('close $at');
+        };
 
       _runNotes(run, _tocRun(calls));
 
       expect(calls.opened, 1);
       expect(calls.closed, 1);
-      expect(seen, [_noteDoc(_stale()), _noteDoc(_stale())]);
-      expect(_read(run, _noteB), _noteDoc(_fresh()));
+      expect(events, ['open before writes', 'close after last write']);
     });
+
+    test('f05/us03/fr01: close still runs once when a write throws', () async {
+      final run = await _openNotes({_noteA: _noteDoc(_stale())});
+      final folder = _file(run, _noteA).parent;
+      await Process.run('chmod', ['555', folder.path]);
+      addTearDown(() => Process.run('chmod', ['755', folder.path]));
+      final calls = _Calls();
+
+      expect(() => _runNotes(run, _tocRun(calls)), throwsA(isA<RenderFault>()));
+
+      expect(calls.opened, 1);
+      expect(calls.closed, 1);
+    }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : false);
 
     test('f05/us03/fr01/e05: a fault from open stops the run and writes no '
         'file', () async {

@@ -57,14 +57,33 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
+  }) : this._(
+         registry: generators ?? GeneratorRegistry<DocIndex>({}),
+         out: out,
+         err: err,
+         templates: templates,
+         workingDirectory: workingDirectory,
+         homeDirectory: homeDirectory,
+         busyTimeout: busyTimeout,
+         console: console,
+       );
+
+  // The registry is resolved once, so the default resolver's kinds come from
+  // the same source as the generators that run.
+  new _({
+    required GeneratorRegistry<DocIndex> registry,
+    required StringSink? out,
+    required StringSink? err,
+    required TemplateResolver? templates,
+    required Directory? workingDirectory,
+    required Directory? homeDirectory,
+    required Duration busyTimeout,
+    required Console? console,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
-       _generators = generators ?? GeneratorRegistry<DocIndex>({}),
+       _generators = registry,
        _templates =
-           templates ??
-           TemplateResolver(
-             generatorKinds: generators?.kinds ?? shippedGeneratorKinds,
-           ),
+           templates ?? TemplateResolver(generatorKinds: registry.kinds),
        _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        _busyTimeout = busyTimeout,

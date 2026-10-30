@@ -412,6 +412,59 @@ sections:
           '# A\n\n## Contents\n$toc\ntoc\n$end\nbody\n',
         );
       });
+
+      Future<Directory> damagedNoteProject() async {
+        final project = await fixtureProject({
+          notePath: '# A\n\n## Contents\nbody\n',
+        });
+        expect(await (await noteRunnerIn(project)).run(['format']), 0);
+        final index = File.fromUri(
+          project.uri.resolve('.specstone/index.sqlite'),
+        );
+        final bytes = index.readAsBytesSync();
+        // Page 1 and the file size survive; the first read of a lost page
+        // fails and the session rebuilds the index.
+        index.writeAsBytesSync([
+          ...bytes.sublist(0, 4096),
+          ...List<int>.filled(bytes.length - 4096, 0xAB),
+        ]);
+        out.clear();
+        err.clear();
+        return project;
+      }
+
+      const damagedWarning =
+          'the index was damaged and was rebuilt from the markdown files';
+
+      test('f01/us01/fr05/e03: format warns on stderr when the index was '
+          'rebuilt', () async {
+        final project = await damagedNoteProject();
+
+        expect(await (await noteRunnerIn(project)).run(['format']), 0);
+
+        expect(err.toString(), '⚠️ WARNING: $damagedWarning\n');
+      });
+
+      test('f01/us01/fr05/e03: format --json lists the rebuilt-index warning '
+          'in warnings', () async {
+        final project = await damagedNoteProject();
+
+        expect(
+          await (await noteRunnerIn(project)).run(['format', '--json']),
+          0,
+        );
+
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        expect(json['warnings'], [damagedWarning]);
+        expect(err.toString(), isEmpty);
+      });
+    });
+
+    test('a runner built without generators uses a registry whose kinds '
+        'equal the template resolver kinds', () {
+      final runner = SpecstoneCommandRunner();
+
+      expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
     test('help format prints the usage to out and exits 0', () async {

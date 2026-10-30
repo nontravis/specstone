@@ -34,6 +34,9 @@ final class TemplateResolver {
   /// The generator kinds a layer's `generators` entry may name (PD6).
   final Set<String> _generatorKinds;
 
+  /// The generator kinds a layer's `generators` entry may name.
+  Set<String> get generatorKinds => Set.unmodifiable(_generatorKinds);
+
   /// Resolves the doc types of the project at [workingDirectory].
   ///
   /// [homeDirectory] is the personal pack home, `~`, or null when the
