@@ -5,8 +5,8 @@ description: Use when the spec docs of a Specstone project lag behind its format
 
 # Bring the spec docs up to the new format
 
-This skill takes the `specstone check` findings under `specs/`, plus `architecture_missing` and
-`code_uncovered`, which a spec doc fixes. Findings under `prds/` go to `specstone:bootstrap-prd`. Follow
+This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`,
+which a spec doc fixes. Findings under `prds/` go to `specstone:bootstrap-prd`. Follow
 `specstone:expert-sdd` for every write: each one leaves a draft, a pointer write (`implements`) excepted.
 
 ## 1. Gate: the first call
@@ -27,9 +27,9 @@ Take the first unhandled finding of this skill, fix it, and run `specstone check
 targeted run omits `code_uncovered`. Repeat until the only findings left are those `specstone:bootstrap-prd` takes.
 
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
-`specstone get <type>:<name> --json` (`bases.title`, `.sections.<key>`, `.fields.<id>`); each write prints the new
-one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place of
-`#<key>`); a section body leaves out its `## ` line, and a list field takes its whole new list. Exit 75
+`specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
+the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
+of `#<key>`); a section body leaves out its `## ` line, and a list field takes its whole list. Exit 75
 `base_mismatch`: read again, merge, retry.
 
 | Finding | Fix |
