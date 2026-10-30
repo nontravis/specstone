@@ -63,7 +63,7 @@ class FormatCommand extends SpecstoneCommand {
               homeDirectory: runner.homeDirectory,
               busyTimeout: runner.busyTimeout,
             );
-            sessionWarnings.addAll(session.warnings);
+            sessionWarnings.addAll(session.indexWarnings);
             return (resolver: session.index, close: session.close);
           },
         ),

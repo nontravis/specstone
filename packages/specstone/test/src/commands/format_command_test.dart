@@ -458,6 +458,22 @@ sections:
         expect(json['warnings'], [damagedWarning]);
         expect(err.toString(), isEmpty);
       });
+
+      test('f01/us01/fr05/e03: format prints one warning for a non-UTF-8 doc, '
+          'its own, not the index session\'s per-doc warning', () async {
+        final project = await fixtureProject({
+          notePath: '# A\n\n## Contents\nbody\n',
+        });
+        File.fromUri(project.uri.resolve('docs/notes/bad.md'))
+            .writeAsBytesSync([0x23, 0x20, 0xFF, 0x0A]);
+
+        expect(await (await noteRunnerIn(project)).run(['format']), 0);
+
+        expect(
+          err.toString(),
+          '⚠️ WARNING: docs/notes/bad.md: not UTF-8 text; skipped\n',
+        );
+      });
     });
 
     test('a runner built without generators uses a registry whose kinds '
