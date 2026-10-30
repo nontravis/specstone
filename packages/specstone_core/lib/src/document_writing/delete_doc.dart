@@ -16,50 +16,54 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
 typedef _UnitFiles = Map<String, List<int>>;
 
-/// Moves the doc [address] names, with everything it owns, to the trash.
+/// Moves the docs [targets] name, with everything each owns, to the trash.
 ///
-/// The unit is the doc's own segment plus the spec folders of its values; it
-/// holds every file under them, whatever the extension. A doc outside the
+/// A target is `<doc type>:<name>` or an untyped doc's DocPath. The unit is
+/// each typed doc's own segment plus the spec folders of its values, and each
+/// untyped doc's one file; it holds every file under them, whatever the
+/// extension, each once. Every target resolves before any file is read, in
+/// the order given, and the first refusal refuses the call. A doc outside the
 /// unit that refers to a doc inside it refuses the delete, and no file moves.
 /// An approved `.md` file in the unit (an untyped one included) leaves the
 /// delete to the Owner: [prompts] lists the files and asks, one answer from
 /// [readLine] outside the lock; anything but `y`, or the end of input, keeps
-/// them all. After a `y` the index is read afresh and the referrers are
-/// checked again; when a file or its bytes change while the prompt waits, the
-/// list shows again. Emptied folders go up to the docs root.
+/// them all. After a `y` the index is read afresh, the targets resolve again,
+/// and the referrers are checked again; when a file or its bytes change while
+/// the prompt waits, the list shows again. Emptied folders go up to the docs
+/// root.
 ///
+/// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc and
 /// `owner_terminal_required` for an approved unit when [interactive] is
 /// false; an `IndexFault` for an address that names no one typed doc;
 /// `index_busy` when another call holds the lock.
 ReadAnswer answerDelete(
   WriteSession session,
-  String address, {
+  List<String> targets, {
   required bool interactive,
   required String? Function() readLine,
   required StringSink prompts,
 }) {
-  var target = session.target(address);
-  var roots = _unitRootsOf(session, target);
-  _refuseIfReferenced(session, address, target, roots);
+  var unit = _resolveTargets(session, targets);
+  _refuseIfReferenced(session, unit);
   while (true) {
-    final shown = _readUnit(session, roots);
+    final shown = _readUnit(session, unit.roots);
     if (_holdsApprovedDoc(shown)) {
       requireOwnerTerminal(
         interactive: interactive,
         message:
-            '$address holds approved docs; only the Owner deletes them, at '
-            'an interactive terminal',
+            '${unit.subject} holds approved docs; only the Owner deletes '
+            'them, at an interactive terminal',
       );
       prompts
         ..writeln(shown.keys.join('\n'))
         ..write('delete ${shown.length} files? [y/N] ');
       if (readLine() != 'y') return _answerFor(const []);
       session.refresh();
-      target = session.target(address);
-      roots = _unitRootsOf(session, target);
-      _refuseIfReferenced(session, address, target, roots);
+      unit = _resolveTargets(session, targets);
+      _refuseIfReferenced(session, unit);
     }
+    final roots = unit.roots;
     final removed = session.locked(() {
       final current = _readUnit(session, roots);
       if (!_sameFiles(current, shown)) return null;
@@ -69,6 +73,64 @@ ReadAnswer answerDelete(
     });
     if (removed != null) return _answerFor(removed);
   }
+}
+
+/// The resolved targets of a delete call, in the order given.
+class _DeleteSet(
+  final List<({String address, String docPath, List<String> roots})> targets,
+) {
+  /// The roots of every target, each once, in the order given.
+  List<String> get roots =>
+      {for (final target in targets) ...target.roots}.toList();
+
+  /// Names the set in a refusal: the one address, or the set.
+  String get subject =>
+      targets.length == 1 ? targets.single.address : 'the delete set';
+}
+
+/// Resolves every target of [targets], in the order given.
+///
+/// A target is untyped when the Index holds a doc with no doc type at that
+/// DocPath; every other target goes through [WriteSession.target].
+_DeleteSet _resolveTargets(WriteSession session, List<String> targets) {
+  return _DeleteSet([
+    for (final address in targets)
+      switch (_untypedDocAt(session, address)) {
+        final untyped? => (
+          address: address,
+          docPath: untyped.docPath,
+          roots: [untyped.docPath],
+        ),
+        null => _typedTarget(session, address),
+      },
+  ]);
+}
+
+({String address, String docPath, List<String> roots}) _typedTarget(
+  WriteSession session,
+  String address,
+) {
+  final doc = session.target(address);
+  return (
+    address: address,
+    docPath: doc.docPath,
+    roots: _unitRootsOf(session, doc),
+  );
+}
+
+/// Returns the doc with no doc type whose DocPath is [address], else null.
+IndexedDoc? _untypedDocAt(WriteSession session, String address) {
+  final List<IndexedDoc> found;
+  try {
+    found = session.index.resolve(address);
+  } on Exception {
+    // A name no untyped doc carries; WriteSession.target gives the refusal.
+    return null;
+  }
+  for (final doc in found) {
+    if (doc.docTypeId == null && doc.docPath == address) return doc;
+  }
+  return null;
 }
 
 /// Returns the paths of the unit of [target]: its own segment, a folder
@@ -92,13 +154,8 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
 
 /// Throws [WriteFault] `doc_referenced` when a doc outside the unit refers
 /// to a doc inside it.
-void _refuseIfReferenced(
-  WriteSession session,
-  String address,
-  IndexedDoc target,
-  List<String> roots,
-) {
-  final inUnit = {for (final root in roots) ..._filesUnder(session, root)};
+void _refuseIfReferenced(WriteSession session, _DeleteSet unit) {
+  final inUnit = {for (final root in unit.roots) ..._filesUnder(session, root)};
   final outside = <String>{};
   for (final doc in session.index.docs) {
     if (!inUnit.contains(doc.docPath)) continue;
@@ -109,13 +166,34 @@ void _refuseIfReferenced(
   if (outside.isEmpty) return;
   throw WriteFault(
     WriteFaultCode.docReferenced,
-    'docs outside $address link into it',
-    file: target.docPath,
+    'docs outside ${unit.subject} link into it',
+    file: _firstReferredTarget(session, unit, outside),
     relatedFiles: [
       for (final doc in session.index.docs)
         if (outside.contains(doc.docPath)) doc.docPath,
     ],
   );
+}
+
+/// Returns the DocPath of the first target, in the order given, that a doc in
+/// [outside] links into.
+String _firstReferredTarget(
+  WriteSession session,
+  _DeleteSet unit,
+  Set<String> outside,
+) {
+  for (final target in unit.targets) {
+    final files = {
+      for (final root in target.roots) ..._filesUnder(session, root),
+    };
+    for (final doc in session.index.docs) {
+      if (!files.contains(doc.docPath)) continue;
+      for (final from in referrersOf(session.index, doc)) {
+        if (outside.contains(from.docPath)) return target.docPath;
+      }
+    }
+  }
+  throw StateError('no target is referred to');
 }
 
 /// Returns the DocPath of every entry under [root], a folder or a file, that

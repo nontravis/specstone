@@ -42,7 +42,7 @@ class DeleteCommand extends WriteCommand {
     return runWrite(
       (session) => answerDelete(
         session,
-        rest.first,
+        [rest.first],
         interactive: interactive,
         readLine: console.readLine,
         prompts: asJson ? runner.err : runner.out,
