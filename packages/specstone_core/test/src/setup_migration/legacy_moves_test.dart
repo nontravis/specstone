@@ -324,6 +324,36 @@ void main() {
       ]);
     });
 
+    test('f06/us01/fr03/e12: a second cross-cutting folder of the same last '
+        'segment stays whole', () {
+      final tree = {
+        'docs/specs/INDEX.md': _specIndex([
+          '| `a/` | `specs/a/shared/` | — |',
+          '| `b/` | `specs/b/shared/` | — |',
+          '| `c/` | `specs/c/shared/` | — |',
+        ]),
+        'docs/specs/a/shared/s01_architecture.md': '# A\n',
+        'docs/specs/b/shared/s01_architecture.md': '# B\n',
+        'docs/specs/b/shared/s02_api_other.md': '# B other\n',
+        'docs/specs/c/shared/s01_architecture.md': '# C\n',
+      };
+
+      final plan = _plan(tree);
+
+      expect(plan.moves, [
+        (
+          from: 'specs/a/shared/s01_architecture.md',
+          to: 'specs/topics/shared/s01_architecture.md',
+        ),
+      ]);
+      expect(plan.left, [
+        'specs/INDEX.md',
+        'specs/b/shared/s01_architecture.md',
+        'specs/b/shared/s02_api_other.md',
+        'specs/c/shared/s01_architecture.md',
+      ]);
+    });
+
     test('f06/us01/fr05/e09: a move onto a file already in place is '
         'dropped', () {
       final plan = _plan({
