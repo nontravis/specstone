@@ -116,7 +116,8 @@ String markDraft(String lfText) => Doc.parse(lfText).isDraft
 ///
 /// The write runs under the session lock against a fresh read of the file,
 /// so a target changed since [SetRequest.base] refuses with its current text.
-/// An empty [text] removes an optional section or field. Throws [IndexFault]
+/// An empty [text] removes an optional section or field; a field key the doc
+/// holds that its type does not declare is removed too. Throws [IndexFault]
 /// for a body that holds a `## ` line, a doc, section, or field that is not
 /// there, a title that is not one line, and [WriteFault] `base_mismatch`,
 /// `required_target`, or a refused field.
@@ -150,7 +151,13 @@ ReadAnswer _setField(
       key: fieldId,
     );
   }
-  if (fieldId == 'status' && doc.docTypeId == _computedStatusType) {
+
+  final lf = toLf(stdin);
+  final stripped = withoutTrailingBlankLines(lf);
+  final empty = stripped.trim().isEmpty;
+  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
+  // Empty stdin on a feature's status removes the written key (f08/us05).
+  if (!empty && fieldId == 'status' && doc.docTypeId == _computedStatusType) {
     throw WriteFault(
       WriteFaultCode.fieldNotWritable,
       'the status of a feature is computed from its stories',
@@ -158,8 +165,7 @@ ReadAnswer _setField(
       key: fieldId,
     );
   }
-  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
-  if (field == null) {
+  if (field == null && !empty) {
     throw WriteFault(
       WriteFaultCode.fieldUnknown,
       '${doc.docTypeId} declares no field $fieldId',
@@ -167,11 +173,7 @@ ReadAnswer _setField(
       key: fieldId,
     );
   }
-
-  final lf = toLf(stdin);
-  final stripped = withoutTrailingBlankLines(lf);
-  final empty = stripped.trim().isEmpty;
-  if (!empty) {
+  if (field != null && !empty) {
     _checkedValue(doc, field, stripped);
   }
 
@@ -180,6 +182,16 @@ ReadAnswer _setField(
     final lfText = toLf(read.content.text);
     final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
     final held = blocks.where((b) => b.name == fieldId).firstOrNull;
+    // Empty stdin removes a held key the type does not declare; an unheld
+    // one still refuses field_unknown.
+    if (field == null && held == null) {
+      throw WriteFault(
+        WriteFaultCode.fieldUnknown,
+        '${doc.docTypeId} declares no field $fieldId',
+        file: doc.docPath,
+        key: fieldId,
+      );
+    }
     final currentText = held?.text ?? '';
     final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
     if (currentBase != request.base) {
@@ -192,7 +204,7 @@ ReadAnswer _setField(
         currentBase: currentBase,
       );
     }
-    if (empty && field.required) {
+    if (empty && (field?.required ?? false)) {
       throw WriteFault(
         WriteFaultCode.requiredTarget,
         '${doc.docTypeId} requires the field $fieldId',
@@ -204,7 +216,7 @@ ReadAnswer _setField(
     var spliced = empty
         ? withKeyBlock(lfText, fieldId, null)
         : withKeyBlock(lfText, fieldId, _blockOf(fieldId, stripped));
-    if (field.type != FieldType.outputRef) {
+    if (field?.type != FieldType.outputRef) {
       spliced = markDraft(spliced);
     }
     session.writeDoc(doc.docPath, spliced, LineEnding.of(read.content.text));
