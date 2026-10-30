@@ -61,5 +61,8 @@ Iterable<Finding> checkJourneySteps(
 
 bool _resolves(CheckContext context, JourneyStep step) {
   final target = step.target;
-  return target != null && scenarioBlockOf(context.index, target) != null;
+  if (target == null) return false;
+  final story = storyNamed(context.index, target.identity);
+  return story != null &&
+      context.scenarioBlocksOf(story).containsKey(target.scenarioLabel);
 }
