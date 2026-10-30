@@ -49,7 +49,7 @@ void main() {
           '`find_template_breaks/check_target`',
         ),
       );
-      expect(out.label, isNull);
+      expect(out.label, 'FR trace cells');
     });
 
     test('f06/us01/fr06/e02: a cell naming no FR, two FRs, or a missing FR stays and gets no entry', () {

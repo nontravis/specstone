@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/confirmed_list.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 
 const _traceHeader = 'FR trace';
+const _cellsLabel = 'FR trace cells';
 final _traceCell = RegExp(
   r'^us(\d+)(?:_([a-z0-9_]+))?/fr(\d+)(?:_([a-z0-9_]+))?$',
 );
@@ -47,7 +48,8 @@ final class _NamedFr {
 ///
 /// A cell that names no single FR stays as written and gains no entry. A
 /// `confirmed` value that takes no appended entries, a flow list or a scalar,
-/// gains none and has no label, and the cells are still rewritten.
+/// gains none, and the cells are still rewritten under the label
+/// `FR trace cells`.
 FirstFingerprints writeFirstFingerprints(
   String lf, {
   required Map<String, String> featureFrs,
@@ -73,7 +75,7 @@ FirstFingerprints writeFirstFingerprints(
 
   final frontmatterLength = lf.length - doc.afterFrontmatter.length;
   final renamed = lf.substring(0, frontmatterLength) + lines.join('\n');
-  if (list == null) return (lf: renamed, label: null);
+  if (list == null) return (lf: renamed, label: _cellsLabel);
   final added = [
     for (final MapEntry(key: ref, value: path) in hits.entries)
       '$ref ${fingerprintOf(_statementOf(featureFrs[path]!))}',

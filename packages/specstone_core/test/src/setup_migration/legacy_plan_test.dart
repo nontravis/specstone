@@ -135,6 +135,34 @@ void main() {
     );
   });
 
+  test('f06/us01/fr06, s03/inv12: an API doc with a flow-list confirmed and '
+      'no other legacy label is planned with its FR cells rewritten', () async {
+    final tree = Map.of(acmeLegacy)
+      ..remove('docs/specs/api/auth/s02_api_session.md')
+      ..['docs/specs/api/auth/s02_api_login.md'] = '''
+---
+confirmed: [x]
+---
+
+# Login API
+
+## FR trace
+
+| FR id | Method |
+|-------|--------|
+| `us01_email_login/fr01_validate_credentials` | CLI |
+''';
+
+    final plan = await _plan(tree);
+
+    final rewrite = _rewrite(plan, 'specs/f01_login/API.md');
+    expect(rewrite.changes, ['FR trace cells']);
+    expect(
+      rewrite.text,
+      contains('| `email_login/validate_credentials` | CLI |'),
+    );
+  });
+
   test('f06/us01/fr06/e01: a lone API doc renamed to API.md gains a '
       'confirmed entry for the FR its trace names', () async {
     final tree = Map.of(acmeLegacy)
