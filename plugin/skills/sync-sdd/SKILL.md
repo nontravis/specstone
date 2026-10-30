@@ -30,7 +30,8 @@ costs a call the gate already makes.
 1. Take the files the task lists as touched (a plan task's files, an implementer's report).
 2. No list: run `git diff --name-only <base>`, where `<base>` is the commit the task started from or
    `git merge-base HEAD <base branch>`. While the work is uncommitted, add `git ls-files --others --exclude-standard`.
-3. Drop the project's doc files: this sync starts from code.
+3. Drop each path under `docs/` in the project root, the folder that holds `.specstone/`: those are docs, and this
+   sync starts from code.
 
 ## 3. Find the covering docs
 
@@ -41,7 +42,8 @@ specstone context --code <path> --for implement
 ```
 
 - **Warning `no doc covers or implements <path>`:** no spec covers it, whatever project docs print beside the
-  warning. A moved file goes to step 4.3; anything else goes to step 5.
+  warning. When `git diff --name-status -M <base>` lists the path as the new side of an `R` (rename) pair, the file
+  moved: go to step 4.3. Any other such path is new code: go to step 5.
 - **0, no such warning:** the printed specs and requirements cover the path. Go to step 4.
 - **64, `code_path_not_found`:** the task deleted the file, so `context` has nothing for it. `specstone check` lists
   the `implements:` entries that still name it; step 4.3 fixes them.
@@ -58,7 +60,7 @@ specstone context --code <path> --for implement
    names a changed path, and fix it through `specstone set --field`: pipe the corrected list to
    `specstone set <target> --field implements --base <hash>` (or `--field covers`), the hash from
    `specstone get <target>`:
-   - moved file: point the entry at the new path; `git diff --name-status -M <base>` pairs old and new paths;
+   - moved file: point the entry at the new side of its rename pair;
    - deleted file: drop the entry, or point it at the code that does the work now.
 
    A pointer write leaves the draft flag untouched: an approved doc keeps its approval.
@@ -72,8 +74,8 @@ comes first; the pointer follows it.
 - **Needs a new story or FR:** leave it out of this sync and hand it to `specstone:brainstorming-sdd`.
 - **Else:** write a spec draft, `specstone new <doc type> --parent <name>` for a new doc or `specstone set` for a
   section of one that exists. Then ask the Owner to run `specstone approve <name>`; never run it yourself.
-- Write no `implements:` or `covers:` entry that names this code until the Owner approves the draft. Then run step
-  4.3 for it.
+- Write no `implements:` or `covers:` entry that names this code until the Owner approves the draft. Then add the
+  entry at once with the step 4.3 `specstone set --field` write: no `check` finding will ask for it.
 
 ## Report to the Owner
 
