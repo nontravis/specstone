@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -910,7 +911,7 @@ path: prds/notes/{slug}/NOTE.md
       });
       final resolver = TemplateResolver(
         shippedFiles: shipped(),
-        generatorKinds: {'note_toc'},
+        generatorKinds: {...shippedGeneratorKinds, 'note_toc'},
       );
 
       expect(
@@ -943,7 +944,7 @@ path: prds/notes/{slug}/NOTE.md
       final home = await writeTree({});
       final resolver = TemplateResolver(
         shippedFiles: shipped(),
-        generatorKinds: {'note_toc', 'other'},
+        generatorKinds: {...shippedGeneratorKinds, 'note_toc', 'other'},
       );
       const note =
           'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'

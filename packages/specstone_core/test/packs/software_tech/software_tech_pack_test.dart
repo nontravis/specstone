@@ -65,7 +65,7 @@ void main() {
       set = await resolveSoftwareTech();
     });
 
-    test('f03/us07/fr01/e01: the set holds the ten prd-core and the eight '
+    test('f03/us07/fr01/e01: the set holds the eleven prd-core and the eight '
         'software-tech doc types', () {
       expect(
         set.docTypes.map((d) => d.id).toList(),

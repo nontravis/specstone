@@ -11,18 +11,6 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 
-const _journeyType = '''
-id: journey
-description: A walk through the stories.
-path: prds/journeys/{slug}/JOURNEY.md
-generators: [journey_flow, scenario_copy]
-sections:
-  - id: flow
-    header: Flow
-  - id: steps
-    header: Steps
-''';
-
 const _journeyPath = 'prds/journeys/onboarding/JOURNEY.md';
 const _story = 'login/email_login';
 
@@ -37,11 +25,7 @@ Future<_Fixture> _open(
 }) async {
   final session = openSession(
     await writeCheckProject(
-      extra: {
-        '.specstone/templates/journey.yaml': _journeyType,
-        'docs/$_journeyPath': _journeyText(stepLines),
-        ...extra,
-      },
+      extra: {'docs/$_journeyPath': _journeyText(stepLines), ...extra},
     ),
   );
   addTearDown(session.close);

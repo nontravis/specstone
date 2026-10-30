@@ -45,6 +45,7 @@ void main() {
         'persona',
         'anti_persona',
         'reference',
+        'journey',
         'topic',
       },
     );

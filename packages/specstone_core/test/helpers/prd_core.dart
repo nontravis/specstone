@@ -77,6 +77,7 @@ const prdCoreIds = <String>[
   'features',
   'fr',
   'gnfr',
+  'journey',
   'nf',
   'persona',
   'project',

@@ -16,6 +16,7 @@ const _prdCoreIds = <String>[
   'features',
   'fr',
   'gnfr',
+  'journey',
   'nf',
   'persona',
   'project',
@@ -73,7 +74,7 @@ void main() {
       _configPath: shippedPinsConfig(['prd-core']),
     });
 
-    test('f03/us06/s1, f03/us06/fr01/e01: guide lists the ten prd-core doc '
+    test('f03/us06/s1, f03/us06/fr01/e01: guide lists the eleven prd-core doc '
         'types and no other', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide']), 0);
