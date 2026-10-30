@@ -42,6 +42,8 @@ export 'src/index_query/search_docs.dart'
     show SearchOptions, answerSearch, checkQuery, defaultSearchLimit;
 export 'src/index_query/structure.dart' show answerStructure;
 export 'src/journeys/first_confirmations.dart' show withFirstConfirmations;
+export 'src/journeys/journey_answers.dart'
+    show answerJourneyCode, answerJourneyPaths;
 export 'src/journeys/journey_generators.dart' show journeyGenerators;
 export 'src/rendering/build_output.dart'
     show
