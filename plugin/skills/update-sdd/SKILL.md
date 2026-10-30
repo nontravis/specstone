@@ -10,20 +10,22 @@ only review. Follow `specstone:expert-sdd` before and after the write.
 
 ## 1. Sort the request
 
-It is a small edit only when all three hold. Sort it from the request, before any command runs.
+It is a small edit only when all four hold. Sort it from the request, before any command runs.
 
 - It changes one section, or one frontmatter field, of one doc.
 - That doc exists already.
 - It adds no user story and no FR.
+- It leaves `implements:` and `covers:` alone: those fields point at code.
 
 | Request                                     | Path                                                      |
 |---------------------------------------------|-----------------------------------------------------------|
 | An FR's timeout goes from 10 s to 30 s      | small edit, even though it changes a number the FR states |
 | A new scenario that only a new FR can carry | `specstone:brainstorming-sdd`                             |
 | One wording fix, wanted in two docs         | `specstone:brainstorming-sdd`                             |
+| An `implements:` path the code moved        | `specstone:sync-sdd`                                      |
 
-Not a small edit: hand the request to `specstone:brainstorming-sdd` and stop. Write nothing here, and run no
-`specstone set`.
+Not a small edit: an `implements:` or `covers:` change is code sync and goes to `specstone:sync-sdd`; anything
+else goes to `specstone:brainstorming-sdd`. Hand it over and stop: write nothing here, and run no `specstone set`.
 
 ## 2. Read the target: the first call
 
@@ -75,6 +77,9 @@ For a confirmation, add the upstream change you checked it against. Then ask the
 ```
 specstone approve <type>:<name>
 ```
+
+When that doc holds others, as a feature holds its stories and a story its FRs, say so with the line: this call
+also approves, at the Owner's `y` for each, every draft under that doc, not only your edit.
 
 Never run it yourself: it refuses any caller but an interactive terminal (exit 77), and with no design document or
 coverage table, the Owner's look at your named change is the edit's one check.
