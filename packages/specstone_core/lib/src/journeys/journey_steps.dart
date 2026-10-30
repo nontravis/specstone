@@ -35,6 +35,7 @@ final class StepTarget {
   /// The journey link label, `<identity>#S<scenario>`.
   String get label => '$identity#S$scenario';
 
+  /// The scenario heading label, `S<scenario>`.
   String get scenarioLabel => 'S$scenario';
 }
 
@@ -74,6 +75,7 @@ final class JourneyStep {
   final String? afterValue;
   final int? afterIndex;
 
+  /// Reads [stepValue] as a target; null when absent or unreadable.
   StepTarget? get target {
     final value = stepValue;
     return value == null ? null : readStepTarget(value);
@@ -115,7 +117,7 @@ final class JourneySteps {
 
   /// Steps whose `after:` names no step written above them.
   List<int> get unresolvedAfterIndexes => [
-    for (var i = 1; i < steps.length; i++)
+    for (var i = 0; i < steps.length; i++)
       if (steps[i].afterValue != null && _followed[i] == null) i,
   ];
 

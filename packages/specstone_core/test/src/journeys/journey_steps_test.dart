@@ -133,6 +133,16 @@ void main() {
       expect(steps.unresolvedAfterIndexes, isEmpty);
     });
 
+    test('f10/us01/fr02/e05: an after: on the first step names no step above '
+        'it', () {
+      final steps = _read(['### 1. A', 'step: a/b S1', 'after: 1', '### 2. B']);
+
+      expect(steps.unresolvedAfterIndexes, [0]);
+      expect(steps.paths, [
+        [0, 1],
+      ]);
+    });
+
     test('f10/us01/fr02: one step gives one path and no step gives none', () {
       final one = _read(['### 1. Only']);
       expect(one.paths, [
