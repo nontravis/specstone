@@ -53,7 +53,9 @@ final class GeneratedBlock {
 
 /// A function that returns the generated blocks of [doc].
 ///
-/// [R] is whatever the composition root hands every generator.
+/// [R] is whatever the composition root hands every generator. When a
+/// generator returns several blocks of one kind for one place, only the first
+/// is written.
 typedef Generator<R> = List<GeneratedBlock> Function(
   Doc doc,
   MergedDocType docType,
@@ -159,13 +161,21 @@ BlockWrite writeGeneratedBlocks(
 
   final doc = Doc.parse(lfText);
   final edits = <_Edit>[];
+  final seen = <String>{};
   for (final block in blocks) {
     if (!kinds.contains(block.kind)) continue;
+    if (!seen.add(_slotKey(block))) continue;
     final edit = _editFor(block, doc, docType, lines, scan);
     if (edit != null) edits.add(edit);
   }
   return BlocksWritten(lines.apply(edits) ?? lfText);
 }
+
+String _slotKey(GeneratedBlock block) => switch (block.place) {
+  SectionTop() => '${block.kind}\u0000${block.sectionId}\u0000top',
+  BelowBodyLine(:final index) =>
+    '${block.kind}\u0000${block.sectionId}\u0000$index',
+};
 
 _Edit? _editFor(
   GeneratedBlock block,
@@ -251,6 +261,7 @@ _Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
       !fenced[i - start] && test(lines[i]);
 
   final pairs = <_Pair>[];
+  OpenBlock? openBlock;
   var i = start;
   while (i < lines.length) {
     final kind = isMarker(i, kindByMarker.containsKey)
@@ -266,19 +277,15 @@ _Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
         !isMarker(j, kindByMarker.containsKey)) {
       j++;
     }
-    if (j >= lines.length ||
-        lines[j] != generatedEndMarker ||
-        fenced[j - start]) {
-      return _Scan(
-        bodyStart: start,
-        pairs: pairs,
-        openBlock: OpenBlock(kind: kind, marker: lines[i]),
-      );
+    if (j >= lines.length || lines[j] != generatedEndMarker) {
+      openBlock ??= OpenBlock(kind: kind, marker: lines[i]);
+      i = j;
+      continue;
     }
     pairs.add(_Pair(kind: kind, open: i, end: j));
     i = j + 1;
   }
-  return _Scan(bodyStart: start, pairs: pairs);
+  return _Scan(bodyStart: start, pairs: pairs, openBlock: openBlock);
 }
 
 final class _Pair {

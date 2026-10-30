@@ -262,6 +262,31 @@ void main() {
       },
     );
 
+    test('f05/us03/fr02: generatedBlockLines marks a closed pair after an '
+        'open block', () {
+      final end = generatedOpenMarker('note_end');
+      final lines = [_toc, 'x', end, 'y', _end];
+
+      expect(generatedBlockLines(lines, {'note_toc', 'note_end'}), [
+        false,
+        false,
+        true,
+        true,
+        true,
+      ]);
+    });
+
+    test('f05/us03/fr02: two blocks of one kind at one place write the '
+        'first only', () async {
+      final type = await _noteType();
+      final blocks = [_block('A'), _block('B')];
+
+      final once = _write('## Contents\n', type, blocks);
+
+      expect(once, '## Contents\n$_toc\nA\n$_end\n');
+      expect(_write(once, type, blocks), once);
+    });
+
     test(
       'f05/us03/fr02: sectionIndexOf matches headers by headerKey',
       () async {
