@@ -102,17 +102,22 @@ _JourneyPart _pathsOf(DocIndex index, IndexedDoc journey, JourneySteps steps) {
     for (final step in resolved)
       if (step.scenario == null)
         '${journey.name}: step ${step.step.number} names no scenario',
-    for (final i in steps.offPathIndexes)
-      _offPathWarning(journey, steps.steps[i]),
+    for (final i in steps.offPathIndexes) _offPathWarning(journey, steps, i),
     for (final number in duplicates)
       '${journey.name}: step number $number is written twice',
   ];
   return (lines: lines, json: {'paths': pathsJson}, warnings: warnings);
 }
 
-String _offPathWarning(IndexedDoc journey, JourneyStep step) =>
-    '${journey.name}: step ${step.number} follows no step above it, '
-    'so it is on no path';
+String _offPathWarning(IndexedDoc journey, JourneySteps steps, int i) {
+  final number = steps.steps[i].number;
+  final followed = steps.followedIndex(i);
+  return followed == null
+      ? '${journey.name}: step $number follows no step above it, '
+            'so it is on no path'
+      : '${journey.name}: step $number follows step '
+            '${steps.steps[followed].number}, which is on no path';
+}
 
 // MARK: - Code
 

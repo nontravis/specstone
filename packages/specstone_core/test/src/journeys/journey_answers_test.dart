@@ -204,6 +204,20 @@ void main() {
       ]);
     });
 
+    test('f10/us02/fr01: a step that follows an off-path step is warned as '
+        'such', () async {
+      final answer = await _paths([
+        _step('1', 1),
+        _step('2', 2, after: '7'),
+        _step('3', 3),
+      ]);
+
+      expect(answer.warnings, [
+        '$_slug: step 2 follows no step above it, so it is on no path',
+        '$_slug: step 3 follows step 2, which is on no path',
+      ]);
+    });
+
     test('f10/us02/fr01/e07: a draft journey prints', () async {
       final answer = await _paths([
         _step('1', 1),
