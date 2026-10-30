@@ -1,7 +1,7 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Deletes one or more docs with everything under them.
+/// Deletes one or more docs, each with the docs it owns.
 class DeleteCommand extends WriteCommand {
   new() {
     argParser.addFlag(
