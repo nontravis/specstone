@@ -45,6 +45,7 @@ export 'src/journeys/first_confirmations.dart' show withFirstConfirmations;
 export 'src/journeys/journey_answers.dart'
     show answerJourneyCode, answerJourneyPaths;
 export 'src/journeys/journey_generators.dart' show journeyGenerators;
+export 'src/journeys/unwalked.dart' show answerListUnwalked;
 export 'src/rendering/build_output.dart'
     show
         BuildResult,

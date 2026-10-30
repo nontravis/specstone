@@ -168,4 +168,11 @@ void main() {
     );
     expect(await pinned.runner.run(['list', 'feature']), 78);
   });
+
+  test('f10/us04/fr01: list user_story --unwalked --json adds unwalked to each doc, exit 0', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['list', 'user_story', '--unwalked', '--json']), 0);
+    final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
+    expect(docs.single, containsPair('unwalked', ['S1', 'S2']));
+  });
 }

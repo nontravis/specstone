@@ -29,6 +29,11 @@ class ListCommand extends SpecstoneCommand {
         negatable: false,
         help: 'Keep docs with a suspect link.',
       )
+      ..addFlag(
+        'unwalked',
+        negatable: false,
+        help: 'Keep user stories holding a scenario no journey walks.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 
@@ -41,7 +46,8 @@ class ListCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone list <type> [--status <value>] [--draft] [--under <name>] '
-      '[--cites <id>] [--slug <alias>] [--no-implements] [--suspect] [--json]';
+      '[--cites <id>] [--slug <alias>] [--no-implements] [--suspect] '
+      '[--unwalked] [--json]';
 
   @override
   Future<int> run() async {
@@ -65,11 +71,14 @@ class ListCommand extends SpecstoneCommand {
       slug: args.option('slug'),
       noImplements: args.flag('no-implements'),
     );
-    return runRead(
-      (session) => args.flag('suspect')
+    final unwalked = args.flag('unwalked');
+    return runRead((session) {
+      final listed = args.flag('suspect')
           ? answerListSuspect(session, rest.first, filters)
-          : answerList(session.index, rest.first, filters),
-      asJson: asJson,
-    );
+          : answerList(session.index, rest.first, filters);
+      return unwalked
+          ? answerListUnwalked(session.index, rest.first, listed)
+          : listed;
+    }, asJson: asJson);
   }
 }
