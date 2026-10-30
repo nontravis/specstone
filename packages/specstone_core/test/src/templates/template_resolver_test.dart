@@ -938,6 +938,36 @@ path: prds/notes/{slug}/NOTE.md
       expect(merged.lookup('memo')!.listedGenerators, isEmpty);
     });
 
+    test("f03/us03/fr01: an extends doc type keeps its target's "
+        'generators', () async {
+      final home = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        generatorKinds: {'note_toc', 'other'},
+      );
+      const note =
+          'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'
+          'generators: [note_toc]\n';
+      Future<List<String>?> extending(String extra) async {
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/note.yaml': note,
+          '.specstone/templates/memo.yaml':
+              'id: memo\nextends: note\npath: memos/{slug}.md\n$extra',
+        });
+        return resolver
+            .resolve(workingDirectory: project, homeDirectory: home)
+            .lookup('memo')!
+            .generators;
+      }
+
+      expect(await extending(''), ['note_toc']);
+      expect(await extending('generators: {add: [other]}\n'), [
+        'note_toc',
+        'other',
+      ]);
+    });
+
     test('f03/us03/s1, f03/us03/fr02: a project template with a new id '
         'adds a doc type', () async {
       final project = await writeTree({
