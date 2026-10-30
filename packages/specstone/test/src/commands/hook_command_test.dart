@@ -239,7 +239,7 @@ void main() {
     late String bin;
     setUpAll(() async => bin = await buildSpecstone());
 
-    Future<({int status, String out})> spawn(
+    Future<({int status, String out, String err})> spawn(
       Directory root,
       String stdin,
     ) async {
@@ -250,8 +250,8 @@ void main() {
       process.stdin.write(stdin);
       await process.stdin.close();
       final out = process.stdout.transform(utf8.decoder).join();
-      unawaited(process.stderr.drain<void>());
-      return (status: await process.exitCode, out: await out);
+      final err = process.stderr.transform(utf8.decoder).join();
+      return (status: await process.exitCode, out: await out, err: await err);
     }
 
     test('f08/us06/s6, f08/us06/fr02: the built binary reads the hook JSON on its own stdin', () async {
@@ -268,6 +268,7 @@ void main() {
         final result = await spawn(root, 'not json');
         expect(result.status, 64);
         expect(result.out, isEmpty);
+        expect(result.err, contains('tool_input.file_path'));
       },
     );
   });
