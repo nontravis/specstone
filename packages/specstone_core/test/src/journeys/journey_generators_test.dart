@@ -133,6 +133,22 @@ void main() {
       expect(text, contains('  s2["2. Next"]'));
       expect(text, isNot(contains('-->')));
     });
+
+    test('f10/us01/fr03/e05: a step that follows an unresolved-after step '
+        'gets its edge', () async {
+      final f = await _open([
+        '### 1. Start',
+        '### 2. Next',
+        'step: $_story S1',
+        'after: 7',
+        '### 3. Last',
+      ]);
+
+      final text = _flow(f).single.text;
+
+      expect(text, contains('  s2 --> s3'));
+      expect(text, isNot(contains('s1 --> s2')));
+    });
   });
 
   group('scenario_copy', () {

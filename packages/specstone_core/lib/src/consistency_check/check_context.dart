@@ -100,10 +100,13 @@ final class CheckContext {
   ///
   /// Both headers compare by `headerKey`, as F-05's `format` matches them.
   MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
+      _heldTemplatesOf(doc)[index];
+
+  List<MergedSection?> _heldTemplatesOf(IndexedDoc doc) =>
       _heldTemplates.putIfAbsent(
         doc.docPath,
         () => heldTemplatesOf(contentOf(doc), typeOf(doc)),
-      )[index];
+      );
 
   /// Returns the first held section of [doc] that maps to [sectionId].
   IndexedSection? heldSection(IndexedDoc doc, String sectionId) {
@@ -112,7 +115,7 @@ final class CheckContext {
   }
 
   int? _heldIndex(IndexedDoc doc, String sectionId) =>
-      heldSectionIndex(contentOf(doc), typeOf(doc), sectionId);
+      heldSectionIndexIn(_heldTemplatesOf(doc), sectionId);
 
   /// Returns the body lines of the held section at [index] of [doc].
   List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) =>
@@ -161,7 +164,7 @@ final class CheckContext {
   /// first block of a repeated number wins.
   Map<String, String> scenarioBlocksOf(IndexedDoc story) =>
       _scenarioBlocks.putIfAbsent(story.docPath, () {
-        final index = _heldIndex(story, _acceptanceSection);
+        final index = _heldIndex(story, acceptanceSectionId);
         if (index == null) return const {};
         return scenarioBlocksIn(bodyLinesOf(story, index));
       });
@@ -284,7 +287,6 @@ const _gnfrType = 'gnfr';
 const _projectType = 'project';
 const _rolesSection = 'roles';
 final _roleEntry = RegExp('^- `([^`]+)` — ');
-const _acceptanceSection = 'acceptance_criteria';
 const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';

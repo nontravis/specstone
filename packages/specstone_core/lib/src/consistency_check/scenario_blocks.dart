@@ -10,7 +10,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// and the fence lines.
 typedef BodyLine = ({String text, int line, bool fenced});
 
-const _acceptanceSection = 'acceptance_criteria';
+/// Id of the story section that holds the scenarios.
+const acceptanceSectionId = 'acceptance_criteria';
 final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
 final _subHeading = RegExp('^###(?!#)');
 
@@ -38,11 +39,12 @@ int? heldSectionIndex(
   DocContent content,
   MergedDocType? type,
   String sectionId,
-) {
-  final index = heldTemplatesOf(
-    content,
-    type,
-  ).indexWhere((template) => template?.id == sectionId);
+) => heldSectionIndexIn(heldTemplatesOf(content, type), sectionId);
+
+/// Returns the index of the first entry of [templates], as
+/// [heldTemplatesOf] returns them, that has the id [sectionId], or null.
+int? heldSectionIndexIn(List<MergedSection?> templates, String sectionId) {
+  final index = templates.indexWhere((template) => template?.id == sectionId);
   return index < 0 ? null : index;
 }
 
@@ -116,7 +118,7 @@ Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) {
   final section = heldSectionIndex(
     content,
     index.typeOf(story),
-    _acceptanceSection,
+    acceptanceSectionId,
   );
   if (section == null) return const {};
   return scenarioBlocksIn(

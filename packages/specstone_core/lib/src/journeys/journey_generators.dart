@@ -24,8 +24,9 @@ String journeyFlowText(JourneySteps steps) {
     '```mermaid',
     'flowchart TD',
     for (final step in all) _nodeLine(step),
-    for (final (from, to) in steps.edges)
-      '  s${all[from].number} --> s${all[to].number}',
+    for (var to = 0; to < all.length; to++)
+      if (steps.followedIndex(to) case final from?)
+        '  s${all[from].number} --> s${all[to].number}',
     '```',
   ].join('\n');
 }
