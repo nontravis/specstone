@@ -110,11 +110,13 @@ final class CheckContext {
 
   /// Returns the first held section of [doc] that maps to [sectionId].
   IndexedSection? heldSection(IndexedDoc doc, String sectionId) {
-    final index = _heldIndex(doc, sectionId);
+    final index = heldIndexOf(doc, sectionId);
     return index == null ? null : contentOf(doc).sections[index];
   }
 
-  int? _heldIndex(IndexedDoc doc, String sectionId) =>
+  /// Returns the index of the first held section of [doc] that maps to
+  /// [sectionId], or null.
+  int? heldIndexOf(IndexedDoc doc, String sectionId) =>
       heldSectionIndexIn(_heldTemplatesOf(doc), sectionId);
 
   /// Returns the body lines of the held section at [index] of [doc].
@@ -164,7 +166,7 @@ final class CheckContext {
   /// first block of a repeated number wins.
   Map<String, String> scenarioBlocksOf(IndexedDoc story) =>
       _scenarioBlocks.putIfAbsent(story.docPath, () {
-        final index = _heldIndex(story, acceptanceSectionId);
+        final index = heldIndexOf(story, acceptanceSectionId);
         if (index == null) return const {};
         return scenarioBlocksIn(bodyLinesOf(story, index));
       });
@@ -175,7 +177,7 @@ final class CheckContext {
 
   late final Set<String> _roleNames = {
     for (final doc in _projectDocs)
-      if (_heldIndex(doc, _rolesSection) case final index?)
+      if (heldIndexOf(doc, _rolesSection) case final index?)
         for (final line in bodyLinesOf(doc, index))
           if (!line.fenced)
             if (_roleEntry.firstMatch(line.text) case final entry?)
