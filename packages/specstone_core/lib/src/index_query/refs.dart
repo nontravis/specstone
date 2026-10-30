@@ -2,6 +2,8 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/journeys/journey_steps.dart';
+import 'package:specstone_core/src/journeys/step_scenarios.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -29,15 +31,17 @@ final class _Ref {
 /// Returns the references of each doc [address] names, outbound and inbound.
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
-/// links to, and the `implements` and `covers` pointers as written. Inbound
-/// holds the docs whose `doc_ref` value reaches the doc, then those linking
-/// to it, each group in tree order of the referring docs. Throws an
+/// links to, each story a journey step names, and the `implements` and
+/// `covers` pointers as written. Inbound holds the docs whose `doc_ref` value
+/// reaches the doc, then those linking to it, then the journeys with a step
+/// naming it, each group in tree order of the referring docs. Throws an
 /// [IndexFault] when no doc carries the name.
 ReadAnswer answerRefs(DocIndex index, String address) {
   final inboundByPath = _inboundByPath(index);
+  final journeysByStory = _journeysByStory(index);
   final answers = [
     for (final doc in index.resolve(address))
-      _answerFor(index, doc, inboundByPath),
+      _answerFor(index, doc, inboundByPath, journeysByStory),
   ];
   return ReadAnswer(
     text: [for (final answer in answers) answer.text].join(),
@@ -51,11 +55,14 @@ ReadAnswer answerRefs(DocIndex index, String address) {
   DocIndex index,
   IndexedDoc doc,
   Map<String, List<_Ref>> inboundByPath,
+  Map<String, List<IndexedDoc>> journeysByStory,
 ) {
   final outbound = _outbound(index, doc);
   final inbound = [
     ...?inboundByPath[doc.docPath],
     for (final from in index.linkingTo(doc)) _Ref.toDoc('link', from),
+    for (final from in journeysByStory[doc.docPath] ?? const <IndexedDoc>[])
+      _Ref.toDoc('step', from),
   ];
   final text = StringBuffer('${namingLine(doc)}\n')
     ..writeln('Outbound')
@@ -75,7 +82,8 @@ ReadAnswer answerRefs(DocIndex index, String address) {
 }
 
 /// Returns the outbound references of [doc]: its `doc_ref` fields in field
-/// order, the docs it links to, then the `implements` and `covers` pointers.
+/// order, the docs it links to, the stories its steps name, then the
+/// `implements` and `covers` pointers.
 List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
   final refs = <_Ref>[];
   for (final field in _docRefFields(index, doc)) {
@@ -88,6 +96,7 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
   }
   refs.addAll([
     for (final target in index.linkedFrom(doc)) _Ref.toDoc('link', target),
+    for (final story in _stepTargets(index, doc)) _Ref.toDoc('step', story),
   ]);
   for (final id in const ['implements', 'covers']) {
     refs.addAll([
@@ -111,6 +120,34 @@ Map<String, List<_Ref>> _inboundByPath(DocIndex index) {
     }
   }
   return inbound;
+}
+
+/// Returns the stories the steps of the journey [doc] name, each once, in
+/// step order; empty for a doc that is no journey.
+///
+/// A step naming no story, or a scenario a story lacks, still counts when the
+/// story exists: the reference is to the story.
+List<IndexedDoc> _stepTargets(DocIndex index, IndexedDoc doc) {
+  if (doc.docTypeId != journeyTypeId) return const [];
+  final stories = <String, IndexedDoc>{};
+  for (final step in stepsOfIndexed(index, doc).steps) {
+    final target = step.target;
+    final story = target == null ? null : storyNamed(index, target.identity);
+    if (story != null) stories.putIfAbsent(story.docPath, () => story);
+  }
+  return stories.values.toList();
+}
+
+/// Returns, per story DocPath, the journeys with a step naming the story, in
+/// tree order.
+Map<String, List<IndexedDoc>> _journeysByStory(DocIndex index) {
+  final byStory = <String, List<IndexedDoc>>{};
+  for (final journey in index.docs) {
+    for (final story in _stepTargets(index, journey)) {
+      (byStory[story.docPath] ??= []).add(journey);
+    }
+  }
+  return byStory;
 }
 
 /// Returns the `doc_ref` fields of [doc]'s type, in field order.
@@ -143,7 +180,8 @@ String _groupLines(List<_Ref> refs) => refs.isEmpty
     : '${[for (final ref in refs) ref.text].join('\n')}\n';
 
 /// Returns the docs that refer to [doc]: first those whose `doc_ref` value
-/// reaches it, then those linking to it, each once and in tree order.
+/// reaches it, then those linking to it, then the journeys with a step naming
+/// it, each once and in tree order.
 ///
 /// These are the inbound references `answerRefs` prints for [doc].
 List<IndexedDoc> referrersOf(DocIndex index, IndexedDoc doc) {
@@ -155,6 +193,9 @@ List<IndexedDoc> referrersOf(DocIndex index, IndexedDoc doc) {
   return [
     ...byValue,
     for (final from in index.linkingTo(doc))
+      if (seen.add(from.docPath)) from,
+    for (final from
+        in _journeysByStory(index)[doc.docPath] ?? const <IndexedDoc>[])
       if (seen.add(from.docPath)) from,
   ];
 }

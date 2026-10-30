@@ -42,4 +42,21 @@ void main() {
     );
     expect(await readRunner(pinned).runner.run(['refs', 'login']), 78);
   });
+  test('f01/us07/fr02: refs --json gives the step reference kind, name, and docType', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(
+        extra: {
+          'docs/prds/journeys/sign_in/JOURNEY.md':
+              '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+              '### 1. Enter\nstep: login/email_login S1\n',
+        },
+      ),
+    );
+    expect(await runner.run(['refs', 'journey:sign_in', '--json']), 0);
+    final doc =
+        ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
+    expect(doc['outbound'], [
+      {'kind': 'step', 'name': 'login/email_login', 'docType': 'user_story'},
+    ]);
+  });
 }
