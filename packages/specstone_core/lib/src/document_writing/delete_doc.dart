@@ -35,8 +35,9 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc and
 /// `owner_terminal_required` for an approved unit when [interactive] is
-/// false; an `IndexFault` for an address that names no one typed doc;
-/// `index_busy` when another call holds the lock.
+/// false; an `IndexFault` for an address that names neither one typed doc
+/// nor an untyped doc's DocPath; `index_busy` when another call holds the
+/// lock.
 ReadAnswer answerDelete(
   WriteSession session,
   List<String> targets, {

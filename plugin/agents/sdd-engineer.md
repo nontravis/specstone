@@ -19,8 +19,8 @@ code into drafts.
 
 ## Bootstrap
 
-- **Prompt and preload only**: use the dispatch prompt and `specstone:expert-sdd`; if it is not in your context,
-  load it with `Skill` before your first write. Open no file before step 1.
+- **Prompt and preload only**: use the dispatch prompt and `specstone:expert-sdd`; if not preloaded, load it with
+  `Skill` before your first write. Open no file before step 1.
 
 ## Input Contract
 
@@ -58,10 +58,11 @@ A failed call: report it and stop; never search the filesystem for it.
 4. **Author, read**: `Read` the design whole; list each decision by ID or label.
 5. **Author, write**: place each decision in a doc, noting doc and section.
    - **Guide**: run `specstone guide <type>` before a type's first doc, per `specstone:expert-sdd`.
-   - **New doc**: pipe its text to `specstone new <doc type> --parent <name> --slug <slug>`, parents first.
-   - **Section**: base from the naming line of `specstone get <name>#<section key>`; pipe the body to
+   - **New doc**: pipe its text to `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes
+     them), parents first.
+   - **Section**: base from the naming line of `specstone get <type>:<name>#<section key>`; pipe the body to
      `specstone set <type>:<name>#<section key> --base <hash>`.
-   - **Field**: base from `bases.fields.<id>` of `specstone get <name> --json`; pipe the value to
+   - **Field**: base from `bases.fields.<id>` of `specstone get <type>:<name> --json`; pipe the value to
      `specstone set <type>:<name> --field <id> --base <hash>`.
 6. **Check and report**: after writing, run `specstone check`; fix each finding your writes added to the
    baseline. Report per Output Format.
@@ -74,8 +75,8 @@ Author mode:
 Not landed: <decision>: <why no doc took it>
 | Decision | Doc that took it |
 |----------|------------------|
-| <ID or label> | <name>#<section key>, or NOT LANDED |
-Drafts for the Owner's specstone approve <name>: <name>, ...
+| <ID or label> | <type>:<name>#<section key>, or NOT LANDED |
+Drafts for the Owner's specstone approve <type>:<name>: <type>:<name>, ...
 Findings: <step 6's lines, or none>
 ```
 

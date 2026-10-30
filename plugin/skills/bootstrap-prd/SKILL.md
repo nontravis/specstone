@@ -23,8 +23,9 @@ specstone check
 
 ## 2. One finding at a time
 
-Take the first finding under `prds/` not yet handled, fix it, and run `specstone check` again. Repeat until the only
-findings left are those `specstone:bootstrap-spec` takes.
+Take the first finding under `prds/` not yet handled, fix it, and run `specstone check` again. Repeat until each
+finding left is one `specstone:bootstrap-spec` takes or one that waits on the Owner, such as an `unconfirmed` link on
+a draft (`waits for the Owner's approve`).
 
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
@@ -54,17 +55,18 @@ name it in step 6 too. Then drop the feature's `implements` key as step 2 says.
 
 An `untyped_doc` is an old file the migration left with its old name, a group's container `FEATURE.md` among
 them. Merge its content through `specstone set` into the doc that takes it; with no such doc yet, run
-`specstone new <type>` (`--parent <name>`, `--slug <slug>`) and fill it. Write nothing that doc already holds.
-Never target the old file: a write refuses an untyped doc, so it keeps its text. Merge several old files that map
-to one doc in turn. Add each file's path to the retire set, a list for this run only.
+`specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes them) and fill it. Write nothing that
+doc already holds. Never target the old file: a write refuses an untyped doc, so it keeps its text. Merge several
+old files that map to one doc in turn. Add each file's path to the retire set, a list for this run only.
 
 ## 5. Retire the old files
 
-1. Run `specstone refs <path>` for each file of the set; its `Inbound` lines name the docs linking in.
-2. Links between files inside the set never block. An old untyped referrer joins the set, since no write repoints
-   it; merge it first (`specstone:bootstrap-spec` merges one under `specs/`). Point each other referrer's link at the
-   doc that now holds the content, with `specstone set` on the section holding it.
-3. Print one command listing all the set's paths; the Owner runs it at their own interactive terminal:
+1. Run `specstone refs <path>` per file of the set; its `Inbound` lines name the docs linking in.
+2. Links inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
+   first (`specstone:bootstrap-spec` takes one under `specs/`). Repoint each other referrer's link to the doc now
+   holding the content, through `specstone set` on that section.
+3. Print one command naming every path of the set, quoting each path that holds a space; the Owner runs it at
+   their own interactive terminal:
 
 ```
 specstone delete <path> <path> …

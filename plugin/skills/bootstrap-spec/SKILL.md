@@ -15,22 +15,22 @@ which a spec doc fixes. Findings under `prds/` go to `specstone:bootstrap-prd`. 
 specstone check
 ```
 
-- **78, `project_not_found`:** tell the Owner this project has not moved to the new format yet; `specstone migrate`
+- **78, `project_not_found`:** tell the Owner the project has not moved to the new format; `specstone migrate`
   moves it, or they keep the old skills. Stop: run nothing more, and read or write no doc.
-- **0 or 1:** go on, even from a subfolder: the CLI looks for `.specstone/config.yaml` in each folder above. Never
-  look for it yourself.
+- **0 or 1:** go on, even from a subfolder: the CLI looks in each folder above. Never look for `.specstone/`
+  yourself.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. One finding at a time
 
 Take the first unhandled finding of this skill, fix it, and run `specstone check` again with no target: a
-targeted run omits `code_uncovered`. Repeat until the only findings left are those `specstone:bootstrap-prd` takes.
+targeted run omits `code_uncovered`. Repeat until each finding left is one `specstone:bootstrap-prd` takes or one
+that waits on the Owner, such as an `unconfirmed` link on a draft (`waits for the Owner's approve`).
 
-Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
-`specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
-the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
-of `#<key>`); a section body leaves out its `## ` line, and a list field takes its whole list. Exit 75
-`base_mismatch`: read again, merge, retry.
+Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
+each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
+`--title` in place of `#<key>`); a section body leaves out its `## ` line, and a list field takes its whole list.
+Exit 75 `base_mismatch`: read again, merge, retry.
 
 | Finding | Fix |
 |---|---|
@@ -69,19 +69,20 @@ doc already held its content.
 
 ## 5. Retire the old files
 
-1. Run `specstone refs <path>` for each file of the set; its `Inbound` lines name the docs linking in.
-2. Links between files inside the set never block. An old untyped referrer joins the set, since no write repoints
-   it; merge it first (`specstone:bootstrap-prd` merges one under `prds/`). Point each other referrer's link at the
-   doc that now holds the content, with `specstone set` on the section holding it.
-3. Print one command listing all the set's paths; the Owner runs it at their own interactive terminal:
+1. Run `specstone refs <path>` per file of the set; its `Inbound` lines name the docs linking in.
+2. Links inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
+   first (`specstone:bootstrap-prd` takes one under `prds/`). Repoint each other referrer's link to the doc now
+   holding the content, through `specstone set` on that section.
+3. Print one command naming every path of the set, quoting each path that holds a space; the Owner runs it at
+   their own interactive terminal:
 
 ```
 specstone delete <path> <path> …
 ```
 
-Never run it yourself: the CLI treats a file without `draft: true` as approved, so it refuses you with
-`owner_terminal_required` (exit 77). Never run `git rm`: links into the file would break unseen. When the Owner
-reports `doc_referenced` (exit 64), repoint the referrers it lists, then print the command again.
+Never run it yourself: a file without `draft: true` counts as approved, so the CLI refuses you (exit 77,
+`owner_terminal_required`). Never run `git rm`: links into the file would break unseen. On the Owner's
+`doc_referenced` (exit 64), repoint the referrers it lists and print the command again.
 
 ## 6. Fill the tech stack, then ask for approval
 
