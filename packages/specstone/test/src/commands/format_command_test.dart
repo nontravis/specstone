@@ -467,6 +467,11 @@ sections:
       expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
+    test('f05/us03/fr01: the default runner registers journey_flow and '
+        'scenario_copy', () {
+      expect(SpecstoneCommandRunner().generators.kinds, shippedGeneratorKinds);
+    });
+
     test('help format prints the usage to out and exits 0', () async {
       final runner = await runnerIn(await fixtureProject({}));
 

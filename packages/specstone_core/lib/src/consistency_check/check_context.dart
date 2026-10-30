@@ -5,18 +5,15 @@ import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
-import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// One line of a held section's body.
-///
-/// `line` is the 1-based file line; `fenced` is true for fenced code content
-/// and the fence lines.
-typedef BodyLine = ({String text, int line, bool fenced});
+export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show BodyLine;
 
 /// What every rule of one check run reads: the index, per-doc caches, and the
 /// warnings the findings have stated.
@@ -31,10 +28,7 @@ final class CheckContext {
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
   final Map<String, RegExp> _bannedPatterns = {};
-  final Map<MergedDocType, Map<String, MergedSection>> _sectionsByHeader =
-      Map.identity();
-  final Map<String, ({List<MergedSection?> templates, Map<String, int> first})>
-  _heldTemplates = {};
+  final Map<String, List<MergedSection?>> _heldTemplates = {};
 
   /// The index of the session's snapshot.
   DocIndex get index => _session.index;
@@ -106,7 +100,10 @@ final class CheckContext {
   ///
   /// Both headers compare by `headerKey`, as F-05's `format` matches them.
   MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
-      _heldTemplatesOf(doc).templates[index];
+      _heldTemplates.putIfAbsent(
+        doc.docPath,
+        () => heldTemplatesOf(contentOf(doc), typeOf(doc)),
+      )[index];
 
   /// Returns the first held section of [doc] that maps to [sectionId].
   IndexedSection? heldSection(IndexedDoc doc, String sectionId) {
@@ -115,45 +112,11 @@ final class CheckContext {
   }
 
   int? _heldIndex(IndexedDoc doc, String sectionId) =>
-      _heldTemplatesOf(doc).first[sectionId];
-
-  /// Maps each held section of [doc] to its template section, built once.
-  ({List<MergedSection?> templates, Map<String, int> first}) _heldTemplatesOf(
-    IndexedDoc doc,
-  ) => _heldTemplates.putIfAbsent(doc.docPath, () {
-    final held = contentOf(doc).sections;
-    final type = typeOf(doc);
-    final byHeader = type == null ? null : _sectionsByHeaderOf(type);
-    final templates = [
-      for (final section in held) byHeader?[headerKey(_headerText(section))],
-    ];
-    final first = <String, int>{};
-    for (final (i, template) in templates.indexed) {
-      if (template != null) first.putIfAbsent(template.id, () => i);
-    }
-    return (templates: templates, first: first);
-  });
-
-  /// Maps each header key of [type] to its first template section.
-  Map<String, MergedSection> _sectionsByHeaderOf(MergedDocType type) =>
-      _sectionsByHeader.putIfAbsent(type, () {
-        final byHeader = <String, MergedSection>{};
-        for (final section in type.sections) {
-          byHeader.putIfAbsent(headerKey(section.header), () => section);
-        }
-        return byHeader;
-      });
+      heldSectionIndex(contentOf(doc), typeOf(doc), sectionId);
 
   /// Returns the body lines of the held section at [index] of [doc].
-  List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) {
-    final lines = linesOf(doc);
-    final first = lines.sectionLines[index] + 1;
-    final body = contentOf(doc).sections[index].body.split('\n');
-    return [
-      for (var k = 0; k < body.length; k++)
-        (text: body[k], line: first + k, fenced: lines.isFenced(first + k)),
-    ];
-  }
+  List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) =>
+      sectionBodyLines(contentOf(doc), linesOf(doc), index);
 
   /// Whether [type] declares the field [fieldId].
   ///
@@ -200,15 +163,7 @@ final class CheckContext {
       _scenarioBlocks.putIfAbsent(story.docPath, () {
         final index = _heldIndex(story, _acceptanceSection);
         if (index == null) return const {};
-        final blocks = <String, String>{};
-        for (final (:key, :lines) in _blocksOf(
-          bodyLinesOf(story, index),
-          _scenarioHeading,
-          (match) => 'S${match.group(1)}',
-        )) {
-          blocks.putIfAbsent(key, () => _blockText(lines));
-        }
-        return blocks;
+        return scenarioBlocksIn(bodyLinesOf(story, index));
       });
 
   /// Whether the merged set holds a `project` doc type.
@@ -257,7 +212,7 @@ final class CheckContext {
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
       for (var i = 0; i < contentOf(doc).sections.length; i++) {
-        for (final (:key, :lines) in _blocksOf(
+        for (final (:key, :lines) in headingBlocksOf(
           bodyLinesOf(doc, i),
           _nfrHeading,
           (match) => match.group(1)!,
@@ -325,9 +280,6 @@ final class CheckContext {
   ];
 }
 
-String _headerText(IndexedSection section) =>
-    section.headerLine.trimLeft().substring(2).trim();
-
 const _gnfrType = 'gnfr';
 const _projectType = 'project';
 const _rolesSection = 'roles';
@@ -337,39 +289,4 @@ const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
-final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
 final _nfrHeading = RegExp(r'^### (\S+) — ');
-final _subHeading = RegExp('^###(?!#)');
-
-String _blockText(List<BodyLine> lines) =>
-    lines.map((line) => line.text).join('\n').trimRight();
-
-/// Splits [body] into the `###` blocks whose heading matches [heading].
-///
-/// A block runs from its heading line to the next `###` line outside fenced
-/// code, or the end of [body]. [keyOf] names a block from its heading match.
-List<({String key, List<BodyLine> lines})> _blocksOf(
-  List<BodyLine> body,
-  RegExp heading,
-  String Function(Match heading) keyOf,
-) {
-  final blocks = <({String key, List<BodyLine> lines})>[];
-  String? key;
-  var lines = <BodyLine>[];
-  void close() {
-    if (key case final closed?) blocks.add((key: closed, lines: lines));
-  }
-
-  for (final line in body) {
-    if (line.fenced || !_subHeading.hasMatch(line.text)) {
-      lines.add(line);
-      continue;
-    }
-    close();
-    final match = heading.firstMatch(line.text);
-    key = match == null ? null : keyOf(match);
-    lines = [line];
-  }
-  close();
-  return blocks;
-}

@@ -58,7 +58,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
   }) : this._(
-         registry: generators ?? GeneratorRegistry<DocIndex>({}),
+         registry: generators ?? journeyGenerators(),
          out: out,
          err: err,
          templates: templates,
