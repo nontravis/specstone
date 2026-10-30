@@ -10,6 +10,9 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 final class CheckScope {
   new project() : _docPaths = null, _folders = const [];
 
+  /// Returns the scope of the one doc at [docPath], and nothing under it.
+  new doc(String docPath) : _docPaths = {docPath}, _folders = const [];
+
   /// Returns the scope of [target], resolved as `get` resolves a name.
   factory of(CheckContext context, String target) {
     final docs = context.index.under(target);

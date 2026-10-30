@@ -128,10 +128,12 @@ Future<Directory> writeCheckProject({
 });
 
 /// Opens a session on [project], runs the check, closes the session.
-CheckReport checkOf(Directory project, {String? target}) {
+///
+/// A [docPath] limits the run to that one doc.
+CheckReport checkOf(Directory project, {String? target, String? docPath}) {
   final session = openSession(project);
   try {
-    return runCheck(session, target: target);
+    return runCheck(session, target: target, docPath: docPath);
   } finally {
     session.close();
   }

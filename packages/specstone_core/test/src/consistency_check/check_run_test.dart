@@ -224,4 +224,79 @@ void main() {
       ),
     );
   });
+
+  test("f08/us06/fr02, f08/us06/s3, f08/us06/fr02/e06: a doc check gives that doc's findings only", () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...doc(
+          loginStory,
+          'I reach my work',
+          'I reach my work, see [gone](gone/USER_STORY.md)',
+        ),
+        ...fr('app/lib/login.dart:checkPassword', 'app/lib/gone.dart:X'),
+      },
+    );
+    final story = checkOf(project, docPath: loginStory);
+    expect(story.findings, isNotEmpty);
+    expect(story.findings.map((f) => f.path).toSet(), {loginStory});
+    expect(
+      story.findings.map((f) => f.kind),
+      contains(FindingKind.linkUnresolved),
+    );
+    final requirement = checkOf(project, docPath: loginFr);
+    expect(requirement.findings, isNotEmpty);
+    expect(requirement.findings.where((f) => f.path == loginStory), isEmpty);
+  });
+
+  test(
+    'f08/us06/fr02/e06: a doc check gives no project-level finding',
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...doc(loginArchitecture, 'app/lib/', 'app/lib/login.dart'),
+          'app/lib/extra.dart': 'class Extra {}\n',
+        },
+      );
+      expect(spots(checkOf(project), FindingKind.codeUncovered), isNotEmpty);
+      expect(
+        spots(checkOf(project, docPath: projectDoc), FindingKind.codeUncovered),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'f08/us06/fr02: a feature doc check leaves out the docs under it',
+    () async {
+      final project = await writeCheckProject(
+        extra: fr('app/lib/login.dart:checkPassword', 'app/lib/gone.dart:X'),
+      );
+      expect(
+        checkOf(project, target: 'feature:login').findings.map((f) => f.path),
+        contains(loginFr),
+      );
+      expect(
+        checkOf(project, docPath: loginFeature).findings.map((f) => f.path),
+        isNot(contains(loginFr)),
+      );
+    },
+  );
+
+  test('f08/us06/fr02/e07: an untyped .md file in prds/ gets its untyped_doc finding', () async {
+    final project = await writeCheckProject(
+      extra: {'docs/prds/notes.md': '# Notes\n'},
+    );
+    expect(
+      spots(checkOf(project, docPath: 'prds/notes.md'), FindingKind.untypedDoc),
+      ['prds/notes.md:1: untyped_doc'],
+    );
+  });
+
+  test('f08/us06/fr02: runCheck with both a target and a docPath throws ArgumentError', () async {
+    final project = await writeCheckProject();
+    expect(
+      () => checkOf(project, target: 'login', docPath: loginStory),
+      throwsArgumentError,
+    );
+  });
 }

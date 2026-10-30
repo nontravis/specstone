@@ -5,6 +5,7 @@ export 'src/consistency_check/check_report.dart' show CheckReport;
 export 'src/consistency_check/check_run.dart' show runCheck;
 export 'src/consistency_check/finding.dart' show Finding, FindingKind;
 export 'src/consistency_check/suspect_list.dart' show answerListSuspect;
+export 'src/consistency_check/tree_rules.dart' show checkedFoldersOf;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
     show approveDrafts, requireOwnerTerminal;
