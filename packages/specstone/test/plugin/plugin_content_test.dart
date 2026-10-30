@@ -43,6 +43,16 @@ void main() {
     );
   });
 
+  test('f08/us01/fr04: a flag a subcommand lacks fails naming the full '
+      'command path', () async {
+    expect(
+      await _problemsOf({
+        'skills/x/SKILL.md': 'Run `specstone hook post-edit --x`.',
+      }),
+      ['skills/x/SKILL.md: specstone hook post-edit has no --x'],
+    );
+  });
+
   test('f08/us01/fr04: fenced lines and subcommands are checked', () async {
     expect(
       await _problemsOf({

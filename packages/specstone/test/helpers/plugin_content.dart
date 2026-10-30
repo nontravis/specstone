@@ -102,6 +102,7 @@ String? _problemOf(
   if (name.startsWith('<')) return null;
   var command = runner.commands[name];
   if (command == null) return 'specstone has no command $name';
+  var path = command.name;
   final rest = tokens.skip(1).toList();
   if (command.subcommands.isNotEmpty && rest.isNotEmpty) {
     final next = rest.first;
@@ -109,12 +110,13 @@ String? _problemOf(
       final sub = command.subcommands[next];
       if (sub == null) return 'specstone ${command.name} has no command $next';
       command = sub;
+      path = '$path ${sub.name}';
     }
   }
   for (final token in rest.where((token) => token.startsWith('--'))) {
     final flag = token.substring(2).split('=').first;
     if (flag != 'help' && !command.argParser.options.containsKey(flag)) {
-      return 'specstone ${command.name} has no --$flag';
+      return 'specstone $path has no --$flag';
     }
   }
   return null;
