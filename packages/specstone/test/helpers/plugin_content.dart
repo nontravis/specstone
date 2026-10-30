@@ -31,6 +31,13 @@ List<String> unknownCliNames(Directory plugin, SpecstoneCommandRunner runner) {
   return problems.toList()..sort();
 }
 
+/// Returns the word after every `specstone ` in the code spans and fenced
+/// lines of [markdown], in text order.
+List<String> cliCommands(String markdown) => [
+  for (final scanned in _codeTexts(markdown))
+    for (final call in _specstoneCall.allMatches(scanned)) call.group(1)!,
+];
+
 /// Returns the estimated tokens of every file under [folder]: code points,
 /// with `\r\n` folded to `\n`, divided by 4 and rounded down.
 int estTokensOf(Directory folder) {

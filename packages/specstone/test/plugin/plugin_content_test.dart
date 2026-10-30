@@ -138,4 +138,107 @@ void main() {
     final hook = SpecstoneCommandRunner().commands['hook'];
     expect(hook?.subcommands, contains('post-edit'));
   });
+
+  _shippedFileTests();
+}
+
+typedef _Shipped = ({
+  String file,
+  String name,
+  String tags,
+  List<String> commands,
+});
+
+const _shipped = <_Shipped>[
+  (
+    file: 'skills/expert-sdd/SKILL.md',
+    name: 'expert-sdd',
+    tags: 'f08/us02/fr04, f08/us01/fr03, f08/us02/s5',
+    commands: ['guide', 'set', 'check'],
+  ),
+  (
+    file: 'skills/read-sdd/SKILL.md',
+    name: 'read-sdd',
+    tags: 'f08/us01/fr01, f08/us01/fr03, f08/us01/s1',
+    commands: ['context'],
+  ),
+  (
+    file: 'agents/sdd-reader.md',
+    name: 'sdd-reader',
+    tags: 'f08/us01/fr02, f08/us01/fr03, f08/us01/s1',
+    commands: ['context'],
+  ),
+  (
+    file: 'skills/sync-sdd/SKILL.md',
+    name: 'sync-sdd',
+    tags:
+        'f08/us03/fr01, f08/us03/fr02, f08/us03/fr03, f08/us01/fr03, '
+        'f08/us03/s1',
+    commands: ['context', 'set', 'check'],
+  ),
+  (
+    file: 'agents/sdd-engineer.md',
+    name: 'sdd-engineer',
+    tags:
+        'f08/us02/fr02, f08/us03/fr02, f08/us01/fr03, f08/us02/s1, f08/us03/s2',
+    commands: ['guide', 'new', 'set', 'check'],
+  ),
+  (
+    file: 'skills/brainstorming-sdd/SKILL.md',
+    name: 'brainstorming-sdd',
+    tags: 'f08/us02/fr01, f08/us01/fr03, f08/us02/s4',
+    commands: ['context'],
+  ),
+  (
+    file: 'skills/update-sdd/SKILL.md',
+    name: 'update-sdd',
+    tags: 'f08/us02/fr03, f08/us01/fr03, f08/us02/s2',
+    commands: ['check', 'get', 'set', 'approve'],
+  ),
+  (
+    file: 'skills/init/SKILL.md',
+    name: 'init',
+    tags: 'f08/us04/fr01, f08/us04/s1',
+    commands: ['init', 'guide', 'set', 'approve'],
+  ),
+  (
+    file: 'skills/bootstrap-prd/SKILL.md',
+    name: 'bootstrap-prd',
+    tags:
+        'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
+        'f08/us05/s1',
+    commands: ['check', 'guide', 'new', 'set', 'delete'],
+  ),
+  (
+    file: 'skills/bootstrap-spec/SKILL.md',
+    name: 'bootstrap-spec',
+    tags:
+        'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
+        'f08/us05/s1',
+    commands: ['check', 'guide', 'new', 'set', 'delete'],
+  ),
+];
+
+final _frontmatterName = RegExp(r'^---\r?\n(?:.*\r?\n)*?name:\s*(\S+)');
+
+void _shippedFileTests() {
+  for (final shipped in _shipped) {
+    test('${shipped.tags}: ${shipped.file} carries its frontmatter name and '
+        'row commands, and a skill opens on a specstone command', () {
+      final file = File.fromUri(pluginRoot().uri.resolve(shipped.file));
+      expect(file.existsSync(), isTrue, reason: '${shipped.file} is missing');
+      final text = file.readAsStringSync();
+      expect(_frontmatterName.firstMatch(text)?.group(1), shipped.name);
+      final commands = cliCommands(text);
+      expect(commands, containsAll(shipped.commands));
+      if (shipped.file.startsWith('skills/')) {
+        final first = commands.first;
+        if (shipped.name == 'init') {
+          expect(first, 'init');
+        } else {
+          expect(SpecstoneCommandRunner().commands, contains(first));
+        }
+      }
+    });
+  }
 }
