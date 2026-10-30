@@ -11,10 +11,10 @@ work from text a plan or brief quotes.
 ## Pick the target and mode
 
 - **Target:** the doc the task names. For a plan task, use the story it cites. In `implement` mode the story's bundle
-  already holds its FRs, so one call covers the story and every FR ID the task lists. When a plan task cites docs
-  under several stories, ground on their nearest common parent, usually the feature, in one
-  `specstone context <parent> --for implement --budget 20000` call; if it exits 1, give `specstone:sdd-reader` the
-  IDs the task cites.
+  already holds its FRs, so one call covers the story and every FR ID the task lists. When a plan task cites several
+  stories, run one `specstone context <story> --for implement --budget 20000` per story, three calls at most; when
+  it cites more than three stories, or any call exits 1, give `specstone:sdd-reader` every ID the task cites and no
+  doc text.
 - **Mode:**
 
 | Task                                | `--for`     |
