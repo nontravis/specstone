@@ -204,4 +204,356 @@ void main() {
       '--json status,conclusion',
     );
   });
+
+  Future<void> rejectPushes(String refPattern) async {
+    final hook = File('${repo.origin.path}/hooks/pre-receive');
+    await hook.writeAsString(
+      '#!/bin/sh\n'
+      'while read old new ref; do\n'
+      '  case "\$ref" in\n'
+      '    $refPattern) echo "push of \$ref refused" >&2; exit 1;;\n'
+      '  esac\n'
+      'done\n',
+    );
+    await Process.run('chmod', ['+x', hook.path]);
+  }
+
+  Future<String> sha(String ref) => repo.git(['rev-parse', ref]);
+
+  List<String> stderrLines(ProcessResult r) =>
+      (r.stderr as String).trimRight().split('\n');
+
+  // Commits on local develop only, from inside `gh run watch`.
+  String localDevelopCommit() =>
+      "c=\$(git -C '${repo.work.path}' commit-tree -m local-only "
+      "-p develop 'develop^{tree}') "
+      "&& git -C '${repo.work.path}' update-ref refs/heads/develop \$c";
+
+  const resolveLine =
+      'Resolve it, then run dart run tool/release.dart 0.2.0 again from '
+      'release/0.2.0';
+
+  test('f09/us04/fr02, f09/us04/fr03, f09/us04/s1: the tag ships first; main '
+      'and develop move after the Release', () async {
+    final r = await repo.release(['0.2.0']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(
+      (r.stdout as String).trimRight().split('\n').last,
+      'Released v0.2.0: '
+      'https://github.com/nontravis/specstone/releases/tag/v0.2.0; '
+      'main and develop pushed',
+    );
+    final refs = await repo.originRefs();
+    final tagged = refs['refs/tags/v0.2.0']!;
+    expect(
+      await repo.git(['log', '-1', '--format=%s', tagged]),
+      'chore: release 0.2.0',
+    );
+    expect(
+      (await repo.git(['diff', '--name-only', '$tagged~1', tagged])).split('\n')
+        ..sort(),
+      [
+        'packages/specstone/pubspec.yaml',
+        'packages/specstone_core/lib/src/version.dart',
+        'packages/specstone_core/pubspec.yaml',
+        'plugin/.claude-plugin/plugin.json',
+      ],
+    );
+    expect(refs['refs/heads/main'], tagged);
+    // Throws when the tag is not an ancestor.
+    await repo.git([
+      'merge-base',
+      '--is-ancestor',
+      tagged,
+      refs['refs/heads/develop']!,
+    ]);
+    expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+    expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+    final runList =
+        'run list --workflow release.yaml --commit $tagged --limit 1 '
+        '--json databaseId,url';
+    expect(repo.ghCalls().skip(1), [
+      runList,
+      'run watch 123456789 --exit-status',
+      'release view v0.2.0 --json url --jq .url',
+    ]);
+    expect(await repo.git(['branch', '--show-current']), 'develop');
+  });
+
+  test('f09/us04/fr02/e01, f09/us04/s8: a spot left behind refuses before the '
+      'commit and undoes the bump', () async {
+    repo = await createReleaseRepo(
+      files: {
+        'plugin/.claude-plugin/plugin.json': '{\n  "name": "specstone"\n}\n',
+      },
+    );
+    before = await repo.state();
+
+    final r = await repo.release(['0.2.0']);
+
+    await expectRefusal(r, ['plugin/.claude-plugin/plugin.json']);
+    expect(await repo.git(['branch', '--show-current']), 'develop');
+    expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+    expect(await repo.git(['tag', '--list']), isEmpty);
+  });
+
+  test('f09/us04/fr02/e02: a bump dart pub get rejects is undone the same '
+      'way', () async {
+    repo = await createReleaseRepo(
+      files: {
+        'pubspec.yaml': '''
+name: fixture_workspace
+publish_to: none
+environment:
+  sdk: ^3.13.5
+workspace:
+  - packages/specstone_core
+  - packages/specstone
+  - packages/other
+''',
+        'packages/other/pubspec.yaml': '''
+name: other
+environment:
+  sdk: ^3.13.5
+resolution: workspace
+dependencies:
+  specstone_core: ^0.1.0
+''',
+      },
+    );
+    before = await repo.state();
+
+    final r = await repo.release(['0.2.0']);
+
+    await expectRefusal(r, ['specstone_core']);
+    expect(await repo.git(['branch', '--show-current']), 'develop');
+    expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+  });
+
+  test('f09/us04/fr02/e03: a rejected tag push keeps the branch and tag for a '
+      'run again', () async {
+    await rejectPushes('refs/tags/*');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(['0.2.0']);
+
+    expect(r.exitCode, 1);
+    expect(r.stderr, contains('git push origin v0.2.0'));
+    expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
+    expect(await repo.git(['tag', '--list', 'v0.2.0']), 'v0.2.0');
+    expect(await repo.originRefs(), refs);
+  });
+
+  test('f09/us04/fr03/e01, f09/us04/s7: a failed release run leaves main and '
+      'develop untouched', () async {
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN': 'failure'});
+
+    expect(r.exitCode, 1);
+    expect(
+      r.stderr,
+      'release: the release.yaml run of v0.2.0 failed: '
+      'https://github.com/nontravis/specstone/actions/runs/123456789; '
+      'main and develop are untouched. Fix on release/0.2.0, then run '
+      'dart run tool/release.dart 0.2.0 from that branch\n',
+    );
+    final after = await repo.originRefs();
+    expect(after['refs/heads/main'], refs['refs/heads/main']);
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+    expect(after, contains('refs/tags/v0.2.0'));
+    expect(await repo.git(['branch', '--show-current']), 'release/0.2.0');
+    expect(repo.ghCalls().where((c) => c.startsWith('release view')), isEmpty);
+  });
+
+  test('f09/us04/fr03/e04, f09/us04/s9: a develop moved during the wait is '
+      'merged and pushed', () async {
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {'GH_STUB_ON_WATCH': repo.pushFromOtherCloneCommand('develop')},
+    );
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final refs = await repo.originRefs();
+    final other = await repo.git(['rev-parse', 'origin/develop~1']);
+    await repo.git([
+      'merge-base',
+      '--is-ancestor',
+      other,
+      refs['refs/heads/develop']!,
+    ]);
+    await repo.git([
+      'merge-base',
+      '--is-ancestor',
+      refs['refs/tags/v0.2.0']!,
+      refs['refs/heads/develop']!,
+    ]);
+    expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
+  });
+
+  test('f09/us04/fr03/e02, f09/us04/s10: a main moved during the wait moves '
+      'no ref and pushes nothing', () async {
+    final main = await sha('main');
+    final develop = await sha('develop');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {'GH_STUB_ON_WATCH': repo.pushFromOtherCloneCommand('main')},
+    );
+
+    expect(r.exitCode, 1);
+    final otherMain = (await repo.originRefs())['refs/heads/main']!;
+    expect(otherMain, isNot(refs['refs/heads/main']));
+    expect(r.stderr, contains(otherMain.substring(0, 7)));
+    expect(r.stderr, contains('a second release reached main'));
+    expect(stderrLines(r).where((l) => l.startsWith('git ')), isEmpty);
+    expect(stderrLines(r).last, resolveLine);
+    expect(await sha('main'), main);
+    expect(await sha('develop'), develop);
+    final after = await repo.originRefs();
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+    expect(after, contains('refs/tags/v0.2.0'));
+    expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
+  });
+
+  test('f09/us04/fr03/e05: local develop ahead of origin/develop moves no ref '
+      'and pushes nothing', () async {
+    final main = await sha('main');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {'GH_STUB_ON_WATCH': localDevelopCommit()},
+    );
+
+    expect(r.exitCode, 1);
+    final develop = await sha('develop');
+    expect(develop, isNot(refs['refs/heads/develop']));
+    expect(
+      r.stderr,
+      contains(
+        'release: local develop holds commits origin/develop lacks:\n'
+        '  ${develop.substring(0, 7)} local-only\n',
+      ),
+    );
+    expect(stderrLines(r).where((l) => l.startsWith('git ')), isEmpty);
+    expect(stderrLines(r).last, resolveLine);
+    expect(await sha('main'), main);
+    final after = await repo.originRefs();
+    expect(after['refs/heads/main'], refs['refs/heads/main']);
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+  });
+
+  test('f09/us04/fr03/e03: a rejected atomic push leaves both sides as they '
+      'were', () async {
+    await rejectPushes('refs/heads/main');
+    final main = await sha('main');
+    final develop = await sha('develop');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(['0.2.0']);
+
+    expect(r.exitCode, 1);
+    expect(r.stderr, contains('git push --atomic origin main develop'));
+    expect(stderrLines(r).last, resolveLine);
+    final after = await repo.originRefs();
+    expect(after['refs/heads/main'], refs['refs/heads/main']);
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+    expect(after, contains('refs/tags/v0.2.0'));
+    expect(await sha('main'), main);
+    expect(await sha('develop'), develop);
+    expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
+    expect(await repo.git(['status', '--porcelain']), isEmpty);
+  });
+
+  test('f09/us04/fr03: main moved and develop ahead at once reports the main '
+      'check only', () async {
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {
+        'GH_STUB_ON_WATCH':
+            '${repo.pushFromOtherCloneCommand('main')} && '
+            '${localDevelopCommit()}',
+      },
+    );
+
+    expect(r.exitCode, 1);
+    expect(r.stderr, contains('a second release reached main'));
+    expect(r.stderr, isNot(contains('develop holds commits')));
+  });
+
+  group('first-run checks', () {
+    test('f09/us04/fr01: a modified tracked file keeps its porcelain status '
+        'column', () async {
+      await File('${repo.work.path}/plugin/.claude-plugin/plugin.json')
+          .writeAsString('{"version": "0.1.0"}\n');
+      before = await repo.state();
+
+      final r = await repo.release(['0.2.0']);
+
+      await expectRefusal(r, ['\n M plugin/.claude-plugin/plugin.json']);
+    });
+
+    test('f09/us04/fr01: an empty ci run list refuses', () async {
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI': 'empty'});
+
+      await expectRefusal(r, ['ci run']);
+    });
+
+    test('f09/us04/fr01: gh output that is not JSON refuses', () async {
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI': 'garbage'});
+
+      await expectRefusal(r, ['no JSON']);
+    });
+
+    test('f09/us04/fr01: gh missing from PATH refuses naming gh', () async {
+      final bin = Directory('${repo.root.path}/only_git')..createSync();
+      final which = await Process.run('which', ['git']);
+      Link('${bin.path}/git').createSync((which.stdout as String).trim());
+
+      final r = await repo.release(['0.2.0'], gh: {'PATH': bin.path});
+
+      await expectRefusal(r, ['gh is not available']);
+    });
+
+    test('f09/us04/fr01: a gh failure other than not logged in quotes its '
+        'first stderr line and does not name gh auth login', () async {
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_AUTH': 'broken'});
+
+      await expectRefusal(r, ['gh: network down']);
+      expect(r.stderr, isNot(contains('gh auth login')));
+    });
+
+    test('f09/us04/fr01: checks run in the order of the contract', () async {
+      // Each case holds two failures; the earlier check in the contract wins.
+      await File('${repo.work.path}/stray.txt').writeAsString('x');
+      before = await repo.state();
+      var r = await repo.release(['v1'], gh: {'GH_STUB_CI': 'failure'});
+      await expectRefusal(r, ['not clean']);
+
+      await File('${repo.work.path}/stray.txt').delete();
+      before = await repo.state();
+      r = await repo.release(['v1'], gh: {'GH_STUB_CI': 'failure'});
+      await expectRefusal(r, ['failure']);
+
+      r = await repo.release(['v1']);
+      await expectRefusal(r, ['MAJOR.MINOR.PATCH']);
+    });
+
+    test('f09/us04/fr01: a run from a subfolder finds the repo root', () async {
+      final r = await Process.run(
+        Platform.resolvedExecutable,
+        ['run', '../../tool/release.dart', '0.2.0', '--dry-run'],
+        workingDirectory: '${repo.work.path}/packages/specstone',
+        environment: {
+          'PATH':
+              '${repo.root.path}/stubs:${Platform.environment['PATH'] ?? ''}',
+        },
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+    });
+  });
 }

@@ -43,8 +43,9 @@ final class ReleaseRepo {
   /// Runs `dart run tool/release.dart [args]` in `work/`.
   ///
   /// PATH holds `<root>/stubs` first. [gh] sets the stub's variables:
-  /// `GH_STUB_AUTH` (`ok` | `none`), `GH_STUB_CI` (`success` | `failure` |
-  /// `in_progress`), `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RELEASE`
+  /// `GH_STUB_AUTH` (`ok` | `none` | `broken`), `GH_STUB_CI` (`success` |
+  /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
+  /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RELEASE`
   /// (`absent` | `present`), and `GH_STUB_ON_WATCH` (a shell line run before
   /// `run watch` answers).
   Future<ProcessResult> release(
@@ -139,7 +140,9 @@ final class ReleaseRepo {
   /// leaves the clone's folder in the shell variable `dir`.
   String pushFromOtherCloneCommand(String branch, {String file = 'other.txt'}) {
     final dir = '${root.path}/other_${_clones++}';
-    const identity = '-c user.email=other@example.com -c user.name=Other';
+    const identity =
+        '-c user.email=other@example.com -c user.name=Other '
+        '-c commit.gpgsign=false';
     return "dir='$dir' && git clone -q --branch $branch '${origin.path}' "
         '"\$dir" && echo "\$dir" >> "\$dir/$file" '
         '&& git -C "\$dir" add $file '
@@ -249,6 +252,10 @@ case "\$1 \$2" in
     ;;
   "run list")
     [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
+    if [ "\${GH_STUB_AUTH:-ok}" = broken ]; then
+      echo 'gh: network down' >&2
+      exit 1
+    fi
     case "\$*" in
       *release.yaml*)
         echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789"}]'
@@ -257,6 +264,8 @@ case "\$1 \$2" in
         case "\${GH_STUB_CI:-success}" in
           success) echo '[{"status":"completed","conclusion":"success"}]' ;;
           failure) echo '[{"status":"completed","conclusion":"failure"}]' ;;
+          empty) echo '[]' ;;
+          garbage) echo 'this is not json' ;;
           *) echo '[{"status":"in_progress","conclusion":""}]' ;;
         esac
         ;;
