@@ -398,27 +398,38 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       expect(r.stdout, isEmpty);
     });
 
-    test(
-      'f09/us01/fr03: a failed lib copy leaves the old install runnable',
-      () async {
+    for (final folder in ['lib', 'bin']) {
+      test('f09/us01/fr03: a failed $folder copy is named, leaves no staging '
+          'and the old install runnable', () async {
         final sb = await sandboxWith();
         sb
           ..installFake()
-          ..stub('cp', r'''
-case "$*" in
-  *.lib.new*) exit 1 ;;
-esac
-exec /bin/cp "$@"''');
+          ..stub(
+            'cp',
+            r'case "$*" in'
+                '\n'
+                '  *.$folder.new*) exit 1 ;;\n'
+                'esac\n'
+                r'exec /bin/cp "$@"',
+          );
         final before = sb.snapshot();
 
         final r = await sb.run('install.sh', extra: archiveEnv(sb));
 
-        expect(r.exitCode, isNot(0));
+        expect(r.exitCode, 1);
+        expect(
+          r.stderr,
+          'specstone: could not place ${sb.home.path}/.specstone/$folder: '
+          'run the install again\n',
+        );
         expect(installedVersion(sb), '0.1.0');
-        expect(sb.snapshot()['.specstone/lib/libold.so'], 'old');
-        expect(before.keys, contains('.specstone/bin/specstone'));
-      },
-    );
+        expect(sb.snapshot(), before);
+        expect(
+          Directory('${sb.home.path}/.specstone').listSync().map((e) => e.path),
+          isNot(anyElement(contains('.new'))),
+        );
+      });
+    }
 
     test('f09/us01/fr02: an unpack failure names the archive, install '
         'unchanged', () async {

@@ -7,6 +7,7 @@ set -eu
 
 release_url='https://github.com/nontravis/specstone/releases/latest/download'
 tmp=''
+install_dir=''
 
 fail() {
   printf 'specstone: %s\n' "$1" >&2
@@ -16,6 +17,9 @@ fail() {
 cleanup() {
   if [ -n "$tmp" ]; then
     rm -rf "$tmp"
+  fi
+  if [ -n "$install_dir" ]; then
+    rm -rf "${install_dir:?}/.lib.new" "${install_dir:?}/.bin.new"
   fi
 }
 
@@ -74,14 +78,18 @@ fetch_and_verify() {
 # binary being replaced).
 place() {
   install_dir=$1
-  mkdir -p "$install_dir"
+  mkdir -p "$install_dir" || fail "could not place $install_dir: run the install again"
   rm -rf "${install_dir:?}/.lib.new" "${install_dir:?}/.bin.new"
-  cp -R "$tmp/unpack/lib" "$install_dir/.lib.new"
-  cp -R "$tmp/unpack/bin" "$install_dir/.bin.new"
+  cp -R "$tmp/unpack/lib" "$install_dir/.lib.new" ||
+    fail "could not place $install_dir/lib: run the install again"
+  cp -R "$tmp/unpack/bin" "$install_dir/.bin.new" ||
+    fail "could not place $install_dir/bin: run the install again"
   rm -rf "${install_dir:?}/lib"
-  mv "$install_dir/.lib.new" "$install_dir/lib"
+  mv "$install_dir/.lib.new" "$install_dir/lib" ||
+    fail "could not place $install_dir/lib: run the install again"
   rm -rf "${install_dir:?}/bin"
-  mv "$install_dir/.bin.new" "$install_dir/bin"
+  mv "$install_dir/.bin.new" "$install_dir/bin" ||
+    fail "could not place $install_dir/bin: run the install again"
 }
 
 add_path_entry() {
