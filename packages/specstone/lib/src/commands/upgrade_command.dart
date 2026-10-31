@@ -270,19 +270,19 @@ class UpgradeCommand extends SpecstoneCommand {
   Future<String?> _fetch(Uri url, File file) async {
     final client = HttpClient()..connectionTimeout = _connectTimeout;
     try {
-      final response = await (await client.getUrl(url)).close();
+      final request = await client.getUrl(url);
+      final response = await request.close().timeout(_idleTimeout);
       final status = response.statusCode;
+      final quiet = response.timeout(_idleTimeout);
       if (status < 200 || status >= 300) {
-        await response.drain<void>();
+        await quiet.drain<void>();
         return 'HTTP $status';
       }
       // HttpClient throws on a body cut short, so a finished fold is complete.
-      final body = await response
-          .timeout(_idleTimeout)
-          .fold(
-            BytesBuilder(copy: false),
-            (builder, chunk) => builder..add(chunk),
-          );
+      final body = await quiet.fold(
+        BytesBuilder(copy: false),
+        (builder, chunk) => builder..add(chunk),
+      );
       await file.writeAsBytes(body.takeBytes());
       return null;
     } on IOException catch (e) {

@@ -420,6 +420,83 @@ void main() {
       expect(out.toString().trimRight().split('\n').last, restartLine);
     }, testOn: '!windows');
 
+    // Runs [body] with every timer 100 times shorter, so a 60 s idle timeout
+    // fires in 600 ms.
+    Future<T> fast<T>(Future<T> Function() body) => runZoned(
+      body,
+      zoneSpecification: ZoneSpecification(
+        createTimer: (self, parent, zone, duration, callback) =>
+            parent.createTimer(zone, duration ~/ 100, callback),
+      ),
+    );
+
+    test('f09/us02/fr02: a server that never answers refuses, exit 69, '
+        'naming the URL; nothing ran', () async {
+      await prepare();
+      handle = (request) async {};
+
+      expect(await fast(() => runner.run(['upgrade'])), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not fetch $scriptUrl: no data for 60 s\n',
+      );
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
+
+    test('f09/us02/fr02: a body that stalls after one byte refuses, exit 69; '
+        'nothing ran', () async {
+      await prepare();
+      handle = (request) async {
+        request.response.bufferOutput = false;
+        request.response.add([65]);
+        await request.response.flush();
+      };
+
+      expect(await fast(() => runner.run(['upgrade'])), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not fetch $scriptUrl: no data for 60 s\n',
+      );
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
+
+    test(
+      'f09/us02/fr02: an error reply that stalls refuses, exit 69',
+      () async {
+        await prepare();
+        handle = (request) async {
+          request.response.statusCode = HttpStatus.badGateway;
+          request.response.bufferOutput = false;
+          request.response.add([65]);
+          await request.response.flush();
+        };
+
+        expect(await fast(() => runner.run(['upgrade'])), 69);
+        expect(err.toString(), contains('could not fetch $scriptUrl'));
+      },
+    );
+
+    test('f09/us02/fr02: a temp folder that cannot be created refuses, '
+        'exit 69, before any request', () async {
+      await prepare();
+      final missing = Directory(_join(root.path, 'no', 'such', 'tmp'));
+
+      final status = await IOOverrides.runZoned(
+        () => runner.run(['upgrade']),
+        getSystemTempDirectory: () => missing,
+      );
+
+      expect(status, 69);
+      expect(
+        err.toString(),
+        allOf(
+          startsWith('specstone upgrade: could not create a temp folder: '),
+          endsWith('; the install is unchanged\n'),
+        ),
+      );
+      expect(requests, 0);
+    });
+
     test('f09/us02/fr02/e05, nfr-pr01: only upgrade_command.dart opens a '
         'network client', () {
       final client = RegExp(
