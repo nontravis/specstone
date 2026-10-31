@@ -412,15 +412,11 @@ Future<T> withUserPathLock<T>(Future<T> Function() body) async {
     '${Directory.systemTemp.path}${Platform.pathSeparator}'
     'specstone_user_path.lock',
   ).open(mode: FileMode.append);
-  try {
-    await lock.lock(FileLock.blockingExclusive);
-    final saved = await readUserPath();
-    try {
-      return await body();
-    } finally {
-      await writeUserPath(saved);
-    }
-  } finally {
-    await lock.close();
-  }
+  // A teardown, not a `finally`: package:test abandons a timed-out body, and
+  // only teardowns still run, so a hung test cannot keep the lock or the PATH.
+  addTearDown(lock.close);
+  await lock.lock(FileLock.blockingExclusive);
+  final saved = await readUserPath();
+  addTearDown(() => writeUserPath(saved));
+  return body();
 }
