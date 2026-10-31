@@ -38,6 +38,13 @@ void main() {
     return (result.stdout as String).trim();
   }
 
+  // Root ignores file modes, so the chmod tests cannot make a profile
+  // unwritable.
+  final runsAsRoot =
+      !Platform.isWindows &&
+      (Process.runSync('id', ['-u']).stdout as String).trim() == '0';
+  const rootSkip = 'root ignores file modes';
+
   void stubCurlFailing(ScriptSandbox sandbox) {
     sandbox.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 22');
   }
@@ -650,7 +657,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
           File('${sb.home.path}/.bash_profile').readAsStringSync(),
           posixLine,
         );
-      });
+      }, skip: runsAsRoot ? rootSkip : null);
 
       test('f09/us01/fr04: an unreadable profile is not appended to', () async {
         final sb = await sandboxWith();
@@ -665,7 +672,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(r.stderr, startsWith('specstone: could not write ${rc.path}'));
         Process.runSync('chmod', ['644', rc.path]);
         expect(rc.readAsStringSync(), 'alias a=b');
-      });
+      }, skip: runsAsRoot ? rootSkip : null);
 
       for (final (existing, expected) in [
         (['.profile'], '.profile'),
@@ -730,6 +737,265 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
         expect(r.stdout, contains(added(sb, '.zshrc')));
       });
+    });
+
+    group('plugin step', () {
+      const marketplaceJson =
+          '[{"name": "specstone", "source": "github", "repo": '
+          '"nontravis/specstone"}]';
+      const userPluginJson =
+          '[{"id": "specstone@specstone", "version": "0.2.0", '
+          '"scope": "user"}]';
+      const listMarketplaces = 'plugin marketplace list --json';
+      const listPlugins = 'plugin list --json';
+      const addMarketplace = 'plugin marketplace add nontravis/specstone';
+      const installPlugin = 'plugin install specstone@specstone';
+
+      Future<ScriptSandbox> sandboxWithClaude() async {
+        final sb = await sandboxWith();
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+if [ "$*" = "${STUB_FAIL:-}" ]; then
+  echo boom >&2
+  echo more >&2
+  exit 1
+fi
+case "$*" in
+  'plugin marketplace list --json') echo "${STUB_MARKETPLACES:-[]}" ;;
+  'plugin list --json') echo "${STUB_PLUGINS:-[]}" ;;
+esac''');
+        return sb;
+      }
+
+      Future<ProcessResult> runWith(
+        ScriptSandbox sb, [
+        Map<String, String> extra = const {},
+      ]) => sb.run('install.sh', extra: {...archiveEnv(sb), ...extra});
+
+      test('f09/us01/fr05, f09/us01/s1: claude adds the marketplace, then '
+          'installs the plugin', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          addMarketplace,
+          installPlugin,
+        ]);
+      });
+
+      test('f09/us01/fr05/e01: an added marketplace skips the add', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {'STUB_MARKETPLACES': marketplaceJson});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          installPlugin,
+        ]);
+      });
+
+      test(
+        'f09/us01/fr05/e02: an installed plugin skips the install',
+        () async {
+          final sb = await sandboxWithClaude();
+
+          final r = await runWith(sb, {
+            'STUB_MARKETPLACES': marketplaceJson,
+            'STUB_PLUGINS': userPluginJson,
+          });
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+        },
+      );
+
+      test('f09/us01/fr05/e02: a pretty-printed list still counts the user '
+          'entry', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceJson,
+          'STUB_PLUGINS':
+              '[\n  {\n    "id" : "specstone@specstone",\n'
+              '    "version": "0.2.0",\n    "scope"  :  "user"\n  }\n]',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('f09/us01/fr05/e02: a project- or local-scope specstone@specstone '
+          'still installs at user scope', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceJson,
+          'STUB_PLUGINS':
+              '[{"id": "specstone@specstone", "version": "0.2.0", '
+              '"scope": "project"}, {"id": "specstone@specstone", '
+              '"version": "0.2.0", "scope": "local"}]',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          installPlugin,
+        ]);
+      });
+
+      test('f09/us01/fr05/e02: a user entry of another plugin does not '
+          'count', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceJson,
+          'STUB_PLUGINS':
+              '[{"id": "other@specstone", "version": "1.0.0", '
+              '"scope": "user"}, {"id": "specstone@specstone", '
+              '"version": "0.2.0", "scope": "project"}]',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), contains(installPlugin));
+      });
+
+      test('f09/us01/fr05: a marketplace named specstone-extra is not '
+          'specstone', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES':
+              '[{"name": "specstone-extra", "source": "github", '
+              '"repo": "someone/specstone-extra"}]',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), contains(addMarketplace));
+      });
+
+      test('f09/us01/fr05/e03, f09/us01/s3: no claude prints both commands; '
+          'the CLI stays; exit 0', () async {
+        final sb = await sandboxWith();
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains(
+            'To add the Specstone plugin to Claude Code, run:\n'
+            '  claude plugin marketplace add nontravis/specstone\n'
+            '  claude plugin install specstone@specstone\n',
+          ),
+        );
+        expect(
+          File('${sb.home.path}/.specstone/bin/specstone').existsSync(),
+          isTrue,
+        );
+      });
+
+      test('f09/us01/fr05/e04: a failing install names its first stderr '
+          'line; exit 0', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {'STUB_FAIL': installPlugin});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $installPlugin failed: boom; run it by hand\n',
+          ),
+        );
+        expect(r.stderr, isNot(contains('more')));
+        expect(
+          File('${sb.home.path}/.specstone/bin/specstone').existsSync(),
+          isTrue,
+        );
+      });
+
+      test('f09/us01/fr05: a command with empty stderr is named with its exit '
+          'status', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+case "$*" in
+  'plugin install specstone@specstone') exit 7 ;;
+esac
+echo '[]'
+''');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $installPlugin failed: exit 7; run it by '
+            'hand\n',
+          ),
+        );
+      });
+
+      test('f09/us01/fr05: a failing marketplace add stops the plugin step; '
+          'exit 0', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {'STUB_FAIL': addMarketplace});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $addMarketplace failed: boom; run it by hand\n',
+          ),
+        );
+        expect(sb.logOf('claude'), isNot(contains(installPlugin)));
+      });
+
+      test(
+        'f09/us01/fr05: a failing list names the list command; exit 0',
+        () async {
+          final sb = await sandboxWithClaude();
+
+          final r = await runWith(sb, {'STUB_FAIL': listPlugins});
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            r.stderr,
+            contains(
+              'specstone: claude $listPlugins failed: boom; run it by hand\n',
+            ),
+          );
+          expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+        },
+      );
+
+      test('f09/us01/fr04, f09/us01/fr05: an unwritable profile still runs '
+          'the plugin step; exit 0', () async {
+        final sb = await sandboxWithClaude();
+        final rc = File('${sb.home.path}/.zshrc')
+          ..writeAsStringSync('# mine\n');
+        Process.runSync('chmod', ['444', rc.path]);
+
+        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stderr, startsWith('specstone: could not write ${rc.path}'));
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          addMarketplace,
+          installPlugin,
+        ]);
+      }, skip: runsAsRoot ? rootSkip : null);
     });
   });
 }

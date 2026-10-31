@@ -160,8 +160,58 @@ add_path_entry() {
   esac
 }
 
+# Runs `claude` with the arguments given and keeps its stdout in $claude_out.
+# On a non-zero exit names the command and its first stderr line, then returns 1.
+run_claude() {
+  claude_status=0
+  # stdin comes from /dev/null so claude cannot swallow the rest of a piped script
+  claude_out=$(claude "$@" 2>"$tmp/claude.err" </dev/null) || claude_status=$?
+  if [ "$claude_status" -eq 0 ]; then
+    return 0
+  fi
+  claude_reason=$(head -n 1 "$tmp/claude.err")
+  if [ -z "$claude_reason" ]; then
+    claude_reason="exit $claude_status"
+  fi
+  printf 'specstone: claude %s failed: %s; run it by hand\n' "$*" "$claude_reason" >&2
+  return 1
+}
+
+# Succeeds when the marketplace list $1 names a marketplace "specstone".
+marketplace_added() {
+  printf '%s\n' "$1" |
+    grep -Eq '"name"[[:space:]]*:[[:space:]]*"specstone"'
+}
+
+# Succeeds when one entry of the plugin list $1 holds both the id
+# specstone@specstone and the scope user; project and local entries never count.
+plugin_installed_for_user() {
+  printf '%s\n' "$1" | tr '\n' ' ' | tr '}' '\n' |
+    grep -E '"id"[[:space:]]*:[[:space:]]*"specstone@specstone"' |
+    grep -Eq '"scope"[[:space:]]*:[[:space:]]*"user"'
+}
+
+# Adds the marketplace and installs the plugin through claude, skipping what is
+# there, or prints the two commands when claude is not on the PATH. Never fails
+# the script: the CLI install stands.
 install_plugin() {
-  :
+  if ! command -v claude >/dev/null 2>&1; then
+    printf '%s\n' \
+      'To add the Specstone plugin to Claude Code, run:' \
+      '  claude plugin marketplace add nontravis/specstone' \
+      '  claude plugin install specstone@specstone'
+    return 0
+  fi
+  run_claude plugin marketplace list --json || return 0
+  marketplaces=$claude_out
+  run_claude plugin list --json || return 0
+  plugins=$claude_out
+  if ! marketplace_added "$marketplaces"; then
+    run_claude plugin marketplace add nontravis/specstone || return 0
+  fi
+  if ! plugin_installed_for_user "$plugins"; then
+    run_claude plugin install specstone@specstone || return 0
+  fi
 }
 
 main() {
