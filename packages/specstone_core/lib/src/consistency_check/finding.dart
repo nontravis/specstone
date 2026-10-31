@@ -23,6 +23,8 @@ enum FindingKind {
   parentMissing('parent_missing'),
   fileNotUtf8('file_not_utf8'),
   fileUnreadable('file_unreadable'),
+  patternBanned('pattern_banned'),
+  patternMissing('pattern_missing'),
   implementsPathUnresolved('implements_path_unresolved'),
   implementsSymbolUnresolved('implements_symbol_unresolved'),
   coversPathMissing('covers_path_missing'),

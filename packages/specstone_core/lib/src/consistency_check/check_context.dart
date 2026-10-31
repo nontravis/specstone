@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 
 export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show BodyLine;
@@ -28,6 +29,8 @@ final class CheckContext {
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
   final Map<String, RegExp> _bannedPatterns = {};
+  final Map<String, RegExp> _entryPatterns = {};
+  final Map<String, RegExp> _exceptPatterns = {};
   final Map<String, List<MergedSection?>> _heldTemplates = {};
 
   /// The index of the session's snapshot.
@@ -94,6 +97,18 @@ final class CheckContext {
   /// Returns the pattern of the banned [word], built once per run.
   RegExp bannedPatternOf(String word) =>
       _bannedPatterns.putIfAbsent(word, () => bannedWordPattern(word));
+
+  /// Returns the compiled expression of [entry], built once per run.
+  RegExp patternOf(PatternEntry entry) =>
+      _entryPatterns.putIfAbsent(entry.pattern, () => entry.regExp);
+
+  /// Whether [entry] lets the [matched] text pass, its `except` expressions
+  /// compiled once per run.
+  bool isExcepted(PatternEntry entry, String matched) => entry.except.any(
+    (source) => _exceptPatterns
+        .putIfAbsent(source, () => RegExp('^(?:$source)\$', unicode: true))
+        .hasMatch(matched),
+  );
 
   /// Returns the template section the held section [index] of [doc] maps to,
   /// or null.
