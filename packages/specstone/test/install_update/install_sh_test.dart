@@ -176,21 +176,22 @@ void main() {
 
     test('f09/us01/fr02: the temp folder is gone after a failure and after '
         'a success', () async {
-      final failing = await sandboxWith(damaged: true);
-      final failed = await failing.run(
-        'install.sh',
-        extra: archiveEnv(failing),
-      );
-      expect(failed.exitCode, 1);
-      expect(Directory('${failing.root.path}/tmp').listSync(), isEmpty);
+      for (final damaged in [true, false]) {
+        final sb = await sandboxWith(damaged: damaged);
+        sb.stub('mktemp', r'''
+dir=$(/usr/bin/mktemp "$@") || exit 1
+echo "$dir" >> "$STUB_LOG_DIR/mktemp.log"
+echo "$dir"''');
 
-      final passing = await sandboxWith();
-      final passed = await passing.run(
-        'install.sh',
-        extra: archiveEnv(passing),
-      );
-      expect(passed.exitCode, 0, reason: '${passed.stderr}');
-      expect(Directory('${passing.root.path}/tmp').listSync(), isEmpty);
+        final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+        expect(r.exitCode, damaged ? 1 : 0, reason: '${r.stderr}');
+        final made = sb.logOf('mktemp');
+        expect(made, hasLength(1));
+        expect(made.single, startsWith('${sb.root.path}/tmp/specstone.'));
+        expect(Directory(made.single).existsSync(), isFalse);
+        expect(Directory('${sb.root.path}/tmp').listSync(), isEmpty);
+      }
     });
 
     test('f09/us01/fr03, f09/us01/s4: an older CLI is replaced; packs stay; '
@@ -294,6 +295,173 @@ void main() {
         'specstone: no home folder: HOME and USERPROFILE are unset\n',
       );
       expect(sb.snapshot(), isEmpty);
+    });
+
+    test('f09/us01/fr02: the curl path fetches the archive and SHA256SUMS, '
+        'with timeouts', () async {
+      final sb = await sandboxWith();
+      sb.stub('curl', r'''
+echo "$@" >> "$STUB_LOG_DIR/curl.log"
+out=''; url=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out=$2; shift ;;
+    http*) url=$1 ;;
+  esac
+  shift
+done
+cp "$ARCHIVES/${url##*/}" "$out"''');
+
+      final r = await sb.run(
+        'install.sh',
+        extra: {'ARCHIVES': sb.archives.path},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(installedVersion(sb), '0.2.0');
+      final log = sb.logOf('curl');
+      expect(log, hasLength(2));
+      expect(log.first, contains('--connect-timeout 30'));
+      expect(log.first, contains('--speed-limit 1 --speed-time 60'));
+      expect(log.last, endsWith('/latest/download/SHA256SUMS'));
+    });
+
+    test('f09/us01/fr02: shasum is used when sha256sum is absent', () async {
+      final shasum = Process.runSync('/bin/sh', ['-c', 'command -v shasum']);
+      if (shasum.exitCode != 0) {
+        markTestSkipped('no shasum on this machine');
+        return;
+      }
+      final sb = await sandboxWith();
+      final tools = Directory('${sb.root.path}/tools')..createSync();
+      for (final name in [
+        'awk', 'cut', 'tr', 'tar', 'gzip', 'cp', 'rm', 'mv', 'mkdir', //
+        'mktemp', 'perl', 'shasum', 'sh', 'cat', 'env', 'dirname', 'basename',
+      ]) {
+        final found = Process.runSync('/bin/sh', [
+          '-c',
+          'PATH=/usr/bin:/bin command -v $name',
+        ]);
+        if (found.exitCode == 0) {
+          Link('${tools.path}/$name')
+              .createSync((found.stdout as String).trim());
+        }
+      }
+
+      final r = await sb.run(
+        'install.sh',
+        extra: {...archiveEnv(sb), 'PATH': '${sb.stubs.path}:${tools.path}'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(installedVersion(sb), '0.2.0');
+    });
+
+    test(
+      'f09/us01/fr02: an upper-case hash in SHA256SUMS still matches',
+      () async {
+        final sb = await sandboxWith();
+        final sums = File('${sb.archives.path}/SHA256SUMS');
+        final lines = sums.readAsLinesSync().map((line) {
+          final parts = line.split('  ');
+          return '${parts.first.toUpperCase()}  ${parts.last}';
+        });
+        sums.writeAsStringSync('${lines.join('\n')}\n');
+
+        final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(installedVersion(sb), '0.2.0');
+      },
+    );
+
+    test('f09/us01/fr02: a stream cut just before main runs nothing', () async {
+      final sb = await sandboxWith();
+      sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
+      final script = File('${repoRoot().path}/install.sh');
+      final text = script.readAsStringSync();
+      final cut = text.lastIndexOf(r'main "$@"');
+      expect(cut, greaterThan(0));
+      final head = File('${sb.root.path}/cut.sh')
+        ..writeAsStringSync(text.substring(0, cut));
+
+      final r = await Process.run(
+        '/bin/sh',
+        ['-c', 'cat "${head.path}" | sh'],
+        environment: sb.env(archiveEnv(sb)),
+        includeParentEnvironment: false,
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(sb.snapshot(), isEmpty);
+      expect(sb.logOf('curl'), isEmpty);
+      expect(r.stdout, isEmpty);
+    });
+
+    test(
+      'f09/us01/fr03: a failed lib copy leaves the old install runnable',
+      () async {
+        final sb = await sandboxWith();
+        sb
+          ..installFake()
+          ..stub('cp', r'''
+case "$*" in
+  *.lib.new*) exit 1 ;;
+esac
+exec /bin/cp "$@"''');
+        final before = sb.snapshot();
+
+        final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+        expect(r.exitCode, isNot(0));
+        expect(installedVersion(sb), '0.1.0');
+        expect(sb.snapshot()['.specstone/lib/libold.so'], 'old');
+        expect(before.keys, contains('.specstone/bin/specstone'));
+      },
+    );
+
+    test('f09/us01/fr02: an unpack failure names the archive, install '
+        'unchanged', () async {
+      final sb = await sandboxWith();
+      sb
+        ..installFake()
+        ..stub('tar', 'exit 1');
+      final before = sb.snapshot();
+
+      final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: could not unpack $asset; the install is unchanged\n',
+      );
+      expect(sb.snapshot(), before);
+    });
+
+    test('f09/us01/fr02: a downloaded binary that does not run is named, '
+        'install unchanged', () async {
+      final sb = await createScriptSandbox();
+      final bundle = Directory('${sb.root.path}/bundle')
+        ..createSync(recursive: true);
+      Directory('${bundle.path}/lib').createSync();
+      final bin = File('${bundle.path}/bin/specstone')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\nexit 3\n');
+      Process.runSync('chmod', ['+x', bin.path]);
+      await sb.writeArchive('linux-x64', bundle: bundle);
+      sb.installFake();
+      final before = sb.snapshot();
+
+      final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: the downloaded specstone does not run (exit 3); if TMPDIR '
+        'is mounted noexec, set TMPDIR to another folder; the install is '
+        'unchanged\n',
+      );
+      expect(sb.snapshot(), before);
     });
   });
 }
