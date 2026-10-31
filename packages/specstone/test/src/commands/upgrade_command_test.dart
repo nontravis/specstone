@@ -15,19 +15,26 @@ void main() {
   late HttpServer server;
   late Uri base;
   late int requests;
+  late List<String> paths;
+  late Future<void> Function(HttpRequest) handle;
   late StringBuffer out;
   late StringBuffer err;
 
   setUp(() async {
     requests = 0;
+    paths = [];
+    handle = (request) async {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+    };
     out = StringBuffer();
     err = StringBuffer();
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     base = Uri.parse('http://127.0.0.1:${server.port}/');
     server.listen((request) {
       requests++;
-      request.response.statusCode = HttpStatus.notFound;
-      unawaited(request.response.close());
+      paths.add(request.uri.path);
+      unawaited(handle(request));
     });
   });
 
@@ -130,6 +137,7 @@ void main() {
     final runner = runnerFor(exe.path, {'HOME': home.path});
 
     expect(await runner.run(['upgrade']), isNot(78));
+    expect(requests, 1);
   });
 
   test('f09/us02/fr01: a home reached through a symlink passes', () async {
@@ -142,6 +150,7 @@ void main() {
     final runner = runnerFor(exe.path, {'HOME': link.path});
 
     expect(await runner.run(['upgrade']), isNot(78));
+    expect(requests, 1);
   }, testOn: '!windows');
 
   test('f09/us02/fr01: Windows compares folders without case', () async {
@@ -155,6 +164,7 @@ void main() {
     }, windows: true);
 
     expect(await runner.run(['upgrade']), isNot(78));
+    expect(requests, 1);
   }, testOn: 'windows');
 
   test('f09/us02/fr01: upgrade loads no templates', () async {
@@ -167,5 +177,267 @@ void main() {
 
     expect(await runner.run(['upgrade']), 78);
     expect(err.toString(), contains('~/.specstone/bin'));
+  });
+
+  group('the install run', () {
+    final windows = Platform.isWindows;
+    const updateCommand = 'claude plugin update specstone@specstone';
+    const restartLine = 'Restart Claude Code to load the new CLI and plugin.';
+    late Directory root;
+    late SpecstoneCommandRunner runner;
+    late Uri scriptUrl;
+
+    String fileIn(String folder, String name) => _join(root.path, folder, name);
+
+    // Prepares a sandbox whose served script exits [scriptExit] and whose
+    // `claude` stub exits [claudeExit]; [withClaude] false leaves it out.
+    Future<void> prepare({
+      int scriptExit = 0,
+      int claudeExit = 0,
+      bool withClaude = true,
+      bool asWindows = false,
+      String scriptNote = '',
+    }) async {
+      root = await writeTree({});
+      final home = Directory(_join(root.path, 'home'));
+      final exe = await makeExecutable(
+        Directory(_join(home.path, '.specstone', 'bin')),
+      );
+      for (final folder in ['logs', 'stubs', 'tmp']) {
+        await Directory(_join(root.path, folder)).create();
+      }
+      final ran = fileIn('logs', 'ran');
+      final claudeLog = fileIn('logs', 'claude.log');
+      final script = asWindows || windows
+          ? "Set-Content -Path '$ran' -Value \$PSCommandPath\n"
+                '$scriptNote\nexit $scriptExit\n'
+          : "printf '%s\\n' \"\$0\" > '$ran'\n$scriptNote\nexit $scriptExit\n";
+      scriptUrl = base.resolve(
+        asWindows || windows ? 'install.ps1' : 'install.sh',
+      );
+      handle = (request) async {
+        request.response.write(script);
+        await request.response.close();
+      };
+      if (withClaude) {
+        if (windows) {
+          await File(fileIn('stubs', 'claude.cmd')).writeAsString(
+            '@echo off\r\n'
+            'echo %*>> "$claudeLog"\r\n'
+            'echo claude-out\r\n'
+            'if "%CLAUDE_EXIT%"=="0" exit /b 0\r\n'
+            'echo boom: offline 1>&2\r\n'
+            'echo second line 1>&2\r\n'
+            'exit /b %CLAUDE_EXIT%\r\n',
+          );
+        } else {
+          final stub = File(fileIn('stubs', 'claude'));
+          await stub.writeAsString(
+            '#!/bin/sh\n'
+            'echo "\$*" >> \'$claudeLog\'\n'
+            'echo claude-out\n'
+            'if [ "\$CLAUDE_EXIT" != 0 ]; then\n'
+            '  echo "boom: offline" >&2\n'
+            '  echo "second line" >&2\n'
+            '  exit "\$CLAUDE_EXIT"\n'
+            'fi\n',
+          );
+          await Process.run('chmod', ['+x', stub.path]);
+        }
+      }
+      final stubs = _join(root.path, 'stubs');
+      final env = windows
+          ? {
+              'HOME': home.path,
+              'USERPROFILE': home.path,
+              'SystemRoot': Platform.environment['SystemRoot']!,
+              'TEMP': '${root.path}\\tmp',
+              'TMP': '${root.path}\\tmp',
+              'PATH':
+                  '$stubs;${Platform.environment['SystemRoot']}\\System32;'
+                  '${Platform.environment['SystemRoot']}\\System32\\'
+                  r'WindowsPowerShell\v1.0',
+              'CLAUDE_EXIT': '$claudeExit',
+            }
+          : {
+              'HOME': home.path,
+              'PATH': '$stubs:/usr/bin:/bin',
+              'CLAUDE_EXIT': '$claudeExit',
+            };
+      runner = runnerFor(exe.path, env, windows: asWindows || windows);
+    }
+
+    List<String> claudeLog() =>
+        File(fileIn('logs', 'claude.log'))
+            .readAsLinesSync()
+            .map((line) => line.trim())
+            .toList();
+
+    test('f09/us02/fr02, f09/us02/fr03, f09/us02/s1: the script runs from a '
+        'temp file, then the plugin updates; restart is the last line; '
+        'exit 0', () async {
+      await prepare();
+
+      expect(await runner.run(['upgrade']), 0);
+      final ran = File(fileIn('logs', 'ran')).readAsStringSync().trim();
+      expect(ran, endsWith(windows ? 'install.ps1' : 'install.sh'));
+      expect(File(ran).existsSync(), isFalse);
+      expect(claudeLog(), [updateCommand.substring('claude '.length)]);
+      expect(out.toString(), contains('claude-out'));
+      expect(out.toString().trimRight().split('\n').last, restartLine);
+      expect(paths, [scriptUrl.path]);
+    });
+
+    test('f09/us02/fr02/e01, f09/us02/fr03/e01, f09/us02/s2: a script that '
+        'finds the latest release installed still leads to the plugin '
+        'update', () async {
+      await prepare(
+        scriptNote: windows
+            ? "Write-Output 'specstone 0.2.0 is already the latest release'"
+            : "echo 'specstone 0.2.0 is already the latest release'",
+      );
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(claudeLog(), hasLength(1));
+      expect(out.toString().trimRight().split('\n').last, restartLine);
+    });
+
+    test('f09/us02/fr01: a passed check makes exactly one request', () async {
+      await prepare();
+
+      await runner.run(['upgrade']);
+
+      expect(requests, 1);
+    });
+
+    test(
+      'f09/us02/fr02/e02, f09/us02/s5: no server refuses '
+      'install_script_failed, exit 69, naming the URL; nothing ran',
+      () async {
+        await prepare();
+        await server.close(force: true);
+
+        expect(await runner.run(['upgrade']), 69);
+        expect(err.toString(), contains('$scriptUrl'));
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+        expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+      },
+    );
+
+    test('f09/us02/fr02: a non-2xx reply refuses, exit 69, naming the '
+        'status', () async {
+      await prepare();
+      handle = (request) async {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      };
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not fetch $scriptUrl: HTTP 404\n',
+      );
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
+
+    test('f09/us02/fr02: a reply cut short runs nothing, exit 69', () async {
+      await prepare();
+      handle = (request) async {
+        final socket = await request.response.detachSocket(writeHeaders: false);
+        socket.write(
+          'HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n0123456789',
+        );
+        await socket.flush();
+        socket.destroy();
+      };
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(err.toString(), contains('could not fetch $scriptUrl'));
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+    });
+
+    test('f09/us02/fr02/e03: a script exit 1 refuses, exit 69; no plugin '
+        'step', () async {
+      await prepare(scriptExit: 1);
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade: $scriptUrl exited 1; '
+        'the install is as the script left it\n',
+      );
+      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+      expect(out.toString(), isNot(contains(restartLine)));
+      final ran = File(fileIn('logs', 'ran')).readAsStringSync().trim();
+      expect(File(ran).existsSync(), isFalse);
+    });
+
+    test('f09/us02/fr02/e04: a shell that cannot start refuses, exit 69, '
+        'the install unchanged', () async {
+      // Windows mode on a POSIX host: `powershell` is not on the PATH.
+      await prepare(asWindows: true);
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        allOf(
+          startsWith(
+            'specstone upgrade: could not start powershell for '
+            '$scriptUrl: ',
+          ),
+          endsWith('; the install is unchanged\n'),
+        ),
+      );
+      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+    }, testOn: '!windows');
+
+    test('f09/us02/fr03/e02, f09/us02/s3: no claude prints the update '
+        'command, then restart; exit 0', () async {
+      await prepare(withClaude: false);
+
+      expect(await runner.run(['upgrade']), 0);
+      final lines = out.toString().trimRight().split('\n');
+      expect(lines, contains('To update the Specstone plugin, run:'));
+      expect(lines, contains(updateCommand));
+      expect(lines.last, restartLine);
+    });
+
+    test('f09/us02/fr03/e03: a failing plugin update names its first stderr '
+        'line; exit 0', () async {
+      await prepare(claudeExit: 1);
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(
+        err.toString(),
+        'specstone: $updateCommand failed: boom: offline; run it by hand\n',
+      );
+      expect(out.toString().trimRight().split('\n').last, restartLine);
+    });
+
+    test('f09/us02/fr02/e05, nfr-pr01: only upgrade_command.dart opens a '
+        'network client', () {
+      final client = RegExp(
+        r'\b(HttpClient|HttpServer|RawSocket|SecureSocket|WebSocket|Socket)'
+        r'\s*[.(]',
+      );
+      final hits = <String>[];
+      for (final (shown, folder) in [
+        ('packages/specstone/lib', Directory('lib')),
+        ('packages/specstone_core/lib', Directory('../specstone_core/lib')),
+      ]) {
+        final root = folder.absolute.path.replaceAll(r'\', '/');
+        for (final file in folder.listSync(recursive: true)) {
+          if (file is! File || !file.path.endsWith('.dart')) continue;
+          if (!client.hasMatch(file.readAsStringSync())) continue;
+          final inside = file.absolute.path.replaceAll(r'\', '/');
+          hits.add('$shown${inside.substring(root.length)}');
+        }
+      }
+
+      expect(hits, [
+        'packages/specstone/lib/src/commands/upgrade_command.dart',
+      ]);
+    });
   });
 }

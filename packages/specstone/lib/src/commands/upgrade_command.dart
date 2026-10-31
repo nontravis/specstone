@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
@@ -7,6 +9,17 @@ import 'package:specstone_core/specstone_core.dart';
 /// Where the install scripts are fetched from, ending in `/`.
 const String installScriptBase =
     'https://raw.githubusercontent.com/nontravis/specstone/main/';
+
+/// The arguments `claude` takes to update the Specstone plugin.
+const List<String> _pluginUpdateArguments = [
+  'plugin',
+  'update',
+  'specstone@specstone',
+];
+
+/// The last line `specstone upgrade` prints.
+const String _restartLine =
+    'Restart Claude Code to load the new CLI and plugin.';
 
 /// A fault code of `specstone upgrade` from the `s05_errors.md` catalog.
 ///
@@ -85,6 +98,31 @@ String _comparable(Directory folder, {required bool windows}) {
   return windows ? bare.toLowerCase() : bare;
 }
 
+/// Returns the path of [name] on the PATH of [environment], or null.
+///
+/// Scans the folders in order; on [windows] it matches `<name>.exe`, then
+/// `<name>.cmd`, in each folder, and reads `PATH` without case.
+String? findOnPath(
+  String name,
+  Map<String, String> environment, {
+  required bool windows,
+}) {
+  final path = environment.entries
+      .where((e) => windows ? e.key.toUpperCase() == 'PATH' : e.key == 'PATH')
+      .map((e) => e.value)
+      .firstOrNull;
+  if (path == null) return null;
+  final fileNames = windows ? ['$name.exe', '$name.cmd'] : [name];
+  for (final folder in path.split(windows ? ';' : ':')) {
+    if (folder.isEmpty) continue;
+    for (final fileName in fileNames) {
+      final candidate = File('$folder${Platform.pathSeparator}$fileName');
+      if (candidate.existsSync()) return candidate.path;
+    }
+  }
+  return null;
+}
+
 /// Upgrades the CLI and the plugin to the latest release.
 ///
 /// Refuses unless the running binary sits in `<home>/.specstone/bin`.
@@ -144,6 +182,130 @@ class UpgradeCommand extends SpecstoneCommand {
         asJson: false,
       );
     }
+    final temp = await Directory.systemTemp.createTemp('specstone_upgrade_');
+    try {
+      final failure = await _installCli(temp);
+      if (failure != null) return fail(failure, asJson: false);
+    } finally {
+      await temp.delete(recursive: true);
+    }
+    await _updatePlugin();
+    specstoneRunner.out.writeln(_restartLine);
     return 0;
+  }
+
+  // Fetches the install script into [temp], then runs it with the terminal
+  // passed through. Returns null on success.
+  Future<UpgradeFault?> _installCli(Directory temp) async {
+    final fileName = windows ? 'install.ps1' : 'install.sh';
+    final url = scriptBase.resolve(fileName);
+    final script = File('${temp.path}${Platform.pathSeparator}$fileName');
+    final fetchFailure = await _fetch(url, script);
+    if (fetchFailure != null) {
+      return UpgradeFault(
+        UpgradeFaultCode.installScriptFailed,
+        'specstone upgrade could not fetch $url: $fetchFailure',
+      );
+    }
+    final shell = windows ? 'powershell' : '/bin/sh';
+    final arguments = windows
+        ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script.path]
+        : [script.path];
+    try {
+      final process = await Process.start(
+        shell,
+        arguments,
+        mode: ProcessStartMode.inheritStdio,
+        environment: environment,
+        includeParentEnvironment: false,
+      );
+      final status = await process.exitCode;
+      if (status == 0) return null;
+      return UpgradeFault(
+        UpgradeFaultCode.installScriptFailed,
+        'specstone upgrade: $url exited $status; '
+        'the install is as the script left it',
+      );
+    } on ProcessException catch (e) {
+      return UpgradeFault(
+        UpgradeFaultCode.installScriptFailed,
+        'specstone upgrade: could not start $shell for $url: ${e.message}; '
+        'the install is unchanged',
+      );
+    }
+  }
+
+  // Writes the body of [url] to [file] only when the whole body arrived.
+  // Returns why it did not, or null.
+  Future<String?> _fetch(Uri url, File file) async {
+    final client = HttpClient();
+    try {
+      final response = await (await client.getUrl(url)).close();
+      final status = response.statusCode;
+      if (status < 200 || status >= 300) {
+        await response.drain<void>();
+        return 'HTTP $status';
+      }
+      final body = await response.fold(
+        BytesBuilder(copy: false),
+        (builder, chunk) => builder..add(chunk),
+      );
+      final expected = response.contentLength;
+      if (expected >= 0 && body.length < expected) {
+        return 'received ${body.length} of $expected bytes';
+      }
+      await file.writeAsBytes(body.takeBytes());
+      return null;
+    } on IOException catch (e) {
+      return e is HttpException ? e.message : '$e';
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  // Runs `claude plugin update`, or prints the command when `claude` is not on
+  // the PATH. A failure is reported on `err` and never changes the exit status.
+  Future<void> _updatePlugin() async {
+    final out = specstoneRunner.out;
+    final command = 'claude ${_pluginUpdateArguments.join(' ')}';
+    final claude = findOnPath('claude', environment, windows: windows);
+    if (claude == null) {
+      out
+        ..writeln('To update the Specstone plugin, run:')
+        ..writeln(command);
+      return;
+    }
+    final failure = await _runClaude(claude, out);
+    if (failure != null) {
+      specstoneRunner.err.writeln(
+        'specstone: $command failed: $failure; run it by hand',
+      );
+    }
+  }
+
+  // Returns the first stderr line of a failed run, `exit <status>` when it
+  // wrote none, or null on success.
+  Future<String?> _runClaude(String claude, StringSink out) async {
+    try {
+      final process = await Process.start(
+        claude,
+        _pluginUpdateArguments,
+        environment: environment,
+        includeParentEnvironment: false,
+        runInShell: claude.endsWith('.cmd'),
+      );
+      final stderrText = process.stderr.transform(utf8.decoder).join();
+      await process.stdout.transform(utf8.decoder).forEach(out.write);
+      final status = await process.exitCode;
+      if (status == 0) return null;
+      final firstLine = const LineSplitter()
+          .convert((await stderrText).trim())
+          .firstOrNull;
+      return firstLine == null || firstLine.isEmpty
+          ? 'exit $status'
+          : firstLine;
+    } on ProcessException catch (e) {
+      return e.message;
+    }
   }
 }
