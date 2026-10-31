@@ -57,7 +57,8 @@ Future<String> _build() async {
   }
   out
     ..write(_section('mermaid', mermaid.readAsStringSync()))
-    ..write(_section('SQLite', _sqliteNotice));
+    ..write(_section('SQLite', _sqliteNotice))
+    ..write(_section('Dart SDK', _dartSdkLicense()));
   return out.toString();
 }
 
@@ -119,6 +120,17 @@ String _licenseText(String name, Directory root) {
     if (file.existsSync()) return file.readAsStringSync();
   }
   throw _Failure('$name has no ${_licenseNames.join(', ')} file');
+}
+
+/// Returns the LICENSE of the running Dart SDK, whose runtime every archive
+/// ships inside the AOT-compiled binary.
+String _dartSdkLicense() {
+  final sdk = File(Platform.resolvedExecutable).parent.parent;
+  final license = File('${sdk.path}${Platform.pathSeparator}LICENSE');
+  if (!license.existsSync()) {
+    throw _Failure('the Dart SDK has no LICENSE file at ${license.path}');
+  }
+  return license.readAsStringSync();
 }
 
 String _section(String heading, String text) =>

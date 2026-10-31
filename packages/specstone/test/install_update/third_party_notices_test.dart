@@ -11,7 +11,7 @@ import '../helpers/temp_tree.dart';
 void main() {
   test(
     'f09/us04/fr06/e02, e03: the notices hold each runtime package, mermaid, '
-    'and SQLite',
+    'the Dart SDK, and SQLite',
     () async {
       final out = File('${(await writeTree({})).path}/THIRD_PARTY_NOTICES');
       final r = await Process.run(Platform.resolvedExecutable, [
@@ -38,6 +38,12 @@ void main() {
       expect(mermaid, isNotNull);
       expect(mermaid, contains('Permission is hereby granted'));
       expect(text, contains('## SQLite\n'));
+      final sdk = RegExp(
+        r'\n## Dart SDK\n(.*?)(?=\n## |$)',
+        dotAll: true,
+      ).firstMatch(text)?.group(1);
+      expect(sdk, isNotNull);
+      expect(sdk, contains('Dart project authors'));
       expect(text, isNot(contains('\n## test ')));
       expect(text, isNot(contains('\n## specstone_core ')));
     },
