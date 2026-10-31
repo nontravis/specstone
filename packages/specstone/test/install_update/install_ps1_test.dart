@@ -103,7 +103,7 @@ void main() {
   }
 
   Future<int> userPathCount(String folder) async {
-    final entries = (await readUserPath() ?? '').split(';');
+    final entries = (await readUserPath())?.value.split(';') ?? <String>[];
     return entries
         .where(
           (entry) =>
@@ -260,13 +260,33 @@ void main() {
       final sb = await sandboxWith();
       final folder = binDir(sb);
       final saved = await readUserPath();
-      await writeUserPath([?saved, '${folder.toUpperCase()}\\'].join(';'));
+      await writeUserPath((
+        value: [?saved?.value, '${folder.toUpperCase()}\\'].join(';'),
+        kind: 'String',
+      ));
 
       final r = await runInstall(sb);
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect(await userPathCount(folder), 1);
       expect(r.stdout, isNot(contains('to the user PATH')));
+    });
+
+    pathTest('f09/us01/fr04: a user Path holding %USERPROFILE% keeps that '
+        'literal entry and its ExpandString kind', () async {
+      final sb = await sandboxWith();
+      await writeUserPath((
+        value: r'%USERPROFILE%\tools;C:\Windows',
+        kind: 'ExpandString',
+      ));
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final path = await readUserPath();
+      expect(path?.kind, 'ExpandString');
+      expect(path?.value, startsWith(r'%USERPROFILE%\tools;C:\Windows;'));
+      expect(await userPathCount(binDir(sb)), 1);
     });
 
     pathTest('f09/us01/fr03/e02: a running old specstone.exe is renamed to '
@@ -289,7 +309,11 @@ void main() {
       final second = await runInstall(sb);
 
       expect(second.exitCode, 0, reason: '${second.stderr}');
-      expect(oldFilesUnder(sb), [old.path]);
+      // The copying run renames lib\ files too, so lib\ may hold .old files.
+      expect(oldFilesUnder(sb), contains(old.path));
+      expect(oldFilesUnder(sb).where((path) => !path.contains(r'\lib\')), [
+        old.path,
+      ]);
       expect(versionOf(old.path), '0.0.2');
       expect(versionOf(exe.path), specstoneVersion);
     });

@@ -341,15 +341,22 @@ final class ScriptSandbox {
   }
 }
 
-/// Returns the Windows user PATH, or null when the machine has none.
+/// The raw user PATH: the registry value unexpanded, and its kind.
+typedef UserPath = ({String value, String kind});
+
+/// Returns the Windows user PATH as the registry holds it, or null if unset.
 ///
-/// The value crosses the process boundary as base64, so a non-ASCII entry
-/// survives the console code page.
-Future<String?> readUserPath() async {
+/// The value is read unexpanded (`%VAR%` stays literal) and crosses the
+/// process boundary as base64, so a non-ASCII entry survives the code page.
+Future<UserPath?> readUserPath() async {
   const script =
-      r"$p = [Environment]::GetEnvironmentVariable('Path', 'User'); "
-      r'if ($p) { [Convert]::ToBase64String( '
-      r'[Text.Encoding]::UTF8.GetBytes($p)) }';
+      r'$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( '
+      "'Environment'); "
+      r"if (@($k.GetValueNames()) -contains 'Path') { "
+      r"$v = $k.GetValue('Path', '', 'DoNotExpandEnvironmentNames'); "
+      r"$kind = $k.GetValueKind('Path'); "
+      r'$b = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($v)); '
+      r'"$kind $b" }';
   final result = await Process.run('powershell', [
     '-NoProfile',
     '-Command',
@@ -358,23 +365,31 @@ Future<String?> readUserPath() async {
   if (result.exitCode != 0) {
     throw StateError('reading the user PATH failed: ${result.stderr}');
   }
-  final encoded = (result.stdout as String).trim();
-  return encoded.isEmpty ? null : utf8.decode(base64.decode(encoded));
+  final line = (result.stdout as String).trim();
+  if (line.isEmpty) return null;
+  final [kind, encoded] = line.split(' ');
+  return (value: utf8.decode(base64.decode(encoded)), kind: kind);
 }
 
-/// Sets the Windows user PATH to [value], or deletes it when [value] is null.
-Future<void> writeUserPath(String? value) async {
+/// Sets the Windows user PATH to [path] with its kind, or deletes it if null.
+Future<void> writeUserPath(UserPath? path) async {
   const script =
-      r'$b = $env:SPECSTONE_TEST_USER_PATH_B64; '
-      r'if ($b) { $v = [Text.Encoding]::UTF8.GetString( '
-      r'[Convert]::FromBase64String($b)) } else { $v = $null }; '
-      r"[Environment]::SetEnvironmentVariable('Path', $v, 'User')";
+      r'$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( '
+      r"'Environment', $true); "
+      r'if ($env:SPECSTONE_TEST_USER_PATH_B64) { '
+      r'$v = [Text.Encoding]::UTF8.GetString( '
+      r'[Convert]::FromBase64String($env:SPECSTONE_TEST_USER_PATH_B64)); '
+      r"$k.SetValue('Path', $v, $env:SPECSTONE_TEST_USER_PATH_KIND) } "
+      r"elseif (@($k.GetValueNames()) -contains 'Path') { "
+      r"$k.DeleteValue('Path') }";
   final result = await Process.run(
     'powershell',
     ['-NoProfile', '-Command', script],
     environment: {
-      if (value != null)
-        'SPECSTONE_TEST_USER_PATH_B64': base64.encode(utf8.encode(value)),
+      if (path != null) ...{
+        'SPECSTONE_TEST_USER_PATH_B64': base64.encode(utf8.encode(path.value)),
+        'SPECSTONE_TEST_USER_PATH_KIND': path.kind,
+      },
     },
   );
   if (result.exitCode != 0) {
