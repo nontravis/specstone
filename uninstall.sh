@@ -109,8 +109,8 @@ remove_path_line() {
       writing=''
       warn_unchanged "$1" write
     else
-      writing=''
       keep_tmp=1
+      writing=''
       failed=1
       printf '%s\n' "specstone: could not write $1; its old content is in $backup" >&2
     fi
@@ -135,14 +135,15 @@ main() {
   fi
 
   # A write group runs with stderr silenced; fd 3 keeps the cleanup message visible.
-  exec 3>&2
+  command exec 3>&2 || exec 3>/dev/null
   trap cleanup EXIT
   trap 'exit 1' HUP INT TERM
-  if tmp=$(mktemp -d "${TMPDIR:-/tmp}/specstone.XXXXXX" 2>&1); then
+  template="${TMPDIR:-/tmp}/specstone.XXXXXX"
+  if tmp=$(mktemp -d "$template" 2>/dev/null); then
     :
   else
-    reason=$tmp
     tmp=''
+    reason=$(mktemp -d "$template" 2>&1 >/dev/null) || :
     failed=1
     printf '%s\n' "specstone: could not make a temporary folder${reason:+: ${reason%%"$nl"*}}; the profiles are not changed" >&2
   fi

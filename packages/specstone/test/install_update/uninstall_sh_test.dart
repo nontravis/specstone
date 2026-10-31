@@ -315,6 +315,37 @@ exec /bin/cat "$@"''');
       expect(File(match.group(2)!).readAsStringSync(), original);
     });
 
+    test('f09/us03/fr01: a mktemp that succeeds but writes to stderr still '
+        'edits the profile', () async {
+      profile('.zshrc', 'keep\n$entry\n');
+      sb.stub('mktemp', r'''
+echo 'mktemp: noise' >&2
+exec /usr/bin/mktemp "$@"''');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 0);
+      expect(read('.zshrc'), 'keep\n');
+    });
+
+    test('f09/us03/fr01: a closed stderr does not stop the run', () async {
+      sb.installFake();
+      profile('.zshrc', '$entry\n');
+      File('${sb.stubs.path}/sh_no_stderr')
+        ..writeAsStringSync('#!/bin/sh\nexec /bin/sh "\$@" 2>&-\n')
+        ..createSync();
+      Process.runSync('chmod', ['+x', '${sb.stubs.path}/sh_no_stderr']);
+
+      final r = await sb.run(
+        'uninstall.sh',
+        shell: '${sb.stubs.path}/sh_no_stderr',
+      );
+
+      expect(r.exitCode, 0);
+      expect(read('.zshrc'), '');
+      expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+    });
+
     test('f09/us03/fr01: an unreadable profile is named on stderr', () async {
       profile('.zshrc', '$entry\n');
       Process.runSync('chmod', ['000', home('.zshrc')]);
