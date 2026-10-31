@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 
 /// One enabled frontmatter field of a merged doc type.
@@ -98,6 +99,8 @@ final class MergedSection {
     this.allowedWords,
     this.linePrefix,
     this.query,
+    this.bannedPatterns,
+    this.requiredPatterns,
   });
 
   /// The section id.
@@ -144,6 +147,14 @@ final class MergedSection {
   /// Whether the section is a query section; null when no layer sets it.
   final bool? query;
 
+  /// The section's own banned patterns, merged by `id`; null when no layer
+  /// sets them.
+  final List<PatternEntry>? bannedPatterns;
+
+  /// The section's own required patterns, merged by `id`; null when no layer
+  /// sets them.
+  final List<PatternEntry>? requiredPatterns;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedSection copyWith({
     String? header,
@@ -157,6 +168,8 @@ final class MergedSection {
     List<String>? allowedWords,
     String? linePrefix,
     bool? query,
+    List<PatternEntry>? bannedPatterns,
+    List<PatternEntry>? requiredPatterns,
   }) => MergedSection(
     id: id,
     header: header ?? this.header,
@@ -170,6 +183,8 @@ final class MergedSection {
     allowedWords: allowedWords ?? this.allowedWords,
     linePrefix: linePrefix ?? this.linePrefix,
     query: query ?? this.query,
+    bannedPatterns: bannedPatterns ?? this.bannedPatterns,
+    requiredPatterns: requiredPatterns ?? this.requiredPatterns,
   );
 
   /// Returns the JSON object of this section with only the keys set.
@@ -183,8 +198,10 @@ final class MergedSection {
         maxLines: maxLines,
         bannedWords: bannedWords,
         allowedWords: allowedWords,
+        bannedPatterns: bannedPatterns,
       ).toJson(),
       'linePrefix': ?linePrefix,
+      'requiredPatterns': ?requiredPatterns?.map((p) => p.toJson()).toList(),
     };
     return {
       'id': id,
@@ -208,6 +225,8 @@ final class MergedLint {
     this.maxLines,
     this.bannedWords,
     this.allowedWords,
+    this.bannedPatterns,
+    this.requiredFieldGroups,
   });
 
   /// The doc-level character limit.
@@ -222,17 +241,27 @@ final class MergedLint {
   /// The allowed words.
   final List<String>? allowedWords;
 
+  /// The banned patterns, merged by `id`.
+  final List<PatternEntry>? bannedPatterns;
+
+  /// The groups of fields a doc must carry at least one of each.
+  final List<List<String>>? requiredFieldGroups;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedLint copyWith({
     int? maxChars,
     int? maxLines,
     List<String>? bannedWords,
     List<String>? allowedWords,
+    List<PatternEntry>? bannedPatterns,
+    List<List<String>>? requiredFieldGroups,
   }) => MergedLint(
     maxChars: maxChars ?? this.maxChars,
     maxLines: maxLines ?? this.maxLines,
     bannedWords: bannedWords ?? this.bannedWords,
     allowedWords: allowedWords ?? this.allowedWords,
+    bannedPatterns: bannedPatterns ?? this.bannedPatterns,
+    requiredFieldGroups: requiredFieldGroups ?? this.requiredFieldGroups,
   );
 
   /// Returns the JSON object of this lint with only the keys set.
@@ -243,6 +272,8 @@ final class MergedLint {
     'maxLines': ?maxLines,
     'bannedWords': ?bannedWords,
     'allowedWords': ?allowedWords,
+    'bannedPatterns': ?bannedPatterns?.map((p) => p.toJson()).toList(),
+    'requiredFieldGroups': ?requiredFieldGroups,
   };
 }
 
