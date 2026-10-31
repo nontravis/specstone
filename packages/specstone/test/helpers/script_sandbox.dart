@@ -80,6 +80,9 @@ final class ScriptSandbox {
                 '${stubs.path};$systemRoot\\System32;'
                 '$systemRoot\\System32\\WindowsPowerShell\\v1.0',
             'SystemRoot': systemRoot,
+            'ComSpec': '$systemRoot\\System32\\cmd.exe',
+            // PowerShell finds the `.cmd` stubs through PATHEXT.
+            'PATHEXT': '.COM;.EXE;.BAT;.CMD',
             'TEMP': _tmp.path,
             'TMP': _tmp.path,
             'STUB_LOG_DIR': logs.path,
@@ -151,21 +154,35 @@ final class ScriptSandbox {
   }
 
   /// Puts an installed binary and a library under `home/.specstone`.
+  ///
+  /// On Windows the binary is a compiled fake (see [compileFakeCli]), so this
+  /// takes a few seconds there.
   void installFake({String version = '0.1.0'}) {
-    if (_windows) {
-      throw UnsupportedError(
-        'installFake is POSIX only until the Windows tests',
-      );
-    }
     final install = _under(home, '.specstone');
-    final binary = File('$install/bin/specstone')
-      ..createSync(recursive: true)
-      ..writeAsStringSync('#!/bin/sh\necho $version\n');
-    _chmodExecutable(binary);
-    File('$install/lib/libold.so')
+    if (_windows) {
+      _compileFakeCliSync(
+        version,
+        '$install${_separator}bin${_separator}specstone.exe',
+      );
+    } else {
+      final binary = File('$install/bin/specstone')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho $version\n');
+      _chmodExecutable(binary);
+    }
+    File('$install${_separator}lib${_separator}libold.so')
       ..createSync(recursive: true)
       ..writeAsStringSync('old');
   }
+
+  /// Compiles a fake specstone to [outPath] and returns [outPath].
+  ///
+  /// The exe prints [version] for `--version` and sleeps 120 seconds for any
+  /// other arguments, so a test can start it and hold its file locked. It is
+  /// compiled in a temp folder outside the workspace, where no build hook is
+  /// involved.
+  Future<String> compileFakeCli(String version, String outPath) async =>
+      _compileFakeCliSync(version, outPath);
 
   /// Returns every file under [home] as a relative `/` path to its content.
   Map<String, String> snapshot() {
@@ -219,6 +236,41 @@ final class ScriptSandbox {
   static bool _isAbsolute(String path) =>
       path.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
 
+  static String _compileFakeCliSync(String version, String outPath) {
+    final scratch = Directory.systemTemp.createTempSync('specstone_fake_cli_');
+    try {
+      final source = File(_under(scratch, 'fake_cli.dart'))
+        ..writeAsStringSync(
+          "import 'dart:io';\n"
+          'void main(List<String> a) {\n'
+          "  if (a.contains('--version')) {\n"
+          "    print('$version');\n"
+          '  } else {\n'
+          '    sleep(const Duration(seconds: 120));\n'
+          '  }\n'
+          '}\n',
+        );
+      final compiled = _under(scratch, 'fake_cli.exe');
+      final result = Process.runSync(Platform.resolvedExecutable, [
+        'compile',
+        'exe',
+        source.path,
+        '-o',
+        compiled,
+      ]);
+      if (result.exitCode != 0) {
+        throw StateError(
+          'dart compile exe failed: ${result.stdout}\n${result.stderr}',
+        );
+      }
+      File(outPath).parent.createSync(recursive: true);
+      File(compiled).copySync(outPath);
+      return outPath;
+    } finally {
+      scratch.deleteSync(recursive: true);
+    }
+  }
+
   static void _chmodExecutable(File file) {
     final result = Process.runSync('chmod', ['755', file.path]);
     if (result.exitCode != 0) {
@@ -234,13 +286,18 @@ final class ScriptSandbox {
     if (bundle != null) {
       await _copyFolderContents(bundle, stage);
     } else {
-      final binary = File('${stage.path}${_separator}bin${_separator}specstone')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('#!/bin/sh\necho $version\n');
+      final bin = '${stage.path}${_separator}bin';
+      if (_windows) {
+        _compileFakeCliSync(version, '$bin${_separator}specstone.exe');
+      } else {
+        final binary = File('$bin${_separator}specstone')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('#!/bin/sh\necho $version\n');
+        _chmodExecutable(binary);
+      }
       File('${stage.path}${_separator}lib${_separator}libfake.so')
         ..createSync(recursive: true)
         ..writeAsStringSync('fake');
-      if (!_windows) _chmodExecutable(binary);
     }
     File(_under(stage, 'LICENSE')).writeAsStringSync('license\n');
     File(_under(stage, 'THIRD_PARTY_NOTICES')).writeAsStringSync('notices\n');
@@ -281,5 +338,69 @@ final class ScriptSandbox {
     if (result.exitCode != 0) {
       throw StateError('packing ${archive.path} failed: ${result.stderr}');
     }
+  }
+}
+
+/// Returns the Windows user PATH, or null when the machine has none.
+///
+/// The value crosses the process boundary as base64, so a non-ASCII entry
+/// survives the console code page.
+Future<String?> readUserPath() async {
+  const script =
+      r"$p = [Environment]::GetEnvironmentVariable('Path', 'User'); "
+      r'if ($p) { [Convert]::ToBase64String( '
+      r'[Text.Encoding]::UTF8.GetBytes($p)) }';
+  final result = await Process.run('powershell', [
+    '-NoProfile',
+    '-Command',
+    script,
+  ]);
+  if (result.exitCode != 0) {
+    throw StateError('reading the user PATH failed: ${result.stderr}');
+  }
+  final encoded = (result.stdout as String).trim();
+  return encoded.isEmpty ? null : utf8.decode(base64.decode(encoded));
+}
+
+/// Sets the Windows user PATH to [value], or deletes it when [value] is null.
+Future<void> writeUserPath(String? value) async {
+  const script =
+      r'$b = $env:SPECSTONE_TEST_USER_PATH_B64; '
+      r'if ($b) { $v = [Text.Encoding]::UTF8.GetString( '
+      r'[Convert]::FromBase64String($b)) } else { $v = $null }; '
+      r"[Environment]::SetEnvironmentVariable('Path', $v, 'User')";
+  final result = await Process.run(
+    'powershell',
+    ['-NoProfile', '-Command', script],
+    environment: {
+      if (value != null)
+        'SPECSTONE_TEST_USER_PATH_B64': base64.encode(utf8.encode(value)),
+    },
+  );
+  if (result.exitCode != 0) {
+    throw StateError('writing the user PATH failed: ${result.stderr}');
+  }
+}
+
+/// Runs [body] while holding an exclusive lock on the machine's user PATH.
+///
+/// Several test files write the real user PATH, and the OS runs them in
+/// parallel; the lock is a file in the system temp folder. The PATH found
+/// on entry is written back before the lock is released.
+Future<T> withUserPathLock<T>(Future<T> Function() body) async {
+  final lock = await File(
+    '${Directory.systemTemp.path}${Platform.pathSeparator}'
+    'specstone_user_path.lock',
+  ).open(mode: FileMode.append);
+  try {
+    await lock.lock(FileLock.blockingExclusive);
+    final saved = await readUserPath();
+    try {
+      return await body();
+    } finally {
+      await writeUserPath(saved);
+    }
+  } finally {
+    await lock.close();
   }
 }
