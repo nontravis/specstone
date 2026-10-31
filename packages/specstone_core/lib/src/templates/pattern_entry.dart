@@ -29,7 +29,7 @@ final class PatternEntry {
     this.except = const [],
   }) : regExp = RegExp(pattern, unicode: true),
        _exceptRegExps = [
-         for (final entry in except) RegExp('^(?:$entry)\$', unicode: true),
+         for (final entry in except) RegExp(_fullMatch(entry), unicode: true),
        ];
 
   /// The entry id; the merge key.
@@ -110,7 +110,7 @@ final class PatternEntry {
     } on FormatException {
       _compile(pattern, file: file, key: '${prefix}pattern');
       for (final entry in except) {
-        _compile('^(?:$entry)\$', file: file, key: '${prefix}except');
+        _compile(_fullMatch(entry), file: file, key: '${prefix}except');
       }
       rethrow;
     }
@@ -120,6 +120,9 @@ final class PatternEntry {
 const _bannedKeys = {'id', 'pattern', 'message', 'in', 'except'};
 
 const _requiredKeys = {'id', 'pattern', 'message'};
+
+/// Returns the expression that matches [source] against a whole text.
+String _fullMatch(String source) => '^(?:$source)\$';
 
 PatternScope _scopeOf(
   YamlMap map, {
