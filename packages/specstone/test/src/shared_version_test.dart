@@ -27,5 +27,33 @@ void main() {
 
       expect(json['version'], specstoneVersion);
     });
+
+    test('f09/us04/fr02, INV-1: the specstone_core pubspec carries the core '
+        'version', () {
+      final pubspec = File.fromUri(
+        packageRoot().uri.resolve('../specstone_core/pubspec.yaml'),
+      ).readAsStringSync();
+      final match = RegExp(
+        r'^version:\s*(\S+)\s*$',
+        multiLine: true,
+      ).firstMatch(pubspec);
+
+      expect(match?.group(1), specstoneVersion);
+    });
+
+    test(
+      'f09/us04/fr02, INV-1: the specstone pubspec constrains specstone_core '
+      'to ^<core version>',
+      () {
+        final pubspec = File.fromUri(packageRoot().uri.resolve('pubspec.yaml'))
+            .readAsStringSync();
+        final match = RegExp(
+          r'^  specstone_core: \^(\S+)\s*$',
+          multiLine: true,
+        ).firstMatch(pubspec);
+
+        expect(match?.group(1), specstoneVersion);
+      },
+    );
   });
 }
