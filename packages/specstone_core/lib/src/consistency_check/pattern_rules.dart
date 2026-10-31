@@ -3,8 +3,6 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 
-final _codeSpan = RegExp(r'`[^`\n]*`');
-
 /// Returns the pattern findings of a typed [doc]; an untyped doc has none.
 ///
 /// A `banned_patterns` entry holds one finding per match on a line of a held
@@ -28,17 +26,18 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     final headerLine = docLines.sectionLines[i];
     final sectionKey = template?.id ?? held[i].key;
     final lines = [
-      (text: held[i].headerLine, line: headerLine, fenced: false),
-      ...context.bodyLinesOf(doc, i),
-    ].where((line) => !line.fenced).toList();
-    for (final (:text, :line, fenced: _) in lines) {
-      final onPrefix = prefix == null || text.startsWith(prefix);
+      _SearchLine(held[i].headerLine, headerLine),
+      for (final (:text, :line, :fenced) in context.bodyLinesOf(doc, i))
+        if (!fenced) _SearchLine(text, line),
+    ];
+    for (final searched in lines) {
+      final onPrefix = prefix == null || searched.raw.startsWith(prefix);
       for (final entry in [...docBanned, if (onPrefix) ...sectionBanned]) {
-        for (final matched in _bannedMatches(context, entry, text)) {
+        for (final matched in _bannedMatches(entry, searched)) {
           yield context.finding(
             doc,
             FindingKind.patternBanned,
-            line: line,
+            line: searched.line,
             message: '${entry.message}: $matched',
             keys: {
               'pattern': entry.id,
@@ -51,7 +50,7 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     }
     for (final entry in required) {
       final regExp = entry.regExp;
-      if (lines.any((line) => regExp.hasMatch(_maskCode(line.text)))) continue;
+      if (lines.any((line) => regExp.hasMatch(line.prose))) continue;
       yield context.finding(
         doc,
         FindingKind.patternMissing,
@@ -63,20 +62,13 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-/// Returns the non-excepted, non-empty matches of [entry] on [text].
-Iterable<String> _bannedMatches(
-  CheckContext context,
-  PatternEntry entry,
-  String text,
-) sync* {
+/// Returns the non-excepted, non-empty matches of [entry] on [line].
+Iterable<String> _bannedMatches(PatternEntry entry, _SearchLine line) sync* {
   final regExp = entry.regExp;
   final searched = switch (entry.scope) {
-    PatternScope.text => [_maskCode(text)],
-    PatternScope.code => [
-      for (final span in _codeSpan.allMatches(text))
-        span.group(0)!.substring(1, span.group(0)!.length - 1),
-    ],
-    PatternScope.all => [text],
+    PatternScope.text => [line.prose],
+    PatternScope.code => line.code,
+    PatternScope.all => [line.raw],
   };
   for (final haystack in searched) {
     for (final match in regExp.allMatches(haystack)) {
@@ -87,7 +79,56 @@ Iterable<String> _bannedMatches(
   }
 }
 
-/// Returns [text] with each inline code span replaced by spaces of equal
-/// length, so match positions and neighbours stay put.
-String _maskCode(String text) =>
-    text.replaceAllMapped(_codeSpan, (m) => ' ' * m.group(0)!.length);
+/// One unfenced line the patterns search, split at its inline code spans once.
+///
+/// A span runs from a backtick to the next one; a last unpaired backtick
+/// opens none.
+final class _SearchLine {
+  new(this.raw, this.line);
+
+  /// The line as written; it holds no line end.
+  final String raw;
+
+  /// The 1-based file line.
+  final int line;
+
+  /// [raw] with each code span, backticks included, blanked to spaces of
+  /// equal length, so match positions and neighbours stay put.
+  late final String prose = _blankSpans();
+
+  /// The text inside each code span, backticks dropped.
+  late final List<String> code = [
+    for (final (start, end) in _spans) raw.substring(start + 1, end - 1),
+  ];
+
+  /// The start and end offset of each code span, backticks included.
+  late final List<(int, int)> _spans = _codeSpansOf(raw);
+
+  String _blankSpans() {
+    if (_spans.isEmpty) return raw;
+    final blanked = StringBuffer();
+    var from = 0;
+    for (final (start, end) in _spans) {
+      blanked
+        ..write(raw.substring(from, start))
+        ..write(' ' * (end - start));
+      from = end;
+    }
+    return (blanked..write(raw.substring(from))).toString();
+  }
+}
+
+/// Returns the start and end offset of each code span of [line].
+List<(int, int)> _codeSpansOf(String line) {
+  // indexOf, not a RegExp: the regex engine tries every offset of a pattern
+  // that opens with one character.
+  final spans = <(int, int)>[];
+  var open = line.indexOf('`');
+  while (open >= 0) {
+    final close = line.indexOf('`', open + 1);
+    if (close < 0) break;
+    spans.add((open, close + 1));
+    open = line.indexOf('`', close + 1);
+  }
+  return spans;
+}

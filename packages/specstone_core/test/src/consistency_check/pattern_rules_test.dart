@@ -79,6 +79,35 @@ void main() {
     );
   });
 
+  test('f04/us01/fr08/e02: adjacent and empty code spans close in pairs, and '
+      'an unclosed backtick leaves the rest of the line text', () async {
+    final found = await _findings(
+      _banned('''
+      - id: t
+        pattern: 'zed'
+        message: text
+      - id: c
+        pattern: 'zed'
+        message: code
+        in: code
+      - id: a
+        pattern: 'zed'
+        message: all
+        in: all
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse `zed``zed` zed `` zed ` zed within 1 s.',
+      ),
+    );
+    final byScope = <Object?, int>{};
+    for (final finding in found) {
+      final id = finding.toJson()['pattern'];
+      byScope[id] = (byScope[id] ?? 0) + 1;
+    }
+    expect(byScope, {'t': 3, 'c': 2, 'a': 5});
+  });
+
   test('f04/us01/fr08/e03: except clears a full match only', () async {
     final found = await _findings(
       _banned(r'''
