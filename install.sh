@@ -257,7 +257,10 @@ main() {
 
   trap cleanup EXIT
   trap 'exit 1' HUP INT TERM
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/specstone.XXXXXX")
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/specstone.XXXXXX" 2>/dev/null) || {
+    tmp=''
+    fail "could not make a temporary folder in ${TMPDIR:-/tmp}; the install is unchanged"
+  }
 
   fetch_and_verify "$asset"
   mkdir "$tmp/unpack"
@@ -265,9 +268,10 @@ main() {
     fail "could not unpack $asset; the install is unchanged"
 
   probe_status=0
-  new_version=$("$tmp/unpack/bin/specstone" --version 2>/dev/null) || probe_status=$?
+  new_version=$("$tmp/unpack/bin/specstone" --version 2>"$tmp/probe.err") || probe_status=$?
   if [ "$probe_status" -ne 0 ]; then
-    fail "the downloaded specstone does not run (exit $probe_status); if TMPDIR is mounted noexec, set TMPDIR to another folder; the install is unchanged"
+    probe_reason=$(first_line <"$tmp/probe.err") || probe_reason=''
+    fail "the downloaded specstone does not run (exit $probe_status${probe_reason:+: $probe_reason}); if TMPDIR is mounted noexec, set TMPDIR to another folder; the install is unchanged"
   fi
   old_version=$("$install_dir/bin/specstone" --version 2>/dev/null || true)
   if [ -n "$old_version" ] && [ "$old_version" = "$new_version" ]; then

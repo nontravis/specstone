@@ -289,7 +289,7 @@ echo "$dir"''');
       expect(r.stdout, isEmpty);
     });
 
-    test('f09/us01/fr03 (controller F10): no HOME and no USERPROFILE refuses '
+    test('f09/us01/fr03: no HOME and no USERPROFILE refuses '
         'with exit 1', () async {
       final sb = await sandboxWith();
 
@@ -480,6 +480,57 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         'specstone: the downloaded specstone does not run (exit 3); if TMPDIR '
         'is mounted noexec, set TMPDIR to another folder; the install is '
         'unchanged\n',
+      );
+      expect(sb.snapshot(), before);
+    });
+
+    test('f09/us01/fr02: a downloaded binary that fails with a message '
+        'names that first stderr line', () async {
+      final sb = await createScriptSandbox();
+      final bundle = Directory('${sb.root.path}/bundle')
+        ..createSync(recursive: true);
+      Directory('${bundle.path}/lib').createSync();
+      final bin = File('${bundle.path}/bin/specstone')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          "printf '\\nversion GLIBC_2.34 not found\\r\\nsecond\\n' >&2\n"
+          'exit 1\n',
+        );
+      Process.runSync('chmod', ['+x', bin.path]);
+      await sb.writeArchive('linux-x64', bundle: bundle);
+      sb.installFake();
+      final before = sb.snapshot();
+
+      final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: the downloaded specstone does not run (exit 1: version '
+        'GLIBC_2.34 not found); if TMPDIR is mounted noexec, set TMPDIR to '
+        'another folder; the install is unchanged\n',
+      );
+      expect(sb.snapshot(), before);
+    });
+
+    test('f09/us01/fr02: a temporary folder that cannot be made prints a '
+        'specstone line, install unchanged', () async {
+      final sb = await createScriptSandbox();
+      sb.installFake();
+      final before = sb.snapshot();
+      final missing = '${sb.root.path}/no-such-folder';
+
+      final r = await sb.run(
+        'install.sh',
+        extra: {...archiveEnv(sb), 'TMPDIR': missing},
+      );
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: could not make a temporary folder in $missing; the '
+        'install is unchanged\n',
       );
       expect(sb.snapshot(), before);
     });
