@@ -367,18 +367,23 @@ Future<UserPath?> readUserPath() async {
   }
   final line = (result.stdout as String).trim();
   if (line.isEmpty) return null;
-  final [kind, encoded] = line.split(' ');
-  return (value: utf8.decode(base64.decode(encoded)), kind: kind);
+  // An empty Path prints only its kind.
+  final parts = line.split(' ');
+  final encoded = parts.length > 1 ? parts[1] : '';
+  return (value: utf8.decode(base64.decode(encoded)), kind: parts[0]);
 }
 
 /// Sets the Windows user PATH to [path] with its kind, or deletes it if null.
+///
+/// An empty value is written as an empty value, not deleted.
 Future<void> writeUserPath(UserPath? path) async {
   const script =
       r'$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( '
       r"'Environment', $true); "
-      r'if ($env:SPECSTONE_TEST_USER_PATH_B64) { '
+      r'if ($env:SPECSTONE_TEST_USER_PATH_KIND) { '
       r'$v = [Text.Encoding]::UTF8.GetString( '
-      r'[Convert]::FromBase64String($env:SPECSTONE_TEST_USER_PATH_B64)); '
+      '[Convert]::FromBase64String( '
+      r'[string]$env:SPECSTONE_TEST_USER_PATH_B64)); '
       r"$k.SetValue('Path', $v, $env:SPECSTONE_TEST_USER_PATH_KIND) } "
       r"elseif (@($k.GetValueNames()) -contains 'Path') { "
       r"$k.DeleteValue('Path') }";

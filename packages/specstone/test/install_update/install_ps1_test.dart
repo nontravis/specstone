@@ -289,6 +289,32 @@ void main() {
       expect(await userPathCount(binDir(sb)), 1);
     });
 
+    pathTest('f09/us01/fr04: a %USERPROFILE% spelling of the folder counts '
+        'as there', () async {
+      final sb = await sandboxWith();
+      const spelled = r'%USERPROFILE%\.specstone\bin';
+      await writeUserPath((
+        value: 'C:\\Windows;$spelled',
+        kind: 'ExpandString',
+      ));
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stdout, isNot(contains('to the user PATH')));
+      expect((await readUserPath())?.value, 'C:\\Windows;$spelled');
+    });
+
+    pathTest('f09/us01/fr04: an empty user Path gets the entry', () async {
+      final sb = await sandboxWith();
+      await writeUserPath((value: '', kind: 'String'));
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((await readUserPath())?.value, binDir(sb));
+    });
+
     pathTest('f09/us01/fr03/e02: a running old specstone.exe is renamed to '
         '.old; the next run deletes it', () async {
       final sb = await sandboxWith();

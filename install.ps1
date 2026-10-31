@@ -253,7 +253,7 @@
     }
 
     # Appends $Folder to the user PATH unless an entry already names it, ignoring
-    # case and a trailing backslash, and says so. The Path is read from the
+    # case, a trailing backslash, and %VAR% spelling, and says so. The Path is read from the
     # registry unexpanded and written back with its kind (ExpandString when it
     # was one or holds a %), so the owner's %VAR% entries stay as they are;
     # [Environment]::SetEnvironmentVariable would expand them for good.
@@ -267,9 +267,14 @@
                 $current = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
                 $kind = $key.GetValueKind('Path')
             }
-            $wanted = $Folder.TrimEnd('\')
+            # Leave a Path of another kind (a multi-string, say) untouched.
+            if ($kind -ne [Microsoft.Win32.RegistryValueKind]::String -and $kind -ne [Microsoft.Win32.RegistryValueKind]::ExpandString) {
+                [Console]::Error.WriteLine("specstone: the user PATH has an unexpected type ($kind) and is left as it is: add $Folder to it yourself")
+                return
+            }
+            $wanted = [Environment]::ExpandEnvironmentVariables($Folder).TrimEnd('\')
             foreach ($entry in $current.Split(';')) {
-                if ($entry.Trim().TrimEnd('\') -ieq $wanted) {
+                if ([Environment]::ExpandEnvironmentVariables($entry.Trim()).TrimEnd('\') -ieq $wanted) {
                     return
                 }
             }
