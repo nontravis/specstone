@@ -92,18 +92,53 @@ place() {
     fail "could not place $install_dir/bin: run the install again"
 }
 
+# Warns that the profile $1 is not written; the CLI is placed, so the run goes on.
+warn_unwritten() {
+  printf '%s\n' "specstone: could not write $1: add $2 to it yourself" >&2
+}
+
 # Appends the line $2 to the file $1 unless a whole line already matches it,
 # and says so; a file whose last byte is not a newline gets one first.
 add_path_line() {
-  if [ -f "$1" ] && grep -qxF -- "$2" "$1"; then
+  grep_status=0
+  if [ -e "$1" ]; then
+    grep -qxF -- "$2" "$1" 2>/dev/null || grep_status=$?
+  else
+    grep_status=1
+  fi
+  case "$grep_status" in
+    0) return 0 ;;
+    1) ;;
+    *)
+      warn_unwritten "$1" "$2"
+      return 0
+      ;;
+  esac
+  if ! mkdir -p -- "${1%/*}" 2>/dev/null; then
+    warn_unwritten "$1" "$2"
     return 0
   fi
-  mkdir -p "${1%/*}" || fail "could not create ${1%/*}: add $2 to $1 yourself"
+  lead=''
   if [ -s "$1" ] && [ -n "$(tail -c 1 "$1")" ]; then
-    printf '\n' >> "$1" || fail "could not write $1: add $2 to it yourself"
+    lead='
+'
   fi
-  printf '%s\n' "$2" >> "$1" || fail "could not write $1: add $2 to it yourself"
+  if ! printf '%s%s\n' "$lead" "$2" 2>/dev/null >> "$1"; then
+    warn_unwritten "$1" "$2"
+    return 0
+  fi
   printf '%s\n' "Added ~/.specstone/bin to the PATH in $1. Open a new terminal to use specstone."
+}
+
+# Prints the file a macOS bash login shell reads first, or ~/.bash_profile when none exists.
+bash_login_file() {
+  for name in .bash_profile .bash_login .profile; do
+    if [ -e "$home_dir/$name" ]; then
+      printf '%s\n' "$home_dir/$name"
+      return 0
+    fi
+  done
+  printf '%s\n' "$home_dir/.bash_profile"
 }
 
 # Puts ~/.specstone/bin first on the PATH of new shells, once per profile file.
@@ -117,7 +152,7 @@ add_path_entry() {
     */bash | bash)
       add_path_line "$home_dir/.bashrc" "$posix_line"
       if [ "$(uname -s)" = 'Darwin' ]; then
-        add_path_line "$home_dir/.bash_profile" "$posix_line"
+        add_path_line "$(bash_login_file)" "$posix_line"
       fi
       ;;
     */fish | fish) add_path_line "$home_dir/.config/fish/conf.d/specstone.fish" "$fish_line" ;;

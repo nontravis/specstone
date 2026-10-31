@@ -556,7 +556,6 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(sb.snapshot().keys, isNot(contains('.profile')));
       });
 
-      // An unset SHELL cannot be tested: macOS /bin/sh refills it.
       for (final shell in ['/bin/tcsh', 'nu']) {
         test('f09/us01/fr04: SHELL="$shell" writes ~/.profile', () async {
           final sb = await sandboxWith();
@@ -608,6 +607,115 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
           File('${sb.home.path}/.zshrc').readAsStringSync(),
           '$before$posixLine',
         );
+      });
+
+      test(
+        'f09/us01/fr04: an unset SHELL writes ~/.profile',
+        () async {
+          final sb = await sandboxWith();
+
+          final r = await runWith(sb, {'SHELL': ''});
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            File('${sb.home.path}/.profile').readAsStringSync(),
+            posixLine,
+          );
+        },
+        // macOS /bin/sh is bash, which refills an unset SHELL.
+        testOn: '!mac-os',
+      );
+
+      test('f09/us01/fr04: an unwritable profile warns, the other target is '
+          'still written, exit 0', () async {
+        final sb = await sandboxWith(target: 'macos-arm64');
+        final rc = File('${sb.home.path}/.bashrc')
+          ..writeAsStringSync('# mine\n');
+        Process.runSync('chmod', ['444', rc.path]);
+
+        final r = await runWith(sb, {
+          'SHELL': '/bin/bash',
+          'STUB_UNAME_S': 'Darwin',
+          'STUB_UNAME_M': 'arm64',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          'specstone: could not write ${rc.path}: add '
+          '${posixLine.trim()} to it yourself\n',
+        );
+        expect(rc.readAsStringSync(), '# mine\n');
+        expect(
+          File('${sb.home.path}/.bash_profile').readAsStringSync(),
+          posixLine,
+        );
+      });
+
+      test('f09/us01/fr04: an unreadable profile is not appended to', () async {
+        final sb = await sandboxWith();
+        final rc = File('${sb.home.path}/.zshrc')
+          ..writeAsStringSync('alias a=b');
+        Process.runSync('chmod', ['000', rc.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', rc.path]));
+
+        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stderr, startsWith('specstone: could not write ${rc.path}'));
+        Process.runSync('chmod', ['644', rc.path]);
+        expect(rc.readAsStringSync(), 'alias a=b');
+      });
+
+      for (final (existing, expected) in [
+        (['.profile'], '.profile'),
+        (['.bash_login'], '.bash_login'),
+        (['.bash_login', '.profile'], '.bash_login'),
+      ]) {
+        test('f09/us01/fr04: macOS bash with only ${existing.join(", ")} '
+            'writes $expected and creates no ~/.bash_profile', () async {
+          final sb = await sandboxWith(target: 'macos-arm64');
+          for (final name in existing) {
+            File('${sb.home.path}/$name').writeAsStringSync('# mine\n');
+          }
+          final env = {
+            'SHELL': '/bin/bash',
+            'STUB_UNAME_S': 'Darwin',
+            'STUB_UNAME_M': 'arm64',
+          };
+
+          final r = await runWith(sb, env);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            File('${sb.home.path}/$expected').readAsStringSync(),
+            '# mine\n$posixLine',
+          );
+          expect(sb.snapshot().keys, isNot(contains('.bash_profile')));
+          final before = sb.snapshot();
+
+          final again = await runWith(sb, env);
+
+          expect(again.stdout, isNot(contains('Added')));
+          expect(sb.snapshot(), before);
+        });
+      }
+
+      test('f09/us01/fr04: a second run on macOS bash adds nothing to '
+          'either file', () async {
+        final sb = await sandboxWith(target: 'macos-arm64');
+        final env = {
+          'SHELL': '/bin/bash',
+          'STUB_UNAME_S': 'Darwin',
+          'STUB_UNAME_M': 'arm64',
+        };
+        await runWith(sb, env);
+        final before = sb.snapshot();
+
+        final r = await runWith(sb, env);
+
+        expect(r.stdout, isNot(contains('Added')));
+        expect(sb.snapshot(), before);
       });
 
       test('f09/us01/fr03/e03: the same version still gets its PATH '
