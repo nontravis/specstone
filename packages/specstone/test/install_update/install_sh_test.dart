@@ -863,7 +863,11 @@ esac''');
         });
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(sb.logOf('claude'), contains(installPlugin));
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          installPlugin,
+        ]);
       });
 
       test('f09/us01/fr05: a marketplace named specstone-extra is not '
@@ -977,6 +981,114 @@ echo '[]'
           expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
         },
       );
+
+      test(
+        'f09/us01/fr05: a failing marketplace list is named; exit 0',
+        () async {
+          final sb = await sandboxWithClaude();
+
+          final r = await runWith(sb, {'STUB_FAIL': listMarketplaces});
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            r.stderr,
+            contains(
+              'specstone: claude $listMarketplaces failed: boom; run it by '
+              'hand\n',
+            ),
+          );
+          expect(sb.logOf('claude'), [listMarketplaces]);
+        },
+      );
+
+      test('f09/us01/fr05: add and install show claude stdout live and replay '
+          'its stderr', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+case "$*" in
+  'plugin marketplace add'*) echo 'added-marketplace-output' ;;
+  'plugin install'*) echo 'installed-plugin-output'; echo 'a-warning' >&2 ;;
+  *) echo '[]' ;;
+esac
+''');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('added-marketplace-output\n'));
+        expect(r.stdout, contains('installed-plugin-output\n'));
+        expect(r.stderr, contains('a-warning\n'));
+      });
+
+      test('f09/us01/fr05: claude gets EOF on stdin, not the script', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+rest=$(cat)
+echo "stdin:[$rest]" >> "$STUB_LOG_DIR/claude.log"
+echo '[]'
+''');
+
+        final r = await sb.run(
+          'install.sh',
+          extra: archiveEnv(sb),
+          stdinText: 'swallowed\n',
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          sb.logOf('claude').where((l) => l.startsWith('stdin:')),
+          everyElement('stdin:[]'),
+        );
+        expect(sb.logOf('claude'), contains(installPlugin));
+      });
+
+      test('f09/us01/fr05: empty stderr falls back to the first non-blank '
+          'stdout line', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+case "$*" in
+  'plugin list --json') printf '\n  \nnot logged in\nsecond\n'; exit 1 ;;
+esac
+echo '[]'
+''');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $listPlugins failed: not logged in; run it by '
+            'hand\n',
+          ),
+        );
+      });
+
+      test('f09/us01/fr05: a CRLF stderr line has no carriage return and '
+          'blank lines are skipped', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+case "$*" in
+  'plugin install specstone@specstone') printf '\r\n\nboom\r\nmore\r\n' >&2; exit 1 ;;
+esac
+echo '[]'
+''');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $installPlugin failed: boom; run it by hand\n',
+          ),
+        );
+        expect(r.stderr, isNot(contains('\r')));
+      });
 
       test('f09/us01/fr04, f09/us01/fr05: an unwritable profile still runs '
           'the plugin step; exit 0', () async {

@@ -160,21 +160,53 @@ add_path_entry() {
   esac
 }
 
+# Prints the first non-blank line of stdin without its trailing CR. Always succeeds.
+first_line() {
+  tr -d '\r' | grep -m 1 '[^[:space:]]' || true
+}
+
+# Names the failed command $2... with its status $1: the first non-blank stderr
+# line, else the first non-blank line of the captured stdout $claude_out, else
+# `exit <status>`. Returns 1.
+claude_failed() {
+  failed_status=$1
+  shift
+  claude_reason=$(first_line <"$tmp/claude.err")
+  if [ -z "$claude_reason" ]; then
+    claude_reason=$(printf '%s\n' "$claude_out" | first_line)
+  fi
+  if [ -z "$claude_reason" ]; then
+    claude_reason="exit $failed_status"
+  fi
+  printf 'specstone: claude %s failed: %s; run it by hand\n' "$*" "$claude_reason" >&2
+  return 1
+}
+
 # Runs `claude` with the arguments given and keeps its stdout in $claude_out.
-# On a non-zero exit names the command and its first stderr line, then returns 1.
+# On a non-zero exit names the command, then returns 1.
 run_claude() {
   claude_status=0
+  claude_out=''
   # stdin comes from /dev/null so claude cannot swallow the rest of a piped script
   claude_out=$(claude "$@" 2>"$tmp/claude.err" </dev/null) || claude_status=$?
   if [ "$claude_status" -eq 0 ]; then
     return 0
   fi
-  claude_reason=$(head -n 1 "$tmp/claude.err")
-  if [ -z "$claude_reason" ]; then
-    claude_reason="exit $claude_status"
+  claude_failed "$claude_status" "$@"
+}
+
+# Runs `claude` with the arguments given, stdout live on the terminal. Its
+# stderr is replayed after a success; on a non-zero exit the command is named
+# and the function returns 1.
+run_claude_live() {
+  claude_status=0
+  claude_out=''
+  claude "$@" 2>"$tmp/claude.err" </dev/null || claude_status=$?
+  if [ "$claude_status" -eq 0 ]; then
+    cat "$tmp/claude.err" >&2
+    return 0
   fi
-  printf 'specstone: claude %s failed: %s; run it by hand\n' "$*" "$claude_reason" >&2
-  return 1
+  claude_failed "$claude_status" "$@"
 }
 
 # Succeeds when the marketplace list $1 names a marketplace "specstone".
@@ -207,10 +239,10 @@ install_plugin() {
   run_claude plugin list --json || return 0
   plugins=$claude_out
   if ! marketplace_added "$marketplaces"; then
-    run_claude plugin marketplace add nontravis/specstone || return 0
+    run_claude_live plugin marketplace add nontravis/specstone || return 0
   fi
   if ! plugin_installed_for_user "$plugins"; then
-    run_claude plugin install specstone@specstone || return 0
+    run_claude_live plugin install specstone@specstone || return 0
   fi
 }
 
