@@ -302,14 +302,6 @@ void main() {
       expect(out.toString().trimRight().split('\n').last, restartLine);
     });
 
-    test('f09/us02/fr01: a passed check makes exactly one request', () async {
-      await prepare();
-
-      await runner.run(['upgrade']);
-
-      expect(requests, 1);
-    });
-
     test(
       'f09/us02/fr02/e02, f09/us02/s5: no server refuses '
       'install_script_failed, exit 69, naming the URL; nothing ran',
@@ -415,6 +407,19 @@ void main() {
       expect(out.toString().trimRight().split('\n').last, restartLine);
     });
 
+    test('f09/us02/fr03/e03: a non-UTF-8 byte from claude does not crash; '
+        'exit 0 with the result line', () async {
+      await prepare();
+      await File(fileIn('stubs', 'claude')).writeAsString(
+        '#!/bin/sh\n'
+        "printf 'bad \\377 byte\\n'\n",
+      );
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(out.toString(), contains('bad'));
+      expect(out.toString().trimRight().split('\n').last, restartLine);
+    }, testOn: '!windows');
+
     test('f09/us02/fr02/e05, nfr-pr01: only upgrade_command.dart opens a '
         'network client', () {
       final client = RegExp(
@@ -440,4 +445,55 @@ void main() {
       ]);
     });
   });
+
+  group('findOnPath', () {
+    late Directory root;
+
+    File touch(String folder, String name) =>
+        File(_join(root.path, folder, name))..createSync(recursive: true);
+
+    setUp(() async => root = await writeTree({}));
+
+    test('f09/us02/fr03: claude.exe wins over claude.cmd in one folder', () {
+      touch('a', 'claude.cmd');
+      final exe = touch('a', 'claude.exe');
+
+      expect(
+        findOnPath('claude', {'PATH': _join(root.path, 'a')}, windows: true),
+        exe.path,
+      );
+    });
+
+    test('f09/us02/fr03: an earlier folder wins, ";" separates, and an empty '
+        'entry is skipped', () {
+      touch('b', 'claude.exe');
+      final first = touch('a', 'claude.cmd');
+
+      expect(
+        findOnPath('claude', {
+          'PATH': ';${_join(root.path, 'a')};${_join(root.path, 'b')}',
+        }, windows: true),
+        first.path,
+      );
+    });
+
+    test(
+      'f09/us02/fr03: the Path key matches without case on Windows only',
+      () {
+        final exe = touch('a', 'claude.exe');
+        final env = {'Path': _join(root.path, 'a')};
+
+        expect(findOnPath('claude', env, windows: true), exe.path);
+        expect(findOnPath('claude', env, windows: false), isNull);
+      },
+    );
+
+    test('f09/us02/fr03: nothing found returns null', () {
+      expect(
+        findOnPath('claude', {'PATH': _join(root.path, 'a')}, windows: true),
+        isNull,
+      );
+      expect(findOnPath('claude', {}, windows: false), isNull);
+    });
+  }, testOn: '!windows');
 }

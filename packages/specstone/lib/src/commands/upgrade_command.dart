@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -16,6 +17,12 @@ const List<String> _pluginUpdateArguments = [
   'update',
   'specstone@specstone',
 ];
+
+/// How long a connection may take to open.
+const Duration _connectTimeout = Duration(seconds: 30);
+
+/// How long the script body may stay silent before the fetch gives up.
+const Duration _idleTimeout = Duration(seconds: 60);
 
 /// The last line `specstone upgrade` prints.
 const String _restartLine =
@@ -182,16 +189,39 @@ class UpgradeCommand extends SpecstoneCommand {
         asJson: false,
       );
     }
-    final temp = await Directory.systemTemp.createTemp('specstone_upgrade_');
+    final Directory temp;
+    try {
+      temp = await Directory.systemTemp.createTemp('specstone_upgrade_');
+    } on FileSystemException catch (e) {
+      return fail(
+        UpgradeFault(
+          UpgradeFaultCode.installScriptFailed,
+          'specstone upgrade: could not create a temp folder: ${e.message}; '
+          'the install is unchanged',
+        ),
+        asJson: false,
+      );
+    }
     try {
       final failure = await _installCli(temp);
       if (failure != null) return fail(failure, asJson: false);
     } finally {
-      await temp.delete(recursive: true);
+      await _remove(temp);
     }
     await _updatePlugin();
     specstoneRunner.out.writeln(_restartLine);
     return 0;
+  }
+
+  // Deletes [temp]; a failure is reported and never changes the exit status.
+  Future<void> _remove(Directory temp) async {
+    try {
+      await temp.delete(recursive: true);
+    } on FileSystemException catch (e) {
+      specstoneRunner.err.writeln(
+        'specstone upgrade: could not remove ${temp.path}: ${e.message}',
+      );
+    }
   }
 
   // Fetches the install script into [temp], then runs it with the terminal
@@ -238,7 +268,7 @@ class UpgradeCommand extends SpecstoneCommand {
   // Writes the body of [url] to [file] only when the whole body arrived.
   // Returns why it did not, or null.
   Future<String?> _fetch(Uri url, File file) async {
-    final client = HttpClient();
+    final client = HttpClient()..connectionTimeout = _connectTimeout;
     try {
       final response = await (await client.getUrl(url)).close();
       final status = response.statusCode;
@@ -246,18 +276,19 @@ class UpgradeCommand extends SpecstoneCommand {
         await response.drain<void>();
         return 'HTTP $status';
       }
-      final body = await response.fold(
-        BytesBuilder(copy: false),
-        (builder, chunk) => builder..add(chunk),
-      );
-      final expected = response.contentLength;
-      if (expected >= 0 && body.length < expected) {
-        return 'received ${body.length} of $expected bytes';
-      }
+      // HttpClient throws on a body cut short, so a finished fold is complete.
+      final body = await response
+          .timeout(_idleTimeout)
+          .fold(
+            BytesBuilder(copy: false),
+            (builder, chunk) => builder..add(chunk),
+          );
       await file.writeAsBytes(body.takeBytes());
       return null;
     } on IOException catch (e) {
       return e is HttpException ? e.message : '$e';
+    } on TimeoutException {
+      return 'no data for ${_idleTimeout.inSeconds} s';
     } finally {
       client.close(force: true);
     }
@@ -294,8 +325,9 @@ class UpgradeCommand extends SpecstoneCommand {
         includeParentEnvironment: false,
         runInShell: claude.endsWith('.cmd'),
       );
-      final stderrText = process.stderr.transform(utf8.decoder).join();
-      await process.stdout.transform(utf8.decoder).forEach(out.write);
+      const decoder = Utf8Decoder(allowMalformed: true);
+      final stderrText = process.stderr.transform(decoder).join();
+      await process.stdout.transform(decoder).forEach(out.write);
       final status = await process.exitCode;
       if (status == 0) return null;
       final firstLine = const LineSplitter()
