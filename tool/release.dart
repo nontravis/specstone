@@ -80,7 +80,7 @@ Future<void> _release(List<String> args) async {
   Directory.current = root;
   final branch = await _git(['rev-parse', '--abbrev-ref', 'HEAD']);
   if (branch.startsWith('release/')) {
-    // The run again from a release branch is M5-T13.
+    await _runAgainFrom(root, version, branch, dryRun: dryRun);
     return;
   }
   if (branch != 'develop') {
@@ -101,14 +101,149 @@ Future<void> _release(List<String> args) async {
   }
   final tagSha = await _bumpAndTag(root, version);
   await _pushTag(version);
+  await _endingWithRunAgain(version, () => _publishAndLand(version, tagSha));
+}
+
+/// Sets the exit code from [steps], which run once the tag is pushed.
+///
+/// Every refusal from there on says how to run again.
+Future<void> _endingWithRunAgain(
+  String version,
+  Future<int> Function() steps,
+) async {
   try {
-    exitCode = await _publishAndLand(version, tagSha);
+    exitCode = await steps();
   } on _Refusal catch (refusal) {
-    // The tag is pushed: every way out says how to run again.
     stderr
       ..writeln('release: ${refusal.message}')
       ..writeln('Resolve it, then ${_runAgain(version)}');
     exitCode = 1;
+  }
+}
+
+/// Runs the release again from [branch], the `release/<version>` branch.
+///
+/// A published Release only lands; otherwise the tag moves to the branch head
+/// and the run is awaited, then the release lands.
+Future<void> _runAgainFrom(
+  String root,
+  String version,
+  String branch, {
+  required bool dryRun,
+}) async {
+  if (branch != 'release/$version') {
+    throw _Refusal(
+      'on branch $branch, not release/$version; check out release/$version '
+      'to release $version again',
+    );
+  }
+  await _checkCleanTree();
+  final behind = _spotsNotHolding(root, version);
+  if (behind.isNotEmpty) {
+    throw _Refusal('the version spots do not all hold $version: $behind');
+  }
+  await _checkGhLoggedIn();
+
+  final releaseUrl = await _publishedReleaseUrl(version);
+  if (dryRun) {
+    [
+      if (releaseUrl == null) ..._moveTagSteps(version),
+      ..._landingSteps(version),
+    ].forEach(stdout.writeln);
+    return;
+  }
+  await _endingWithRunAgain(
+    version,
+    () => releaseUrl == null
+        ? _moveTagAndPublish(version)
+        : land(version, releaseUrl),
+  );
+}
+
+Future<void> _checkGhLoggedIn() async {
+  final result = await _run('gh', ['auth', 'status']);
+  if (result.exitCode != 0) {
+    throw _Refusal(
+      'gh is not logged in (${_failureLine(result)}); run gh auth login, '
+      'then release again',
+    );
+  }
+}
+
+/// Returns the URL of the published Release `v<version>`, else null.
+Future<String?> _publishedReleaseUrl(String version) async {
+  final result = await _run('gh', [
+    'release',
+    'view',
+    'v$version',
+    '--json',
+    'url',
+    '--jq',
+    '.url',
+  ]);
+  if (result.exitCode == 0) return (result.stdout as String).trim();
+  // gh answers a missing Release with exit 1 and this text; anything else
+  // (network, login) is not "unpublished" and must not move the tag.
+  if (result.exitCode == 1 &&
+      '${result.stderr}'.contains('release not found')) {
+    return null;
+  }
+  throw _Refusal(
+    'gh failed (reading the Release v$version): ${_failureLine(result)}',
+  );
+}
+
+/// Moves the tag to the head of the release branch and awaits its run.
+///
+/// A run of the pushed tag still queued or in progress is awaited instead,
+/// and the tag stays: moving it would cancel the run that is publishing.
+Future<int> _moveTagAndPublish(String version) async {
+  final running = await _runningTagSha(version);
+  if (running != null) return _publishAndLand(version, running);
+
+  await _pushRunAgainRef(version, ['origin', 'release/$version']);
+  await _git(['tag', '-f', 'v$version']);
+  await _pushRunAgainRef(version, ['--force', 'origin', 'v$version']);
+  return _publishAndLand(version, await _git(['rev-parse', 'HEAD']));
+}
+
+/// Returns the commit of `origin`'s tag when its release run has not ended.
+Future<String?> _runningTagSha(String version) async {
+  final remote = await _git(['ls-remote', 'origin', 'refs/tags/v$version']);
+  if (remote.isEmpty) return null;
+  final tagSha = remote.split(RegExp(r'\s')).first;
+  final output = await _gh([
+    'run',
+    'list',
+    '--workflow',
+    'release.yaml',
+    '--commit',
+    tagSha,
+    '--limit',
+    '1',
+    '--json',
+    'databaseId,url,status',
+  ], 'reading the release.yaml run of v$version');
+  final Object? runs;
+  try {
+    runs = jsonDecode(output);
+  } on FormatException {
+    throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
+  }
+  return switch (runs) {
+    [{'status': final String status}, ...] when status != 'completed' => tagSha,
+    _ => null,
+  };
+}
+
+Future<void> _pushRunAgainRef(String version, List<String> pushArgs) async {
+  try {
+    await _git(['push', ...pushArgs]);
+  } on _Refusal catch (failure) {
+    throw _Refusal(
+      '${failure.message}; main and develop are untouched. '
+      '${_runAgain(version)}',
+    );
   }
 }
 
@@ -249,17 +384,27 @@ Future<void> _checkTagAbsent(String version) async {
   }
 }
 
-List<String> _planSteps(String v) {
+List<String> _planSteps(String v) => [
+  'create release/$v from develop',
+  'set $v in the five version spots',
+  're-read the five spots; run dart pub get --enforce-lockfile',
+  'commit "chore: release $v"; tag v$v on it',
+  'push tag v$v',
+  'wait for the release.yaml run of v$v',
+  ..._landingSteps(v),
+];
+
+List<String> _moveTagSteps(String v) => [
+  'push release/$v',
+  'move tag v$v to the head of release/$v; push it',
+  'wait for the release.yaml run of v$v',
+];
+
+List<String> _landingSteps(String v) {
   final fastForward =
       'fast-forward main to v$v; fast-forward develop to origin/develop; '
       'merge release/$v into develop';
   return [
-    'create release/$v from develop',
-    'set $v in the five version spots',
-    're-read the five spots; run dart pub get --enforce-lockfile',
-    'commit "chore: release $v"; tag v$v on it',
-    'push tag v$v',
-    'wait for the release.yaml run of v$v',
     'fetch origin; check origin/main and local develop before moving any ref',
     fastForward,
     'push main and develop in one atomic push; delete release/$v',
@@ -354,6 +499,14 @@ void _writeSpots(String root, String version) {
 String _runAgain(String version) =>
     'run dart run tool/release.dart $version again from release/$version';
 
+/// Returns `<label> holds <value>` for each spot not at [version], joined by
+/// `; `; empty when all five hold it.
+String _spotsNotHolding(String root, String version) =>
+    readSpots(root).entries
+        .where((e) => e.value != version)
+        .map((e) => '${e.key} holds ${e.value}')
+        .join('; ');
+
 /// Bumps the five spots on `release/<version>`, commits, and tags.
 ///
 /// Returns the tagged commit. A spot left behind or a failed
@@ -362,12 +515,11 @@ Future<String> _bumpAndTag(String root, String version) async {
   await _git(['switch', '-c', 'release/$version']);
   _writeSpots(root, version);
 
-  final behind = readSpots(root).entries.where((e) => e.value != version);
+  final behind = _spotsNotHolding(root, version);
   if (behind.isNotEmpty) {
     await _undoBump(
       version,
-      'after the bump these spots do not hold $version: '
-      '${behind.map((e) => '${e.key} holds ${e.value}').join('; ')}',
+      'after the bump these spots do not hold $version: $behind',
     );
   }
   final pub = await _run(Platform.resolvedExecutable, [

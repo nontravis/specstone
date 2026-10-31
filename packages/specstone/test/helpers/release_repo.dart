@@ -45,12 +45,14 @@ final class ReleaseRepo {
   /// PATH holds `<root>/stubs` first. [gh] sets the stub's variables:
   /// `GH_STUB_AUTH` (`ok` | `none` | `broken`), `GH_STUB_CI` (`success` |
   /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
-  /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_LATE` (any value:
+  /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_STATE` (a run
+  /// status such as `in_progress` or `completed`, added to the release.yaml
+  /// `run list` answer), `GH_STUB_RUN_LATE` (any value:
   /// the first release.yaml `run list` finds no run), `GH_STUB_VIEW`
   /// (`failure` | `later_success` | `cancelled` | `garbage` | `broken`: what
   /// `run view` answers after a failed watch), `GH_STUB_RELEASE`
-  /// (`absent` | `present`), and `GH_STUB_ON_WATCH` (a shell line run before
-  /// `run watch` answers).
+  /// (`absent` | `present` | `broken`), and `GH_STUB_ON_WATCH` (a shell line
+  /// run before `run watch` answers).
   Future<ProcessResult> release(
     List<String> args, {
     Map<String, String> gh = const {},
@@ -266,7 +268,11 @@ case "\$1 \$2" in
           echo '[]'
           exit 0
         fi
-        echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789"}]'
+        if [ -n "\$GH_STUB_RUN_STATE" ]; then
+          echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789", "status": "'"\$GH_STUB_RUN_STATE"'"}]'
+        else
+          echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789"}]'
+        fi
         ;;
       *)
         case "\${GH_STUB_CI:-success}" in
@@ -308,6 +314,10 @@ case "\$1 \$2" in
     esac
     ;;
   "release view")
+    if [ "\${GH_STUB_RELEASE:-absent}" = broken ]; then
+      echo 'gh: network down' >&2
+      exit 1
+    fi
     if [ "\${GH_STUB_RELEASE:-absent}" = present ] || [ -e "\$root/released" ]; then
       echo "https://github.com/nontravis/specstone/releases/tag/\$3"
     else

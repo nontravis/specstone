@@ -716,4 +716,240 @@ dependencies:
       expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
     });
   });
+
+  group('run again from the release branch', () {
+    late String tagBefore;
+
+    setUp(() async {
+      final first = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RUN': 'failure'},
+      );
+      expect(first.exitCode, 1);
+      tagBefore = (await repo.originRefs())['refs/tags/v0.2.0']!;
+    });
+
+    test('f09/us04/fr04, f09/us04/s4: the tag moves to the fix and the '
+        'release lands', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+
+      final r = await repo.release(['0.2.0']);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0'], fix);
+      expect(refs['refs/heads/main'], fix);
+      expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      expect(
+        repo.ghCalls(),
+        containsAllInOrder([
+          'auth status',
+          'release view v0.2.0 --json url --jq .url',
+          [
+            'run list --workflow release.yaml --commit $fix --limit 1',
+            '--json databaseId,url',
+          ].join(' '),
+        ]),
+      );
+    });
+
+    test('f09/us04/fr04/e01, f09/us04/fr03/e06, INV-5: a run again with the '
+        'Release published only lands', () async {
+      final firstCalls = repo.ghCalls().length;
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RELEASE': 'present'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final calls = repo.ghCalls().skip(firstCalls);
+      expect(calls.where((c) => c.startsWith('run watch')), isEmpty);
+      expect(
+        calls.where((c) => c.contains('--workflow release.yaml')),
+        isEmpty,
+      );
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0'], tagBefore);
+      expect(refs['refs/heads/main'], tagBefore);
+      expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      expect(await repo.git(['branch', '--list', 'release/0.2.0']), isEmpty);
+    });
+
+    test('f09/us04/fr04: a run of the tag still in progress is awaited, and '
+        'the tag stays', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final firstCalls = repo.ghCalls().length;
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RUN_STATE': 'in_progress'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        repo.ghCalls().skip(firstCalls).where((c) => c.startsWith('run watch')),
+        isNotEmpty,
+      );
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0'], tagBefore);
+      expect(refs['refs/heads/main'], tagBefore);
+    });
+
+    test('f09/us04/fr03/e05: local develop ahead of origin/develop moves no '
+        'ref and pushes nothing', () async {
+      await repo.git(['switch', 'develop']);
+      await repo.commitFile('local.txt', 'x\n', 'local: not pushed');
+      final localSha = await repo.git(['rev-parse', '--short', 'HEAD']);
+      await repo.git(['switch', 'release/0.2.0']);
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RELEASE': 'present'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        contains('local develop holds commits origin/develop lacks:'),
+      );
+      expect(r.stderr, contains('  $localSha local: not pushed'));
+      expect(stderrLines(r).where((l) => l.startsWith('git ')), isEmpty);
+      expect(stderrLines(r).last, resolveLine);
+      expect(await repo.state(), mid);
+    });
+
+    test(
+      'f09/us04/fr04/e02: spots holding another version refuse naming it',
+      () async {
+        await repo.commitFile(
+          'plugin/.claude-plugin/plugin.json',
+          '{\n  "name": "specstone",\n  "version": "0.2.1"\n}\n',
+          'chore: wrong version',
+        );
+        final mid = await repo.state();
+
+        final r = await repo.release(['0.2.0']);
+
+        expect(r.exitCode, 1);
+        expect(r.stderr, contains('0.2.1'));
+        expect(await repo.state(), mid);
+      },
+    );
+
+    test('f09/us04/fr04/e03: another version than the branch refuses naming '
+        'the branch version', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(['0.3.0']);
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('0.2.0'));
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: an unclean tree refuses', () async {
+      File('${repo.work.path}/stray.txt').writeAsStringSync('x\n');
+      final mid = await repo.state();
+
+      final r = await repo.release(['0.2.0']);
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, startsWith('release: the working tree is'));
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: gh not logged in refuses', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_AUTH': 'none'});
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('gh is not logged in'));
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: a gh that fails reading the Release does not move '
+        'the tag', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RELEASE': 'broken'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('gh failed (reading the Release v0.2.0)'));
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04/e04: develop moved since the first run is no '
+        'refusal', () async {
+      final other = await repo.pushFromOtherClone('develop');
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+
+      final r = await repo.release(['0.2.0']);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      await repo.git(['fetch', 'origin']);
+      expect(
+        await repo.git([
+          'merge-base',
+          '--is-ancestor',
+          other,
+          'origin/develop',
+        ]),
+        isEmpty,
+      );
+      expect(
+        await repo.git(['merge-base', '--is-ancestor', fix, 'origin/develop']),
+        isEmpty,
+      );
+    });
+
+    test('f09/us04/fr04: --dry-run prints the run-again steps and changes '
+        'nothing', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(['0.2.0', '--dry-run']);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        r.stdout,
+        [
+          'push release/0.2.0',
+          'move tag v0.2.0 to the head of release/0.2.0; push it',
+          'wait for the release.yaml run of v0.2.0',
+          fetchLine,
+          fastForwardLine,
+          'push main and develop in one atomic push; delete release/0.2.0',
+        ].map((l) => '$l\n').join(),
+      );
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: --dry-run with the Release published prints the '
+        'landing only', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0', '--dry-run'],
+        gh: {'GH_STUB_RELEASE': 'present'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        r.stdout,
+        [
+          fetchLine,
+          fastForwardLine,
+          'push main and develop in one atomic push; delete release/0.2.0',
+        ].map((l) => '$l\n').join(),
+      );
+      expect(await repo.state(), mid);
+    });
+  });
 }
