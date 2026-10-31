@@ -276,6 +276,45 @@ exec /bin/cat "$@"''');
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     });
 
+    test('f09/us03/fr01: two profiles whose writes and restores fail keep '
+        'one backup each and name both', () async {
+      const zsh = 'z\n$entry\n';
+      const bash = 'b\n$entry\n';
+      profile('.zshrc', zsh);
+      profile('.bashrc', bash);
+      sb.stub('cat', 'printf xx; exit 1');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 1);
+      final paths = {
+        for (final m in RegExp(
+          r'could not write (\S+); its old content is in (\S+)\n',
+        ).allMatches(r.stderr as String))
+          m.group(1)!: m.group(2)!,
+      };
+      expect(paths.keys, [home('.zshrc'), home('.bashrc')]);
+      expect(File(paths[home('.zshrc')]!).readAsStringSync(), zsh);
+      expect(File(paths[home('.bashrc')]!).readAsStringSync(), bash);
+    });
+
+    test('f09/us03/fr01: a signal between truncating the profile and '
+        'confirming it keeps the backup and names it', () async {
+      const original = 'keep\n$entry\n';
+      profile('.zshrc', original);
+      sb.stub('cat', r'printf xx; kill -INT $PPID; sleep 1; exit 0');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, isNot(0));
+      final match = RegExp(
+        r'stopped while writing (\S+); its old content is in (\S+)\n',
+      ).firstMatch(r.stderr as String);
+      expect(match, isNotNull);
+      expect(match!.group(1), home('.zshrc'));
+      expect(File(match.group(2)!).readAsStringSync(), original);
+    });
+
     test('f09/us03/fr01: an unreadable profile is named on stderr', () async {
       profile('.zshrc', '$entry\n');
       Process.runSync('chmod', ['000', home('.zshrc')]);
@@ -298,7 +337,7 @@ exec /bin/cat "$@"''');
       profile('.zshrc', '$entry\n');
       sb.stub('rm', r'''
 for a in "$@"; do
-  case "$a" in */.specstone/bin) exit 1 ;; esac
+  case "$a" in */.specstone/bin) echo 'rm: denied' >&2; exit 1 ;; esac
 done
 exec /bin/rm "$@"''');
 
@@ -307,7 +346,12 @@ exec /bin/rm "$@"''');
       expect(r.exitCode, 1);
       expect(
         r.stderr,
-        'specstone: could not remove ${sb.home.path}/.specstone/bin\n',
+        'specstone: could not remove ${sb.home.path}/.specstone/bin: '
+        'rm: denied\n',
+      );
+      expect(
+        (r.stderr as String).split('\n').where((l) => l.startsWith('rm:')),
+        isEmpty,
       );
       expect(Directory(home('.specstone/bin')).existsSync(), isTrue);
       expect(Directory(home('.specstone/lib')).existsSync(), isFalse);

@@ -9,6 +9,10 @@ set -eu
 tmp=''
 keep_tmp=0
 failed=0
+nl='
+'
+writing=''
+backup=''
 
 fail() {
   printf 'specstone: %s\n' "$1" >&2
@@ -16,7 +20,9 @@ fail() {
 }
 
 cleanup() {
-  if [ -n "$tmp" ] && [ "$keep_tmp" -eq 0 ]; then
+  if [ -n "$writing" ]; then
+    printf '%s\n' "specstone: stopped while writing $writing; its old content is in $backup" >&3
+  elif [ -n "$tmp" ] && [ "$keep_tmp" -eq 0 ]; then
     rm -rf "$tmp"
   fi
 }
@@ -24,12 +30,12 @@ cleanup() {
 # Deletes the folder $1 when it is there, and says so.
 remove_dir() {
   if [ -e "$1" ] || [ -L "$1" ]; then
-    if rm -rf -- "${1:?}"; then
+    if reason=$(rm -rf -- "${1:?}" 2>&1); then
       printf '%s\n' "Removed $1"
       removed_any=1
     else
       failed=1
-      printf '%s\n' "specstone: could not remove $1" >&2
+      printf '%s\n' "specstone: could not remove $1${reason:+: ${reason%%"$nl"*}}" >&2
     fi
   fi
 }
@@ -85,9 +91,10 @@ remove_path_line() {
     warn_unchanged "$1" write
     return 0
   fi
+  backup="$tmp/orig${1##*/}"
   if ! keep_other_lines "$1" "$2" "$tmp/kept" 2>/dev/null ||
     ! kept_is_whole "$1" "$2" "$tmp/kept" ||
-    ! rm -f -- "$tmp/orig" || ! cp -- "$1" "$tmp/orig" 2>/dev/null || ! cmp -s -- "$1" "$tmp/orig"; then
+    ! cp -- "$1" "$backup" 2>/dev/null || ! cmp -s -- "$1" "$backup"; then
     warn_unchanged "$1" write
     return 0
   fi
@@ -96,17 +103,20 @@ remove_path_line() {
       warn_unchanged "$1" write
       return 0
     }
-  elif ! { cat "$tmp/kept" > "$1"; } 2>/dev/null || ! cmp -s -- "$tmp/kept" "$1"; then
-    if cmp -s -- "$tmp/orig" "$1" ||
-      { { cat "$tmp/orig" > "$1"; } 2>/dev/null && cmp -s -- "$tmp/orig" "$1"; }; then
+  elif ! { writing=$1; cat "$tmp/kept" > "$1"; } 2>/dev/null || ! cmp -s -- "$tmp/kept" "$1"; then
+    if cmp -s -- "$backup" "$1" ||
+      { { cat "$backup" > "$1"; } 2>/dev/null && cmp -s -- "$backup" "$1"; }; then
+      writing=''
       warn_unchanged "$1" write
     else
+      writing=''
       keep_tmp=1
       failed=1
-      printf '%s\n' "specstone: could not write $1; its old content is in $tmp/orig" >&2
+      printf '%s\n' "specstone: could not write $1; its old content is in $backup" >&2
     fi
     return 0
   fi
+  writing=''
   printf '%s\n' "Removed the PATH entry from $1"
   removed_any=1
 }
@@ -124,13 +134,18 @@ main() {
     fail 'no home folder: HOME and USERPROFILE are unset'
   fi
 
+  # A write group runs with stderr silenced; fd 3 keeps the cleanup message visible.
+  exec 3>&2
   trap cleanup EXIT
   trap 'exit 1' HUP INT TERM
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/specstone.XXXXXX") || {
+  if tmp=$(mktemp -d "${TMPDIR:-/tmp}/specstone.XXXXXX" 2>&1); then
+    :
+  else
+    reason=$tmp
     tmp=''
     failed=1
-    printf '%s\n' 'specstone: could not make a temporary folder; the profiles are not changed' >&2
-  }
+    printf '%s\n' "specstone: could not make a temporary folder${reason:+: ${reason%%"$nl"*}}; the profiles are not changed" >&2
+  fi
 
   # shellcheck disable=SC2016  # the profile holds a literal $HOME and $PATH
   posix_line='export PATH="$HOME/.specstone/bin:$PATH"'
