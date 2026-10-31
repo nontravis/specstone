@@ -117,8 +117,8 @@ void main() {
     expect(oversizedSkills(pluginRoot()), isEmpty);
   });
 
-  test('f08/us06/fr01: hooks.json holds one PostToolUse Write|Edit command '
-      'hook running specstone hook post-edit', () {
+  test('f08/us06/fr01, f09/us05/fr01/e05: hooks.json keeps the PostToolUse '
+      'Write|Edit hook beside the SessionStart entry', () {
     final decoded = jsonDecode(
       File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
           .readAsStringSync(),
@@ -130,6 +130,18 @@ void main() {
             'matcher': 'Write|Edit',
             'hooks': [
               {'type': 'command', 'command': 'specstone hook post-edit'},
+            ],
+          },
+        ],
+        'SessionStart': [
+          {
+            'hooks': [
+              {
+                'type': 'command',
+                'command':
+                    r'bash "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"',
+                'timeout': 10,
+              },
             ],
           },
         ],
