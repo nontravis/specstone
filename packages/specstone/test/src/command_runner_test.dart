@@ -66,7 +66,11 @@ void main() {
       expect(out.toString(), contains(usageLine));
       expect(out.toString(), contains('--version'));
       expect(out.toString(), contains('guide'));
-      expect(out.toString(), contains('mcp'));
+      expect(
+        out.toString(),
+        isNot(matches(RegExp(r'^\s+mcp\s', multiLine: true))),
+      );
+      expect(out.toString(), contains('upgrade'));
     });
 
     test('mcp --help prints the mcp usage to out and exits 0', () async {
