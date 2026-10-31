@@ -47,8 +47,8 @@ final class ReleaseRepo {
   /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
   /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_LATE` (any value:
   /// the first release.yaml `run list` finds no run), `GH_STUB_VIEW`
-  /// (`failure` | `later_success` | `broken`: what `run view` answers after a
-  /// failed watch), `GH_STUB_RELEASE`
+  /// (`failure` | `later_success` | `cancelled` | `garbage` | `broken`: what
+  /// `run view` answers after a failed watch), `GH_STUB_RELEASE`
   /// (`absent` | `present`), and `GH_STUB_ON_WATCH` (a shell line run before
   /// `run watch` answers).
   Future<ProcessResult> release(
@@ -294,6 +294,8 @@ case "\$1 \$2" in
         echo 'gh: network down' >&2
         exit 1
         ;;
+      cancelled) echo '{"status":"completed","conclusion":"cancelled"}' ;;
+      garbage) echo 'this is not json' ;;
       later_success)
         if [ ! -e "\$root/viewed" ]; then
           touch "\$root/viewed"

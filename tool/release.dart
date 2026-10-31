@@ -475,7 +475,7 @@ Future<int> _pollRun(String version, ({int id, String url}) run) async {
   }
   throw _Refusal(
     'the release.yaml run of v$version (${run.url}) did not end within '
-    '${_viewPollInterval.inMinutes * _viewPollTries} minutes; '
+    '${(_viewPollInterval * _viewPollTries).inMinutes} minutes; '
     'main and develop are untouched',
   );
 }

@@ -630,7 +630,7 @@ dependencies:
       );
     });
 
-    for (final view in ['broken']) {
+    for (final view in ['broken', 'cancelled', 'garbage']) {
       test('f09/us04/fr03: a failed gh run watch whose run is not read as '
           'failed ($view) exits 1 and moves nothing', () async {
         final refs = await repo.originRefs();
