@@ -52,6 +52,7 @@ void main() {
       'role_unresolved',
       'vision_goal_widened',
       'vision_goal_unresolved',
+      'goal_serves_missing',
       'fr_trace_unresolved',
       'architecture_missing',
       'implements_missing',

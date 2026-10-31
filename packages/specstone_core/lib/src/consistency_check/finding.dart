@@ -48,6 +48,7 @@ enum FindingKind {
   roleUnresolved('role_unresolved'),
   visionGoalWidened('vision_goal_widened'),
   visionGoalUnresolved('vision_goal_unresolved'),
+  goalServesMissing('goal_serves_missing'),
   frTraceUnresolved('fr_trace_unresolved'),
   architectureMissing('architecture_missing'),
   implementsMissing('implements_missing'),
