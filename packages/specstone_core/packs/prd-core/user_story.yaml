@@ -99,7 +99,8 @@ lint:
       message: error code or enum value in reader-altitude prose; describe what the person sees
       in: all
     - id: doc_citation
-      pattern: 'DESIGN-[A-Z]|\b[Rr]uling|\bPlan [A-Z]\.[0-9]|\bM[0-9]+-T[0-9]+\b|\b[Mm]ilestone M?[0-9]+|\bschema v[0-9]|docs/superpowers|\b[A-Z][0-9]+[A-Z]?-[DR][0-9]+\b'
+      # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.
+      pattern: 'DESIGN-[A-Z]|\b[Rr]uling|\bPlan [A-Z]\.[0-9]|\bM[0-9][0-9]*-T[0-9]+\b|\b[Mm]ilestone M?[0-9]+|\bschema v[0-9]|docs/superpowers|\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\b'
       message: cites a plan, milestone, ruling, or design doc
       in: all
     - id: history

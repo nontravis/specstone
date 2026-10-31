@@ -86,6 +86,20 @@ void main() {
     },
   );
 
+  test('f03/us06/fr03: a multi-digit milestone task and ruling id are each a '
+      'whole doc_citation match', () async {
+    final found = await _banned(
+      fr(
+        'A wrong password must not sign in.',
+        'A wrong password must not sign in, per M12-T34 and F12-D3.',
+      ),
+    );
+    expect(
+      found.map((f) => f.toJson()['match']),
+      unorderedEquals(['M12-T34', 'F12-D3']),
+    );
+  });
+
   test('f03/us06/fr03: a project goal By milestone and a court ruling give '
       'no doc_citation', () async {
     final found = await _banned({
