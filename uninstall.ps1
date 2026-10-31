@@ -28,8 +28,12 @@
     }
 
     # Returns $Path with any 8.3 short name spelled out, so a process path and
-    # the install folder compare equal whichever spelling each one carries.
+    # the install folder compare equal whichever spelling each one carries. A
+    # short name holds a ~, so a path without one is returned as it is.
     function Get-LongPath([string]$Path) {
+        if ($Path.IndexOf('~') -lt 0) {
+            return $Path
+        }
         try {
             Initialize-Native
             $buffer = New-Object System.Text.StringBuilder -ArgumentList 32768
@@ -69,8 +73,10 @@
                 try {
                     $stream = [System.IO.File]::Open($file.FullName, 'Open', 'ReadWrite', 'None')
                 } catch {
-                    $code = $_.Exception.HResult -band 0xFFFF
-                    if ($_.Exception -is [System.IO.IOException] -and ($code -eq 32 -or $code -eq 33)) {
+                    # Open() wraps the failure in a MethodInvocationException.
+                    $cause = $_.Exception.GetBaseException()
+                    $code = $cause.HResult -band 0xFFFF
+                    if ($cause -is [System.IO.IOException] -and ($code -eq 32 -or $code -eq 33)) {
                         [void]$locked.Add($file.FullName)
                     }
                 } finally {
@@ -83,35 +89,56 @@
         return $locked.ToArray()
     }
 
-    # Returns the folder of $Roots that holds the executable or a loaded module
-    # of $Process, or '' when none does. A process this user may not inspect
-    # has no readable Path or Modules and counts as outside.
-    function Find-RunningFrom($Process, $Roots) {
-        $paths = New-Object System.Collections.ArrayList
-        try {
-            $exe = [string]$Process.Path
-            if ($exe.Length -gt 0) {
-                [void]$paths.Add($exe)
+    # Returns the folder of $Roots that holds the path $Path, or ''.
+    function Find-Root([string]$Path, $Roots) {
+        $long = Get-LongPath $Path
+        foreach ($root in $Roots) {
+            if ($long.StartsWith($root.Prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                return $root.Shown
             }
-        } catch {
-            # no access to this process's image path
+        }
+        return ''
+    }
+
+    # Returns the folder of $Roots that holds the executable $Exe of $Process,
+    # else a loaded module of it, or '' when none does. The modules are read
+    # only when the executable is elsewhere; a process this user may not
+    # inspect has no readable Modules and counts as outside.
+    function Find-RunningFrom($Process, [string]$Exe, $Roots) {
+        if ($Exe.Length -gt 0) {
+            $from = Find-Root $Exe $Roots
+            if ($from.Length -gt 0) {
+                return $from
+            }
         }
         try {
             foreach ($module in @($Process.Modules)) {
-                [void]$paths.Add([string]$module.FileName)
+                $from = Find-Root ([string]$module.FileName) $Roots
+                if ($from.Length -gt 0) {
+                    return $from
+                }
             }
         } catch {
             # no access to this process's modules
         }
-        foreach ($path in $paths) {
-            $long = Get-LongPath $path
-            foreach ($root in $Roots) {
-                if ($long.StartsWith($root.Prefix, [StringComparison]::OrdinalIgnoreCase)) {
-                    return $root.Shown
+        return ''
+    }
+
+    # Returns a table of process id to executable path from WMI, which reports
+    # the path of a 64-bit process to a 32-bit PowerShell too. A failure gives
+    # an empty table, and the modules then carry the match.
+    function Get-ExecutablePath {
+        $paths = @{}
+        try {
+            foreach ($item in @(Get-CimInstance -ClassName Win32_Process)) {
+                if ($null -ne $item.ExecutablePath) {
+                    $paths[[int]$item.ProcessId] = [string]$item.ExecutablePath
                 }
             }
+        } catch {
+            # fall back to the loaded modules
         }
-        return ''
+        return $paths
     }
 
     # Returns the message that refuses the uninstall: one line per process that
@@ -121,8 +148,13 @@
             [pscustomobject]@{ Shown = $folder; Prefix = (Get-LongPath $folder).TrimEnd('\') + '\' }
         })
         $lines = New-Object System.Collections.ArrayList
+        $executables = Get-ExecutablePath
         foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
-            $from = Find-RunningFrom $process $roots
+            $exe = ''
+            if ($executables.ContainsKey([int]$process.Id)) {
+                $exe = $executables[[int]$process.Id]
+            }
+            $from = Find-RunningFrom $process $exe $roots
             if ($from.Length -gt 0) {
                 [void]$lines.Add("specstone: cannot uninstall while $($process.ProcessName) (PID $($process.Id)) runs from $from; stop it and run the uninstall line again")
             }

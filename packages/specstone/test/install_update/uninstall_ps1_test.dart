@@ -60,6 +60,7 @@ void main() {
       final r = await sb.run('uninstall.ps1');
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stderr, '');
       expect((r.stdout as String).trimRight().split(RegExp(r'\r?\n')), [
         'Removed ${binDir(sb)}',
         'Removed ${libDir(sb)}',
@@ -117,6 +118,74 @@ void main() {
       expect(sb.snapshot(), before);
       expect((await readUserPath())?.value, pathBefore);
       expect(pathBefore, contains(binDir(sb)));
+    });
+
+    pathTest('f09/us03/fr01: a removal that fails for a reason other than a '
+        'lock leaves that folder; the rest goes, exit 1', () async {
+      final sb = await installedSandbox();
+      final lib = Directory(libDir(sb));
+      final victim = lib.listSync(recursive: true).whereType<File>().first;
+      // Deleting needs DELETE on the file or DELETE_CHILD on its folder, so
+      // deny both.
+      Future<void> icacls(List<String> args) async {
+        final result = await Process.run('icacls', args);
+        expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      }
+
+      await icacls([victim.path, '/deny', '*S-1-1-0:(D)']);
+      await icacls([victim.parent.path, '/deny', '*S-1-1-0:(DC)']);
+      addTearDown(() async {
+        await Process.run('icacls', [
+          victim.parent.path,
+          '/remove:d',
+          '*S-1-1-0',
+        ]);
+        await Process.run('icacls', [victim.path, '/remove:d', '*S-1-1-0']);
+      });
+
+      final r = await sb.run('uninstall.ps1');
+
+      expect(r.exitCode, 1);
+      expect(
+        flat(r.stderr),
+        contains('specstone: could not remove ${libDir(sb)}'),
+      );
+      expect(Directory(binDir(sb)).existsSync(), isFalse);
+      expect(lib.existsSync(), isTrue);
+      expect((await readUserPath())?.value, otherItems);
+      final lines = (r.stdout as String).trimRight().split(RegExp(r'\r?\n'));
+      expect(lines, contains('Removed ${binDir(sb)}'));
+      expect(lines.last, pluginLine);
+    });
+
+    pathTest('f09/us03/fr01: the PATH item is found in another case and with '
+        'a trailing backslash', () async {
+      final sb = await installedSandbox();
+      await writeUserPath((
+        value: r'C:\Windows;' + binDir(sb).toUpperCase() + r'\;C:\Tools',
+        kind: 'String',
+      ));
+
+      final r = await sb.run('uninstall.ps1');
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((await readUserPath())?.value, otherItems);
+    });
+
+    pathTest('f09/us03/fr01: an ExpandString Path keeps its kind and its '
+        '%VAR% items', () async {
+      final sb = await installedSandbox();
+      await writeUserPath((
+        value: r'%SystemRoot%\Tools;' + binDir(sb),
+        kind: 'ExpandString',
+      ));
+
+      final r = await sb.run('uninstall.ps1');
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final path = await readUserPath();
+      expect(path?.value, r'%SystemRoot%\Tools');
+      expect(path?.kind, 'ExpandString');
     });
 
     pathTest('f09/us03/fr01/e04, f09/us03/s5: nothing installed says so and '
