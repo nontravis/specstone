@@ -162,7 +162,7 @@ add_path_entry() {
 
 # Prints the first non-blank line of stdin without its trailing CR. Always succeeds.
 first_line() {
-  tr -d '\r' | grep -m 1 '[^[:space:]]' || true
+  tr -d '\r' | sed -n '/[^[:space:]]/{p;q;}' || true
 }
 
 # Names the failed command $2... with its status $1: the first non-blank stderr
@@ -171,7 +171,7 @@ first_line() {
 claude_failed() {
   failed_status=$1
   shift
-  claude_reason=$(first_line <"$tmp/claude.err")
+  claude_reason=$(first_line <"$tmp/claude.err") || claude_reason=''
   if [ -z "$claude_reason" ]; then
     claude_reason=$(printf '%s\n' "$claude_out" | first_line)
   fi
@@ -203,7 +203,7 @@ run_claude_live() {
   claude_out=''
   claude "$@" 2>"$tmp/claude.err" </dev/null || claude_status=$?
   if [ "$claude_status" -eq 0 ]; then
-    cat "$tmp/claude.err" >&2
+    cat "$tmp/claude.err" >&2 || true
     return 0
   fi
   claude_failed "$claude_status" "$@"
