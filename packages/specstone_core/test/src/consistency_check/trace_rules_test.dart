@@ -256,6 +256,23 @@ void main() {
   });
 
   test(
+    'f04/us03/fr02/e09: a bare Serves line is goal_serves_missing',
+    () async {
+      for (final bare in ['**Serves:**', '**Serves:**  , ,']) {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: doc(projectDoc, '**Serves:** PV-01', bare),
+          ),
+        );
+        expect(spots(report, FindingKind.goalServesMissing), [
+          '$projectDoc:15: goal_serves_missing',
+        ]);
+        expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      }
+    },
+  );
+
+  test(
     'f04/us03/fr02/e09: a fenced Serves example counts for nothing',
     () async {
       final report = checkOf(

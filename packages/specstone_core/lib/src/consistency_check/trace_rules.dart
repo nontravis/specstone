@@ -239,7 +239,11 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
         )
         .where((entry) => entry.match != null)
         .firstOrNull;
-    if (serves == null) {
+    final ids = (serves?.match!.group(1) ?? '')
+        .split(_idSeparator)
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (ids.isEmpty) {
       yield context.finding(
         doc,
         FindingKind.goalServesMissing,
@@ -249,10 +253,6 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
       );
       continue;
     }
-    final ids = serves.match!
-        .group(1)!
-        .split(_idSeparator)
-        .where((id) => id.isNotEmpty);
     for (final id in ids) {
       if (id.startsWith(_visionIdPrefix) &&
           context.projectHeadingIds().contains(id)) {
@@ -261,7 +261,7 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
       yield context.finding(
         doc,
         FindingKind.visionGoalUnresolved,
-        line: serves.line,
+        line: serves!.line,
         message: '$id is no vision heading of the project',
         keys: {_idKey: id},
       );
