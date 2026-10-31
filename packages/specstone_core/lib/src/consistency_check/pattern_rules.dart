@@ -50,7 +50,7 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
       }
     }
     for (final entry in required) {
-      final regExp = context.patternOf(entry);
+      final regExp = entry.regExp;
       if (lines.any((line) => regExp.hasMatch(_maskCode(line.text)))) continue;
       yield context.finding(
         doc,
@@ -69,7 +69,7 @@ Iterable<String> _bannedMatches(
   PatternEntry entry,
   String text,
 ) sync* {
-  final regExp = context.patternOf(entry);
+  final regExp = entry.regExp;
   final searched = switch (entry.scope) {
     PatternScope.text => [_maskCode(text)],
     PatternScope.code => [
@@ -81,7 +81,7 @@ Iterable<String> _bannedMatches(
   for (final haystack in searched) {
     for (final match in regExp.allMatches(haystack)) {
       final matched = match.group(0)!;
-      if (matched.isEmpty || context.isExcepted(entry, matched)) continue;
+      if (matched.isEmpty || entry.isExcepted(matched)) continue;
       yield matched;
     }
   }

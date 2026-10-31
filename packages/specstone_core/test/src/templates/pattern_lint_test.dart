@@ -316,7 +316,7 @@ sections:
 
   test('f03/us03/fr01: PatternEntry matches, excepts by full match, and '
       'prints JSON', () {
-    const entry = PatternEntry(
+    final entry = PatternEntry(
       id: 'a',
       pattern: r'\bfoo\w*',
       message: 'm',
@@ -335,7 +335,7 @@ sections:
       'except': ['foobar'],
     });
     expect(
-      const PatternEntry(id: 'b', pattern: 'x', message: 'm').toJson(),
+      PatternEntry(id: 'b', pattern: 'x', message: 'm').toJson(),
       isNot(contains('except')),
     );
   });

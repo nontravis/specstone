@@ -18,13 +18,19 @@ enum PatternScope {
 
 /// One `banned_patterns` or `required_patterns` entry of a doc type.
 final class PatternEntry {
-  const new({
+  /// Compiles [pattern] and each [except] entry once.
+  ///
+  /// Throws a [FormatException] for a source that does not compile.
+  new({
     required this.id,
     required this.pattern,
     required this.message,
     this.scope = PatternScope.text,
     this.except = const [],
-  });
+  }) : regExp = RegExp(pattern, unicode: true),
+       _exceptRegExps = [
+         for (final entry in except) RegExp('^(?:$entry)\$', unicode: true),
+       ];
 
   /// The entry id; the merge key.
   final String id;
@@ -42,11 +48,13 @@ final class PatternEntry {
   final List<String> except;
 
   /// The compiled [pattern], Unicode mode.
-  RegExp get regExp => RegExp(pattern, unicode: true);
+  final RegExp regExp;
+
+  final List<RegExp> _exceptRegExps;
 
   /// Whether [matched] equals any [except] entry, matched as a whole.
   bool isExcepted(String matched) =>
-      except.any((entry) => _exceptRegExp(entry).hasMatch(matched));
+      _exceptRegExps.any((entry) => entry.hasMatch(matched));
 
   /// Returns the JSON object of this entry; `except` prints only when set.
   Map<String, Object> toJson() => {
@@ -89,26 +97,29 @@ final class PatternEntry {
       file: file,
       prefix: prefix,
     );
-    _compile(pattern, file: file, key: '${prefix}pattern');
     final except = stringList(map, 'except', file: file, prefix: prefix);
-    for (final entry in except) {
-      _compile('^(?:$entry)\$', file: file, key: '${prefix}except');
+    final scope = _scopeOf(map, file: file, prefix: prefix);
+    try {
+      return PatternEntry(
+        id: id,
+        pattern: pattern,
+        message: message,
+        scope: scope,
+        except: List.unmodifiable(except),
+      );
+    } on FormatException {
+      _compile(pattern, file: file, key: '${prefix}pattern');
+      for (final entry in except) {
+        _compile('^(?:$entry)\$', file: file, key: '${prefix}except');
+      }
+      rethrow;
     }
-    return PatternEntry(
-      id: id,
-      pattern: pattern,
-      message: message,
-      scope: _scopeOf(map, file: file, prefix: prefix),
-      except: List.unmodifiable(except),
-    );
   }
 }
 
 const _bannedKeys = {'id', 'pattern', 'message', 'in', 'except'};
 
 const _requiredKeys = {'id', 'pattern', 'message'};
-
-RegExp _exceptRegExp(String entry) => RegExp('^(?:$entry)\$', unicode: true);
 
 PatternScope _scopeOf(
   YamlMap map, {
