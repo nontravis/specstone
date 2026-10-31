@@ -31,8 +31,12 @@ void main() {
       ]) {
         expect(text, contains('\n## $name '));
       }
-      expect(text, contains('## mermaid'));
-      expect(text, contains('Permission is hereby granted'));
+      final mermaid = RegExp(
+        r'\n## mermaid\n(.*?)(?=\n## |$)',
+        dotAll: true,
+      ).firstMatch(text)?.group(1);
+      expect(mermaid, isNotNull);
+      expect(mermaid, contains('Permission is hereby granted'));
       expect(text, contains('## SQLite\n'));
       expect(text, isNot(contains('\n## test ')));
       expect(text, isNot(contains('\n## specstone_core ')));

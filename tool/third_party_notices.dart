@@ -3,6 +3,7 @@
 // Usage: dart run tool/third_party_notices.dart <out path>, run from the repo
 // root. Contract: docs/specs/install_update/s02_api_release.md `## release.dart`
 // (the `build` job) and US-04 FR-06.
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
@@ -81,7 +82,7 @@ Future<Map<String, String>> _runtimePackages() async {
   final queue = [
     ...(all[_cliPackage]!['directDependencies']! as List).cast<String>(),
   ];
-  final found = <String, String>{};
+  final found = SplayTreeMap<String, String>();
   final visited = <String>{};
   while (queue.isNotEmpty) {
     final name = queue.removeLast();
@@ -92,9 +93,7 @@ Future<Map<String, String>> _runtimePackages() async {
     }
     queue.addAll((package['directDependencies']! as List).cast<String>());
   }
-  return Map.fromEntries(
-    found.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-  );
+  return found;
 }
 
 /// Returns each package's folder from `.dart_tool/package_config.json`.
