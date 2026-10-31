@@ -102,7 +102,7 @@ sections:
     expect(lintJson, contains('requiredFieldGroups'));
   });
 
-  test('f03/us03/fr01: a bad regex is unknown_value', () async {
+  test('f03/us03/fr01/e24: a bad regex is unknown_value', () async {
     await _expectFault(
       _resolve(
         project: '''
@@ -118,7 +118,7 @@ lint:
     );
   });
 
-  test('f03/us03/fr01: a bad except regex is unknown_value', () async {
+  test('f03/us03/fr01/e24: a bad except regex is unknown_value', () async {
     await _expectFault(
       _resolve(
         project: '''
@@ -136,7 +136,7 @@ lint:
   });
 
   test(
-    'f03/us03/fr01: an in outside text, code, all is unknown_value',
+    'f03/us03/fr01/e25: an in outside text, code, all is unknown_value',
     () async {
       await _expectFault(
         _resolve(
@@ -155,7 +155,7 @@ lint:
     },
   );
 
-  test('f03/us03/fr01: an entry without message is missing_key', () async {
+  test('f03/us03/fr01/e27: an entry without message is missing_key', () async {
     await _expectFault(
       _resolve(
         project: '''
@@ -192,7 +192,7 @@ sections:
     },
   );
 
-  test('f03/us03/fr01: a group naming no field of the merged type is '
+  test('f03/us03/fr01/e26: a group naming no field of the merged type is '
       'unknown_value', () async {
     await _expectFault(
       _resolve(
@@ -207,7 +207,7 @@ lint:
     );
   });
 
-  test('f03/us02/fr03: add replaces an entry with the same id and remove '
+  test('f03/us02/fr03/e10: add replaces an entry with the same id and remove '
       'drops one', () async {
     final set = await _resolve(
       shipped: _lowerFeature,
@@ -227,7 +227,7 @@ lint:
     expect(patterns.single.pattern, 'new');
   });
 
-  test('f03/us02/fr03: remove of an id no lower layer holds is '
+  test('f03/us02/fr03/e11: remove of an id no lower layer holds is '
       'override_id_not_found', () async {
     await _expectFault(
       _resolve(
@@ -242,7 +242,7 @@ lint:
     );
   });
 
-  test('f03/us02/fr03: a plain list over a lower list is '
+  test('f03/us02/fr03/e12: a plain list over a lower list is '
       'list_override_needs_add_remove', () async {
     await _expectFault(
       _resolve(
@@ -259,7 +259,7 @@ lint:
     );
   });
 
-  test('f03/us02/fr03: an upper required_field_groups replaces the lower '
+  test('f03/us02/fr03/e14: an upper required_field_groups replaces the lower '
       'value', () async {
     final set = await _resolve(
       shipped: _lowerFeature,
