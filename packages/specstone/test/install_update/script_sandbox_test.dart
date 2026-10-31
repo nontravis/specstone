@@ -186,6 +186,66 @@ void main() {
     expect(sandbox.snapshot(), isNot(before));
   });
 
+  test(
+    'writeArchive keeps the other target SUMS line and replaces its own',
+    () async {
+      final sandbox = await createScriptSandbox();
+
+      final linux = await sandbox.writeArchive('linux-x64');
+      final mac = await sandbox.writeArchive('macos-arm64');
+      await sandbox.writeArchive('linux-x64', version: '0.9.0');
+
+      final lines = File('${sandbox.archives.path}/SHA256SUMS')
+          .readAsLinesSync();
+      expect(lines, hasLength(2));
+      expect(lines, contains('${sha256Of(mac)}  specstone-macos-arm64.tar.gz'));
+      expect(lines, contains('${sha256Of(linux)}  $asset'));
+    },
+  );
+
+  test('run with shell /bin/bash runs a bash-only construct', () async {
+    final sandbox = await createScriptSandbox();
+    final script = File('${sandbox.root.path}/bashism.sh')
+      ..writeAsStringSync('[[ a == a ]] && echo bash-ok\n');
+
+    final result = await sandbox.run(script.path, shell: '/bin/bash');
+
+    expect(result.exitCode, 0);
+    expect((result.stdout as String).trim(), 'bash-ok');
+  });
+
+  test('run survives a script that never reads stdin', () async {
+    final sandbox = await createScriptSandbox();
+    final script = File('${sandbox.root.path}/noread.sh')
+      ..writeAsStringSync('exit 3\n');
+
+    final result = await sandbox.run(script.path, stdinText: 'x' * 1000000);
+
+    expect(result.exitCode, 3);
+  });
+
+  test('run decodes malformed output bytes without throwing', () async {
+    final sandbox = await createScriptSandbox();
+    final script = File('${sandbox.root.path}/bad.sh')
+      ..writeAsStringSync("printf '\\377ok'\n");
+
+    final result = await sandbox.run(script.path);
+
+    expect(result.stdout as String, endsWith('ok'));
+  });
+
+  test(
+    'run joins a relative script to the repo root without a double slash',
+    () async {
+      final sandbox = await createScriptSandbox();
+
+      final result = await sandbox.run('missing.sh');
+
+      expect(repoRoot().path, isNot(endsWith('/')));
+      expect(result.stderr as String, isNot(contains('//')));
+    },
+  );
+
   test('repoRoot is the code repo root', () {
     expect(File('${repoRoot().path}/pubspec.yaml').existsSync(), isTrue);
     expect(

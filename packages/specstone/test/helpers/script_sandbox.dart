@@ -8,7 +8,14 @@ import 'package:test/test.dart';
 import 'package_root.dart';
 
 /// Returns the code repo root, two levels above the specstone package.
-Directory repoRoot() => Directory.fromUri(packageRoot().uri.resolve('../../'));
+Directory repoRoot() {
+  final path = Directory.fromUri(packageRoot().uri.resolve('../../')).path;
+  return Directory(
+    path.endsWith(Platform.pathSeparator)
+        ? path.substring(0, path.length - 1)
+        : path,
+  );
+}
 
 /// Creates a [ScriptSandbox] under a new temp folder.
 ///
@@ -129,10 +136,17 @@ final class ScriptSandbox {
 
     final bytes = archive.readAsBytesSync();
     final hashed = damaged ? [...bytes, 0] : bytes;
-    final sumsLine = withSumsLine
+    final sums = File(_under(archives, 'SHA256SUMS'));
+    final kept = [
+      if (sums.existsSync())
+        for (final line in sums.readAsLinesSync())
+          if (!line.endsWith('  $asset')) line,
+    ];
+    final entry = withSumsLine
         ? '${sha256.convert(hashed)}  $asset'
         : '${sha256.convert(utf8.encode('other'))}  specstone-other.tar.gz';
-    await File(_under(archives, 'SHA256SUMS')).writeAsString('$sumsLine\n');
+    if (withSumsLine || kept.isEmpty) kept.add(entry);
+    await sums.writeAsString('${kept.join('\n')}\n');
     return archive;
   }
 
@@ -187,8 +201,8 @@ final class ScriptSandbox {
       includeParentEnvironment: false,
       workingDirectory: root.path,
     );
-    final stdout = process.stdout.transform(utf8.decoder).join();
-    final stderr = process.stderr.transform(utf8.decoder).join();
+    final stdout = process.stdout.transform(_lenientUtf8).join();
+    final stderr = process.stderr.transform(_lenientUtf8).join();
     if (stdinText != null) process.stdin.write(stdinText);
     // A script that never reads stdin closes the pipe early; that is fine.
     await process.stdin.close().catchError((Object _) {});
@@ -199,6 +213,8 @@ final class ScriptSandbox {
       await stderr,
     );
   }
+
+  static const _lenientUtf8 = Utf8Decoder(allowMalformed: true);
 
   static bool _isAbsolute(String path) =>
       path.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
@@ -218,10 +234,10 @@ final class ScriptSandbox {
     if (bundle != null) {
       await _copyFolderContents(bundle, stage);
     } else {
-      final binary = File(_under(Directory(_under(stage, 'bin')), 'specstone'))
+      final binary = File('${stage.path}${_separator}bin${_separator}specstone')
         ..createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho $version\n');
-      File(_under(Directory(_under(stage, 'lib')), 'libfake.so'))
+      File('${stage.path}${_separator}lib${_separator}libfake.so')
         ..createSync(recursive: true)
         ..writeAsStringSync('fake');
       if (!_windows) _chmodExecutable(binary);
@@ -252,7 +268,7 @@ final class ScriptSandbox {
         ? await Process.run('powershell', [
             '-NoProfile',
             '-Command',
-            'Compress-Archive -Path ${stage.path}\\* -DestinationPath ${archive.path}',
+            'Compress-Archive -Path "${stage.path}\\*" -DestinationPath "${archive.path}"',
           ])
         : await Process.run('tar', [
             '-czf',
