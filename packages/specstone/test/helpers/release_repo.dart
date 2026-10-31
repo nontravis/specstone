@@ -45,7 +45,10 @@ final class ReleaseRepo {
   /// PATH holds `<root>/stubs` first. [gh] sets the stub's variables:
   /// `GH_STUB_AUTH` (`ok` | `none` | `broken`), `GH_STUB_CI` (`success` |
   /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
-  /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RELEASE`
+  /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_LATE` (any value:
+  /// the first release.yaml `run list` finds no run), `GH_STUB_VIEW`
+  /// (`failure` | `in_progress` | `broken`: what `run view` answers after a
+  /// failed watch), `GH_STUB_RELEASE`
   /// (`absent` | `present`), and `GH_STUB_ON_WATCH` (a shell line run before
   /// `run watch` answers).
   Future<ProcessResult> release(
@@ -258,6 +261,11 @@ case "\$1 \$2" in
     fi
     case "\$*" in
       *release.yaml*)
+        if [ -n "\$GH_STUB_RUN_LATE" ] && [ ! -e "\$root/run_listed" ]; then
+          touch "\$root/run_listed"
+          echo '[]'
+          exit 0
+        fi
         echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789"}]'
         ;;
       *)
@@ -279,6 +287,16 @@ case "\$1 \$2" in
       echo 'release.yaml failed' >&2
       exit 1
     fi
+    ;;
+  "run view")
+    case "\${GH_STUB_VIEW:-failure}" in
+      broken)
+        echo 'gh: network down' >&2
+        exit 1
+        ;;
+      in_progress) echo '{"status":"in_progress","conclusion":""}' ;;
+      *) echo '{"status":"completed","conclusion":"failure"}' ;;
+    esac
     ;;
   "release view")
     if [ "\${GH_STUB_RELEASE:-absent}" = present ] || [ -e "\$root/released" ]; then

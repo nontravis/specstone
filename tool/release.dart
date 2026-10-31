@@ -23,7 +23,7 @@ final List<_VersionSpot> _spots = [
   _VersionSpot(
     'packages/specstone_core/lib/src/version.dart',
     'packages/specstone_core/lib/src/version.dart',
-    RegExp(r"(const String specstoneVersion = ')(\d+\.\d+\.\d+)"),
+    RegExp(r"(const String specstoneVersion = ')(\d+\.\d+\.\d+)(?=';)"),
   ),
   _VersionSpot(
     'packages/specstone/pubspec.yaml',
@@ -87,6 +87,7 @@ Future<void> _release(List<String> args) async {
 
   await _checkCleanTree();
   final head = await _checkDevelopMatchesOrigin();
+  await _checkMainInDevelop();
   await _checkCiPassed(head);
   await _checkVersionAboveCurrent(root, version);
   await _checkTagAbsent(version);
@@ -97,12 +98,21 @@ Future<void> _release(List<String> args) async {
   }
   final tagSha = await _bumpAndTag(root, version);
   await _pushTag(version);
-  if (await waitForRun(version, tagSha) != 0) {
+  try {
+    exitCode = await _publishAndLand(version, tagSha);
+  } on _Refusal catch (refusal) {
+    // The tag is pushed: every way out says how to run again.
+    stderr
+      ..writeln('release: ${refusal.message}')
+      ..writeln('Resolve it, then ${_runAgain(version)}');
     exitCode = 1;
-    return;
   }
+}
+
+Future<int> _publishAndLand(String version, String tagSha) async {
+  if (await waitForRun(version, tagSha) != 0) return 1;
   final releaseUrl = await _confirmRelease(version);
-  exitCode = await land(version, releaseUrl);
+  return land(version, releaseUrl);
 }
 
 String _parseArgs(List<String> args) {
@@ -134,6 +144,20 @@ Future<String> _checkDevelopMatchesOrigin() async {
     );
   }
   return local;
+}
+
+/// Refuses when `origin/main` holds commits `develop` lacks.
+Future<void> _checkMainInDevelop() async {
+  if (await _isAncestor('origin/main', 'develop')) return;
+  final lacking = await _git([
+    'log',
+    '--format=  %h %s',
+    'develop..origin/main',
+  ]);
+  throw _Refusal(
+    'origin/main holds commits develop lacks; merge main into develop first:\n'
+    '$lacking',
+  );
 }
 
 Future<void> _checkCiPassed(String sha) async {
@@ -301,6 +325,17 @@ String _readSpot(String root, _VersionSpot spot) {
   return spot.pattern.firstMatch(file.readAsStringSync())?.group(2) ?? _missing;
 }
 
+/// Refuses when a spot's file is absent or holds no line to rewrite.
+///
+/// Runs before the first write so a refusal leaves nothing to undo.
+void _checkSpotsParse(String root) {
+  for (final spot in _spots) {
+    if (_readSpot(root, spot) == _missing) {
+      throw _Refusal('${spot.label} holds no version line to set');
+    }
+  }
+}
+
 void _writeSpots(String root, String version) {
   for (final spot in _spots) {
     final file = File('$root/${spot.path}');
@@ -321,6 +356,7 @@ String _runAgain(String version) =>
 /// Returns the tagged commit. A spot left behind or a failed
 /// `dart pub get` undoes the bump and refuses before the commit.
 Future<String> _bumpAndTag(String root, String version) async {
+  _checkSpotsParse(root);
   await _git(['switch', '-c', 'release/$version']);
   _writeSpots(root, version);
 
@@ -383,9 +419,12 @@ Future<void> _pushTag(String version) async {
 /// Waits for the `release.yaml` run of the tag at [tagSha] to end.
 ///
 /// Returns 0 when the run succeeded. On a failed run it prints the failure
-/// on stderr and returns 1.
+/// on stderr and returns 1. When `gh run watch` fails, the run is read again:
+/// only a `failure` conclusion counts as a failed run, and anything else
+/// refuses, since the run may still be going.
 Future<int> waitForRun(String version, String tagSha) async {
   final run = await _findRun(version, tagSha);
+  stdout.writeln('Waiting for the release.yaml run of v$version: ${run.url}');
   final watch = await _run('gh', [
     'run',
     'watch',
@@ -393,12 +432,33 @@ Future<int> waitForRun(String version, String tagSha) async {
     '--exit-status',
   ]);
   if (watch.exitCode == 0) return 0;
-  stderr.writeln(
-    'release: the release.yaml run of v$version failed: ${run.url}; '
-    'main and develop are untouched. Fix on release/$version, then run '
-    'dart run tool/release.dart $version from that branch',
+
+  final view = await _gh([
+    'run',
+    'view',
+    '${run.id}',
+    '--json',
+    'status,conclusion',
+  ], 'reading the release.yaml run of v$version');
+  final Object? state;
+  try {
+    state = jsonDecode(view);
+  } on FormatException {
+    throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
+  }
+  if (state case {'conclusion': 'failure'}) {
+    stderr.writeln(
+      'release: the release.yaml run of v$version failed: ${run.url}; '
+      'main and develop are untouched. Fix on release/$version, then run '
+      'dart run tool/release.dart $version from that branch',
+    );
+    return 1;
+  }
+  throw _Refusal(
+    'gh run watch failed (${_failureLine(watch)}), yet the release.yaml run '
+    'of v$version has no failure conclusion (${run.url}, read as $state); '
+    'main and develop are untouched',
   );
-  return 1;
 }
 
 /// Polls until `gh` lists the `release.yaml` run of the tag commit.
@@ -435,7 +495,7 @@ Future<({int id, String url})> _findRun(String version, String tagSha) async {
   throw _Refusal(
     'no release.yaml run of v$version appeared in '
     '${_runPollInterval.inSeconds * _runPollTries} s; main and develop are '
-    'untouched. ${_runAgain(version)}',
+    'untouched',
   );
 }
 
@@ -453,10 +513,7 @@ Future<String> _confirmRelease(String version) async {
     ], 'confirming the Release v$version');
     return url.trim();
   } on _Refusal catch (failure) {
-    throw _Refusal(
-      '${failure.message}; main and develop are untouched. '
-      '${_runAgain(version)}',
-    );
+    throw _Refusal('${failure.message}; main and develop are untouched');
   }
 }
 
@@ -495,11 +552,16 @@ Future<int> land(String version, String releaseUrl) async {
     );
   }
 
-  await _git(['branch', '-d', branch]);
-  if ((await _git(['ls-remote', '--heads', 'origin', branch])).isNotEmpty) {
-    await _git(['push', 'origin', '--delete', branch]);
-  }
   stdout.writeln('Released $tag: $releaseUrl; main and develop pushed');
+  try {
+    await _git(['branch', '-d', branch]);
+    if ((await _git(['ls-remote', '--heads', 'origin', branch])).isNotEmpty) {
+      await _git(['push', 'origin', '--delete', branch]);
+    }
+  } on _Refusal catch (failure) {
+    // The release is out; a branch left behind is the owner's to delete.
+    stderr.writeln('release: could not delete $branch: ${failure.message}');
+  }
   return 0;
 }
 

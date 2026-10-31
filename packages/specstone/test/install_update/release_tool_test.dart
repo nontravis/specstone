@@ -556,4 +556,133 @@ dependencies:
       expect(r.exitCode, 0, reason: '${r.stderr}');
     });
   });
+
+  group('hardening', () {
+    test(
+      'f09/us04/fr02: a missing spot file refuses before anything is cut',
+      () async {
+        await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
+        await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
+        await repo.git(['push', '-q', 'origin', 'develop']);
+        before = await repo.state();
+
+        final r = await repo.release(['0.2.0']);
+
+        await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
+      },
+    );
+
+    test(
+      'f09/us04/fr01: a suffixed specstoneVersion is not a version',
+      () async {
+        repo = await createReleaseRepo(
+          files: {
+            'packages/specstone_core/lib/src/version.dart':
+                "const String specstoneVersion = '0.1.0-beta';\n",
+          },
+        );
+        before = await repo.state();
+
+        final r = await repo.release(['0.2.0']);
+
+        await expectRefusal(r, ['holds no specstoneVersion constant']);
+      },
+    );
+
+    test('f09/us04/fr01: origin/main holding commits develop lacks refuses '
+        'naming them', () async {
+      await repo.pushFromOtherClone('main');
+      final other = (await repo.originRefs())['refs/heads/main']!;
+      before = await repo.state();
+
+      final r = await repo.release(['0.2.0']);
+
+      await expectRefusal(r, [
+        'origin/main holds commits develop lacks',
+        '  ${other.substring(0, 7)} other',
+      ]);
+    });
+
+    test(
+      'f09/us04/fr02: a run that is not listed yet is polled again',
+      () async {
+        final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN_LATE': '1'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          repo.ghCalls().where(
+            (c) => c.startsWith('run list --workflow release'),
+          ),
+          hasLength(2),
+        );
+      },
+    );
+
+    test('f09/us04/fr02: the wait names the run it watches', () async {
+      final r = await repo.release(['0.2.0']);
+
+      expect(
+        r.stdout,
+        contains(
+          'Waiting for the release.yaml run of v0.2.0: '
+          'https://github.com/nontravis/specstone/actions/runs/123456789\n',
+        ),
+      );
+    });
+
+    for (final view in ['broken', 'in_progress']) {
+      test('f09/us04/fr03: a failed gh run watch whose run is not read as '
+          'failed ($view) exits 1 and moves nothing', () async {
+        final refs = await repo.originRefs();
+
+        final r = await repo.release(
+          ['0.2.0'],
+          gh: {'GH_STUB_RUN': 'failure', 'GH_STUB_VIEW': view},
+        );
+
+        expect(r.exitCode, 1);
+        expect(
+          repo.ghCalls().last,
+          'run view 123456789 --json status,conclusion',
+        );
+        expect(stderrLines(r).last, resolveLine);
+        expect(r.stderr, isNot(contains('failed: https')));
+        final after = await repo.originRefs();
+        expect(after['refs/heads/main'], refs['refs/heads/main']);
+        expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+      });
+    }
+
+    test('f09/us04/fr03: a failed branch cleanup after the landing exits 0 '
+        'and says so', () async {
+      final hook = File('${repo.origin.path}/hooks/pre-receive');
+      await hook.writeAsString(
+        '#!/bin/sh\n'
+        'while read old new ref; do\n'
+        '  case "\$new" in\n'
+        '    *[!0]*) ;;\n'
+        '    *) echo "delete of \$ref refused" >&2; exit 1;;\n'
+        '  esac\n'
+        'done\n',
+      );
+      await Process.run('chmod', ['+x', hook.path]);
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {
+          'GH_STUB_ON_WATCH':
+              "git -C '${repo.work.path}' push -q origin release/0.2.0",
+        },
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        (r.stdout as String).trimRight().split('\n').last,
+        startsWith('Released v0.2.0: '),
+      );
+      expect(r.stderr, contains('release: could not delete release/0.2.0:'));
+      final refs = await repo.originRefs();
+      expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
+    });
+  });
 }
