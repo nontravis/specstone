@@ -32,7 +32,7 @@ const _goalsSection = 'goals';
 const _visionIdPrefix = 'PV-';
 final _goalHeading = RegExp(r'^### (PG-\S+)');
 final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
-final _idSeparator = RegExp(r'[,\s]+');
+final _servedId = RegExp(r'\b[A-Z][A-Za-z]*-\d+\b');
 
 /// Returns the requirement trace findings of a typed [doc] (US-03 FR-01).
 ///
@@ -239,10 +239,10 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
         )
         .where((entry) => entry.match != null)
         .firstOrNull;
-    final ids = (serves?.match!.group(1) ?? '')
-        .split(_idSeparator)
-        .where((id) => id.isNotEmpty)
-        .toList();
+    final ids = [
+      for (final id in _servedId.allMatches(serves?.match!.group(1) ?? ''))
+        id.group(0)!,
+    ];
     if (ids.isEmpty) {
       yield context.finding(
         doc,

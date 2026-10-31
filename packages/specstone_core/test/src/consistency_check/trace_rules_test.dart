@@ -237,6 +237,37 @@ void main() {
     );
   });
 
+  test('f04/us03/fr02/e09: prose around a Serves ID is no ID', () async {
+    for (final line in [
+      '**Serves:** PV-01 — product angle',
+      '**Serves:** PV-01.',
+    ]) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(projectDoc, '**Serves:** PV-01', line),
+        ),
+      );
+      expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+    }
+
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          projectDoc,
+          '**Serves:** PV-01',
+          '**Serves:** PV-01 and PG-02',
+        ),
+      ),
+    );
+    expect(
+      report.findings
+          .where((f) => f.kind == FindingKind.visionGoalUnresolved)
+          .map((f) => f.toJson()['id']),
+      ['PG-02'],
+    );
+  });
+
   test('f04/us03/fr02/e09: a Serves ID that is no PV heading is vision_goal_unresolved at its line', () async {
     final report = checkOf(
       await writeCheckProject(
