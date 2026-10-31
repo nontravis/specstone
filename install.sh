@@ -92,8 +92,37 @@ place() {
     fail "could not place $install_dir/bin: run the install again"
 }
 
+# Appends the line $2 to the file $1 unless a whole line already matches it,
+# and says so; a file whose last byte is not a newline gets one first.
+add_path_line() {
+  if [ -f "$1" ] && grep -qxF -- "$2" "$1"; then
+    return 0
+  fi
+  mkdir -p "${1%/*}" || fail "could not create ${1%/*}: add $2 to $1 yourself"
+  if [ -s "$1" ] && [ -n "$(tail -c 1 "$1")" ]; then
+    printf '\n' >> "$1" || fail "could not write $1: add $2 to it yourself"
+  fi
+  printf '%s\n' "$2" >> "$1" || fail "could not write $1: add $2 to it yourself"
+  printf '%s\n' "Added ~/.specstone/bin to the PATH in $1. Open a new terminal to use specstone."
+}
+
+# Puts ~/.specstone/bin first on the PATH of new shells, once per profile file.
 add_path_entry() {
-  :
+  # shellcheck disable=SC2016  # the profile must hold a literal $HOME and $PATH
+  posix_line='export PATH="$HOME/.specstone/bin:$PATH"'
+  # shellcheck disable=SC2016  # same: the line is written unexpanded
+  fish_line='set -gx PATH "$HOME/.specstone/bin" $PATH'
+  case "${SHELL:-}" in
+    */zsh | zsh) add_path_line "$home_dir/.zshrc" "$posix_line" ;;
+    */bash | bash)
+      add_path_line "$home_dir/.bashrc" "$posix_line"
+      if [ "$(uname -s)" = 'Darwin' ]; then
+        add_path_line "$home_dir/.bash_profile" "$posix_line"
+      fi
+      ;;
+    */fish | fish) add_path_line "$home_dir/.config/fish/conf.d/specstone.fish" "$fish_line" ;;
+    *) add_path_line "$home_dir/.profile" "$posix_line" ;;
+  esac
 }
 
 install_plugin() {

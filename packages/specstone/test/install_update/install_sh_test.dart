@@ -219,6 +219,8 @@ echo "$dir"''');
     test('f09/us01/fr03/e03: the same version is left as it is', () async {
       final sb = await sandboxWith();
       sb.installFake(version: '0.2.0');
+      File('${sb.home.path}/.zshrc')
+          .writeAsStringSync('export PATH="\$HOME/.specstone/bin:\$PATH"\n');
       final before = sb.snapshot();
 
       final r = await sb.run('install.sh', extra: archiveEnv(sb));
@@ -473,6 +475,153 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         'unchanged\n',
       );
       expect(sb.snapshot(), before);
+    });
+
+    group('PATH entry', () {
+      const posixLine = 'export PATH="\$HOME/.specstone/bin:\$PATH"\n';
+      const fishLine = 'set -gx PATH "\$HOME/.specstone/bin" \$PATH\n';
+
+      Future<ProcessResult> runWith(
+        ScriptSandbox sb,
+        Map<String, String> extra,
+      ) => sb.run('install.sh', extra: {...archiveEnv(sb), ...extra});
+
+      String added(ScriptSandbox sb, String file) =>
+          'Added ~/.specstone/bin to the PATH in ${sb.home.path}/$file. '
+          'Open a new terminal to use specstone.\n';
+
+      test('f09/us01/fr04, f09/us01/s1: zsh gains one line in ~/.zshrc and '
+          'the new-terminal note', () async {
+        final sb = await sandboxWith();
+
+        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
+        expect(r.stdout, contains(added(sb, '.zshrc')));
+        expect(sb.snapshot().keys, isNot(contains('.profile')));
+      });
+
+      test('f09/us01/fr04/e01: a second run keeps one line and prints no '
+          'note', () async {
+        final sb = await sandboxWith();
+        await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
+        expect(r.stdout, isNot(contains('Added')));
+      });
+
+      test('f09/us01/fr04: bash on macOS writes ~/.bashrc and '
+          '~/.bash_profile', () async {
+        final sb = await sandboxWith(target: 'macos-arm64');
+
+        final r = await runWith(sb, {
+          'SHELL': '/bin/bash',
+          'STUB_UNAME_S': 'Darwin',
+          'STUB_UNAME_M': 'arm64',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        for (final file in ['.bashrc', '.bash_profile']) {
+          expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
+          expect(r.stdout, contains(added(sb, file)));
+        }
+      });
+
+      test('f09/us01/fr04/e03: bash on Linux writes ~/.bashrc only', () async {
+        final sb = await sandboxWith();
+
+        final r = await runWith(sb, {'SHELL': '/usr/bin/bash'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(File('${sb.home.path}/.bashrc').readAsStringSync(), posixLine);
+        expect(sb.snapshot().keys, isNot(contains('.bash_profile')));
+      });
+
+      test('f09/us01/fr04: fish writes ~/.config/fish/conf.d/specstone.fish '
+          'and not ~/.profile', () async {
+        final sb = await sandboxWith();
+
+        final r = await runWith(sb, {'SHELL': '/usr/local/bin/fish'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          File('${sb.home.path}/.config/fish/conf.d/specstone.fish')
+              .readAsStringSync(),
+          fishLine,
+        );
+        expect(sb.snapshot().keys, isNot(contains('.profile')));
+      });
+
+      // An unset SHELL cannot be tested: macOS /bin/sh refills it.
+      for (final shell in ['/bin/tcsh', 'nu']) {
+        test('f09/us01/fr04: SHELL="$shell" writes ~/.profile', () async {
+          final sb = await sandboxWith();
+
+          final r = await runWith(sb, {'SHELL': shell});
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            File('${sb.home.path}/.profile').readAsStringSync(),
+            posixLine,
+          );
+          expect(r.stdout, contains(added(sb, '.profile')));
+        });
+      }
+
+      test('f09/us01/fr04/e02: a missing file is created holding the '
+          'line', () async {
+        final sb = await sandboxWith();
+        expect(File('${sb.home.path}/.zshrc').existsSync(), isFalse);
+
+        await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
+      });
+
+      test('f09/us01/fr04: a last line with no newline stays its own '
+          'line', () async {
+        final sb = await sandboxWith();
+        File('${sb.home.path}/.zshrc').writeAsStringSync('alias a=b');
+
+        await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(
+          File('${sb.home.path}/.zshrc').readAsStringSync(),
+          'alias a=b\n$posixLine',
+        );
+      });
+
+      test('f09/us01/fr04: other lines stay and a longer line naming the '
+          'folder does not count as the entry', () async {
+        final sb = await sandboxWith();
+        const before =
+            '# my profile\nexport PATH="\$HOME/.specstone/bin:\$PATH":/x\n';
+        File('${sb.home.path}/.zshrc').writeAsStringSync(before);
+
+        await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(
+          File('${sb.home.path}/.zshrc').readAsStringSync(),
+          '$before$posixLine',
+        );
+      });
+
+      test('f09/us01/fr03/e03: the same version still gets its PATH '
+          'entry', () async {
+        final sb = await sandboxWith();
+        sb.installFake(version: '0.2.0');
+
+        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('is already the latest release'));
+        expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
+        expect(r.stdout, contains(added(sb, '.zshrc')));
+      });
     });
   });
 }
