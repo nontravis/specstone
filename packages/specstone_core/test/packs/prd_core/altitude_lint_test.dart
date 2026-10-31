@@ -113,6 +113,18 @@ void main() {
     expect(_patterns(found), isNot(contains('doc_citation')));
   });
 
+  test('f03/us06/fr03: "no longer than" in an nf is no history, "no longer '
+      'shows" is', () async {
+    Future<List<Finding>> statement(String text) =>
+        _banned(doc(loginNf, 'The system shall sign in within 1 s.', text));
+    final comparison = await statement(
+      'The system answers in no longer than 2 s.',
+    );
+    expect(_patterns(comparison), isNot(contains('history')));
+    final retired = await statement('The button no longer shows.');
+    expect(_patterns(retired), ['history']);
+  });
+
   test(
     'f03/us06/fr03: a persona line Formerly a reviewer is history',
     () async {

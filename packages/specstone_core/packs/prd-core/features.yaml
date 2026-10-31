@@ -34,7 +34,7 @@ lint:
       message: cites a plan, milestone, ruling, or design doc
       in: all
     - id: history
-      pattern: '\b(?:[Pp]reviously|[Nn]o longer|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone))\b'
+      pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone))\b'
       message: history prose; state the present truth only
       in: text
   max_lines: 400
