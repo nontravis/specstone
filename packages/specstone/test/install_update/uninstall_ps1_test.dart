@@ -126,13 +126,14 @@ void main() {
       final lib = Directory(libDir(sb));
       final victim = lib.listSync(recursive: true).whereType<File>().first;
       // Deleting needs DELETE on the file or DELETE_CHILD on its folder, so
-      // deny both.
+      // deny both. Denying write data too makes the lock probe's exclusive
+      // open fail with no lock, so the uninstall must go on, not refuse.
       Future<void> icacls(List<String> args) async {
         final result = await Process.run('icacls', args);
         expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
       }
 
-      await icacls([victim.path, '/deny', '*S-1-1-0:(D)']);
+      await icacls([victim.path, '/deny', '*S-1-1-0:(WD,D)']);
       await icacls([victim.parent.path, '/deny', '*S-1-1-0:(DC)']);
       addTearDown(() async {
         await Process.run('icacls', [
