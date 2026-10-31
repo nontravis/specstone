@@ -26,6 +26,8 @@ enum FindingKind {
   fileUnreadable('file_unreadable'),
   patternBanned('pattern_banned'),
   patternMissing('pattern_missing'),
+  itemIdMissing('item_id_missing'),
+  itemIdDuplicate('item_id_duplicate'),
   implementsPathUnresolved('implements_path_unresolved'),
   implementsSymbolUnresolved('implements_symbol_unresolved'),
   coversPathMissing('covers_path_missing'),
