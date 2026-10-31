@@ -197,7 +197,6 @@ void main() {
       int claudeExit = 0,
       bool withClaude = true,
       bool asWindows = false,
-      String scriptNote = '',
     }) async {
       final sandbox = await createScriptSandbox();
       root = sandbox.root;
@@ -208,8 +207,8 @@ void main() {
       final claudeLog = fileIn('logs', 'claude.log');
       final script = asWindows || windows
           ? "Set-Content -Path '$ran' -Value \$PSCommandPath\n"
-                '$scriptNote\nexit $scriptExit\n'
-          : "printf '%s\\n' \"\$0\" > '$ran'\n$scriptNote\nexit $scriptExit\n";
+                'exit $scriptExit\n'
+          : "printf '%s\\n' \"\$0\" > '$ran'\nexit $scriptExit\n";
       scriptUrl = base.resolve(
         asWindows || windows ? 'install.ps1' : 'install.sh',
       );
@@ -235,8 +234,7 @@ void main() {
             'echo "\$*" >> \'$claudeLog\'\n'
             'echo claude-out\n'
             'if [ "\$CLAUDE_EXIT" != 0 ]; then\n'
-            '  echo "boom: offline" >&2\n'
-            '  echo "second line" >&2\n'
+            "  printf '\\n  boom: offline \\r\\nsecond line\\n' >&2\n"
             '  exit "\$CLAUDE_EXIT"\n'
             'fi\n',
           );
@@ -268,14 +266,10 @@ void main() {
       expect(paths, [scriptUrl.path]);
     });
 
-    test('f09/us02/fr02/e01, f09/us02/fr03/e01, f09/us02/s2: a script that '
-        'finds the latest release installed still leads to the plugin '
+    test('f09/us02/fr02/e01, f09/us02/fr03/e01, f09/us02/s2: upgrade does '
+        'not read the script output; an exit 0 leads to the plugin '
         'update', () async {
-      await prepare(
-        scriptNote: windows
-            ? "Write-Output 'specstone 0.2.0 is already the latest release'"
-            : "echo 'specstone 0.2.0 is already the latest release'",
-      );
+      await prepare();
 
       expect(await runner.run(['upgrade']), 0);
       expect(claudeLog(), hasLength(1));

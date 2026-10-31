@@ -314,8 +314,8 @@ class UpgradeCommand extends SpecstoneCommand {
     }
   }
 
-  // Returns the first stderr line of a failed run, `exit <status>` when it
-  // wrote none, or null on success.
+  // Returns the first non-blank, trimmed stderr line of a failed run,
+  // `exit <status>` when it wrote none, or null on success.
   Future<String?> _runClaude(String claude, StringSink out) async {
     try {
       final process = await Process.start(
@@ -331,11 +331,11 @@ class UpgradeCommand extends SpecstoneCommand {
       final status = await process.exitCode;
       if (status == 0) return null;
       final firstLine = const LineSplitter()
-          .convert((await stderrText).trim())
+          .convert(await stderrText)
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
           .firstOrNull;
-      return firstLine == null || firstLine.isEmpty
-          ? 'exit $status'
-          : firstLine;
+      return firstLine ?? 'exit $status';
     } on ProcessException catch (e) {
       return e.message;
     }
