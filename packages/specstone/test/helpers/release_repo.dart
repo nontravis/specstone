@@ -47,8 +47,10 @@ final class ReleaseRepo {
   /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
   /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_STATE` (a run
   /// status such as `in_progress` or `completed`, added with the `GH_STUB_RUN`
-  /// conclusion to the release.yaml `run list` answer), `GH_STUB_RUN_LATE`
-  /// (any value: the first release.yaml `run list` finds no run),
+  /// conclusion to the release.yaml run in the `gh api` runs answer),
+  /// `GH_STUB_RUN_LATE` (any value: the first runs answer holds no run; the
+  /// stub always answers `run list --workflow release.yaml` with a 404, as gh
+  /// does before the default branch holds the file),
   /// `GH_STUB_VIEW`
   /// (`failure` | `later_success` | `cancelled` | `garbage` | `broken`: what
   /// `run view` answers after a failed watch), `GH_STUB_RELEASE`
@@ -256,6 +258,24 @@ case "\$1 \$2" in
     [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
     echo 'Logged in to github.com'
     ;;
+  "api repos/{owner}/{repo}/actions/runs?head_sha="*)
+    [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
+    if [ "\${GH_STUB_AUTH:-ok}" = broken ]; then
+      echo 'gh: network down' >&2
+      exit 1
+    fi
+    if [ -n "\$GH_STUB_RUN_LATE" ] && [ ! -e "\$root/run_listed" ]; then
+      touch "\$root/run_listed"
+      echo '{"total_count": 0, "workflow_runs": []}'
+      exit 0
+    fi
+    decoy='{"id": 1, "html_url": "https://github.com/nontravis/specstone/actions/runs/1", "path": ".github/workflows/ci.yaml", "status": "completed", "conclusion": "failure"}'
+    state=''
+    if [ -n "\$GH_STUB_RUN_STATE" ]; then
+      state=', "status": "'"\$GH_STUB_RUN_STATE"'", "conclusion": "'"\${GH_STUB_RUN:-success}"'"'
+    fi
+    echo '{"total_count": 2, "workflow_runs": ['"\$decoy"', {"id": 123456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/123456789", "path": ".github/workflows/release.yaml"'"\$state"'}]}'
+    ;;
   "run list")
     [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
     if [ "\${GH_STUB_AUTH:-ok}" = broken ]; then
@@ -264,16 +284,10 @@ case "\$1 \$2" in
     fi
     case "\$*" in
       *release.yaml*)
-        if [ -n "\$GH_STUB_RUN_LATE" ] && [ ! -e "\$root/run_listed" ]; then
-          touch "\$root/run_listed"
-          echo '[]'
-          exit 0
-        fi
-        if [ -n "\$GH_STUB_RUN_STATE" ]; then
-          echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789", "status": "'"\$GH_STUB_RUN_STATE"'", "conclusion": "'"\${GH_STUB_RUN:-success}"'"}]'
-        else
-          echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789"}]'
-        fi
+        # Real gh resolves --workflow by file name on the default branch, which
+        # does not hold release.yaml until the first release lands.
+        echo 'HTTP 404: workflow release.yaml not found on the default branch' >&2
+        exit 1
         ;;
       *)
         case "\${GH_STUB_CI:-success}" in

@@ -271,8 +271,7 @@ void main() {
     expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
     final runList =
-        'run list --workflow release.yaml --commit $tagged --limit 1 '
-        '--json databaseId,url';
+        'api repos/{owner}/{repo}/actions/runs?head_sha=$tagged&event=push';
     expect(repo.ghCalls().skip(1), [
       runList,
       'run watch 123456789 --exit-status',
@@ -352,12 +351,16 @@ dependencies:
     final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN': 'failure'});
 
     expect(r.exitCode, 1);
+    // The watch output streams to the terminal ahead of the tool's own line.
+    expect(r.stderr, startsWith('release.yaml failed\n'));
     expect(
       r.stderr,
-      'release: the release.yaml run of v0.2.0 failed: '
-      'https://github.com/nontravis/specstone/actions/runs/123456789; '
-      'main and develop are untouched. Fix on release/0.2.0, then run '
-      'dart run tool/release.dart 0.2.0 from that branch\n',
+      endsWith(
+        'release: the release.yaml run of v0.2.0 failed: '
+        'https://github.com/nontravis/specstone/actions/runs/123456789; '
+        'main and develop are untouched. Fix on release/0.2.0, then run '
+        'dart run tool/release.dart 0.2.0 from that branch\n',
+      ),
     );
     final after = await repo.originRefs();
     expect(after['refs/heads/main'], refs['refs/heads/main']);
@@ -611,7 +614,7 @@ dependencies:
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(
           repo.ghCalls().where(
-            (c) => c.startsWith('run list --workflow release'),
+            (c) => c.startsWith('api repos/{owner}/{repo}/actions/runs'),
           ),
           hasLength(2),
         );
@@ -746,10 +749,7 @@ dependencies:
         containsAllInOrder([
           'auth status',
           'release view v0.2.0 --json url --jq .url',
-          [
-            'run list --workflow release.yaml --commit $fix --limit 1',
-            '--json databaseId,url',
-          ].join(' '),
+          'api repos/{owner}/{repo}/actions/runs?head_sha=$fix&event=push',
         ]),
       );
     });

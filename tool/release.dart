@@ -226,24 +226,7 @@ Future<String?> _awaitedTagSha(String version) async {
   final remote = await _git(['ls-remote', 'origin', 'refs/tags/v$version']);
   if (remote.isEmpty) return null;
   final tagSha = remote.split(RegExp(r'\s')).first;
-  final output = await _gh([
-    'run',
-    'list',
-    '--workflow',
-    'release.yaml',
-    '--commit',
-    tagSha,
-    '--limit',
-    '1',
-    '--json',
-    'databaseId,url,status,conclusion',
-  ], 'reading the release.yaml run of v$version');
-  final Object? runs;
-  try {
-    runs = jsonDecode(output);
-  } on FormatException {
-    throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
-  }
+  final runs = await _releaseRuns(version, tagSha);
   switch (runs) {
     case [{'status': final String status}, ...] when status != 'completed':
       return tagSha;
@@ -598,13 +581,14 @@ Future<void> _pushTag(String version) async {
 Future<int> waitForRun(String version, String tagSha) async {
   final run = await _findRun(version, tagSha);
   stdout.writeln('Waiting for the release.yaml run of v$version: ${run.url}');
-  final watch = await _run('gh', [
+  // Streams to the terminal, so the Owner sees the steps of a 20-40 minute run.
+  final watch = await Process.start('gh', [
     'run',
     'watch',
     '${run.id}',
     '--exit-status',
-  ]);
-  if (watch.exitCode == 0) return 0;
+  ], mode: ProcessStartMode.inheritStdio);
+  if (await watch.exitCode == 0) return 0;
   // A token without the watch scope fails `gh run watch` on every release,
   // so the run is polled with `gh run view` instead.
   return _pollRun(version, run);
@@ -652,33 +636,43 @@ Future<int> _pollRun(String version, ({int id, String url}) run) async {
   );
 }
 
+/// Returns the `release.yaml` push runs of the commit [sha], newest first.
+///
+/// Lists the commit's push runs and keeps those of the workflow path, rather
+/// than naming the file to `gh run list --workflow`, which resolves it on the
+/// default branch and answers 404 until `main` holds `release.yaml`.
+Future<List<Object?>> _releaseRuns(String version, String sha) async {
+  final output = await _gh([
+    'api',
+    'repos/{owner}/{repo}/actions/runs?head_sha=$sha&event=push',
+  ], 'finding the release.yaml run of v$version');
+  final Object? body;
+  try {
+    body = jsonDecode(output);
+  } on FormatException {
+    throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
+  }
+  if (body case {'workflow_runs': final List<Object?> runs}) {
+    return [
+      for (final run in runs)
+        if (run case {'path': final String path} when _isReleaseWorkflow(path))
+          run,
+    ];
+  }
+  throw _Refusal(
+    'gh printed no workflow runs for the release.yaml run of v$version',
+  );
+}
+
+/// Whether [path] names `release.yaml`, with or without a `@<ref>` suffix.
+bool _isReleaseWorkflow(String path) =>
+    path.split('@').first == '.github/workflows/release.yaml';
+
 /// Polls until `gh` lists the `release.yaml` run of the tag commit.
 Future<({int id, String url})> _findRun(String version, String tagSha) async {
   for (var attempt = 1; attempt <= _runPollTries; attempt++) {
-    final output = await _gh([
-      'run',
-      'list',
-      '--workflow',
-      'release.yaml',
-      '--commit',
-      tagSha,
-      '--limit',
-      '1',
-      '--json',
-      'databaseId,url',
-    ], 'finding the release.yaml run of v$version');
-    final Object? runs;
-    try {
-      runs = jsonDecode(output);
-    } on FormatException {
-      throw _Refusal(
-        'gh printed no JSON for the release.yaml run of v$version',
-      );
-    }
-    if (runs case [
-      {'databaseId': final int id, 'url': final String url},
-      ...,
-    ]) {
+    final runs = await _releaseRuns(version, tagSha);
+    if (runs case [{'id': final int id, 'html_url': final String url}, ...]) {
       return (id: id, url: url);
     }
     if (attempt < _runPollTries) await Future<void>.delayed(_runPollInterval);
