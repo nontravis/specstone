@@ -10,7 +10,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('f03/us06/fr01: prd-core ships at 1.3.0 with no extends', () {
+    test('f03/us06/fr01: prd-core ships at 1.4.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -18,7 +18,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.3.0');
+      expect(manifest.version.toString(), '1.4.0');
       expect(manifest.extendsPack, isNull);
     });
 
