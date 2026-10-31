@@ -43,6 +43,17 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
       );
     }
   }
+  for (final group in type.lint.requiredFieldGroups ?? const <List<String>>[]) {
+    if (group.every((id) => doc.valuesOf(id).isEmpty)) {
+      yield context.finding(
+        doc,
+        FindingKind.fieldGroupMissing,
+        line: 1,
+        message: 'none of ${group.join(', ')} holds a value',
+        keys: {'fields': group},
+      );
+    }
+  }
   for (final MapEntry(:key, :value) in doc.frontmatter.entries) {
     // The key line reads the frontmatter YAML, so only a finding asks for it.
     int lineOf() => lines.keyLine(key) ?? 1;

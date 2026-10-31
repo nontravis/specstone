@@ -6,6 +6,7 @@
 enum FindingKind {
   frontmatterInvalid('frontmatter_invalid'),
   requiredFieldMissing('required_field_missing'),
+  fieldGroupMissing('field_group_missing'),
   fieldValueMismatch('field_value_mismatch'),
   fieldUndeclared('field_undeclared'),
   featureStatusWritten('feature_status_written'),
