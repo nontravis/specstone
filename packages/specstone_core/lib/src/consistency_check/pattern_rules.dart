@@ -33,7 +33,7 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     for (final searched in lines) {
       final onPrefix = prefix == null || searched.raw.startsWith(prefix);
       for (final entry in [...docBanned, if (onPrefix) ...sectionBanned]) {
-        for (final matched in _bannedMatches(entry, searched)) {
+        for (final matched in _bannedMatches(context, entry, searched)) {
           yield context.finding(
             doc,
             FindingKind.patternBanned,
@@ -63,7 +63,14 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
 }
 
 /// Returns the non-excepted, non-empty matches of [entry] on [line].
-Iterable<String> _bannedMatches(PatternEntry entry, _SearchLine line) sync* {
+///
+/// A match that names a doc-tree folder, or a `/`-joined run of them, is no
+/// hit: it names a place in the doc tree.
+Iterable<String> _bannedMatches(
+  CheckContext context,
+  PatternEntry entry,
+  _SearchLine line,
+) sync* {
   final regExp = entry.regExp;
   final searched = switch (entry.scope) {
     PatternScope.text => [line.prose],
@@ -74,6 +81,7 @@ Iterable<String> _bannedMatches(PatternEntry entry, _SearchLine line) sync* {
     for (final match in regExp.allMatches(haystack)) {
       final matched = match.group(0)!;
       if (matched.isEmpty || entry.isExcepted(matched)) continue;
+      if (matched.split('/').every(context.folderNames.contains)) continue;
       yield matched;
     }
   }

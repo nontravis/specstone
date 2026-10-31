@@ -162,6 +162,23 @@ void main() {
     expect(found.single.line, 15);
   });
 
+  test('f04/us01/fr08/e07: a match naming a doc-tree folder, or a run of them, gives nothing', () async {
+    final found = await _findings(
+      _banned(r'''
+      - id: code
+        pattern: '\w+_\w+'
+        message: no identifier
+        in: code
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse `f01_login` and `f01_login/us01_email_login` '
+        'and `not_a_folder` within 1 s.',
+      ),
+    );
+    expect(found.map((f) => f.toJson()['match']), ['not_a_folder']);
+  });
+
   test('f04/us01/fr08/e06: a required pattern no line matches reports at the header; an absent section reports none', () async {
     const layer = '''
 sections:

@@ -39,6 +39,13 @@ final class CheckContext {
   /// The docs root folder, `<project root>/docs/`.
   Directory get docsRoot => _session.project.docsRoot;
 
+  /// The folder names on the path of any held doc, the docs root's own name
+  /// included, built on first use.
+  late final Set<String> folderNames = {
+    docsRoot.uri.pathSegments.lastWhere((segment) => segment.isNotEmpty),
+    for (final doc in index.docs) ...doc.docPath.split('/').reversed.skip(1),
+  };
+
   /// Returns the content of [doc], read once.
   DocContent contentOf(IndexedDoc doc) =>
       _contents.putIfAbsent(doc.docPath, () => index.contentOf(doc));
