@@ -89,12 +89,21 @@
     # each stderr line into an ErrorRecord, whose ToString() is the line itself,
     # without the NativeCommandError decoration that a 2> file would hold. With
     # $Live the stdout shows on the host as it arrives; otherwise it is returned
-    # as Output. Returns Status, Output, and the stderr lines as Errors.
+    # as Output. Decodes the program's output as UTF-8 (the console encoding
+    # is the OEM code page) and restores the console encoding afterwards.
+    # Returns Status, Output, and the stderr lines as Errors.
     function Invoke-Native([string]$File, [string[]]$Arguments, [bool]$Live) {
         $ErrorActionPreference = 'Continue'
         $global:LASTEXITCODE = 0
         $output = New-Object System.Collections.ArrayList
         $errors = New-Object System.Collections.ArrayList
+        $savedEncoding = $null
+        try {
+            $savedEncoding = [Console]::OutputEncoding
+            [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+        } catch {
+            $savedEncoding = $null
+        }
         try {
             & $File @Arguments 2>&1 | ForEach-Object {
                 if ($_ -is [System.Management.Automation.ErrorRecord]) {
@@ -108,7 +117,11 @@
             $status = $global:LASTEXITCODE
         } catch {
             $status = 1
-            [void]$errors.Add($_.Exception.Message)
+            [void]$errors.Add($_.Exception.GetBaseException().Message)
+        } finally {
+            if ($null -ne $savedEncoding) {
+                try { [Console]::OutputEncoding = $savedEncoding } catch { }
+            }
         }
         return [pscustomobject]@{ Status = $status; Output = $output.ToArray(); Errors = $errors.ToArray() }
     }
