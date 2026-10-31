@@ -180,6 +180,26 @@ void main() {
       found.map((f) => f.toJson()['match']),
       unorderedEquals(['not_a_folder', 'f01_login/not_a_folder']),
     );
+
+    final allScope = await _findings(
+      _banned('''
+      - id: tree
+        pattern: 'docs/superpowers'
+        message: no journal path
+        in: all
+'''),
+      edits: {
+        'docs/superpowers/specs/x.md': '# X\n',
+        ...fr(
+          checkPasswordStatement,
+          'The system shall refuse a wrong password, see '
+          'docs/superpowers/specs/x.md.',
+        ),
+      },
+    );
+    // The shipped doc_citation entry also fires here; only `tree` is ours.
+    final own = allScope.where((f) => f.toJson()['pattern'] == 'tree');
+    expect(own.map((f) => f.toJson()['match']), ['docs/superpowers']);
   });
 
   test('f04/us01/fr08/e06: a required pattern no line matches reports at the header; an absent section reports none', () async {

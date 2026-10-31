@@ -64,8 +64,9 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
 
 /// Returns the non-excepted, non-empty matches of [entry] on [line].
 ///
-/// A match that names a doc-tree folder, or a `/`-joined run of them, is no
-/// hit: it names a place in the doc tree.
+/// A code-span match that names a doc-tree folder, or a `/`-joined run of
+/// them, is no hit: it names a place in the doc tree. Other scopes read prose,
+/// where a folder name is ordinary text.
 Iterable<String> _bannedMatches(
   CheckContext context,
   PatternEntry entry,
@@ -81,7 +82,10 @@ Iterable<String> _bannedMatches(
     for (final match in regExp.allMatches(haystack)) {
       final matched = match.group(0)!;
       if (matched.isEmpty || entry.isExcepted(matched)) continue;
-      if (matched.split('/').every(context.folderNames.contains)) continue;
+      if (entry.scope == PatternScope.code &&
+          matched.split('/').every(context.folderNames.contains)) {
+        continue;
+      }
       yield matched;
     }
   }
