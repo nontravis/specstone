@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -154,4 +155,65 @@ void main() {
       'windows-latest',
     ]);
   });
+
+  test('f09/us04/fr05: no run script holds a workflow expression', () {
+    for (final workflow in [release, ci]) {
+      for (final job in _jobs(workflow).values) {
+        if ((job as YamlMap).containsKey('uses')) continue;
+        for (final step in _steps(job)) {
+          expect('${step['run'] ?? ''}', isNot(contains(r'${{')));
+        }
+      }
+    }
+  });
+
+  test('f09/us04/fr05, INV-4: every build upload name matches the publish '
+      'download pattern', () {
+    final upload = _steps(
+      _job(release, 'build'),
+    ).firstWhere((s) => '${s['uses']}'.startsWith('actions/upload-artifact@'));
+    final download = _steps(_job(release, 'publish')).firstWhere(
+      (s) => '${s['uses']}'.startsWith('actions/download-artifact@'),
+    );
+    final name = (upload['with'] as YamlMap)['name'] as String;
+    final withDownload = download['with'] as YamlMap;
+    final pattern = withDownload['pattern'] as String;
+    expect(withDownload['merge-multiple'], isTrue);
+    final targets =
+        (((_job(release, 'build')['strategy'] as YamlMap)['matrix']
+                    as YamlMap)['include']
+                as YamlList)
+            .map((e) => (e as YamlMap)['target'] as String);
+    final glob = RegExp('^${RegExp.escape(pattern).replaceAll(r'\*', '.*')}\$');
+    for (final target in targets) {
+      expect(
+        glob.hasMatch(name.replaceAll(r'${{ matrix.target }}', target)),
+        isTrue,
+        reason: target,
+      );
+    }
+  });
+
+  group('the version job script', () {
+    Future<ProcessResult> runCheck(String ref) {
+      final step = _steps(_job(release, 'version'))
+          .firstWhere((s) => '${s['run']}'.contains('GITHUB_REF_NAME'));
+      return Process.run(
+        'bash',
+        ['-c', '${step['run']}'],
+        workingDirectory: repoRoot().path,
+        environment: {'GITHUB_REF_NAME': ref},
+      );
+    }
+
+    test('f09/us04/fr05/e02: the tag equal to version.dart passes', () async {
+      final r = await runCheck('v$specstoneVersion');
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+    });
+
+    test('f09/us04/fr05/e02: a tag off version.dart fails', () async {
+      final r = await runCheck('v$specstoneVersion.1');
+      expect(r.exitCode, 1);
+    });
+  }, testOn: '!windows');
 }

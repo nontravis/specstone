@@ -72,7 +72,7 @@ jobs:
       - name: Pack the archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path '${{ runner.temp }}\stage\*' -DestinationPath '${{ runner.temp }}\dist\${{ env.ASSET }}'
+        run: Compress-Archive -Path "$env:RUNNER_TEMP\stage\*" -DestinationPath "$env:RUNNER_TEMP\dist\$env:ASSET"
       - name: Write SHA256SUMS
         working-directory: ${{ runner.temp }}/dist
         run: |
@@ -100,12 +100,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $home_dir = '${{ runner.temp }}\smoke-home'
+          $home_dir = "$env:RUNNER_TEMP\smoke-home"
           New-Item -ItemType Directory -Path $home_dir | Out-Null
           $env:HOME = $home_dir
           $env:USERPROFILE = $home_dir
-          $env:SPECSTONE_ARCHIVE_DIR = '${{ runner.temp }}\dist'
-          $expected = '${{ github.ref_name }}'.TrimStart('v')
+          $env:SPECSTONE_ARCHIVE_DIR = "$env:RUNNER_TEMP\dist"
+          $expected = $env:GITHUB_REF_NAME -replace '^v', ''
           powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $installed = & "$home_dir\.specstone\bin\specstone.exe" --version
