@@ -1,9 +1,11 @@
 // The expected texts are plan literals kept as written.
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/prd_core.dart';
 
 const _persona = 'prds/personas/reviewer/PERSONA.md';
 const _reference = 'prds/references/court/REFERENCE.md';
@@ -144,5 +146,30 @@ void main() {
           'lint:\n  banned_patterns:\n    remove: [code_identifier]\n',
     });
     expect(found, isEmpty);
+  });
+
+  test('f03/us06/fr03: every prd-core type but reference carries the same '
+      'doc_citation and history, and reference carries neither', () async {
+    final set = await resolvePrdCore();
+    String? citation;
+    String? history;
+    for (final type in set.docTypes) {
+      final byId = {
+        for (final p in type.lint.bannedPatterns ?? const <PatternEntry>[])
+          p.id: p.pattern,
+      };
+      if (type.id == 'reference') {
+        expect(byId.keys, isNot(contains('doc_citation')));
+        expect(byId.keys, isNot(contains('history')));
+        continue;
+      }
+      expect(byId['doc_citation'], isNotNull, reason: type.id);
+      expect(byId['history'], isNotNull, reason: type.id);
+      citation ??= byId['doc_citation'];
+      history ??= byId['history'];
+      expect(byId['doc_citation'], citation, reason: type.id);
+      expect(byId['history'], history, reason: type.id);
+    }
+    expect(set.docTypes.where((t) => t.id != 'reference'), hasLength(10));
   });
 }
