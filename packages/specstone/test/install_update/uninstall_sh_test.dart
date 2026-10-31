@@ -227,7 +227,7 @@ void main() {
 
       final r = await sb.run('uninstall.sh');
 
-      expect(r.exitCode, 0);
+      expect(r.exitCode, 1);
       expect(
         r.stderr,
         'specstone: could not write ${sb.home.path}/.zshrc: '
@@ -238,6 +238,98 @@ void main() {
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     }, skip: runsAsRoot ? 'root ignores file modes' : false);
+
+    test('f09/us03/fr01: a write that fails midway leaves the profile '
+        'byte for byte as it was', () async {
+      const original = 'keep\n$entry\nmore';
+      profile('.zshrc', original);
+      sb.stub('cat', r'''
+n="$STUB_LOG_DIR/cat.count"
+if [ ! -e "$n" ]; then : > "$n"; printf 'xx'; exit 1; fi
+exec /bin/cat "$@"''');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 1);
+      expect(read('.zshrc'), original);
+      expect(
+        r.stderr,
+        'specstone: could not write ${sb.home.path}/.zshrc: '
+        'remove the specstone line from it yourself\n',
+      );
+      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
+    });
+
+    test('f09/us03/fr01: when the restore fails too the old content is kept '
+        'and its path is named', () async {
+      const original = 'keep\n$entry\n';
+      profile('.zshrc', original);
+      sb.stub('cat', 'printf xx; exit 1');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 1);
+      final match = RegExp(r'its old content is in (\S+)\n')
+          .firstMatch(r.stderr as String);
+      expect(match, isNotNull);
+      expect(File(match!.group(1)!).readAsStringSync(), original);
+      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
+    });
+
+    test('f09/us03/fr01: an unreadable profile is named on stderr', () async {
+      profile('.zshrc', '$entry\n');
+      Process.runSync('chmod', ['000', home('.zshrc')]);
+      addTearDown(() => Process.runSync('chmod', ['644', home('.zshrc')]));
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: could not read ${sb.home.path}/.zshrc: '
+        'remove the specstone line from it yourself\n',
+      );
+      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
+    }, skip: runsAsRoot ? 'root ignores file modes' : false);
+
+    test('f09/us03/fr01: a failed delete of bin is named, the rest goes on, '
+        'and the run exits 1', () async {
+      sb.installFake();
+      profile('.zshrc', '$entry\n');
+      sb.stub('rm', r'''
+for a in "$@"; do
+  case "$a" in */.specstone/bin) exit 1 ;; esac
+done
+exec /bin/rm "$@"''');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: could not remove ${sb.home.path}/.specstone/bin\n',
+      );
+      expect(Directory(home('.specstone/bin')).existsSync(), isTrue);
+      expect(Directory(home('.specstone/lib')).existsSync(), isFalse);
+      expect(read('.zshrc'), '');
+      expect((r.stdout as String).trimRight().split('\n'), [
+        'Removed ${sb.home.path}/.specstone/lib',
+        'Removed the PATH entry from ${sb.home.path}/.zshrc',
+        pluginLine,
+      ]);
+    });
+
+    test('f09/us03/fr01: USERPROFILE stands in when HOME is unset', () async {
+      sb.installFake();
+
+      final r = await sb.run(
+        'uninstall.sh',
+        extra: {'HOME': '', 'USERPROFILE': sb.home.path},
+      );
+
+      expect(r.exitCode, 0);
+      expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+    });
 
     test('f09/us03/fr01: with neither HOME nor USERPROFILE set it exits 1 '
         'and touches nothing', () async {
