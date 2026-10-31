@@ -9,7 +9,7 @@ import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
 
-const _brokenLink = '[reset](../us02_reset_password/story.md)';
+const _brokenLink = '[reset](../us02_reset_password/USER_STORY.md)';
 
 /// The s02 request example with `tool_input.file_path` set to [filePath].
 String _request(String filePath) => jsonEncode({
@@ -19,7 +19,7 @@ String _request(String filePath) => jsonEncode({
   'tool_name': 'Edit',
   'tool_input': {
     'file_path': filePath,
-    'old_string': '[reset](../us03_reset_password/story.md)',
+    'old_string': '[reset](../us03_reset_password/USER_STORY.md)',
     'new_string': _brokenLink,
     'replace_all': false,
   },
@@ -52,7 +52,7 @@ Map<String, String> _brokenStory() => {
 };
 
 final _e05Context = RegExp(
-  r'^prds/features/f01_login/us01_email_login/USER_STORY\.md:\d+: link_unresolved: link target \.\./us02_reset_password/story\.md is no doc\n1 finding$',
+  r'^prds/features/f01_login/us01_email_login/USER_STORY\.md:\d+: link_unresolved: link target \.\./us02_reset_password/USER_STORY\.md is no doc\n1 finding$',
 );
 
 void _expectE05(String out) {

@@ -16,7 +16,7 @@ void main() {
       extra: doc(
         loginFeature,
         'Users forget passwords.',
-        'Users forget passwords; see [reset](us02_reset_password/story.md).',
+        'Users forget passwords; see [reset](us02_reset_password/USER_STORY.md).',
       ),
     );
     final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
@@ -37,7 +37,7 @@ void main() {
     final report = checkOf(project);
     expect(
       report.findings.single.textLine,
-      '$loginFeature:11: link_unresolved: link target us02_reset_password/story.md is no doc',
+      '$loginFeature:11: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
     );
   });
 
@@ -47,13 +47,13 @@ void main() {
         extra: doc(
           loginFeature,
           'Users forget passwords.',
-          'Users forget passwords; see [reset](us02_reset_password/story.md).',
+          'Users forget passwords; see [reset](us02_reset_password/USER_STORY.md).',
         ),
       ),
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:11: link_unresolved: link target us02_reset_password/story.md is no doc',
+      '$loginFeature:11: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
     );
   });
 
@@ -90,7 +90,7 @@ void main() {
             loginFeature,
             'Users forget passwords.',
             'Users forget passwords: [roles](../../PROJECT.md#role), [site](https://example.com), '
-                '![diagram](diagram.png), [idea](../../../notes/idea.md), and story.md in prose.',
+                '![diagram](diagram.png), [idea](../../../notes/idea.md), and USER_STORY.md in prose.',
           ),
           'docs/notes/idea.md': '# Idea\n\n[gone](gone.md)\n',
         },

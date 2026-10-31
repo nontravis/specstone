@@ -49,6 +49,18 @@ void main() {
     },
   );
 
+  test('f03/us06/fr03: a link to a USER_STORY file is no error_code, a final '
+      'enum value is', () async {
+    final link = await _banned(
+      _storyLine('See [reset](../us02_reset_password/USER_STORY.md)'),
+    );
+    expect(_patterns(link), isNot(contains('error_code')));
+    final enumValue = await _banned(
+      _storyLine('The step fails with TEMPLATE_NOT_FOUND.'),
+    );
+    expect(_patterns(enumValue), contains('error_code'));
+  });
+
   test(
     'f03/us06/fr03: a story citing ids and a slug in backticks gives none',
     () async {

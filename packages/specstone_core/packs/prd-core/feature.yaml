@@ -132,7 +132,7 @@ lint:
         - '(?:[a-z]{1,4}\d{2}(?:_\d{2})?(?:_[a-z0-9_]+)?|s\d+|e\d{2})(?:/(?:[a-z]{1,4}\d{2}(?:_\d{2})?(?:_[a-z0-9_]+)?|s\d+|e\d{2}))*'
         - '[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+'
     - id: error_code
-      pattern: '\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b'
+      pattern: '\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b(?!\.\w)'
       message: error code or enum value in reader-altitude prose; describe what the person sees
       in: all
     - id: doc_citation
