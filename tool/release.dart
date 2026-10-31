@@ -53,6 +53,8 @@ const String _dryRunFlag = '--dry-run';
 final RegExp _versionForm = RegExp(r'^\d+\.\d+\.\d+$');
 const Duration _runPollInterval = Duration(seconds: 5);
 const int _runPollTries = 60;
+const Duration _viewPollInterval = Duration(seconds: 15);
+const int _viewPollTries = 360;
 
 /// A failed check: printed as `release: <message>` on stderr, exit 1.
 final class _Refusal implements Exception {
@@ -91,6 +93,7 @@ Future<void> _release(List<String> args) async {
   await _checkCiPassed(head);
   await _checkVersionAboveCurrent(root, version);
   await _checkTagAbsent(version);
+  _checkSpotsParse(root);
 
   if (dryRun) {
     _planSteps(version).forEach(stdout.writeln);
@@ -356,7 +359,6 @@ String _runAgain(String version) =>
 /// Returns the tagged commit. A spot left behind or a failed
 /// `dart pub get` undoes the bump and refuses before the commit.
 Future<String> _bumpAndTag(String root, String version) async {
-  _checkSpotsParse(root);
   await _git(['switch', '-c', 'release/$version']);
   _writeSpots(root, version);
 
@@ -419,9 +421,8 @@ Future<void> _pushTag(String version) async {
 /// Waits for the `release.yaml` run of the tag at [tagSha] to end.
 ///
 /// Returns 0 when the run succeeded. On a failed run it prints the failure
-/// on stderr and returns 1. When `gh run watch` fails, the run is read again:
-/// only a `failure` conclusion counts as a failed run, and anything else
-/// refuses, since the run may still be going.
+/// on stderr and returns 1. When `gh run watch` fails, the run is polled with
+/// `gh run view` for up to 90 minutes; a gh error or that limit refuses.
 Future<int> waitForRun(String version, String tagSha) async {
   final run = await _findRun(version, tagSha);
   stdout.writeln('Waiting for the release.yaml run of v$version: ${run.url}');
@@ -432,31 +433,49 @@ Future<int> waitForRun(String version, String tagSha) async {
     '--exit-status',
   ]);
   if (watch.exitCode == 0) return 0;
+  // A token without the watch scope fails `gh run watch` on every release,
+  // so the run is polled with `gh run view` instead.
+  return _pollRun(version, run);
+}
 
-  final view = await _gh([
-    'run',
-    'view',
-    '${run.id}',
-    '--json',
-    'status,conclusion',
-  ], 'reading the release.yaml run of v$version');
-  final Object? state;
-  try {
-    state = jsonDecode(view);
-  } on FormatException {
-    throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
-  }
-  if (state case {'conclusion': 'failure'}) {
-    stderr.writeln(
-      'release: the release.yaml run of v$version failed: ${run.url}; '
-      'main and develop are untouched. Fix on release/$version, then run '
-      'dart run tool/release.dart $version from that branch',
-    );
-    return 1;
+/// Polls the run with `gh run view` until it completes, then acts on it.
+Future<int> _pollRun(String version, ({int id, String url}) run) async {
+  for (var attempt = 1; attempt <= _viewPollTries; attempt++) {
+    final view = await _gh([
+      'run',
+      'view',
+      '${run.id}',
+      '--json',
+      'status,conclusion',
+    ], 'reading the release.yaml run of v$version');
+    final Object? state;
+    try {
+      state = jsonDecode(view);
+    } on FormatException {
+      throw _Refusal(
+        'gh printed no JSON for the release.yaml run of v$version',
+      );
+    }
+    if (state case {'status': 'completed', 'conclusion': final Object? end}) {
+      if (end == 'success') return 0;
+      if (end == 'failure') {
+        stderr.writeln(
+          'release: the release.yaml run of v$version failed: ${run.url}; '
+          'main and develop are untouched. Fix on release/$version, then run '
+          'dart run tool/release.dart $version from that branch',
+        );
+        return 1;
+      }
+      throw _Refusal(
+        'the release.yaml run of v$version ended as $end (${run.url}); '
+        'main and develop are untouched',
+      );
+    }
+    if (attempt < _viewPollTries) await Future<void>.delayed(_viewPollInterval);
   }
   throw _Refusal(
-    'gh run watch failed (${_failureLine(watch)}), yet the release.yaml run '
-    'of v$version has no failure conclusion (${run.url}, read as $state); '
+    'the release.yaml run of v$version (${run.url}) did not end within '
+    '${_viewPollInterval.inMinutes * _viewPollTries} minutes; '
     'main and develop are untouched',
   );
 }

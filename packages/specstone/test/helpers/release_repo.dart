@@ -47,7 +47,7 @@ final class ReleaseRepo {
   /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
   /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_LATE` (any value:
   /// the first release.yaml `run list` finds no run), `GH_STUB_VIEW`
-  /// (`failure` | `in_progress` | `broken`: what `run view` answers after a
+  /// (`failure` | `later_success` | `broken`: what `run view` answers after a
   /// failed watch), `GH_STUB_RELEASE`
   /// (`absent` | `present`), and `GH_STUB_ON_WATCH` (a shell line run before
   /// `run watch` answers).
@@ -294,7 +294,14 @@ case "\$1 \$2" in
         echo 'gh: network down' >&2
         exit 1
         ;;
-      in_progress) echo '{"status":"in_progress","conclusion":""}' ;;
+      later_success)
+        if [ ! -e "\$root/viewed" ]; then
+          touch "\$root/viewed"
+          echo '{"status":"in_progress","conclusion":""}'
+        else
+          echo '{"status":"completed","conclusion":"success"}'
+        fi
+        ;;
       *) echo '{"status":"completed","conclusion":"failure"}' ;;
     esac
     ;;

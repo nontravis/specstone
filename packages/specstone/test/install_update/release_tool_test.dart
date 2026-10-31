@@ -630,7 +630,7 @@ dependencies:
       );
     });
 
-    for (final view in ['broken', 'in_progress']) {
+    for (final view in ['broken']) {
       test('f09/us04/fr03: a failed gh run watch whose run is not read as '
           'failed ($view) exits 1 and moves nothing', () async {
         final refs = await repo.originRefs();
@@ -652,6 +652,37 @@ dependencies:
         expect(after['refs/heads/develop'], refs['refs/heads/develop']);
       });
     }
+
+    test('f09/us04/fr03: a failing gh run watch falls back to polling the run '
+        'and lands once it succeeds', () async {
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {
+          'GH_STUB_RUN': 'failure',
+          'GH_STUB_VIEW': 'later_success',
+          'GH_STUB_RELEASE': 'present',
+        },
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        repo.ghCalls().where((c) => c.startsWith('run view')),
+        hasLength(2),
+      );
+      final refs = await repo.originRefs();
+      expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
+    });
+
+    test('f09/us04/fr02: --dry-run refuses a missing spot too', () async {
+      await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
+      await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
+      await repo.git(['push', '-q', 'origin', 'develop']);
+      before = await repo.state();
+
+      final r = await repo.release(['0.2.0', '--dry-run']);
+
+      await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
+    });
 
     test('f09/us04/fr03: a failed branch cleanup after the landing exits 0 '
         'and says so', () async {
