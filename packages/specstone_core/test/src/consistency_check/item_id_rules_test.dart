@@ -86,7 +86,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr09/e05: a domain invariant with a bold ID passes', () async {
+  test('f04/us01/fr09/e01: a domain invariant with a bold ID passes', () async {
     final found = await _itemIdFindings({
       'docs/specs/f01_login/DOMAIN.md':
           '# Login domain\n\n## Entities\n- Account\n\n'
