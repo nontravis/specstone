@@ -132,9 +132,10 @@ Future<void> _runAgainFrom(
   required bool dryRun,
 }) async {
   if (branch != 'release/$version') {
+    final onVersion = branch.substring('release/'.length);
     throw _Refusal(
-      'on branch $branch, not release/$version; check out release/$version '
-      'to release $version again',
+      'on branch $branch, not release/$version; pass $onVersion to release '
+      'it again, or check out develop to release $version for the first time',
     );
   }
   await _checkCleanTree();
@@ -146,8 +147,10 @@ Future<void> _runAgainFrom(
 
   final releaseUrl = await _publishedReleaseUrl(version);
   if (dryRun) {
+    final awaited = releaseUrl == null ? await _awaitedTagSha(version) : null;
     [
-      if (releaseUrl == null) ..._moveTagSteps(version),
+      if (releaseUrl == null && awaited == null) ..._moveTagSteps(version),
+      if (awaited != null) _waitStep(version),
       ..._landingSteps(version),
     ].forEach(stdout.writeln);
     return;
@@ -198,17 +201,26 @@ Future<String?> _publishedReleaseUrl(String version) async {
 /// A run of the pushed tag still queued or in progress is awaited instead,
 /// and the tag stays: moving it would cancel the run that is publishing.
 Future<int> _moveTagAndPublish(String version) async {
-  final running = await _runningTagSha(version);
-  if (running != null) return _publishAndLand(version, running);
+  final awaited = await _awaitedTagSha(version);
+  if (awaited != null) {
+    stdout.writeln(
+      'v$version at $awaited is still being released; commits made on '
+      'release/$version since then ship with the next version.',
+    );
+    return _publishAndLand(version, awaited);
+  }
 
-  await _pushRunAgainRef(version, ['origin', 'release/$version']);
+  await _pushRunAgainRef(['origin', 'release/$version']);
   await _git(['tag', '-f', 'v$version']);
-  await _pushRunAgainRef(version, ['--force', 'origin', 'v$version']);
+  await _pushRunAgainRef(['--force', 'origin', 'v$version']);
   return _publishAndLand(version, await _git(['rev-parse', 'HEAD']));
 }
 
 /// Returns the commit of `origin`'s tag when its release run has not ended.
-Future<String?> _runningTagSha(String version) async {
+///
+/// Refuses when the tag already points at HEAD and its run failed, since
+/// moving it would start no new run. Returns null when the tag may move.
+Future<String?> _awaitedTagSha(String version) async {
   final remote = await _git(['ls-remote', 'origin', 'refs/tags/v$version']);
   if (remote.isEmpty) return null;
   final tagSha = remote.split(RegExp(r'\s')).first;
@@ -222,7 +234,7 @@ Future<String?> _runningTagSha(String version) async {
     '--limit',
     '1',
     '--json',
-    'databaseId,url,status',
+    'databaseId,url,status,conclusion',
   ], 'reading the release.yaml run of v$version');
   final Object? runs;
   try {
@@ -230,20 +242,24 @@ Future<String?> _runningTagSha(String version) async {
   } on FormatException {
     throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
   }
-  return switch (runs) {
-    [{'status': final String status}, ...] when status != 'completed' => tagSha,
-    _ => null,
-  };
+  switch (runs) {
+    case [{'status': final String status}, ...] when status != 'completed':
+      return tagSha;
+    case [{'status': 'completed', 'conclusion': final Object? end}, ...]
+        when end != 'success' && tagSha == await _git(['rev-parse', 'HEAD']):
+      throw _Refusal(
+        'v$version already points at HEAD and its run failed; commit a fix '
+        'or re-run the workflow',
+      );
+  }
+  return null;
 }
 
-Future<void> _pushRunAgainRef(String version, List<String> pushArgs) async {
+Future<void> _pushRunAgainRef(List<String> pushArgs) async {
   try {
     await _git(['push', ...pushArgs]);
   } on _Refusal catch (failure) {
-    throw _Refusal(
-      '${failure.message}; main and develop are untouched. '
-      '${_runAgain(version)}',
-    );
+    throw _Refusal('${failure.message}; main and develop are untouched');
   }
 }
 
@@ -390,15 +406,17 @@ List<String> _planSteps(String v) => [
   're-read the five spots; run dart pub get --enforce-lockfile',
   'commit "chore: release $v"; tag v$v on it',
   'push tag v$v',
-  'wait for the release.yaml run of v$v',
+  _waitStep(v),
   ..._landingSteps(v),
 ];
 
 List<String> _moveTagSteps(String v) => [
   'push release/$v',
   'move tag v$v to the head of release/$v; push it',
-  'wait for the release.yaml run of v$v',
+  _waitStep(v),
 ];
+
+String _waitStep(String v) => 'wait for the release.yaml run of v$v';
 
 List<String> _landingSteps(String v) {
   final fastForward =
@@ -697,6 +715,7 @@ Future<String> _confirmRelease(String version) async {
 Future<int> land(String version, String releaseUrl) async {
   final tag = 'v$version';
   final branch = 'release/$version';
+  await _checkLocalTagIsOrigins(tag);
   await _git(['fetch', 'origin']);
 
   final blocked = await _landingBlock(tag);
@@ -734,6 +753,22 @@ Future<int> land(String version, String releaseUrl) async {
     stderr.writeln('release: could not delete $branch: ${failure.message}');
   }
   return 0;
+}
+
+/// Refuses when the local [tag] is not the commit `origin` holds for it.
+///
+/// `main` fast-forwards to the local tag, so a local tag that never reached
+/// `origin` would put `main` on a commit that was not released.
+Future<void> _checkLocalTagIsOrigins(String tag) async {
+  final local = await _git(['rev-parse', tag]);
+  final remote = await _git(['ls-remote', 'origin', 'refs/tags/$tag']);
+  final origin = remote.split(RegExp(r'\s')).first;
+  if (local != origin) {
+    throw _Refusal(
+      'local $tag ($local) differs from $tag on origin ($origin); '
+      'main and develop are untouched',
+    );
+  }
 }
 
 /// Returns what the first failed landing check prints, else null.

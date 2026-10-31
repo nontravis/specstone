@@ -46,9 +46,10 @@ final class ReleaseRepo {
   /// `GH_STUB_AUTH` (`ok` | `none` | `broken`), `GH_STUB_CI` (`success` |
   /// `failure` | `in_progress` | `empty` for no run | `garbage` for non-JSON),
   /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_STATE` (a run
-  /// status such as `in_progress` or `completed`, added to the release.yaml
-  /// `run list` answer), `GH_STUB_RUN_LATE` (any value:
-  /// the first release.yaml `run list` finds no run), `GH_STUB_VIEW`
+  /// status such as `in_progress` or `completed`, added with the `GH_STUB_RUN`
+  /// conclusion to the release.yaml `run list` answer), `GH_STUB_RUN_LATE`
+  /// (any value: the first release.yaml `run list` finds no run),
+  /// `GH_STUB_VIEW`
   /// (`failure` | `later_success` | `cancelled` | `garbage` | `broken`: what
   /// `run view` answers after a failed watch), `GH_STUB_RELEASE`
   /// (`absent` | `present` | `broken`), and `GH_STUB_ON_WATCH` (a shell line
@@ -269,7 +270,7 @@ case "\$1 \$2" in
           exit 0
         fi
         if [ -n "\$GH_STUB_RUN_STATE" ]; then
-          echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789", "status": "'"\$GH_STUB_RUN_STATE"'"}]'
+          echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789", "status": "'"\$GH_STUB_RUN_STATE"'", "conclusion": "'"\${GH_STUB_RUN:-success}"'"}]'
         else
           echo '[{"databaseId": 123456789, "url": "https://github.com/nontravis/specstone/actions/runs/123456789"}]'
         fi

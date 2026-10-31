@@ -795,6 +795,107 @@ dependencies:
       final refs = await repo.originRefs();
       expect(refs['refs/tags/v0.2.0'], tagBefore);
       expect(refs['refs/heads/main'], tagBefore);
+      expect(
+        r.stdout,
+        contains(
+          'v0.2.0 at $tagBefore is still being released; commits made on '
+          'release/0.2.0 since then ship with the next version.\n',
+        ),
+      );
+    });
+
+    test('f09/us04/fr04: a local tag unlike the one on origin refuses before '
+        'any ref moves', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      await repo.git(['tag', '-f', 'v0.2.0', 'HEAD']);
+      final local = await sha('HEAD');
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RUN_STATE': 'in_progress'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains(local));
+      expect(r.stderr, contains(tagBefore));
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: --dry-run with a run in progress prints the wait '
+        'and the landing', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0', '--dry-run'],
+        gh: {'GH_STUB_RUN_STATE': 'in_progress'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        r.stdout,
+        [
+          'wait for the release.yaml run of v0.2.0',
+          fetchLine,
+          fastForwardLine,
+          'push main and develop in one atomic push; delete release/0.2.0',
+        ].map((l) => '$l\n').join(),
+      );
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: a tag already at HEAD whose run failed refuses '
+        'early', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RUN_STATE': 'completed', 'GH_STUB_RUN': 'failure'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        contains(
+          'release: v0.2.0 already points at HEAD and its run failed; '
+          'commit a fix or re-run the workflow',
+        ),
+      );
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04: a refused push of the release branch says how to run '
+        'again once', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      await rejectPushes('refs/heads/release/*');
+      final mid = await repo.state();
+
+      final r = await repo.release(['0.2.0']);
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('main and develop are untouched\n'));
+      expect(
+        stderrLines(r).where((l) => l.startsWith('Resolve it, then')),
+        hasLength(1),
+      );
+      expect(r.stderr, isNot(contains('untouched. run')));
+      expect(await repo.state(), mid);
+    });
+
+    test('f09/us04/fr04/e05: the fixed tag failing again leaves main and '
+        'develop untouched', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+      final refs = await repo.originRefs();
+
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN': 'failure'});
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('the release.yaml run of v0.2.0 failed'));
+      final after = await repo.originRefs();
+      expect(after['refs/tags/v0.2.0'], fix);
+      expect(after['refs/heads/main'], refs['refs/heads/main']);
+      expect(after['refs/heads/develop'], refs['refs/heads/develop']);
     });
 
     test('f09/us04/fr03/e05: local develop ahead of origin/develop moves no '
@@ -847,6 +948,8 @@ dependencies:
 
       expect(r.exitCode, 1);
       expect(r.stderr, contains('0.2.0'));
+      expect(r.stderr, contains('pass 0.2.0 to release it again'));
+      expect(r.stderr, contains('check out develop to release 0.3.0'));
       expect(await repo.state(), mid);
     });
 
