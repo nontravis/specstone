@@ -5,6 +5,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/script_sandbox.dart';
 import '../../helpers/temp_tree.dart';
 
 /// Joins its arguments with `/`, which every platform's `dart:io` accepts.
@@ -198,14 +199,11 @@ void main() {
       bool asWindows = false,
       String scriptNote = '',
     }) async {
-      root = await writeTree({});
-      final home = Directory(_join(root.path, 'home'));
+      final sandbox = await createScriptSandbox();
+      root = sandbox.root;
       final exe = await makeExecutable(
-        Directory(_join(home.path, '.specstone', 'bin')),
+        Directory(_join(sandbox.home.path, '.specstone', 'bin')),
       );
-      for (final folder in ['logs', 'stubs', 'tmp']) {
-        await Directory(_join(root.path, folder)).create();
-      }
       final ran = fileIn('logs', 'ran');
       final claudeLog = fileIn('logs', 'claude.log');
       final script = asWindows || windows
@@ -245,25 +243,7 @@ void main() {
           await Process.run('chmod', ['+x', stub.path]);
         }
       }
-      final stubs = _join(root.path, 'stubs');
-      final env = windows
-          ? {
-              'HOME': home.path,
-              'USERPROFILE': home.path,
-              'SystemRoot': Platform.environment['SystemRoot']!,
-              'TEMP': '${root.path}\\tmp',
-              'TMP': '${root.path}\\tmp',
-              'PATH':
-                  '$stubs;${Platform.environment['SystemRoot']}\\System32;'
-                  '${Platform.environment['SystemRoot']}\\System32\\'
-                  r'WindowsPowerShell\v1.0',
-              'CLAUDE_EXIT': '$claudeExit',
-            }
-          : {
-              'HOME': home.path,
-              'PATH': '$stubs:/usr/bin:/bin',
-              'CLAUDE_EXIT': '$claudeExit',
-            };
+      final env = sandbox.env({'CLAUDE_EXIT': '$claudeExit'});
       runner = runnerFor(exe.path, env, windows: asWindows || windows);
     }
 
