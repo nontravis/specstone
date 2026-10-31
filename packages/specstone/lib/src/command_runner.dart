@@ -52,13 +52,38 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     StringSink? out,
     StringSink? err,
     TemplateResolver? templates,
+    GeneratorRegistry<DocIndex>? generators,
     Directory? workingDirectory,
     Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
+  }) : this._(
+         registry: generators ?? journeyGenerators(),
+         out: out,
+         err: err,
+         templates: templates,
+         workingDirectory: workingDirectory,
+         homeDirectory: homeDirectory,
+         busyTimeout: busyTimeout,
+         console: console,
+       );
+
+  // The registry is resolved once, so the default resolver's kinds come from
+  // the same source as the generators that run.
+  new _({
+    required GeneratorRegistry<DocIndex> registry,
+    required StringSink? out,
+    required StringSink? err,
+    required TemplateResolver? templates,
+    required Directory? workingDirectory,
+    required Directory? homeDirectory,
+    required Duration busyTimeout,
+    required Console? console,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
-       _templates = templates ?? TemplateResolver(),
+       _generators = registry,
+       _templates =
+           templates ?? TemplateResolver(generatorKinds: registry.kinds),
        _workingDirectory = workingDirectory,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        _busyTimeout = busyTimeout,
@@ -97,6 +122,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final StringSink _out;
   final StringSink _err;
   final TemplateResolver _templates;
+  final GeneratorRegistry<DocIndex> _generators;
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
   final Duration _busyTimeout;
@@ -111,6 +137,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// Resolver that `guide` and `format` use to load and merge the doc type
   /// templates.
   TemplateResolver get templates => _templates;
+
+  /// The generators `format` runs for the doc types that list them.
+  GeneratorRegistry<DocIndex> get generators => _generators;
 
   /// Folder the project is looked up from, the process working folder by
   /// default.

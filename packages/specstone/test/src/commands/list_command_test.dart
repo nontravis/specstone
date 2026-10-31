@@ -78,6 +78,26 @@ void main() {
     }
   });
 
+  test('f04/us04/fr04: list journey --suspect keeps a journey with a suspect step', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {
+          ...doc(
+            loginStory,
+            loginScenario1,
+            loginScenario1.replaceFirst('home page', 'dashboard'),
+          ),
+          'docs/prds/journeys/sign_in/JOURNEY.md':
+              '---\nconfirmed:\n  - login/email_login#S1 ${fingerprintFor(loginScenario1)}\n---\n\n'
+              '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n### 1. Open\nstep: login/email_login S1\n',
+        },
+      ),
+    );
+    expect(await runner.run(['list', 'journey', '--suspect']), 0);
+    expect(out.toString(), startsWith('sign_in (journey)'));
+    expect(out.toString().split('\n').where((l) => l.isNotEmpty), hasLength(1));
+  });
+
   test('f04/us04/fr04/e03, f04/us04/fr04/e05: list api --suspect keeps an API doc with a suspect row; a type with no '
       'tracked link lists nothing', () async {
     final api = readRunner(
@@ -147,5 +167,31 @@ void main() {
       ),
     );
     expect(await pinned.runner.run(['list', 'feature']), 78);
+  });
+
+  test('f10/us04/fr01: list user_story --unwalked --json adds unwalked to each doc, exit 0', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['list', 'user_story', '--unwalked', '--json']), 0);
+    final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
+    expect(docs.single, containsPair('unwalked', ['S1', 'S2']));
+  });
+
+  test('f10/us04/s4, f10/us04/fr01/e05: list feature --unwalked exits 64 with the refusal', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['list', 'feature', '--unwalked']), 64);
+    expect(
+      err.toString(),
+      contains('--unwalked lists user_story docs only, not feature'),
+    );
+    expect(out.toString(), isEmpty);
+  });
+
+  test('f10/us04/fr01: list user_story --suspect --unwalked exits 0', () async {
+    final (:runner, :out, :err) = readRunner(await suspectProject());
+    expect(
+      await runner.run(['list', 'user_story', '--suspect', '--unwalked']),
+      0,
+    );
+    expect(err.toString(), isEmpty);
   });
 }

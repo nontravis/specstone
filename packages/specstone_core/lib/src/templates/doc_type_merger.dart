@@ -35,11 +35,12 @@ final class DocTypeMerger {
   /// `after_id_not_found` for a section whose `after:` names an id the base
   /// built so far lacks, `locked_field_disabled` for a layer that breaks a
   /// built-in field or clears a parent the base has,
-  /// `list_override_needs_add_remove` for a plain word, reference, or bundle
-  /// list over one a lower layer defines, `lint_word_not_found` for a removed
-  /// word the base lacks, `reference_title_not_found` for a removed title the
-  /// base lacks, and `bundle_mode_not_found` for a removed mode the base
-  /// lacks.
+  /// `list_override_needs_add_remove` for a plain word, reference, bundle, or
+  /// generators list over one a lower layer defines (an empty one included),
+  /// `lint_word_not_found` for a removed word the base lacks,
+  /// `reference_title_not_found` for a removed title the base lacks,
+  /// `bundle_mode_not_found` for a removed mode the base lacks, and
+  /// `unknown_value` for a removed generator kind the base lacks.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
     return base.copyWith(
@@ -54,6 +55,14 @@ final class DocTypeMerger {
         key: 'bundle',
         nameOf: (mode) => mode,
         notFound: FaultCode.bundleModeNotFound,
+      ),
+      generators: _mergeList<String>(
+        base.generators,
+        layer.generators,
+        layer,
+        key: 'generators',
+        nameOf: (kind) => kind,
+        notFound: FaultCode.unknownValue,
       ),
       fields: List.unmodifiable(_mergeFields(base.fields, layer)),
       sections: List.unmodifiable(_mergeSections(base.sections, layer)),

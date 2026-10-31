@@ -3,6 +3,8 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/journeys/journey_steps.dart';
+import 'package:specstone_core/src/journeys/step_scenarios.dart';
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -17,7 +19,8 @@ const _tighten = 'tighten';
 const _relax = 'relax';
 final _scenarioLabel = RegExp(r'^S[0-9]+$');
 final _wellFormedEntry = RegExp(
-  r'^(S[0-9]+|NFR-[A-Za-z]+[0-9]+|[a-z0-9_]+/[a-z0-9_]+) ([0-9a-f]{12})$',
+  '^(S[0-9]+|NFR-[A-Za-z]+[0-9]+|[a-z0-9_]+/[a-z0-9_]+'
+  r'|[a-z0-9_]+(?:/[a-z0-9_]+)*#S[0-9]+) ([0-9a-f]{12})$',
 );
 
 /// Whether a tracked link is current, changed, or without a matching entry.
@@ -37,7 +40,8 @@ final class TrackedLink {
     this.fingerprint,
   });
 
-  /// The LinkLabel: `S<N>`, an NFR id, or `<story slug>/<fr slug>`.
+  /// The LinkLabel: `S<N>`, an NFR id, `<story slug>/<fr slug>`, or
+  /// `<story identity>#S<N>`.
   final String label;
 
   /// The file line of the key or table row that traces the link.
@@ -56,12 +60,14 @@ final class TrackedLink {
 /// Returns the links [doc] tracks, one per label, in trace order (INV-5).
 ///
 /// An `fr` tracks its `S<N>` trace entries, an `nf` of kind `tighten` or
-/// `relax` its overridden NFR, and an `api` doc each FR of its trace table.
+/// `relax` its overridden NFR, an `api` doc each FR of its trace table, and a
+/// `journey` the story scenario each step names.
 List<TrackedLink> trackedLinksOf(CheckContext context, IndexedDoc doc) {
   final links = switch (doc.docTypeId) {
     _frType => _scenarioLinks(context, doc),
     _nfType => _overrideLinks(context, doc),
     _apiType => _frRowLinks(context, doc),
+    journeyTypeId => _stepLinks(context, doc),
     _ => const <TrackedLink>[],
   };
   final seen = <String>{};
@@ -131,6 +137,36 @@ Iterable<TrackedLink> _frRowLinks(CheckContext context, IndexedDoc api) sync* {
             fingerprint: fingerprintOf(
               context.heldSection(fr, _statementSection)?.body ?? '',
             ),
+          );
+  }
+}
+
+// A step whose `step:` reads as a target tracks that story scenario; a missing
+// story or scenario leaves the link without an upstream (INV-6).
+Iterable<TrackedLink> _stepLinks(
+  CheckContext context,
+  IndexedDoc journey,
+) sync* {
+  final section = context.heldIndexOf(journey, stepsSectionId);
+  if (section == null) return;
+  final body = context.bodyLinesOf(journey, section);
+  for (final step in stepsOfIndexed(context.index, journey).steps) {
+    final target = step.target;
+    final stepIndex = step.stepIndex;
+    if (target == null || stepIndex == null) continue;
+    final line = body[stepIndex].line;
+    final story = storyNamed(context.index, target.identity);
+    final text = story == null
+        ? null
+        : context.scenarioBlocksOf(story)[target.scenarioLabel];
+    yield text == null
+        ? TrackedLink(label: target.label, traceLine: line)
+        : TrackedLink(
+            label: target.label,
+            traceLine: line,
+            upstream: story!.docPath,
+            block: 'Scenario ${target.scenario}',
+            fingerprint: fingerprintOf(text),
           );
   }
 }

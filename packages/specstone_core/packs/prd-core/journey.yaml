@@ -1,0 +1,49 @@
+id: journey
+description: |-
+  A journey: the story scenarios one persona walks toward one goal, in order, branches included.
+  Title it `# <the goal as the persona says it>`, with no number. The folder name is its identity.
+  Keep one goal of one persona, from the start to the result that persona wants.
+  Branch only on outcomes the persona sees; keep edge scenarios tested at story and requirement level.
+  Leave `persona` out when the journey serves no human persona.
+path: prds/journeys/{slug}/JOURNEY.md
+generators: [journey_flow, scenario_copy]
+fields:
+  - id: persona
+    type: doc_ref
+    list: true
+    doc_types: [persona]
+    description: |-
+      Names the personas the journey serves; each name must resolve to a persona.
+      Leave it out when the journey serves no human persona.
+  - id: confirmed
+    type: string
+    list: true
+    description: |-
+      Records one `<story identity>#S<N> <fingerprint>` entry per step.
+      An entry reads such as `login/email_login#S1 0a1b2c3d4e5f`; copy the fingerprint `specstone check` prints.
+      The entry counts once the Owner approves the journey.
+sections:
+  - id: goal
+    header: Goal
+    required: true
+    description: |-
+      One line: the result the persona wants at the end of the journey.
+    template: |-
+      <the result the persona wants>
+  - id: flow
+    header: Flow
+    required: true
+    description: |-
+      The flowchart of every path. The system draws it from the steps; never edit it by hand.
+  - id: steps
+    header: Steps
+    required: true
+    description: |-
+      One `### <number>. <heading>` line per step, then `step: <story identity> S<N>` naming one scenario.
+      A branch step adds `after: <number>`, the step it follows; without it a step follows the one above.
+      Write the main line first and its branch steps after it; a number is digits, then letters, such as `3x`.
+      The system pastes each step's scenario text under it; never edit that block by hand.
+    template: |-
+      <one "### <number>. <heading>" line per step, then its "step: <story identity> S<N>" line>
+lint:
+  max_lines: 400

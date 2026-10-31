@@ -36,6 +36,27 @@ const Map<String, String> approvedSignOut = {
       '---\napproved: true\n---\n\n# Clear cookies\n',
 };
 
+const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
+
+/// A journey whose step 1 names [scenario] of the story reset_password.
+Map<String, String> _journeyNaming(String scenario) => {
+  'docs/$_journeyPath':
+      '---\ndraft: true\n---\n\n# Sign in\n\n## Goal\nGet in.\n\n'
+      '## Flow\n\n## Steps\n'
+      '### 1. Reset\nstep: login/reset_password $scenario\n',
+};
+
+/// A project where only the journey refers into the login feature.
+Map<String, String> _onlyJourneyRefers(String scenario) => {
+  ...withoutLink,
+  ...freeStory3,
+  'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
+  'docs/prds/d01_context.md': '# Context\n',
+  'docs/$persona':
+      '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+  ..._journeyNaming(scenario),
+};
+
 void main() {
   ReadAnswer del(
     Directory root,
@@ -724,6 +745,74 @@ void main() {
         ),
       );
       expect(hasDoc(root, scratch), isTrue);
+    });
+  });
+
+  group('journeys as referrers', () {
+    Matcher refusedForJourney(String file) => throwsA(
+      isA<WriteFault>()
+          .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
+          .having((f) => f.file, 'file', file)
+          .having((f) => f.relatedFiles, 'relatedFiles', [_journeyPath]),
+    );
+
+    test('f02/us04/s10, f02/us04/fr05/e01: delete of a story a journey step names is doc_referenced', () async {
+      final root = await writeWriteProject(extra: _onlyJourneyRefers('S1'));
+      expect(
+        () => del(root, ['user_story:login/reset_password']),
+        refusedForJourney(story3),
+      );
+      expect(hasDoc(root, story3), isTrue);
+      expect(hasDoc(root, _journeyPath), isTrue);
+    });
+
+    test(
+      "f02/us04/fr05/e02: delete of the story's feature is doc_referenced",
+      () async {
+        final root = await writeWriteProject(extra: _onlyJourneyRefers('S1'));
+        expect(
+          () => del(root, ['feature:login']),
+          refusedForJourney(loginFeature),
+        );
+        expect(hasDoc(root, loginFeature), isTrue);
+      },
+    );
+
+    test('f02/us04/fr05/e03: delete of the journey removes its folder; its steps point out of the unit', () async {
+      final root = await writeWriteProject(extra: _onlyJourneyRefers('S1'));
+      expect(del(root, ['journey:sign_in']).json['removed'], [_journeyPath]);
+      expect(
+        Directory('${root.path}/docs/prds/journeys/sign_in').existsSync(),
+        isFalse,
+      );
+      expect(hasDoc(root, story3), isTrue);
+    });
+
+    test(
+      'f02/us04/fr05/e04: the journey and the story in one call are removed',
+      () async {
+        final root = await writeWriteProject(extra: _onlyJourneyRefers('S1'));
+        expect(
+          del(root, [
+            'journey:sign_in',
+            'user_story:login/reset_password',
+          ]).json['removed'],
+          containsAll([_journeyPath, story3]),
+        );
+        expect(
+          [hasDoc(root, _journeyPath), hasDoc(root, story3)],
+          [false, false],
+        );
+      },
+    );
+
+    test('f02/us04/fr05/e05: a step naming a missing scenario of a story in the unit still refers to it', () async {
+      final root = await writeWriteProject(extra: _onlyJourneyRefers('S9'));
+      expect(
+        () => del(root, ['user_story:login/reset_password']),
+        refusedForJourney(story3),
+      );
+      expect(hasDoc(root, story3), isTrue);
     });
   });
 }

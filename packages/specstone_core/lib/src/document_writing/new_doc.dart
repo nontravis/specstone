@@ -8,10 +8,12 @@ import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -32,14 +34,25 @@ void _refuseApprovedMark(String lfText) {
   );
 }
 
+/// Adds what a new doc's type derives from the project, such as first
+/// `confirmed` entries, to [lfText] and returns the result.
+typedef NewDocFill = String Function(
+  String lfText,
+  MergedDocType docType,
+  DocIndex index,
+);
+
 /// Creates a doc of [docTypeId] from its template at its next sibling number.
 ///
 /// [parent] names a doc of the doc type's `parent:`, [slug] fills `{slug}`, and
-/// a non-empty [text] is the doc's text, forced to `draft: true`; otherwise the
-/// doc is the template's skeleton. The number is the highest sibling number on
-/// disk plus one, read under the session lock; the path is claimed with an
-/// exclusive create, so a doc that appears meanwhile is never overwritten. A
-/// failed write removes the file and the folders this call created.
+/// a non-empty [text] is the doc's text, forced to `draft: true` at its field
+/// slot with no key of [text] moved; otherwise the doc is the template's
+/// skeleton. Under the session lock and before the write, [generators] fill
+/// the generated blocks the doc type lists, then [firstConfirmations] runs on
+/// the result. The number is the highest sibling number on disk plus one, read
+/// under the session lock; the path is claimed with an exclusive create, so a
+/// doc that appears meanwhile is never overwritten. A failed write removes the
+/// file and the folders this call created.
 /// Throws [TemplateFault] `doc_type_unknown`, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
 /// not take, [WriteFault] `doc_exists` when the doc is there and
@@ -51,6 +64,8 @@ ReadAnswer answerNew(
   String? parent,
   String? slug,
   String text = '',
+  GeneratorRegistry<DocIndex>? generators,
+  NewDocFill? firstConfirmations,
 }) {
   final set = session.index.set;
   final docType =
@@ -75,9 +90,10 @@ ReadAnswer answerNew(
       : _valuesOfParent(session, docType, parentDoc);
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
   if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
-  final lfText = text.isEmpty
+  final fieldOrder = [for (final field in docType.fields) field.id];
+  final given = text.isEmpty
       ? skeletonOf(docType, title)
-      : markDraft(toLf(text));
+      : markDraft(toLf(text), fieldOrder: fieldOrder);
   final lineEnding = LineEnding.of(text);
 
   return session.locked(() {
@@ -88,6 +104,7 @@ ReadAnswer answerNew(
     final created = <Directory>[];
     File? claimed;
     final String docPath;
+    var lfText = given;
     try {
       (docPath, claimed) = _claim(
         session,
@@ -98,6 +115,17 @@ ReadAnswer answerNew(
         highest + 1,
         created,
       );
+      if (generators != null) {
+        lfText = fillGeneratedBlocks(
+          lfText,
+          docType,
+          generators,
+          session.index,
+        );
+      }
+      if (firstConfirmations != null) {
+        lfText = firstConfirmations(lfText, docType, session.index);
+      }
       session.writeDoc(docPath, lfText, lineEnding);
     } on Object {
       _remove(claimed, created);

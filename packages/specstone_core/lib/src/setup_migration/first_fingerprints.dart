@@ -1,9 +1,10 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/doc_model/confirmed_list.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 
 const _traceHeader = 'FR trace';
+const _cellsLabel = 'FR trace cells';
 final _traceCell = RegExp(
   r'^us(\d+)(?:_([a-z0-9_]+))?/fr(\d+)(?:_([a-z0-9_]+))?$',
 );
@@ -45,7 +46,10 @@ final class _NamedFr {
 /// spaces kept, and the doc's `confirmed:` list gains that FRRef with its
 /// `## Statement` fingerprint.
 ///
-/// A cell that names no single FR stays as written and gains no entry.
+/// A cell that names no single FR stays as written and gains no entry. A
+/// `confirmed` value that takes no appended entries, a flow list or a scalar,
+/// gains none, and the cells are still rewritten under the label
+/// `FR trace cells`.
 FirstFingerprints writeFirstFingerprints(
   String lf, {
   required Map<String, String> featureFrs,
@@ -55,6 +59,7 @@ FirstFingerprints writeFirstFingerprints(
     (section) => section.headerText == _traceHeader,
   );
   if (index < 0) return (lf: lf, label: null);
+  final list = readConfirmedList(doc);
 
   final lines = doc.afterFrontmatter.split('\n');
   final hits = <String, String>{};
@@ -70,12 +75,13 @@ FirstFingerprints writeFirstFingerprints(
 
   final frontmatterLength = lf.length - doc.afterFrontmatter.length;
   final renamed = lf.substring(0, frontmatterLength) + lines.join('\n');
+  if (list == null) return (lf: renamed, label: _cellsLabel);
   final added = [
     for (final MapEntry(key: ref, value: path) in hits.entries)
-      '  - $ref ${fingerprintOf(_statementOf(featureFrs[path]!))}\n',
-  ].join();
+      '$ref ${fingerprintOf(_statementOf(featureFrs[path]!))}',
+  ];
   return (
-    lf: withKeyBlock(renamed, 'confirmed', '${_existingBlock(doc)}$added'),
+    lf: withConfirmedEntries(renamed, list, added),
     label: 'confirmed (${hits.length})',
   );
 }
@@ -90,16 +96,6 @@ List<TraceBodyLine> _bodyLines(Doc doc, int index) {
     for (var k = 0; k < body.length; k++)
       (text: body[k], line: first + k, fenced: fenced[k]),
   ];
-}
-
-/// Returns the existing `confirmed:` block of [doc], every line ending in
-/// `\n`, or `confirmed:\n` when the doc has none.
-String _existingBlock(Doc doc) {
-  final block = doc.frontmatter
-      ?.where((b) => b.name == 'confirmed')
-      .firstOrNull
-      ?.text;
-  return block ?? 'confirmed:\n';
 }
 
 /// Returns the FRs behind [paths], each parseable path one entry.

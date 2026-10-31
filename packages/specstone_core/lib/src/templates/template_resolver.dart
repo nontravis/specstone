@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
+import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -24,10 +25,17 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// that order is the one fault raised (one fault per run), so no chain fault
 /// or doc-type file fault surfaces before every manifest check passes.
 final class TemplateResolver {
-  new({Map<String, Uint8List>? shippedFiles})
-    : _shippedFiles = shippedFiles ?? shippedPackFiles;
+  new({Map<String, Uint8List>? shippedFiles, Set<String>? generatorKinds})
+    : _shippedFiles = shippedFiles ?? shippedPackFiles,
+      _generatorKinds = generatorKinds ?? shippedGeneratorKinds;
 
   final Map<String, Uint8List> _shippedFiles;
+
+  /// The generator kinds a layer's `generators` entry may name (PD6).
+  final Set<String> _generatorKinds;
+
+  /// The generator kinds a layer's `generators` entry may name.
+  Set<String> get generatorKinds => Set.unmodifiable(_generatorKinds);
 
   /// Resolves the doc types of the project at [workingDirectory].
   ///
@@ -242,10 +250,33 @@ final class TemplateResolver {
       ...projectLayers,
     ];
     final loadIndex = loadIndexOf(loadOrder);
+    _checkGeneratorKinds(loadOrder);
     _checkExtendsInOverride(loadOrder, layerLists);
     final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
     checkMergedSet(docTypes.values.toList(), layerLists, loadIndex: loadIndex);
     return MergedSet(docTypes: docTypes.values.toList());
+  }
+
+  /// Throws `unknown_value` for the first `generators` entry of [loadOrder]
+  /// that names a kind this resolver does not register.
+  ///
+  /// `remove` entries are not checked here; the merger owns that fault.
+  void _checkGeneratorKinds(List<DocTypeLayer> loadOrder) {
+    for (final layer in loadOrder) {
+      final written = switch (layer.generators) {
+        null => const <String>[],
+        PlainList<String>(:final items) => items,
+        ListChange<String>(:final add) => add,
+      };
+      final unknown = written.where((kind) => !_generatorKinds.contains(kind));
+      if (unknown.isEmpty) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key generators names no registered kind: ${unknown.first}',
+        file: layer.file,
+        key: 'generators',
+      );
+    }
   }
 
   /// Throws `extends_in_override` for the first layer of [loadOrder] that is
@@ -455,6 +486,9 @@ final class TemplateResolver {
       extendsId: targetId,
       path: null,
       bundle: target.bundle == null ? null : List.unmodifiable(target.bundle!),
+      generators: target.generators == null
+          ? null
+          : List.unmodifiable(target.generators!),
       fields: List.unmodifiable(target.fields),
       sections: List.unmodifiable(target.sections),
       lint: target.lint,

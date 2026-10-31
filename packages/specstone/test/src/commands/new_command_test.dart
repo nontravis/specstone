@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart' show baseHashOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
@@ -191,6 +193,83 @@ void main() {
         'code': 'argument_invalid',
         'message': 'stdin is not UTF-8 text',
       },
+    });
+  });
+
+  group('new journey', () {
+    const journeyDoc = 'prds/journeys/sign_in/JOURNEY.md';
+
+    test('f10/us01/fr05/e05: new journey with no --slug is argument_missing and creates nothing', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+
+      expect(await runner.run(['new', 'journey', '--json']), 64);
+
+      expect(out.toString(), isEmpty);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'argument_missing'),
+      );
+      expect(
+        Directory('${root.path}/docs/prds/journeys').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('f10/us01/fr05: new journey --parent x is argument_invalid: journey takes no --parent', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+
+      expect(
+        await runner.run([
+          'new',
+          'journey',
+          '--slug',
+          'sign_in',
+          '--parent',
+          'x',
+          '--json',
+        ]),
+        64,
+      );
+
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'argument_invalid'),
+      );
+      expect(hasDoc(root, journeyDoc), isFalse);
+    });
+
+    test('f10/us01/fr05: new journey --json gives bases taken after the generators ran', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          input:
+              '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n'
+              '## Steps\n### 1. Open\nstep: login/email_login S1\n',
+        ),
+      );
+
+      expect(
+        await runner.run(['new', 'journey', '--slug', 'sign_in', '--json']),
+        0,
+      );
+
+      final text = readDoc(root, journeyDoc);
+      final flow = Doc.parse(text).sections
+          .singleWhere((section) => section.headerText == 'Flow')
+          .body;
+      expect(flow, contains('flowchart TD'));
+      final answer = jsonDecode(out.toString()) as Map<String, Object?>;
+      final bases = answer['bases']! as Map<String, Object?>;
+      expect((bases['sections']! as Map)['flow'], baseHashOf(flow));
     });
   });
 }

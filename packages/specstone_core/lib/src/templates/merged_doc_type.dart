@@ -259,6 +259,7 @@ final class MergedDocType {
     this.extendsId,
     this.path,
     this.bundle,
+    this.generators,
     this.reference,
     this.pack,
   });
@@ -280,6 +281,14 @@ final class MergedDocType {
 
   /// The bundle modes the doc type takes part in; null when no layer sets it.
   final List<String>? bundle;
+
+  /// The generated-block kinds the doc type lists; null when no layer sets it.
+  ///
+  /// Null differs from empty: a plain list merges only over null (PD17).
+  final List<String>? generators;
+
+  /// The generated-block kinds the doc type lists, empty when none is set.
+  List<String> get listedGenerators => generators ?? const [];
 
   /// The enabled fields, built-ins first.
   final List<MergedField> fields;
@@ -306,6 +315,7 @@ final class MergedDocType {
     String? extendsId,
     String? path,
     List<String>? bundle,
+    List<String>? generators,
     List<MergedField>? fields,
     List<MergedSection>? sections,
     MergedLint? lint,
@@ -319,6 +329,7 @@ final class MergedDocType {
     extendsId: extendsId ?? this.extendsId,
     path: path ?? this.path,
     bundle: bundle ?? this.bundle,
+    generators: generators ?? this.generators,
     fields: fields ?? this.fields,
     sections: sections ?? this.sections,
     lint: lint ?? this.lint,

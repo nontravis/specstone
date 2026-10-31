@@ -108,9 +108,12 @@ final class SetRequest {
 
 /// Returns [lfText] as a draft: unchanged when it is one, else with
 /// `draft: true` added to its frontmatter.
-String markDraft(String lfText) => Doc.parse(lfText).isDraft
+///
+/// [fieldOrder] puts the added key at its slot, as [withKeyBlock] reads it.
+String markDraft(String lfText, {List<String>? fieldOrder}) =>
+    Doc.parse(lfText).isDraft
     ? lfText
-    : withKeyBlock(lfText, 'draft', 'draft: true\n');
+    : withKeyBlock(lfText, 'draft', 'draft: true\n', fieldOrder: fieldOrder);
 
 /// Writes [text] to the target of [request] and prints the doc's new base.
 ///

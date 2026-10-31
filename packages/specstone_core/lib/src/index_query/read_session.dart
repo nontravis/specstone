@@ -20,7 +20,7 @@ final class ReadSession {
     required this.project,
     required this.store,
     required this.docs,
-    required this.warnings,
+    required this.indexWarnings,
   });
 
   /// Opens the project holding [workingDirectory], brings its index up to
@@ -118,11 +118,7 @@ final class ReadSession {
         project: project,
         store: store,
         docs: docs,
-        warnings: [
-          ...store.warnings,
-          ...refreshed.warnings,
-          for (final doc in docs) ...doc.warnings,
-        ],
+        indexWarnings: [...store.warnings, ...refreshed.warnings],
       );
     } on Object {
       store.close();
@@ -139,8 +135,15 @@ final class ReadSession {
   /// Every doc in tree order, as of the snapshot.
   final List<IndexedDoc> docs;
 
-  /// The store's warnings, the refresh's, then each doc's in tree order.
-  final List<String> warnings;
+  /// The store's warnings, then the refresh's: the damaged-index rebuild and
+  /// the refresh's own.
+  final List<String> indexWarnings;
+
+  /// [indexWarnings], then each doc's in tree order.
+  late final List<String> warnings = [
+    ...indexWarnings,
+    for (final doc in docs) ...doc.warnings,
+  ];
 
   /// The merged doc types of the project.
   MergedSet get set => project.set;

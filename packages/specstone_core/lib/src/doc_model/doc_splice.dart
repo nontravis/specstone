@@ -87,10 +87,18 @@ String withSectionAdded(
 
 /// Returns [lfText] with the frontmatter key block [key] set to [blockText].
 ///
-/// An existing block is replaced in place, an absent one is added after the
-/// last block, and a null [blockText] removes it. A doc without frontmatter
-/// gains one when [blockText] is not null.
-String withKeyBlock(String lfText, String key, String? blockText) {
+/// An existing block is replaced in place and a null [blockText] removes it.
+/// An absent one is added after the last block, or, with [fieldOrder], at its
+/// slot: directly after the last block whose key comes before [key] in
+/// [fieldOrder], else directly after the keyless block, else at the top. A
+/// [key] that [fieldOrder] lacks goes after the last block. No block moves. A
+/// doc without frontmatter gains one when [blockText] is not null.
+String withKeyBlock(
+  String lfText,
+  String key,
+  String? blockText, {
+  List<String>? fieldOrder,
+}) {
   final doc = Doc.parse(lfText);
   final blocks = doc.frontmatter;
   final block = blockText == null ? null : _endWithNewline(blockText);
@@ -106,7 +114,33 @@ String withKeyBlock(String lfText, String key, String? blockText) {
     start += existing.text.length;
   }
   if (block == null) return lfText;
-  return lfText.substring(0, start) + block + lfText.substring(start);
+  final at = fieldOrder == null
+      ? start
+      : _slotOffset(lfText, blocks, key, fieldOrder) ?? start;
+  return lfText.substring(0, at) + block + lfText.substring(at);
+}
+
+// The offset where an absent [key] goes in [fieldOrder]'s order, or null when
+// [fieldOrder] lacks [key].
+int? _slotOffset(
+  String lfText,
+  List<KeyBlock> blocks,
+  String key,
+  List<String> fieldOrder,
+) {
+  final rank = fieldOrder.indexOf(key);
+  if (rank < 0) return null;
+  var offset = lfText.indexOf('\n') + 1;
+  var slot = offset;
+  for (final (position, existing) in blocks.indexed) {
+    offset += existing.text.length;
+    final held = fieldOrder.indexOf(existing.name);
+    final precedes = existing.key.isEmpty
+        ? position == 0
+        : held >= 0 && held < rank;
+    if (precedes) slot = offset;
+  }
+  return slot;
 }
 
 /// Returns [lfText] with its title line set to `# [title]`.

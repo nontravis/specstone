@@ -187,4 +187,25 @@ void main() {
     expect(out.toString(), '$spaced\n');
     expect(File('${root.path}/docs/$spaced').existsSync(), isFalse);
   });
+  test('f02/us04/fr05: delete prints doc_referenced naming the journey, exit 64', () async {
+    const journey = 'prds/journeys/sign_in/JOURNEY.md';
+    final root = await writeWriteProject(
+      extra: {
+        // fr12 and story3 lose their links, so only the journey refers in.
+        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\nThe system shall lock the account.\n',
+        'docs/$story3': '---\nstatus: planned\ndraft: true\n---\n\n# Reset password\n\n## Use Case\nReset a password.\n',
+        'docs/$journey':
+            '---\ndraft: true\n---\n\n# Sign in\n\n## Goal\nGet in.\n\n'
+            '## Flow\n\n## Steps\n'
+            '### 1. Reset\nstep: login/reset_password S1\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['delete', 'user_story:login/reset_password']), 64);
+    expect(
+      err.toString(),
+      '$story3: docs outside user_story:login/reset_password link into it; also $journey\n',
+    );
+    expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+  });
 }

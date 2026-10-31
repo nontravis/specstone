@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
@@ -33,6 +35,8 @@ final class FileResult {
     this.duplicateHeaders = const [],
     this.docTypes = const [],
     this.unclosedFence = false,
+    this.openBlock,
+    this.openBlockKind,
   });
 
   /// The doc's path, relative to the project root.
@@ -53,8 +57,14 @@ final class FileResult {
   /// Whether the doc ends inside a fenced code block.
   final bool unclosedFence;
 
-  /// Returns the wire form; a list prints only when it is not empty, and
-  /// `unclosedFence` only when true.
+  /// The opening marker, as written, of a generated block with no end marker.
+  final String? openBlock;
+
+  /// The generator kind that [openBlock] names.
+  final String? openBlockKind;
+
+  /// Returns the wire form; a list prints only when it is not empty,
+  /// `unclosedFence` only when true, and `openBlock` only when set.
   Map<String, Object> toJson() => {
     'path': path,
     'status': status.name,
@@ -62,6 +72,7 @@ final class FileResult {
     if (duplicateHeaders.isNotEmpty) 'duplicateHeaders': duplicateHeaders,
     if (docTypes.isNotEmpty) 'docTypes': docTypes,
     if (unclosedFence) 'unclosedFence': true,
+    'openBlock': ?openBlock,
   };
 
   String get _reasons => [
@@ -69,6 +80,7 @@ final class FileResult {
     for (final header in duplicateHeaders) 'duplicate header "$header"',
     if (docTypes.isNotEmpty) 'doc types ${docTypes.join(', ')} match this path',
     if (unclosedFence) 'unclosed code fence',
+    if (openBlockKind != null) 'open generated block $openBlockKind',
   ].join('; ');
 }
 
@@ -118,22 +130,67 @@ final class FormatReport {
   };
 }
 
+/// The generators of a format run and the way to open what they read from.
+final class GeneratorRun<R> {
+  const new({required this.registry, required this.open});
+
+  /// The generators, keyed by kind.
+  final GeneratorRegistry<R> registry;
+
+  /// Opens the resolver the generators read from.
+  ///
+  /// Called at most once per run, and only when a doc under the target has a
+  /// doc type that lists generators. `close` runs after the last write.
+  final ({R resolver, void Function() close}) Function() open;
+}
+
 /// Formats the docs under [target] to their templates.
 ///
 /// A doc is written, atomically and in its own line-ending style, only when
-/// its formatted text differs from its LF text and [check] is false.
+/// its formatted text differs from its LF text and [check] is false. With
+/// [generators], a doc whose type lists generators also gets its generated
+/// blocks written; the resolver opens before the first write.
 ///
 /// Throws a [RenderFault] `output_not_writable` naming the doc when a write
-/// fails; docs written before it stay written.
-FormatReport runFormat(
+/// fails; docs written before it stay written. A fault from
+/// [GeneratorRun.open] propagates and no doc is written.
+FormatReport runFormat<R>(
   DocsProject project,
   Target target, {
   required bool check,
+  GeneratorRun<R>? generators,
+}) {
+  final reads = [
+    for (final docFile in collectDocEntries(target, project.matcher))
+      readDoc(project, docFile),
+  ];
+  final run = generators;
+  final needsResolver = reads.whereType<ReadableDoc>().any(
+    (read) => read.docType.listedGenerators.isNotEmpty,
+  );
+  final opened = run != null && needsResolver ? run.open() : null;
+  try {
+    return _formatReads(
+      reads,
+      check: check,
+      blocks: run == null || opened == null
+          ? null
+          : (run: run, resolver: opened.resolver),
+    );
+  } finally {
+    opened?.close();
+  }
+}
+
+FormatReport _formatReads<R>(
+  List<DocRead> reads, {
+  required bool check,
+  required ({GeneratorRun<R> run, R resolver})? blocks,
 }) {
   final files = <FileResult>[];
   final warnings = <String>[];
-  for (final docFile in collectDocEntries(target, project.matcher)) {
-    switch (readDoc(project, docFile)) {
+  for (final read in reads) {
+    switch (read) {
       case UnmatchedDoc(:final path, :final warning):
         files.add(FileResult(path: path, status: FileStatus.skipped));
         warnings.add(warning);
@@ -155,13 +212,17 @@ FormatReport runFormat(
           ),
         );
       case final ReadableDoc read:
-        files.add(_formatReadable(read, check: check));
+        files.add(_formatReadable(read, check: check, blocks: blocks));
     }
   }
   return FormatReport(check: check, files: files, warnings: warnings);
 }
 
-FileResult _formatReadable(ReadableDoc read, {required bool check}) {
+FileResult _formatReadable<R>(
+  ReadableDoc read, {
+  required bool check,
+  required ({GeneratorRun<R> run, R resolver})? blocks,
+}) {
   switch (formatDoc(read.doc, read.docType)) {
     case Refused(
       :final unknownHeaders,
@@ -175,10 +236,31 @@ FileResult _formatReadable(ReadableDoc read, {required bool check}) {
         duplicateHeaders: duplicateHeaders,
         unclosedFence: unclosedFence,
       );
-    case Formatted(:final text) when text == toLf(read.text):
-      return FileResult(path: read.path, status: FileStatus.unchanged);
     case Formatted(:final text):
-      if (!check) _write(read, text);
+      var finalText = text;
+      if (blocks != null && read.docType.listedGenerators.isNotEmpty) {
+        final generated = runGenerators(
+          Doc.parse(text),
+          read.docType,
+          blocks.run.registry,
+          blocks.resolver,
+        );
+        switch (writeGeneratedBlocks(text, read.docType, generated)) {
+          case OpenBlock(:final kind, :final marker):
+            return FileResult(
+              path: read.path,
+              status: FileStatus.refused,
+              openBlock: marker,
+              openBlockKind: kind,
+            );
+          case BlocksWritten(:final lfText):
+            finalText = lfText;
+        }
+      }
+      if (finalText == toLf(read.text)) {
+        return FileResult(path: read.path, status: FileStatus.unchanged);
+      }
+      if (!check) _write(read, finalText);
       return FileResult(path: read.path, status: FileStatus.formatted);
   }
 }

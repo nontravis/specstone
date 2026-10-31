@@ -433,6 +433,21 @@ lint:
       expect(change.remove, ['query']);
     });
 
+    test('f03/us03/fr01: generators reads a plain list and add and remove '
+        'lists', () {
+      final plain = _parse('generators: [note_toc]\n').generators!;
+      expect(plain, isA<PlainList<String>>());
+      expect((plain as PlainList<String>).items, ['note_toc']);
+
+      final change =
+          _parse('generators: {add: [b], remove: [a]}\n').generators!
+              as ListChange<String>;
+      expect(change.add, ['b']);
+      expect(change.remove, ['a']);
+
+      expect(_parse('sections: [{id: goal}]\n').generators, isNull);
+    });
+
     test('f03/us03/fr01/e19, tpl-s03/inv23: a bundle entry outside the three modes is unknown_value', () {
       expect(
         () => _parse('bundle: [query, deploy]\n'),

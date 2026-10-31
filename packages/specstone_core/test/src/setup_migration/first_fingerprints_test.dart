@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 const _fr =
     'prds/features/f04_check/us01_find_template_breaks/functional_requirements/fr01_check_target.md';
@@ -31,6 +32,24 @@ void main() {
       );
       expect(fp, matches(RegExp(r'^[0-9a-f]{12}$')));
       expect(out.label, 'confirmed (1)');
+    });
+
+    test('f06/us01/fr06, s03/inv12: a flow-list confirmed stays as written, '
+        'with no entry, and the FR cell is still rewritten', () {
+      final api = _api([
+        '`us01/fr01_check_target`',
+      ], frontmatter: '---\nconfirmed: [x]\n---\n');
+
+      final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+
+      expect(
+        out.lf,
+        api.replaceFirst(
+          '`us01/fr01_check_target`',
+          '`find_template_breaks/check_target`',
+        ),
+      );
+      expect(out.label, 'FR trace cells');
     });
 
     test('f06/us01/fr06/e02: a cell naming no FR, two FRs, or a missing FR stays and gets no entry', () {
@@ -119,6 +138,27 @@ void main() {
         ),
       );
     });
+
+    for (final (name, prefix) in [
+      ('zero-indent', '- '),
+      ('four-space', '    - '),
+    ]) {
+      test('f06/us01/fr06: a $name confirmed list gains the entry with its '
+          'own prefix, as its own item', () {
+        final api = _api([
+          '`us01/fr01`',
+        ], frontmatter: '---\nconfirmed:\n${prefix}S1 0123456789ab\n---\n');
+
+        final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+
+        final front = out.lf.substring(4, out.lf.indexOf('\n---\n', 4) + 1);
+        expect((loadYaml(front) as YamlMap)['confirmed'], [
+          'S1 0123456789ab',
+          'find_template_breaks/check_target ${fingerprintOf(_statement)}',
+        ]);
+        expect(out.lf, contains('${prefix}find_template_breaks/'));
+      });
+    }
 
     test('f06/us01/fr06: a doc without frontmatter gains one', () {
       const api =

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -893,6 +894,79 @@ sections:
 
       expect(merged.lookup('feature')!.description, 'Project feature');
       expect(merged.lookup('architecture'), isNull);
+    });
+
+    test('f03/us03/fr01/e22, f05/us03/fr01/e04: a generators kind no one '
+        'registers is unknown_value', () async {
+      const template = '''
+id: note
+description: A note
+path: prds/notes/{slug}/NOTE.md
+''';
+      final home = await writeTree({});
+      final bad = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/note.yaml':
+            '${template}generators: [journey_map]\n',
+      });
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        generatorKinds: {...shippedGeneratorKinds, 'note_toc'},
+      );
+
+      expect(
+        () => resolver.resolve(workingDirectory: bad, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', '.specstone/templates/note.yaml')
+              .having((f) => f.key, 'key', 'generators'),
+        ),
+      );
+
+      final good = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/note.yaml': '${template}generators: [note_toc]\n',
+        '.specstone/templates/memo.yaml':
+            'id: memo\ndescription: A memo\npath: memos/{slug}.md\n',
+      });
+      final merged = resolver.resolve(
+        workingDirectory: good,
+        homeDirectory: home,
+      );
+      expect(merged.lookup('note')!.generators, ['note_toc']);
+      expect(merged.lookup('memo')!.generators, isNull);
+      expect(merged.lookup('memo')!.listedGenerators, isEmpty);
+    });
+
+    test("f03/us03/fr01: an extends doc type keeps its target's "
+        'generators', () async {
+      final home = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        generatorKinds: {...shippedGeneratorKinds, 'note_toc', 'other'},
+      );
+      const note =
+          'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'
+          'generators: [note_toc]\n';
+      Future<List<String>?> extending(String extra) async {
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/note.yaml': note,
+          '.specstone/templates/memo.yaml':
+              'id: memo\nextends: note\npath: memos/{slug}.md\n$extra',
+        });
+        return resolver
+            .resolve(workingDirectory: project, homeDirectory: home)
+            .lookup('memo')!
+            .generators;
+      }
+
+      expect(await extending(''), ['note_toc']);
+      expect(await extending('generators: {add: [other]}\n'), [
+        'note_toc',
+        'other',
+      ]);
     });
 
     test('f03/us03/s1, f03/us03/fr02: a project template with a new id '

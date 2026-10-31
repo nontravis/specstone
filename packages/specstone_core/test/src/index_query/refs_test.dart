@@ -8,6 +8,15 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 
+const _journeyDoc = 'docs/prds/journeys/sign_in/JOURNEY.md';
+
+String _journey(List<String> stepLines) =>
+    '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+    '${stepLines.join('\n')}\n';
+
+Future<DocIndex> _withJourney(List<String> stepLines) =>
+    indexWith({_journeyDoc: _journey(stepLines)});
+
 void main() {
   late DocIndex index;
   setUpAll(() async => index = await indexWith());
@@ -93,4 +102,88 @@ void main() {
       ]);
     },
   );
+  test('f01/us07/s7, f01/us07/fr02/e01: steps 3 and 3x naming one story give one outbound and one inbound step', () async {
+    final withJourney = await _withJourney([
+      '### 3. Enter details',
+      'step: login/email_login S1',
+      '### 3x. Wrong password',
+      'after: 3',
+      'step: login/email_login S2',
+    ]);
+    expect(
+      answerRefs(withJourney, 'journey:sign_in').text,
+      contains('Outbound\n- step: login/email_login (user_story)\nInbound\n'),
+    );
+    expect(
+      answerRefs(withJourney, 'login/email_login').text,
+      contains('- step: sign_in (journey)\n'),
+    );
+    final story =
+        (answerRefs(withJourney, 'login/email_login').json['docs']! as List)
+                .single
+            as Map;
+    expect(
+      [
+        for (final ref in story['inbound']! as List)
+          if ((ref as Map)['kind'] == 'step') ref,
+      ],
+      [
+        {'kind': 'step', 'name': 'sign_in', 'docType': 'journey'},
+      ],
+    );
+  });
+  test('f01/us07/fr02/e02: refs feature:login has no step line', () async {
+    final withJourney = await _withJourney([
+      '### 1. Enter details',
+      'step: login/email_login S1',
+    ]);
+    expect(
+      answerRefs(withJourney, 'feature:login').text,
+      isNot(contains('step')),
+    );
+  });
+  test('f01/us07/fr02/e03: a step naming no story is not listed', () async {
+    final withJourney = await _withJourney([
+      '### 1. Enter details',
+      'step: nope/none S1',
+      '### 2. Wander',
+      'no step line here',
+    ]);
+    expect(
+      answerRefs(withJourney, 'journey:sign_in').text,
+      contains('Outbound\n- none\n'),
+    );
+  });
+  test(
+    'f01/us07/fr02/e04: a step naming a missing scenario of a story is listed',
+    () async {
+      final withJourney = await _withJourney([
+        '### 1. Enter details',
+        'step: login/email_login S9',
+      ]);
+      expect(
+        answerRefs(withJourney, 'journey:sign_in').text,
+        contains('- step: login/email_login (user_story)\n'),
+      );
+    },
+  );
+  test('f01/us07/fr01: the groups print doc_ref, link, step, then implements and covers', () async {
+    final steps = ['### 1. Enter details', 'step: login/email_login S1'];
+    final withJourney = await indexWith({
+      _journeyDoc:
+          '---\npersona:\n  - buyer\n---\n\n${_journey(steps)}\n[rules](../../references/password_rules/REFERENCE.md)\n',
+    });
+    expect(
+      answerRefs(withJourney, 'journey:sign_in').text,
+      contains(
+        'Outbound\n- persona: buyer (persona)\n- link: password_rules (reference)\n- step: login/email_login (user_story)\n',
+      ),
+    );
+    expect(
+      answerRefs(withJourney, 'login/email_login').text,
+      contains(
+        'Inbound\n- link: login/email_login/validate_credentials (fr)\n- step: sign_in (journey)\n',
+      ),
+    );
+  });
 }
