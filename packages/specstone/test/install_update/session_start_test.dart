@@ -241,21 +241,77 @@ void main() {
       },
     );
 
-    test('f09/us05/fr02: a version holding a quote or a backslash still gives '
-        'valid JSON', () async {
-      const version = r'0.1.0"x\';
-
-      expect(message(await runHook(version: version)), contains(version));
-    });
-
-    test('f09/us05/fr02: a version holding a tab or a newline still gives '
-        'valid JSON', () async {
-      const version = '0.1.0\tx\ny';
+    test('f09/us05/fr02: a plugin version holding a backslash or a tab still '
+        'gives valid JSON', () async {
+      const plugin = '1.0\\q\tz';
+      File('$pluginDir/.claude-plugin/plugin.json')
+          .writeAsStringSync('{"name": "specstone", "version": "$plugin"}\n');
 
       expect(
-        message(await runHook(version: version)),
-        mismatch(version, '0.2.0'),
+        message(await runHook(version: '0.1.0')),
+        mismatch('0.1.0', plugin),
       );
+    });
+
+    const failed =
+        'Specstone: the CLI did not report its version. '
+        'Reinstall it: $curlLine';
+
+    test('f09/us05/fr02: a hung --version is cut off and gets the reinstall '
+        'message', () async {
+      sb.stub('specstone', 'sleep 30');
+      final watch = Stopwatch()..start();
+
+      final r = await sb.run(
+        scriptPath(),
+        shell: '/bin/bash',
+        extra: hookEnv({}),
+      );
+
+      expect(watch.elapsed, lessThan(const Duration(seconds: 8)));
+      expect(message(r), failed);
+    });
+
+    test(
+      'f09/us05/fr02: a 100,000-byte version gets the reinstall message',
+      () async {
+        final watch = Stopwatch()..start();
+
+        final r = await runHook(version: '1' * 100000);
+
+        expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+        expect(message(r), failed);
+      },
+    );
+
+    test(
+      'f09/us05/fr02: a non-ASCII version gets the reinstall message',
+      () async {
+        expect(message(await runHook(version: '0.2.0\u00e9')), failed);
+      },
+    );
+
+    test(
+      'f09/us05/fr02: a version with leading spaces is trimmed and matches',
+      () async {
+        final r = await runHook(version: '  0.2.0 ');
+
+        expect(r.exitCode, 0);
+        expect(r.stdout, isEmpty);
+      },
+    );
+
+    test('f09/us05/fr02: a minified plugin.json with a nested version uses the '
+        'top-level one', () async {
+      File('$pluginDir/.claude-plugin/plugin.json').writeAsStringSync(
+        '{"name":"specstone","version":"0.2.0",'
+        '"deps":{"version":"9.9.9"}}',
+      );
+
+      final r = await runHook(version: '0.2.0');
+
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
     });
 
     test(

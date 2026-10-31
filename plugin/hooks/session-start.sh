@@ -43,49 +43,84 @@ emit() {
     "$text" "$text"
 }
 
-# Sets install_line from the OS name: irm under Git Bash on Windows, else curl.
-pick_install_line() {
+# Succeeds when uname names Windows under Git Bash.
+is_windows() {
   case $(uname -s 2>/dev/null) in
-    MINGW* | MSYS* | CYGWIN*)
-      windows=1
-      install_line=$irm_line
-      ;;
-    *)
-      windows=0
-      install_line=$curl_line
-      ;;
+    MINGW* | MSYS* | CYGWIN*) return 0 ;;
   esac
-}
-
-# Succeeds when the install folder holds the CLI binary.
-installed_off_path() {
-  local bin="${HOME:-$USERPROFILE}/.specstone/bin"
-  [ -f "$bin/specstone" ] && return 0
-  [ "$windows" = 1 ] && [ -f "$bin/specstone.exe" ] && return 0
   return 1
 }
 
+# Succeeds when the install folder holds the CLI binary; $1 is 1 on Windows.
+installed_off_path() {
+  local bin="${HOME:-${USERPROFILE:-}}/.specstone/bin"
+  [ -f "$bin/specstone" ] && return 0
+  [ "$1" = 1 ] && [ -f "$bin/specstone.exe" ] && return 0
+  return 1
+}
+
+# Prints the first "version" key of plugin.json; splitting on , { } first
+# makes the first match the top-level key of a minified file too.
+plugin_version_of() {
+  tr ',{}' '\n' <"$1" 2>/dev/null \
+    | sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    | head -n 1
+}
+
+# Runs `specstone --version` for at most 5 seconds; a hung CLI exits non-zero.
+# Without `timeout` (macOS), a watchdog kills the child's process group.
+bounded_version() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 5 specstone --version 2>/dev/null </dev/null
+    return
+  fi
+  set -m
+  specstone --version 2>/dev/null </dev/null &
+  local child=$! watchdog
+  (
+    sleep 5 &
+    local nap=$!
+    trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    wait "$nap"
+    kill -TERM -- "-$child" 2>/dev/null
+  ) >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$child" 2>/dev/null
+  local code=$?
+  kill -TERM "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  return "$code"
+}
+
+# Succeeds when $1 is 1 to 64 characters of [0-9A-Za-z._+-] (bytes, C locale).
+valid_version() {
+  local LC_ALL=C
+  [ "${#1}" -ge 1 ] && [ "${#1}" -le 64 ] && [[ $1 =~ ^[0-9A-Za-z._+-]+$ ]]
+}
+
 main() {
-  local plugin_json="${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"
-  local plugin_version cli_version status
+  local plugin_version cli_version status install_line windows=0
 
-  plugin_version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-    "$plugin_json" 2>/dev/null | head -n 1)
+  plugin_version=$(plugin_version_of "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")
 
-  pick_install_line
+  install_line=$curl_line
+  if is_windows; then
+    windows=1
+    install_line=$irm_line
+  fi
 
   if command -v specstone >/dev/null 2>&1; then
-    cli_version=$(specstone --version 2>/dev/null </dev/null)
+    cli_version=$(bounded_version)
     status=$?
     # Trim leading and trailing whitespace.
     cli_version=${cli_version#"${cli_version%%[![:space:]]*}"}
     cli_version=${cli_version%"${cli_version##*[![:space:]]}"}
-    if [ "$status" -ne 0 ] || [ -z "$cli_version" ]; then
+    if [ "$status" -ne 0 ] || ! valid_version "$cli_version"; then
       emit "Specstone: the CLI did not report its version. Reinstall it: $install_line"
     elif [ -n "$plugin_version" ] && [ "$cli_version" != "$plugin_version" ]; then
       emit "Specstone: the CLI is $cli_version and the plugin is $plugin_version. Run: specstone upgrade"
     fi
-  elif installed_off_path; then
+  elif installed_off_path "$windows"; then
     emit 'Specstone: the CLI is installed in ~/.specstone/bin but not on the PATH Claude Code sees. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets.'
   else
     emit "Specstone: the CLI is not installed. Install it: $install_line"

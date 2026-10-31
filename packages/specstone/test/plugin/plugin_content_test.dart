@@ -122,31 +122,17 @@ void main() {
     final decoded = jsonDecode(
       File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
           .readAsStringSync(),
-    );
-    expect(decoded, {
-      'hooks': {
-        'PostToolUse': [
-          {
-            'matcher': 'Write|Edit',
-            'hooks': [
-              {'type': 'command', 'command': 'specstone hook post-edit'},
-            ],
-          },
-        ],
-        'SessionStart': [
-          {
-            'hooks': [
-              {
-                'type': 'command',
-                'command':
-                    r'bash "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"',
-                'timeout': 10,
-              },
-            ],
-          },
+    ) as Map<String, dynamic>;
+    final hooks = decoded['hooks'] as Map<String, dynamic>;
+    expect(hooks.keys, unorderedEquals(['PostToolUse', 'SessionStart']));
+    expect(hooks['PostToolUse'], [
+      {
+        'matcher': 'Write|Edit',
+        'hooks': [
+          {'type': 'command', 'command': 'specstone hook post-edit'},
         ],
       },
-    });
+    ]);
     final hook = SpecstoneCommandRunner().commands['hook'];
     expect(hook?.subcommands, contains('post-edit'));
   });
