@@ -94,6 +94,15 @@ jobs:
           mkdir -p "$home"
           HOME="$home" SPECSTONE_ARCHIVE_DIR="$RUNNER_TEMP/dist" sh install.sh
           test "$("$home/.specstone/bin/specstone" --version)" = "${GITHUB_REF_NAME#v}"
+          # --version never opens SQLite; list does, so a lib/ that lost the
+          # native library fails here and not at the user's first command.
+          project="$RUNNER_TEMP/smoke-project"
+          mkdir -p "$project"
+          cd "$project"
+          "$home/.specstone/bin/specstone" init
+          "$home/.specstone/bin/specstone" list feature
+          test -f .specstone/index.sqlite
+          cd "$GITHUB_WORKSPACE"
           HOME="$home" sh uninstall.sh
           test ! -e "$home/.specstone/bin"
       - name: Smoke-test install.ps1 and uninstall.ps1
@@ -110,6 +119,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $installed = & "$home_dir\.specstone\bin\specstone.exe" --version
           if ($installed -ne $expected) { throw "installed version '$installed' is not '$expected'" }
+          # --version never opens SQLite; list does, so a lib\ that lost the
+          # native library fails here and not at the user's first command.
+          $project = "$env:RUNNER_TEMP\smoke-project"
+          New-Item -ItemType Directory -Path $project | Out-Null
+          Push-Location $project
+          & "$home_dir\.specstone\bin\specstone.exe" init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$home_dir\.specstone\bin\specstone.exe" list feature
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path .specstone\index.sqlite)) { throw 'list did not open the SQLite index' }
+          Pop-Location
           powershell -NoProfile -ExecutionPolicy Bypass -File uninstall.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (Test-Path "$home_dir\.specstone\bin") { throw 'uninstall left bin behind' }

@@ -120,6 +120,25 @@ void main() {
     }
   });
 
+  test('f09/us04/fr06: each install smoke opens the SQLite index between the '
+      'install and the uninstall', () {
+    final steps = _steps(_job(release, 'build'));
+    for (final (installer, uninstaller, index) in [
+      ('install.sh', 'uninstall.sh', '.specstone/index.sqlite'),
+      ('install.ps1', 'uninstall.ps1', r'.specstone\index.sqlite'),
+    ]) {
+      final run = steps
+          .map((step) => '${step['run'] ?? ''}')
+          .singleWhere((run) => run.contains(uninstaller));
+      final installed = run.indexOf(installer);
+      final listed = run.indexOf('list feature');
+      expect(installed, isNonNegative, reason: run);
+      expect(listed, greaterThan(installed), reason: run);
+      expect(run.indexOf(index), greaterThan(listed), reason: run);
+      expect(run.indexOf(uninstaller), greaterThan(run.indexOf(index)));
+    }
+  });
+
   test('f09/us04/fr05/e02: the version job checks the tag against '
       'version.dart and the five spots', () {
     final version = _job(release, 'version');
