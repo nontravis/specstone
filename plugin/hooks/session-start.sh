@@ -67,15 +67,21 @@ plugin_version_of() {
     | head -n 1
 }
 
-# Runs `specstone --version` for at most 5 seconds; a hung CLI exits non-zero.
-# Without `timeout` (macOS), a watchdog kills the child's process group.
+# Prints the first 65 bytes of `specstone --version` and returns the CLI's exit
+# status. 65 exceeds the 64-byte version allowlist, so an over-long version
+# still fails validation while a flooding CLI cannot fill memory. The CLI runs
+# for at most 5 seconds, then gets KILL after a 1 second grace. Without
+# `timeout` (macOS), a watchdog signals the CLI's process group.
 bounded_version() {
   if command -v timeout >/dev/null 2>&1; then
-    timeout 5 specstone --version 2>/dev/null </dev/null
-    return
+    timeout -k 1 5 specstone --version 2>/dev/null </dev/null | head -c 65
+    return "${PIPESTATUS[0]}"
   fi
   set -m
-  specstone --version 2>/dev/null </dev/null &
+  (
+    specstone --version 2>/dev/null </dev/null | head -c 65
+    exit "${PIPESTATUS[0]}"
+  ) &
   local child=$! watchdog
   (
     sleep 5 &
@@ -83,10 +89,16 @@ bounded_version() {
     trap 'kill "$nap" 2>/dev/null; exit 0' TERM
     wait "$nap"
     kill -TERM -- "-$child" 2>/dev/null
+    sleep 1 &
+    nap=$!
+    wait "$nap"
+    kill -KILL -- "-$child" 2>/dev/null
   ) >/dev/null 2>&1 &
   watchdog=$!
   wait "$child" 2>/dev/null
   local code=$?
+  # TERM ends the subshell but not a CLI that ignores it; KILL leftovers now.
+  kill -KILL -- "-$child" 2>/dev/null
   kill -TERM "$watchdog" 2>/dev/null
   wait "$watchdog" 2>/dev/null
   return "$code"

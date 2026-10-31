@@ -272,6 +272,26 @@ void main() {
       expect(message(r), failed);
     });
 
+    for (final (name, body) in [
+      ('prints endlessly', 'yes'),
+      ('ignores TERM', "trap '' TERM; sleep 30"),
+    ]) {
+      test('f09/us05/fr02: a --version that $name is cut off and gets the '
+          'reinstall message', () async {
+        sb.stub('specstone', body);
+        final watch = Stopwatch()..start();
+
+        final r = await sb.run(
+          scriptPath(),
+          shell: '/bin/bash',
+          extra: hookEnv({}),
+        );
+
+        expect(watch.elapsed, lessThan(const Duration(seconds: 8)));
+        expect(message(r), failed);
+      });
+    }
+
     test(
       'f09/us05/fr02: a 100,000-byte version gets the reinstall message',
       () async {
