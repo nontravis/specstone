@@ -804,6 +804,18 @@ dependencies:
       );
     });
 
+    test('f09/us04/fr04: a run in progress on the tag at HEAD is awaited '
+        'with no note about later commits', () async {
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RUN_STATE': 'in_progress'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stdout, isNot(contains('still being released')));
+      expect((await repo.originRefs())['refs/heads/main'], tagBefore);
+    });
+
     test('f09/us04/fr04: a local tag unlike the one on origin refuses before '
         'any ref moves', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');

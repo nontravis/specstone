@@ -203,10 +203,12 @@ Future<String?> _publishedReleaseUrl(String version) async {
 Future<int> _moveTagAndPublish(String version) async {
   final awaited = await _awaitedTagSha(version);
   if (awaited != null) {
-    stdout.writeln(
-      'v$version at $awaited is still being released; commits made on '
-      'release/$version since then ship with the next version.',
-    );
+    if (awaited != await _git(['rev-parse', 'HEAD'])) {
+      stdout.writeln(
+        'v$version at $awaited is still being released; commits made on '
+        'release/$version since then ship with the next version.',
+      );
+    }
     return _publishAndLand(version, awaited);
   }
 
