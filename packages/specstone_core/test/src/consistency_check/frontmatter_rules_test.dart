@@ -136,4 +136,67 @@ void main() {
     );
     expect(spots(report), ['$loginFr:6: field_undeclared']);
   });
+
+  group('f04/us01/fr03/e09: a required field group', () {
+    const layer = '.specstone/templates/feature.yaml';
+    const groups = 'lint:\n  required_field_groups:\n    - [vision, goals]\n';
+    final feature = checkProjectFiles()['docs/$loginFeature']!;
+    final noKeys = feature.replaceFirst(
+      '---\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n',
+      '---\n---\n',
+    );
+
+    test(
+      'with no value in any member is one field_group_missing at line 1',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: {layer: groups, 'docs/$loginFeature': noKeys},
+          ),
+        );
+        final found = report.findings
+            .where((f) => f.kind == FindingKind.fieldGroupMissing)
+            .toList();
+        expect(spots(report, FindingKind.fieldGroupMissing), [
+          '$loginFeature:1: field_group_missing',
+        ]);
+        expect(found.single.message, 'none of vision, goals holds a value');
+        expect(found.single.toJson()['fields'], ['vision', 'goals']);
+      },
+    );
+
+    test('with one member holding a value is no finding', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            layer: groups,
+            'docs/$loginFeature': feature.replaceFirst(
+              'vision:\n  - PV-01\n',
+              '',
+            ),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.fieldGroupMissing), isEmpty);
+    });
+
+    test(
+      'on a doc with invalid frontmatter is frontmatter_invalid only',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: {
+              layer: groups,
+              'docs/$loginFeature': feature.replaceFirst(
+                'vision:',
+                'vision: "x',
+              ),
+            },
+          ),
+        );
+        expect(spots(report, FindingKind.fieldGroupMissing), isEmpty);
+        expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
+      },
+    );
+  });
 }

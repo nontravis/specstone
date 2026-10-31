@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _frType = 'fr';
@@ -27,6 +28,11 @@ const _architectureType = 'architecture';
 const _implementsKey = 'implements';
 const _statusKey = 'status';
 const _implemented = 'implemented';
+const _goalsSection = 'goals';
+const _visionIdPrefix = 'PV-';
+final _goalHeading = RegExp(r'^### (PG-\S+)');
+final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
+final _servedId = RegExp(r'\b[A-Z][A-Za-z]*-\d+\b');
 
 /// Returns the requirement trace findings of a typed [doc] (US-03 FR-01).
 ///
@@ -109,8 +115,10 @@ Iterable<Finding> _overrideProblems(
 ///
 /// A `persona` or `user_story` role names a Role entry of a `project` doc; a
 /// story's `vision:` and `goals:` IDs sit in its feature and a project
-/// heading. The rule runs only when the merged set holds `project`, and the
-/// role part only when `project` holds its `roles` section (INV-2).
+/// heading, and a feature's IDs sit in a project heading. Each goal of a
+/// `project` doc names, in a `**Serves:**` line, the `PV-` headings it serves.
+/// The rule runs only when the merged set holds `project`, and the role part
+/// only when `project` holds its `roles` section (INV-2).
 Iterable<Finding> checkRolesAndGoals(
   CheckContext context,
   IndexedDoc doc,
@@ -123,6 +131,10 @@ Iterable<Finding> checkRolesAndGoals(
     case _storyType:
       if (readsRoles) yield* _storyRole(context, doc);
       yield* _storyGoalSets(context, doc);
+    case _featureType:
+      yield* _featureGoalSets(context, doc);
+    case _projectType:
+      yield* _goalServes(context, doc);
   }
 }
 
@@ -171,15 +183,7 @@ Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
     if (line == null) continue;
     final held = feature?.valuesOf(key).toSet();
     for (final id in doc.valuesOf(key)) {
-      if (!context.projectHeadingIds().contains(id)) {
-        yield context.finding(
-          doc,
-          FindingKind.visionGoalUnresolved,
-          line: line,
-          message: '$id is no heading of the project',
-          keys: {_idKey: id},
-        );
-      }
+      yield* _unresolvedId(context, doc, id, line);
       if (held != null && !held.contains(id)) {
         yield context.finding(
           doc,
@@ -189,6 +193,78 @@ Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
           keys: {_idKey: id},
         );
       }
+    }
+  }
+}
+
+Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) sync* {
+  for (final key in _storyVisionKeys) {
+    final line = context.linesOf(doc).keyLine(key);
+    if (line == null) continue;
+    for (final id in doc.valuesOf(key)) {
+      yield* _unresolvedId(context, doc, id, line);
+    }
+  }
+}
+
+Iterable<Finding> _unresolvedId(
+  CheckContext context,
+  IndexedDoc doc,
+  String id,
+  int line,
+) sync* {
+  if (context.projectHeadingIds().contains(id)) return;
+  yield context.finding(
+    doc,
+    FindingKind.visionGoalUnresolved,
+    line: line,
+    message: '$id is no heading of the project',
+    keys: {_idKey: id},
+  );
+}
+
+Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
+  final section = context.heldIndexOf(doc, _goalsSection);
+  if (section == null) return;
+  final blocks = headingBlocksOf(
+    context.bodyLinesOf(doc, section),
+    _goalHeading,
+    (match) => match.group(1)!,
+  );
+  for (final (:key, :lines) in blocks) {
+    final serves = lines
+        .where((line) => !line.fenced)
+        .map(
+          (line) => (line: line.line, match: _servesLine.firstMatch(line.text)),
+        )
+        .where((entry) => entry.match != null)
+        .firstOrNull;
+    final ids = [
+      for (final id in _servedId.allMatches(serves?.match!.group(1) ?? ''))
+        id.group(0)!,
+    ];
+    if (ids.isEmpty) {
+      yield context.finding(
+        doc,
+        FindingKind.goalServesMissing,
+        line: lines.first.line,
+        message: '$key names no vision in a **Serves:** line',
+        keys: {'goal': key},
+      );
+      continue;
+    }
+    for (final id in ids) {
+      if (id.startsWith(_visionIdPrefix) &&
+          context.projectHeadingIds().contains(id)) {
+        continue;
+      }
+      yield context.finding(
+        doc,
+        FindingKind.visionGoalUnresolved,
+        line: serves!.line,
+        message: '$id is no vision heading of the project',
+        keys: {_idKey: id},
+      );
     }
   }
 }

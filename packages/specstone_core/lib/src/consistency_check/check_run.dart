@@ -6,8 +6,10 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
+import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/journey_rules.dart';
 import 'package:specstone_core/src/consistency_check/link_rules.dart';
+import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
@@ -57,6 +59,8 @@ CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
       ..addAll(checkFrontmatter(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkBannedWords(context, doc))
+      ..addAll(checkPatterns(context, doc))
+      ..addAll(checkItemIds(context, doc))
       ..addAll(checkImplements(context, doc))
       ..addAll(checkCoversAndCodeRoots(context, doc))
       ..addAll(checkDocLinks(context, doc))

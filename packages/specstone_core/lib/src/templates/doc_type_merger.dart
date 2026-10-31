@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
@@ -38,6 +39,7 @@ final class DocTypeMerger {
   /// `list_override_needs_add_remove` for a plain word, reference, bundle, or
   /// generators list over one a lower layer defines (an empty one included),
   /// `lint_word_not_found` for a removed word the base lacks,
+  /// `override_id_not_found` for a removed pattern id the base lacks,
   /// `reference_title_not_found` for a removed title the base lacks,
   /// `bundle_mode_not_found` for a removed mode the base lacks, and
   /// `unknown_value` for a removed generator kind the base lacks.
@@ -107,7 +109,50 @@ final class DocTypeMerger {
         nameOf: (word) => word,
         notFound: FaultCode.lintWordNotFound,
       ),
+      bannedPatterns: _mergePatterns(
+        base.bannedPatterns,
+        lint.bannedPatterns,
+        layer,
+        key: 'lint.banned_patterns',
+      ),
+      requiredFieldGroups: lint.requiredFieldGroups,
     );
+  }
+
+  /// Returns [base] with the pattern [write] applied, entries matched by `id`.
+  ///
+  /// An `add` entry replaces the lower entry with its `id`; a `remove` id the
+  /// base lacks throws `override_id_not_found`.
+  List<PatternEntry>? _mergePatterns(
+    List<PatternEntry>? base,
+    ListWrite<PatternEntry>? write,
+    DocTypeLayer layer, {
+    required String key,
+  }) {
+    if (write is! ListChange<PatternEntry>) {
+      return _mergeList<PatternEntry>(
+        base,
+        write,
+        layer,
+        key: key,
+        nameOf: (entry) => entry.id,
+        notFound: FaultCode.overrideIdNotFound,
+      );
+    }
+    final kept = _mergeList<PatternEntry>(
+      base,
+      ListChange<PatternEntry>(<PatternEntry>[], write.remove),
+      layer,
+      key: key,
+      nameOf: (entry) => entry.id,
+      notFound: FaultCode.overrideIdNotFound,
+    )!;
+    final replaced = {for (final entry in write.add) entry.id};
+    return List.unmodifiable([
+      for (final entry in kept)
+        if (!replaced.contains(entry.id)) entry,
+      ...write.add,
+    ]);
   }
 
   List<ReferenceEntry>? _mergeReference(
@@ -278,6 +323,20 @@ final class DocTypeMerger {
             ),
             linePrefix: entry.lint?.linePrefix,
             query: entry.query,
+            bannedPatterns: _mergeSectionPatterns(
+              null,
+              entry.lint?.bannedPatterns,
+              layer,
+              entry.id,
+              'banned_patterns',
+            ),
+            requiredPatterns: _mergeSectionPatterns(
+              null,
+              entry.lint?.requiredPatterns,
+              layer,
+              entry.id,
+              'required_patterns',
+            ),
           ),
         );
         continue;
@@ -310,6 +369,20 @@ final class DocTypeMerger {
         ),
         linePrefix: entry.lint?.linePrefix,
         query: entry.query,
+        bannedPatterns: _mergeSectionPatterns(
+          sections[index].bannedPatterns,
+          entry.lint?.bannedPatterns,
+          layer,
+          entry.id,
+          'banned_patterns',
+        ),
+        requiredPatterns: _mergeSectionPatterns(
+          sections[index].requiredPatterns,
+          entry.lint?.requiredPatterns,
+          layer,
+          entry.id,
+          'required_patterns',
+        ),
       );
       if (entry.after == null || entry.after == entry.id) {
         sections[index] = merged;
@@ -335,6 +408,15 @@ final class DocTypeMerger {
     nameOf: (word) => word,
     notFound: FaultCode.lintWordNotFound,
   );
+
+  List<PatternEntry>? _mergeSectionPatterns(
+    List<PatternEntry>? base,
+    ListWrite<PatternEntry>? write,
+    DocTypeLayer layer,
+    String sectionId,
+    String name,
+  ) =>
+      _mergePatterns(base, write, layer, key: 'sections.$sectionId.lint.$name');
 
   /// Returns the index right after the section [entry] names, else the end.
   ///

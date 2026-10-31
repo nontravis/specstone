@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -159,6 +160,8 @@ final class SectionLint {
     this.bannedWords,
     this.allowedWords,
     this.linePrefix,
+    this.bannedPatterns,
+    this.requiredPatterns,
   });
 
   /// The section's character limit, when written.
@@ -177,6 +180,12 @@ final class SectionLint {
 
   /// Limits the section's own banned words to its lines that start with it.
   final String? linePrefix;
+
+  /// The section's own banned patterns, merged for this section by `id`.
+  final ListWrite<PatternEntry>? bannedPatterns;
+
+  /// The section's own required patterns, merged for this section by `id`.
+  final ListWrite<PatternEntry>? requiredPatterns;
 }
 
 /// One guide section of a doc type, as one layer writes it.
@@ -229,7 +238,14 @@ final class SectionEntry {
 
 /// A doc type's doc-level lint block, as one layer writes it.
 final class LintLayer {
-  new({this.maxChars, this.maxLines, this.bannedWords, this.allowedWords});
+  new({
+    this.maxChars,
+    this.maxLines,
+    this.bannedWords,
+    this.allowedWords,
+    this.bannedPatterns,
+    this.requiredFieldGroups,
+  });
 
   /// The doc-level character limit, when written.
   final int? maxChars;
@@ -242,6 +258,13 @@ final class LintLayer {
 
   /// The allowed word list, plain or as changes, when written.
   final ListWrite<String>? allowedWords;
+
+  /// The banned pattern list, plain or as changes, when written.
+  final ListWrite<PatternEntry>? bannedPatterns;
+
+  /// The field groups of which a doc must carry at least one field each, when
+  /// written; an upper layer's value replaces the lower one.
+  final List<List<String>>? requiredFieldGroups;
 }
 
 /// One layer's view of a doc type, parsed from one doc-type YAML file.
@@ -518,6 +541,8 @@ const _docLintKeys = {
   'max_lines',
   'banned_words',
   'allowed_words',
+  'banned_patterns',
+  'required_field_groups',
 };
 
 const _sectionLintKeys = {
@@ -526,6 +551,8 @@ const _sectionLintKeys = {
   'banned_words',
   'allowed_words',
   'line_prefix',
+  'banned_patterns',
+  'required_patterns',
 };
 
 List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
@@ -700,6 +727,14 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
     maxLines: optionalValue<int>(map, 'max_lines', file: file, prefix: 'lint.'),
     bannedWords: _listWrite(map, 'banned_words', file: file, prefix: 'lint.'),
     allowedWords: _listWrite(map, 'allowed_words', file: file, prefix: 'lint.'),
+    bannedPatterns: _patternWrite(
+      map,
+      'banned_patterns',
+      file: file,
+      prefix: 'lint.',
+      forRequired: false,
+    ),
+    requiredFieldGroups: _fieldGroups(map, file: file),
   );
 }
 
@@ -742,7 +777,94 @@ SectionLint _parseSectionLint(
       file: file,
       prefix: keyPrefix,
     ),
+    bannedPatterns: _patternWrite(
+      map,
+      'banned_patterns',
+      file: file,
+      prefix: keyPrefix,
+      forRequired: false,
+    ),
+    requiredPatterns: _patternWrite(
+      map,
+      'required_patterns',
+      file: file,
+      prefix: keyPrefix,
+      forRequired: true,
+    ),
   );
+}
+
+/// Reads `lint.required_field_groups` as a list of non-empty field id lists.
+List<List<String>>? _fieldGroups(YamlMap map, {required String file}) {
+  const key = 'required_field_groups';
+  final groups = optionalValue<YamlList>(map, key, file: file, prefix: 'lint.');
+  if (groups == null) return null;
+  return List.unmodifiable([
+    for (final group in groups)
+      switch (group) {
+        final YamlList ids when ids.isNotEmpty => List<String>.unmodifiable(
+          stringsOf(ids, key, file: file, prefix: 'lint.'),
+        ),
+        _ => throw TemplateFault(
+          FaultCode.unknownValue,
+          'the key $key must hold lists of field ids',
+          file: file,
+          key: 'lint.$key',
+        ),
+      },
+  ]);
+}
+
+/// Reads the value at [key] as a [PlainList] or a [ListChange] of patterns.
+///
+/// A `remove` list names entry ids.
+ListWrite<PatternEntry>? _patternWrite(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+  required bool forRequired,
+}) {
+  PatternEntry entryAt(Object? entry, String keyPath) => PatternEntry.parse(
+    _entryMap(entry, keyPath, file: file),
+    file: file,
+    key: keyPath,
+    forRequired: forRequired,
+  );
+  final value = map[key];
+  return switch (value) {
+    null => null,
+    final YamlList list => PlainList<PatternEntry>([
+      for (var i = 0; i < list.length; i++) entryAt(list[i], '$prefix$key[$i]'),
+    ]),
+    final YamlMap changeMap => () {
+      final changePrefix = '$prefix$key.';
+      checkKeys(
+        changeMap,
+        const {'add', 'remove'},
+        file: file,
+        format: 'doc-type',
+        prefix: changePrefix,
+      );
+      final add = optionalValue<YamlList>(
+        changeMap,
+        'add',
+        file: file,
+        prefix: changePrefix,
+      );
+      return ListChange<PatternEntry>([
+        if (add != null)
+          for (var i = 0; i < add.length; i++)
+            entryAt(add[i], '${changePrefix}add[$i]'),
+      ], stringList(changeMap, 'remove', file: file, prefix: changePrefix));
+    }(),
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $key must be a list or a mapping of add and remove',
+      file: file,
+      key: '$prefix$key',
+    ),
+  };
 }
 
 /// Reads the value at [key] as a [PlainList] or a [ListChange].

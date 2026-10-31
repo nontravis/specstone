@@ -6,10 +6,11 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('cc-s03/inv2: the 46 kinds of s02 Finding kinds, snake_case, equal to no Specstone error code', () {
+  test('cc-s03/inv2: the 51 kinds of s02 Finding kinds, snake_case, equal to no Specstone error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
+      'field_group_missing',
       'field_value_mismatch',
       'field_undeclared',
       'feature_status_written',
@@ -27,6 +28,10 @@ void main() {
       'parent_missing',
       'file_not_utf8',
       'file_unreadable',
+      'pattern_banned',
+      'pattern_missing',
+      'item_id_missing',
+      'item_id_duplicate',
       'implements_path_unresolved',
       'implements_symbol_unresolved',
       'covers_path_missing',
@@ -47,6 +52,7 @@ void main() {
       'role_unresolved',
       'vision_goal_widened',
       'vision_goal_unresolved',
+      'goal_serves_missing',
       'fr_trace_unresolved',
       'architecture_missing',
       'implements_missing',

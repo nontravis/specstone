@@ -64,9 +64,10 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// files ranks them by [loadIndex]. Runs after every merge
 /// (INV-19, INV-21): two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
-/// (`unknown_value`) and its links form no cycle (`parent_cycle`), and every
+/// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
-/// (`unknown_value`).
+/// (`unknown_value`), and every `lint.required_field_groups` entry names a
+/// field of its doc type (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
@@ -77,6 +78,7 @@ void checkMergedSet(
   _checkPaths(sorted, layerLists, loadIndex);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
+  _checkFieldGroups(sorted, layerLists);
 }
 
 /// Throws `doc_type_path_conflict` for a `path` two doc types share
@@ -212,6 +214,31 @@ void _checkFieldTargets(
     }
   }
 }
+
+/// Throws `unknown_value` for a `lint.required_field_groups` id naming no field
+/// of its merged doc type.
+void _checkFieldGroups(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    final groups = docType.lint.requiredFieldGroups;
+    if (groups == null) continue;
+    final fieldIds = {for (final field in docType.fields) field.id};
+    for (final id in [for (final group in groups) ...group]) {
+      if (fieldIds.contains(id)) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a required_field_groups entry names no field of the doc type: $id',
+        file: _writerOf(docType.id, _wroteFieldGroups, layerLists),
+        key: 'lint.required_field_groups',
+      );
+    }
+  }
+}
+
+bool _wroteFieldGroups(DocTypeLayer layer) =>
+    layer.lint?.requiredFieldGroups != null;
 
 bool Function(DocTypeLayer) _wroteField(String fieldId) =>
     (layer) => layer.fields.any(

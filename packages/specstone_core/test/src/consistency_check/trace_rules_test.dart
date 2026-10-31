@@ -145,7 +145,7 @@ void main() {
           ...doc(
             projectDoc,
             'Halve the password resets.\n',
-            'Halve the password resets.\n### PG-03 — More\nMore.\n',
+            'Halve the password resets.\n### PG-03 — More\n**Serves:** PV-01\nMore.\n',
           ),
         },
       ),
@@ -179,6 +179,8 @@ void main() {
       '$loginStory:12: role_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
+      '$loginFeature:2: vision_goal_unresolved',
+      '$loginFeature:4: vision_goal_unresolved',
       '$loginStory:3: vision_goal_unresolved',
     ]);
   });
@@ -195,6 +197,144 @@ void main() {
     );
     addTearDown(session.close);
     expect(spots(runCheck(session), FindingKind.roleUnresolved), isEmpty);
+  });
+
+  test('f04/us03/fr02/e08: a feature vision or goals ID no project heading holds is vision_goal_unresolved at its key', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: edit(loginFeature, [
+          ('  - PV-01\n', '  - PV-08\n'),
+          ('  - PG-01\n', '  - PG-09\n'),
+        ]),
+      ),
+    );
+    expect(spots(report, FindingKind.visionGoalUnresolved), [
+      '$loginFeature:2: vision_goal_unresolved',
+      '$loginFeature:4: vision_goal_unresolved',
+    ]);
+    expect(
+      report.findings
+          .where((f) => f.kind == FindingKind.visionGoalUnresolved)
+          .map((f) => f.toJson()['id']),
+      ['PV-08', 'PG-09'],
+    );
+  });
+
+  test('f04/us03/fr02/e09: a PG block with no Serves line is goal_serves_missing at its heading', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(projectDoc, '**Serves:** PV-01\n', ''),
+      ),
+    );
+    expect(spots(report, FindingKind.goalServesMissing), [
+      '$projectDoc:15: goal_serves_missing',
+    ]);
+    expect(
+      report.findings
+          .firstWhere((f) => f.kind == FindingKind.goalServesMissing)
+          .toJson()['goal'],
+      'PG-01',
+    );
+  });
+
+  test('f04/us03/fr02/e09: prose around a Serves ID is no ID', () async {
+    for (final line in [
+      '**Serves:** PV-01 — product angle',
+      '**Serves:** PV-01.',
+    ]) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(projectDoc, '**Serves:** PV-01', line),
+        ),
+      );
+      expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+    }
+
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          projectDoc,
+          '**Serves:** PV-01',
+          '**Serves:** PV-01 and PG-02',
+        ),
+      ),
+    );
+    expect(
+      report.findings
+          .where((f) => f.kind == FindingKind.visionGoalUnresolved)
+          .map((f) => f.toJson()['id']),
+      ['PG-02'],
+    );
+  });
+
+  test('f04/us03/fr02/e09: a Serves ID that is no PV heading is vision_goal_unresolved at its line', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(projectDoc, '**Serves:** PV-01', '**Serves:** PV-07, PG-01'),
+      ),
+    );
+    expect(spots(report, FindingKind.visionGoalUnresolved), [
+      '$projectDoc:16: vision_goal_unresolved',
+      '$projectDoc:16: vision_goal_unresolved',
+    ]);
+    expect(
+      report.findings
+          .where((f) => f.kind == FindingKind.visionGoalUnresolved)
+          .map((f) => f.toJson()['id']),
+      ['PG-01', 'PV-07'],
+    );
+  });
+
+  test(
+    'f04/us03/fr02/e09: a bare Serves line is goal_serves_missing',
+    () async {
+      for (final bare in ['**Serves:**', '**Serves:**  , ,']) {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: doc(projectDoc, '**Serves:** PV-01', bare),
+          ),
+        );
+        expect(spots(report, FindingKind.goalServesMissing), [
+          '$projectDoc:15: goal_serves_missing',
+        ]);
+        expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      }
+    },
+  );
+
+  test(
+    'f04/us03/fr02/e09: a fenced Serves example counts for nothing',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            projectDoc,
+            '**Serves:** PV-01\n',
+            '```\n**Serves:** PV-01\n```\n',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.goalServesMissing), [
+        '$projectDoc:15: goal_serves_missing',
+      ]);
+    },
+  );
+
+  test('f04/us03/fr02/e08: a merged set with no project doc type runs no feature ID rule', () async {
+    final project = await fixtureProject({
+      'docs/prds/features/f01_login/FEATURE.md':
+          '---\nvision:\n  - PV-09\ngoals:\n  - PG-09\n---\n\n# Login\n',
+    });
+    final session = ReadSession.open(
+      templates: TemplateResolver(shippedFiles: fixturePackFiles()),
+      workingDirectory: project,
+      homeDirectory: null,
+    );
+    addTearDown(session.close);
+    final report = runCheck(session);
+    expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+    expect(spots(report, FindingKind.goalServesMissing), isEmpty);
   });
 
   test(
