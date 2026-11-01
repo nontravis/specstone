@@ -274,8 +274,20 @@ void main() {
         'specstone delete prds/a.md prds/b.md --yes --json',
         'Owner confirmation: specstone delete prds/a.md prds/b.md',
       ),
-      ('specstone migrate --yes', 'Owner confirmation: specstone migrate'),
-      ('specstone init --yes', 'Owner confirmation: specstone init'),
+      (
+        'specstone approve feature:signup@1a2b3c4d5e6f '
+            'user_story:login/email_login@0123456789ab --yes',
+        'Owner confirmation: specstone approve feature:signup '
+            'user_story:login/email_login',
+      ),
+      (
+        'specstone migrate --yes --plan 1a2b3c4d5e6f',
+        'Owner confirmation: specstone migrate',
+      ),
+      (
+        'specstone init --yes --plan 1a2b3c4d5e6f',
+        'Owner confirmation: specstone init',
+      ),
       (
         'cd /Users/owner/shop && specstone approve feature:signup --yes',
         'Owner confirmation: specstone approve feature:signup',

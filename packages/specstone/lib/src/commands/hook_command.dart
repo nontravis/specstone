@@ -129,6 +129,7 @@ class PreBashCommand extends SpecstoneCommand {
   static final _gatedWord = RegExp(r'\b(approve|delete|migrate|init)\b');
   static final _yesToken = RegExp(r'(?<![\w-])--yes(?![\w-])');
   static final _whitespace = RegExp(r'\s+');
+  static final _hashSuffix = RegExp(r'@[0-9a-f]+$');
   static const _reasonLimit = 300;
 
   @override
@@ -179,7 +180,8 @@ class PreBashCommand extends SpecstoneCommand {
   /// Returns the reason of the ask, or null when [command] needs none.
   ///
   /// The reason is `Owner confirmation: specstone <word> <args>`, the args
-  /// running up to the first flag, cut to 300 characters.
+  /// running up to the first flag with any `@<hash>` dropped, cut to 300
+  /// characters.
   String? _reasonFor(String command) {
     final gated = _gatedWord.firstMatch(command);
     if (gated == null || !_yesToken.hasMatch(command)) return null;
@@ -187,7 +189,8 @@ class PreBashCommand extends SpecstoneCommand {
         .substring(gated.end)
         .trim()
         .split(_whitespace)
-        .takeWhile((word) => word.isNotEmpty && !word.startsWith('-'));
+        .takeWhile((word) => word.isNotEmpty && !word.startsWith('-'))
+        .map((word) => word.replaceFirst(_hashSuffix, ''));
     final reason = [
       'Owner confirmation: specstone ${gated[1]}',
       ...args,

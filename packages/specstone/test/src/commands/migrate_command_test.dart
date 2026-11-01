@@ -13,6 +13,15 @@ Map<String, String> _bytesUnder(Directory root) => {
     if (entity is File) entity.path: entity.readAsStringSync(),
 };
 
+/// Returns the hash on the `plan <hash>` line `migrate --dry-run` prints in
+/// [root].
+Future<String> _dryRunPlanHash(Directory root) async {
+  final (:runner, :out, :err) = writeRunner(root);
+  expect(await runner.run(['migrate', '--dry-run']), 0);
+  final lines = out.toString().split('\n');
+  return lines[lines.length - 3].substring('plan '.length);
+}
+
 void main() {
   test('f06/us01/s2: migrate --dry-run prints the plan, writes nothing, and '
       'exits 0', () async {
@@ -113,12 +122,68 @@ void main() {
     },
   );
 
-  test('ms-r11: migrate --yes with no terminal applies the plan with no '
-      'prompt', () async {
-    final root = await gitFixture(acmeLegacy);
+  test('ms-r11: migrate --dry-run prints plan <hash> above its last '
+      'line', () async {
+    final root = await writeTree(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(root);
 
-    expect(await runner.run(['migrate', '--yes']), 0);
+    expect(await runner.run(['migrate', '--dry-run']), 0);
+    expect(
+      out.toString(),
+      matches(RegExp(r'\nplan [0-9a-f]{12}\ndry run: nothing written\n$')),
+    );
+  });
+
+  for (final (args, message) in [
+    (
+      ['--yes'],
+      '--yes needs --plan <hash>, the plan line specstone migrate '
+          '--dry-run prints.',
+    ),
+    (['--plan', '1a2b3c4d5e6f'], '--plan goes only with --yes.'),
+  ]) {
+    test(
+      'ms-r11: migrate ${args.join(' ')} is a usage error, exit 64',
+      () async {
+        final root = await writeTree(acmeLegacy);
+        final before = _bytesUnder(root);
+        final (:runner, :out, :err) = writeRunner(root);
+
+        expect(await runner.run(['migrate', ...args]), 64);
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), startsWith('$message\n'));
+        expect(_bytesUnder(root), before);
+      },
+    );
+  }
+
+  test('ms-r11: migrate --yes --plan with a stale hash prints the plan, '
+      'exits 75, and writes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final head = git(root, ['rev-parse', 'HEAD']).stdout;
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['migrate', '--yes', '--plan', '000000000000']),
+      75,
+    );
+    expect(out.toString(), startsWith('legacy migration: '));
+    expect(
+      err.toString(),
+      'the plan is not the one the Owner saw in the dry run; run specstone '
+      'migrate --dry-run again, show it, and ask for a new ok\n',
+    );
+    expect(git(root, ['rev-parse', 'HEAD']).stdout, head);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test("ms-r11: migrate --yes --plan with the dry run's hash applies the plan "
+      'with no terminal and no prompt', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
     expect(err.toString(), isEmpty);
     expect(out.toString(), isNot(contains('apply? [y/N] ')));
     final subjects = (git(root, ['log', '--format=%s']).stdout as String)
@@ -177,7 +242,8 @@ void main() {
       expect(
         first.err.toString(),
         'git commit failed: lint failed; fix the cause, then run specstone '
-        'migrate at an interactive terminal to finish the run\n',
+        'migrate at an interactive terminal, or with --yes after the '
+        "Owner's ok in Claude Code, to finish the run\n",
       );
 
       hook.deleteSync();

@@ -5,13 +5,21 @@ import 'package:specstone_core/specstone_core.dart';
 /// legacy migrate run on a legacy tree.
 class InitCommand extends SpecstoneCommand {
   new() {
-    argParser.addFlag(
-      'yes',
-      negatable: false,
-      help:
-          'Apply the legacy migrate run without the terminal prompt; the '
-          'Claude Code plugin asks the Owner first.',
-    );
+    argParser
+      ..addFlag(
+        'yes',
+        negatable: false,
+        help:
+            'Apply the legacy migrate run without the terminal prompt; the '
+            'Claude Code plugin asks the Owner first.',
+      )
+      ..addOption(
+        'plan',
+        valueHelp: 'hash',
+        help:
+            'With --yes: the plan line migrate --dry-run printed; a changed '
+            'plan refuses.',
+      );
   }
 
   @override
@@ -23,13 +31,24 @@ class InitCommand extends SpecstoneCommand {
       'the legacy migrate run on a legacy tree.';
 
   @override
-  String get invocation => 'specstone init [--yes]';
+  String get invocation => 'specstone init [--yes --plan <hash>]';
 
   @override
   Future<int> run() async {
     final args = argResults!;
     if (args.rest.isNotEmpty) {
       usageException('Expected no argument, got ${args.rest.length}.');
+    }
+    final yes = args.flag('yes');
+    final planHash = args.option('plan');
+    if (yes && planHash == null) {
+      usageException(
+        '--yes needs --plan <hash>, the plan line specstone migrate --dry-run '
+        'prints.',
+      );
+    }
+    if (!yes && planHash != null) {
+      usageException('--plan goes only with --yes.');
     }
     final runner = specstoneRunner;
     final console = runner.console;
@@ -40,11 +59,12 @@ class InitCommand extends SpecstoneCommand {
           homeDirectory: runner.homeDirectory,
           templates: runner.templates,
           confirmation: OwnerConfirmation.of(
-            yes: args.flag('yes'),
+            yes: yes,
             interactive: console.stdinIsTerminal && console.stdoutIsTerminal,
           ),
           readLine: console.readLine,
           out: runner.out,
+          planHash: planHash,
         ),
       );
     } on SpecstoneFault catch (fault) {

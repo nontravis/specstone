@@ -17,6 +17,13 @@ class MigrateCommand extends SpecstoneCommand {
         help:
             'Apply the plan without the terminal prompt; the Claude Code '
             'plugin asks the Owner first.',
+      )
+      ..addOption(
+        'plan',
+        valueHelp: 'hash',
+        help:
+            'With --yes: the plan line --dry-run printed; a changed plan '
+            'refuses.',
       );
   }
 
@@ -28,7 +35,8 @@ class MigrateCommand extends SpecstoneCommand {
       'Migrate a legacy SDD tree, or upgrade the pack pins of a project.';
 
   @override
-  String get invocation => 'specstone migrate [--dry-run | --yes]';
+  String get invocation =>
+      'specstone migrate [--dry-run | --yes --plan <hash>]';
 
   @override
   Future<int> run() async {
@@ -39,6 +47,16 @@ class MigrateCommand extends SpecstoneCommand {
     final dryRun = args.flag('dry-run');
     final yes = args.flag('yes');
     if (dryRun && yes) usageException('--yes cannot go with --dry-run.');
+    final planHash = args.option('plan');
+    if (yes && planHash == null) {
+      usageException(
+        '--yes needs --plan <hash>, the plan line specstone migrate --dry-run '
+        'prints.',
+      );
+    }
+    if (!yes && planHash != null) {
+      usageException('--plan goes only with --yes.');
+    }
     final runner = specstoneRunner;
     final console = runner.console;
     try {
@@ -54,6 +72,7 @@ class MigrateCommand extends SpecstoneCommand {
           ),
           readLine: console.readLine,
           out: runner.out,
+          planHash: planHash,
         ),
       );
     } on SpecstoneFault catch (fault) {

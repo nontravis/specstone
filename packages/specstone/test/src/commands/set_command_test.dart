@@ -37,9 +37,9 @@ void main() {
     );
     expect(
       err.toString(),
-      '.specstone/trash/journal.json: a migration is unfinished; ask the '
-      'Owner to run specstone migrate at an interactive terminal to finish '
-      'it, then run the command again\n',
+      '.specstone/trash/journal.json: a migration is unfinished; run '
+      'specstone migrate at an interactive terminal, or with --yes after the '
+      "Owner's ok in Claude Code, to finish it, then run the command again\n",
     );
     expect(out.toString(), isEmpty);
   });

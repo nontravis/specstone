@@ -11,7 +11,8 @@ enum MigrateFaultCode {
   upgradeCollision('upgrade_collision', 65),
   overrideDangling('override_dangling', 78),
   configExists('config_exists', 64),
-  gitFailed('git_failed', 75);
+  gitFailed('git_failed', 75),
+  planMismatch('plan_mismatch', 75);
 
   new(this.wire, this.exitStatus);
 

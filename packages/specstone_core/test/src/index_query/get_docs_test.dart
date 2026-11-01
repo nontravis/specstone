@@ -210,6 +210,20 @@ void main() {
     );
   });
 
+  test('ms-r10: --json bases.doc hashes the whole text, LF-normalized, the same with CRLF and a BOM', () async {
+    const text = '---\ndraft: true\n---\n\n# Notes\n\n## A\nx\n';
+    final lf = await indexWith({'docs/notes.md': text});
+    final crlf = await indexWith({
+      'docs/notes.md': '﻿${text.replaceAll('\n', '\r\n')}',
+    });
+    Map<Object?, Object?> docBase(DocIndex index) =>
+        ((answerGet(index, 'notes.md').json['docs']! as List).single
+                as Map)['bases']!
+            as Map;
+    expect(docBase(lf)['doc'], baseHashOf(text));
+    expect(docBase(crlf)['doc'], baseHashOf(text));
+  });
+
   test('f01/us04/fr02/e10, PD16, H27: a doc with no title has the base of empty text', () async {
     final untitled = await indexWith({'docs/untitled.md': '## A\nx\n'});
     final doc =

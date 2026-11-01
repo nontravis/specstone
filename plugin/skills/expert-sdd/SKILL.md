@@ -49,16 +49,19 @@ working directory alone misses a project root above it, and spends a tool call t
 own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
-   - `approve`: each draft's file path, then each changed section or field, its old text marked `📜 เดิม:` and its
-     new text marked `🆕 ใหม่:`, never shortened with `...`. Mark text you wrote `[AI เขียน]` and a removal you
-     propose `[AI เสนอ]`; keep these markers verbatim, as the Owner reads Thai.
+   - `approve`: each draft's file path and its hash, `bases.doc` of `specstone get <type>:<name> --json`, then each
+     changed section or field, its old text marked `📜 เดิม:` and its new text marked `🆕 ใหม่:`, never shortened
+     with `...`. Mark text you wrote `[AI เขียน]` and a removal you propose `[AI เสนอ]`; keep these markers verbatim,
+     as the Owner reads Thai.
    - `delete`: each path, and why it goes.
-   - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints.
+   - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
+     line.
 2. The Owner answers `ok` or says what to fix. Fix it through `specstone set`, then show that item again.
-3. After `ok` on every item of the batch, run one command with `--yes`, naming each item:
-   `specstone approve <type>:<name> … --yes`, `specstone delete <path> … --yes`, `specstone migrate --yes`, or
-   `specstone init --yes`. A name approves every draft under it, so the batch shows each one. Claude Code asks the
-   Owner once first; a denial means stop and ask what to change.
+3. After `ok` on every item of the batch, run one command with `--yes`, passing the hashes you showed:
+   `specstone approve <type>:<name>@<hash> … --yes` (each draft named, as a name approves only itself),
+   `specstone delete <path> … --yes`, `specstone migrate --yes --plan <hash>`, or `specstone init --yes --plan <hash>`.
+   Claude Code asks the Owner once first; a denial means stop and ask what to change. Exit 75 means an item changed
+   since you showed it: show it again.
 4. The Owner may instead run the command, without `--yes`, at their own terminal.
 
 ## Red flags

@@ -40,6 +40,11 @@ void main() {
       expect(MigrateFaultCode.gitFailed.wire, 'git_failed');
       expect(MigrateFaultCode.gitFailed.exitStatus, 75);
     });
+
+    test('ms-r11: plan_mismatch exits 75', () {
+      expect(MigrateFaultCode.planMismatch.wire, 'plan_mismatch');
+      expect(MigrateFaultCode.planMismatch.exitStatus, 75);
+    });
   });
 
   group('MigrateFault', () {

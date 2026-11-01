@@ -1,5 +1,10 @@
 import 'package:specstone_core/src/fault.dart';
 
+/// Names the two ways the Owner confirms a write only the Owner may make.
+const ownerConfirmationWays =
+    "at an interactive terminal, or with --yes after the Owner's ok in Claude "
+    'Code';
+
 /// A document writing fault code from the `s05_errors.md` catalog.
 ///
 /// Values follow catalog order. [wire] is the snake_case code printed in the

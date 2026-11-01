@@ -282,8 +282,8 @@ void _refuseMigratePending(Directory workingDirectory) {
     if (MoveJournal.pendingMigrate(folder)) {
       throw WriteFault(
         WriteFaultCode.migratePending,
-        'a migration is unfinished; ask the Owner to run specstone migrate '
-        'at an interactive terminal to finish it, then run the command again',
+        'a migration is unfinished; run specstone migrate '
+        '$ownerConfirmationWays, to finish it, then run the command again',
         file: MoveJournal.journalPath,
       );
     }

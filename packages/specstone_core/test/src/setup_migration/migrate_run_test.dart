@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -85,12 +86,21 @@ sections:
   return (project: project, home: home);
 }
 
+/// Returns the hash on the `plan <hash>` line a dry run of [root] prints.
+String _dryRunPlanHash(Directory root) {
+  final out = StringBuffer();
+  expect(_run(root, out, dryRun: true), 0);
+  final lines = out.toString().split('\n');
+  return lines[lines.length - 3].substring('plan '.length);
+}
+
 int _run(
   Directory root,
   StringBuffer out, {
   OwnerConfirmation confirmation = OwnerConfirmation.prompt,
   List<String?> answers = const [],
   bool dryRun = false,
+  String? planHash,
 }) {
   var call = 0;
   return runMigrate(
@@ -100,6 +110,7 @@ int _run(
       templates: TemplateResolver(),
       dryRun: dryRun,
       confirmation: confirmation,
+      planHash: planHash,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
     ),
@@ -442,9 +453,26 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: --yes prints the plan and applies it with no prompt, as the '
-      "Owner's y does", () async {
+  test('ms-r11: a dry run prints plan <hash>, the hash of the plan text above '
+      'it, before its last line', () async {
     final root = await gitFixture(acmeLegacy);
+    final out = StringBuffer();
+
+    expect(_run(root, out, dryRun: true), 0);
+
+    final text = out.toString();
+    final lines = text.split('\n');
+    expect(lines[lines.length - 2], 'dry run: nothing written');
+    final planLine = lines[lines.length - 3];
+    final plan = text.substring(0, text.lastIndexOf(planLine));
+    expect(plan, startsWith('legacy migration: '));
+    expect(planLine, 'plan ${baseHashOf(plan)}');
+  }, skip: hasGit ? null : 'git is not available');
+
+  test("ms-r11: --yes with the dry run's plan hash applies the plan with no "
+      "prompt, as the Owner's y does", () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = _dryRunPlanHash(root);
     final out = StringBuffer();
 
     final status = runMigrate(
@@ -454,6 +482,7 @@ void main() {
         templates: TemplateResolver(),
         dryRun: false,
         confirmation: OwnerConfirmation.given,
+        planHash: hash,
         readLine: () => throw StateError('--yes must not ask'),
         out: out,
       ),
@@ -468,6 +497,43 @@ void main() {
     expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
+
+  for (final (label, planHash) in [
+    ('a plan changed since the dry run', '000000000000'),
+    ('no plan hash', null),
+  ]) {
+    test('ms-r11: --yes with $label prints the plan, refuses plan_mismatch, '
+        'exit 75, and writes nothing', () async {
+      final root = await gitFixture(acmeLegacy);
+      final legacy = _bytesUnder(root);
+      final head = headOf(root);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(
+          root,
+          out,
+          confirmation: OwnerConfirmation.given,
+          planHash: planHash,
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.planMismatch)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                'the plan is not the one the Owner saw in the dry run; run '
+                    'specstone migrate --dry-run again, show it, and ask for '
+                    'a new ok',
+              ),
+        ),
+      );
+      expect(out.toString(), startsWith('legacy migration: '));
+      expect(_bytesUnder(root), legacy);
+      expect(headOf(root), head);
+    }, skip: hasGit ? null : 'git is not available');
+  }
 
   test('f06/us01/fr02/e02, f06/us01/s13: no interactive terminal prints the '
       'plan, then refuses owner_terminal_required, exit 77', () async {
@@ -687,18 +753,50 @@ void main() {
       expect(MoveJournal.pending(root), isTrue);
     }, skip: skipGit);
 
-    test('ms-r11: --yes finishes the stopped run with no terminal', () async {
+    test("ms-r11: --yes with the dry run's plan hash finishes the stopped "
+        'run with no terminal', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
+      final hash = _dryRunPlanHash(root);
       final out = StringBuffer();
 
-      expect(_run(root, out, confirmation: OwnerConfirmation.given), 0);
+      expect(
+        _run(root, out, confirmation: OwnerConfirmation.given, planHash: hash),
+        0,
+      );
       expect(out.toString(), contains('remaining steps:\n'));
       expect(MoveJournal.pending(root), isFalse);
       final subjects = (git(root, ['log', '--format=%s']).stdout as String)
           .trim()
           .split('\n');
       expect(subjects.first, _commit2Message);
+    }, skip: skipGit);
+
+    test('ms-r11: --yes with a stale plan hash leaves the stopped run '
+        'pending, plan_mismatch', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final head = headOf(root);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(
+          root,
+          out,
+          confirmation: OwnerConfirmation.given,
+          planHash: '000000000000',
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.planMismatch,
+          ),
+        ),
+      );
+      expect(out.toString(), contains('remaining steps:\n'));
+      expect(headOf(root), head);
+      expect(MoveJournal.pending(root), isTrue);
     }, skip: skipGit);
 
     test('f06/us01/fr07/e07: a pending F-02 journal is replayed, then the '
@@ -748,8 +846,9 @@ void main() {
                 (f) => f.message,
                 'message',
                 'git commit failed: lint failed; fix the cause, then run '
-                    'specstone migrate at an interactive terminal to finish '
-                    'the run',
+                    'specstone migrate at an interactive terminal, or with '
+                    "--yes after the Owner's ok in Claude Code, to finish the "
+                    'run',
               ),
         ),
       );
@@ -920,7 +1019,8 @@ void main() {
                 'message',
                 'git add failed: cannot start git: The filename or extension '
                     'is too long.; fix the cause, then run specstone migrate '
-                    'at an interactive terminal to finish the run',
+                    'at an interactive terminal, or with --yes after the '
+                    "Owner's ok in Claude Code, to finish the run",
               ),
         ),
       );

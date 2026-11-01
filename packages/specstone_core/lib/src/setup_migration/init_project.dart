@@ -24,6 +24,7 @@ final class InitRequest {
     required this.confirmation,
     required this.readLine,
     required this.out,
+    this.planHash,
     this.runGit = runRealGit,
   });
 
@@ -45,6 +46,10 @@ final class InitRequest {
 
   /// Where the run prints.
   final StringSink out;
+
+  /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
+  /// `--yes` the legacy run applies only a plan with this hash.
+  final String? planHash;
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
@@ -88,6 +93,7 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
       confirmation: request.confirmation,
       readLine: request.readLine,
       out: request.out,
+      planHash: request.planHash,
       runGit: request.runGit,
     );
 

@@ -17,6 +17,15 @@ String _configLine() {
       'software-tech ${versions['software-tech']}\n';
 }
 
+/// Returns the hash on the `plan <hash>` line `migrate --dry-run` prints in
+/// [root].
+Future<String> _dryRunPlanHash(Directory root) async {
+  final (:runner, :out, :err) = writeRunner(root);
+  expect(await runner.run(['migrate', '--dry-run']), 0);
+  final lines = out.toString().split('\n');
+  return lines[lines.length - 3].substring('plan '.length);
+}
+
 void main() {
   test("f06/us03/s2: an Agent's shell sets up the same files", () async {
     final root = await writeTree({'keep.txt': 'x\n'});
@@ -97,12 +106,32 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: init --yes on a legacy folder applies the migrate run with no '
-      'terminal and no prompt', () async {
+  for (final (args, message) in [
+    (
+      ['--yes'],
+      '--yes needs --plan <hash>, the plan line specstone migrate '
+          '--dry-run prints.',
+    ),
+    (['--plan', '1a2b3c4d5e6f'], '--plan goes only with --yes.'),
+  ]) {
+    test('ms-r11: init ${args.join(' ')} is a usage error, exit 64', () async {
+      final root = await writeTree({'keep.txt': 'x\n'});
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['init', ...args]), 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), startsWith('$message\n'));
+      expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
+    });
+  }
+
+  test("ms-r11: init --yes --plan with migrate's dry-run hash applies the "
+      'legacy run with no terminal and no prompt', () async {
     final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
     final (:runner, :out, :err) = writeRunner(root);
 
-    expect(await runner.run(['init', '--yes']), 0);
+    expect(await runner.run(['init', '--yes', '--plan', hash]), 0);
     expect(err.toString(), isEmpty);
     expect(out.toString(), isNot(contains('apply? [y/N] ')));
     final subjects = (git(root, ['log', '--format=%s']).stdout as String)
@@ -111,12 +140,12 @@ void main() {
     expect(subjects, hasLength(3));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: init --yes on an empty folder sets up the drafts as init '
-      'does', () async {
+  test('ms-r11: init --yes --plan on an empty folder sets up the drafts as '
+      'init does; no plan applies there', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
 
-    expect(await runner.run(['init', '--yes']), 0);
+    expect(await runner.run(['init', '--yes', '--plan', '000000000000']), 0);
     expect(err.toString(), isEmpty);
     expect(out.toString(), endsWith(_configLine()));
   });

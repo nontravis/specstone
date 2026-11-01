@@ -44,8 +44,7 @@ enum OwnerConfirmation {
     if (this != .missing) return;
     throw WriteFault(
       WriteFaultCode.ownerTerminalRequired,
-      "$lead at an interactive terminal, or with --yes after the Owner's ok "
-      'in Claude Code',
+      '$lead $ownerConfirmationWays',
     );
   }
 }
@@ -80,41 +79,84 @@ void approveDrafts(
   }
 }
 
-/// Approves every typed draft under [names] with no prompt, as `y` does.
+/// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
+/// `bases.doc` hash `get --json` printed for it.
+typedef SeenDraft = ({String name, String hash});
+
+/// Approves each draft in [seen] with no prompt, as `y` does.
 ///
-/// The Owner gave the ok in Claude Code first (`--yes`). Every name resolves
-/// and selects a draft before the first write, so a refused name approves
-/// nothing. The answer prints `approved <doc type>:<name>` per draft, in tree
-/// order, and its JSON is `{"approved": [...]}`.
-/// Throws [IndexFault] `doc_not_found` for a name no doc carries, [WriteFault]
-/// `draft_not_found` for a name with no draft under it, and `index_busy` when
-/// another call holds the lock.
-ReadAnswer approveNamed(WriteSession session, List<String> names) {
-  final index = session.index;
-  for (final name in names) {
-    if (!index.under(name).any(_waitsForApproval)) {
-      throw WriteFault(
-        WriteFaultCode.draftNotFound,
-        'no draft waits for approval under $name',
-      );
-    }
+/// The Owner gave the ok in Claude Code first (`--yes`), each draft shown with
+/// its hash. A name approves only the one draft it names, never those under
+/// it. Every name resolves to a draft before the lock, and under the lock every
+/// hash is checked before the first write, so a refused name or a changed
+/// draft approves nothing. The answer prints `approved <doc type>:<name>` per
+/// draft, in tree order, and its JSON is `{"approved": [...]}`.
+/// Throws [IndexFault] for a name that is no write target, [WriteFault]
+/// `draft_not_found` for a doc that is no draft, `base_mismatch` naming each
+/// draft whose text changed, and `index_busy` when another call holds the
+/// lock.
+ReadAnswer approveNamed(WriteSession session, List<SeenDraft> seen) {
+  final hashesByPath = <String, Set<String>>{};
+  for (final draft in seen) {
+    final doc = _draftAt(session, draft.name);
+    (hashesByPath[doc.docPath] ??= {}).add(draft.hash);
   }
-  final drafts = _draftsUnder(index, names);
+  final drafts = [
+    for (final doc in session.index.docs)
+      if (hashesByPath.containsKey(doc.docPath)) doc,
+  ];
   final approved = session.locked(() {
-    final written = <String>[];
+    final current = {
+      for (final doc in drafts) doc.docPath: session.readDocBytes(doc.docPath),
+    };
+    final changed = [
+      for (final doc in drafts)
+        if (hashesByPath[doc.docPath]!.any(
+          (hash) => hash != _docHashOf(current[doc.docPath]),
+        ))
+          doc,
+    ];
+    if (changed.isNotEmpty) throw _changedSinceSeen(changed);
     for (final doc in drafts) {
-      final current = session.readDocBytes(doc.docPath);
-      if (current == null) continue;
-      _writeApproval(session, doc, current);
-      written.add('${doc.docTypeId}:${doc.name}');
+      _writeApproval(session, doc, current[doc.docPath]!);
     }
-    return written;
+    return drafts.map(_addressOf).toList();
   });
   return ReadAnswer(
     text: approved.map((address) => 'approved $address\n').join(),
     json: {'approved': approved},
   );
 }
+
+/// Returns the draft [name] names as a write target.
+///
+/// Throws [IndexFault] for a name that is no write target, and [WriteFault]
+/// `draft_not_found` for a doc that is no draft.
+IndexedDoc _draftAt(WriteSession session, String name) {
+  final doc = session.target(name);
+  if (!doc.isDraft) {
+    throw WriteFault(
+      WriteFaultCode.draftNotFound,
+      '$name is no draft waiting for approval',
+    );
+  }
+  return doc;
+}
+
+/// Returns the `bases.doc` hash of [bytes], or null for a file gone.
+String? _docHashOf(List<int>? bytes) =>
+    bytes == null ? null : baseHashOf(toLf(utf8.decode(bytes)));
+
+WriteFault _changedSinceSeen(List<IndexedDoc> changed) => WriteFault(
+  WriteFaultCode.baseMismatch,
+  'changed since the Owner saw them: ${changed.map(_addressOf).join(', ')}; '
+  'show each again and ask for a new ok',
+  file: changed.first.docPath,
+  key: 'doc',
+  relatedFiles: [for (final doc in changed.skip(1)) doc.docPath],
+);
+
+String _addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
 
 /// Returns the typed drafts in tree order: all of them when [names] is empty,
 /// else those under any of [names], each once.

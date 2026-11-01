@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
@@ -25,6 +27,7 @@ final class MigrateRequest {
     required this.confirmation,
     required this.readLine,
     required this.out,
+    this.planHash,
     this.runGit = runRealGit,
   });
 
@@ -48,6 +51,10 @@ final class MigrateRequest {
 
   /// Where the plan and the result print.
   final StringSink out;
+
+  /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
+  /// `--yes` the run applies only a plan with this hash.
+  final String? planHash;
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
@@ -92,8 +99,8 @@ int _mappingGitFailures(int Function() run) {
 
 MigrateFault _gitFailed(String command, String line) => MigrateFault(
   MigrateFaultCode.gitFailed,
-  '$command failed: $line; fix the cause, then run specstone migrate at an '
-  'interactive terminal to finish the run',
+  '$command failed: $line; fix the cause, then run specstone migrate '
+  '$ownerConfirmationWays, to finish the run',
 );
 
 int _migrate(MigrateRequest request) {
@@ -155,21 +162,22 @@ int _plannedRun(
   required Directory? linkFolder,
 }) {
   if (request.dryRun) {
-    request.out
-      ..write(_planOf(request, root, kind, linkFolder).toText())
-      ..writeln('dry run: nothing written');
+    _printDryRun(request, _planOf(request, root, kind, linkFolder).toText());
     return 0;
   }
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
   final plan = _planOf(request, root, kind, linkFolder);
-  request.out.write(plan.toText());
+  final planText = plan.toText();
+  request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
     request.out.write('apply? [y/N] ');
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;
+  } else {
+    _requireSeenPlan(request, planText);
   }
   requireCleanWorkTree(root, request.runGit);
   if (headSha(root, request.runGit) != base) {
@@ -213,17 +221,20 @@ RunPlan _planOf(
 int _resume(MigrateRequest request, Directory root) {
   if (!request.dryRun) requireGitWorkTree(root, request.runGit);
   final target = _targetOf(root, request);
-  final out = request.out
+  final listing = StringBuffer()
     ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')
     ..writeln('remaining steps:');
   for (final step in MoveJournal.remaining(target)) {
-    out.writeln('  ${step.describe()}');
+    listing.writeln('  ${step.describe()}');
   }
+  final planText = listing.toString();
   if (request.dryRun) {
-    out.writeln('dry run: nothing written');
+    _printDryRun(request, planText);
     return 0;
   }
+  final out = request.out..write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
+  if (!request.confirmation.prompts) _requireSeenPlan(request, planText);
   final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
@@ -231,6 +242,27 @@ int _resume(MigrateRequest request, Directory root) {
     out.writeln(legacyClosingLine);
   }
   return 0;
+}
+
+/// Prints [planText], its `plan <hash>` line, and the dry-run closing line.
+void _printDryRun(MigrateRequest request, String planText) {
+  request.out
+    ..write(planText)
+    ..writeln('plan ${baseHashOf(planText)}')
+    ..writeln('dry run: nothing written');
+}
+
+/// Refuses a `--yes` run whose plan is not the one the Owner saw.
+///
+/// Throws [MigrateFault] `plan_mismatch` when [planText] does not hash to the
+/// request's plan hash, or the request carries none.
+void _requireSeenPlan(MigrateRequest request, String planText) {
+  if (request.planHash == baseHashOf(planText)) return;
+  throw MigrateFault(
+    MigrateFaultCode.planMismatch,
+    'the plan is not the one the Owner saw in the dry run; run specstone '
+    'migrate --dry-run again, show it, and ask for a new ok',
+  );
 }
 
 JournalTarget _targetOf(Directory root, MigrateRequest request) =>

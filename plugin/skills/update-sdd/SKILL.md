@@ -89,8 +89,8 @@ For a confirmation, add the upstream change you checked it against. Then get it 
 specstone approve <type>:<name>
 ```
 
-When that doc holds others, as a feature holds its stories and a story its FRs, say so with the line: this call
-also approves every draft under that doc, not only your edit; show those drafts too.
+When that doc holds others, as a feature holds its stories and a story its FRs, say so: at the terminal this call
+also walks every draft under that doc; in the chat, show and name each one.
 
 With no design document or coverage table, the Owner's look at your named change is the edit's one check: never
 approve before their `ok`.

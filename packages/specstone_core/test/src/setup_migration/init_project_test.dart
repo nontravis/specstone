@@ -8,6 +8,7 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -32,6 +33,7 @@ const _draftPaths = [
   OwnerConfirmation confirmation = OwnerConfirmation.missing,
   List<String?> answers = const [],
   RunGit runGit = _noGit,
+  String? planHash,
 }) {
   final out = StringBuffer();
   var call = 0;
@@ -43,6 +45,7 @@ const _draftPaths = [
       confirmation: confirmation,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
+      planHash: planHash,
       runGit: runGit,
     ),
   );
@@ -241,14 +244,29 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: a legacy folder under --yes applies the migrate run with no '
-      'prompt', () async {
+  test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "
+      'applies the migrate run with no prompt', () async {
     final root = await gitFixture(acmeLegacy);
+    final dryRun = StringBuffer();
+    runMigrate(
+      MigrateRequest(
+        workingDirectory: root,
+        homeDirectory: null,
+        templates: TemplateResolver(),
+        dryRun: true,
+        confirmation: OwnerConfirmation.missing,
+        readLine: () => null,
+        out: dryRun,
+      ),
+    );
+    final dryLines = dryRun.toString().split('\n');
+    final hash = dryLines[dryLines.length - 3].substring('plan '.length);
 
     final (status, lines) = _run(
       root,
       confirmation: OwnerConfirmation.given,
       runGit: runRealGit,
+      planHash: hash,
     );
 
     expect(status, 0);
@@ -258,6 +276,29 @@ void main() {
     expect(subjects, hasLength(3));
     expect(lines.first, startsWith('legacy migration: '));
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isFalse);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('ms-r11: a legacy folder under --yes with a stale plan hash refuses '
+      'plan_mismatch and writes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final legacy = _bytesUnder(root);
+
+    expect(
+      () => _run(
+        root,
+        confirmation: OwnerConfirmation.given,
+        runGit: runRealGit,
+        planHash: '000000000000',
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.planMismatch,
+        ),
+      ),
+    );
+    expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us03/fr01/e02: a legacy folder without a terminal prints the '
