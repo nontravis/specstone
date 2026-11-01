@@ -127,6 +127,70 @@ void main() {
     });
   });
 
+  group('findMigrateRoot and findProjectRoot share one walk', () {
+    Future<Directory?> nestedTree(Map<String, String> files) async {
+      final tree = await writeTree({...files, 'ws/code/example/keep.txt': ''});
+      try {
+        createRelativeLink(
+          '${tree.path}/ws/code/example/docs',
+          '../../example/docs',
+        );
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return null;
+      }
+      return tree;
+    }
+
+    test('both find the nested project, not the outer one', () async {
+      final tree = await nestedTree({
+        'ws/.specstone/config.yaml': 'packs:\n',
+        'ws/example/.specstone/config.yaml': 'packs:\n',
+        'ws/example/docs/keep.txt': '',
+      });
+      if (tree == null) return;
+      final start = Directory('${tree.path}/ws/code/example');
+      final nested = _canonical(Directory('${tree.path}/ws/example'));
+
+      expect(_canonical(findMigrateRoot(start)), nested);
+      expect(_canonical(findProjectRoot(start)!), nested);
+    });
+
+    test('a nested project with only a legacy context doc is the migrate '
+        'root, not the outer one', () async {
+      final tree = await nestedTree({
+        'ws/.specstone/config.yaml': 'packs:\n',
+        'ws/example/$legacyContextPath': '# D-01\n',
+      });
+      if (tree == null) return;
+
+      final root = findMigrateRoot(Directory('${tree.path}/ws/code/example'));
+
+      expect(
+        _canonical(root),
+        _canonical(Directory('${tree.path}/ws/example')),
+      );
+    });
+
+    test('a folder with its own config whose docs link leaves every project '
+        'is its own migrate root', () async {
+      final tree = await writeTree({
+        'ws/code/.specstone/config.yaml': 'packs:\n',
+        'plain/docs/keep.txt': '',
+      });
+      try {
+        createRelativeLink('${tree.path}/ws/code/docs', '../../plain/docs');
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return;
+      }
+
+      final root = findMigrateRoot(Directory('${tree.path}/ws/code'));
+
+      expect(_canonical(root), _canonical(Directory('${tree.path}/ws/code')));
+    });
+  });
+
   group('rootThroughDocsLink', () {
     test('f06/us01/fr01/e02: a dangling docs link leaves the folder as its '
         'own root', () async {

@@ -29,26 +29,50 @@ Directory rootThroughDocsLink(Directory folder) {
   return Directory(folder.resolveSymbolicLinksSync());
 }
 
-/// Returns the first project root from [start] upward.
+/// Returns the first root from [start] upward for which [isRoot] holds.
 ///
-/// At each folder the candidates are [rootThroughDocsLink] of that folder,
-/// then the folder itself; the first holding `.specstone/config.yaml` is the
-/// root. A `docs` link to a folder outside any project falls through to the
-/// folder's own config. Returns null when no folder up to the file-system root
-/// yields one.
-Directory? findProjectRoot(Directory start) {
+/// At each folder the candidates are [rootThroughDocsLink] of the folder, then
+/// the folder itself when that is another path. A `docs` link to a folder
+/// outside any project thus falls through to the folder's own markers. Every
+/// candidate is canonical. Returns null when no folder up to the file-system
+/// root yields one; never throws, a folder that cannot be resolved stands for
+/// itself, absolute.
+Directory? findRootUpward(
+  Directory start,
+  bool Function(Directory candidate) isRoot,
+) {
   var dir = start.absolute;
   while (true) {
-    for (final candidate in [rootThroughDocsLink(dir), dir]) {
-      if (File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync()) {
-        return candidate;
-      }
-    }
+    final linked = _canonicalOr(() => rootThroughDocsLink(dir), dir);
+    if (isRoot(linked)) return linked;
+    final own = _canonicalOr(
+      () => Directory(dir.resolveSymbolicLinksSync()),
+      dir,
+    );
+    if (own.path != linked.path && isRoot(own)) return own;
     final parent = dir.parent;
     if (parent.path == dir.path) return null;
     dir = parent;
   }
 }
+
+Directory _canonicalOr(Directory Function() resolve, Directory fallback) {
+  try {
+    return resolve();
+  } on FileSystemException {
+    return fallback;
+  }
+}
+
+/// Returns the project root holding [start], or null outside a project.
+///
+/// The root is the first [findRootUpward] candidate holding
+/// `.specstone/config.yaml`, canonical. Never throws.
+Directory? findProjectRoot(Directory start) => findRootUpward(
+  start,
+  (candidate) =>
+      File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
+);
 
 /// The project config: the pack version each pack is pinned to.
 final class ProjectConfig {

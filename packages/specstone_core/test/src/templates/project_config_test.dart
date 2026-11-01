@@ -243,8 +243,13 @@ void main() {
     /// Links `ws/code/<folder>/docs` to `<target>`; false when links need
     /// privileges the machine lacks.
     bool link(Directory tree, String folder, String target) {
+      final path = [
+        '${tree.path}/ws/code',
+        if (folder.isNotEmpty) folder,
+        'docs',
+      ];
       try {
-        createRelativeLink('${tree.path}/ws/code/$folder/docs', target);
+        createRelativeLink(path.join('/'), target);
         return true;
       } on FileSystemException {
         markTestSkipped('symbolic links need privileges on this machine');
@@ -297,6 +302,19 @@ void main() {
     test('a dangling link stands for the folder itself', () async {
       final tree = await writeTree({'ws/code/$_configPath': 'packs: {}\n'});
       if (!link(tree, '', '../missing')) return;
+
+      final found = findProjectRoot(at(tree, 'ws/code'));
+
+      expect(_canonical(found!), _canonical(at(tree, 'ws/code')));
+    });
+
+    test('a folder with its own config whose docs link leaves every project '
+        'is its own root', () async {
+      final tree = await writeTree({
+        'ws/code/$_configPath': 'packs: {}\n',
+        'plain/docs/keep.txt': '',
+      });
+      if (!link(tree, '', '../../plain/docs')) return;
 
       final found = findProjectRoot(at(tree, 'ws/code'));
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -20,7 +21,7 @@ void main() {
       "project's docs and writes nothing", () async {
     final tree = await writeTree({
       'ws/.specstone/config.yaml': shippedPinsConfig(),
-      'ws/docs/$_featureDoc': '# Outer\n',
+      'ws/docs/prds/features/f02_outer/FEATURE.md': '# Outer\n',
       'ws/example/.specstone/config.yaml': shippedPinsConfig(),
       'ws/example/docs/$_featureDoc':
           '---\nvision:\n  - PV-01\nslug:\n  - sign-in\n---\n\n# Login\n\n'
@@ -42,10 +43,12 @@ void main() {
     final result = await Process.run(binary, [
       'list',
       'feature',
+      '--json',
     ], workingDirectory: codeExample);
 
     expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
-    expect(result.stdout as String, contains('login (feature) — Login'));
+    final docs = (jsonDecode(result.stdout as String) as Map)['docs']! as List;
+    expect([for (final doc in docs) (doc as Map)['name']], ['login']);
     expect(Directory('$codeExample/.specstone').existsSync(), isFalse);
   });
 }
