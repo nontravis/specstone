@@ -8,6 +8,7 @@ import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -112,7 +113,7 @@ final class CheckContext {
   List<MergedSection?> _heldTemplatesOf(IndexedDoc doc) =>
       _heldTemplates.putIfAbsent(
         doc.docPath,
-        () => heldTemplatesOf(contentOf(doc), typeOf(doc)),
+        () => heldTemplatesOf(contentOf(doc).sections, typeOf(doc)),
       );
 
   /// Returns the first held section of [doc] that maps to [sectionId].
@@ -127,8 +128,10 @@ final class CheckContext {
       heldSectionIndexIn(_heldTemplatesOf(doc), sectionId);
 
   /// Returns the body lines of the held section at [index] of [doc].
-  List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) =>
-      sectionBodyLines(contentOf(doc), linesOf(doc), index);
+  List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) {
+    final content = contentOf(doc);
+    return sectionBodyLines(content.sections, content.lineFacts, index);
+  }
 
   /// Whether [type] declares the field [fieldId].
   ///

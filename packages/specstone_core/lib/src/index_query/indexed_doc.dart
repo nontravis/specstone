@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -135,7 +136,8 @@ bool _isScalar(Object? value) =>
 
 /// The text and structure of one doc, as `get` and `context` print it.
 final class DocContent {
-  /// Takes the text through [readText], called on the first read of [text].
+  /// Takes [text] and [bannedMatches] through [readText] and
+  /// [readBannedMatches], each called on the first read of its field.
   new({
     required String Function() readText,
     this.frontmatterText,
@@ -143,7 +145,9 @@ final class DocContent {
     required this.sections,
     required this.links,
     required this.lineFacts,
-  }) : _readText = readText;
+    required List<BannedMatch> Function() readBannedMatches,
+  }) : _readText = readText,
+       _readBannedMatches = readBannedMatches;
 
   /// The whole file as decoded, in its own line endings.
   late final String text = _readText();
@@ -164,6 +168,12 @@ final class DocContent {
 
   /// The line facts of the file, stored by the refresh that parsed it.
   final LineFacts lineFacts;
+
+  /// The banned-pattern matches of the file under its doc type, stored by the
+  /// refresh that parsed it.
+  late final List<BannedMatch> bannedMatches = _readBannedMatches();
+
+  final List<BannedMatch> Function() _readBannedMatches;
 }
 
 /// One parsed file: its index entry, its content, and its content hash.
@@ -228,6 +238,7 @@ ParsedDoc parseIndexedDoc({
     sections: sections,
     links: {for (final place in lineFacts.links) place.target}.toList(),
     lineFacts: lineFacts,
+    readBannedMatches: () => bannedMatchesOf(sections, lineFacts, docType),
   );
   final indexed = IndexedDoc(
     docPath: docPath,

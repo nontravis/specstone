@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -31,11 +32,11 @@ const _notWritableMessage =
 
 /// The layout of the index, kept in the `layout` column of the meta row.
 ///
-/// Bump it on every change to what a row holds: [_schema], the line-facts JSON,
-/// and how that JSON is computed. An index of another layout is then rebuilt
-/// instead of failing a read (INV-2). An older build's reset recreates the meta
-/// row without it, so its index is rebuilt too.
-const _layoutVersion = 4;
+/// Bump it on every change to what a row holds: [_schema], the line-facts and
+/// banned-match JSON, and how that JSON is computed. An index of another
+/// layout is then rebuilt instead of failing a read (INV-2). An older build's
+/// reset recreates the meta row without it, so its index is rebuilt too.
+const _layoutVersion = 5;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -61,6 +62,7 @@ CREATE TABLE docs (
   frontmatter_text TEXT,
   head TEXT NOT NULL,
   line_facts TEXT NOT NULL,
+  banned_matches TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
   stat_ctime INTEGER,
@@ -219,7 +221,8 @@ final class IndexStore {
   // Prepared once: `loadContent` runs per doc, and a check reads every doc.
   final List<PreparedStatement> _prepared = [];
   late final PreparedStatement _contentSql = _prepare(
-    'SELECT frontmatter_text, head, line_facts FROM docs WHERE doc_path = ?',
+    'SELECT frontmatter_text, head, line_facts, banned_matches FROM docs '
+    'WHERE doc_path = ?',
   );
   late final PreparedStatement _textSql = _prepare(
     'SELECT text FROM docs WHERE doc_path = ?',
@@ -335,7 +338,8 @@ final class IndexStore {
     _db.execute(
       'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
       'tokens, ord, warnings, content_hash, text, frontmatter_text, head, '
-      'line_facts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'line_facts, banned_matches) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -350,6 +354,7 @@ final class IndexStore {
         content.frontmatterText,
         content.head,
         jsonEncode(content.lineFacts.toJson()),
+        jsonEncode(bannedMatchesToJson(content.bannedMatches)),
       ],
     );
     final docId = _db.lastInsertRowId;
@@ -503,6 +508,9 @@ final class IndexStore {
           for (final row in rows)
             (lines: row['line_count'] as int, chars: row['char_count'] as int),
         ],
+      ),
+      readBannedMatches: () => bannedMatchesFromJson(
+        jsonDecode(doc['banned_matches'] as String) as List<Object?>,
       ),
     );
   }

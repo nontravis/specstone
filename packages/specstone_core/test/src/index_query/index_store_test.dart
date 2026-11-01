@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
@@ -318,6 +319,37 @@ void main() {
       expect(facts.sectionLines, [7, 13]);
       expect(facts.fenced, [(first: 9, last: 11)]);
       expect(facts.sectionCounts.last, (lines: 2, chars: 12));
+    });
+    test('f04/nfr-p03, f04/us01/fr08: a stored doc loads back with its banned-pattern matches', () async {
+      final type = MergedDocType(
+        id: 'note',
+        fields: const [],
+        sections: const [],
+        lint: MergedLint(
+          bannedPatterns: [
+            PatternEntry(id: 'fast', pattern: r'fast\w*', message: 'm'),
+          ],
+        ),
+        files: const [],
+      );
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      final written = parseIndexedDoc(
+        docPath: 'n.md',
+        bytes: utf8.encode('# N\n\n## A\nfast\n\n## B\nfastly\n'),
+        match: MatchedDocType(type),
+      );
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(written);
+      });
+      expect(store.loadContent('n.md').bannedMatches, [
+        (section: 0, line: 4, entry: 0, match: 'fast'),
+        (section: 1, line: 7, entry: 0, match: 'fastly'),
+      ]);
     });
     test('f04/nfr-p03: the lines a check reads from a stored doc equal those it reads from the text', () async {
       const text =
