@@ -19,7 +19,7 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(
       err.toString(),
-      "approve runs only at an interactive terminal, or with --yes after the Owner's ok, through the Specstone plugin for Claude Code\n",
+      "approve runs only at an interactive terminal, or with --yes after the Owner's ok in the chat\n",
     );
   });
   test('f02/us03/s7: a terminal on stdin alone is still refused', () async {
@@ -204,7 +204,7 @@ void main() {
     expect(
       out.toString().replaceAll(RegExp(r'\s+'), ' '),
       contains(
-        '--yes Approve the named drafts without the terminal prompt; the Claude Code plugin asks the Owner first.',
+        "--yes Approve the named drafts without the terminal prompt; the agent runs it after the Owner's ok.",
       ),
     );
     expect(

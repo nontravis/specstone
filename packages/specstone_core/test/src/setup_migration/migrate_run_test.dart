@@ -579,8 +579,7 @@ void main() {
               (f) => f.message,
               'message',
               'migrate applies only at an interactive terminal, or with '
-                  "--yes after the Owner's ok, through the Specstone plugin "
-                  'for Claude Code',
+                  "--yes after the Owner's ok in the chat",
             ),
       ),
     );
@@ -876,8 +875,7 @@ void main() {
                 'message',
                 'git commit failed: lint failed; fix the cause, then run '
                     'specstone migrate at an interactive terminal, or with '
-                    "--yes after the Owner's ok, through the Specstone plugin "
-                    'for Claude Code, to finish the '
+                    "--yes after the Owner's ok in the chat, to finish the "
                     'run',
               ),
         ),
@@ -1050,7 +1048,7 @@ void main() {
                 'git add failed: cannot start git: The filename or extension '
                     'is too long.; fix the cause, then run specstone migrate '
                     'at an interactive terminal, or with --yes after the '
-                    "Owner's ok, through the Specstone plugin for Claude Code, "
+                    "Owner's ok in the chat, "
                     'to finish the run',
               ),
         ),

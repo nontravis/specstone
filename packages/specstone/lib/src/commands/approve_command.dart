@@ -9,8 +9,8 @@ class ApproveCommand extends WriteCommand {
       'yes',
       negatable: false,
       help:
-          'Approve the named drafts without the terminal prompt; the Claude '
-          'Code plugin asks the Owner first.',
+          'Approve the named drafts without the terminal prompt; the agent '
+          "runs it after the Owner's ok.",
     );
   }
 

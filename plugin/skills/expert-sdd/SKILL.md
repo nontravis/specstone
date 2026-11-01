@@ -57,13 +57,13 @@ own terminal or here in the chat. In the chat:
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.
 2. The Owner answers `ok` or says what to fix. Fix it through `specstone set`, then show that item again.
-3. After `ok` on every item of the batch, run one command with `--yes`, passing the hashes you showed:
+3. Run the `--yes` command only after the Owner's `ok` for what you showed (the Owner may tell you to answer for
+   them). After `ok` on every item of the batch, run one command, passing the hashes you showed:
    `specstone approve <type>:<name>@<hash> … --yes` (each draft named, as a name approves only itself),
    `specstone delete <path> … --yes --plan <hash>`, `specstone migrate --yes --plan <hash>`, or
-   `specstone init --yes --plan <hash>`. Claude Code asks the Owner once first; a denial means stop and ask what to
-   change. Exit 75 means an item changed since you showed it: show it again. Write every name with its `@<hash>`,
-   every path, and the `--plan <hash>` literally in the command; never build them from a file, a variable, or a
-   command substitution, since the Owner's prompt shows only the command text.
+   `specstone init --yes --plan <hash>`. Exit 75 means an item changed since you showed it: show it again. Write every
+   name with its `@<hash>`, every path, and the `--plan <hash>` literally in the command; never build them from a
+   file, a variable, or a command substitution.
 4. The Owner may instead run the command, without `--yes`, at their own terminal.
 
 ## Red flags

@@ -15,8 +15,8 @@ class MigrateCommand extends SpecstoneCommand {
         'yes',
         negatable: false,
         help:
-            'Apply the plan without the terminal prompt; the Claude Code '
-            'plugin asks the Owner first.',
+            'Apply the plan without the terminal prompt; the agent runs it '
+            "after the Owner's ok.",
       )
       ..addOption(
         'plan',

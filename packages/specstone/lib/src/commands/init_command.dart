@@ -11,7 +11,7 @@ class InitCommand extends SpecstoneCommand {
         negatable: false,
         help:
             'Apply the legacy migrate run without the terminal prompt; the '
-            'Claude Code plugin asks the Owner first.',
+            "agent runs it after the Owner's ok.",
       )
       ..addOption(
         'plan',

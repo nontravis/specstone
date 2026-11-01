@@ -14,8 +14,8 @@ class DeleteCommand extends WriteCommand {
         'yes',
         negatable: false,
         help:
-            'Delete approved docs without the terminal prompt; the Claude '
-            'Code plugin asks the Owner first.',
+            'Delete approved docs without the terminal prompt; the agent '
+            "runs it after the Owner's ok.",
       )
       ..addOption(
         'plan',

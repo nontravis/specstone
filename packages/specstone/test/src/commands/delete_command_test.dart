@@ -44,8 +44,7 @@ void main() {
       error['message'],
       'fr:login/email_login/validate_credentials holds approved docs; '
       'only the Owner deletes them, at an interactive terminal, or with '
-      "--yes after the Owner's ok, through the Specstone plugin for Claude "
-      'Code',
+      "--yes after the Owner's ok in the chat",
     );
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
   });

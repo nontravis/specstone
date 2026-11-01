@@ -160,7 +160,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok, through the Specstone plugin for Claude Code",
+              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in the chat",
             ),
       ),
     );
@@ -792,7 +792,7 @@ void main() {
               'message',
               'the delete set holds approved docs; only the Owner deletes '
                   'them, at an interactive terminal, or with --yes after the '
-                  "Owner's ok, through the Specstone plugin for Claude Code",
+                  "Owner's ok in the chat",
             ),
           ),
         );

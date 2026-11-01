@@ -117,26 +117,14 @@ void main() {
     expect(oversizedSkills(pluginRoot()), isEmpty);
   });
 
-  test('f08/us06/fr01, f09/us05/fr01/e05, ms-r10, ms-r11: hooks.json keeps '
-      'the PostToolUse Write|Edit hook and the PreToolUse hook on every '
-      'shell-running tool beside the SessionStart entry', () {
+  test('f08/us06/fr01, f09/us05/fr01/e05, ms-r12: hooks.json keeps only the '
+      'PostToolUse Write|Edit hook beside the SessionStart entry', () {
     final decoded = jsonDecode(
       File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
           .readAsStringSync(),
     ) as Map<String, dynamic>;
     final hooks = decoded['hooks'] as Map<String, dynamic>;
-    expect(
-      hooks.keys,
-      unorderedEquals(['PreToolUse', 'PostToolUse', 'SessionStart']),
-    );
-    expect(hooks['PreToolUse'], [
-      {
-        'matcher': 'Bash|PowerShell|Monitor',
-        'hooks': [
-          {'type': 'command', 'command': 'specstone hook pre-bash'},
-        ],
-      },
-    ]);
+    expect(hooks.keys, unorderedEquals(['PostToolUse', 'SessionStart']));
     expect(hooks['PostToolUse'], [
       {
         'matcher': 'Write|Edit',
@@ -146,7 +134,7 @@ void main() {
       },
     ]);
     final hook = SpecstoneCommandRunner().commands['hook'];
-    expect(hook?.subcommands.keys, containsAll(['post-edit', 'pre-bash']));
+    expect(hook?.subcommands.keys, unorderedEquals(['post-edit']));
   });
 
   _shippedFileTests();
