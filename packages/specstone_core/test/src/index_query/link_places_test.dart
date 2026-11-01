@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -28,96 +30,82 @@ void main() {
     });
 
     test(
-      'final-fix M2: 10,000 links in one body are placed within two seconds',
+      'final-fix M2: 10,000 links in one body are placed in linear time',
       () {
-        final body = List.filled(
-          10000,
+        String bodyOf(int n) => List.filled(
+          n,
           'Some filler prose around the link [l](b.md) and more prose after.',
         ).join('\n\n');
-        final watch = Stopwatch()..start();
 
-        final places = placesOf(body);
+        final places = placesOf(bodyOf(10000));
 
         expect(places, hasLength(10000));
         expect(places.last.line, 19999);
-        expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+        expectLinearTime(bodyOf, 10000, placesOf);
       },
     );
 
     test('final-fix M2: 10,000 unclosed brackets in one body are scanned '
-        'within two seconds', () {
-      final body =
-          '${'[unclosed link text on its own line\n' * 10000}'
+        'in linear time', () {
+      String bodyOf(int n) =>
+          '${'[unclosed link text on its own line\n' * n}'
           '[l](b.md)\n';
-      final watch = Stopwatch()..start();
 
-      final places = placesOf(body);
+      final places = placesOf(bodyOf(10000));
 
       expect(places.map((p) => p.target), ['b.md']);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      expectLinearTime(bodyOf, 10000, placesOf);
     });
 
     test('final-fix M2: 10,000 definitions with an unclosed < destination are '
-        'scanned within two seconds', () {
-      final body = [
-        for (var i = 0; i < 10000; i++) '[x$i]: <',
-        '[l](b.md)',
-        '',
-      ].join('\n');
-      final watch = Stopwatch()..start();
+        'scanned in linear time', () {
+      String bodyOf(int n) =>
+          [for (var i = 0; i < n; i++) '[x$i]: <', '[l](b.md)', ''].join('\n');
 
-      final places = placesOf(body);
+      final places = placesOf(bodyOf(10000));
 
       expect(places.map((p) => p.target), ['b.md']);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      expectLinearTime(bodyOf, 10000, placesOf);
     });
 
     test('f04/us02/fr04, f04/nfr-p03, FN4: 10,000 brackets nested around one '
-        'link are placed within one second', () {
-      final body = '${'[' * 10000}x](b.md)${']' * 9999}\n';
-      final watch = Stopwatch()..start();
+        'link are placed in linear time', () {
+      String bodyOf(int n) => '${'[' * n}x](b.md)${']' * (n - 1)}\n';
 
-      final places = placesOf(body);
-      watch.stop();
+      final places = placesOf(bodyOf(10000));
 
       expect(places, [(target: 'b.md', line: 1, shown: 'b.md')]);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+      expectLinearTime(bodyOf, 10000, placesOf);
     });
 
     test('f04/us02/fr04, f04/nfr-p03, FN4: 10,000 nested inline destinations '
-        'are scanned within one second', () {
-      final body = '${'[a](' * 10000}x${')' * 10000}\n\n[l](b.md)\n';
-      final watch = Stopwatch()..start();
+        'are scanned in linear time', () {
+      String bodyOf(int n) => '${'[a](' * n}x${')' * n}\n\n[l](b.md)\n';
 
-      final places = placesOf(body);
-      watch.stop();
+      final places = placesOf(bodyOf(10000));
 
       expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+      expectLinearTime(bodyOf, 10000, placesOf);
     });
 
     test('f04/us02/fr04, f04/nfr-p03, FN4: 10,000 escaped brackets before one '
-        'close are scanned within one second', () {
-      final body = '[${r'\[' * 10000}]\n\n[d]: b.md\n\n[l](b.md)\n';
-      final watch = Stopwatch()..start();
+        'close are scanned in linear time', () {
+      String bodyOf(int n) => '[${r'\[' * n}]\n\n[d]: b.md\n\n[l](b.md)\n';
 
-      final places = placesOf(body);
-      watch.stop();
+      final places = placesOf(bodyOf(10000));
 
       expect(places, [(target: 'b.md', line: 5, shown: 'b.md')]);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+      expectLinearTime(bodyOf, 10000, placesOf);
     });
 
     test('f04/us02/fr04, f04/nfr-p03, FN4: 40,000 escaped openers sharing one '
-        'close before a long destination are scanned within one second', () {
-      final body = '[${r'\[' * 40000}](${' ' * 40000}zzzzz)\n\n[l](b.md)\n';
-      final watch = Stopwatch()..start();
+        'close before a long destination are scanned in linear time', () {
+      String bodyOf(int n) => '[${r'\[' * n}](${' ' * n}zzzzz)\n\n[l](b.md)\n';
 
-      final places = placesOf(body);
-      watch.stop();
+      final places = placesOf(bodyOf(40000));
 
       expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+      expectLinearTime(bodyOf, 40000, placesOf);
     });
 
     test('f04/us02/fr04, FN4: a reference whose text has blank runs and '
@@ -577,129 +565,138 @@ void main() {
       [(target: 'b.md', line: 3, shown: 'b.md')],
     );
 
-    void within(String name, String body, List<(int, String?)> expected) {
-      test('f04/us02/fr04, f04/nfr-p03, LA6: $name within one second', () {
-        final watch = Stopwatch()..start();
+    void within(
+      String name,
+      String Function(int n) bodyOf,
+      List<(int, String?)> expected, {
+      int n = 10000,
+    }) {
+      test('f04/us02/fr04, f04/nfr-p03, LA6: $name in linear time', () {
+        void scan(String body) => linkSourcesOf(body, firstLine: 1);
 
-        final sources = linkSourcesOf(body, firstLine: 1);
-        watch.stop();
+        final sources = linkSourcesOf(bodyOf(n), firstLine: 1);
 
         expect(sources.map((s) => (s.line, s.shown)), expected);
-        expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+        expectLinearTime(bodyOf, n, scan);
       });
     }
 
     within(
       '10,000 unclosed bare destinations are scanned',
-      '${'[a](b' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'[a](b' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 unclosed titles are scanned',
-      '${'[a](b "t' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'[a](b "t' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 unclosed angle destinations are scanned',
-      '${'[a](<b ' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'[a](<b ' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 openers before one close are scanned',
-      'x ${'[a ' * 10000}](b.md)\n',
+      (n) => 'x ${'[a ' * n}](b.md)\n',
       [(1, 'b.md')],
     );
 
     within(
       '10,000 links in one image description are dropped',
-      '![${'[x](b.md) ' * 10000}](i.png)\n\n[l](b.md)\n',
+      (n) => '![${'[x](b.md) ' * n}](i.png)\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 unclosed processing instructions are scanned',
-      '${'x <? ' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'x <? ' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 unclosed declarations are scanned',
-      '${'x <!X ' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'x <!X ' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 unclosed comments are scanned',
-      '${'x <!-- ' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'x <!-- ' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 unclosed autolinks are scanned',
-      '${'<http://x' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'<http://x' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '400 backtick runs of growing length are scanned',
-      '${List.generate(400, (i) => '${'`' * (i + 1)}a').join()}\n\n'
+      (n) =>
+          '${List.generate(n, (i) => '${'`' * (i + 1)}a').join()}\n\n'
           '[l](b.md)\n',
       [(3, 'b.md')],
+      n: 400,
     );
 
     within(
       'a 50,000-letter word with no @ is scanned',
-      '${'a' * 50000}\n\n[l](b.md)\n',
+      (n) => '${'a' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
+      n: 50000,
     );
 
     within(
       '10,000 http URL starts after a letter are scanned',
-      '${'xhttp://a.b' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'xhttp://a.b' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 www URL starts after a letter are scanned',
-      '${'xwww.a.b' * 10000}\n\n[l](b.md)\n',
+      (n) => '${'xwww.a.b' * n}\n\n[l](b.md)\n',
       [(3, 'b.md')],
     );
 
     within(
       '10,000 HTML blocks are scanned',
-      '${'<div>\n\n' * 10000}[l](b.md)\n',
+      (n) => '${'<div>\n\n' * n}[l](b.md)\n',
       [(20001, 'b.md')],
     );
 
     within(
       '10,000 table rows are scanned',
-      '| h |\n|---|\n${'| x |\n' * 10000}\n[l](b.md)\n',
+      (n) => '| h |\n|---|\n${'| x |\n' * n}\n[l](b.md)\n',
       [(10004, 'b.md')],
     );
 
     within(
       '10,000 definitions with an unclosed paren title and a setext underline '
-          'are scanned',
-      '${'[r]: b.md (t\n===\n' * 10000}[l][r]\n',
+      'are scanned',
+      (n) => '${'[r]: b.md (t\n===\n' * n}[l][r]\n',
       [],
     );
 
     within(
       '10,000 definitions with an unclosed title are scanned',
-      '${'[r]: b.md "t\n\n' * 10000}[l](b.md)\n',
+      (n) => '${'[r]: b.md "t\n\n' * n}[l](b.md)\n',
       [(20001, 'b.md')],
     );
 
-    within('10,000 list items are scanned', '${'- x\n' * 10000}\n[l](b.md)\n', [
-      (10002, 'b.md'),
-    ]);
+    within(
+      '10,000 list items are scanned',
+      (n) => '${'- x\n' * n}\n[l](b.md)\n',
+      [(10002, 'b.md')],
+    );
 
     within(
       '10,000 blockquote lines are scanned',
-      '${'> x\n' * 10000}\n[l](b.md)\n',
+      (n) => '${'> x\n' * n}\n[l](b.md)\n',
       [(10002, 'b.md')],
     );
   });
@@ -831,4 +828,90 @@ void main() {
       expect(placesOf(body), [(target: 'c.md', line: 2, shown: 'c.md')]);
     });
   });
+
+  group('expectLinearTime', () {
+    test('passes a scan that reads each character once', () {
+      expectLinearTime(
+        (n) => 'a' * n,
+        200000,
+        (body) => body.codeUnits.where((c) => c == 0x61).length,
+      );
+    });
+
+    test('fails a scan that reads the rest of the body at each character', () {
+      void quadratic(String body) {
+        var count = 0;
+        for (var i = 0; i < body.length; i++) {
+          for (var j = i; j < body.length; j++) {
+            if (body.codeUnitAt(j) == 0x61) count++;
+          }
+        }
+        expect(count, isPositive);
+      }
+
+      expect(
+        () => expectLinearTime((n) => 'a' * n, 5000, quadratic),
+        throwsA(isA<TestFailure>()),
+      );
+    });
+  });
+}
+
+/// Expects [scan] to take time linear in the length of the body it reads.
+///
+/// A fixed time budget fails on a slow or busy runner, and under coverage,
+/// whatever the scan does. This times [scan] on the bodies [bodyOf] builds for
+/// a twentieth of [n] and for [n], in turns, and keeps the fastest of three
+/// runs of each. A linear scan's time grows as much as the body, a quadratic
+/// one's as the body's square; the time of one scan must grow less than the
+/// body's growth to the power 1.5, halfway between the two on a log scale.
+/// Each run repeats the scan until it takes 20 ms, so both sizes are timed
+/// over as long a stretch and a busy runner slows them alike.
+void expectLinearTime(
+  String Function(int n) bodyOf,
+  int n,
+  void Function(String body) scan,
+) {
+  final small = bodyOf(n ~/ 20);
+  final large = bodyOf(n);
+  final smallRepeats = _repeatsFor(scan, small);
+  final largeRepeats = _repeatsFor(scan, large);
+  var smallTime = double.infinity;
+  var largeTime = double.infinity;
+  for (var round = 0; round < 3; round++) {
+    smallTime = min(smallTime, _scanTime(scan, small, smallRepeats));
+    largeTime = min(largeTime, _scanTime(scan, large, largeRepeats));
+  }
+  final bodyGrowth = large.length / small.length;
+  final timeGrowth = largeTime / smallTime;
+
+  expect(
+    timeGrowth,
+    lessThan(pow(bodyGrowth, 1.5)),
+    reason:
+        'the body grew ${bodyGrowth.toStringAsFixed(1)} times and the time '
+        'of one scan ${timeGrowth.toStringAsFixed(1)} times '
+        '(${smallTime.round()} µs to ${largeTime.round()} µs)',
+  );
+}
+
+/// Returns how many scans of [body] in a row take at least 20 ms.
+int _repeatsFor(void Function(String body) scan, String body) {
+  var repeats = 1;
+  while (_microsecondsOf(scan, body, repeats) < 20000) {
+    repeats *= 2;
+  }
+  return repeats;
+}
+
+/// Returns the microseconds one scan of [body] takes, over [repeats] scans.
+double _scanTime(void Function(String body) scan, String body, int repeats) =>
+    _microsecondsOf(scan, body, repeats) / repeats;
+
+int _microsecondsOf(void Function(String body) scan, String body, int repeats) {
+  final watch = Stopwatch()..start();
+  for (var i = 0; i < repeats; i++) {
+    scan(body);
+  }
+  return watch.elapsedMicroseconds;
 }
