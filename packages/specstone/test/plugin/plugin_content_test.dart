@@ -117,24 +117,22 @@ void main() {
     expect(oversizedSkills(pluginRoot()), isEmpty);
   });
 
-  test('f08/us06/fr01: hooks.json holds one PostToolUse Write|Edit command '
-      'hook running specstone hook post-edit', () {
+  test('f08/us06/fr01, f09/us05/fr01/e05: hooks.json keeps the PostToolUse '
+      'Write|Edit hook beside the SessionStart entry', () {
     final decoded = jsonDecode(
       File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
           .readAsStringSync(),
-    );
-    expect(decoded, {
-      'hooks': {
-        'PostToolUse': [
-          {
-            'matcher': 'Write|Edit',
-            'hooks': [
-              {'type': 'command', 'command': 'specstone hook post-edit'},
-            ],
-          },
+    ) as Map<String, dynamic>;
+    final hooks = decoded['hooks'] as Map<String, dynamic>;
+    expect(hooks.keys, unorderedEquals(['PostToolUse', 'SessionStart']));
+    expect(hooks['PostToolUse'], [
+      {
+        'matcher': 'Write|Edit',
+        'hooks': [
+          {'type': 'command', 'command': 'specstone hook post-edit'},
         ],
       },
-    });
+    ]);
     final hook = SpecstoneCommandRunner().commands['hook'];
     expect(hook?.subcommands, contains('post-edit'));
   });

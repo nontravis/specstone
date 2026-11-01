@@ -23,6 +23,7 @@ import 'package:specstone/src/commands/reorder_command.dart';
 import 'package:specstone/src/commands/search_command.dart';
 import 'package:specstone/src/commands/set_command.dart';
 import 'package:specstone/src/commands/structure_command.dart';
+import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:specstone/src/console.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -57,6 +58,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
+    UpgradeCommand? upgrade,
   }) : this._(
          registry: generators ?? journeyGenerators(),
          out: out,
@@ -66,6 +68,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
          homeDirectory: homeDirectory,
          busyTimeout: busyTimeout,
          console: console,
+         upgrade: upgrade,
        );
 
   // The registry is resolved once, so the default resolver's kinds come from
@@ -79,6 +82,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     required Directory? homeDirectory,
     required Duration busyTimeout,
     required Console? console,
+    required UpgradeCommand? upgrade,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _generators = registry,
@@ -117,6 +121,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(MigrateCommand());
     addCommand(InitCommand());
     addCommand(HookCommand());
+    addCommand(upgrade ?? UpgradeCommand());
   }
 
   final StringSink _out;

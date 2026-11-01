@@ -2,6 +2,37 @@
 
 Specstone keeps PRD and spec documents for spec-driven development, with a CLI and an MCP server.
 
+## Install
+
+On macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex
+```
+
+The script installs the CLI in `~/.specstone/bin` and adds that folder to your PATH. When Claude Code's `claude`
+command is on your PATH, it also installs the Specstone plugin; otherwise it prints the two commands to run later.
+
+To upgrade the CLI and the plugin, run `specstone upgrade`, then restart Claude Code.
+
+To uninstall, run the line for your system, then `claude plugin uninstall specstone@specstone`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/uninstall.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/nontravis/specstone/main/uninstall.ps1 | iex
+```
+
+Uninstalling keeps your personal packs in `~/.specstone/packs`.
+
 ## Status
 
 The CLI sets up a project (`init`, `migrate`), reads docs (`list`, `get`, `search`, `structure`, `context`, `refs`,
@@ -14,8 +45,9 @@ The MCP server still lists no tools.
 - `packages/specstone_core/`: the library: doc model, index and query, templates and packs, document writing,
   consistency check, setup and migration, and rendering.
 - `packages/specstone/`: the `specstone` CLI executable and its MCP server command.
-- `plugin/`: the Claude Code plugin, with 8 skills, 2 agents, and a `PostToolUse` hook (`hooks/hooks.json`) that runs
-  `specstone hook post-edit`, so `specstone` must be on `PATH`.
+- `plugin/`: the Claude Code plugin, with 8 skills, 2 agents, and two hooks in `hooks/hooks.json`. The `PostToolUse`
+  hook runs `specstone hook post-edit`, so `specstone` must be on `PATH`. The `SessionStart` hook warns when the CLI
+  and plugin versions differ.
 - `.claude-plugin/marketplace.json`: the marketplace entry that points Claude Code at `plugin/`.
 
 ## Develop

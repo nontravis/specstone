@@ -10,6 +10,10 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+/// How many times [ReadSession.readFrom] refreshes before it gives up on a
+/// stamp a peer keeps changing.
+const _stampAttempts = 3;
+
 /// One command's view of a project: the project, a refreshed index, and one
 /// read snapshot of it.
 ///
@@ -109,17 +113,41 @@ final class ReadSession {
     }
   }
 
-  static ReadSession _read(DocsProject project, IndexStore store) {
+  static ReadSession _read(DocsProject project, IndexStore store) =>
+      readFrom(project, store);
+
+  /// Refreshes [store], then reads every doc from one snapshot of it.
+  ///
+  /// A peer with another doc-type set can rewrite the index between the
+  /// refresh and the snapshot; the stamp is read again inside the snapshot,
+  /// and a mismatch ends it and refreshes again. After [_stampAttempts]
+  /// mismatches the index is [IndexFaultCode.indexBusy]. [afterRefresh] runs
+  /// after each refresh, before the snapshot begins. Closes [store] on any
+  /// error.
+  static ReadSession readFrom(
+    DocsProject project,
+    IndexStore store, {
+    void Function()? afterRefresh,
+  }) {
     try {
-      final refreshed = refreshIndex(store, project);
-      store.beginSnapshot();
-      final docs = store.loadDocs();
-      return ReadSession._(
-        project: project,
-        store: store,
-        docs: docs,
-        indexWarnings: [...store.warnings, ...refreshed.warnings],
-      );
+      final stamp = IndexStamp.of(project.set);
+      for (var attempt = 1; ; attempt++) {
+        final refreshed = refreshIndex(store, project);
+        afterRefresh?.call();
+        store.beginSnapshot();
+        if (store.readStamp() == stamp) {
+          return ReadSession._(
+            project: project,
+            store: store,
+            docs: store.loadDocs(),
+            indexWarnings: [...store.warnings, ...refreshed.warnings],
+          );
+        }
+        store.endSnapshot();
+        if (attempt == _stampAttempts) {
+          throw IndexFault(IndexFaultCode.indexBusy, indexBusyMessage);
+        }
+      }
     } on Object {
       store.close();
       rethrow;

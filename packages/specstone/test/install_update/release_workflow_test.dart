@@ -1,0 +1,255 @@
+import 'dart:io';
+
+import 'package:specstone_core/specstone_core.dart';
+import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
+
+import '../helpers/script_sandbox.dart';
+
+YamlMap _load(String name) {
+  final file = File('${repoRoot().path}/.github/workflows/$name');
+  return loadYaml(file.readAsStringSync()) as YamlMap;
+}
+
+YamlMap _jobs(YamlMap workflow) => workflow['jobs'] as YamlMap;
+
+YamlMap _job(YamlMap workflow, String name) => _jobs(workflow)[name] as YamlMap;
+
+List<YamlMap> _steps(YamlMap job) =>
+    (job['steps'] as YamlList).cast<YamlMap>().toList();
+
+String _runText(YamlMap job) =>
+    _steps(job).map((step) => '${step['run'] ?? ''}').join('\n');
+
+String _stepText(YamlMap job) =>
+    _steps(job).map((step) => step.toString()).join('\n');
+
+void main() {
+  late YamlMap release;
+  late YamlMap ci;
+
+  setUpAll(() {
+    release = _load('release.yaml');
+    ci = _load('ci.yaml');
+  });
+
+  test('f09/us04/fr05: release.yaml runs on a v* tag with read-only top '
+      'permissions', () {
+    final on = release['on'] as YamlMap;
+    expect((on['push'] as YamlMap)['tags'], ['v*']);
+    expect(release['permissions'], {'contents': 'read'});
+  });
+
+  test("f09/us04/fr05/e01, e05: version, then ci.yaml's jobs, then build, "
+      'then publish', () {
+    expect(
+      _jobs(release).keys,
+      unorderedEquals(['version', 'test', 'build', 'publish']),
+    );
+    final test = _job(release, 'test');
+    expect(test['needs'], 'version');
+    expect(test['uses'], './.github/workflows/ci.yaml');
+    expect(_job(release, 'build')['needs'], 'test');
+    expect(_job(release, 'publish')['needs'], 'build');
+  });
+
+  test('f09/us04/fr05: only publish holds contents: write', () {
+    for (final name in ['version', 'test', 'build']) {
+      expect(
+        _job(release, name).containsKey('permissions'),
+        isFalse,
+        reason: name,
+      );
+    }
+    expect(_job(release, 'publish')['permissions'], {'contents': 'write'});
+  });
+
+  test('f09/us04/fr05, f09/us04/fr06: build packs and smoke-tests the four '
+      'targets', () {
+    final build = _job(release, 'build');
+    final include =
+        ((build['strategy'] as YamlMap)['matrix'] as YamlMap)['include']
+            as YamlList;
+    expect(include.map((e) => (e as YamlMap)['runner']), [
+      'macos-15',
+      'macos-15-intel',
+      'ubuntu-22.04',
+      'windows-latest',
+    ]);
+    expect(include.map((e) => (e as YamlMap)['target']), [
+      'macos-arm64',
+      'macos-x64',
+      'linux-x64',
+      'windows-x64',
+    ]);
+    expect(build['runs-on'], r'${{ matrix.runner }}');
+    expect(((build['defaults'] as YamlMap)['run'] as YamlMap)['shell'], 'bash');
+
+    final text = _stepText(build);
+    for (final fragment in [
+      'dart build cli -t bin/specstone.dart',
+      'tool/third_party_notices.dart',
+      'SPECSTONE_ARCHIVE_DIR',
+      'install.sh',
+      'install.ps1',
+      'uninstall',
+    ]) {
+      expect(text, contains(fragment));
+    }
+
+    final run = _runText(build);
+    expect(
+      run.indexOf(r'mkdir -p "$RUNNER_TEMP/stage"'),
+      allOf(isNonNegative, lessThan(run.indexOf('tool/third_party_notices'))),
+    );
+
+    final pwshSteps = _steps(build).where((s) => s['shell'] == 'pwsh').toList();
+    expect(pwshSteps, isNotEmpty);
+    for (final step in pwshSteps) {
+      expect(step['if'], "runner.os == 'Windows'");
+      expect('${step['run']}', isNot(contains(r'$RUNNER_TEMP')));
+    }
+    for (final step in _steps(build)) {
+      final run = '${step['run'] ?? ''}';
+      if (step['shell'] == 'pwsh') continue;
+      if (run.contains('tar -czf') ||
+          run.contains('install.sh') ||
+          run.contains('uninstall.sh')) {
+        expect(step['if'], "runner.os != 'Windows'", reason: run);
+      }
+    }
+  });
+
+  test('f09/us04/fr06: each install smoke opens the SQLite index between the '
+      'install and the uninstall', () {
+    final steps = _steps(_job(release, 'build'));
+    for (final (installer, uninstaller, index) in [
+      ('install.sh', 'uninstall.sh', '.specstone/index.sqlite'),
+      ('install.ps1', 'uninstall.ps1', r'.specstone\index.sqlite'),
+    ]) {
+      final run = steps
+          .map((step) => '${step['run'] ?? ''}')
+          .singleWhere((run) => run.contains(uninstaller));
+      final installed = run.indexOf(installer);
+      final listed = run.indexOf('list feature');
+      expect(installed, isNonNegative, reason: run);
+      expect(listed, greaterThan(installed), reason: run);
+      expect(run.indexOf(index), greaterThan(listed), reason: run);
+      expect(run.indexOf(uninstaller), greaterThan(run.indexOf(index)));
+    }
+  });
+
+  test('f09/us04/fr05/e02: the version job checks the tag against '
+      'version.dart and the five spots', () {
+    final version = _job(release, 'version');
+    expect(version['runs-on'], 'ubuntu-latest');
+    final run = _runText(version);
+    expect(run, contains('GITHUB_REF_NAME'));
+    expect(run, contains('packages/specstone_core/lib/src/version.dart'));
+    expect(run, contains('specstoneVersion'));
+    expect(run, contains('dart test test/src/shared_version_test.dart'));
+    expect(run, contains('--enforce-lockfile'));
+  });
+
+  test('f09/us04/fr05: publish uploads four archives and SHA256SUMS with '
+      'generated notes', () {
+    final publish = _job(release, 'publish');
+    expect(publish['runs-on'], 'ubuntu-latest');
+    final run = _runText(publish);
+    expect(run, contains('gh release create'));
+    expect(run, contains('--generate-notes'));
+    expect(run, contains('SHA256SUMS'));
+    expect(_stepText(publish), contains('actions/download-artifact@v8'));
+  });
+
+  test('f09/us04/fr07, f09/us04/s2: ci.yaml tests the four targets and '
+      'answers workflow_call', () {
+    expect((ci['on'] as YamlMap).containsKey('workflow_call'), isTrue);
+    final matrix =
+        (_job(ci, 'test')['strategy'] as YamlMap)['matrix'] as YamlMap;
+    expect(matrix['os'], [
+      'ubuntu-latest',
+      'macos-latest',
+      'macos-15-intel',
+      'windows-latest',
+    ]);
+  });
+
+  test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
+      'job and stay out of the main Windows step', () {
+    final job = _job(ci, 'test-scripts-windows');
+    expect(job['runs-on'], 'windows-latest');
+    expect(job['timeout-minutes'], 20);
+    expect(_runText(job), contains('dart test --tags ps1'));
+    final main = _steps(_job(ci, 'test'));
+    final windowsStep = main.singleWhere(
+      (step) => step['if'] == "runner.os == 'Windows'",
+    );
+    expect('${windowsStep['run']}', contains('--exclude-tags timing,ps1'));
+    final otherStep = main.singleWhere(
+      (step) => step['if'] == "runner.os != 'Windows'",
+    );
+    expect('${otherStep['run']}', isNot(contains('ps1')));
+  });
+
+  test('f09/us04/fr05: no run script holds a workflow expression', () {
+    for (final workflow in [release, ci]) {
+      for (final job in _jobs(workflow).values) {
+        if ((job as YamlMap).containsKey('uses')) continue;
+        for (final step in _steps(job)) {
+          expect('${step['run'] ?? ''}', isNot(contains(r'${{')));
+        }
+      }
+    }
+  });
+
+  test('f09/us04/fr05, INV-4: every build upload name matches the publish '
+      'download pattern', () {
+    final upload = _steps(
+      _job(release, 'build'),
+    ).firstWhere((s) => '${s['uses']}'.startsWith('actions/upload-artifact@'));
+    final download = _steps(_job(release, 'publish')).firstWhere(
+      (s) => '${s['uses']}'.startsWith('actions/download-artifact@'),
+    );
+    final name = (upload['with'] as YamlMap)['name'] as String;
+    final withDownload = download['with'] as YamlMap;
+    final pattern = withDownload['pattern'] as String;
+    expect(withDownload['merge-multiple'], isTrue);
+    final targets =
+        (((_job(release, 'build')['strategy'] as YamlMap)['matrix']
+                    as YamlMap)['include']
+                as YamlList)
+            .map((e) => (e as YamlMap)['target'] as String);
+    final glob = RegExp('^${RegExp.escape(pattern).replaceAll(r'\*', '.*')}\$');
+    for (final target in targets) {
+      expect(
+        glob.hasMatch(name.replaceAll(r'${{ matrix.target }}', target)),
+        isTrue,
+        reason: target,
+      );
+    }
+  });
+
+  group('the version job script', () {
+    Future<ProcessResult> runCheck(String ref) {
+      final step = _steps(_job(release, 'version'))
+          .firstWhere((s) => '${s['run']}'.contains('GITHUB_REF_NAME'));
+      return Process.run(
+        'bash',
+        ['-c', '${step['run']}'],
+        workingDirectory: repoRoot().path,
+        environment: {'GITHUB_REF_NAME': ref},
+      );
+    }
+
+    test('f09/us04/fr05/e02: the tag equal to version.dart passes', () async {
+      final r = await runCheck('v$specstoneVersion');
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+    });
+
+    test('f09/us04/fr05/e02: a tag off version.dart fails', () async {
+      final r = await runCheck('v$specstoneVersion.1');
+      expect(r.exitCode, 1);
+    });
+  }, testOn: '!windows');
+}

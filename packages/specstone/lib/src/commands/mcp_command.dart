@@ -13,6 +13,9 @@ class McpCommand extends SpecstoneCommand {
   String get description => 'Run the Specstone MCP server over stdio.';
 
   @override
+  bool get hidden => true;
+
+  @override
   bool get takesArguments => false;
 
   @override

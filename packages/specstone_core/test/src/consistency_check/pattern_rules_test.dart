@@ -1,5 +1,7 @@
 // The expected texts are plan literals kept as written.
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
@@ -200,6 +202,51 @@ void main() {
     // The shipped doc_citation entry also fires here; only `tree` is ours.
     final own = allScope.where((f) => f.toJson()['pattern'] == 'tree');
     expect(own.map((f) => f.toJson()['match']), ['docs/superpowers']);
+  });
+
+  test('f04/us01/fr08, f04/nfr-p03, s03/inv2: an edited pattern applies on the next check over the same index', () async {
+    String layer(String pattern) => _banned('''
+      - id: word
+        pattern: '$pattern'
+        message: no word
+''');
+    final project = await writeCheckProject(
+      extra: {
+        _frLayer: layer('fast'),
+        ...fr(checkPasswordStatement, 'The system shall refuse fast, slow.'),
+      },
+    );
+    List<Object?> matched() => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == FindingKind.patternBanned) f.toJson()['match'],
+    ];
+    expect(matched(), ['fast']);
+    File('${project.path}/$_frLayer').writeAsStringSync(layer('slow'));
+    expect(matched(), ['slow']);
+  });
+
+  test('f04/us01/fr08, f04/nfr-p03: a doc edited after a check reports its new match and drops the removed one', () async {
+    final layer = _banned('''
+      - id: word
+        pattern: '(fast|slow)'
+        message: no word
+''');
+    final project = await writeCheckProject(
+      extra: {
+        _frLayer: layer,
+        ...fr(checkPasswordStatement, 'The system shall refuse fast.'),
+      },
+    );
+    List<Object?> matched() => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == FindingKind.patternBanned) f.toJson()['match'],
+    ];
+    expect(matched(), ['fast']);
+    final file = File('${project.path}/docs/$loginFr');
+    file.writeAsStringSync(
+      file.readAsStringSync().replaceFirst('refuse fast.', 'refuse slowly.'),
+    );
+    expect(matched(), ['slow']);
   });
 
   test('f04/us01/fr08/e06: a required pattern no line matches reports at the header; an absent section reports none', () async {

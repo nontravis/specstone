@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -22,7 +23,8 @@ const damagedIndexWarning =
 /// The lines of `.specstone/.gitignore`, one per ignored path.
 const specstoneGitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
 
-const _busyMessage =
+/// The message of the fault raised when another call holds the index.
+const indexBusyMessage =
     'the index is busy; run the command again once the other call finishes';
 
 const _notWritableMessage =
@@ -31,11 +33,11 @@ const _notWritableMessage =
 
 /// The layout of the index, kept in the `layout` column of the meta row.
 ///
-/// Bump it on every change to what a row holds: [_schema], the line-facts JSON,
-/// and how that JSON is computed. An index of another layout is then rebuilt
-/// instead of failing a read (INV-2). An older build's reset recreates the meta
-/// row without it, so its index is rebuilt too.
-const _layoutVersion = 4;
+/// Bump it on every change to what a row holds: [_schema], the line-facts and
+/// banned-match JSON, and how that JSON is computed. An index of another
+/// layout is then rebuilt instead of failing a read (INV-2). An older build's
+/// reset recreates the meta row without it, so its index is rebuilt too.
+const _layoutVersion = 5;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -61,6 +63,7 @@ CREATE TABLE docs (
   frontmatter_text TEXT,
   head TEXT NOT NULL,
   line_facts TEXT NOT NULL,
+  banned_matches TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
   stat_ctime INTEGER,
@@ -216,6 +219,23 @@ final class IndexStore {
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
 
+  // Prepared once: `loadContent` runs per doc, and a check reads every doc.
+  final List<PreparedStatement> _prepared = [];
+  late final PreparedStatement _contentSql = _prepare(
+    'SELECT frontmatter_text, head, line_facts, banned_matches FROM docs '
+    'WHERE doc_path = ?',
+  );
+  late final PreparedStatement _textSql = _prepare(
+    'SELECT text FROM docs WHERE doc_path = ?',
+  );
+  late final PreparedStatement _sectionsSql = _prepare(
+    'SELECT section_key, header_line, body, line_count, char_count '
+    'FROM sections WHERE doc_path = ? ORDER BY position',
+  );
+  late final PreparedStatement _linksSql = _prepare(
+    'SELECT target FROM links WHERE source = ? ORDER BY position',
+  );
+
   /// Returns the stamp the index was written under; null when none, or when
   /// the index has another layout.
   IndexStamp? readStamp() {
@@ -319,7 +339,8 @@ final class IndexStore {
     _db.execute(
       'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
       'tokens, ord, warnings, content_hash, text, frontmatter_text, head, '
-      'line_facts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'line_facts, banned_matches) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -334,6 +355,7 @@ final class IndexStore {
         content.frontmatterText,
         content.head,
         jsonEncode(content.lineFacts.toJson()),
+        jsonEncode(bannedMatchesToJson(content.bannedMatches)),
       ],
     );
     final docId = _db.lastInsertRowId;
@@ -461,19 +483,15 @@ final class IndexStore {
   ];
 
   /// Returns the text and structure of the doc at [docPath].
+  ///
+  /// The text is read on first use, so read it before [close].
   DocContent loadContent(String docPath) {
-    final doc = _db.select(
-      'SELECT text, frontmatter_text, head, line_facts FROM docs '
-      'WHERE doc_path = ?',
-      [docPath],
-    ).single;
-    final rows = _db.select(
-      'SELECT section_key, header_line, body, line_count, char_count '
-      'FROM sections WHERE doc_path = ? ORDER BY position',
-      [docPath],
-    );
+    final doc = _contentSql.select([docPath]).single;
+    final rows = _sectionsSql.select([docPath]);
+    // Only the column value is captured: the Row would pin line_facts too.
+    final banned = doc['banned_matches'] as String;
     return DocContent(
-      text: doc['text'] as String,
+      readText: () => _textSql.select([docPath]).single['text'] as String,
       frontmatterText: doc['frontmatter_text'] as String?,
       head: doc['head'] as String,
       sections: [
@@ -485,11 +503,7 @@ final class IndexStore {
           ),
       ],
       links: [
-        for (final row in _db.select(
-          'SELECT target FROM links WHERE source = ? ORDER BY position',
-          [docPath],
-        ))
-          row['target'] as String,
+        for (final row in _linksSql.select([docPath])) row['target'] as String,
       ],
       lineFacts: LineFacts.fromJson(
         jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
@@ -498,6 +512,8 @@ final class IndexStore {
             (lines: row['line_count'] as int, chars: row['char_count'] as int),
         ],
       ),
+      readBannedMatches: () =>
+          bannedMatchesFromJson(jsonDecode(banned) as List<Object?>),
     );
   }
 
@@ -523,8 +539,23 @@ final class IndexStore {
       (source: row['source'] as String, target: row['target'] as String),
   ];
 
-  /// Closes the connection.
-  void close() => _db.close();
+  /// Closes the prepared statements, then the connection.
+  ///
+  /// An open statement keeps the file open past `Database.close`, so a
+  /// rebuild after it could not delete the file.
+  void close() {
+    for (final statement in _prepared) {
+      statement.close();
+    }
+    _prepared.clear();
+    _db.close();
+  }
+
+  PreparedStatement _prepare(String sql) {
+    final statement = _db.prepare(sql);
+    _prepared.add(statement);
+    return statement;
+  }
 }
 
 /// A database that holds tables but no `meta` table.
@@ -614,7 +645,10 @@ void _deleteFiles(File file) {
 }
 
 IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
-  SqlError.SQLITE_BUSY => IndexFault(IndexFaultCode.indexBusy, _busyMessage),
+  SqlError.SQLITE_BUSY => IndexFault(
+    IndexFaultCode.indexBusy,
+    indexBusyMessage,
+  ),
   SqlError.SQLITE_READONLY ||
   SqlError.SQLITE_CANTOPEN ||
   SqlError.SQLITE_PERM => IndexFault(

@@ -1,0 +1,160 @@
+# .github/workflows/release.yaml
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Check the tag against version.dart
+        run: |
+          literal=$(sed -n "s/^const String specstoneVersion = '\(.*\)';$/\1/p" packages/specstone_core/lib/src/version.dart)
+          if [ -z "$literal" ] || [ "${GITHUB_REF_NAME#v}" != "$literal" ]; then
+            echo "tag $GITHUB_REF_NAME does not match specstoneVersion '$literal'" >&2
+            exit 1
+          fi
+      - name: Check the other version spots
+        working-directory: packages/specstone
+        run: dart test test/src/shared_version_test.dart
+
+  test:
+    needs: version
+    uses: ./.github/workflows/ci.yaml
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: macos-15, target: macos-arm64, ext: tar.gz}
+          - {runner: macos-15-intel, target: macos-x64, ext: tar.gz}
+          - {runner: ubuntu-22.04, target: linux-x64, ext: tar.gz}
+          - {runner: windows-latest, target: windows-x64, ext: zip}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      ASSET: specstone-${{ matrix.target }}.${{ matrix.ext }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Build the CLI
+        working-directory: packages/specstone
+        run: dart build cli -t bin/specstone.dart -o "$RUNNER_TEMP/build"
+      - name: Stage the bundle
+        run: |
+          mkdir -p "$RUNNER_TEMP/stage" "$RUNNER_TEMP/dist"
+          dart run tool/third_party_notices.dart "$RUNNER_TEMP/stage/THIRD_PARTY_NOTICES"
+          cp -R "$RUNNER_TEMP/build/bundle/bin" "$RUNNER_TEMP/stage/bin"
+          cp -R "$RUNNER_TEMP/build/bundle/lib" "$RUNNER_TEMP/stage/lib"
+          cp LICENSE "$RUNNER_TEMP/stage/LICENSE"
+      - name: Pack the archive
+        if: runner.os != 'Windows'
+        run: tar -czf "$RUNNER_TEMP/dist/$ASSET" -C "$RUNNER_TEMP/stage" .
+      - name: Pack the archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "$env:RUNNER_TEMP\stage\*" -DestinationPath "$env:RUNNER_TEMP\dist\$env:ASSET"
+      - name: Write SHA256SUMS
+        working-directory: ${{ runner.temp }}/dist
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            hex=$(sha256sum "$ASSET" | cut -d ' ' -f 1)
+          else
+            hex=$(shasum -a 256 "$ASSET" | cut -d ' ' -f 1)
+          fi
+          printf '%s  %s\n' "$hex" "$ASSET" > SHA256SUMS
+      - name: Smoke-test the staged binary
+        run: |
+          exe="$RUNNER_TEMP/stage/bin/specstone"
+          if [ "$RUNNER_OS" = Windows ]; then exe="$exe.exe"; fi
+          test "$("$exe" --version)" = "${GITHUB_REF_NAME#v}"
+      - name: Smoke-test install.sh and uninstall.sh
+        if: runner.os != 'Windows'
+        run: |
+          home="$RUNNER_TEMP/smoke-home"
+          mkdir -p "$home"
+          HOME="$home" SPECSTONE_ARCHIVE_DIR="$RUNNER_TEMP/dist" sh install.sh
+          test "$("$home/.specstone/bin/specstone" --version)" = "${GITHUB_REF_NAME#v}"
+          # --version never opens SQLite; list does, so a lib/ that lost the
+          # native library fails here and not at the user's first command.
+          project="$RUNNER_TEMP/smoke-project"
+          mkdir -p "$project"
+          cd "$project"
+          "$home/.specstone/bin/specstone" init
+          "$home/.specstone/bin/specstone" list feature
+          test -f .specstone/index.sqlite
+          cd "$GITHUB_WORKSPACE"
+          HOME="$home" sh uninstall.sh
+          test ! -e "$home/.specstone/bin"
+      - name: Smoke-test install.ps1 and uninstall.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $home_dir = "$env:RUNNER_TEMP\smoke-home"
+          New-Item -ItemType Directory -Path $home_dir | Out-Null
+          $env:HOME = $home_dir
+          $env:USERPROFILE = $home_dir
+          $env:SPECSTONE_ARCHIVE_DIR = "$env:RUNNER_TEMP\dist"
+          $expected = $env:GITHUB_REF_NAME -replace '^v', ''
+          powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installed = & "$home_dir\.specstone\bin\specstone.exe" --version
+          if ($installed -ne $expected) { throw "installed version '$installed' is not '$expected'" }
+          # --version never opens SQLite; list does, so a lib\ that lost the
+          # native library fails here and not at the user's first command.
+          $project = "$env:RUNNER_TEMP\smoke-project"
+          New-Item -ItemType Directory -Path $project | Out-Null
+          Push-Location $project
+          & "$home_dir\.specstone\bin\specstone.exe" init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$home_dir\.specstone\bin\specstone.exe" list feature
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path .specstone\index.sqlite)) { throw 'list did not open the SQLite index' }
+          Pop-Location
+          powershell -NoProfile -ExecutionPolicy Bypass -File uninstall.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path "$home_dir\.specstone\bin") { throw 'uninstall left bin behind' }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: archive-${{ matrix.target }}
+          path: ${{ runner.temp }}/dist/${{ env.ASSET }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist
+      - name: Publish the release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha256sum specstone-* > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes specstone-* SHA256SUMS
