@@ -50,7 +50,7 @@ own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
    - `approve`: each draft's file path and its hash, `bases.doc` of `specstone get <type>:<name> --json`, then each
-     changed section or field, its old text marked `📜 เดิม:` and its new text marked `🆕 ใหม่:`, never shortened
+     changed section or field, its old text marked `📜 เดิม:`, a blank line, then its new text marked `🆕 ใหม่:`, never shortened
      with `...`. Mark text you wrote `[AI เขียน]` and a removal you propose `[AI เสนอ]`; keep these markers verbatim,
      as the Owner reads Thai.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
