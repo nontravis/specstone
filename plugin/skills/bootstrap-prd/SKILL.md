@@ -17,8 +17,7 @@ specstone check
 
 - **78, `project_not_found`:** tell the Owner this project has not moved to the new format yet; `specstone migrate`
   moves it, or they keep the old skills. Stop: run nothing more, and read or write no doc.
-- **0 or 1:** go on, even from a subfolder: the CLI looks for `.specstone/config.yaml` in each folder above. Never
-  look for `.specstone/` yourself first.
+- **0 or 1:** go on, even from a subfolder. Never look for `.specstone/` yourself.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. One finding at a time
@@ -32,15 +31,19 @@ Before the first write to a type, run `specstone guide <type>` (`--json` lists i
 the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
 of `#<key>`); a section body leaves out its `## ` line. Exit 75 `base_mismatch`: read again, merge, retry.
 
+For any finding a write clears: where the old text lacks what the guide needs, write a proposal from the project's
+own text (a vision entry's Why line backs its `> en:` summary), named in step 6. Ask the Owner only when no text
+bears on it.
+
 | Finding | Fix |
 |---|---|
-| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text, else write a proposal from the project's own text, named in step 6; ask the Owner only when no text bears on it |
-| `section_undeclared` | merge its text into the section that takes it; if none takes it, merge each statement neither the doc nor its own FRs hold into the closest section the guide allows, as a proposal named in step 6; then, once each statement stands, pipe empty text to its own key to drop it |
+| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text |
+| `section_undeclared` | merge each statement into the section that takes it, else the closest the guide allows, unless a doc of the project already holds it (cite where in step 6); a statement whose home is a spec doc, such as PROJECT's Tech stack or Naming, stays until `specstone:bootstrap-spec` writes it there and drops this section; once each other statement stands, pipe empty text to its key to drop it |
 | `field_undeclared` on a feature's `implements` | step 3 |
 | `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
-| any other under `prds/` | rewrite the section or field it names through `specstone set`, as a draft, per `specstone guide <type>`; one no write clears goes to step 6 |
+| any other under `prds/` | rewrite the section or field it names through `specstone set` per `specstone guide <type>`; one no write clears goes to step 6 |
 
 To drop a key, pipe empty text to `specstone set <type>:<name> --field <id> --base <hash>`, the base from
 `bases.fields.<id>`. Never drop a key by editing the file.
@@ -58,8 +61,8 @@ name it in step 6 too. Then drop the feature's `implements` key as step 2 says.
 An `untyped_doc` is an old file the migration left with its old name, a group's container `FEATURE.md` among
 them. Merge its content through `specstone set` into the doc that takes it; with no such doc yet, run
 `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes them) and fill it. Write nothing that
-doc already holds. Never target the old file: a write refuses an untyped doc, so it keeps its text. Merge several
-old files that map to one doc in turn. Add each file's path to the retire set, a list for this run only.
+doc already holds. Never target the old file: a write refuses an untyped doc, so it keeps its text. Add each file's
+path to the retire set, a list for this run only.
 
 ## 5. Retire the old files
 
@@ -75,7 +78,7 @@ specstone delete <path> <path> …
 ```
 
 The CLI treats a file without `draft: true` as approved, so without the Owner's word it refuses (exit 77). Never run
-`git rm`: it deletes while links still point in, and they show broken only at the next check. On `doc_referenced`
+`git rm`: it deletes while links still point in. On `doc_referenced`
 (exit 64), repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval

@@ -6,8 +6,8 @@ description: Use when the spec docs of a Specstone project lag behind its format
 # Bring the spec docs up to the new format
 
 This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
-Findings under `prds/` go to `specstone:bootstrap-prd`. Follow `specstone:expert-sdd` for every write: each one
-leaves a draft, a pointer write (`implements`) excepted.
+Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD section step 6 moves. Follow
+`specstone:expert-sdd` for every write: each one leaves a draft, a pointer write (`implements`) excepted.
 
 ## 1. Gate: the first call
 
@@ -22,8 +22,8 @@ specstone check
 
 ## 2. One finding at a time
 
-Take the first unhandled finding of this skill, fix it, and run `specstone check` again with no target: a
-targeted run omits `code_uncovered`. Repeat until each finding left is one `specstone:bootstrap-prd` takes, one no
+Take the first unhandled finding of this skill, fix it, and run `specstone check` again with no target (a targeted
+run omits `code_uncovered`). Repeat until each finding left is one `specstone:bootstrap-prd` takes, one no
 write clears, or one that waits on the Owner.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
@@ -31,10 +31,13 @@ each write prints the new one. Pipe the text to `specstone set <type>:<name>#<ke
 `--title` in place of `#<key>`); a section body leaves out its `## ` line, and a list field takes its whole list.
 Exit 75 `base_mismatch`: read again, merge, retry.
 
+For any finding a write clears: where the old text lacks what the guide needs, write a proposal from the project's
+own text, named in step 6; ask the Owner only when no text bears on it.
+
 | Finding | Fix |
 |---|---|
-| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text, else write a proposal from the project's own text, named in step 6; ask the Owner only when no text bears on it |
-| `section_undeclared` | merge its text into the section that takes it; if none takes it, merge each statement the doc lacks into the closest section as a proposal named in step 6; then, once each statement stands in the doc, pipe empty text to its key |
+| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
+| `section_undeclared` | merge each statement into the section that takes it, else the closest; a statement any doc of the project already holds counts as held (cite where in step 6); once each stands, pipe empty text to its key |
 | `field_undeclared` on `implements`, `architecture_missing`, `code_uncovered` | step 3 |
 | `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
@@ -46,8 +49,8 @@ To drop a key, pipe empty text to its `--field <id>` write; never edit the file.
 ## 3. Point and cover code
 
 - **`implements` on a spec doc:** through `specstone set --field implements`, give each entry to the story or FR
-  whose behavior that code does; ask the Owner when unsure. A pointer write keeps the draft flag as it was, so name
-  it in step 6 too. Then drop the spec doc's `implements` key.
+  whose behavior that code does; ask the Owner when unsure. Name a pointer write in step 6 too.
+  Then drop the doc's `implements` key.
 - **`architecture_missing`:** run `specstone new architecture --parent <feature>`, fill it, and list in `covers` the
   code its stories and FRs point at.
 - **`code_uncovered`:** add the file or its folder to `covers` on the architecture or topic doc describing it; with
@@ -64,8 +67,7 @@ An `untyped_doc` under `specs/` is an old file the migration left as it was:
   to the API docs.
 
 Merge through `specstone set`; write nothing the doc already holds. Never target the old file: a write refuses an
-untyped doc, so it keeps its text. Add each file's path to the retire set, a list for this run only, even when the
-doc already held its content.
+untyped doc. Add each file's path to the retire set, a list for this run only, even when the doc held its content.
 
 ## 5. Retire the old files
 
@@ -85,18 +87,18 @@ A file without `draft: true` counts as approved, so without the Owner's word the
 
 ## 6. Fill the tech stack, then ask for approval
 
-The migration's `specs/TECH_STACK.md` holds a bare-name title and empty sections, which `specstone check` never
-lists. With the Owner, fill `tech_stack:tech_stack`: its title, each section `specstone guide tech_stack` names, and
-`code`, each code folder from the project root. Fill each doc step 3 or 4 made the same way. Then run
-`specstone check` again: new roots can raise `code_uncovered`.
+The migration's `specs/TECH_STACK.md` holds a bare-name title and empty sections that `specstone check` never lists.
+With the Owner, fill `tech_stack:tech_stack`: title, each section `specstone guide tech_stack` names, and
+`code`, each code folder from the project root. Write PROJECT's old `## Tech stack` into `## Stack` and its
+`## Naming canonicalization` into `## Naming` (`specstone:bootstrap-prd` leaves both for this), then pipe empty text to
+each PRD section to drop it. Fill each doc step 3 or 4 made the same way. Then run `specstone check` again: new roots
+can raise `code_uncovered`.
 
-Last, name each change per draft, each moved pointer, each dropped key, and each finding no write clears. Then get
-each draft approved through `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
+Last, name each change per draft, each moved pointer, each dropped key or section, and each finding no write clears.
+Then get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 
 ## Red flags
 
 | Thought | Do instead |
 |---|---|
-| "Merged, so I'll delete the old files." | Delete only after the Owner's `ok` or at their terminal. |
 | "`git rm` is quicker." | Never: links break unseen. |
-| "`check` is clean, so the tech stack is done." | Fill its values and `code` roots anyway. |

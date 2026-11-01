@@ -50,16 +50,22 @@ String withSectionBody(String lfText, int section, String body) {
 }
 
 /// Returns [lfText] without section [section]: its header line through the
-/// line before the next header, or through the end.
+/// line before the next header.
+///
+/// Removing the last section also drops the blank lines that separated it, so
+/// the text ends in exactly one newline.
 String withoutSection(String lfText, int section) {
   final doc = Doc.parse(lfText);
   final lines = _lines(doc.afterFrontmatter);
   final indexes = doc.sectionLineIndexes;
-  final end = section + 1 < indexes.length
-      ? indexes[section + 1]
-      : lines.length;
-  return _frontmatterOf(lfText, doc) +
-      [...lines.sublist(0, indexes[section]), ...lines.sublist(end)].join();
+  final isLast = section + 1 >= indexes.length;
+  final head = lines.sublist(0, indexes[section]).join();
+  final frontmatter = _frontmatterOf(lfText, doc);
+  if (isLast) {
+    final kept = withoutTrailingBlankLines(head);
+    return kept.isEmpty ? frontmatter : '$frontmatter$kept\n';
+  }
+  return frontmatter + head + lines.sublist(indexes[section + 1]).join();
 }
 
 /// Returns [lfText] with a section added.

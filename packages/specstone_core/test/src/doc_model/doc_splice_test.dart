@@ -25,8 +25,15 @@ void main() {
     expect(withoutSection(doc, 0), '---\na: 1\nb: 2\n---\n\n# T\n\n## B\nb\n');
     expect(
       withoutSection(doc, 1),
-      '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nold\n\n',
+      '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nold\n',
     );
+  });
+  test('f02/us01/fr01/e06: the last section removed leaves exactly one final newline', () {
+    expect(withoutSection('# T\n\n## A\na\n', 0), '# T\n');
+    const blanks = '# T\n\n## A\na\n\n\n## B\nb';
+    expect(withoutSection(blanks, 1), '# T\n\n## A\na\n');
+    const bare = '---\na: 1\n---\n\n## A\na\n';
+    expect(withoutSection(bare, 0), '---\na: 1\n---\n');
   });
   test(
     'dw-s03/inv13: a section is added before a later one, or at the end',

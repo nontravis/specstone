@@ -312,6 +312,37 @@ void main() {
     expect(answer.json['base'], emptyBaseHash);
   });
 
+  test('f02/us01/fr01/e06: empty stdin on the last section leaves the doc ending in exactly one newline', () async {
+    final original = writeProject['docs/$story1']!;
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1': '$original\n## Rules\n- BR-01 One account per email.\n',
+      },
+    );
+    const target = 'user_story:login/email_login#rules';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
+    );
+    expect(readDoc(root, story1), original);
+  });
+
+  test('f02/us01/fr01/e06: empty stdin on a middle section keeps the blank line before the next header', () async {
+    final original = writeProject['docs/$story1']!;
+    final withRules = original.replaceFirst(
+      '## Acceptance Criteria',
+      '## Rules\n- BR-01 One account per email.\n\n## Acceptance Criteria',
+    );
+    final root = await writeWriteProject(extra: {'docs/$story1': withRules});
+    const target = 'user_story:login/email_login#rules';
+    expect(readDoc(root, story1), withRules);
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
+    );
+    expect(readDoc(root, story1), original);
+  });
+
   test('f02/us01/s10, f02/us01/fr01/e07: empty stdin on a required section is required_target', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#use_case';
