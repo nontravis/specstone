@@ -216,6 +216,22 @@ final class IndexStore {
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
 
+  // Prepared once: `loadContent` runs per doc, and a check reads every doc.
+  final List<PreparedStatement> _prepared = [];
+  late final PreparedStatement _contentSql = _prepare(
+    'SELECT frontmatter_text, head, line_facts FROM docs WHERE doc_path = ?',
+  );
+  late final PreparedStatement _textSql = _prepare(
+    'SELECT text FROM docs WHERE doc_path = ?',
+  );
+  late final PreparedStatement _sectionsSql = _prepare(
+    'SELECT section_key, header_line, body, line_count, char_count '
+    'FROM sections WHERE doc_path = ? ORDER BY position',
+  );
+  late final PreparedStatement _linksSql = _prepare(
+    'SELECT target FROM links WHERE source = ? ORDER BY position',
+  );
+
   /// Returns the stamp the index was written under; null when none, or when
   /// the index has another layout.
   IndexStamp? readStamp() {
@@ -461,19 +477,13 @@ final class IndexStore {
   ];
 
   /// Returns the text and structure of the doc at [docPath].
+  ///
+  /// The text is read on first use, so read it before [close].
   DocContent loadContent(String docPath) {
-    final doc = _db.select(
-      'SELECT text, frontmatter_text, head, line_facts FROM docs '
-      'WHERE doc_path = ?',
-      [docPath],
-    ).single;
-    final rows = _db.select(
-      'SELECT section_key, header_line, body, line_count, char_count '
-      'FROM sections WHERE doc_path = ? ORDER BY position',
-      [docPath],
-    );
+    final doc = _contentSql.select([docPath]).single;
+    final rows = _sectionsSql.select([docPath]);
     return DocContent(
-      text: doc['text'] as String,
+      readText: () => _textSql.select([docPath]).single['text'] as String,
       frontmatterText: doc['frontmatter_text'] as String?,
       head: doc['head'] as String,
       sections: [
@@ -485,11 +495,7 @@ final class IndexStore {
           ),
       ],
       links: [
-        for (final row in _db.select(
-          'SELECT target FROM links WHERE source = ? ORDER BY position',
-          [docPath],
-        ))
-          row['target'] as String,
+        for (final row in _linksSql.select([docPath])) row['target'] as String,
       ],
       lineFacts: LineFacts.fromJson(
         jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
@@ -523,8 +529,23 @@ final class IndexStore {
       (source: row['source'] as String, target: row['target'] as String),
   ];
 
-  /// Closes the connection.
-  void close() => _db.close();
+  /// Closes the prepared statements, then the connection.
+  ///
+  /// An open statement keeps the file open past `Database.close`, so a
+  /// rebuild after it could not delete the file.
+  void close() {
+    for (final statement in _prepared) {
+      statement.close();
+    }
+    _prepared.clear();
+    _db.close();
+  }
+
+  PreparedStatement _prepare(String sql) {
+    final statement = _db.prepare(sql);
+    _prepared.add(statement);
+    return statement;
+  }
 }
 
 /// A database that holds tables but no `meta` table.

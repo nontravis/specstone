@@ -132,6 +132,8 @@ typedef _SiblingKey = (String typeId, String? parentPath, int number);
 
 final _siblingGroups = Expando<Map<_SiblingKey, List<IndexedDoc>>>();
 
+final _pathPatterns = Expando<Map<String, PathPattern>>();
+
 Iterable<Finding> _orderNumberDuplicate(
   CheckContext context,
   IndexedDoc doc,
@@ -170,7 +172,10 @@ _SiblingKey? _keyOf(CheckContext context, IndexedDoc doc) {
   final path = type?.path;
   if (type == null || path == null || context.hasNoParent(doc)) return null;
   final segments = doc.docPath.split(_pathSeparator);
-  final pattern = PathPattern(path);
+  final pattern = (_pathPatterns[context] ??= {}).putIfAbsent(
+    path,
+    () => PathPattern(path),
+  );
   for (var depth = segments.length; depth > 0; depth--) {
     final number = pattern.numberAt(segments.sublist(0, depth));
     if (number != null) return (type.id, doc.parentPath, number);

@@ -135,17 +135,20 @@ bool _isScalar(Object? value) =>
 
 /// The text and structure of one doc, as `get` and `context` print it.
 final class DocContent {
-  const new({
-    required this.text,
+  /// Takes the text through [readText], called on the first read of [text].
+  new({
+    required String Function() readText,
     this.frontmatterText,
     required this.head,
     required this.sections,
     required this.links,
     required this.lineFacts,
-  });
+  }) : _readText = readText;
 
   /// The whole file as decoded, in its own line endings.
-  final String text;
+  late final String text = _readText();
+
+  final String Function() _readText;
 
   /// The frontmatter lines, delimiters included, in LF; null without any.
   final String? frontmatterText;
@@ -217,7 +220,7 @@ ParsedDoc parseIndexedDoc({
     warnings: warnings,
   );
   final content = DocContent(
-    text: text,
+    readText: () => text,
     frontmatterText: doc.frontmatter == null
         ? null
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
