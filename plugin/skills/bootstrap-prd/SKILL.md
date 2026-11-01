@@ -48,8 +48,8 @@ To drop a key, pipe empty text to `specstone set <type>:<name> --field <id> --ba
 ## 3. Move a feature's code pointers
 
 Through `specstone set --field implements`, give each `implements:` entry of a `FEATURE.md` to the story or FR whose
-behavior that code does; an entry no one story or FR takes, such as a whole folder, is dropped as a proposal named in
-step 6. Pipe that doc's whole new list, as YAML `- item` lines, to
+behavior that code does, unless it already holds it; an entry no one story or FR takes, such as a whole folder, is
+dropped as a proposal named in step 6. Pipe that doc's whole new list, as YAML `- item` lines, to
 `specstone set <type>:<name> --field implements --base <hash>`. A pointer write keeps the draft flag as it was, so
 name it in step 6 too. Then drop the feature's `implements` key as step 2 says.
 
