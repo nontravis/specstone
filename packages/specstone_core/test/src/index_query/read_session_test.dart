@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -104,6 +105,33 @@ void main() {
         expect(titleOf(session, featureDoc), 'Login v2');
       },
     );
+    test('f01/us01/s1: a peer that rewrites the stamp between refresh and snapshot is refreshed over', () async {
+      final root = await writeLoginProject();
+      final project = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      final peer = IndexStore.open(project.projectRoot);
+      addTearDown(peer.close);
+      var peerWrites = 0;
+      final session = ReadSession.readFrom(
+        project,
+        IndexStore.open(project.projectRoot),
+        afterRefresh: () {
+          if (peerWrites++ > 0) return;
+          peer.write(
+            () => peer.reset(
+              const IndexStamp(binaryVersion: 'peer', docTypes: 'other'),
+            ),
+          );
+        },
+      );
+      addTearDown(session.close);
+      expect(peerWrites, 2);
+      expect(session.store.readStamp(), IndexStamp.of(project.set));
+      expect(session.docs, hasLength(25));
+    });
     test('f01/us01/s2: the first call builds from every doc and writes only .specstone/.gitignore', () async {
       final project = await writeLoginProject();
       final session = openSession(project);

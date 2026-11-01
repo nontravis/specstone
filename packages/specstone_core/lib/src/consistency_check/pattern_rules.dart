@@ -16,12 +16,16 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
   if (type == null) return;
   final content = context.contentOf(doc);
   final held = content.sections;
+  final matchesBySection = <int, List<BannedMatch>>{};
+  for (final match in content.bannedMatches) {
+    (matchesBySection[match.section] ??= []).add(match);
+  }
   for (var i = 0; i < held.length; i++) {
     final template = context.templateSectionAt(doc, i);
     final sectionKey = template?.id ?? held[i].key;
     final entries = bannedEntriesOf(type, template);
-    for (final (:section, :line, :entry, :match) in content.bannedMatches) {
-      if (section != i) continue;
+    for (final (:line, :entry, :match, section: _)
+        in matchesBySection[i] ?? const <BannedMatch>[]) {
       final banned = entries[entry];
       if (banned.scope == PatternScope.code && _namesFolders(context, match)) {
         continue;

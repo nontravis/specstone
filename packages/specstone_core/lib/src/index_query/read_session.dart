@@ -109,16 +109,36 @@ final class ReadSession {
     }
   }
 
-  static ReadSession _read(DocsProject project, IndexStore store) {
+  static ReadSession _read(DocsProject project, IndexStore store) =>
+      readFrom(project, store);
+
+  /// Refreshes [store], then reads every doc from one snapshot of it.
+  ///
+  /// A peer with another doc-type set can rewrite the index between the
+  /// refresh and the snapshot; the stamp is read again inside the snapshot,
+  /// and a mismatch ends it and refreshes once more. [afterRefresh] runs after
+  /// each refresh, before the snapshot begins. Closes [store] on any error.
+  static ReadSession readFrom(
+    DocsProject project,
+    IndexStore store, {
+    void Function()? afterRefresh,
+  }) {
     try {
-      final refreshed = refreshIndex(store, project);
-      store.beginSnapshot();
-      final docs = store.loadDocs();
+      final stamp = IndexStamp.of(project.set);
+      final warnings = <String>[...store.warnings];
+      var current = false;
+      while (!current) {
+        warnings.addAll(refreshIndex(store, project).warnings);
+        afterRefresh?.call();
+        store.beginSnapshot();
+        current = store.readStamp() == stamp;
+        if (!current) store.endSnapshot();
+      }
       return ReadSession._(
         project: project,
         store: store,
-        docs: docs,
-        indexWarnings: [...store.warnings, ...refreshed.warnings],
+        docs: store.loadDocs(),
+        indexWarnings: warnings,
       );
     } on Object {
       store.close();

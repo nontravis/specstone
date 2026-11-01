@@ -487,6 +487,8 @@ final class IndexStore {
   DocContent loadContent(String docPath) {
     final doc = _contentSql.select([docPath]).single;
     final rows = _sectionsSql.select([docPath]);
+    // Only the column value is captured: the Row would pin line_facts too.
+    final banned = doc['banned_matches'] as String;
     return DocContent(
       readText: () => _textSql.select([docPath]).single['text'] as String,
       frontmatterText: doc['frontmatter_text'] as String?,
@@ -509,9 +511,8 @@ final class IndexStore {
             (lines: row['line_count'] as int, chars: row['char_count'] as int),
         ],
       ),
-      readBannedMatches: () => bannedMatchesFromJson(
-        jsonDecode(doc['banned_matches'] as String) as List<Object?>,
-      ),
+      readBannedMatches: () =>
+          bannedMatchesFromJson(jsonDecode(banned) as List<Object?>),
     );
   }
 
