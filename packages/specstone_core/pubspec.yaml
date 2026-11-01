@@ -1,6 +1,6 @@
 name: specstone_core
 description: Core library of Specstone, the spec-driven development tool for PRD and spec documents.
-version: 0.1.0
+version: 1.0.0
 repository: https://github.com/nontravis/specstone/tree/main/packages/specstone_core
 
 environment:

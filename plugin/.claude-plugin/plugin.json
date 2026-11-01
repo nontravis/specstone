@@ -1,6 +1,6 @@
 {
   "name": "specstone",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Spec-driven development skills and agents backed by the specstone CLI.",
   "author": {
     "name": "Nonthawit Doungsodsri"
