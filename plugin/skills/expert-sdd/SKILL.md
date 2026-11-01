@@ -26,8 +26,8 @@ working directory alone misses a project root above it, and spends a tool call t
    PRD omits. Code behavior that no spec covers gets a spec draft first, before any more code changes.
 2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
    edit a doc file by hand, through a file tool or a shell command. Each doc you write stays a draft: never remove
-   `draft: true`, and never run `specstone approve`; only the Owner's `specstone approve` clears a draft. Delete no
-   doc the Owner has approved.
+   `draft: true`, and never run `specstone approve` without `--yes`. Run `--yes` only as Owner confirmation below
+   says; it binds `approve`, `delete` of an approved doc, `migrate`, and `init` on a legacy tree alike.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
    `specstone guide <type> --json` for its fields, even for a type you wrote earlier in the session. A project may
    customize its templates; the CLI prints the guide the project has now, and this skill keeps none that could fall
@@ -42,6 +42,24 @@ working directory alone misses a project root above it, and spends a tool call t
    touched, and fix each finding your edits added to the baseline. The post-edit hook does not replace this run: it
    checks one doc, and a shell rewrite triggers no hook. An `unconfirmed` link on a draft waits for the Owner's
    approval; leave it.
+
+## Owner confirmation
+
+`approve`, `delete` of an approved doc, `migrate`, and `init` on a legacy tree need the Owner's word, given at their
+own terminal or here in the chat. In the chat:
+
+1. Show what the command does, one item per message, in full:
+   - `approve`: each draft's file path, then each changed section or field, its old text marked `📜 เดิม:` and its
+     new text marked `🆕 ใหม่:`, never shortened with `...`. Mark text you wrote `[AI เขียน]` and a removal you
+     propose `[AI เสนอ]`; keep these markers verbatim, as the Owner reads Thai.
+   - `delete`: each path, and why it goes.
+   - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints.
+2. The Owner answers `ok` or says what to fix. Fix it through `specstone set`, then show that item again.
+3. After `ok` on every item of the batch, run one command with `--yes`, naming each item:
+   `specstone approve <type>:<name> … --yes`, `specstone delete <path> … --yes`, `specstone migrate --yes`, or
+   `specstone init --yes`. A name approves every draft under it, so the batch shows each one. Claude Code asks the
+   Owner once first; a denial means stop and ask what to change.
+4. The Owner may instead run the command, without `--yes`, at their own terminal.
 
 ## Red flags
 

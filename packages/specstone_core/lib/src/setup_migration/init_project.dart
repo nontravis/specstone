@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -20,7 +21,7 @@ final class InitRequest {
     required this.workingDirectory,
     required this.homeDirectory,
     required this.templates,
-    required this.interactive,
+    required this.confirmation,
     required this.readLine,
     required this.out,
     this.runGit = runRealGit,
@@ -35,8 +36,9 @@ final class InitRequest {
   /// Loads the carried packs.
   final TemplateResolver templates;
 
-  /// Whether stdin and stdout are both terminals.
-  final bool interactive;
+  /// How the Owner confirms the legacy migrate run: at the terminal's `y`, or
+  /// `--yes`.
+  final OwnerConfirmation confirmation;
 
   /// Reads one line of the Owner's answer, or null at the end of input.
   final String? Function() readLine;
@@ -83,7 +85,7 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
       homeDirectory: request.homeDirectory,
       templates: request.templates,
       dryRun: false,
-      interactive: request.interactive,
+      confirmation: request.confirmation,
       readLine: request.readLine,
       out: request.out,
       runGit: request.runGit,

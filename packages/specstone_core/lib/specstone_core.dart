@@ -8,7 +8,7 @@ export 'src/consistency_check/suspect_list.dart' show answerListSuspect;
 export 'src/consistency_check/tree_rules.dart' show checkedFoldersOf;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
-    show approveDrafts, requireOwnerTerminal;
+    show OwnerConfirmation, approveDrafts, approveNamed;
 export 'src/document_writing/delete_doc.dart' show answerDelete;
 export 'src/document_writing/move_doc.dart' show answerRename, answerReorder;
 export 'src/document_writing/new_doc.dart' show answerNew;

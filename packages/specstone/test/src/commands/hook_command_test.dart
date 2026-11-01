@@ -62,6 +62,34 @@ void _expectE05(String out) {
   expect(specific['additionalContext'], matches(_e05Context));
 }
 
+/// A PreToolUse request for a Bash call running [command].
+String _bash(String command) => jsonEncode({
+  'session_id': 'abc123',
+  'cwd': '/Users/owner/shop',
+  'hook_event_name': 'PreToolUse',
+  'tool_name': 'Bash',
+  'tool_input': {'command': command, 'description': 'Run it'},
+  'tool_use_id': 'toolu_01ABC123',
+});
+
+Future<({int status, String out, String err})> _preBash(String stdin) async {
+  final (:runner, :out, :err) = writeRunner(
+    await writeTree({'keep.txt': 'x\n'}),
+    console: FakeConsole(input: stdin),
+  );
+  final status = await runner.run(['hook', 'pre-bash']);
+  return (status: status, out: out.toString(), err: err.toString());
+}
+
+/// The one `ask` object pre-bash prints for [reason].
+Map<String, Object?> _ask(String reason) => {
+  'hookSpecificOutput': {
+    'hookEventName': 'PreToolUse',
+    'permissionDecision': 'ask',
+    'permissionDecisionReason': reason,
+  },
+};
+
 void main() {
   test(
     'f08/us06/fr02/e01, f08/us06/s1: a doc that passes prints nothing, exit 0',
@@ -235,17 +263,112 @@ void main() {
     expect(result.out, isEmpty);
   });
 
+  group('hook pre-bash', () {
+    for (final (command, reason) in [
+      (
+        'specstone approve feature:signup user_story:login/email_login --yes',
+        'Owner confirmation: specstone approve feature:signup '
+            'user_story:login/email_login',
+      ),
+      (
+        'specstone delete prds/a.md prds/b.md --yes --json',
+        'Owner confirmation: specstone delete prds/a.md prds/b.md',
+      ),
+      ('specstone migrate --yes', 'Owner confirmation: specstone migrate'),
+      ('specstone init --yes', 'Owner confirmation: specstone init'),
+      (
+        'cd /Users/owner/shop && specstone approve feature:signup --yes',
+        'Owner confirmation: specstone approve feature:signup',
+      ),
+      (
+        'specstone approve feature:signup --yes&& echo done',
+        'Owner confirmation: specstone approve feature:signup',
+      ),
+    ]) {
+      test('ms-r10, ms-r11: `$command` asks the Owner, naming its args up to '
+          'the first flag', () async {
+        final result = await _preBash(_bash(command));
+        expect(result.status, 0);
+        expect(result.err, isEmpty);
+        expect(jsonDecode(result.out), _ask(reason));
+      });
+    }
+
+    for (final command in [
+      'specstone approve feature:signup',
+      'specstone delete prds/a.md --json',
+      'specstone set feature:signup#problem --base 1a2b --yes',
+      'specstone reinit --yes',
+      'specstone approve feature:signup --yesterday',
+      'git status',
+    ]) {
+      test('ms-r10, ms-r11: `$command` prints nothing, exit 0', () async {
+        final result = await _preBash(_bash(command));
+        expect(result.status, 0);
+        expect(result.out, isEmpty);
+        expect(result.err, isEmpty);
+      });
+    }
+
+    test('ms-r10: the reason is cut to 300 characters', () async {
+      final names = [for (var i = 0; i < 40; i++) 'user_story:login/story_$i'];
+      final result = await _preBash(
+        _bash('specstone approve ${names.join(' ')} --yes'),
+      );
+      expect(result.status, 0);
+      final specific =
+          (jsonDecode(result.out)
+                  as Map<String, Object?>)['hookSpecificOutput']!
+              as Map<String, Object?>;
+      final reason = specific['permissionDecisionReason']! as String;
+      expect(reason, hasLength(300));
+      expect(
+        reason,
+        startsWith(
+          'Owner confirmation: specstone approve user_story:login/story_0 ',
+        ),
+      );
+    });
+
+    for (final stdin in [
+      '',
+      'not json',
+      '[]',
+      '{}',
+      '{"tool_input": {}}',
+      '{"tool_input": {"command": 3}}',
+    ]) {
+      test('ms-r10: stdin with no tool_input.command string '
+          '(${jsonEncode(stdin)}) prints nothing, exit 0', () async {
+        final result = await _preBash(stdin);
+        expect(result.status, 0);
+        expect(result.out, isEmpty);
+        expect(result.err, isEmpty);
+      });
+    }
+
+    test('ms-r10: hook pre-bash takes no argument', () async {
+      final (:runner, :out, :err) = writeRunner(
+        await writeTree({'keep.txt': 'x\n'}),
+        console: FakeConsole(input: _bash('specstone approve x --yes')),
+      );
+      expect(await runner.run(['hook', 'pre-bash', 'x']), 64);
+      expect(out.toString(), isEmpty);
+    });
+  });
+
   group('the built binary', () {
     late String bin;
     setUpAll(() async => bin = await buildSpecstone());
 
     Future<({int status, String out, String err})> spawn(
       Directory root,
-      String stdin,
-    ) async {
+      String stdin, {
+      String hook = 'post-edit',
+    }) async {
       final process = await Process.start(bin, [
         'hook',
-        'post-edit',
+        hook,
       ], workingDirectory: root.path);
       process.stdin.write(stdin);
       await process.stdin.close();
@@ -271,5 +394,20 @@ void main() {
         expect(result.err, contains('tool_input.file_path'));
       },
     );
+
+    test('ms-r10: the built binary reads the PreToolUse JSON on its own '
+        'stdin and asks', () async {
+      final root = await writeTree({'keep.txt': 'x\n'});
+      final result = await spawn(
+        root,
+        _bash('specstone approve feature:signup --yes'),
+        hook: 'pre-bash',
+      );
+      expect(result.status, 0);
+      expect(
+        jsonDecode(result.out),
+        _ask('Owner confirmation: specstone approve feature:signup'),
+      );
+    });
   });
 }

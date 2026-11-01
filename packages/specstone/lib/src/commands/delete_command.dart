@@ -4,11 +4,15 @@ import 'package:specstone_core/specstone_core.dart';
 /// Deletes one or more docs, each with the docs it owns.
 class DeleteCommand extends WriteCommand {
   new() {
-    argParser.addFlag(
-      'json',
-      negatable: false,
-      help: 'Print JSON instead of text.',
-    );
+    argParser
+      ..addFlag(
+        'yes',
+        negatable: false,
+        help:
+            'Delete approved docs without the terminal prompt; the Claude '
+            'Code plugin asks the Owner first.',
+      )
+      ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 
   @override
@@ -18,7 +22,8 @@ class DeleteCommand extends WriteCommand {
   String get description => 'Delete docs, each with the docs it owns.';
 
   @override
-  String get invocation => 'specstone delete <target> [<target> …] [--json]';
+  String get invocation =>
+      'specstone delete <target> [<target> …] [--yes] [--json]';
 
   @override
   Future<int> run() async {
@@ -40,7 +45,10 @@ class DeleteCommand extends WriteCommand {
       (session) => answerDelete(
         session,
         rest,
-        interactive: interactive,
+        confirmation: OwnerConfirmation.of(
+          yes: args.flag('yes'),
+          interactive: interactive,
+        ),
         readLine: console.readLine,
         prompts: asJson ? runner.err : runner.out,
       ),

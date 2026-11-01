@@ -25,23 +25,23 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// the order given, and the first refusal refuses the call. A doc outside the
 /// unit that refers to a doc inside it refuses the delete, and no file moves.
 /// An approved `.md` file in the unit (an untyped one included) leaves the
-/// delete to the Owner: [prompts] lists the files and asks, one answer from
-/// [readLine] outside the lock; anything but `y`, or the end of input, keeps
-/// them all. After a `y` the index is read afresh, the targets resolve again,
-/// and the referrers are checked again; when a file or its bytes change while
-/// the prompt waits, the list shows again. Emptied folders go up to the docs
-/// root.
+/// delete to the Owner, as [confirmation] says. At a terminal [prompts] lists
+/// the files and asks, one answer from [readLine] outside the lock; anything
+/// but `y`, or the end of input, keeps them all. After a `y` the index is read
+/// afresh, the targets resolve again, and the referrers are checked again;
+/// when a file or its bytes change while the prompt waits, the list shows
+/// again. Under `--yes` the unit goes with no prompt, as after a `y`. Emptied
+/// folders go up to the docs root.
 ///
 /// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc and
-/// `owner_terminal_required` for an approved unit when [interactive] is
-/// false; an `IndexFault` for an address that names neither one typed doc
-/// nor an untyped doc's DocPath; `index_busy` when another call holds the
-/// lock.
+/// `owner_terminal_required` for an approved unit the Owner cannot confirm;
+/// an `IndexFault` for an address that names neither one typed doc nor an
+/// untyped doc's DocPath; `index_busy` when another call holds the lock.
 ReadAnswer answerDelete(
   WriteSession session,
   List<String> targets, {
-  required bool interactive,
+  required OwnerConfirmation confirmation,
   required String? Function() readLine,
   required StringSink prompts,
 }) {
@@ -49,13 +49,13 @@ ReadAnswer answerDelete(
   _refuseIfReferenced(session, unit);
   while (true) {
     final shown = _readUnit(session, unit.roots);
-    if (_holdsApprovedDoc(shown)) {
-      requireOwnerTerminal(
-        interactive: interactive,
-        message:
-            '${unit.subject} holds approved docs; only the Owner deletes '
-            'them, at an interactive terminal',
+    final approved = _holdsApprovedDoc(shown);
+    if (approved) {
+      confirmation.refuseIfMissing(
+        '${unit.subject} holds approved docs; only the Owner deletes them,',
       );
+    }
+    if (approved && confirmation.prompts) {
       prompts
         ..writeln(shown.keys.join('\n'))
         ..write('delete ${shown.length} files? [y/N] ');

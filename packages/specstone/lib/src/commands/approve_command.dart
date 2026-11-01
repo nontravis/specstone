@@ -1,8 +1,19 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Walks the drafts and approves each one at the Owner's `y`.
+/// Walks the drafts and approves each one at the Owner's `y`, or approves the
+/// named drafts under `--yes`.
 class ApproveCommand extends WriteCommand {
+  new() {
+    argParser.addFlag(
+      'yes',
+      negatable: false,
+      help:
+          'Approve the named drafts without the terminal prompt; the Claude '
+          'Code plugin asks the Owner first.',
+    );
+  }
+
   @override
   String get name => 'approve';
 
@@ -10,28 +21,32 @@ class ApproveCommand extends WriteCommand {
   String get description => "Show each draft and approve it at the Owner's y.";
 
   @override
-  String get invocation => 'specstone approve [<name>]';
+  String get invocation => 'specstone approve [<name> …] [--yes]';
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length > 1) {
-      usageException('Expected at most one name, got ${rest.length}.');
+    final args = argResults!;
+    final names = args.rest;
+    final yes = args.flag('yes');
+    if (yes && names.isEmpty) {
+      usageException('--yes needs the names of the drafts it approves.');
     }
+    final confirmation = OwnerConfirmation.of(
+      yes: yes,
+      interactive: interactive,
+    );
     try {
-      requireOwnerTerminal(
-        interactive: interactive,
-        message:
-            'approve runs only at an interactive terminal; '
-            'ask the Owner to run specstone approve',
-      );
+      confirmation.refuseIfMissing('approve runs only');
     } on SpecstoneFault catch (fault) {
       return failWrite(fault, asJson: false);
+    }
+    if (!confirmation.prompts) {
+      return runWrite((session) => approveNamed(session, names), asJson: false);
     }
     return runWrite((session) {
       approveDrafts(
         session,
-        name: rest.firstOrNull,
+        names: names,
         readLine: console.readLine,
         out: specstoneRunner.out,
       );

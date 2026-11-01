@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -87,7 +88,7 @@ sections:
 int _run(
   Directory root,
   StringBuffer out, {
-  bool interactive = true,
+  OwnerConfirmation confirmation = OwnerConfirmation.prompt,
   List<String?> answers = const [],
   bool dryRun = false,
 }) {
@@ -98,7 +99,7 @@ int _run(
       homeDirectory: null,
       templates: TemplateResolver(),
       dryRun: dryRun,
-      interactive: interactive,
+      confirmation: confirmation,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
     ),
@@ -305,7 +306,7 @@ void main() {
         homeDirectory: home,
         templates: TemplateResolver(),
         dryRun: false,
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         readLine: () {
           meanwhile();
           return 'y';
@@ -441,6 +442,33 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
+  test('ms-r11: --yes prints the plan and applies it with no prompt, as the '
+      "Owner's y does", () async {
+    final root = await gitFixture(acmeLegacy);
+    final out = StringBuffer();
+
+    final status = runMigrate(
+      MigrateRequest(
+        workingDirectory: root,
+        homeDirectory: null,
+        templates: TemplateResolver(),
+        dryRun: false,
+        confirmation: OwnerConfirmation.given,
+        readLine: () => throw StateError('--yes must not ask'),
+        out: out,
+      ),
+    );
+
+    expect(status, 0);
+    expect(out.toString(), startsWith('legacy migration: '));
+    expect(out.toString(), isNot(contains('apply? [y/N] ')));
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us01/fr02/e02, f06/us01/s13: no interactive terminal prints the '
       'plan, then refuses owner_terminal_required, exit 77', () async {
     final root = await gitFixture(acmeLegacy);
@@ -448,7 +476,7 @@ void main() {
     final out = StringBuffer();
 
     expect(
-      () => _run(root, out, interactive: false),
+      () => _run(root, out, confirmation: OwnerConfirmation.missing),
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.ownerTerminalRequired)
@@ -456,8 +484,8 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              'migrate applies only at an interactive terminal; ask the '
-                  'Owner to run specstone migrate',
+              'migrate applies only at an interactive terminal, or with '
+                  "--yes after the Owner's ok in Claude Code",
             ),
       ),
     );
@@ -582,7 +610,7 @@ void main() {
           homeDirectory: null,
           templates: TemplateResolver(),
           dryRun: false,
-          interactive: true,
+          confirmation: OwnerConfirmation.prompt,
           readLine: () => throw StateError('resume must not ask'),
           out: out,
         ),
@@ -642,7 +670,7 @@ void main() {
       final out = StringBuffer();
 
       expect(
-        () => _run(root, out, interactive: false),
+        () => _run(root, out, confirmation: OwnerConfirmation.missing),
         throwsA(
           isA<WriteFault>()
               .having(
@@ -657,6 +685,20 @@ void main() {
       expect(out.toString(), contains('  write docs/prds/PROJECT.md\n'));
       expect(headOf(root), head);
       expect(MoveJournal.pending(root), isTrue);
+    }, skip: skipGit);
+
+    test('ms-r11: --yes finishes the stopped run with no terminal', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final out = StringBuffer();
+
+      expect(_run(root, out, confirmation: OwnerConfirmation.given), 0);
+      expect(out.toString(), contains('remaining steps:\n'));
+      expect(MoveJournal.pending(root), isFalse);
+      final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+          .trim()
+          .split('\n');
+      expect(subjects.first, _commit2Message);
     }, skip: skipGit);
 
     test('f06/us01/fr07/e07: a pending F-02 journal is replayed, then the '
@@ -794,7 +836,7 @@ void main() {
             homeDirectory: null,
             templates: TemplateResolver(),
             dryRun: false,
-            interactive: true,
+            confirmation: OwnerConfirmation.prompt,
             readLine: () => null,
             out: StringBuffer(),
             runGit: (arguments, {required workingDirectory}) =>
@@ -824,7 +866,7 @@ void main() {
             homeDirectory: null,
             templates: TemplateResolver(),
             dryRun: false,
-            interactive: true,
+            confirmation: OwnerConfirmation.prompt,
             readLine: () => null,
             out: StringBuffer(),
             runGit: (arguments, {required workingDirectory}) =>
@@ -856,7 +898,7 @@ void main() {
             homeDirectory: null,
             templates: TemplateResolver(),
             dryRun: false,
-            interactive: true,
+            confirmation: OwnerConfirmation.prompt,
             readLine: () => 'y',
             out: StringBuffer(),
             runGit: (arguments, {required workingDirectory}) =>

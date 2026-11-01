@@ -35,10 +35,47 @@ void main() {
     expect(
       error['message'],
       'fr:login/email_login/validate_credentials holds approved docs; '
-      'only the Owner deletes them, at an interactive terminal',
+      'only the Owner deletes them, at an interactive terminal, or with '
+      "--yes after the Owner's ok in Claude Code",
     );
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
   });
+  test(
+    'ms-r11: --yes deletes an approved unit with no terminal and no prompt',
+    () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'delete',
+          'fr:login/email_login/validate_credentials',
+          '--yes',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), '$fr11\n');
+      expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
+    },
+  );
+  test(
+    'ms-r11: --yes --json prints the removed paths as one JSON object',
+    () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'delete',
+          'fr:login/email_login/validate_credentials',
+          '--yes',
+          '--json',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect((jsonDecode(out.toString()) as Map)['removed'], [fr11]);
+    },
+  );
   test('f02/us04/s3, f02/us04/fr02/e03: the Owner prompt goes to stdout, the removed paths after it', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
@@ -174,7 +211,9 @@ void main() {
     expect(await runner.run(['delete', '--help']), 0);
     expect(
       out.toString(),
-      contains('Usage: specstone delete <target> [<target> …] [--json]'),
+      contains(
+        'Usage: specstone delete <target> [<target> …] [--yes] [--json]',
+      ),
     );
   });
   test('f02/us04/fr04/e01: an untyped DocPath that holds a space deletes that file', () async {

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -28,7 +29,7 @@ const _draftPaths = [
 /// Runs `init` on [root] and returns its status with the printed lines.
 (int, List<String>) _run(
   Directory root, {
-  bool interactive = false,
+  OwnerConfirmation confirmation = OwnerConfirmation.missing,
   List<String?> answers = const [],
   RunGit runGit = _noGit,
 }) {
@@ -39,7 +40,7 @@ const _draftPaths = [
       workingDirectory: root,
       homeDirectory: null,
       templates: TemplateResolver(),
-      interactive: interactive,
+      confirmation: confirmation,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
       runGit: runGit,
@@ -226,7 +227,7 @@ void main() {
 
     final (status, lines) = _run(
       root,
-      interactive: true,
+      confirmation: OwnerConfirmation.prompt,
       answers: ['y'],
       runGit: runRealGit,
     );
@@ -238,6 +239,25 @@ void main() {
     expect(subjects, hasLength(3));
     expect(lines.first, startsWith('legacy migration: '));
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('ms-r11: a legacy folder under --yes applies the migrate run with no '
+      'prompt', () async {
+    final root = await gitFixture(acmeLegacy);
+
+    final (status, lines) = _run(
+      root,
+      confirmation: OwnerConfirmation.given,
+      runGit: runRealGit,
+    );
+
+    expect(status, 0);
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects, hasLength(3));
+    expect(lines.first, startsWith('legacy migration: '));
+    expect(lines.any((line) => line.contains('apply? [y/N] ')), isFalse);
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us03/fr01/e02: a legacy folder without a terminal prints the '
@@ -252,7 +272,7 @@ void main() {
           workingDirectory: root,
           homeDirectory: null,
           templates: TemplateResolver(),
-          interactive: false,
+          confirmation: OwnerConfirmation.missing,
           readLine: () => null,
           out: out,
           runGit: runRealGit,
@@ -261,7 +281,13 @@ void main() {
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.ownerTerminalRequired)
-            .having((f) => f.exitStatus, 'exitStatus', 77),
+            .having((f) => f.exitStatus, 'exitStatus', 77)
+            .having(
+              (f) => f.message,
+              'message',
+              'migrate applies only at an interactive terminal, or with '
+                  "--yes after the Owner's ok in Claude Code",
+            ),
       ),
     );
     expect(out.toString(), startsWith('legacy migration: '));
@@ -288,7 +314,7 @@ void main() {
           workingDirectory: Directory('${tree.path}/ws/code'),
           homeDirectory: null,
           templates: TemplateResolver(),
-          interactive: false,
+          confirmation: OwnerConfirmation.missing,
           readLine: () => null,
           out: out,
           runGit: runRealGit,
@@ -315,7 +341,7 @@ void main() {
     expect(
       () => _run(
         root,
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         answers: ['y'],
         runGit: (arguments, {required workingDirectory}) =>
             arguments.first == 'commit'
@@ -338,7 +364,7 @@ void main() {
     expect(
       () => _run(
         root,
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         runGit: (arguments, {required workingDirectory}) =>
             throw const ProcessException('git', []),
       ),

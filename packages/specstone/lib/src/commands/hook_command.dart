@@ -8,6 +8,7 @@ import 'package:specstone_core/specstone_core.dart';
 class HookCommand extends SpecstoneCommand {
   new() {
     addSubcommand(PostEditCommand());
+    addSubcommand(PreBashCommand());
   }
 
   @override
@@ -114,5 +115,83 @@ class PostEditCommand extends SpecstoneCommand {
     if (!docPath.endsWith('.md')) return null;
     final folder = docPath.split('/').first;
     return checkedFoldersOf(project.set).contains(folder) ? docPath : null;
+  }
+}
+
+/// Makes Claude Code ask the Owner before a Bash call that confirms an
+/// Owner-gated command with `--yes`.
+///
+/// Reads the `PreToolUse` hook JSON on stdin. A command holding the whole word
+/// `approve`, `delete`, `migrate`, or `init` and the token `--yes` gets one
+/// `ask` object; any other command, and input it cannot read, gets nothing.
+/// It never answers `allow` or `deny`, so it blocks no Bash call.
+class PreBashCommand extends SpecstoneCommand {
+  static final _gatedWord = RegExp(r'\b(approve|delete|migrate|init)\b');
+  static final _yesToken = RegExp(r'(?<![\w-])--yes(?![\w-])');
+  static final _whitespace = RegExp(r'\s+');
+  static const _reasonLimit = 300;
+
+  @override
+  String get name => 'pre-bash';
+
+  @override
+  String get description =>
+      'Ask the Owner before a Bash call runs an Owner-gated command with '
+      '--yes.';
+
+  @override
+  String get invocation => 'specstone hook pre-bash < pre-tool-use.json';
+
+  @override
+  Future<int> run() async {
+    if (argResults!.rest.isNotEmpty) {
+      usageException('Expected no argument, got ${argResults!.rest.length}.');
+    }
+    final runner = specstoneRunner;
+    final command = _commandOf(await runner.console.readAll());
+    final reason = command == null ? null : _reasonFor(command);
+    if (reason == null) return 0;
+    final output = {
+      'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'ask',
+        'permissionDecisionReason': reason,
+      },
+    };
+    runner.out.write('${SpecstoneCommand.pretty.convert(output)}\n');
+    return 0;
+  }
+
+  /// Returns `tool_input.command` from [input], or null when there is none.
+  String? _commandOf(String input) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(input);
+    } on FormatException {
+      return null;
+    }
+    return switch (decoded) {
+      {'tool_input': {'command': final String command}} => command,
+      _ => null,
+    };
+  }
+
+  /// Returns the reason of the ask, or null when [command] needs none.
+  ///
+  /// The reason is `Owner confirmation: specstone <word> <args>`, the args
+  /// running up to the first flag, cut to 300 characters.
+  String? _reasonFor(String command) {
+    final gated = _gatedWord.firstMatch(command);
+    if (gated == null || !_yesToken.hasMatch(command)) return null;
+    final args = command
+        .substring(gated.end)
+        .trim()
+        .split(_whitespace)
+        .takeWhile((word) => word.isNotEmpty && !word.startsWith('-'));
+    final reason = [
+      'Owner confirmation: specstone ${gated[1]}',
+      ...args,
+    ].join(' ');
+    return String.fromCharCodes(reason.runes.take(_reasonLimit));
   }
 }

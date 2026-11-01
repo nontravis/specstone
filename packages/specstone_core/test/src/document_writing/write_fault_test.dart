@@ -82,6 +82,7 @@ void main() {
           ('doc_type_not_movable', 64),
           ('owner_terminal_required', 77),
           ('migrate_pending', 75),
+          ('draft_not_found', 65),
         ],
       );
     },

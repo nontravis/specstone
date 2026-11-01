@@ -4,6 +4,16 @@ import 'package:specstone_core/specstone_core.dart';
 /// Sets up a new project: the config and the singular docs as drafts, or the
 /// legacy migrate run on a legacy tree.
 class InitCommand extends SpecstoneCommand {
+  new() {
+    argParser.addFlag(
+      'yes',
+      negatable: false,
+      help:
+          'Apply the legacy migrate run without the terminal prompt; the '
+          'Claude Code plugin asks the Owner first.',
+    );
+  }
+
   @override
   String get name => 'init';
 
@@ -13,7 +23,7 @@ class InitCommand extends SpecstoneCommand {
       'the legacy migrate run on a legacy tree.';
 
   @override
-  String get invocation => 'specstone init';
+  String get invocation => 'specstone init [--yes]';
 
   @override
   Future<int> run() async {
@@ -29,7 +39,10 @@ class InitCommand extends SpecstoneCommand {
           workingDirectory: runner.workingDirectory,
           homeDirectory: runner.homeDirectory,
           templates: runner.templates,
-          interactive: console.stdinIsTerminal && console.stdoutIsTerminal,
+          confirmation: OwnerConfirmation.of(
+            yes: args.flag('yes'),
+            interactive: console.stdinIsTerminal && console.stdoutIsTerminal,
+          ),
           readLine: console.readLine,
           out: runner.out,
         ),

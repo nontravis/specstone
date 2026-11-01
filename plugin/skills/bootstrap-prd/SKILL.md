@@ -67,17 +67,16 @@ old files that map to one doc in turn. Add each file's path to the retire set, a
 2. Links inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
    first (`specstone:bootstrap-spec` takes one under `specs/`). Repoint each other referrer's link to the doc now
    holding the content, through `specstone set` on that section.
-3. Print one command naming every path of the set, quoting each path that holds a space; the Owner runs it at
-   their own interactive terminal:
+3. Delete the set through `specstone:expert-sdd`'s Owner confirmation (terminal or chat), one command naming every
+   path, quoting each path that holds a space:
 
 ```
 specstone delete <path> <path> …
 ```
 
-Never run it yourself: the CLI treats a file without `draft: true` as approved, so it refuses you with
-`owner_terminal_required` (exit 77). Never run `git rm`: it deletes while links still point in, and they show broken
-only at the next check. When the Owner reports `doc_referenced` (exit 64), repoint the referrers it lists, then
-print the command again.
+The CLI treats a file without `draft: true` as approved, so without the Owner's word it refuses (exit 77). Never run
+`git rm`: it deletes while links still point in, and they show broken only at the next check. On `doc_referenced`
+(exit 64), repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
@@ -86,12 +85,11 @@ print the command again.
 Owner.
 
 Last, name each change per draft, each proposal, each moved pointer, each dropped key, and each finding no write
-clears. Then ask
-the Owner to run `specstone approve` at their own terminal: it shows each draft for a yes or no.
+clears. Then get each draft approved through `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
 
 ## Red flags
 
 | Thought | Do instead |
 |---|---|
-| "Merged, so I'll delete the old files." | Print the `delete`; the Owner runs it. |
+| "Merged, so I'll delete the old files." | Delete only after the Owner's `ok` or at their terminal. |
 | "Fix the old file's link in place." | Add the file to the set. |

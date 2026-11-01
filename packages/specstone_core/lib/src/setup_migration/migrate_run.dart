@@ -1,7 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
-import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
@@ -12,6 +12,9 @@ import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
+/// Opens the `owner_terminal_required` message of an apply.
+const _applyRefusal = 'migrate applies only';
+
 /// What one `specstone migrate` call runs with.
 final class MigrateRequest {
   const new({
@@ -19,7 +22,7 @@ final class MigrateRequest {
     required this.homeDirectory,
     required this.templates,
     required this.dryRun,
-    required this.interactive,
+    required this.confirmation,
     required this.readLine,
     required this.out,
     this.runGit = runRealGit,
@@ -37,8 +40,8 @@ final class MigrateRequest {
   /// Whether to print the plan and write nothing.
   final bool dryRun;
 
-  /// Whether stdin and stdout are both terminals.
-  final bool interactive;
+  /// How the Owner confirms the apply: at the terminal's `y`, or `--yes`.
+  final OwnerConfirmation confirmation;
 
   /// Reads one line of the Owner's answer, or null at the end of input.
   final String? Function() readLine;
@@ -53,7 +56,8 @@ final class MigrateRequest {
 /// Runs `specstone migrate` and returns its exit status.
 ///
 /// A bare legacy or upgrade run checks git first, prints the plan, and applies
-/// it only on the Owner's `y`, after checking git again.
+/// it on the Owner's `y`, or under `--yes` with no prompt, after checking git
+/// again.
 ///
 /// A pending journal is finished first: an F-02 journal is replayed before the
 /// git checks, and a migrate journal is resumed with no second `y`. A dry run
@@ -138,7 +142,7 @@ int runLegacyAt(
 );
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
-/// `y`.
+/// `y`, or under `--yes` with no prompt.
 ///
 /// The git checks run again after the `y`, since the Owner may read the plan
 /// for minutes: a change to the tree or a new commit in that time refuses
@@ -161,16 +165,12 @@ int _plannedRun(
   final base = headSha(root, request.runGit);
   final plan = _planOf(request, root, kind, linkFolder);
   request.out.write(plan.toText());
-  if (!request.interactive) {
-    throw WriteFault(
-      WriteFaultCode.ownerTerminalRequired,
-      'migrate applies only at an interactive terminal; ask the Owner to '
-      'run specstone migrate',
-    );
+  request.confirmation.refuseIfMissing(_applyRefusal);
+  if (request.confirmation.prompts) {
+    request.out.write('apply? [y/N] ');
+    final answer = request.readLine()?.trim();
+    if (answer != 'y') return 0;
   }
-  request.out.write('apply? [y/N] ');
-  final answer = request.readLine()?.trim();
-  if (answer != 'y') return 0;
   requireCleanWorkTree(root, request.runGit);
   if (headSha(root, request.runGit) != base) {
     throw MigrateFault(
@@ -223,13 +223,7 @@ int _resume(MigrateRequest request, Directory root) {
     out.writeln('dry run: nothing written');
     return 0;
   }
-  if (!request.interactive) {
-    throw WriteFault(
-      WriteFaultCode.ownerTerminalRequired,
-      'migrate applies only at an interactive terminal; ask the Owner to '
-      'run specstone migrate',
-    );
-  }
+  request.confirmation.refuseIfMissing(_applyRefusal);
   final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);

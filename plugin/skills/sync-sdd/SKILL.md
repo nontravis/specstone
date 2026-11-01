@@ -75,8 +75,8 @@ comes first; the pointer follows it.
 
 - **Needs a new story or FR:** leave it out of this sync and hand it to `specstone:brainstorming-sdd`.
 - **Else:** write a spec draft: `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes them)
-  for a new doc, or `specstone set` for a section of one that exists. Then ask the Owner to run
-  `specstone approve <type>:<name>`; never run it yourself.
+  for a new doc, or `specstone set` for a section of one that exists. Then get it approved through
+  `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
 - Write no `implements:` or `covers:` entry that names this code until the Owner approves the draft. Then add the
   entry at once with the step 4.3 `specstone set --field` write: no `check` finding will ask for it.
 

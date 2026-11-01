@@ -5,11 +5,19 @@ import 'package:specstone_core/specstone_core.dart';
 /// the pack pins of a project.
 class MigrateCommand extends SpecstoneCommand {
   new() {
-    argParser.addFlag(
-      'dry-run',
-      negatable: false,
-      help: 'Print the plan and write nothing.',
-    );
+    argParser
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'Print the plan and write nothing.',
+      )
+      ..addFlag(
+        'yes',
+        negatable: false,
+        help:
+            'Apply the plan without the terminal prompt; the Claude Code '
+            'plugin asks the Owner first.',
+      );
   }
 
   @override
@@ -20,7 +28,7 @@ class MigrateCommand extends SpecstoneCommand {
       'Migrate a legacy SDD tree, or upgrade the pack pins of a project.';
 
   @override
-  String get invocation => 'specstone migrate [--dry-run]';
+  String get invocation => 'specstone migrate [--dry-run | --yes]';
 
   @override
   Future<int> run() async {
@@ -28,6 +36,9 @@ class MigrateCommand extends SpecstoneCommand {
     if (args.rest.isNotEmpty) {
       usageException('Expected no argument, got ${args.rest.length}.');
     }
+    final dryRun = args.flag('dry-run');
+    final yes = args.flag('yes');
+    if (dryRun && yes) usageException('--yes cannot go with --dry-run.');
     final runner = specstoneRunner;
     final console = runner.console;
     try {
@@ -36,8 +47,11 @@ class MigrateCommand extends SpecstoneCommand {
           workingDirectory: runner.workingDirectory,
           homeDirectory: runner.homeDirectory,
           templates: runner.templates,
-          dryRun: args.flag('dry-run'),
-          interactive: console.stdinIsTerminal && console.stdoutIsTerminal,
+          dryRun: dryRun,
+          confirmation: OwnerConfirmation.of(
+            yes: yes,
+            interactive: console.stdinIsTerminal && console.stdoutIsTerminal,
+          ),
           readLine: console.readLine,
           out: runner.out,
         ),

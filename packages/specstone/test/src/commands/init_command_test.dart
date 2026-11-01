@@ -4,6 +4,8 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/git_repo.dart';
+import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
@@ -79,6 +81,44 @@ void main() {
       '.specstone/config.yaml: this folder is already a Specstone project; '
       'run specstone migrate to upgrade its packs\n',
     );
+  });
+
+  test('ms-r11: init on a legacy folder with neither a terminal nor --yes '
+      'exits 77 naming both ways', () async {
+    final root = await gitFixture(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init']), 77);
+    expect(out.toString(), startsWith('legacy migration: '));
+    expect(
+      err.toString(),
+      'migrate applies only at an interactive terminal, or with --yes after '
+      "the Owner's ok in Claude Code\n",
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('ms-r11: init --yes on a legacy folder applies the migrate run with no '
+      'terminal and no prompt', () async {
+    final root = await gitFixture(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init', '--yes']), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), isNot(contains('apply? [y/N] ')));
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects, hasLength(3));
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('ms-r11: init --yes on an empty folder sets up the drafts as init '
+      'does', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init', '--yes']), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), endsWith(_configLine()));
   });
 
   test('f06/us03/fr01: init takes no argument', () async {

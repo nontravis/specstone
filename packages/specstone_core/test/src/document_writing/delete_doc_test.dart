@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
@@ -61,7 +62,7 @@ void main() {
   ReadAnswer del(
     Directory root,
     List<String> targets, {
-    bool interactive = false,
+    OwnerConfirmation confirmation = OwnerConfirmation.missing,
     List<String?> answers = const [],
     StringBuffer? prompts,
   }) {
@@ -71,7 +72,7 @@ void main() {
       (s) => answerDelete(
         s,
         targets,
-        interactive: interactive,
+        confirmation: confirmation,
         readLine: () => queue.isEmpty ? null : queue.removeAt(0),
         prompts: prompts ?? StringBuffer(),
       ),
@@ -153,7 +154,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              'fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal',
+              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in Claude Code",
             ),
       ),
     );
@@ -167,7 +168,7 @@ void main() {
       del(
         root,
         ['user_story:login/sign_out'],
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         answers: ['n'],
         prompts: prompts,
       ).text,
@@ -183,11 +184,30 @@ void main() {
       del(
         root,
         ['user_story:login/sign_out'],
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         answers: ['y'],
       ).json['removed'],
       hasLength(3),
     );
+    expect(hasDoc(root, story2), isFalse);
+  });
+
+  test('ms-r11: --yes deletes an approved unit with no prompt, as the '
+      "Owner's y does", () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final prompts = StringBuffer();
+    final answer = del(
+      root,
+      ['user_story:login/sign_out'],
+      confirmation: OwnerConfirmation.given,
+      prompts: prompts,
+    );
+    expect(prompts.toString(), isEmpty);
+    expect(answer.json['removed'], [
+      story2,
+      'prds/features/f01_login/us02_sign_out/fr01_end_session.md',
+      'prds/features/f01_login/us02_sign_out/fr02_clear_cookies.md',
+    ]);
     expect(hasDoc(root, story2), isFalse);
   });
 
@@ -300,7 +320,7 @@ void main() {
           return answerDelete(
             s,
             ['user_story:login/reset_password'],
-            interactive: false,
+            confirmation: OwnerConfirmation.missing,
             readLine: () => null,
             prompts: StringBuffer(),
           );
@@ -366,7 +386,7 @@ void main() {
       del(
         root,
         ['user_story:login/reset_password'],
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         prompts: prompts,
       ).json['removed'],
       hasLength(3),
@@ -383,7 +403,7 @@ void main() {
       (s) => answerDelete(
         s,
         ['user_story:login/sign_out'],
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         readLine: () {
           asked++;
           if (asked == 1) {
@@ -422,7 +442,9 @@ void main() {
 
   test('f02/us04/fr02/e03: review focus 5, PD9: the end of input at the delete prompt removes nothing', () async {
     final root = await writeWriteProject(extra: approvedSignOut);
-    final answer = del(root, ['user_story:login/sign_out'], interactive: true);
+    final answer = del(root, [
+      'user_story:login/sign_out',
+    ], confirmation: OwnerConfirmation.prompt);
     expect(answer.text, isEmpty);
     expect(answer.json, {'removed': <String>[]});
     expect(hasDoc(root, story2), isTrue);
@@ -493,7 +515,7 @@ void main() {
         (s) => answerDelete(
           s,
           ['user_story:login/sign_out'],
-          interactive: true,
+          confirmation: OwnerConfirmation.prompt,
           readLine: () {
             outsider.writeAsStringSync(
               '$before\nSee [out](../us02_sign_out/fr01_end_session.md).\n',
@@ -523,7 +545,7 @@ void main() {
         (s) => answerDelete(
           s,
           ['user_story:login/sign_out'],
-          interactive: true,
+          confirmation: OwnerConfirmation.prompt,
           readLine: () {
             File('${root.path}/${MoveJournal.journalPath}')
               ..parent.createSync(recursive: true)
@@ -548,7 +570,7 @@ void main() {
       (s) => answerDelete(
         s,
         ['user_story:login/sign_out'],
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         readLine: () {
           asked++;
           if (asked == 1) {
@@ -635,7 +657,7 @@ void main() {
       final answer = del(
         root,
         [notes, errors, index],
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         answers: ['y'],
         prompts: prompts,
       );
@@ -663,7 +685,8 @@ void main() {
               (f) => f.message,
               'message',
               'the delete set holds approved docs; only the Owner deletes '
-                  'them, at an interactive terminal',
+                  'them, at an interactive terminal, or with --yes after the '
+                  "Owner's ok in Claude Code",
             ),
           ),
         );
@@ -680,7 +703,12 @@ void main() {
         },
       );
       expect(
-        () => del(root, [notes, errors], interactive: true, answers: ['y']),
+        () => del(
+          root,
+          [notes, errors],
+          confirmation: OwnerConfirmation.prompt,
+          answers: ['y'],
+        ),
         throwsA(
           isA<WriteFault>()
               .having((f) => f.code, 'code', WriteFaultCode.docReferenced)

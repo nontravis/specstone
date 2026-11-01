@@ -73,16 +73,15 @@ doc already held its content.
 2. Links inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
    first (`specstone:bootstrap-prd` takes one under `prds/`). Repoint each other referrer's link to the doc now
    holding the content, through `specstone set`.
-3. Print one command naming every path of the set, quoting each path that holds a space; the Owner runs it at
-   their own interactive terminal:
+3. Delete the set through `specstone:expert-sdd`'s Owner confirmation (terminal or chat), one command naming every
+   path, quoting each path that holds a space:
 
 ```
 specstone delete <path> <path> …
 ```
 
-Never run it yourself: a file without `draft: true` counts as approved, so the CLI refuses you (exit 77,
-`owner_terminal_required`). On the Owner's `doc_referenced` (exit 64), repoint the referrers it lists and print the
-command again.
+A file without `draft: true` counts as approved, so without the Owner's word the CLI refuses (exit 77). On
+`doc_referenced` (exit 64), repoint the referrers it lists and ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 
@@ -91,13 +90,13 @@ lists. With the Owner, fill `tech_stack:tech_stack`: its title, each section `sp
 `code`, each code folder from the project root. Fill each doc step 3 or 4 made the same way. Then run
 `specstone check` again: new roots can raise `code_uncovered`.
 
-Last, name each change per draft, each moved pointer, each dropped key, and each finding no write clears. Then ask
-the Owner to run `specstone approve` at their own terminal, a yes or no per draft.
+Last, name each change per draft, each moved pointer, each dropped key, and each finding no write clears. Then get
+each draft approved through `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
 
 ## Red flags
 
 | Thought | Do instead |
 |---|---|
-| "Merged, so I'll delete the old files." | Print the `delete`; the Owner runs it. |
+| "Merged, so I'll delete the old files." | Delete only after the Owner's `ok` or at their terminal. |
 | "`git rm` is quicker." | Never: links break unseen. |
 | "`check` is clean, so the tech stack is done." | Fill its values and `code` roots anyway. |
