@@ -1,0 +1,51 @@
+import 'dart:io';
+
+import 'package:test/test.dart';
+
+import '../../specstone_core/test/helpers/relative_link.dart';
+import '../../specstone_core/test/helpers/shipped_pins.dart';
+import 'helpers/built_cli.dart';
+import 'helpers/temp_tree.dart';
+
+const _featureDoc = 'prds/features/f01_login/FEATURE.md';
+
+void main() {
+  late String binary;
+
+  setUpAll(() async {
+    binary = await buildSpecstone();
+  });
+
+  test('a read command run in a linked code folder lists the nested '
+      "project's docs and writes nothing", () async {
+    final tree = await writeTree({
+      'ws/.specstone/config.yaml': shippedPinsConfig(),
+      'ws/docs/$_featureDoc': '# Outer\n',
+      'ws/example/.specstone/config.yaml': shippedPinsConfig(),
+      'ws/example/docs/$_featureDoc':
+          '---\nvision:\n  - PV-01\nslug:\n  - sign-in\n---\n\n# Login\n\n'
+          '## Problem\nUsers sign in with an email and a password.\n\n'
+          '## Out-of-scope\n- Social sign-in\n',
+      'ws/code/example/keep.txt': '',
+    });
+    try {
+      createRelativeLink(
+        '${tree.path}/ws/code/example/docs',
+        '../../example/docs',
+      );
+    } on FileSystemException {
+      markTestSkipped('symbolic links need privileges on this machine');
+      return;
+    }
+    final codeExample = '${tree.path}/ws/code/example';
+
+    final result = await Process.run(binary, [
+      'list',
+      'feature',
+    ], workingDirectory: codeExample);
+
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(result.stdout as String, contains('login (feature) — Login'));
+    expect(Directory('$codeExample/.specstone').existsSync(), isFalse);
+  });
+}

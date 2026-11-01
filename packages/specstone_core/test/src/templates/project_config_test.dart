@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
@@ -14,6 +15,9 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
         .having((f) => f.file, 'file', _configPath)
         .having((f) => f.key, 'key', key)
         .having((f) => f.line, 'line', line);
+
+/// The root a project is found at is canonical, as a `docs` link makes it.
+String _canonical(Directory dir) => dir.resolveSymbolicLinksSync();
 
 Future<Directory> _withConfig(String text) => writeTree({_configPath: text});
 
@@ -189,7 +193,7 @@ void main() {
       final start = Directory.fromUri(root.uri.resolve('docs/prds/'));
       await start.create(recursive: true);
 
-      expect(findProjectRoot(start)?.uri, root.uri);
+      expect(_canonical(findProjectRoot(start)!), _canonical(root));
     });
 
     test(
@@ -213,8 +217,8 @@ void main() {
       await start.create(recursive: true);
 
       expect(
-        findProjectRoot(start)?.uri,
-        Directory.fromUri(root.uri.resolve('sub/')).uri,
+        _canonical(findProjectRoot(start)!),
+        _canonical(Directory.fromUri(root.uri.resolve('sub/'))),
       );
     });
 
@@ -227,8 +231,76 @@ void main() {
         });
         final start = Directory.fromUri(root.uri.resolve('a/'));
 
-        expect(findProjectRoot(start)?.uri, root.uri);
+        expect(_canonical(findProjectRoot(start)!), _canonical(root));
       },
     );
+  });
+
+  group('findProjectRoot through a docs link', () {
+    Directory at(Directory tree, String path) =>
+        Directory('${tree.path}/$path');
+
+    /// Links `ws/code/<folder>/docs` to `<target>`; false when links need
+    /// privileges the machine lacks.
+    bool link(Directory tree, String folder, String target) {
+      try {
+        createRelativeLink('${tree.path}/ws/code/$folder/docs', target);
+        return true;
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return false;
+      }
+    }
+
+    test('finds the workspace from the code folder', () async {
+      final tree = await writeTree({
+        'ws/$_configPath': 'packs: {}\n',
+        'ws/docs/keep.txt': '',
+        'ws/code/lib/keep.txt': '',
+      });
+      if (!link(tree, '', '../docs')) return;
+
+      final found = findProjectRoot(at(tree, 'ws/code'));
+
+      expect(_canonical(found!), _canonical(at(tree, 'ws')));
+    });
+
+    test('finds the nested project, not the outer one', () async {
+      final tree = await writeTree({
+        'ws/$_configPath': 'packs: {}\n',
+        'ws/docs/keep.txt': '',
+        'ws/example/$_configPath': 'packs: {}\n',
+        'ws/example/docs/keep.txt': '',
+        'ws/code/example/keep.txt': '',
+      });
+      if (!link(tree, '', '../docs')) return;
+      if (!link(tree, 'example', '../../example/docs')) return;
+
+      final found = findProjectRoot(at(tree, 'ws/code/example'));
+
+      expect(_canonical(found!), _canonical(at(tree, 'ws/example')));
+    });
+
+    test("prefers the link's project over the folder's own config", () async {
+      final tree = await writeTree({
+        'ws/$_configPath': 'packs: {}\n',
+        'ws/docs/keep.txt': '',
+        'ws/code/$_configPath': 'packs: {}\n',
+      });
+      if (!link(tree, '', '../docs')) return;
+
+      final found = findProjectRoot(at(tree, 'ws/code'));
+
+      expect(_canonical(found!), _canonical(at(tree, 'ws')));
+    });
+
+    test('a dangling link stands for the folder itself', () async {
+      final tree = await writeTree({'ws/code/$_configPath': 'packs: {}\n'});
+      if (!link(tree, '', '../missing')) return;
+
+      final found = findProjectRoot(at(tree, 'ws/code'));
+
+      expect(_canonical(found!), _canonical(at(tree, 'ws/code')));
+    });
   });
 }

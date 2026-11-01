@@ -7,22 +7,6 @@ import 'package:specstone_core/src/templates/project_config.dart';
 /// The legacy SDD context doc, relative to the project root.
 const legacyContextPath = 'docs/prds/d01_context.md';
 
-/// Returns the project root for a folder holding a `docs` link.
-///
-/// When `<folder>/docs` is a symbolic link, the root is the parent of the
-/// link's resolved target; otherwise [folder]. The result is canonical.
-Directory rootThroughDocsLink(Directory folder) {
-  final docs = '${folder.path}${Platform.pathSeparator}docs';
-  if (FileSystemEntity.isLinkSync(docs)) {
-    try {
-      return Directory(Link(docs).resolveSymbolicLinksSync()).parent;
-    } on FileSystemException {
-      // A dangling link has no target to stand for; the folder is the root.
-    }
-  }
-  return Directory(folder.resolveSymbolicLinksSync());
-}
-
 /// Returns the first folder from [workingDirectory] upward holding
 /// `.specstone/config.yaml`, [legacyContextPath], or a journal file, itself
 /// or, for the journal, at the root its `docs` link stands for.

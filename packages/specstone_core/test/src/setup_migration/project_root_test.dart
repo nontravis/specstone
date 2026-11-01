@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/relative_link.dart';

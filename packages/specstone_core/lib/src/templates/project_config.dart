@@ -13,15 +13,36 @@ const _coreName = 'prd-core';
 /// Lowercase letters and digits in hyphen-separated groups.
 final _kebabCase = RegExp(r'^[a-z0-9]+(-[a-z0-9]+)*$');
 
-/// Returns the first folder from [start] upward holding a config file.
+/// Returns the project root for a folder holding a `docs` link.
 ///
-/// The config is `.specstone/config.yaml`. Returns null when no folder up to
-/// the file-system root holds one.
+/// When `<folder>/docs` is a symbolic link, the root is the parent of the
+/// link's resolved target; otherwise [folder]. The result is canonical.
+Directory rootThroughDocsLink(Directory folder) {
+  final docs = '${folder.path}${Platform.pathSeparator}docs';
+  if (FileSystemEntity.isLinkSync(docs)) {
+    try {
+      return Directory(Link(docs).resolveSymbolicLinksSync()).parent;
+    } on FileSystemException {
+      // A dangling link has no target to stand for; the folder is the root.
+    }
+  }
+  return Directory(folder.resolveSymbolicLinksSync());
+}
+
+/// Returns the first project root from [start] upward.
+///
+/// At each folder the candidates are [rootThroughDocsLink] of that folder,
+/// then the folder itself; the first holding `.specstone/config.yaml` is the
+/// root. A `docs` link to a folder outside any project falls through to the
+/// folder's own config. Returns null when no folder up to the file-system root
+/// yields one.
 Directory? findProjectRoot(Directory start) {
   var dir = start.absolute;
   while (true) {
-    if (File.fromUri(dir.uri.resolve(projectConfigPath)).existsSync()) {
-      return dir;
+    for (final candidate in [rootThroughDocsLink(dir), dir]) {
+      if (File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync()) {
+        return candidate;
+      }
     }
     final parent = dir.parent;
     if (parent.path == dir.path) return null;
