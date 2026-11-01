@@ -1,4 +1,5 @@
 @TestOn('windows')
+@Tags(['ps1'])
 @Timeout(Duration(minutes: 10))
 library;
 
@@ -6,19 +7,11 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import '../helpers/built_cli.dart';
 import '../helpers/script_sandbox.dart';
 
 void main() {
   const pluginLine = 'claude plugin uninstall specstone@specstone';
   const otherItems = r'C:\Windows;C:\Tools';
-
-  late Directory bundle;
-
-  setUpAll(() async {
-    // The bundle folder is the grandparent of bin\specstone.exe.
-    bundle = File(await buildSpecstone()).parent.parent;
-  });
 
   // PowerShell wraps a long error line at the console width; compare the text
   // with its whitespace runs folded to one space.
@@ -32,17 +25,13 @@ void main() {
   String binDir(ScriptSandbox sb) => '${sb.home.path}\\.specstone\\bin';
   String libDir(ScriptSandbox sb) => '${sb.home.path}\\.specstone\\lib';
 
-  // Installs the real CLI into the sandbox home through install.ps1, after
-  // setting the user PATH to [otherItems], so the uninstall has real work.
+  // Builds the state install.ps1 leaves (bin\\, lib\\, the bin folder last on
+  // the user PATH after [otherItems]) straight in the sandbox: the install is
+  // fixture here, and running it costs tens of seconds on Windows.
   Future<ScriptSandbox> installedSandbox() async {
     final sb = await createScriptSandbox();
-    await sb.writeArchive('windows-x64', bundle: bundle);
-    await writeUserPath((value: otherItems, kind: 'String'));
-    final installed = await sb.run(
-      'install.ps1',
-      extra: {'SPECSTONE_ARCHIVE_DIR': sb.archives.path},
-    );
-    expect(installed.exitCode, 0, reason: '${installed.stderr}');
+    sb.installFake();
+    await writeUserPath((value: '$otherItems;${binDir(sb)}', kind: 'String'));
     return sb;
   }
 
@@ -86,8 +75,8 @@ void main() {
         'specstone.exe stops the uninstall', () async {
       final sb = await installedSandbox();
       final exe = '${binDir(sb)}\\specstone.exe';
-      // `mcp` serves stdio, so the process waits on stdin and keeps its
-      // image file locked until it is killed.
+      // The fake exe sleeps for any argument but `--version`, so the process
+      // keeps its image file locked until it is killed.
       final running = await Process.start(
         exe,
         const ['mcp'],
