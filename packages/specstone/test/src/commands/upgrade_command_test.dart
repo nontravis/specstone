@@ -180,7 +180,9 @@ void main() {
     expect(err.toString(), contains('~/.specstone/bin'));
   });
 
-  group('the install run', () {
+  // A Windows run starts PowerShell and cmd, about 25 s on a busy CI runner,
+  // which the default 30 s timeout cuts off.
+  group('the install run', timeout: const Timeout(Duration(minutes: 2)), () {
     final windows = Platform.isWindows;
     const updateCommand = 'claude plugin update specstone@specstone';
     const restartLine = 'Restart Claude Code to load the new CLI and plugin.';
