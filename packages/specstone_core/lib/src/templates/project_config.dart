@@ -34,25 +34,36 @@ Directory rootThroughDocsLink(Directory folder) {
 
 /// Returns the first root from [start] upward for which [isRoot] holds.
 ///
+/// The walk is [matchRootUpward]'s. Returns null when no folder up to the
+/// file-system root yields one; never throws.
+Directory? findRootUpward(
+  Directory start,
+  bool Function(Directory candidate) isRoot,
+) => matchRootUpward(start, isRoot)?.root;
+
+/// Returns the first root from [start] upward for which [isRoot] holds, with
+/// the folder the walk stood in.
+///
 /// At each folder the candidates are [rootThroughDocsLink] of the folder, then
 /// the folder itself when that is another path. A `docs` link to a folder
-/// outside any project thus falls through to the folder's own markers. Every
-/// candidate is canonical. Returns null when no folder up to the file-system
-/// root yields one; never throws, a folder that cannot be resolved stands for
-/// itself, absolute.
-Directory? findRootUpward(
+/// outside any project thus falls through to the folder's own markers. The
+/// root and the folder are canonical; they differ only when the root came
+/// through the folder's `docs` link. Returns null when no folder up to the
+/// file-system root yields one; never throws, a folder that cannot be resolved
+/// stands for itself, absolute.
+({Directory folder, Directory root})? matchRootUpward(
   Directory start,
   bool Function(Directory candidate) isRoot,
 ) {
   var dir = start.absolute;
   while (true) {
-    final linked = _canonicalOr(() => rootThroughDocsLink(dir), dir);
-    if (isRoot(linked)) return linked;
     final own = _canonicalOr(
       () => Directory(dir.resolveSymbolicLinksSync()),
       dir,
     );
-    if (own.path != linked.path && isRoot(own)) return own;
+    final linked = _canonicalOr(() => rootThroughDocsLink(dir), dir);
+    if (isRoot(linked)) return (folder: own, root: linked);
+    if (own.path != linked.path && isRoot(own)) return (folder: own, root: own);
     final parent = dir.parent;
     if (parent.path == dir.path) return null;
     dir = parent;
@@ -88,7 +99,7 @@ final class ProjectConfig {
   /// `packs` key that is not kebab-case, `missing_key` when `packs` is absent,
   /// `pack_version_invalid` for a bad pin, `prd_core_missing` when `packs`
   /// pins no `prd-core`, and `unknown_value` for a `code_root` that is not a
-  /// string, is absolute, or holds a backslash.
+  /// string, is empty, is absolute, or holds a backslash.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -156,10 +167,12 @@ String _readCodeRoot(YamlMap map) {
     file: projectConfigPath,
   );
   if (value == null) return '.';
-  if (_isAbsolute(value) || value.contains(r'\')) {
+  // Omitting the key or writing `.` is the one spelling of the root itself.
+  if (value.isEmpty || _isAbsolute(value) || value.contains(r'\')) {
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key $_codeRootKey must be a relative path with / separators',
+      'the key $_codeRootKey must be a non-empty relative path with / '
+      'separators',
       file: projectConfigPath,
       key: _codeRootKey,
     );

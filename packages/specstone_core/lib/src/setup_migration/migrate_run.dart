@@ -187,6 +187,7 @@ RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
+        linkFolder: docsLinkFolder(request.workingDirectory),
       );
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the

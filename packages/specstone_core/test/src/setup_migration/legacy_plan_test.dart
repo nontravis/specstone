@@ -52,6 +52,24 @@ PlannedRewrite _rewrite(RunPlan plan, String docPath) =>
 
 Iterable<String> _createdPaths(RunPlan plan) => plan.creates.map((c) => c.path);
 
+const _legacySpec = 'docs/specs/shared/s01_architecture.md';
+
+/// Plans [linkedAcme] of [files] from link folder `ws/code`.
+Future<RunPlan> _linkedPlan(Map<String, String> files) async {
+  final tree = await writeTree(linkedAcme(files));
+  final separator = Platform.pathSeparator;
+  final ws = '${tree.resolveSymbolicLinksSync()}${separator}ws';
+  return planLegacyRun(
+    Directory(ws),
+    templates: TemplateResolver(),
+    homeDirectory: null,
+    linkFolder: Directory('$ws${separator}code'),
+  );
+}
+
+PlannedCreate _configCreate(RunPlan plan) =>
+    plan.creates.singleWhere((c) => c.path == '.specstone/config.yaml');
+
 void main() {
   test('f06/us01/fr02/e01, f06/us01/s2: the acme plan is the dry-run '
       'example', () async {
@@ -603,6 +621,93 @@ name: NFR
     );
     expect(_createdPaths(plan), isNot(contains('.specstone/config.yaml')));
     expect(plan.toText(), contains('  .specstone/config.yaml: pins\n'));
+  });
+
+  group('code_root', () {
+    test('writes code_root when the legacy paths resolve from the link '
+        'folder', () async {
+      final plan = await _linkedPlan({
+        legacyFrPath: implementingDoc('Validate credentials', [
+          'lib/a.dart',
+          'lib/a.dart:A',
+        ]),
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      final create = _configCreate(plan);
+      expect(create.text, startsWith('packs:\n'));
+      expect(create.text, endsWith('\ncode_root: code\n'));
+      expect(create.note, endsWith('; code_root code'));
+      expect(
+        plan.toText(),
+        matches(
+          RegExp(
+            r'\n  \.specstone/config\.yaml: prd-core \S+, software-tech \S+; '
+            r'code_root code\n',
+          ),
+        ),
+      );
+    });
+
+    test('keeps the default when the paths resolve from the root', () async {
+      final plan = await _linkedPlan({
+        legacyFrPath: implementingDoc('Validate credentials', [
+          'code/lib/a.dart',
+        ]),
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      final create = _configCreate(plan);
+      expect(create.text, isNot(contains('code_root')));
+      expect(create.note, isNot(contains('code_root')));
+    });
+
+    test('keeps the default on a tie or no entries', () async {
+      final tie = await _linkedPlan({
+        legacyFrPath: implementingDoc('Validate credentials', [
+          'lib/a.dart',
+          'lib/',
+        ]),
+        _legacySpec: implementingDoc('Shared architecture', [
+          'code/lib/b.dart',
+        ]),
+        'code/lib/a.dart': 'class A {}\n',
+        'code/lib/b.dart': 'class B {}\n',
+      });
+      final none = await _linkedPlan({'code/lib/a.dart': 'class A {}\n'});
+
+      for (final plan in [tie, none]) {
+        expect(_configCreate(plan).text, isNot(contains('code_root')));
+      }
+    });
+
+    test('an existing config keeps its code_root on rewrite', () async {
+      final versions = shippedPackVersions();
+      final kept = await _linkedPlan({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\ncode_root: ../code\n',
+      });
+      final absent = await _linkedPlan({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 0.0.1\n',
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      expect(
+        kept.rewrites
+            .singleWhere((r) => r.path == '.specstone/config.yaml')
+            .text,
+        'packs:\n  prd-core: ${versions['prd-core']}\n'
+        '  software-tech: ${versions['software-tech']}\n'
+        'code_root: ../code\n',
+      );
+      expect(
+        absent.rewrites
+            .singleWhere((r) => r.path == '.specstone/config.yaml')
+            .text,
+        isNot(contains('code_root')),
+      );
+    });
   });
 
   test(

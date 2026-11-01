@@ -107,6 +107,21 @@ void main() {
       );
     });
 
+    test('a code_root through missing folders opens at the normalized '
+        'path', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: ../gone/../x\n',
+      });
+
+      final project = _open(root);
+
+      expect(
+        project.codeRoot.path,
+        '${root.parent.resolveSymbolicLinksSync()}${Platform.pathSeparator}x',
+      );
+    });
+
     test('f05/us01/fr01/e05, f05/us02/fr01/e07: a template fault propagates '
         'with exit 78', () async {
       final root = await fixtureProject({

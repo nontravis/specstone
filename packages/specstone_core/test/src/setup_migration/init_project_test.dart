@@ -268,6 +268,46 @@ void main() {
     expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us03/fr01/e02: the legacy entry from the folder holding the docs '
+      'link plans code_root as migrate does', () async {
+    final tree = await writeTree(
+      linkedAcme({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        'code/lib/a.dart': 'class A {}\n',
+        // Git for Windows may store a link as a file; the plan needs none.
+        '.gitignore': 'code/docs\n',
+      }),
+    );
+    if (!linkCodeDocs(tree)) return;
+    commitRepo(Directory('${tree.path}/ws'));
+    final out = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: Directory('${tree.path}/ws/code'),
+          homeDirectory: null,
+          templates: TemplateResolver(),
+          interactive: false,
+          readLine: () => null,
+          out: out,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>().having(
+          (f) => f.code,
+          'code',
+          WriteFaultCode.ownerTerminalRequired,
+        ),
+      ),
+    );
+    expect(
+      out.toString(),
+      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
       'exit 75, and the journal stays', () async {
     final root = await gitFixture(acmeLegacy);

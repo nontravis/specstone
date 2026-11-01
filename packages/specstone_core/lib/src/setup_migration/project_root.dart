@@ -25,6 +25,58 @@ Directory findMigrateRoot(Directory workingDirectory) {
   );
 }
 
+/// Returns the folder whose `docs` link led [findMigrateRoot] to the root, or
+/// null when the root is the folder the walk stopped at.
+///
+/// Walks from [workingDirectory] as [findMigrateRoot] does; the result is
+/// canonical. Null also when no folder upward is a root.
+Directory? docsLinkFolder(Directory workingDirectory) {
+  final match = matchRootUpward(workingDirectory, _isMarked);
+  if (match == null) return null;
+  final (:folder, :root) = match;
+  return folder.path == root.path ? null : folder;
+}
+
+/// Returns the `/`-separated path from [from] to [to], `.` for one folder.
+///
+/// Both are canonical, so their names compare one by one. Null when no
+/// relative path exists: two Windows drives or network shares.
+String? relativeFolderPath(Directory from, Directory to) {
+  final source = _rootedNames(from.path);
+  final target = _rootedNames(to.path);
+  if (source.root != target.root) return null;
+  var shared = 0;
+  while (shared < source.names.length &&
+      shared < target.names.length &&
+      source.names[shared] == target.names[shared]) {
+    shared++;
+  }
+  final steps = [
+    for (var i = shared; i < source.names.length; i++) '..',
+    ...target.names.skip(shared),
+  ];
+  return steps.isEmpty ? '.' : steps.join('/');
+}
+
+/// Splits an absolute [path] into its root and its folder names.
+///
+/// On Windows the root is the drive (`c:`) or the share (`\\host\share`),
+/// lowercased, as Windows matches them in any case; elsewhere it is `/`.
+({String root, List<String> names}) _rootedNames(String path) {
+  if (!Platform.isWindows) return (root: '/', names: _namesOf(path.split('/')));
+  final parts = path.replaceAll('/', r'\').split(r'\');
+  final rootLength = path.startsWith(r'\\') || path.startsWith('//') ? 4 : 1;
+  return (
+    root: parts.take(rootLength).join(r'\').toLowerCase(),
+    names: _namesOf(parts.skip(rootLength)),
+  );
+}
+
+List<String> _namesOf(Iterable<String> parts) => [
+  for (final part in parts)
+    if (part.isNotEmpty) part,
+];
+
 bool _isMarked(Directory folder) => const [
   projectConfigPath,
   legacyContextPath,

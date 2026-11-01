@@ -151,6 +151,7 @@ void main() {
       ('a drive-letter path', 'code_root: C:/abs'),
       ('a backslash', r"code_root: 'a\b'"),
       ('a non-string', 'code_root: [a]'),
+      ('an empty string', "code_root: ''"),
     ]) {
       test('rejects $name as code_root', () async {
         final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');

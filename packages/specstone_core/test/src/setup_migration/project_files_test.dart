@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -38,6 +39,38 @@ void main() {
       });
 
       expect(text, shippedPinsConfig());
+    });
+
+    group('configText code_root', () {
+      final pins = {
+        'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
+      };
+
+      test('the default code root writes the packs lines only', () {
+        expect(configText(pins), 'packs:\n  prd-core: 1.2.3\n');
+      });
+
+      test('a code root other than . is the last line', () {
+        expect(
+          configText(pins, codeRoot: 'stratum_ui'),
+          'packs:\n  prd-core: 1.2.3\ncode_root: stratum_ui\n',
+        );
+        expect(
+          configText(pins, codeRoot: '../NTD OS/example'),
+          endsWith('\ncode_root: ../NTD OS/example\n'),
+        );
+      });
+
+      for (final (name, codeRoot, line) in [
+        ('a number', '2024', "code_root: '2024'\n"),
+        ('a comment mark', 'a #b', "code_root: 'a #b'\n"),
+        ('a mapping mark', 'a: b', "code_root: 'a: b'\n"),
+        ('a broken quote', "'a", "code_root: '''a'\n"),
+      ]) {
+        test('a code root YAML reads as $name is quoted', () {
+          expect(configText(pins, codeRoot: codeRoot), endsWith(line));
+        });
+      }
     });
 
     test('f06/us01/fr05/e01: an ARCHITECTURE renamed one to one covers each '

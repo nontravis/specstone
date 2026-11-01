@@ -5,6 +5,7 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:yaml/yaml.dart';
 
 const _templatesFolder = '.specstone/templates';
 const _featureFolder = 'prds/features/{slug}/f{nn}_{slug}';
@@ -35,11 +36,16 @@ final _plainPath = RegExp(r'^[A-Za-z0-9_][A-Za-z0-9_./-]*$');
 
 /// Returns the `config.yaml` text pinning each of [pins] (INV-15).
 ///
-/// Writes `packs:` only, one pin per line in code point order of the name.
-String configText(Map<String, PackVersion> pins) {
+/// Writes `packs:`, one pin per line in code point order of the name, then a
+/// `code_root:` line only when [codeRoot] is not `.`, quoted when plain YAML
+/// would read it as another value.
+String configText(Map<String, PackVersion> pins, {String codeRoot = '.'}) {
   final names = pins.keys.toList()..sort(compareCodePoints);
   final lines = [for (final name in names) '  $name: ${pins[name]}\n'];
-  return 'packs:\n${lines.join()}';
+  final codeRootLine = codeRoot == '.'
+      ? ''
+      : 'code_root: ${_stringScalar(codeRoot)}\n';
+  return 'packs:\n${lines.join()}$codeRootLine';
 }
 
 /// Returns the `covers:` block of the spec folder [legacyFolder], or null.
@@ -159,6 +165,19 @@ String _sectionIdScalar(String id) =>
 /// Returns [path] as written when plain YAML reads it back, else quoted.
 String _coverPath(String path) =>
     _plainPath.hasMatch(path) ? path : _quoted(path);
+
+/// Returns [text] as written when plain YAML reads back the same string,
+/// else quoted.
+///
+/// A folder name may read as a number (`2024`), a comment, or a mapping.
+String _stringScalar(String text) {
+  try {
+    if (loadYaml(text) == text) return text;
+  } on YamlException {
+    // Text plain YAML refuses, such as `[a`, is written quoted.
+  }
+  return _quoted(text);
+}
 
 bool _isSingular(String? path) =>
     path != null && !path.contains('{nn}') && !path.contains('{slug}');

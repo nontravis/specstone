@@ -67,23 +67,25 @@ int runInit(InitRequest request) {
     );
   }
   if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
-    return runLegacyAt(root, _migrateRequestOf(root, request));
+    return runLegacyAt(root, _migrateRequestOf(request));
   }
   return _scaffold(root, request);
 }
 
 /// Returns the migrate request `init` enters the legacy run with.
-MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
-    MigrateRequest(
-      workingDirectory: root,
-      homeDirectory: request.homeDirectory,
-      templates: request.templates,
-      dryRun: false,
-      interactive: request.interactive,
-      readLine: request.readLine,
-      out: request.out,
-      runGit: request.runGit,
-    );
+///
+/// Keeps init's working directory, so the plan sees the folder whose `docs`
+/// link led to the root, as `migrate` run there does.
+MigrateRequest _migrateRequestOf(InitRequest request) => MigrateRequest(
+  workingDirectory: request.workingDirectory,
+  homeDirectory: request.homeDirectory,
+  templates: request.templates,
+  dryRun: false,
+  interactive: request.interactive,
+  readLine: request.readLine,
+  out: request.out,
+  runGit: request.runGit,
+);
 
 /// Writes each singular draft, then the config last (PD16, F6-D23).
 ///

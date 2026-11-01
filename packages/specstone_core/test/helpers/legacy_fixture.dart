@@ -3,7 +3,43 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import 'git_repo.dart';
+import 'relative_link.dart';
 import 'temp_tree.dart';
+
+/// The ProjectPath of the legacy FR of [acmeLegacy].
+const legacyFrPath =
+    'docs/prds/features/f01_login/us01_email_login/functional_requirements/'
+    'fr01_validate_credentials.md';
+
+/// Returns a legacy doc titled [title] whose `implements` lists [entries].
+String implementingDoc(String title, List<String> entries) =>
+    '---\nname: $title\nimplements:\n'
+    '${[for (final entry in entries) '  - $entry\n'].join()}'
+    '---\n\n# $title\n';
+
+/// The [acmeLegacy] tree under `ws/` with an empty code folder `ws/code/`,
+/// and [files] over it; keys are relative to `ws/`.
+Map<String, String> linkedAcme(Map<String, String> files) => {
+  for (final MapEntry(:key, :value) in {
+    ...acmeLegacy,
+    'code/keep.txt': '',
+    ...files,
+  }.entries)
+    'ws/$key': value,
+};
+
+/// Links `ws/code/docs` to `../docs` under [tree], as stratum_ui does.
+///
+/// Returns false, marking the test skipped, where links need privileges.
+bool linkCodeDocs(Directory tree) {
+  try {
+    createRelativeLink('${tree.path}/ws/code/docs', '../docs');
+    return true;
+  } on FileSystemException {
+    markTestSkipped('symbolic links need privileges on this machine');
+    return false;
+  }
+}
 
 /// The flat legacy tree of the `specstone migrate --dry-run` example.
 const acmeLegacy = <String, String>{
@@ -86,8 +122,7 @@ name: Email login
 
 # US-01 — Email login
 ''',
-  'docs/prds/features/f01_login/us01_email_login/functional_requirements/'
-      'fr01_validate_credentials.md': '''
+  legacyFrPath: '''
 ---
 name: Validate credentials
 status: planned
@@ -263,10 +298,15 @@ final nestedLegacy = <String, String>{
 /// Writes [files] under a new temp folder and commits them in a git repo.
 Future<Directory> gitFixture(Map<String, String> files) async {
   final root = await writeTree(files);
+  commitRepo(root);
+  return root;
+}
+
+/// Makes [root] a git repo and commits every file under it.
+void commitRepo(Directory root) {
   expect(git(root, ['init', '-q']).exitCode, 0);
   expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
   expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
   expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
   commitAll(root, 'legacy');
-  return root;
 }

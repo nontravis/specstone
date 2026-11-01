@@ -191,6 +191,94 @@ void main() {
     });
   });
 
+  group('docsLinkFolder', () {
+    Future<Directory?> linkedTree() async {
+      final tree = await writeTree({
+        'ws/$legacyContextPath': '# D-01\n',
+        'ws/code/lib/keep.txt': '',
+      });
+      try {
+        createRelativeLink('${tree.path}/ws/code/docs', '../docs');
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return null;
+      }
+      return tree;
+    }
+
+    test('the folder whose docs link leads to the root is the link '
+        'folder, from itself and from below', () async {
+      final tree = await linkedTree();
+      if (tree == null) return;
+      final code = _canonical(Directory('${tree.path}/ws/code'));
+
+      for (final start in ['ws/code', 'ws/code/lib']) {
+        final folder = docsLinkFolder(Directory('${tree.path}/$start'));
+
+        expect(folder?.path, code, reason: start);
+      }
+    });
+
+    test('a root with a real docs folder has no link folder', () async {
+      final tree = await writeTree({
+        'ws/$legacyContextPath': '# D-01\n',
+        'ws/lib/keep.txt': '',
+      });
+
+      expect(docsLinkFolder(Directory('${tree.path}/ws')), isNull);
+      expect(docsLinkFolder(Directory('${tree.path}/ws/lib')), isNull);
+    });
+
+    test('a folder outside every project has no link folder', () async {
+      final tree = await writeTree({'a/keep.txt': ''});
+
+      expect(docsLinkFolder(Directory('${tree.path}/a')), isNull);
+    });
+  });
+
+  group('relativeFolderPath', () {
+    late Directory ws;
+
+    setUp(() async {
+      final tree = await writeTree({
+        'ws/stratum_ui/example/keep.txt': '',
+        'ws/example/keep.txt': '',
+      });
+      ws = Directory(_canonical(Directory('${tree.path}/ws')));
+    });
+
+    Directory at(String relative) =>
+        Directory('${ws.path}${Platform.pathSeparator}$relative');
+
+    test('a folder to itself is .', () {
+      expect(relativeFolderPath(ws, ws), '.');
+    });
+
+    test('a child folder is its name', () {
+      expect(relativeFolderPath(ws, at('stratum_ui')), 'stratum_ui');
+    });
+
+    test('a folder below a sibling climbs with ..', () {
+      expect(
+        relativeFolderPath(
+          at('example'),
+          Directory(
+            '${ws.path}${Platform.pathSeparator}stratum_ui'
+            '${Platform.pathSeparator}example',
+          ),
+        ),
+        '../stratum_ui/example',
+      );
+    });
+
+    test('folders on two drives have no relative path', () {
+      expect(
+        relativeFolderPath(Directory(r'C:\a'), Directory(r'D:\b')),
+        isNull,
+      );
+    }, skip: Platform.isWindows ? false : 'only Windows has drive letters');
+  });
+
   group('rootThroughDocsLink', () {
     test('f06/us01/fr01/e02: a dangling docs link leaves the folder as its '
         'own root', () async {

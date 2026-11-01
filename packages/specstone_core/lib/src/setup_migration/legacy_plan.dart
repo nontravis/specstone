@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
@@ -26,6 +27,7 @@ const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
+const _implementsKey = 'implements';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -42,11 +44,17 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// Reads the files under `docs/prds` and `docs/specs`, the carried packs, and
 /// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`
 /// and a `TemplateFault` before it returns, so a refused run prints nothing.
-/// [homeDirectory] is the personal pack home, or null.
+/// A created config names [linkFolder] as its `code_root` when more legacy
+/// `implements` paths name a file from there than from [root].
+///
+/// - [homeDirectory]: the personal pack home, or null.
+/// - [linkFolder]: the canonical folder whose `docs` link led to [root], or
+///   null.
 RunPlan planLegacyRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  Directory? linkFolder,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
@@ -73,9 +81,9 @@ RunPlan planLegacyRun(
       for (final section in gnfr.sections) section.id,
   };
 
+  final originals = _originalsOf(docsRoot, docPaths);
   final rewrites = _rewritesOf(
-    docsRoot,
-    docPaths,
+    originals,
     legacy: legacy,
     specMap: specMap,
     features: features,
@@ -96,6 +104,9 @@ RunPlan planLegacyRun(
   final configRewrite = config.existsSync()
       ? _configRewriteOf(root, config, pins)
       : null;
+  final codeRoot = linkFolder == null || config.existsSync()
+      ? '.'
+      : _codeRootOf(root, linkFolder, originals.values);
 
   return RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
@@ -106,8 +117,10 @@ RunPlan planLegacyRun(
       if (!config.existsSync())
         PlannedCreate(
           path: projectConfigPath,
-          text: configText(pins),
-          note: ': ${_pinList(pins)}',
+          text: configText(pins, codeRoot: codeRoot),
+          note:
+              ': ${_pinList(pins)}'
+              '${codeRoot == '.' ? '' : '; code_root $codeRoot'}',
         ),
       if (!File.fromUri(root.uri.resolve(specstoneGitignorePath)).existsSync())
         PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
@@ -168,15 +181,56 @@ final class _Work {
       newPath.endsWith('/API.md');
 }
 
+/// Returns the text of every `.md` doc of [docPaths] that is UTF-8, by
+/// legacy DocPath in [docPaths] order; any other file moves untouched.
+Map<String, DocText> _originalsOf(Directory docsRoot, List<String> docPaths) =>
+    {
+      for (final docPath in docPaths)
+        if (docPath.endsWith('.md'))
+          docPath: ?readDocFile(
+            File.fromUri(docsRoot.uri.resolve(docPath)),
+            docPath: docPath,
+          ),
+    };
+
+/// Returns the code root of a created config: [linkFolder] from [root] when
+/// more `implements` paths of [originals] name a file from it, else `.`.
+///
+/// An entry counts as `check` resolves it: its path before the first `:`
+/// names a regular file. A tie keeps `.`, as does a [linkFolder] no relative
+/// path reaches.
+String _codeRootOf(
+  Directory root,
+  Directory linkFolder,
+  Iterable<DocText> originals,
+) {
+  var fromRoot = 0;
+  var fromLink = 0;
+  for (final original in originals) {
+    for (final (:value, line: _, text: _) in DocLines.of(
+      original.lf,
+    ).entriesOf(_implementsKey)) {
+      if (value is! String) continue;
+      final path = value.split(':').first;
+      if (_namesFile(root, path)) fromRoot++;
+      if (_namesFile(linkFolder, path)) fromLink++;
+    }
+  }
+  if (fromLink <= fromRoot) return '.';
+  return relativeFolderPath(root, linkFolder) ?? '.';
+}
+
+bool _namesFile(Directory base, String path) =>
+    FileSystemEntity.typeSync('${base.path}/$path') ==
+    FileSystemEntityType.file;
+
 /// Plans the rewrite of every markdown doc the run places or leaves.
 ///
-/// Only `.md` files are read, and only those that are UTF-8 text are
-/// rewritten; any other file moves untouched. A doc left in place gets the
-/// link rewrite and nothing else. The first fingerprints hash
-/// each FR as the run writes it, so the FR docs are rewritten first.
+/// Only the [originals] are rewritten. A doc left in place gets the link
+/// rewrite and nothing else. The first fingerprints hash each FR as the run
+/// writes it, so the FR docs are rewritten first.
 _Rewrites _rewritesOf(
-  Directory docsRoot,
-  List<String> docPaths, {
+  Map<String, DocText> originals, {
   required LegacyMoves legacy,
   required List<SpecMapRow> specMap,
   required LegacyFeatures features,
@@ -189,20 +243,14 @@ _Rewrites _rewritesOf(
       legacyPath: newPath,
   };
   final works = [
-    for (final legacyPath in docPaths)
-      if (legacyPath.endsWith('.md') &&
-          (newOf.containsKey(legacyPath) || legacy.left.contains(legacyPath)))
-        if (readDocFile(
-              File.fromUri(docsRoot.uri.resolve(legacyPath)),
-              docPath: legacyPath,
-            )
-            case final original?)
-          _Work(
-            legacyPath,
-            newOf[legacyPath] ?? legacyPath,
-            legacy.kindOf[newOf[legacyPath]],
-            original,
-          ),
+    for (final MapEntry(key: legacyPath, value: original) in originals.entries)
+      if (newOf.containsKey(legacyPath) || legacy.left.contains(legacyPath))
+        _Work(
+          legacyPath,
+          newOf[legacyPath] ?? legacyPath,
+          legacy.kindOf[newOf[legacyPath]],
+          original,
+        ),
   ];
 
   final gnfrSections = <String>[];
@@ -273,13 +321,18 @@ void _rewriteLinks(_Work work, List<PathMove> moves) {
 }
 
 /// Returns the config rewrite that sets the carried [pins] and keeps every
-/// other pin of the existing [config], or null when the text stays.
+/// other pin and the code root of the existing [config], or null when the
+/// text stays.
 PlannedRewrite? _configRewriteOf(
   Directory root,
   File config,
   Map<String, PackVersion> pins,
 ) {
-  final text = configText({...ProjectConfig.read(root).pins, ...pins});
+  final existing = ProjectConfig.read(root);
+  final text = configText({
+    ...existing.pins,
+    ...pins,
+  }, codeRoot: existing.codeRoot);
   if (text == config.readAsStringSync()) return null;
   return PlannedRewrite(path: projectConfigPath, text: text, changes: ['pins']);
 }

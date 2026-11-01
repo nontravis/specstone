@@ -396,6 +396,25 @@ void main() {
     }, skip: skipGit);
   });
 
+  test('a dry run from the folder holding the docs link plans code_root '
+      'when the legacy paths resolve from there', () async {
+    final tree = await writeTree(
+      linkedAcme({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        'code/lib/a.dart': 'class A {}\n',
+      }),
+    );
+    if (!linkCodeDocs(tree)) return;
+    final out = StringBuffer();
+
+    expect(_run(Directory('${tree.path}/ws/code'), out, dryRun: true), 0);
+
+    expect(
+      out.toString(),
+      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+    );
+  });
+
   test('f06/us01/fr07/e04, final M7: a dry run over a journal that does not '
       'parse refuses as bare migrate does', () async {
     final root = await gitFixture(acmeLegacy);
