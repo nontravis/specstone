@@ -194,7 +194,7 @@ void main() {
     });
   });
 
-  group('locateMigrateRoot', () {
+  group('locateMigrateRoot returns the link folder', () {
     Future<Directory?> linkedTree() async {
       final tree = await writeTree({
         'ws/$legacyContextPath': '# D-01\n',

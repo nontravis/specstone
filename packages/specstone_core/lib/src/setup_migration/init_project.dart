@@ -89,7 +89,10 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
       runGit: request.runGit,
     );
 
-/// Returns [folder], canonical, when its `docs` link led to [root], else null.
+/// Returns [folder], canonical, when it is not [root], else null.
+///
+/// [root] is `rootThroughDocsLink(folder)`, canonical, which differs from the
+/// folder exactly when the folder's `docs` link led to it.
 Directory? _linkFolderOf(Directory folder, Directory root) {
   final own = Directory(folder.resolveSymbolicLinksSync());
   return own.path == root.path ? null : own;
