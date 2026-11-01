@@ -34,8 +34,8 @@ of `#<key>`); a section body leaves out its `## ` line. Exit 75 `base_mismatch`:
 
 | Finding | Fix |
 |---|---|
-| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text; ask the Owner for what it lacks |
-| `section_undeclared` | merge its text into the section that takes it, then pipe empty text to its own key to drop it |
+| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text, else write a proposal from the project's own text, named in step 6; ask the Owner only when no text bears on it |
+| `section_undeclared` | merge its text into the section that takes it; if none takes it, merge each statement the doc lacks into the closest section as a proposal named in step 6; then, once each statement stands in the doc, pipe empty text to its own key to drop it |
 | `field_undeclared` on a feature's `implements` | step 3 |
 | `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
@@ -48,7 +48,7 @@ To drop a key, pipe empty text to `specstone set <type>:<name> --field <id> --ba
 ## 3. Move a feature's code pointers
 
 Through `specstone set --field implements`, give each `implements:` entry of a `FEATURE.md` to the story or FR whose
-behavior that code does; ask the Owner when unsure. Pipe that doc's whole new list to
+behavior that code does; ask the Owner when unsure. Pipe that doc's whole new list, as YAML `- item` lines, to
 `specstone set <type>:<name> --field implements --base <hash>`. A pointer write keeps the draft flag as it was, so
 name it in step 6 too. Then drop the feature's `implements` key as step 2 says.
 
@@ -95,4 +95,3 @@ the Owner to run `specstone approve` at their own terminal: it shows each draft 
 | "`git rm` is quicker." | Never: links break unseen. |
 | "Fix the old file's link in place." | Add the file to the set. |
 | "Hand-edit the feature to drop the key." | Pipe empty text to `specstone set` with `--field`. |
-| "Fix the `specs/` findings while I'm here." | `specstone:bootstrap-spec` takes them. |

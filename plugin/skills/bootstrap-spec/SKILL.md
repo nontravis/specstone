@@ -17,15 +17,14 @@ specstone check
 
 - **78, `project_not_found`:** tell the Owner the project has not moved to the new format; `specstone migrate`
   moves it, or they keep the old skills. Stop: run nothing more, and read or write no doc.
-- **0 or 1:** go on, even from a subfolder: the CLI looks in each folder above. Never look for `.specstone/`
-  yourself.
+- **0 or 1:** go on, even from a subfolder. Never look for `.specstone/` yourself.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. One finding at a time
 
 Take the first unhandled finding of this skill, fix it, and run `specstone check` again with no target: a
 targeted run omits `code_uncovered`. Repeat until each finding left is one `specstone:bootstrap-prd` takes, one no
-write clears, or one that waits on the Owner, such as an `unconfirmed` link that `waits for the Owner's approve`.
+write clears, or one that waits on the Owner.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
@@ -34,13 +33,13 @@ Exit 75 `base_mismatch`: read again, merge, retry.
 
 | Finding | Fix |
 |---|---|
-| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text; ask the Owner for the rest |
-| `section_undeclared` | merge its text into the section that takes it, then pipe empty text to its key |
+| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text, else write a proposal from the project's own text, named in step 6; ask the Owner only when no text bears on it |
+| `section_undeclared` | merge its text into the section that takes it; if none takes it, merge each statement the doc lacks into the closest section as a proposal named in step 6; then, once each statement stands in the doc, pipe empty text to its key |
 | `field_undeclared` on `implements`, `architecture_missing`, `code_uncovered` | step 3 |
 | `field_undeclared`, any other | write its value into the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
-| any other of this skill | rewrite the section or field it names through `specstone set`, as a draft, per `specstone guide <type>`; one no write clears goes to step 6 |
+| any other of this skill | rewrite the section or field it names through `specstone set` per `specstone guide <type>`; one no write clears goes to step 6 |
 
 To drop a key, pipe empty text to its `--field <id>` write; never edit the file.
 
@@ -102,4 +101,3 @@ the Owner to run `specstone approve` at their own terminal, a yes or no per draf
 | "Merged, so I'll delete the old files." | Print the `delete`; the Owner runs it. |
 | "`git rm` is quicker." | Never: links break unseen. |
 | "`check` is clean, so the tech stack is done." | Fill its values and `code` roots anyway. |
-| "Fix the `prds/` findings while I'm here." | `specstone:bootstrap-prd` takes them. |
