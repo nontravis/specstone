@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -55,7 +56,7 @@ ReadAnswer answerDelete(
   while (true) {
     final shown = _readUnit(session, unit.roots);
     if (confirmation == OwnerConfirmation.given &&
-        planHash != _planHashOf(session, shown.keys)) {
+        planHash != _planHashOf(session, shown)) {
       throw WriteFault(
         WriteFaultCode.planMismatch,
         'the delete list is not the one the Owner saw in the dry run; run '
@@ -98,17 +99,32 @@ ReadAnswer answerDelete(
 ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
   final unit = _resolveTargets(session, targets);
   _refuseIfReferenced(session, unit);
-  final files = _readUnit(session, unit.roots).keys.toList();
-  final hash = _planHashOf(session, files);
+  final unitFiles = _readUnit(session, unit.roots);
+  final files = unitFiles.keys.toList();
+  final hash = _planHashOf(session, unitFiles);
   return ReadAnswer(
     text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
     json: {'files': files, 'plan': hash},
   );
 }
 
-/// Returns the plan hash of a delete list, with the HEAD of the docs' git.
-String _planHashOf(WriteSession session, Iterable<String> docPaths) =>
-    planHashOf(_listOf(docPaths), session.project.docsRoot, runRealGit);
+/// Returns the plan hash of a delete unit, with the HEAD of the docs' git.
+///
+/// It covers each listed path with the hash of its text, as `bases.doc` hashes
+/// a doc, so an uncommitted edit to a listed file changes it too.
+String _planHashOf(WriteSession session, _UnitFiles files) => planHashOf(
+  [
+    for (final MapEntry(key: docPath, value: bytes) in files.entries)
+      '$docPath ${_textHashOf(bytes)}\n',
+  ].join(),
+  session.project.docsRoot,
+  runRealGit,
+);
+
+/// Returns the `bases.doc` hash of [bytes]; a byte that is not UTF-8 decodes
+/// to U+FFFD, so any file of a unit hashes the same way each time.
+String _textHashOf(List<int> bytes) =>
+    baseHashOf(toLf(utf8.decode(bytes, allowMalformed: true)));
 
 String _listOf(Iterable<String> docPaths) =>
     docPaths.map((docPath) => '$docPath\n').join();

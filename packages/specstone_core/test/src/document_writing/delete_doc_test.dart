@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -10,6 +11,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
@@ -210,10 +212,43 @@ void main() {
       (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
     );
     final list = signOutUnit.map((path) => '$path\n').join();
-    final hash = planHashOf(list, Directory('${root.path}/docs'), runRealGit);
+    final hashed = signOutUnit
+        .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
+        .join();
+    final hash = planHashOf(hashed, Directory('${root.path}/docs'), runRealGit);
     expect(answer.text, '${list}plan $hash\ndry run: nothing removed\n');
     expect(answer.json, {'files': signOutUnit, 'plan': hash});
     expect(hasDoc(root, story2), isTrue);
+  });
+
+  test('ms-r11: an uncommitted edit to a listed file after the dry run is '
+      'plan_mismatch, exit 75, and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final hash =
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+    final edited = signOutUnit[1];
+    docFile(root, edited).writeAsStringSync('${readDoc(root, edited)}More.\n');
+
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    for (final path in signOutUnit) {
+      expect(hasDoc(root, path), isTrue, reason: path);
+    }
   });
 
   test('ms-r11: a dry run refuses a referred unit as the run does', () async {

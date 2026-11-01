@@ -137,6 +137,21 @@ void main() {
       expect((jsonDecode(out.toString()) as Map)['removed'], [fr11]);
     },
   );
+  test('ms-r11: --yes --plan after an uncommitted edit to a listed file '
+      'exits 75 and removes nothing', () async {
+    final root = await writeWriteProject();
+    final hash = await _dryRunPlanHash(root, fr11Target);
+    final file = File('${root.path}/docs/$fr11');
+    file.writeAsStringSync('${file.readAsStringSync()}More.\n');
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['delete', fr11Target, '--yes', '--plan', hash]),
+      75,
+    );
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), startsWith('the delete list is not the one'));
+    expect(file.existsSync(), isTrue);
+  });
   test(
     'ms-r11: --yes --plan with a stale hash exits 75 and removes nothing',
     () async {
