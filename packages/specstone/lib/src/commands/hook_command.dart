@@ -136,8 +136,13 @@ class PreBashCommand extends SpecstoneCommand {
   static final _whitespace = RegExp(r'\s+');
   static final _quotes = RegExp(r'''^['"]+|['"]+$''');
   static final _hashSuffix = RegExp(r'@[0-9a-f]+$');
+  // `$(`, `${`, `$name`, a backtick, `<(`, or a `<` redirect.
+  static final _expansion = RegExp(r'\$[({A-Za-z_]|`|<');
+  static final _xargs = RegExp(r'\bxargs\b');
   static const _planOption = '--plan';
   static const _reasonLimit = 300;
+  static const _hiddenNames =
+      'names come from a shell expansion the Owner cannot see; write them out';
 
   @override
   String get name => 'pre-bash';
@@ -188,15 +193,21 @@ class PreBashCommand extends SpecstoneCommand {
   ///
   /// The reason is `Owner confirmation: ` and one segment per gated
   /// `specstone <subcommand>` call, in order, joined with `; `: the call with
-  /// its names, flags and `@<hash>` dropped. A command with no such call names
-  /// itself. The reason is cut to 300 characters.
+  /// its names, flags and `@<hash>` dropped. A call whose names or plan come
+  /// from a shell expansion reads `specstone <subcommand>: ` and the reason to
+  /// write them out. A command with no such call names itself. The reason is
+  /// cut to 300 characters.
   String? _reasonFor(String command) {
     if (!_gatedWord.hasMatch(command) || !_yesToken.hasMatch(command)) {
       return null;
     }
     final segments = [
       for (final call in _gatedCall.allMatches(command))
-        _segmentOf(call[1]!, command.substring(call.end)),
+        _segmentOf(
+          call[1]!,
+          before: command.substring(0, call.start),
+          rest: command.substring(call.end),
+        ),
     ];
     final named = segments.isEmpty
         ? command.trim().replaceAll(_whitespace, ' ')
@@ -207,13 +218,29 @@ class PreBashCommand extends SpecstoneCommand {
 
   /// Returns `specstone <subcommand>` and the names in [rest], the text after
   /// the subcommand, up to the end of that shell command.
-  String _segmentOf(String subcommand, String rest) {
+  ///
+  /// [before] is the text ahead of the call; its last shell command may feed
+  /// the call through `xargs`.
+  String _segmentOf(
+    String subcommand, {
+    required String before,
+    required String rest,
+  }) {
     final end = _commandEnd.firstMatch(rest)?.start ?? rest.length;
+    final arguments = rest.substring(0, end);
+    final stageStart = _commandEnd.allMatches(before).lastOrNull?.end ?? 0;
+    if (_expansion.hasMatch(arguments) ||
+        _xargs.hasMatch(before.substring(stageStart))) {
+      return 'specstone $subcommand: $_hiddenNames';
+    }
     final names = <String>[];
     var skipValue = false;
-    for (final raw in rest.substring(0, end).split(_whitespace)) {
+    for (final raw in arguments.split(_whitespace)) {
       final word = raw.replaceAll(_quotes, '');
       if (word.isEmpty) continue;
+      if (word.startsWith('@')) {
+        return 'specstone $subcommand: $_hiddenNames';
+      }
       if (skipValue) {
         skipValue = false;
       } else if (word.startsWith('-')) {

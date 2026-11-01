@@ -353,6 +353,122 @@ void main() {
       });
     }
 
+    const hidden =
+        'names come from a shell expansion the Owner cannot see; write them '
+        'out';
+    for (final (shape, command, reason) in [
+      (
+        'the 2026-11-01 repro, a command substitution reading a file',
+        r'''specstone approve $(tr '\n' ' ' < "$L/f02-approve-hashes.txt") --yes''',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a plain variable',
+        r'specstone approve $DRAFTS --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a braced variable',
+        r'specstone approve ${DRAFTS} --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a variable named with an underscore',
+        r'specstone approve $_drafts --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a backtick substitution',
+        'specstone approve `cat hashes.txt` --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a <(…) process substitution',
+        'specstone approve <(cat hashes.txt) --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a < redirect',
+        'specstone approve --yes < hashes.txt',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'an @ file reference',
+        'specstone approve @hashes.txt --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'xargs feeding the call',
+        'cat f | xargs specstone approve --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'xargs with options and a placeholder',
+        'cat f | xargs -I{} specstone approve {} --yes',
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+      (
+        'a hidden plan hash on delete',
+        r'specstone delete prds/a.md --yes --plan $(cat plan.txt)',
+        'Owner confirmation: specstone delete: $hidden',
+      ),
+      (
+        'a hidden plan hash on migrate',
+        r'specstone migrate --yes --plan $PLAN',
+        'Owner confirmation: specstone migrate: $hidden',
+      ),
+      (
+        'a hidden plan hash on init',
+        r'specstone init --yes --plan "$PLAN"',
+        'Owner confirmation: specstone init: $hidden',
+      ),
+      (
+        'only the expanding call among two',
+        'specstone approve feature:signup@1a2b3c4d5e6f --yes; '
+            r'specstone delete $(cat paths.txt) --yes --plan 1a2b3c4d5e6f',
+        'Owner confirmation: specstone approve feature:signup; '
+            'specstone delete: $hidden',
+      ),
+      (
+        'a bash -c call with a variable',
+        r"""bash -c 'specstone approve $DRAFTS --yes'""",
+        'Owner confirmation: specstone approve: $hidden',
+      ),
+    ]) {
+      test('D6: $shape asks the Owner to write the names out', () async {
+        final result = await _preBash(_bash(command));
+        expect(result.status, 0);
+        expect(result.err, isEmpty);
+        expect(jsonDecode(result.out), _ask(reason));
+      });
+    }
+
+    for (final (shape, command, reason) in [
+      (
+        'names with hash suffixes and a plan',
+        'specstone approve feature:signup@1a2b3c4d5e6f '
+            'user_story:login/email_login@0123456789ab --yes',
+        '$signup user_story:login/email_login',
+      ),
+      (
+        'delete with a literal plan',
+        'specstone delete prds/a.md --yes --plan 1a2b3c4d5e6f',
+        'Owner confirmation: specstone delete prds/a.md',
+      ),
+      (
+        'a variable before the call, not in its arguments',
+        r'cd "$HOME/shop" && specstone approve feature:signup@1a2b3c4d5e6f '
+            '--yes',
+        signup,
+      ),
+    ]) {
+      test('D6: $shape keeps the literal reason', () async {
+        final result = await _preBash(_bash(command));
+        expect(result.status, 0);
+        expect(jsonDecode(result.out), _ask(reason));
+      });
+    }
+
     for (final (tool, command) in [
       ('PowerShell', 'specstone.exe approve feature:signup@1a2b3c4d5e6f --yes'),
       (

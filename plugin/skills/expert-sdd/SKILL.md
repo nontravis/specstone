@@ -61,7 +61,9 @@ own terminal or here in the chat. In the chat:
    `specstone approve <type>:<name>@<hash> … --yes` (each draft named, as a name approves only itself),
    `specstone delete <path> … --yes --plan <hash>`, `specstone migrate --yes --plan <hash>`, or
    `specstone init --yes --plan <hash>`. Claude Code asks the Owner once first; a denial means stop and ask what to
-   change. Exit 75 means an item changed since you showed it: show it again.
+   change. Exit 75 means an item changed since you showed it: show it again. Write every name with its `@<hash>`,
+   every path, and the `--plan <hash>` literally in the command; never build them from a file, a variable, or a
+   command substitution, since the Owner's prompt shows only the command text.
 4. The Owner may instead run the command, without `--yes`, at their own terminal.
 
 ## Red flags
