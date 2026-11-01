@@ -405,7 +405,11 @@
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('specstone.' + [guid]::NewGuid().ToString('N'))
     $unpack = Join-Path $tmp 'unpack'
     try {
-        New-Item -ItemType Directory -Path $tmp | Out-Null
+        try {
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+        } catch {
+            throw "specstone: could not make a temporary folder in $([IO.Path]::GetTempPath()); the install is unchanged"
+        }
         Save-AndVerify $asset
         try {
             Expand-Archive -LiteralPath (Join-Path $tmp $asset) -DestinationPath $unpack -Force -ErrorAction Stop
