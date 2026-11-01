@@ -167,8 +167,7 @@ String _readCodeRoot(YamlMap map) {
     file: projectConfigPath,
   );
   if (value == null) return '.';
-  // Omitting the key or writing `.` is the one spelling of the root itself.
-  if (value.isEmpty || _isAbsolute(value) || value.contains(r'\')) {
+  if (!isCodeRootValue(value)) {
     throw TemplateFault(
       FaultCode.unknownValue,
       'the key $_codeRootKey must be a non-empty relative path with / '
@@ -179,6 +178,14 @@ String _readCodeRoot(YamlMap map) {
   }
   return value;
 }
+
+/// Whether [value] is a `code_root` the config reader accepts: a non-empty
+/// relative path with `/` separators.
+///
+/// Omitting the key or writing `.` is the one spelling of the root itself, so
+/// the empty string is refused.
+bool isCodeRootValue(String value) =>
+    value.isNotEmpty && !_isAbsolute(value) && !value.contains(r'\');
 
 /// Whether [path] is rooted or starts with a drive letter, on any platform.
 ///

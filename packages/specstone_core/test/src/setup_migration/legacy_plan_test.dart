@@ -55,15 +55,18 @@ Iterable<String> _createdPaths(RunPlan plan) => plan.creates.map((c) => c.path);
 const _legacySpec = 'docs/specs/shared/s01_architecture.md';
 
 /// Plans [linkedAcme] of [files] from link folder `ws/code`.
-Future<RunPlan> _linkedPlan(Map<String, String> files) async {
-  final tree = await writeTree(linkedAcme(files));
+Future<RunPlan> _linkedPlan(Map<String, String> files) async =>
+    _planFromLink(await writeTree(linkedAcme(files)));
+
+/// Plans the `ws/` folder of [tree] from link folder `ws/<linkName>`.
+RunPlan _planFromLink(Directory tree, {String linkName = 'code'}) {
   final separator = Platform.pathSeparator;
   final ws = '${tree.resolveSymbolicLinksSync()}${separator}ws';
   return planLegacyRun(
     Directory(ws),
     templates: TemplateResolver(),
     homeDirectory: null,
-    linkFolder: Directory('$ws${separator}code'),
+    linkFolder: Directory('$ws$separator$linkName'),
   );
 }
 
@@ -661,6 +664,48 @@ name: NFR
       expect(create.text, isNot(contains('code_root')));
       expect(create.note, isNot(contains('code_root')));
     });
+
+    test('skips implements items that are not strings', () async {
+      final plan = await _linkedPlan({
+        legacyFrPath: implementingDoc('Validate credentials', [
+          '42',
+          '{a: b}',
+          'lib/a.dart',
+        ]),
+        // Read as a path, the item 42 would tie the count.
+        '42': '',
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      expect(_configCreate(plan).text, endsWith('\ncode_root: code\n'));
+    });
+
+    for (final linkName in [r'co\de', 'C:code']) {
+      test(
+        'keeps the default when the link folder path is no valid code_root: '
+        '$linkName',
+        () async {
+          final tree = await writeTree(
+            linkedAcme({
+              legacyFrPath: implementingDoc('Validate credentials', [
+                'lib/a.dart',
+              ]),
+            }),
+          );
+          // writeTree reads its keys as URIs, which turn `\` into `/`.
+          File('${tree.path}/ws/$linkName/lib/a.dart')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync('class A {}\n');
+
+          final plan = _planFromLink(tree, linkName: linkName);
+
+          expect(_configCreate(plan).text, isNot(contains('code_root')));
+        },
+        skip: Platform.isWindows
+            ? r'a Windows folder name holds no \ or :'
+            : false,
+      );
+    }
 
     test('keeps the default on a tie or no entries', () async {
       final tie = await _linkedPlan({

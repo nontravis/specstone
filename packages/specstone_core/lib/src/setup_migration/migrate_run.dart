@@ -93,7 +93,7 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
 );
 
 int _migrate(MigrateRequest request) {
-  final root = findMigrateRoot(request.workingDirectory);
+  final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
     final target = _targetOf(root, request);
     if (request.dryRun) {
@@ -117,7 +117,7 @@ int _migrate(MigrateRequest request) {
       return 0;
     case RunKind.legacy:
     case RunKind.upgrade:
-      return _plannedRun(request, root, kind);
+      return _plannedRun(request, root, kind, linkFolder: linkFolder);
     case RunKind.resume:
       return _resume(request, root);
   }
@@ -126,10 +126,16 @@ int _migrate(MigrateRequest request) {
 /// Runs the bare legacy migration of [root] from its git checks on.
 ///
 /// Prints the plan, then applies it on the Owner's `y`; `init` enters here
-/// when its root holds the legacy context doc (F6-D15). Maps git failures as
-/// [runMigrate] does.
-int runLegacyAt(Directory root, MigrateRequest request) =>
-    _mappingGitFailures(() => _plannedRun(request, root, RunKind.legacy));
+/// when its root holds the legacy context doc (F6-D15). [linkFolder] is the
+/// canonical folder whose `docs` link led to [root], or null. Maps git
+/// failures as [runMigrate] does.
+int runLegacyAt(
+  Directory root,
+  MigrateRequest request, {
+  Directory? linkFolder,
+}) => _mappingGitFailures(
+  () => _plannedRun(request, root, RunKind.legacy, linkFolder: linkFolder),
+);
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
 /// `y`.
@@ -137,18 +143,23 @@ int runLegacyAt(Directory root, MigrateRequest request) =>
 /// The git checks run again after the `y`, since the Owner may read the plan
 /// for minutes: a change to the tree or a new commit in that time refuses
 /// `working_tree_dirty` with nothing written, as F-02's delete and approve
-/// re-check after their prompt (INV-3).
-int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
+/// re-check after their prompt (INV-3). A legacy plan reads [linkFolder].
+int _plannedRun(
+  MigrateRequest request,
+  Directory root,
+  RunKind kind, {
+  required Directory? linkFolder,
+}) {
   if (request.dryRun) {
     request.out
-      ..write(_planOf(request, root, kind).toText())
+      ..write(_planOf(request, root, kind, linkFolder).toText())
       ..writeln('dry run: nothing written');
     return 0;
   }
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
-  final plan = _planOf(request, root, kind);
+  final plan = _planOf(request, root, kind, linkFolder);
   request.out.write(plan.toText());
   if (!request.interactive) {
     throw WriteFault(
@@ -176,8 +187,12 @@ int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
   return 0;
 }
 
-RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
-    kind == RunKind.upgrade
+RunPlan _planOf(
+  MigrateRequest request,
+  Directory root,
+  RunKind kind,
+  Directory? linkFolder,
+) => kind == RunKind.upgrade
     ? planUpgradeRun(
         root,
         templates: request.templates,
@@ -187,7 +202,7 @@ RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
-        linkFolder: docsLinkFolder(request.workingDirectory),
+        linkFolder: linkFolder,
       );
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the

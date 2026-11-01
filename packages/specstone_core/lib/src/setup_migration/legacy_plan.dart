@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
@@ -27,7 +28,6 @@ const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
-const _implementsKey = 'implements';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -194,11 +194,11 @@ Map<String, DocText> _originalsOf(Directory docsRoot, List<String> docPaths) =>
     };
 
 /// Returns the code root of a created config: [linkFolder] from [root] when
-/// more `implements` paths of [originals] name a file from it, else `.`.
+/// more `implements` entries of [originals] name a file from it, else `.`.
 ///
-/// An entry counts as `check` resolves it: its path before the first `:`
-/// names a regular file. A tie keeps `.`, as does a [linkFolder] no relative
-/// path reaches.
+/// An entry counts by [ImplementsEntry.namesFileFrom], the rule `check`
+/// resolves it by. A tie keeps `.`, as does a [linkFolder] whose path from
+/// [root] the config reader would refuse or no relative path reaches.
 String _codeRootOf(
   Directory root,
   Directory linkFolder,
@@ -209,20 +209,17 @@ String _codeRootOf(
   for (final original in originals) {
     for (final (:value, line: _, text: _) in DocLines.of(
       original.lf,
-    ).entriesOf(_implementsKey)) {
+    ).entriesOf(implementsField)) {
       if (value is! String) continue;
-      final path = value.split(':').first;
-      if (_namesFile(root, path)) fromRoot++;
-      if (_namesFile(linkFolder, path)) fromLink++;
+      final entry = ImplementsEntry(value);
+      if (entry.namesFileFrom(root)) fromRoot++;
+      if (entry.namesFileFrom(linkFolder)) fromLink++;
     }
   }
   if (fromLink <= fromRoot) return '.';
-  return relativeFolderPath(root, linkFolder) ?? '.';
+  final relative = relativeFolderPath(root, linkFolder);
+  return relative != null && isCodeRootValue(relative) ? relative : '.';
 }
-
-bool _namesFile(Directory base, String path) =>
-    FileSystemEntity.typeSync('${base.path}/$path') ==
-    FileSystemEntityType.file;
 
 /// Plans the rewrite of every markdown doc the run places or leaves.
 ///

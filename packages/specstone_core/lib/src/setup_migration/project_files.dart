@@ -32,7 +32,6 @@ const _draftOrder = ['project', 'features', 'gnfr', 'tech_stack'];
 final _idRun = RegExp('[a-z0-9]+');
 final _plainId = RegExp(r'^[a-z][a-z0-9_]*$');
 const _yamlWords = {'true', 'false', 'null'};
-final _plainPath = RegExp(r'^[A-Za-z0-9_][A-Za-z0-9_./-]*$');
 
 /// Returns the `config.yaml` text pinning each of [pins] (INV-15).
 ///
@@ -62,7 +61,8 @@ String configText(Map<String, PackVersion> pins, {String codeRoot = '.'}) {
       if (row.specPath == legacyFolder && row.codePath.isNotEmpty) row.codePath,
   ];
   if (paths.isEmpty) return null;
-  final lines = [for (final path in paths) '  - ${_coverPath(path)}\n'].join();
+  final lines = [for (final path in paths) '  - ${_stringScalar(path)}\n']
+      .join();
   return (
     block: 'covers:\n$lines',
     label: paths.length == 1
@@ -162,14 +162,11 @@ String _quoted(String text) => "'${text.replaceAll("'", "''")}'";
 String _sectionIdScalar(String id) =>
     _plainId.hasMatch(id) && !_yamlWords.contains(id) ? id : _quoted(id);
 
-/// Returns [path] as written when plain YAML reads it back, else quoted.
-String _coverPath(String path) =>
-    _plainPath.hasMatch(path) ? path : _quoted(path);
-
 /// Returns [text] as written when plain YAML reads back the same string,
 /// else quoted.
 ///
-/// A folder name may read as a number (`2024`), a comment, or a mapping.
+/// A path may read as a number (`2024`), a word (`true`), a comment, or a
+/// mapping.
 String _stringScalar(String text) {
   try {
     if (loadYaml(text) == text) return text;

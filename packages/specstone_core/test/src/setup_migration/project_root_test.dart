@@ -19,7 +19,7 @@ final String _journal = jsonEncode(
 String _canonical(Directory dir) => dir.resolveSymbolicLinksSync();
 
 void main() {
-  group('findMigrateRoot', () {
+  group('locateMigrateRoot', () {
     test('f06/us01/fr01: the walk stops at the first folder holding config, '
         'legacy context doc, or journal', () async {
       for (final marker in {
@@ -31,7 +31,7 @@ void main() {
           'repo/${marker.key}': marker.value,
           'repo/a/b/keep.txt': '',
         });
-        final root = findMigrateRoot(Directory('${tree.path}/repo/a/b'));
+        final root = locateMigrateRoot(Directory('${tree.path}/repo/a/b')).root;
 
         expect(
           _canonical(root),
@@ -46,7 +46,7 @@ void main() {
       final tree = await writeTree({'a/b/keep.txt': ''});
 
       expect(
-        () => findMigrateRoot(Directory('${tree.path}/a/b')),
+        () => locateMigrateRoot(Directory('${tree.path}/a/b')).root,
         throwsA(
           isA<RenderFault>()
               .having((f) => f.code, 'code', RenderFaultCode.projectNotFound)
@@ -71,7 +71,8 @@ void main() {
         return;
       }
 
-      final root = findMigrateRoot(Directory('${tree.path}/repo/code/lib'));
+      final root = locateMigrateRoot(Directory('${tree.path}/repo/code/lib'))
+          .root;
 
       expect(_canonical(root), _canonical(Directory('${tree.path}/docsrepo')));
     });
@@ -84,9 +85,9 @@ void main() {
         'outer/example-app/lib/keep.txt': '',
       });
 
-      final root = findMigrateRoot(
+      final root = locateMigrateRoot(
         Directory('${tree.path}/outer/example-app/lib'),
-      );
+      ).root;
 
       expect(
         _canonical(root),
@@ -102,7 +103,8 @@ void main() {
         'docs/prds/sub/keep.txt': '',
       });
 
-      final root = findMigrateRoot(Directory('${tree.path}/docs/prds/sub'));
+      final root = locateMigrateRoot(Directory('${tree.path}/docs/prds/sub'))
+          .root;
 
       expect(_canonical(root), _canonical(tree));
     });
@@ -121,13 +123,13 @@ void main() {
         return;
       }
 
-      final root = findMigrateRoot(Directory('${tree.path}/acme'));
+      final root = locateMigrateRoot(Directory('${tree.path}/acme')).root;
 
       expect(_canonical(root), _canonical(Directory('${tree.path}/acme-docs')));
     });
   });
 
-  group('findMigrateRoot and findProjectRoot share one walk', () {
+  group('locateMigrateRoot and findProjectRoot share one walk', () {
     Future<Directory?> nestedTree(Map<String, String> files) async {
       final tree = await writeTree({...files, 'ws/code/example/keep.txt': ''});
       try {
@@ -152,7 +154,7 @@ void main() {
       final start = Directory('${tree.path}/ws/code/example');
       final nested = _canonical(Directory('${tree.path}/ws/example'));
 
-      expect(_canonical(findMigrateRoot(start)), nested);
+      expect(_canonical(locateMigrateRoot(start).root), nested);
       expect(_canonical(findProjectRoot(start)!), nested);
     });
 
@@ -164,7 +166,8 @@ void main() {
       });
       if (tree == null) return;
 
-      final root = findMigrateRoot(Directory('${tree.path}/ws/code/example'));
+      final root = locateMigrateRoot(Directory('${tree.path}/ws/code/example'))
+          .root;
 
       expect(
         _canonical(root),
@@ -185,13 +188,13 @@ void main() {
         return;
       }
 
-      final root = findMigrateRoot(Directory('${tree.path}/ws/code'));
+      final root = locateMigrateRoot(Directory('${tree.path}/ws/code')).root;
 
       expect(_canonical(root), _canonical(Directory('${tree.path}/ws/code')));
     });
   });
 
-  group('docsLinkFolder', () {
+  group('locateMigrateRoot', () {
     Future<Directory?> linkedTree() async {
       final tree = await writeTree({
         'ws/$legacyContextPath': '# D-01\n',
@@ -206,16 +209,20 @@ void main() {
       return tree;
     }
 
-    test('the folder whose docs link leads to the root is the link '
-        'folder, from itself and from below', () async {
+    test('the folder whose docs link led to the root is the link folder, '
+        'from itself and from below', () async {
       final tree = await linkedTree();
       if (tree == null) return;
+      final ws = _canonical(Directory('${tree.path}/ws'));
       final code = _canonical(Directory('${tree.path}/ws/code'));
 
       for (final start in ['ws/code', 'ws/code/lib']) {
-        final folder = docsLinkFolder(Directory('${tree.path}/$start'));
+        final (:root, :linkFolder) = locateMigrateRoot(
+          Directory('${tree.path}/$start'),
+        );
 
-        expect(folder?.path, code, reason: start);
+        expect(root.path, ws, reason: start);
+        expect(linkFolder?.path, code, reason: start);
       }
     });
 
@@ -224,15 +231,31 @@ void main() {
         'ws/$legacyContextPath': '# D-01\n',
         'ws/lib/keep.txt': '',
       });
+      final ws = _canonical(Directory('${tree.path}/ws'));
 
-      expect(docsLinkFolder(Directory('${tree.path}/ws')), isNull);
-      expect(docsLinkFolder(Directory('${tree.path}/ws/lib')), isNull);
+      for (final start in ['ws', 'ws/lib']) {
+        final (:root, :linkFolder) = locateMigrateRoot(
+          Directory('${tree.path}/$start'),
+        );
+
+        expect(root.path, ws, reason: start);
+        expect(linkFolder, isNull, reason: start);
+      }
     });
 
-    test('a folder outside every project has no link folder', () async {
+    test('a folder outside every project is project_not_found', () async {
       final tree = await writeTree({'a/keep.txt': ''});
 
-      expect(docsLinkFolder(Directory('${tree.path}/a')), isNull);
+      expect(
+        () => locateMigrateRoot(Directory('${tree.path}/a')),
+        throwsA(
+          isA<RenderFault>().having(
+            (f) => f.code,
+            'code',
+            RenderFaultCode.projectNotFound,
+          ),
+        ),
+      );
     });
   });
 

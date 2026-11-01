@@ -7,34 +7,29 @@ import 'package:specstone_core/src/templates/project_config.dart';
 /// The legacy SDD context doc, relative to the project root.
 const legacyContextPath = 'docs/prds/d01_context.md';
 
-/// Returns the first project root from [workingDirectory] upward holding
-/// `.specstone/config.yaml`, [legacyContextPath], or a journal file.
+/// Returns the migrate root from [workingDirectory] upward, the first project
+/// root holding `.specstone/config.yaml`, [legacyContextPath], or a journal
+/// file, and the folder whose `docs` link led to it.
 ///
-/// The walk is [findRootUpward], the one [findProjectRoot] takes. A journal
+/// The walk is [matchRootUpward], the one [findProjectRoot] takes. A journal
 /// sits beside the linked docs in a linked layout (INV-1), which is the first
-/// candidate. Throws [RenderFault] `project_not_found` when no folder up to the
-/// file-system root holds one.
-Directory findMigrateRoot(Directory workingDirectory) {
-  final root = findRootUpward(workingDirectory, _isMarked);
-  if (root != null) return root;
-  throw RenderFault(
-    RenderFaultCode.projectNotFound,
-    'no Specstone project: no folder from the working directory upward '
-    'holds $projectConfigPath, $legacyContextPath, or a pending '
-    '${MoveJournal.journalPath}',
-  );
-}
-
-/// Returns the folder whose `docs` link led [findMigrateRoot] to the root, or
-/// null when the root is the folder the walk stopped at.
-///
-/// Walks from [workingDirectory] as [findMigrateRoot] does; the result is
-/// canonical. Null also when no folder upward is a root.
-Directory? docsLinkFolder(Directory workingDirectory) {
+/// candidate. `linkFolder` is null when the root is the folder the walk
+/// stopped at; both are canonical. Throws [RenderFault] `project_not_found`
+/// when no folder up to the file-system root holds one.
+({Directory root, Directory? linkFolder}) locateMigrateRoot(
+  Directory workingDirectory,
+) {
   final match = matchRootUpward(workingDirectory, _isMarked);
-  if (match == null) return null;
+  if (match == null) {
+    throw RenderFault(
+      RenderFaultCode.projectNotFound,
+      'no Specstone project: no folder from the working directory upward '
+      'holds $projectConfigPath, $legacyContextPath, or a pending '
+      '${MoveJournal.journalPath}',
+    );
+  }
   final (:folder, :root) = match;
-  return folder.path == root.path ? null : folder;
+  return (root: root, linkFolder: folder.path == root.path ? null : folder);
 }
 
 /// Returns the `/`-separated path from [from] to [to], `.` for one folder.

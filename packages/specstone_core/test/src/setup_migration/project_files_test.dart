@@ -2,11 +2,13 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 const _packs = ['prd-core', 'software-tech'];
 
@@ -69,6 +71,17 @@ void main() {
       ]) {
         test('a code root YAML reads as $name is quoted', () {
           expect(configText(pins, codeRoot: codeRoot), endsWith(line));
+        });
+      }
+
+      // `a: b` would read as a drive letter, which the reader refuses.
+      for (final codeRoot in ['2024', 'a #b', 'lib: b']) {
+        test('the config reader reads back code root $codeRoot', () async {
+          final root = await writeTree({
+            '.specstone/config.yaml': configText(pins, codeRoot: codeRoot),
+          });
+
+          expect(ProjectConfig.read(root).codeRoot, codeRoot);
         });
       }
     });
@@ -266,6 +279,21 @@ void main() {
       expect(covers?.block, "covers:\n  - 'lib/x: y/'\n");
       expect(covers?.label, 'covers (1 path)');
       expect(coversOf('specs/b/', rows), isNull);
+    });
+
+    test('f06/us01/fr05/e01: covers quotes a path YAML reads as a number or '
+        'a word', () {
+      final rows = [
+        for (final codePath in ['2024', 'true', 'null', '1.5'])
+          SpecMapRow(codePath: codePath, specPath: 'specs/a/', featureId: 'f'),
+      ];
+
+      final covers = coversOf('specs/a/', rows);
+
+      expect(
+        covers?.block,
+        "covers:\n  - '2024'\n  - 'true'\n  - 'null'\n  - '1.5'\n",
+      );
     });
 
     test('f06/us01/fr05/e06: a project-layer singular doc type follows the '

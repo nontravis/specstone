@@ -67,25 +67,33 @@ int runInit(InitRequest request) {
     );
   }
   if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
-    return runLegacyAt(root, _migrateRequestOf(request));
+    return runLegacyAt(
+      root,
+      _migrateRequestOf(root, request),
+      linkFolder: _linkFolderOf(request.workingDirectory, root),
+    );
   }
   return _scaffold(root, request);
 }
 
 /// Returns the migrate request `init` enters the legacy run with.
-///
-/// Keeps init's working directory, so the plan sees the folder whose `docs`
-/// link led to the root, as `migrate` run there does.
-MigrateRequest _migrateRequestOf(InitRequest request) => MigrateRequest(
-  workingDirectory: request.workingDirectory,
-  homeDirectory: request.homeDirectory,
-  templates: request.templates,
-  dryRun: false,
-  interactive: request.interactive,
-  readLine: request.readLine,
-  out: request.out,
-  runGit: request.runGit,
-);
+MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
+    MigrateRequest(
+      workingDirectory: root,
+      homeDirectory: request.homeDirectory,
+      templates: request.templates,
+      dryRun: false,
+      interactive: request.interactive,
+      readLine: request.readLine,
+      out: request.out,
+      runGit: request.runGit,
+    );
+
+/// Returns [folder], canonical, when its `docs` link led to [root], else null.
+Directory? _linkFolderOf(Directory folder, Directory root) {
+  final own = Directory(folder.resolveSymbolicLinksSync());
+  return own.path == root.path ? null : own;
+}
 
 /// Writes each singular draft, then the config last (PD16, F6-D23).
 ///
