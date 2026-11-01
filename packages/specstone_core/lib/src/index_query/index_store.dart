@@ -23,7 +23,8 @@ const damagedIndexWarning =
 /// The lines of `.specstone/.gitignore`, one per ignored path.
 const specstoneGitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
 
-const _busyMessage =
+/// The message of the fault raised when another call holds the index.
+const indexBusyMessage =
     'the index is busy; run the command again once the other call finishes';
 
 const _notWritableMessage =
@@ -644,7 +645,10 @@ void _deleteFiles(File file) {
 }
 
 IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
-  SqlError.SQLITE_BUSY => IndexFault(IndexFaultCode.indexBusy, _busyMessage),
+  SqlError.SQLITE_BUSY => IndexFault(
+    IndexFaultCode.indexBusy,
+    indexBusyMessage,
+  ),
   SqlError.SQLITE_READONLY ||
   SqlError.SQLITE_CANTOPEN ||
   SqlError.SQLITE_PERM => IndexFault(
