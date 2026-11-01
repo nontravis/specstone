@@ -17,6 +17,7 @@ void main() {
   Future<Directory> unpack(ScriptSandbox sandbox, File archive) async {
     final folder = Directory('${sandbox.root.path}/unpacked')..createSync();
     final expand =
+        r"$ProgressPreference = 'SilentlyContinue'; "
         'Expand-Archive -LiteralPath "${archive.path}" '
         '-DestinationPath "${folder.path}"';
     final result = windows

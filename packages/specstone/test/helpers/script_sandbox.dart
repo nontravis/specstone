@@ -55,6 +55,14 @@ final class ScriptSandbox {
       _tmp = Directory(_under(root, 'tmp'));
 
   static final bool _windows = Platform.isWindows;
+
+  // Windows PowerShell 5.1 renders a progress bar for archive and copy
+  // cmdlets, which costs seconds per call; every sandbox call turns it off.
+  static const _quiet = r"$ProgressPreference = 'SilentlyContinue'; ";
+
+  // Zip bytes by bundle path, or `fake:<version>` for the fake release. One
+  // archive build serves every test of a run that asks for the same bundle.
+  static final Map<String, List<int>> _zipCache = {};
   static final String _separator = Platform.pathSeparator;
 
   static String _under(Directory parent, String name) =>
@@ -132,10 +140,17 @@ final class ScriptSandbox {
   }) async {
     final zip = target == 'windows-x64';
     final asset = 'specstone-$target.${zip ? 'zip' : 'tar.gz'}';
-    final stage = await root.createTemp('stage_');
-    await _fillStage(stage, version: version, bundle: bundle);
     final archive = File(_under(archives, asset));
-    await _pack(stage, archive, zip: zip);
+    final cacheKey = bundle?.path ?? 'fake:$version';
+    final cached = zip ? _zipCache[cacheKey] : null;
+    if (cached != null) {
+      await archive.writeAsBytes(cached);
+    } else {
+      final stage = await root.createTemp('stage_');
+      await _fillStage(stage, version: version, bundle: bundle);
+      await _pack(stage, archive, zip: zip);
+      if (zip) _zipCache[cacheKey] = archive.readAsBytesSync();
+    }
 
     final bytes = archive.readAsBytesSync();
     final hashed = damaged ? [...bytes, 0] : bytes;
@@ -236,7 +251,17 @@ final class ScriptSandbox {
   static bool _isAbsolute(String path) =>
       path.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
 
+  // Compiled fake exe bytes by version; `dart compile exe` takes seconds.
+  static final Map<String, List<int>> _fakeCliCache = {};
+
   static String _compileFakeCliSync(String version, String outPath) {
+    final cached = _fakeCliCache[version];
+    if (cached != null) {
+      File(outPath)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(cached);
+      return outPath;
+    }
     final scratch = Directory.systemTemp.createTempSync('specstone_fake_cli_');
     try {
       final source = File(_under(scratch, 'fake_cli.dart'))
@@ -265,6 +290,7 @@ final class ScriptSandbox {
       }
       File(outPath).parent.createSync(recursive: true);
       File(compiled).copySync(outPath);
+      _fakeCliCache[version] = File(compiled).readAsBytesSync();
       return outPath;
     } finally {
       scratch.deleteSync(recursive: true);
@@ -304,12 +330,11 @@ final class ScriptSandbox {
   }
 
   static Future<void> _copyFolderContents(Directory from, Directory to) async {
+    final copy =
+        '${_quiet}Copy-Item -Path "${from.path}\\*" '
+        '-Destination "${to.path}" -Recurse';
     final result = _windows
-        ? await Process.run('powershell', [
-            '-NoProfile',
-            '-Command',
-            'Copy-Item -Path "${from.path}\\*" -Destination "${to.path}" -Recurse',
-          ])
+        ? await Process.run('powershell', ['-NoProfile', '-Command', copy])
         : await Process.run('cp', ['-R', '${from.path}/.', to.path]);
     if (result.exitCode != 0) {
       throw StateError('copy of ${from.path} failed: ${result.stderr}');
@@ -321,12 +346,15 @@ final class ScriptSandbox {
     File archive, {
     required bool zip,
   }) async {
+    // Compress-Archive is slow and refuses an existing archive.
+    final compress =
+        '${_quiet}Add-Type -AssemblyName System.IO.Compression.FileSystem; '
+        'if (Test-Path -LiteralPath "${archive.path}") { '
+        'Remove-Item -LiteralPath "${archive.path}" -Force }; '
+        '[System.IO.Compression.ZipFile]::CreateFromDirectory('
+        '"${stage.path}", "${archive.path}")';
     final result = zip
-        ? await Process.run('powershell', [
-            '-NoProfile',
-            '-Command',
-            'Compress-Archive -Path "${stage.path}\\*" -DestinationPath "${archive.path}"',
-          ])
+        ? await Process.run('powershell', ['-NoProfile', '-Command', compress])
         : await Process.run('tar', [
             '-czf',
             archive.path,
