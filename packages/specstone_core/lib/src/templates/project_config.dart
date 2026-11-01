@@ -9,9 +9,12 @@ import 'package:yaml/yaml.dart';
 const projectConfigPath = '.specstone/config.yaml';
 
 const _coreName = 'prd-core';
+const _codeRootKey = 'code_root';
 
 /// Lowercase letters and digits in hyphen-separated groups.
 final _kebabCase = RegExp(r'^[a-z0-9]+(-[a-z0-9]+)*$');
+
+final _driveLetter = RegExp('^[A-Za-z]:');
 
 /// Returns the project root for a folder holding a `docs` link.
 ///
@@ -74,16 +77,18 @@ Directory? findProjectRoot(Directory start) => findRootUpward(
       File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
 );
 
-/// The project config: the pack version each pack is pinned to.
+/// The project config: the pack version each pack is pinned to and the folder
+/// code paths are written from.
 final class ProjectConfig {
-  new _({required this.pins});
+  new _({required this.pins, required this.codeRoot});
 
   /// Reads `.specstone/config.yaml` under the project [root].
   ///
-  /// Throws `unknown_key` for a key other than `packs` or a `packs` key that
-  /// is not kebab-case, `missing_key` when `packs` is absent,
-  /// `pack_version_invalid` for a bad pin, and `prd_core_missing` when `packs`
-  /// pins no `prd-core`.
+  /// Throws `unknown_key` for a key other than `packs` and `code_root` or a
+  /// `packs` key that is not kebab-case, `missing_key` when `packs` is absent,
+  /// `pack_version_invalid` for a bad pin, `prd_core_missing` when `packs`
+  /// pins no `prd-core`, and `unknown_value` for a `code_root` that is not a
+  /// string, is absolute, or holds a backslash.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -93,7 +98,12 @@ final class ProjectConfig {
       file: projectConfigPath,
     );
     final map = readYamlMap(text, file: projectConfigPath);
-    checkKeys(map, {'packs'}, file: projectConfigPath, format: 'config');
+    checkKeys(
+      map,
+      {'packs', _codeRootKey},
+      file: projectConfigPath,
+      format: 'config',
+    );
     final packs = requireValue<YamlMap>(map, 'packs', file: projectConfigPath);
     final pins = <String, PackVersion>{};
     for (final MapEntry(:key, :value) in packs.nodes.entries) {
@@ -120,12 +130,46 @@ final class ProjectConfig {
         key: 'packs',
       );
     }
-    return ProjectConfig._(pins: Map.unmodifiable(pins));
+    return ProjectConfig._(
+      pins: Map.unmodifiable(pins),
+      codeRoot: _readCodeRoot(map),
+    );
   }
 
   /// The pinned version of each pack, in file order.
   final Map<String, PackVersion> pins;
 
+  /// The folder code paths are written from, relative to the project root.
+  ///
+  /// `/`-separated and possibly outside the project root (`../code`); `.` when
+  /// the config has no `code_root`.
+  final String codeRoot;
+
   /// The config path, relative to the project root.
   String get file => projectConfigPath;
 }
+
+String _readCodeRoot(YamlMap map) {
+  final value = optionalValue<String>(
+    map,
+    _codeRootKey,
+    file: projectConfigPath,
+  );
+  if (value == null) return '.';
+  if (_isAbsolute(value) || value.contains(r'\')) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $_codeRootKey must be a relative path with / separators',
+      file: projectConfigPath,
+      key: _codeRootKey,
+    );
+  }
+  return value;
+}
+
+/// Whether [path] is rooted or starts with a drive letter, on any platform.
+///
+/// A config written on Windows must stay invalid on POSIX, where `C:/abs` is
+/// an ordinary relative name to `File.isAbsolute`.
+bool _isAbsolute(String path) =>
+    path.startsWith('/') || _driveLetter.hasMatch(path);

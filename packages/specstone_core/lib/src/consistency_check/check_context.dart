@@ -37,6 +37,9 @@ final class CheckContext {
   /// The project root folder.
   Directory get projectRoot => _session.project.projectRoot;
 
+  /// The folder code paths are written from, `code_root` of the config.
+  Directory get codeRoot => _session.project.codeRoot;
+
   /// The docs root folder, `<project root>/docs/`.
   Directory get docsRoot => _session.project.docsRoot;
 
@@ -57,7 +60,7 @@ final class CheckContext {
 
   /// Returns the text of the code file at [path], read once per run.
   ///
-  /// [path] is relative to the project root. Malformed UTF-8 bytes decode to
+  /// [path] is relative to the code root. Malformed UTF-8 bytes decode to
   /// U+FFFD instead of failing. Returns null for a file that cannot be read,
   /// and adds one warning for it.
   String? codeTextOf(String path) {
@@ -65,7 +68,7 @@ final class CheckContext {
     String? text;
     try {
       text = const Utf8Decoder(allowMalformed: true)
-          .convert(File('${projectRoot.path}/$path').readAsBytesSync());
+          .convert(File('${codeRoot.path}/$path').readAsBytesSync());
     } on FileSystemException {
       _codeWarnings.add(
         '$path: cannot read the file; implements Symbols in it are not checked',

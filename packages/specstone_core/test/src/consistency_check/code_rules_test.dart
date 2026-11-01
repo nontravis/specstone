@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
@@ -36,6 +37,30 @@ void main() {
     expect(
       [for (final f in report.findings) f.toJson()['path']],
       ['app/lib/login.dart', 'app/lib/main.dart'],
+    );
+  });
+
+  test('code_root: covers and code resolve under the code folder; code_uncovered names a path from it', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+          ...narrow('app/lib/src/'),
+          'code/app/lib/login.dart': checkProjectFiles()['app/lib/login.dart']!,
+          'code/app/lib/x.dart': '',
+          'code/app/lib/src/a.dart': '',
+          'app/lib/stray.dart': '',
+        },
+        without: {'app/lib/login.dart'},
+      ),
+    );
+    expect(spots(report), [
+      '$techStack:3: code_uncovered',
+      '$techStack:3: code_uncovered',
+    ]);
+    expect(
+      [for (final f in report.findings) f.toJson()['path']],
+      ['app/lib/login.dart', 'app/lib/x.dart'],
     );
   });
 

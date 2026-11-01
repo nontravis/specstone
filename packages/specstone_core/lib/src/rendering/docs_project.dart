@@ -35,6 +35,7 @@ final class DocsProject {
   new _({
     required this.projectRoot,
     required this.docsRoot,
+    required this.codeRoot,
     required this.matcher,
     required this.set,
   });
@@ -62,10 +63,14 @@ final class DocsProject {
       homeDirectory: homeDirectory,
     );
     final projectRoot = Directory(found.resolveSymbolicLinksSync());
+    final codeRoot = ProjectConfig.read(projectRoot).codeRoot;
     return DocsProject._(
       projectRoot: projectRoot,
       docsRoot: Directory(
         _canonicalPath('${projectRoot.path}${_separator}docs'),
+      ),
+      codeRoot: Directory(
+        _canonicalPath('${projectRoot.path}$_separator$codeRoot'),
       ),
       matcher: DocTypeMatcher(set),
       set: set,
@@ -77,6 +82,13 @@ final class DocsProject {
 
   /// The canonical `<project root>/docs/`, which may not exist.
   final Directory docsRoot;
+
+  /// The folder code paths are written from: the project root joined with
+  /// `code_root`.
+  ///
+  /// Canonical when it exists; otherwise the joined path with its existing
+  /// part canonical and `..` applied, so a docs-only checkout still opens.
+  final Directory codeRoot;
 
   /// Finds the doc type of a DocPath.
   final DocTypeMatcher matcher;

@@ -84,7 +84,7 @@ class ContextCommand extends SpecstoneCommand {
         final codePath = resolveCodePath(
           code,
           workingDirectory: specstoneRunner.workingDirectory,
-          projectRoot: session.project.projectRoot,
+          codeRoot: session.project.codeRoot,
         );
         return answerContext(
           session.index,

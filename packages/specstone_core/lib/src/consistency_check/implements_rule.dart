@@ -23,7 +23,7 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
     final split = value.indexOf(_symbolMark);
     final path = split < 0 ? value : value.substring(0, split);
     final symbol = split < 0 ? '' : value.substring(split + 1);
-    if (FileSystemEntity.typeSync('${context.projectRoot.path}/$path') !=
+    if (FileSystemEntity.typeSync('${context.codeRoot.path}/$path') !=
         FileSystemEntityType.file) {
       yield context.finding(
         doc,

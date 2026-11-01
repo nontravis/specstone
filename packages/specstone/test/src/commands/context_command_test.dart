@@ -150,7 +150,7 @@ void main() {
       await runner.run(['context', '--code', '../', '--for', 'implement']),
       64,
     );
-    expect(err.toString(), 'the code path ../ lies outside the project root\n');
+    expect(err.toString(), 'the code path ../ lies outside the code root\n');
   });
   test('f01/us05/fr04/e12, s05: --code "" is argument_invalid, exit 64, and opens no index', () async {
     final project = await writeReadProject();

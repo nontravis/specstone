@@ -69,6 +69,44 @@ void main() {
       );
     });
 
+    test('codeRoot joins code_root to the project root', () async {
+      final workspace = await writeTree({
+        'project/.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: ../code/example\n',
+        'project/docs/prds/a.md': '',
+        'code/example/lib/a.dart': '',
+      });
+      final root = _dir(workspace, 'project');
+
+      final project = _open(root);
+
+      expect(
+        project.codeRoot.path,
+        _dir(workspace, 'code/example').resolveSymbolicLinksSync(),
+      );
+      expect(project.projectRoot.path, root.resolveSymbolicLinksSync());
+    });
+
+    test('codeRoot is the project root when code_root is absent', () async {
+      final root = await fixtureProject({});
+
+      expect(_open(root).codeRoot.path, root.resolveSymbolicLinksSync());
+    });
+
+    test('a missing code folder still opens', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: gone\n',
+      });
+
+      final project = _open(root);
+
+      expect(
+        project.codeRoot.path,
+        '${root.resolveSymbolicLinksSync()}${Platform.pathSeparator}gone',
+      );
+    });
+
     test('f05/us01/fr01/e05, f05/us02/fr01/e07: a template fault propagates '
         'with exit 78', () async {
       final root = await fixtureProject({

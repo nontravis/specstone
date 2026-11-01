@@ -130,6 +130,43 @@ void main() {
       },
     );
 
+    test('code_root defaults to .', () async {
+      final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+      expect(ProjectConfig.read(root).codeRoot, '.');
+    });
+
+    for (final value in ['stratum_ui', '../stratum_ui/example']) {
+      test('reads code_root: $value', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\ncode_root: $value\n',
+        );
+
+        expect(ProjectConfig.read(root).codeRoot, value);
+      });
+    }
+
+    for (final (name, line) in [
+      ('a rooted path', 'code_root: /abs'),
+      ('a drive-letter path', 'code_root: C:/abs'),
+      ('a backslash', r"code_root: 'a\b'"),
+      ('a non-string', 'code_root: [a]'),
+    ]) {
+      test('rejects $name as code_root', () async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
+
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'code_root',
+            ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+          ),
+        );
+      });
+    }
+
     test(
       'f03/us05/fr01, s03/inv10: a config without packs is missing_key',
       () async {

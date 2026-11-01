@@ -8,11 +8,11 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 const _coversField = 'covers';
 const _implementsField = 'implements';
 
-/// A file or folder of the project a `context --code` call names.
+/// A file or folder under the code root a `context --code` call names.
 final class CodePath {
   const new({required this.path, required this.isFolder});
 
-  /// The path relative to the project root, `/`-separated; `.` for the root.
+  /// The path relative to the code root, `/`-separated; `.` for the root.
   final String path;
 
   /// Whether the path is a folder.
@@ -20,15 +20,15 @@ final class CodePath {
 }
 
 /// Resolves [given] from [workingDirectory] to a [CodePath] inside
-/// [projectRoot], which must be canonical.
+/// [codeRoot], which must be canonical.
 ///
 /// Throws `code_path_not_found` when nothing exists there and
-/// `code_path_outside_project` when its canonical path is neither the project
+/// `code_path_outside_project` when its canonical path is neither the code
 /// root nor below it.
 CodePath resolveCodePath(
   String given, {
   required Directory workingDirectory,
-  required Directory projectRoot,
+  required Directory codeRoot,
 }) {
   final separator = Platform.pathSeparator;
   final absolute = File(given).isAbsolute
@@ -42,13 +42,13 @@ CodePath resolveCodePath(
     );
   }
   final canonical = File(absolute).resolveSymbolicLinksSync();
-  final root = projectRoot.path;
+  final root = codeRoot.path;
   final prefix = root.endsWith(separator) ? root : '$root$separator';
   final isRoot = canonical == root;
   if (!isRoot && !canonical.startsWith(prefix)) {
     throw IndexFault(
       IndexFaultCode.codePathOutsideProject,
-      'the code path $given lies outside the project root',
+      'the code path $given lies outside the code root',
     );
   }
   return CodePath(
