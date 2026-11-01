@@ -259,13 +259,13 @@ void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
     key: field.id,
   );
   if (field.list) {
-    if (value is! YamlList) throw takes('a list');
+    if (value is! YamlList) throw takes('a YAML list, one `- item` line each');
     for (final item in value) {
       if (!_itemIs(item, field)) throw takes(_typeOf(field));
     }
     return;
   }
-  if (value is YamlList) throw takes('one value');
+  if (value is YamlList) throw takes('one YAML value, not a list');
   if (!_itemIs(value, field)) throw takes(_typeOf(field));
 }
 

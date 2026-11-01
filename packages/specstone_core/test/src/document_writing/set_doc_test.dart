@@ -822,7 +822,11 @@ void main() {
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
-            .having((f) => f.message, 'message', 'vision takes a list'),
+            .having(
+              (f) => f.message,
+              'message',
+              'vision takes a YAML list, one `- item` line each',
+            ),
       ),
     );
     const fr = 'fr:login/email_login/validate_credentials';
@@ -841,7 +845,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              'verify_method takes one value',
+              'verify_method takes one YAML value, not a list',
             ),
       ),
     );
