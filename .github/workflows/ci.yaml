@@ -53,8 +53,14 @@ jobs:
         working-directory: packages/specstone_core
         run: dart run coverage:test_with_coverage --fail-under=80
       - name: Test specstone with coverage
+        if: runner.os != 'Windows'
         working-directory: packages/specstone
         run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing
+      # The PowerShell script tests run in test-scripts-windows.
+      - name: Test specstone with coverage (Windows)
+        if: runner.os == 'Windows'
+        working-directory: packages/specstone
+        run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing,ps1
       - name: Timing gate (NFR-P01, NFR-P02)
         working-directory: packages/specstone
         run: dart test --tags timing test/nfr_timing_test.dart
@@ -62,3 +68,16 @@ jobs:
         with:
           name: coverage-${{ matrix.os }}
           path: packages/*/coverage/lcov.info
+
+  test-scripts-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Test the PowerShell scripts
+        working-directory: packages/specstone
+        run: dart test --tags ps1

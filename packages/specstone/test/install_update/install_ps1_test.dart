@@ -1,4 +1,5 @@
 @TestOn('windows')
+@Tags(['ps1'])
 @Timeout(Duration(minutes: 10))
 library;
 

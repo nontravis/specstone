@@ -1,3 +1,6 @@
+@Tags(['ps1'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

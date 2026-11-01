@@ -175,6 +175,23 @@ void main() {
     ]);
   });
 
+  test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
+      'job and stay out of the main Windows step', () {
+    final job = _job(ci, 'test-scripts-windows');
+    expect(job['runs-on'], 'windows-latest');
+    expect(job['timeout-minutes'], 20);
+    expect(_runText(job), contains('dart test --tags ps1'));
+    final main = _steps(_job(ci, 'test'));
+    final windowsStep = main.singleWhere(
+      (step) => step['if'] == "runner.os == 'Windows'",
+    );
+    expect('${windowsStep['run']}', contains('--exclude-tags timing,ps1'));
+    final otherStep = main.singleWhere(
+      (step) => step['if'] == "runner.os != 'Windows'",
+    );
+    expect('${otherStep['run']}', isNot(contains('ps1')));
+  });
+
   test('f09/us04/fr05: no run script holds a workflow expression', () {
     for (final workflow in [release, ci]) {
       for (final job in _jobs(workflow).values) {
