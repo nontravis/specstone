@@ -39,7 +39,7 @@ void main() {
       err.toString(),
       '.specstone/trash/journal.json: a migration is unfinished; run '
       'specstone migrate at an interactive terminal, or with --yes after the '
-      "Owner's ok in Claude Code, to finish it, then run the command again\n",
+      "Owner's ok, through the Specstone plugin for Claude Code, to finish it, then run the command again\n",
     );
     expect(out.toString(), isEmpty);
   });

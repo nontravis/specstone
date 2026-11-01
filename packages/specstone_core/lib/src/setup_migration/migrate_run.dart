@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -162,7 +162,11 @@ int _plannedRun(
   required Directory? linkFolder,
 }) {
   if (request.dryRun) {
-    _printDryRun(request, _planOf(request, root, kind, linkFolder).toText());
+    _printDryRun(
+      request,
+      root,
+      _planOf(request, root, kind, linkFolder).toText(),
+    );
     return 0;
   }
   requireGitWorkTree(root, request.runGit);
@@ -177,7 +181,7 @@ int _plannedRun(
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;
   } else {
-    _requireSeenPlan(request, planText);
+    _requireSeenPlan(request, root, planText);
   }
   requireCleanWorkTree(root, request.runGit);
   if (headSha(root, request.runGit) != base) {
@@ -229,12 +233,12 @@ int _resume(MigrateRequest request, Directory root) {
   }
   final planText = listing.toString();
   if (request.dryRun) {
-    _printDryRun(request, planText);
+    _printDryRun(request, root, planText);
     return 0;
   }
   final out = request.out..write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
-  if (!request.confirmation.prompts) _requireSeenPlan(request, planText);
+  if (!request.confirmation.prompts) _requireSeenPlan(request, root, planText);
   final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
@@ -245,19 +249,20 @@ int _resume(MigrateRequest request, Directory root) {
 }
 
 /// Prints [planText], its `plan <hash>` line, and the dry-run closing line.
-void _printDryRun(MigrateRequest request, String planText) {
+void _printDryRun(MigrateRequest request, Directory root, String planText) {
   request.out
     ..write(planText)
-    ..writeln('plan ${baseHashOf(planText)}')
+    ..writeln('plan ${planHashOf(planText, root, request.runGit)}')
     ..writeln('dry run: nothing written');
 }
 
 /// Refuses a `--yes` run whose plan is not the one the Owner saw.
 ///
-/// Throws [MigrateFault] `plan_mismatch` when [planText] does not hash to the
-/// request's plan hash, or the request carries none.
-void _requireSeenPlan(MigrateRequest request, String planText) {
-  if (request.planHash == baseHashOf(planText)) return;
+/// Throws [MigrateFault] `plan_mismatch` when [planText], with the HEAD of
+/// [root], does not hash to the request's plan hash, or the request carries
+/// none.
+void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
+  if (request.planHash == planHashOf(planText, root, request.runGit)) return;
   throw MigrateFault(
     MigrateFaultCode.planMismatch,
     'the plan is not the one the Owner saw in the dry run; run specstone '

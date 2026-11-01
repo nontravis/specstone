@@ -83,6 +83,7 @@ void main() {
           ('owner_terminal_required', 77),
           ('migrate_pending', 75),
           ('draft_not_found', 65),
+          ('plan_mismatch', 75),
         ],
       );
     },

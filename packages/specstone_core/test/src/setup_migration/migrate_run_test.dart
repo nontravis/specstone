@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -466,7 +466,35 @@ void main() {
     final planLine = lines[lines.length - 3];
     final plan = text.substring(0, text.lastIndexOf(planLine));
     expect(plan, startsWith('legacy migration: '));
-    expect(planLine, 'plan ${baseHashOf(plan)}');
+    expect(planLine, 'plan ${planHashOf(plan, root, runRealGit)}');
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('ms-r11: a commit between the dry run and --yes changes the plan hash, '
+      'so --yes refuses plan_mismatch and writes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = _dryRunPlanHash(root);
+    File('${root.path}/notes.txt').writeAsStringSync('later\n');
+    commitAll(root, 'unrelated');
+    final legacy = _bytesUnder(root);
+    final head = headOf(root);
+
+    expect(
+      () => _run(
+        root,
+        StringBuffer(),
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.planMismatch,
+        ),
+      ),
+    );
+    expect(_bytesUnder(root), legacy);
+    expect(headOf(root), head);
   }, skip: hasGit ? null : 'git is not available');
 
   test("ms-r11: --yes with the dry run's plan hash applies the plan with no "
@@ -551,7 +579,8 @@ void main() {
               (f) => f.message,
               'message',
               'migrate applies only at an interactive terminal, or with '
-                  "--yes after the Owner's ok in Claude Code",
+                  "--yes after the Owner's ok, through the Specstone plugin "
+                  'for Claude Code',
             ),
       ),
     );
@@ -847,7 +876,8 @@ void main() {
                 'message',
                 'git commit failed: lint failed; fix the cause, then run '
                     'specstone migrate at an interactive terminal, or with '
-                    "--yes after the Owner's ok in Claude Code, to finish the "
+                    "--yes after the Owner's ok, through the Specstone plugin "
+                    'for Claude Code, to finish the '
                     'run',
               ),
         ),
@@ -1020,7 +1050,8 @@ void main() {
                 'git add failed: cannot start git: The filename or extension '
                     'is too long.; fix the cause, then run specstone migrate '
                     'at an interactive terminal, or with --yes after the '
-                    "Owner's ok in Claude Code, to finish the run",
+                    "Owner's ok, through the Specstone plugin for Claude Code, "
+                    'to finish the run',
               ),
         ),
       );

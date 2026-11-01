@@ -5,9 +5,11 @@ import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
@@ -65,6 +67,7 @@ void main() {
     OwnerConfirmation confirmation = OwnerConfirmation.missing,
     List<String?> answers = const [],
     StringBuffer? prompts,
+    String? planHash,
   }) {
     final queue = [...answers];
     return writeIn(
@@ -73,6 +76,7 @@ void main() {
         s,
         targets,
         confirmation: confirmation,
+        planHash: planHash,
         readLine: () => queue.isEmpty ? null : queue.removeAt(0),
         prompts: prompts ?? StringBuffer(),
       ),
@@ -154,7 +158,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in Claude Code",
+              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok, through the Specstone plugin for Claude Code",
             ),
       ),
     );
@@ -192,24 +196,91 @@ void main() {
     expect(hasDoc(root, story2), isFalse);
   });
 
-  test('ms-r11: --yes deletes an approved unit with no prompt, as the '
-      "Owner's y does", () async {
+  const signOutUnit = [
+    story2,
+    'prds/features/f01_login/us02_sign_out/fr01_end_session.md',
+    'prds/features/f01_login/us02_sign_out/fr02_clear_cookies.md',
+  ];
+
+  test('ms-r11: a dry run lists every file the unit removes and its plan '
+      'line, and removes nothing', () async {
     final root = await writeWriteProject(extra: approvedSignOut);
+    final answer = writeIn(
+      root,
+      (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+    );
+    final list = signOutUnit.map((path) => '$path\n').join();
+    final hash = planHashOf(list, Directory('${root.path}/docs'), runRealGit);
+    expect(answer.text, '${list}plan $hash\ndry run: nothing removed\n');
+    expect(answer.json, {'files': signOutUnit, 'plan': hash});
+    expect(hasDoc(root, story2), isTrue);
+  });
+
+  test('ms-r11: a dry run refuses a referred unit as the run does', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+      ),
+      refusesWith(WriteFaultCode.docReferenced),
+    );
+  });
+
+  test("ms-r11: --yes with the dry run's plan hash deletes an approved unit "
+      "with no prompt, as the Owner's y does", () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final hash =
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
     final prompts = StringBuffer();
     final answer = del(
       root,
       ['user_story:login/sign_out'],
       confirmation: OwnerConfirmation.given,
       prompts: prompts,
+      planHash: hash,
     );
     expect(prompts.toString(), isEmpty);
-    expect(answer.json['removed'], [
-      story2,
-      'prds/features/f01_login/us02_sign_out/fr01_end_session.md',
-      'prds/features/f01_login/us02_sign_out/fr02_clear_cookies.md',
-    ]);
+    expect(answer.json['removed'], signOutUnit);
     expect(hasDoc(root, story2), isFalse);
   });
+
+  for (final (label, planHash) in [
+    ('a unit changed since the dry run', '000000000000'),
+    ('no plan hash', null),
+  ]) {
+    test('ms-r11: --yes with $label is plan_mismatch, exit 75, and nothing '
+        'is removed', () async {
+      final root = await writeWriteProject(extra: approvedSignOut);
+      expect(
+        () => del(
+          root,
+          ['user_story:login/sign_out'],
+          confirmation: OwnerConfirmation.given,
+          planHash: planHash,
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+              .having((f) => f.exitStatus, 'exitStatus', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                'the delete list is not the one the Owner saw in the dry run; '
+                    'run specstone delete --dry-run again, show it, and ask '
+                    'for a new ok',
+              ),
+        ),
+      );
+      for (final path in signOutUnit) {
+        expect(hasDoc(root, path), isTrue, reason: path);
+      }
+    });
+  }
 
   test('f02/us04/fr01/e02: an FR goes alone', () async {
     final root = await writeWriteProject();
@@ -686,7 +757,7 @@ void main() {
               'message',
               'the delete set holds approved docs; only the Owner deletes '
                   'them, at an interactive terminal, or with --yes after the '
-                  "Owner's ok in Claude Code",
+                  "Owner's ok, through the Specstone plugin for Claude Code",
             ),
           ),
         );

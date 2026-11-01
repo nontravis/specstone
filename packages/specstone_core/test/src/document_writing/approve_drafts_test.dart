@@ -37,7 +37,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              "approve runs only at an interactive terminal, or with --yes after the Owner's ok in Claude Code",
+              "approve runs only at an interactive terminal, or with --yes after the Owner's ok, through the Specstone plugin for Claude Code",
             ),
       ),
     );

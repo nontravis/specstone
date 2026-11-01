@@ -8,9 +8,11 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
@@ -30,13 +32,15 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// but `y`, or the end of input, keeps them all. After a `y` the index is read
 /// afresh, the targets resolve again, and the referrers are checked again;
 /// when a file or its bytes change while the prompt waits, the list shows
-/// again. Under `--yes` the unit goes with no prompt, as after a `y`. Emptied
-/// folders go up to the docs root.
+/// again. Under `--yes` the unit goes with no prompt, as after a `y`, but only
+/// while its file list hashes to [planHash], the plan line of the dry run the
+/// Owner saw ([answerDeleteDryRun]). Emptied folders go up to the docs root.
 ///
 /// [targets] is non-empty.
-/// Throws [WriteFault] `doc_referenced` for a referred doc and
-/// `owner_terminal_required` for an approved unit the Owner cannot confirm;
-/// an `IndexFault` for an address that names neither one typed doc nor an
+/// Throws [WriteFault] `doc_referenced` for a referred doc,
+/// `owner_terminal_required` for an approved unit the Owner cannot confirm,
+/// and `plan_mismatch` under `--yes` for a list that changed since the dry
+/// run; an `IndexFault` for an address that names neither one typed doc nor an
 /// untyped doc's DocPath; `index_busy` when another call holds the lock.
 ReadAnswer answerDelete(
   WriteSession session,
@@ -44,11 +48,20 @@ ReadAnswer answerDelete(
   required OwnerConfirmation confirmation,
   required String? Function() readLine,
   required StringSink prompts,
+  String? planHash,
 }) {
   var unit = _resolveTargets(session, targets);
   _refuseIfReferenced(session, unit);
   while (true) {
     final shown = _readUnit(session, unit.roots);
+    if (confirmation == OwnerConfirmation.given &&
+        planHash != _planHashOf(session, shown.keys)) {
+      throw WriteFault(
+        WriteFaultCode.planMismatch,
+        'the delete list is not the one the Owner saw in the dry run; run '
+        'specstone delete --dry-run again, show it, and ask for a new ok',
+      );
+    }
     final approved = _holdsApprovedDoc(shown);
     if (approved) {
       confirmation.refuseIfMissing(
@@ -75,6 +88,30 @@ ReadAnswer answerDelete(
     if (removed != null) return _answerFor(removed);
   }
 }
+
+/// Lists every file a delete of [targets] would remove, and its plan line.
+///
+/// The list is the one the terminal prompt shows before its `y`, and nothing
+/// is removed. The text ends with the `plan <hash>` line and
+/// `dry run: nothing removed`; the JSON holds `files` and `plan`.
+/// Throws as [answerDelete] does before its prompt.
+ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
+  final unit = _resolveTargets(session, targets);
+  _refuseIfReferenced(session, unit);
+  final files = _readUnit(session, unit.roots).keys.toList();
+  final hash = _planHashOf(session, files);
+  return ReadAnswer(
+    text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
+    json: {'files': files, 'plan': hash},
+  );
+}
+
+/// Returns the plan hash of a delete list, with the HEAD of the docs' git.
+String _planHashOf(WriteSession session, Iterable<String> docPaths) =>
+    planHashOf(_listOf(docPaths), session.project.docsRoot, runRealGit);
+
+String _listOf(Iterable<String> docPaths) =>
+    docPaths.map((docPath) => '$docPath\n').join();
 
 /// The resolved targets of a delete call, in the order given.
 class _DeleteSet(

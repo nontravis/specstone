@@ -62,12 +62,12 @@ void _expectE05(String out) {
   expect(specific['additionalContext'], matches(_e05Context));
 }
 
-/// A PreToolUse request for a Bash call running [command].
-String _bash(String command) => jsonEncode({
+/// A PreToolUse request for a [tool] call running [command].
+String _bash(String command, {String tool = 'Bash'}) => jsonEncode({
   'session_id': 'abc123',
   'cwd': '/Users/owner/shop',
   'hook_event_name': 'PreToolUse',
-  'tool_name': 'Bash',
+  'tool_name': tool,
   'tool_input': {'command': command, 'description': 'Run it'},
   'tool_use_id': 'toolu_01ABC123',
 });
@@ -264,45 +264,108 @@ void main() {
   });
 
   group('hook pre-bash', () {
-    for (final (command, reason) in [
+    const signup = 'Owner confirmation: specstone approve feature:signup';
+    for (final (shape, command, reason) in [
       (
+        'names after the subcommand',
         'specstone approve feature:signup user_story:login/email_login --yes',
-        'Owner confirmation: specstone approve feature:signup '
-            'user_story:login/email_login',
+        '$signup user_story:login/email_login',
       ),
       (
-        'specstone delete prds/a.md prds/b.md --yes --json',
+        'hash suffixes',
+        'specstone approve feature:signup@1a2b3c4d5e6f '
+            'user_story:login/email_login@0123456789ab --yes',
+        '$signup user_story:login/email_login',
+      ),
+      (
+        '--yes before the names',
+        'specstone approve --yes feature:signup@1a2b3c4d5e6f '
+            'user_story:login/email_login@0123456789ab',
+        '$signup user_story:login/email_login',
+      ),
+      (
+        'a full path to the binary',
+        '/Users/owner/.pub-cache/bin/specstone approve '
+            'feature:signup@1a2b3c4d5e6f --yes',
+        signup,
+      ),
+      (
+        'cd and &&',
+        'cd /Users/owner/shop && specstone approve '
+            'feature:signup@1a2b3c4d5e6f --yes',
+        signup,
+      ),
+      (
+        'newline-separated commands',
+        'cd /Users/owner/shop\nspecstone approve feature:signup@1a2b3c4d5e6f '
+            '--yes\ngit status',
+        signup,
+      ),
+      (
+        "bash -c '…'",
+        "bash -c 'specstone approve feature:signup@1a2b3c4d5e6f --yes'",
+        signup,
+      ),
+      (
+        'sh -c "…"',
+        'sh -c "specstone delete prds/a.md --yes --plan 1a2b3c4d5e6f"',
+        'Owner confirmation: specstone delete prds/a.md',
+      ),
+      (
+        '--yes at the end followed by &&',
+        'specstone approve feature:signup@1a2b3c4d5e6f --yes&& echo done',
+        signup,
+      ),
+      (
+        'delete with --json',
+        'specstone delete prds/a.md prds/b.md --yes --plan 1a2b3c4d5e6f '
+            '--json',
         'Owner confirmation: specstone delete prds/a.md prds/b.md',
       ),
       (
-        'specstone approve feature:signup@1a2b3c4d5e6f '
-            'user_story:login/email_login@0123456789ab --yes',
-        'Owner confirmation: specstone approve feature:signup '
-            'user_story:login/email_login',
-      ),
-      (
+        'migrate with its plan',
         'specstone migrate --yes --plan 1a2b3c4d5e6f',
         'Owner confirmation: specstone migrate',
       ),
       (
+        'init with its plan',
         'specstone init --yes --plan 1a2b3c4d5e6f',
         'Owner confirmation: specstone init',
       ),
       (
-        'cd /Users/owner/shop && specstone approve feature:signup --yes',
-        'Owner confirmation: specstone approve feature:signup',
+        'two gated commands',
+        'specstone approve feature:signup@1a2b3c4d5e6f --yes && specstone '
+            'delete prds/a.md --yes --plan 1a2b3c4d5e6f',
+        '$signup; specstone delete prds/a.md',
       ),
       (
-        'specstone approve feature:signup --yes&& echo done',
-        'Owner confirmation: specstone approve feature:signup',
+        'a gated word with no specstone call',
+        'npm   init --yes',
+        'Owner confirmation: npm init --yes',
       ),
     ]) {
-      test('ms-r10, ms-r11: `$command` asks the Owner, naming its args up to '
-          'the first flag', () async {
+      test('ms-r10, ms-r11: $shape asks the Owner, one reason segment per '
+          'gated call', () async {
         final result = await _preBash(_bash(command));
         expect(result.status, 0);
         expect(result.err, isEmpty);
         expect(jsonDecode(result.out), _ask(reason));
+      });
+    }
+
+    for (final (tool, command) in [
+      ('PowerShell', 'specstone.exe approve feature:signup@1a2b3c4d5e6f --yes'),
+      (
+        'PowerShell',
+        r"& 'C:\Tools\specstone.exe' approve feature:signup@1a2b3c4d5e6f "
+            '--yes',
+      ),
+      ('Monitor', 'specstone approve feature:signup@1a2b3c4d5e6f --yes'),
+    ]) {
+      test('ms-r11: a $tool call `$command` asks the Owner', () async {
+        final result = await _preBash(_bash(command, tool: tool));
+        expect(result.status, 0);
+        expect(jsonDecode(result.out), _ask(signup));
       });
     }
 
@@ -312,6 +375,7 @@ void main() {
       'specstone set feature:signup#problem --base 1a2b --yes',
       'specstone reinit --yes',
       'specstone approve feature:signup --yesterday',
+      'specstone approve feature:signup@1a2b3c4d5e6f && echo --yes-not',
       'git status',
     ]) {
       test('ms-r10, ms-r11: `$command` prints nothing, exit 0', () async {

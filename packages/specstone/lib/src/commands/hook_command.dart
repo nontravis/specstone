@@ -118,18 +118,25 @@ class PostEditCommand extends SpecstoneCommand {
   }
 }
 
-/// Makes Claude Code ask the Owner before a Bash call that confirms an
+/// Makes Claude Code ask the Owner before a shell call that confirms an
 /// Owner-gated command with `--yes`.
 ///
-/// Reads the `PreToolUse` hook JSON on stdin. A command holding the whole word
-/// `approve`, `delete`, `migrate`, or `init` and the token `--yes` gets one
-/// `ask` object; any other command, and input it cannot read, gets nothing.
-/// It never answers `allow` or `deny`, so it blocks no Bash call.
+/// Reads the `PreToolUse` hook JSON on stdin and takes `tool_input.command`,
+/// whatever the tool (`Bash`, `PowerShell`, `Monitor`). A command holding the
+/// whole word `approve`, `delete`, `migrate`, or `init` and the token `--yes`
+/// gets one `ask` object; any other command, and input it cannot read, gets
+/// nothing. It never answers `allow` or `deny`, so it blocks no call.
 class PreBashCommand extends SpecstoneCommand {
   static final _gatedWord = RegExp(r'\b(approve|delete|migrate|init)\b');
   static final _yesToken = RegExp(r'(?<![\w-])--yes(?![\w-])');
+  static final _gatedCall = RegExp(
+    r'''\bspecstone(?:\.exe)?['"]?\s+(approve|delete|migrate|init)\b''',
+  );
+  static final _commandEnd = RegExp(r'&&|\|\||[;|\r\n)]');
   static final _whitespace = RegExp(r'\s+');
+  static final _quotes = RegExp(r'''^['"]+|['"]+$''');
   static final _hashSuffix = RegExp(r'@[0-9a-f]+$');
+  static const _planOption = '--plan';
   static const _reasonLimit = 300;
 
   @override
@@ -137,7 +144,7 @@ class PreBashCommand extends SpecstoneCommand {
 
   @override
   String get description =>
-      'Ask the Owner before a Bash call runs an Owner-gated command with '
+      'Ask the Owner before a shell call runs an Owner-gated command with '
       '--yes.';
 
   @override
@@ -179,22 +186,42 @@ class PreBashCommand extends SpecstoneCommand {
 
   /// Returns the reason of the ask, or null when [command] needs none.
   ///
-  /// The reason is `Owner confirmation: specstone <word> <args>`, the args
-  /// running up to the first flag with any `@<hash>` dropped, cut to 300
-  /// characters.
+  /// The reason is `Owner confirmation: ` and one segment per gated
+  /// `specstone <subcommand>` call, in order, joined with `; `: the call with
+  /// its names, flags and `@<hash>` dropped. A command with no such call names
+  /// itself. The reason is cut to 300 characters.
   String? _reasonFor(String command) {
-    final gated = _gatedWord.firstMatch(command);
-    if (gated == null || !_yesToken.hasMatch(command)) return null;
-    final args = command
-        .substring(gated.end)
-        .trim()
-        .split(_whitespace)
-        .takeWhile((word) => word.isNotEmpty && !word.startsWith('-'))
-        .map((word) => word.replaceFirst(_hashSuffix, ''));
-    final reason = [
-      'Owner confirmation: specstone ${gated[1]}',
-      ...args,
-    ].join(' ');
+    if (!_gatedWord.hasMatch(command) || !_yesToken.hasMatch(command)) {
+      return null;
+    }
+    final segments = [
+      for (final call in _gatedCall.allMatches(command))
+        _segmentOf(call[1]!, command.substring(call.end)),
+    ];
+    final named = segments.isEmpty
+        ? command.trim().replaceAll(_whitespace, ' ')
+        : segments.join('; ');
+    final reason = 'Owner confirmation: $named';
     return String.fromCharCodes(reason.runes.take(_reasonLimit));
+  }
+
+  /// Returns `specstone <subcommand>` and the names in [rest], the text after
+  /// the subcommand, up to the end of that shell command.
+  String _segmentOf(String subcommand, String rest) {
+    final end = _commandEnd.firstMatch(rest)?.start ?? rest.length;
+    final names = <String>[];
+    var skipValue = false;
+    for (final raw in rest.substring(0, end).split(_whitespace)) {
+      final word = raw.replaceAll(_quotes, '');
+      if (word.isEmpty) continue;
+      if (skipValue) {
+        skipValue = false;
+      } else if (word.startsWith('-')) {
+        skipValue = word == _planOption;
+      } else {
+        names.add(word.replaceFirst(_hashSuffix, ''));
+      }
+    }
+    return ['specstone $subcommand', ...names].join(' ');
   }
 }

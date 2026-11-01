@@ -327,7 +327,8 @@ void main() {
               (f) => f.message,
               'message',
               'migrate applies only at an interactive terminal, or with '
-                  "--yes after the Owner's ok in Claude Code",
+                  "--yes after the Owner's ok, through the Specstone plugin "
+                  'for Claude Code',
             ),
       ),
     );

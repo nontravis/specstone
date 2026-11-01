@@ -9,7 +9,8 @@ export 'src/consistency_check/tree_rules.dart' show checkedFoldersOf;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
     show OwnerConfirmation, SeenDraft, approveDrafts, approveNamed;
-export 'src/document_writing/delete_doc.dart' show answerDelete;
+export 'src/document_writing/delete_doc.dart'
+    show answerDelete, answerDeleteDryRun;
 export 'src/document_writing/move_doc.dart' show answerRename, answerReorder;
 export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;

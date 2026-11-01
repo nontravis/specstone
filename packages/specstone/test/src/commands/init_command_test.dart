@@ -102,7 +102,7 @@ void main() {
     expect(
       err.toString(),
       'migrate applies only at an interactive terminal, or with --yes after '
-      "the Owner's ok in Claude Code\n",
+      "the Owner's ok, through the Specstone plugin for Claude Code\n",
     );
   }, skip: hasGit ? null : 'git is not available');
 

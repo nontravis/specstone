@@ -1,9 +1,11 @@
 import 'package:specstone_core/src/fault.dart';
 
 /// Names the two ways the Owner confirms a write only the Owner may make.
+///
+/// The chat way needs the Specstone plugin: its hook makes Claude Code ask.
 const ownerConfirmationWays =
-    "at an interactive terminal, or with --yes after the Owner's ok in Claude "
-    'Code';
+    "at an interactive terminal, or with --yes after the Owner's ok, through "
+    'the Specstone plugin for Claude Code';
 
 /// A document writing fault code from the `s05_errors.md` catalog.
 ///
@@ -21,7 +23,8 @@ enum WriteFaultCode {
   docTypeNotMovable('doc_type_not_movable', 64),
   ownerTerminalRequired('owner_terminal_required', 77),
   migratePending('migrate_pending', 75),
-  draftNotFound('draft_not_found', 65);
+  draftNotFound('draft_not_found', 65),
+  planMismatch('plan_mismatch', 75);
 
   new(this.wire, this.exitStatus);
 

@@ -243,7 +243,8 @@ void main() {
         first.err.toString(),
         'git commit failed: lint failed; fix the cause, then run specstone '
         'migrate at an interactive terminal, or with --yes after the '
-        "Owner's ok in Claude Code, to finish the run\n",
+        "Owner's ok, through the Specstone plugin for Claude Code, to finish "
+        'the run\n',
       );
 
       hook.deleteSync();
@@ -282,7 +283,7 @@ void main() {
     expect(
       err.toString(),
       'migrate applies only at an interactive terminal, or with --yes after '
-      "the Owner's ok in Claude Code\n",
+      "the Owner's ok, through the Specstone plugin for Claude Code\n",
     );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');

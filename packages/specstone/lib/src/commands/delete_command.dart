@@ -6,11 +6,23 @@ class DeleteCommand extends WriteCommand {
   new() {
     argParser
       ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'List the files the delete removes, and its plan line.',
+      )
+      ..addFlag(
         'yes',
         negatable: false,
         help:
             'Delete approved docs without the terminal prompt; the Claude '
             'Code plugin asks the Owner first.',
+      )
+      ..addOption(
+        'plan',
+        valueHelp: 'hash',
+        help:
+            'With --yes: the plan line --dry-run printed; a changed list '
+            'refuses.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
@@ -23,7 +35,8 @@ class DeleteCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone delete <target> [<target> …] [--yes] [--json]';
+      'specstone delete <target> [<target> …] '
+      '[--dry-run | --yes --plan <hash>] [--json]';
 
   @override
   Future<int> run() async {
@@ -40,17 +53,34 @@ class DeleteCommand extends WriteCommand {
         asJson: asJson,
       );
     }
+    final dryRun = args.flag('dry-run');
+    final yes = args.flag('yes');
+    final planHash = args.option('plan');
+    if (dryRun && yes) usageException('--yes cannot go with --dry-run.');
+    if (yes && planHash == null) {
+      usageException(
+        '--yes needs --plan <hash>, the plan line specstone delete --dry-run '
+        'prints.',
+      );
+    }
+    if (!yes && planHash != null) {
+      usageException('--plan goes only with --yes.');
+    }
+    if (dryRun) {
+      return runWrite(
+        (session) => answerDeleteDryRun(session, rest),
+        asJson: asJson,
+      );
+    }
     final runner = specstoneRunner;
     return runWrite(
       (session) => answerDelete(
         session,
         rest,
-        confirmation: OwnerConfirmation.of(
-          yes: args.flag('yes'),
-          interactive: interactive,
-        ),
+        confirmation: OwnerConfirmation.of(yes: yes, interactive: interactive),
         readLine: console.readLine,
         prompts: asJson ? runner.err : runner.out,
+        planHash: planHash,
       ),
       asJson: asJson,
     );
