@@ -292,6 +292,17 @@ void main() {
       });
     }
 
+    test('f09/us05/fr02: the version check never calls timeout, whose -k '
+        'misses a grandchild on uutils coreutils', () async {
+      sb.stub('timeout', r'echo "$0 $*" >> "$STUB_LOG_DIR/timeout.log"');
+
+      final r = await runHook(version: '0.2.0');
+
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
+      expect(sb.logOf('timeout'), isEmpty);
+    });
+
     test(
       'f09/us05/fr02: a 100,000-byte version gets the reinstall message',
       () async {

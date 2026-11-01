@@ -70,13 +70,11 @@ plugin_version_of() {
 # Prints the first 65 bytes of `specstone --version` and returns the CLI's exit
 # status. 65 exceeds the 64-byte version allowlist, so an over-long version
 # still fails validation while a flooding CLI cannot fill memory. The CLI runs
-# for at most 5 seconds, then gets KILL after a 1 second grace. Without
-# `timeout` (macOS), a watchdog signals the CLI's process group.
+# for at most 5 seconds, then gets KILL after a 1 second grace. A watchdog
+# signals the CLI's process group on every platform: uutils `timeout` (Ubuntu
+# 26.04) kills only the direct child, so a TERM-ignoring grandchild would keep
+# the pipe open.
 bounded_version() {
-  if command -v timeout >/dev/null 2>&1; then
-    timeout -k 1 5 specstone --version 2>/dev/null </dev/null | head -c 65
-    return "${PIPESTATUS[0]}"
-  fi
   set -m
   (
     specstone --version 2>/dev/null </dev/null | head -c 65
@@ -93,6 +91,8 @@ bounded_version() {
     nap=$!
     wait "$nap"
     kill -KILL -- "-$child" 2>/dev/null
+    # Git Bash maps a signal to a native Windows child through TerminateProcess.
+    kill -KILL "$child" 2>/dev/null
   ) >/dev/null 2>&1 &
   watchdog=$!
   wait "$child" 2>/dev/null
