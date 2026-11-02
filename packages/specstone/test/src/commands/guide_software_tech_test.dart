@@ -198,6 +198,28 @@ void main() {
       }
     });
 
+    test('f03/us01/fr02: guide api ends with its four sources as '
+        'written', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'api']), 0);
+      expect(
+        out.toString(),
+        endsWith(
+          '\n\nGuide sources:\n'
+          '- OpenAPI Specification 3.2.1, Operation Object (operationId); '
+          'Working with Examples: https://spec.openapis.org/oas/v3.2.1.html\n'
+          '- Google AIP-121, Resource-oriented design, Guidance: '
+          'https://google.aip.dev/121\n'
+          '- Google AIP-180, Backwards compatibility, Guidance (source, wire, '
+          'semantic compatibility): https://google.aip.dev/180\n'
+          '- Microsoft Azure REST API Guidelines, Exactly Once Behavior; '
+          'Handling Errors: https://github.com/microsoft/api-guidelines/blob/'
+          'vNext/azure/Guidelines.md\n',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('f03/us07/s6, f03/us07/fr01/e02: with only prd-core, guide '
         'architecture is refused with the usage', () async {
       final runner = await runnerFor(_prdCoreOnly);

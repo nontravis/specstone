@@ -391,18 +391,33 @@ final class MergedDocType {
   }
 
   /// Returns the writing guide: the description, then each section's header
-  /// and description, each block set off by a blank line.
+  /// and description, then the `Guide sources:` block of [reference], each
+  /// block set off by a blank line.
   ///
-  /// A description with only whitespace adds no block.
+  /// A description with only whitespace adds no block, and an absent or empty
+  /// [reference] list adds no sources block.
   String renderGuide() {
+    final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
       ?_trimmedOrNull(description),
       for (final section in sections) ...[
         '## ${section.header}',
         ?_trimmedOrNull(section.description),
       ],
+      if (sources.isNotEmpty)
+        ['Guide sources:', ...sources.map(_sourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
+
+  /// Returns the guide line of [entry]: `- <title>[, <locator>][: <target>]`,
+  /// where the target is its url, file, or doc.
+  static String _sourceLine(ReferenceEntry entry) {
+    final locator = entry.locator;
+    final target = entry.url ?? entry.file ?? entry.doc;
+    return '- ${entry.title}'
+        '${locator == null ? '' : ', $locator'}'
+        '${target == null ? '' : ': $target'}';
   }
 
   /// Returns [text] without trailing whitespace, or null when nothing is left.
