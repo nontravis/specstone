@@ -92,10 +92,25 @@ void main() {
       withKeyBlock(doc, 'a', null),
       '---\nb: 2\n---\n\n# T\n\n## A\nold\n\n## B\nb\n',
     );
+  });
+  test('f02/us02/fr02/e04, f02/us01/fr01/e08: a doc with no frontmatter gains one and one blank line before its text', () {
     expect(
       withKeyBlock('# T\n', 'draft', 'draft: true\n'),
-      '---\ndraft: true\n---\n# T\n',
+      '---\ndraft: true\n---\n\n# T\n',
     );
+    expect(
+      withKeyBlock('## A\nx\n', 'draft', 'draft: true\n'),
+      '---\ndraft: true\n---\n\n## A\nx\n',
+    );
+    expect(
+      withKeyBlock('\n# T\n', 'draft', 'draft: true\n'),
+      '---\ndraft: true\n---\n\n# T\n',
+    );
+    expect(
+      withKeyBlock('', 'draft', 'draft: true\n'),
+      '---\ndraft: true\n---\n',
+    );
+    expect(withKeyBlock('# T\n', 'draft', null), '# T\n');
   });
   test(
     'doc_model/s03/inv6, HD4: withKeyBlock replaces a quoted block by its name',

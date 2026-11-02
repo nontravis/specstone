@@ -107,7 +107,8 @@ String withSectionAdded(
 /// slot: directly after the last block whose key comes before [key] in
 /// [fieldOrder], else directly after the keyless block, else at the top. A
 /// [key] that [fieldOrder] lacks goes after the last block. No block moves. A
-/// doc without frontmatter gains one when [blockText] is not null.
+/// doc without frontmatter gains one when [blockText] is not null, then one
+/// blank line before its text, as a template skeleton has.
 String withKeyBlock(
   String lfText,
   String key,
@@ -118,7 +119,9 @@ String withKeyBlock(
   final blocks = doc.frontmatter;
   final block = blockText == null ? null : _endWithNewline(blockText);
   if (blocks == null) {
-    return block == null ? lfText : '---\n$block---\n$lfText';
+    if (block == null) return lfText;
+    final gap = lfText.isEmpty || lfText.startsWith('\n') ? '' : '\n';
+    return '---\n$block---\n$gap$lfText';
   }
   var start = lfText.indexOf('\n') + 1;
   for (final existing in blocks) {

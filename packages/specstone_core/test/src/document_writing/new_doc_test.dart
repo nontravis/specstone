@@ -149,7 +149,7 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/features/f01_login/us05_b/USER_STORY.md'),
-      '---\ndraft: true\n---\n# Mine\n',
+      '---\ndraft: true\n---\n\n# Mine\n',
     );
   });
 
@@ -474,7 +474,7 @@ void main() {
       );
       expect(
         readDoc(root, 'prds/features/f01_login/us04_plain/USER_STORY.md'),
-        '---\ndraft: true\n---\n# Plain\n\nJust prose.\n',
+        '---\ndraft: true\n---\n\n# Plain\n\nJust prose.\n',
       );
     },
   );

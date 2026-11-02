@@ -148,7 +148,7 @@ void main() {
       markDraft('---\napproved: true\nsize: 1\n---\n# T\n', builtIns),
       '---\ndraft: true\napproved: true\nsize: 1\n---\n# T\n',
     );
-    expect(markDraft('# T\n', builtIns), '---\ndraft: true\n---\n# T\n');
+    expect(markDraft('# T\n', builtIns), '---\ndraft: true\n---\n\n# T\n');
   });
 
   test('f02/us01/s1, f02/us01/fr01, f02/us01/fr01/e01, dw-s03/inv1, dw-s03/inv13: only the section body changes, and the new base prints', () async {
@@ -519,7 +519,7 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/FEATURES.md'),
-      startsWith('---\ndraft: true\n---\n# Feature index\n'),
+      startsWith('---\ndraft: true\n---\n\n# Feature index\n'),
     );
   });
 
