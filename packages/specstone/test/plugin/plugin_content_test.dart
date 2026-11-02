@@ -94,6 +94,24 @@ void main() {
     },
   );
 
+  test('f08/us01/fr04, nfr-te01: a procedure file over 1,500 est. tokens '
+      'fails naming it', () async {
+    final root = await writeTree({'procedures/x.md': 'a' * 6004});
+    expect(oversizedProcedures(root), [
+      'procedures/x.md: 1501 est. tokens, over 1500',
+    ]);
+  });
+
+  test(
+    'f08/us01/fr04: a procedure naming a command the CLI lacks fails',
+    () async {
+      expect(
+        await _problemsOf({'procedures/x.md': 'Run `specstone lint docs`.'}),
+        ['procedures/x.md: specstone has no command lint'],
+      );
+    },
+  );
+
   test('f08/us01/fr04/e04: CRLF line ends count as LF', () async {
     const text = 'one\ntwo\nthree\nfour\n';
     final lf = await writeTree({'skills/x/SKILL.md': text});
@@ -115,6 +133,11 @@ void main() {
   test('f08/us01/fr04, nfr-te01: every shipped skill folder stays within '
       '1,500 est. tokens', () {
     expect(oversizedSkills(pluginRoot()), isEmpty);
+  });
+
+  test('f08/us01/fr04, nfr-te01: every shipped procedure file stays within '
+      '1,500 est. tokens', () {
+    expect(oversizedProcedures(pluginRoot()), isEmpty);
   });
 
   test(
