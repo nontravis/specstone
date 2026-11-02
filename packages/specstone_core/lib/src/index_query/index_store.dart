@@ -531,6 +531,15 @@ final class IndexStore {
       ),
   ];
 
+  /// Returns the docPaths whose text holds [needle], case-sensitive.
+  List<String> docPathsHolding(String needle) => [
+    for (final row in _db.select(
+      'SELECT doc_path FROM docs WHERE instr(text, ?) > 0',
+      [needle],
+    ))
+      row.columnAt(0) as String,
+  ];
+
   /// Returns every link as its source and target docPath.
   List<({String source, String target})> loadLinks() => [
     for (final row in _db.select(

@@ -19,6 +19,9 @@ const _targetExample =
 
 final _headerLine = RegExp(r'^## .*$', multiLine: true);
 
+/// A character other than the space, tab, and line feed that blank lines hold.
+final _nonBlank = RegExp(r'[^ \t\n]');
+
 /// What a `set` call writes: a section, a frontmatter field, or the title.
 sealed class SetTarget {
   const new();
@@ -119,8 +122,10 @@ String markDraft(String lfText, {List<String>? fieldOrder}) =>
 ///
 /// The write runs under the session lock against a fresh read of the file,
 /// so a target changed since [SetRequest.base] refuses with its current text.
-/// An empty [text] removes an optional section or field; a field key the doc
-/// holds that its type does not declare is removed too. Throws [IndexFault]
+/// A section body lands one blank line below its header, whatever blank lines
+/// [text] opens with. An empty [text] removes an optional section or field; a
+/// field key the doc holds that its type does not declare is removed too.
+/// Throws [IndexFault]
 /// for a body that holds a `## ` line, a doc, section, or field that is not
 /// there, a title that is not one line, and [WriteFault] `base_mismatch`,
 /// `required_target`, or a refused field.
@@ -382,8 +387,7 @@ ReadAnswer _setSection(
       'the body holds the header line "${header[0]}"; send the body only',
     );
   }
-  final stripped = withoutTrailingBlankLines(lf);
-  final body = stripped.trim().isEmpty ? '' : '$stripped\n';
+  final body = _sectionBodyOf(lf);
 
   final doc = session.target(request.address);
   final docType =
@@ -459,6 +463,16 @@ ReadAnswer _setSection(
       },
     );
   });
+}
+
+/// Returns [lf] as a section body: one blank line, then its first through its
+/// last non-blank line; empty when [lf] is blank.
+String _sectionBodyOf(String lf) {
+  final stripped = withoutTrailingBlankLines(lf);
+  if (stripped.trim().isEmpty) return '';
+  final firstText = stripped.indexOf(_nonBlank);
+  final firstLine = stripped.lastIndexOf('\n', firstText) + 1;
+  return '\n${stripped.substring(firstLine)}\n';
 }
 
 /// Reads [doc] from disk as it is now, not as the session's index saw it.

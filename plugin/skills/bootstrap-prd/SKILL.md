@@ -66,10 +66,10 @@ path to the retire set, a list for this run only.
 
 ## 5. Retire the old files
 
-1. Run `specstone refs <path>` per file of the set; its `Inbound` lines name the docs linking in.
-2. Links inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
-   first (`specstone:bootstrap-spec` takes one under `specs/`). Repoint each other referrer's link to the doc now
-   holding the content, through `specstone set` on that section.
+1. Run `specstone refs <path>` per file of the set; its `Inbound` and `Mentions` lines are the referrers.
+2. Referrers inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
+   first (`specstone:bootstrap-spec` takes one under `specs/`). Repoint each other link or mention to the doc now
+   holding the content, or drop a mention nothing replaces, through `specstone set` on that section.
 3. Delete the set through `specstone:expert-sdd`'s Owner confirmation (terminal or chat), one command naming every
    path, quoting each path that holds a space:
 
@@ -88,7 +88,7 @@ The CLI treats a file without `draft: true` as approved, so without the Owner's 
 Owner.
 
 Last, name each change per draft, each proposal, each moved pointer, each dropped key, and each finding no write
-clears. Then get each draft approved through `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
+clears. Then get each draft approved through the Owner confirmation step 5 names.
 
 ## Red flags
 

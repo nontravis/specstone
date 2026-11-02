@@ -138,6 +138,15 @@ final class DocIndex {
   List<SearchRow> search(String matchExpression) =>
       _store.search(matchExpression);
 
+  /// Returns the docs whose text holds [needle], case-sensitive.
+  List<IndexedDoc> holding(String needle) {
+    final paths = _store.docPathsHolding(needle).toSet();
+    return [
+      for (final doc in docs)
+        if (paths.contains(doc.docPath)) doc,
+    ];
+  }
+
   /// Returns the docs [doc] links to.
   List<IndexedDoc> linkedFrom(IndexedDoc doc) =>
       _linked((link) => link.source == doc.docPath, (link) => link.target);

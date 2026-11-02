@@ -27,7 +27,8 @@ void main() {
       '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md <==\n'
       'Outbound\n- persona: buyer (persona)\n- link: password_rules (reference)\n'
       '- implements: app/lib/src/login/sign_in_page.dart:SignInPage\n'
-      'Inbound\n- link: login/email_login/validate_credentials (fr)\n',
+      'Inbound\n- link: login/email_login/validate_credentials (fr)\n'
+      'Mentions\n- none\n',
     );
   });
   test("f01/us07/fr01/e01: a doc_ref targets its field's doc types only, and shows inbound on the target", () async {
@@ -43,7 +44,7 @@ void main() {
   test('f01/us07/s2, f01/us07/fr01/e03, f01/us07/fr01/e10: pointers are outbound only; an empty group prints - none', () async {
     expect(
       answerRefs(index, 'architecture:login').text,
-      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\n',
+      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\nMentions\n- none\n',
     );
   });
   test(
@@ -64,7 +65,7 @@ void main() {
     });
     expect(
       answerRefs(links, 'notes.md').text,
-      '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\n',
+      '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\nMentions\n- none\n',
     );
   });
   test(
@@ -184,6 +185,84 @@ void main() {
       contains(
         'Inbound\n- link: login/email_login/validate_credentials (fr)\n- step: sign_in (journey)\n',
       ),
+    );
+  });
+  group('mentions', () {
+    const index = 'docs/specs/INDEX.md';
+    const summary = 'docs/specs/tools/summary.md';
+    const summaryText =
+        '# Summary\n'
+        '\n'
+        'The map sits in `INDEX.md`.\n'
+        'Old notes: specs/INDEX.md, kept for now.\n'
+        '\n'
+        '```text\n'
+        'INDEX.md\n'
+        '```\n'
+        '\n'
+        'Back to the [map](../INDEX.md); INDEX.md has it.\n';
+
+    test('f01/us07/fr01: a backticked file name and a bare DocPath are listed with their line; fenced code and a linking line are not', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        summary: summaryText,
+      });
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        '==> specs/INDEX.md · specs/INDEX.md <==\n'
+        'Outbound\n- none\n'
+        'Inbound\n- link: specs/tools/summary.md\n'
+        'Mentions\n- specs/tools/summary.md:3\n- specs/tools/summary.md:4\n',
+      );
+    });
+    test('f01/us07/fr01: --json lists each mention by path and line', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        summary: summaryText,
+      });
+      final doc =
+          (answerRefs(mentions, 'specs/INDEX.md').json['docs']! as List).single
+              as Map;
+      expect(doc['mentions'], [
+        {'path': 'specs/tools/summary.md', 'line': 3},
+        {'path': 'specs/tools/summary.md', 'line': 4},
+      ]);
+    });
+    test('f01/us07/fr01: a path or a link to a doc of the same file name elsewhere is no mention; a bare shared file name is', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        'docs/prds/INDEX.md': '# PRD map\n\nThe old PRD index.\n',
+        'docs/notes.md':
+            '# Notes\n\n'
+            'See prds/INDEX.md and [the PRD map](prds/INDEX.md).\n'
+            'Each tree kept an INDEX.md.\n'
+            'MY_INDEX.md and INDEX.md.bak are other files.\n',
+      });
+      final text = answerRefs(mentions, 'specs/INDEX.md').text;
+      expect(text, contains('Mentions\n- notes.md:4\n'));
+      expect(text, isNot(contains('notes.md:3')));
+      expect(text, isNot(contains('notes.md:5')));
+    });
+    test(
+      'f01/us07/fr01: a longer path names the deepest doc it matches',
+      () async {
+        final mentions = await indexWith({
+          index: '# Spec map\n\nThe old index.\n',
+          'docs/INDEX.md': '# Top map\n\nThe top index.\n',
+          'docs/notes.md':
+              '# Notes\n\n'
+              'See docs/specs/INDEX.md.\n'
+              'See docs/INDEX.md.\n',
+        });
+        expect(
+          answerRefs(mentions, 'INDEX.md').text,
+          endsWith('Mentions\n- notes.md:4\n'),
+        );
+        expect(
+          answerRefs(mentions, 'specs/INDEX.md').text,
+          endsWith('Mentions\n- notes.md:3\n'),
+        );
+      },
     );
   });
 }

@@ -207,8 +207,8 @@ void main() {
     expect(
       readDoc(root, story1),
       allOf(
-        contains('## Use Case\nSign in with a passkey.\n'),
-        contains('## Acceptance Criteria\n- **Given** a passkey\n'),
+        contains('## Use Case\n\nSign in with a passkey.\n'),
+        contains('## Acceptance Criteria\n\n- **Given** a passkey\n'),
       ),
     );
   });
@@ -219,7 +219,7 @@ void main() {
     final base = sectionBase(root, target);
     writeIn(root, (s) => answerSet(s, req(target, base), 'First writer.\n'));
     final before = readDoc(root, story1);
-    final current = baseHashOf('First writer.\n');
+    final current = baseHashOf('\nFirst writer.\n');
     expect(
       () => writeIn(
         root,
@@ -238,7 +238,7 @@ void main() {
             .having(
               (f) => f.current?.text,
               'current.text',
-              '## Use Case\nFirst writer.\n',
+              '## Use Case\n\nFirst writer.\n',
             )
             .having((f) => f.current?.base, 'current.base', current)
             .having(
@@ -264,8 +264,47 @@ void main() {
     expect(
       readDoc(root, story1),
       contains(
-        'Sign in with an email.\n\n## Rules\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
+        'Sign in with an email.\n\n## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
       ),
+    );
+  });
+
+  test('f02/us01/fr01: a body with no leading blank line lands one blank line below its header, and the new base is of that body', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final answer = writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        'Sign in with an email and a password.\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      contains(
+        '## Use Case\n\nSign in with an email and a password.\n\n## Acceptance Criteria\n',
+      ),
+    );
+    const written = '\nSign in with an email and a password.\n';
+    expect(answer.json['base'], baseHashOf(written));
+    expect(sectionBase(root, target), baseHashOf(written));
+  });
+
+  test('f02/us01/fr01: leading blank lines collapse to one, and the first line keeps its indent', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '\n \n\t\n    sign_in(email)\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      contains('## Use Case\n\n    sign_in(email)\n\n## Acceptance Criteria\n'),
     );
   });
 
@@ -381,7 +420,7 @@ void main() {
       readDoc(root, story2),
       startsWith('---\nstatus: planned\napproved: true\ndraft: true\n---\n'),
     );
-    expect(readDoc(root, story2), contains('## Use Case\nSign out now.\n'));
+    expect(readDoc(root, story2), contains('## Use Case\n\nSign out now.\n'));
 
     const systems = 'features:features#systems';
     writeIn(
@@ -506,7 +545,7 @@ void main() {
     );
     final base = sectionBase(root, target);
     writeIn(root, (s) => answerSet(s, req(target, base), 'Sign in again.\n'));
-    expect(readDoc(root, story1), contains('## Use Case\nSign in again.\n'));
+    expect(readDoc(root, story1), contains('## Use Case\n\nSign in again.\n'));
   });
 
   test(
@@ -601,8 +640,11 @@ void main() {
       ),
     );
     expect(readDoc(root, story1).replaceAll('\r\n', ''), isNot(contains('\n')));
-    expect(readDoc(root, story1), contains('## Use Case\r\nSign in fast.\r\n'));
-    expect(answer.json['base'], baseHashOf('Sign in fast.\n'));
+    expect(
+      readDoc(root, story1),
+      contains('## Use Case\r\n\r\nSign in fast.\r\n'),
+    );
+    expect(answer.json['base'], baseHashOf('\nSign in fast.\n'));
   });
 
   test('review focus 3, dw-s03/inv1: a body with no final newline or with trailing blank lines ends in one newline', () async {
@@ -615,7 +657,7 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        contains('## Use Case\nSign in fast.\n\n## Acceptance Criteria'),
+        contains('## Use Case\n\nSign in fast.\n\n## Acceptance Criteria'),
       );
       expect(answer.json['base'], sectionBase(root, target));
     }
@@ -635,7 +677,7 @@ void main() {
     );
     expect(
       readDoc(root, story1),
-      contains('## Notes\nchanged\n\n## Notes\nsecond\n'),
+      contains('## Notes\n\nchanged\n\n## Notes\nsecond\n'),
     );
   });
 
@@ -1350,7 +1392,7 @@ void main() {
       root,
       (s) => answerSet(s, req(target, emptyBaseHash), 'None yet.\n'),
     );
-    expect(readDoc(root, story1), endsWith('## Open questions\nNone yet.\n'));
+    expect(readDoc(root, story1), endsWith('## Open questions\n\nNone yet.\n'));
   });
   test(
     'f02/us01/fr01/e07: empty stdin on an absent optional section adds nothing',
