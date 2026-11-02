@@ -1774,7 +1774,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'LjIvY2xvdWRldmVudHMvc3BlYy5tZAogICAgbG9jYXRvcjogUkVRVUlSRUQgQXR0'
       'cmlidXRlcyAoaWQsIHNvdXJjZSwgdHlwZSkK',
   'software-tech/pack.yaml':
-      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjIuMApleHRlbmRzOiBwcmQt'
+      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjIuMQpleHRlbmRzOiBwcmQt'
       'Y29yZQo=',
   'software-tech/tech_stack.yaml':
       'aWQ6IHRlY2hfc3RhY2sKZGVzY3JpcHRpb246IHwtCiAgVGhlIHByb2plY3QncyB0'
