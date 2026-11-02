@@ -4,5 +4,5 @@ fields:
     list: true
     pointer: exact
     description: |-
-      Lists the code that implements the doc, each entry `path[:Symbol]`, with the path relative to the project root.
+      Lists the code that implements the doc, each entry `path[:Symbol]`, with the path relative to the code root (`code_root` in `.specstone/config.yaml`, else the project root).
       Write it once code implements the doc; a doc with no code yet writes none.

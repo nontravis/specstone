@@ -35,7 +35,7 @@ void main() {
     ]);
     expect(
       fieldOf(topic, 'covers').description,
-      allOf(contains('longest prefix'), contains('project root')),
+      allOf(contains('longest prefix'), contains('code root')),
     );
     expectSections(topic, const [
       SectionSpec('purpose', 'Purpose', required: true),

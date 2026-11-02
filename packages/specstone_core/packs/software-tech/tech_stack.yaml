@@ -13,7 +13,7 @@ fields:
     type: string
     list: true
     description: |-
-      Lists each folder or file of the project's code, relative to the project root, such as `packages/app/lib/`.
+      Lists each folder or file of the project's code, relative to the code root (`code_root` in `.specstone/config.yaml`, else the project root), such as `packages/app/lib/`.
       `specstone check` reports each file under it that no `covers` entry reaches.
 sections:
   - id: stack

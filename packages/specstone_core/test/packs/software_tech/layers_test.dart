@@ -47,7 +47,7 @@ void main() {
         expect(implements.pointer, PointerKind.exact);
         expect(
           implements.description,
-          allOf(contains('`path[:Symbol]`'), contains('project root')),
+          allOf(contains('`path[:Symbol]`'), contains('code root')),
         );
       },
     );
