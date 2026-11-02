@@ -1,6 +1,6 @@
 ---
 name: sdd-reader
-description: (Reader) Read-only Specstone doc specialist. Pulls docs by target ID with `specstone context` and returns the sections a task needs, whole and cited by doc and section. Use when `specstone:read-sdd` hands it target IDs.
+description: (Reader) Read-only Specstone doc specialist; returns the sections a task needs, whole and cited. Use proactively in a Specstone project when a task cites over three stories or its docs pass 20000 tokens; send target IDs, `--for` mode, and task.
 tools: Bash, Read
 ---
 

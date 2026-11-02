@@ -202,6 +202,7 @@ void main() {
   _shippedFileTests();
   _procedureTests();
   _handOffTests();
+  _agentTests();
 }
 
 typedef _Shipped = ({
@@ -366,6 +367,26 @@ void _handOffTests() {
       expect(text, contains(path), reason: skill);
       expect(cliCommands(_bodyOf(text)).first, 'check', reason: skill);
       expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $skill');
+    }
+  });
+}
+
+void _agentTests() {
+  test('f08/us02/fr02: sdd-engineer has no audit mode', () {
+    expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('audit')));
+  });
+
+  test('sd-r1: both agent descriptions ask to be used proactively', () {
+    final proactive = RegExp(
+      '^description:.*[Uu]se proactively',
+      multiLine: true,
+    );
+    for (final agent in ['sdd-engineer', 'sdd-reader']) {
+      expect(
+        _pluginText('agents/$agent.md'),
+        matches(proactive),
+        reason: agent,
+      );
     }
   });
 }
