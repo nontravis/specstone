@@ -40,7 +40,8 @@ over every finding this skill takes; after a failed dispatch, for each batch no 
 
 ## 3. After the reports
 
-When you followed the procedure yourself, its report stands in for item 1.
+When you followed the procedure yourself, its report stands in for item 1; on no batch, its step 5.3 delete stands
+in for item 4.
 
 1. Relay each `sdd-engineer` report to the Owner whole.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
@@ -50,5 +51,5 @@ When you followed the procedure yourself, its report stands in for item 1.
    one command naming each path once, with each path `specstone:bootstrap-prd` left waiting on a file this round
    merged, and get the Owner's word on it per `specstone:expert-sdd`. On exit 64, dispatch again each batch whose file
    a listed referrer names, with those referrers.
-5. Run `specstone check` again. Findings this skill takes start another round at step 2, except those the last
-   reports left as clearing with no write or waiting on the Owner. With none left, stop.
+5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless the last reports
+   name it as one that clears with no write or waits on the Owner. With none left, stop.

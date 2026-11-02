@@ -9,7 +9,7 @@ Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections 
 ## 2. One finding at a time
 
 Fix the first unhandled finding of this skill, then run `specstone check` again with no target (a targeted run
-omits `code_uncovered`). Stop when each finding left is under `prds/`, no write clears it, or it waits on the Owner.
+omits `code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or waits on the Owner.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
@@ -28,7 +28,7 @@ text bears on it.
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
-| any other of this skill | rewrite what it names per `specstone guide <type>`; one no write clears goes to step 6 |
+| any other of this skill | rewrite what it names per `specstone guide <type>`; one that clears with no write goes to step 6 |
 
 ## 3. Point and cover code
 
@@ -65,8 +65,9 @@ the doc held its content.
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
    Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
    holding the content, or drop a mention nothing replaces.
-3. Delete the set through `specstone:expert-sdd`'s Owner confirmation, one command naming every path, quoting each
-   path with a space:
+3. On a batch, delete nothing: hand the set as one `specstone delete` line to `specstone:bootstrap-spec`'s step 3.4,
+   which joins the round's lines. With no batch, delete the set through `specstone:expert-sdd`'s Owner confirmation,
+   one command naming every path, quoting each path with a space:
 
 ```
 specstone delete <path> <path> …
@@ -84,8 +85,8 @@ PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization`
 section. Fill each doc step 3 or 4 made the same way. Then rerun `specstone check`: new roots can raise
 `code_uncovered`.
 
-Last, name per draft each change, moved pointer, dropped key or section, and finding no write clears; then get each
-draft approved through step 5's Owner confirmation.
+Last, name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then
+get each draft approved through step 5's Owner confirmation.
 
 ## Red flags
 

@@ -30,7 +30,7 @@ line backs its `> en:` summary), named in step 6. Ask the Owner only when no tex
 | `field_undeclared`, any other | move its value into the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
-| any other under `prds/` | rewrite what it names per `specstone guide <type>`; one no write clears goes to step 6 |
+| any other under `prds/` | rewrite what it names per `specstone guide <type>`; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
 
@@ -62,8 +62,9 @@ mention in a section kept unchanged.
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
    Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
    holding the content, or drop a mention nothing replaces, through `specstone set` on that section.
-3. Delete the set in one command once the Owner confirms it per `specstone:expert-sdd`, quoting each path with a
-   space:
+3. On a batch, delete nothing: hand the set as one `specstone delete` line to `specstone:bootstrap-prd`'s step 3.4,
+   which joins the round's lines. With no batch, delete the set in one command once the Owner confirms it per
+   `specstone:expert-sdd`, quoting each path with a space:
 
 ```
 specstone delete <path> <path> …
@@ -77,8 +78,8 @@ Without the Owner's word the CLI refuses (exit 77). Never run `git rm`: it delet
 `specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (`project:project`,
 `features:features`, `gnfr:gnfr`): read each with `specstone get` and fill it with the Owner.
 
-Last, name each change per draft, proposal, moved pointer, dropped key, and finding no write clears, then get each
-draft approved as step 5's Owner confirmation says.
+Last, name each change per draft, proposal, moved pointer, dropped key, and finding that clears with no write, then
+get each draft approved as step 5's Owner confirmation says.
 
 ## Red flags
 
