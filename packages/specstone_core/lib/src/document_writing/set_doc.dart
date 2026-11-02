@@ -122,13 +122,13 @@ String markDraft(String lfText, {List<String>? fieldOrder}) =>
 ///
 /// The write runs under the session lock against a fresh read of the file,
 /// so a target changed since [SetRequest.base] refuses with its current text.
-/// A section body lands one blank line below its header, whatever blank lines
-/// [text] opens with. An empty [text] removes an optional section or field; a
-/// field key the doc holds that its type does not declare is removed too.
-/// Throws [IndexFault]
-/// for a body that holds a `## ` line, a doc, section, or field that is not
-/// there, a title that is not one line, and [WriteFault] `base_mismatch`,
-/// `required_target`, or a refused field.
+/// A section body lands flush under its header, as `format` lays it out,
+/// whatever blank lines [text] opens or ends with. An empty [text] removes an
+/// optional section or field; a field key the doc holds that its type does not
+/// declare is removed too. Throws [IndexFault] for a body that holds a `## `
+/// line, a doc, section, or field that is not there, a title that is not one
+/// line, and [WriteFault] `base_mismatch`, `required_target`, or a refused
+/// field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) =>
     switch (request.target) {
       SectionTarget(:final key) => _setSection(session, request, key, text),
@@ -387,7 +387,7 @@ ReadAnswer _setSection(
       'the body holds the header line "${header[0]}"; send the body only',
     );
   }
-  final body = _sectionBodyOf(lf);
+  final body = _pipedBodyOf(lf);
 
   final doc = session.target(request.address);
   final docType =
@@ -465,14 +465,12 @@ ReadAnswer _setSection(
   });
 }
 
-/// Returns [lf] as a section body: one blank line, then its first through its
-/// last non-blank line; empty when [lf] is blank.
-String _sectionBodyOf(String lf) {
-  final stripped = withoutTrailingBlankLines(lf);
-  if (stripped.trim().isEmpty) return '';
-  final firstText = stripped.indexOf(_nonBlank);
-  final firstLine = stripped.lastIndexOf('\n', firstText) + 1;
-  return '\n${stripped.substring(firstLine)}\n';
+/// Returns piped [lf] as the section body `format` lays out, from its first
+/// non-blank line on; empty when [lf] is blank.
+String _pipedBodyOf(String lf) {
+  if (lf.trim().isEmpty) return '';
+  final firstLine = lf.lastIndexOf('\n', lf.indexOf(_nonBlank)) + 1;
+  return sectionBodyOf(lf.substring(firstLine));
 }
 
 /// Reads [doc] from disk as it is now, not as the session's index saw it.

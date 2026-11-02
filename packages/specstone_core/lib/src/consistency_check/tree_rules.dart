@@ -128,7 +128,14 @@ List<String>? _candidatesOf(CheckContext context, IndexedDoc doc) {
   return null;
 }
 
-typedef _SiblingKey = (String typeId, String? parentPath, int number);
+/// The siblings a doc's order number must not repeat among: one doc type,
+/// one parent doc, and one `folder`, the path segments before its `{nn}`.
+typedef _SiblingKey = ({
+  String typeId,
+  String? parentPath,
+  String folder,
+  int number,
+});
 
 final _siblingGroups = Expando<Map<_SiblingKey, List<IndexedDoc>>>();
 
@@ -147,7 +154,7 @@ Iterable<Finding> _orderNumberDuplicate(
     doc,
     FindingKind.orderNumberDuplicate,
     line: 1,
-    message: 'order number ${key.$3} repeats among its siblings',
+    message: 'order number ${key.number} repeats among its siblings',
     keys: {
       'siblings': [
         for (final sibling in siblings)
@@ -167,6 +174,9 @@ Map<_SiblingKey, List<IndexedDoc>> _groupSiblings(CheckContext context) {
 }
 
 /// Returns the sibling group of [doc]; null when it joins none (PD10).
+///
+/// The folder before the `{nn}` segment scopes the group, so a pattern such
+/// as `prds/features/{slug}/f{nn}_{slug}/FEATURE.md` numbers each group apart.
 _SiblingKey? _keyOf(CheckContext context, IndexedDoc doc) {
   final type = context.typeOf(doc);
   final path = type?.path;
@@ -178,7 +188,13 @@ _SiblingKey? _keyOf(CheckContext context, IndexedDoc doc) {
   );
   for (var depth = segments.length; depth > 0; depth--) {
     final number = pattern.numberAt(segments.sublist(0, depth));
-    if (number != null) return (type.id, doc.parentPath, number);
+    if (number == null) continue;
+    return (
+      typeId: type.id,
+      parentPath: doc.parentPath,
+      folder: segments.take(depth - 1).join(_pathSeparator),
+      number: number,
+    );
   }
   return null;
 }

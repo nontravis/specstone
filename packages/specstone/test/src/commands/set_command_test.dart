@@ -91,7 +91,7 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base 4890772bf7d8 <==\n',
+      '==> login/email_login (user_story) · $story1 · base 10c653d235c1 <==\n',
     );
     final written = writeRunner(root);
     expect(
@@ -101,7 +101,7 @@ void main() {
       ]),
       0,
     );
-    expect(written.out.toString(), contains('base 4890772bf7d8'));
+    expect(written.out.toString(), contains('base 10c653d235c1'));
     expect(written.out.toString(), contains('Sign in with a passkey.'));
   });
   test('f02/us01/s8, f02/us01/fr02/e06: a stale base prints the fault on stderr and only the current section on stdout, exit 75', () async {

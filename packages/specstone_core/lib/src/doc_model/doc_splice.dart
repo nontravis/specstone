@@ -31,6 +31,16 @@ String withoutTrailingBlankLines(String lf) {
 
 bool _isBlankChar(int unit) => unit == 0x0A || unit == 0x20 || unit == 0x09;
 
+/// Returns [text] as a section body: trailing blank lines dropped, one line end
+/// kept, flush under its header; empty when nothing is left.
+///
+/// `format` lays out a template body this way and `set` a piped one, so the
+/// layout under a header does not depend on the writer.
+String sectionBodyOf(String text) {
+  final kept = withoutTrailingBlankLines(text);
+  return kept.isEmpty ? '' : '$kept\n';
+}
+
 /// Returns [lfText] with the body of section [section] replaced by [body].
 ///
 /// The header line and the blank lines after the old body stay.
