@@ -47,6 +47,16 @@ void main() {
       'f03/us06/fr03/e04: titled # <archetype title>, no NASA list', () {
     expectGuideShape(anti, title: '# <archetype title>');
     expectNoNasaLint(anti);
+    expectSources(anti, [
+      (
+        'NN/g, Antipersonas: What, How, Who, and Why? (2022)',
+        'https://www.nngroup.com/articles/antipersonas-what-how/',
+      ),
+      (
+        'HubSpot, Buyer persona research',
+        'https://blog.hubspot.com/marketing/buyer-persona-research',
+      ),
+    ]);
   });
 
   test('f03/us06/fr02: the guide splits misuser from non-target', () {

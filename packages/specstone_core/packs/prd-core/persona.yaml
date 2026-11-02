@@ -173,3 +173,12 @@ lint:
       message: history prose; state the present truth only
       in: text
   max_lines: 400
+reference:
+  - title: Kim Goodwin, Perfecting Your Personas (Cooper Journal, 2001; Wayback)
+    url: https://web.archive.org/web/20101229102055/http://www.cooper.com/journal/2001/08/perfecting_your_personas.html
+  - title: NN/g, 3 Persona Types (2020)
+    url: https://www.nngroup.com/articles/persona-types/
+  - title: NN/g, Personas Make Users Memorable (2025)
+    url: https://www.nngroup.com/articles/persona/
+  - title: 18F Methods, Personas card (archived repo)
+    url: https://github.com/18F/methods/blob/main/_methods/personas.md

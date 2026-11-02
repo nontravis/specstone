@@ -65,6 +65,7 @@ void main() {
       'a short English guide, 400 lines, no NASA list', () {
     expectGuideShape(project, title: '# Project context');
     expectNoNasaLint(project);
+    expectSources(project, []);
   });
 
   test('f03/us06/fr02/e04: the templates carry the quote line and the '

@@ -54,6 +54,24 @@ void main() {
       'f03/us06/fr03/e04: titled # <Name>, no NASA list', () {
     expectGuideShape(story, title: '# <Name>');
     expectNoNasaLint(story);
+    expectSources(story, [
+      (
+        "Dan North, What's in a Story?",
+        'https://dannorth.net/blog/whats-in-a-story/',
+      ),
+      (
+        'Mike Cohn, User Stories guide',
+        'https://www.mountaingoatsoftware.com/agile/user-stories',
+      ),
+      (
+        'Cucumber, Gherkin Reference',
+        'https://cucumber.io/docs/gherkin/reference/',
+      ),
+      (
+        'Matt Wynne, Introducing Example Mapping',
+        'https://cucumber.io/blog/bdd/example-mapping-introduction/',
+      ),
+    ]);
   });
 
   test('f03/us06/s2, f03/us06/fr02: the guide gives the title form, then '
