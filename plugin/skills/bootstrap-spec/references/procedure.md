@@ -3,7 +3,7 @@ When you run as `specstone:sdd-engineer`, ask the Owner nothing: each step that 
 Owner goes into your report instead.
 
 This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
-Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD section step 6 moves. Follow
+Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
 `specstone:expert-sdd` for every write: each leaves a draft, a pointer write (`implements`, `covers`) excepted.
 
 ## 2. One finding at a time
@@ -61,9 +61,10 @@ the doc held its content.
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
-   repoints it; merge it first (`specstone:bootstrap-prd` takes one under `prds/`). Leave any other untyped file,
-   such as a plan or a ledger, as history. Repoint each other link or mention to the doc holding the content, or
-   drop a mention nothing replaces.
+   repoints it; merge it first (`specstone:bootstrap-prd` takes one under `prds/`). On a batch, the set holds only
+   files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
+   Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
+   holding the content, or drop a mention nothing replaces.
 3. Delete the set through `specstone:expert-sdd`'s Owner confirmation, one command naming every path, quoting each
    path with a space:
 

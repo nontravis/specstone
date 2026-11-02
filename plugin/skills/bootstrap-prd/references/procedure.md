@@ -2,9 +2,10 @@ Step 1, the gate, already ran in the skill or agent that sent you here.
 When you run as `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the
 Owner goes into your report instead.
 
-This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`, and
-`code_uncovered` go to `specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write: each leaves a draft,
-a pointer write (`implements`, `covers`) excepted.
+This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
+`code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
+`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write: each leaves a draft, a pointer write
+(`implements`, `covers`) excepted.
 
 ## 2. One finding at a time
 
@@ -57,9 +58,10 @@ mention in a section kept unchanged.
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
-   repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). Leave any other untyped file,
-   such as a plan or a ledger, as history. Repoint each other link or mention to the doc holding the content, or
-   drop a mention nothing replaces, through `specstone set` on that section.
+   repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). On a batch, the set holds only
+   files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
+   Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
+   holding the content, or drop a mention nothing replaces, through `specstone set` on that section.
 3. Delete the set in one command once the Owner confirms it per `specstone:expert-sdd`, quoting each path with a
    space:
 

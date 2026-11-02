@@ -5,9 +5,10 @@ description: Use when the PRD docs of a Specstone project lag behind its format 
 
 # Bring the PRD docs up to the new format
 
-This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`, and
-`code_uncovered` go to `specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write: each leaves a draft,
-a pointer write (`implements`, `covers`) excepted.
+This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
+`code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
+`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write: each leaves a draft, a pointer write
+(`implements`, `covers`) excepted.
 
 ## 1. Gate: the first call
 
@@ -26,9 +27,12 @@ With the `Agent` tool, split the gate's findings this skill takes by doc path: o
 for the rest. In the first round the rest batch always runs, even with no finding, and names `project:project`,
 `features:features`, and `gnfr:gnfr`, the skeletons the procedure's step 6 fills; no feature batch fills them. In a
 later round it runs only when findings it owns remain. Dispatch one `specstone:sdd-engineer` per batch with
-`mode: bootstrap`, `procedure: bootstrap-prd`, and `batch:` the batch's paths; batches may run at once. Send no doc
-text, and work no step of the procedure yourself. Without the tool, or when a dispatch fails, read
-`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md` and follow it for each batch no agent took.
+`mode: bootstrap`, `procedure: bootstrap-prd`, `batch:` the batch's paths, and the Owner's language; batches may run
+at once. Send no doc text, and work no step of the procedure yourself.
+
+Without the tool, or when a dispatch fails, read `references/procedure.md` beside this file
+(`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`) and follow it yourself: without the tool,
+over every finding this skill takes; after a failed dispatch, for each batch no agent took.
 
 ## 3. After the reports
 
@@ -38,7 +42,11 @@ When you followed the procedure yourself, its report stands in for item 1.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them.
-4. Get the Owner's word on each `specstone delete` line per `specstone:expert-sdd`. Run a batch's line after its last
-   report, with no open question left on it; on exit 64, dispatch that batch again with the referrers listed.
+4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
+   one command naming each path once. Leave out each path under `specs/` and each path an untyped referrer under
+   `specs/` names: they wait for `specstone:bootstrap-spec`'s delete. Then get the Owner's word on the command per
+   `specstone:expert-sdd`. On exit 64, dispatch again each batch whose file a listed referrer names, with those
+   referrers.
 5. Run `specstone check` again. Findings this skill takes start another round at step 2, except those the last
-   reports left as clearing with no write or waiting on the Owner. With none left, stop.
+   reports left as clearing with no write, waiting on the Owner, or waiting on `specstone:bootstrap-spec`. With none
+   left, stop.
