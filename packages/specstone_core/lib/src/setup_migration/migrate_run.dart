@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
-import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -12,6 +13,9 @@ import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
+/// Opens the `owner_terminal_required` message of an apply.
+const _applyRefusal = 'migrate applies only';
+
 /// What one `specstone migrate` call runs with.
 final class MigrateRequest {
   const new({
@@ -19,9 +23,10 @@ final class MigrateRequest {
     required this.homeDirectory,
     required this.templates,
     required this.dryRun,
-    required this.interactive,
+    required this.confirmation,
     required this.readLine,
     required this.out,
+    this.planHash,
     this.runGit = runRealGit,
   });
 
@@ -37,14 +42,18 @@ final class MigrateRequest {
   /// Whether to print the plan and write nothing.
   final bool dryRun;
 
-  /// Whether stdin and stdout are both terminals.
-  final bool interactive;
+  /// How the Owner confirms the apply: at the terminal's `y`, or `--yes`.
+  final OwnerConfirmation confirmation;
 
   /// Reads one line of the Owner's answer, or null at the end of input.
   final String? Function() readLine;
 
   /// Where the plan and the result print.
   final StringSink out;
+
+  /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
+  /// `--yes` the run applies only a plan with this hash.
+  final String? planHash;
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
@@ -53,7 +62,8 @@ final class MigrateRequest {
 /// Runs `specstone migrate` and returns its exit status.
 ///
 /// A bare legacy or upgrade run checks git first, prints the plan, and applies
-/// it only on the Owner's `y`, after checking git again.
+/// it on the Owner's `y`, or under `--yes` with no prompt, after checking git
+/// again.
 ///
 /// A pending journal is finished first: an F-02 journal is replayed before the
 /// git checks, and a migrate journal is resumed with no second `y`. A dry run
@@ -88,12 +98,12 @@ int _mappingGitFailures(int Function() run) {
 
 MigrateFault _gitFailed(String command, String line) => MigrateFault(
   MigrateFaultCode.gitFailed,
-  '$command failed: $line; fix the cause, then run specstone migrate at an '
-  'interactive terminal to finish the run',
+  '$command failed: $line; fix the cause, then run specstone migrate '
+  '$ownerConfirmationWays, to finish the run',
 );
 
 int _migrate(MigrateRequest request) {
-  final root = findMigrateRoot(request.workingDirectory);
+  final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
     final target = _targetOf(root, request);
     if (request.dryRun) {
@@ -117,7 +127,7 @@ int _migrate(MigrateRequest request) {
       return 0;
     case RunKind.legacy:
     case RunKind.upgrade:
-      return _plannedRun(request, root, kind);
+      return _plannedRun(request, root, kind, linkFolder: linkFolder);
     case RunKind.resume:
       return _resume(request, root);
   }
@@ -126,40 +136,52 @@ int _migrate(MigrateRequest request) {
 /// Runs the bare legacy migration of [root] from its git checks on.
 ///
 /// Prints the plan, then applies it on the Owner's `y`; `init` enters here
-/// when its root holds the legacy context doc (F6-D15). Maps git failures as
-/// [runMigrate] does.
-int runLegacyAt(Directory root, MigrateRequest request) =>
-    _mappingGitFailures(() => _plannedRun(request, root, RunKind.legacy));
+/// when its root holds the legacy context doc (F6-D15). [linkFolder] is the
+/// canonical folder whose `docs` link led to [root], or null. Maps git
+/// failures as [runMigrate] does.
+int runLegacyAt(
+  Directory root,
+  MigrateRequest request, {
+  Directory? linkFolder,
+}) => _mappingGitFailures(
+  () => _plannedRun(request, root, RunKind.legacy, linkFolder: linkFolder),
+);
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
-/// `y`.
+/// `y`, or under `--yes` with no prompt.
 ///
 /// The git checks run again after the `y`, since the Owner may read the plan
 /// for minutes: a change to the tree or a new commit in that time refuses
 /// `working_tree_dirty` with nothing written, as F-02's delete and approve
-/// re-check after their prompt (INV-3).
-int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
+/// re-check after their prompt (INV-3). A legacy plan reads [linkFolder].
+int _plannedRun(
+  MigrateRequest request,
+  Directory root,
+  RunKind kind, {
+  required Directory? linkFolder,
+}) {
   if (request.dryRun) {
-    request.out
-      ..write(_planOf(request, root, kind).toText())
-      ..writeln('dry run: nothing written');
+    _printDryRun(
+      request,
+      root,
+      _planOf(request, root, kind, linkFolder).toText(),
+    );
     return 0;
   }
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
-  final plan = _planOf(request, root, kind);
-  request.out.write(plan.toText());
-  if (!request.interactive) {
-    throw WriteFault(
-      WriteFaultCode.ownerTerminalRequired,
-      'migrate applies only at an interactive terminal; ask the Owner to '
-      'run specstone migrate',
-    );
+  final plan = _planOf(request, root, kind, linkFolder);
+  final planText = plan.toText();
+  request.out.write(planText);
+  request.confirmation.refuseIfMissing(_applyRefusal);
+  if (request.confirmation.prompts) {
+    request.out.write('apply? [y/N] ');
+    final answer = request.readLine()?.trim();
+    if (answer != 'y') return 0;
+  } else {
+    _requireSeenPlan(request, root, planText);
   }
-  request.out.write('apply? [y/N] ');
-  final answer = request.readLine()?.trim();
-  if (answer != 'y') return 0;
   requireCleanWorkTree(root, request.runGit);
   if (headSha(root, request.runGit) != base) {
     throw MigrateFault(
@@ -176,8 +198,12 @@ int _plannedRun(MigrateRequest request, Directory root, RunKind kind) {
   return 0;
 }
 
-RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
-    kind == RunKind.upgrade
+RunPlan _planOf(
+  MigrateRequest request,
+  Directory root,
+  RunKind kind,
+  Directory? linkFolder,
+) => kind == RunKind.upgrade
     ? planUpgradeRun(
         root,
         templates: request.templates,
@@ -187,6 +213,7 @@ RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
+        linkFolder: linkFolder,
       );
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the
@@ -197,23 +224,20 @@ RunPlan _planOf(MigrateRequest request, Directory root, RunKind kind) =>
 int _resume(MigrateRequest request, Directory root) {
   if (!request.dryRun) requireGitWorkTree(root, request.runGit);
   final target = _targetOf(root, request);
-  final out = request.out
+  final listing = StringBuffer()
     ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')
     ..writeln('remaining steps:');
   for (final step in MoveJournal.remaining(target)) {
-    out.writeln('  ${step.describe()}');
+    listing.writeln('  ${step.describe()}');
   }
+  final planText = listing.toString();
   if (request.dryRun) {
-    out.writeln('dry run: nothing written');
+    _printDryRun(request, root, planText);
     return 0;
   }
-  if (!request.interactive) {
-    throw WriteFault(
-      WriteFaultCode.ownerTerminalRequired,
-      'migrate applies only at an interactive terminal; ask the Owner to '
-      'run specstone migrate',
-    );
-  }
+  final out = request.out..write(planText);
+  request.confirmation.refuseIfMissing(_applyRefusal);
+  if (!request.confirmation.prompts) _requireSeenPlan(request, root, planText);
   final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
@@ -221,6 +245,28 @@ int _resume(MigrateRequest request, Directory root) {
     out.writeln(legacyClosingLine);
   }
   return 0;
+}
+
+/// Prints [planText], its `plan <hash>` line, and the dry-run closing line.
+void _printDryRun(MigrateRequest request, Directory root, String planText) {
+  request.out
+    ..write(planText)
+    ..writeln('plan ${planHashOf(planText, root, request.runGit)}')
+    ..writeln('dry run: nothing written');
+}
+
+/// Refuses a `--yes` run whose plan is not the one the Owner saw.
+///
+/// Throws [MigrateFault] `plan_mismatch` when [planText], with the HEAD of
+/// [root], does not hash to the request's plan hash, or the request carries
+/// none.
+void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
+  if (request.planHash == planHashOf(planText, root, request.runGit)) return;
+  throw MigrateFault(
+    MigrateFaultCode.planMismatch,
+    'the plan is not the one the Owner saw in the dry run; run specstone '
+    'migrate --dry-run again, show it, and ask for a new ok',
+  );
 }
 
 JournalTarget _targetOf(Directory root, MigrateRequest request) =>

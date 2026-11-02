@@ -139,9 +139,18 @@ final s02FeatureJson = <String, Object>{
 const _s02Guide = '''
 A feature groups the stories that serve one goal.
 
+Banned words: `fast`, `robust`
+
 ## Feature goal
 
 Why, problem, and audience, one sentence each.
+
+Template:
+```markdown
+- **Why:**
+- **Problem:**
+- **Audience:**
+```
 
 ## Out-of-scope
 
@@ -327,8 +336,74 @@ void main() {
 
   group('MergedDocType.renderGuide', () {
     test('f03/us01/s1, f03/us01/fr02: the guide matches the s02 example for '
-        'goal and scope', () {
+        'goal and scope, with the doc banned words and the goal template', () {
       expect(featureDocType().renderGuide(), _s02Guide);
+    });
+
+    test("f03/us01/fr02: a section's own banned words follow its description, "
+        'minus the allowed words, and name the line prefix they apply on', () {
+      final guide = _merge('''
+description: Avoid the listed words.
+path: a.md
+lint: {allowed_words: [small]}
+sections:
+  - id: statement
+    header: Statement
+    description: Remove the listed words.
+    lint:
+      banned_words: [fast, small, etc., fast, and/or]
+      allowed_words: [and/or]
+      line_prefix: "- **Statement:**"
+''').renderGuide();
+
+      expect(
+        guide,
+        'Avoid the listed words.\n\n'
+        '## Statement\n\n'
+        'Remove the listed words.\n\n'
+        'Banned words on `- **Statement:**` lines: `fast`, `etc.`\n',
+      );
+    });
+
+    test('f03/us01/fr02: a banned word list the allowed words empty prints '
+        'no line', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'lint: {banned_words: [fast], allowed_words: [fast]}\n'
+        'sections: [{id: s, header: S, lint: {banned_words: [fast]}}]',
+      ).renderGuide();
+
+      expect(guide, 'A.\n\n## S\n');
+    });
+
+    test('f03/us01/fr02: a template that holds a code fence prints inside a '
+        'longer fence', () {
+      final guide = _merge('''
+description: A.
+path: a.md
+sections:
+  - id: flow
+    header: Flow
+    template: |-
+      ```mermaid
+      flowchart TD
+      ```
+''').renderGuide();
+
+      expect(
+        guide,
+        'A.\n\n## Flow\n\n'
+        'Template:\n````markdown\n```mermaid\nflowchart TD\n```\n````\n',
+      );
+    });
+
+    test('f03/us01/fr02: an empty template prints no template block', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        "sections: [{id: s, header: S, template: ''}]",
+      ).renderGuide();
+
+      expect(guide, 'A.\n\n## S\n');
     });
 
     test('f03/us01/s3, f03/us01/fr02/e02: a disabled section has no ## '

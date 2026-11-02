@@ -160,10 +160,11 @@ void main() {
       err.toString(),
       contains(
         'Expected one doc type, got 2.\n\n'
-        'Usage: specstone new <doc type> [--parent <name>] '
+        'Usage: specstone new <doc type> [--parent <name | path>] '
         '[--slug <slug>] [--json]\n',
       ),
     );
+    expect(err.toString(), contains('The name or path of the parent doc.'));
   });
   test('f02/us02/fr02: non-UTF-8 stdin is argument_invalid, stdin is not UTF-8 text, exit 64', () async {
     final out = StringBuffer();

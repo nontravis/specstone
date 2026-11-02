@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -126,13 +127,14 @@ final class WriteSession {
       projectPath.substring(_docsPrefix.length);
 
   static const _namePrompt =
-      'name the doc as <doc type>:<name>, '
+      'name the doc as <doc type>:<name> or by its path, '
       'such as user_story:login/email_login';
 
   /// Returns the one typed doc [address] names.
   ///
-  /// [address] is `<doc type>:<name>`; a bare name is ambiguous across doc
-  /// types and refuses.
+  /// [address] is `<doc type>:<name>` or a path to the doc, as
+  /// [DocIndex.resolve] reads it; a bare name is ambiguous across doc types
+  /// and refuses.
   /// Throws [IndexFault] `argument_invalid` for a bare name, found or
   /// not, or a name two docs carry, `untyped_target` for a doc with no doc
   /// type, and `doc_not_found` when a typed name matches
@@ -159,7 +161,10 @@ final class WriteSession {
         'migrate it to one before a write',
       );
     }
-    if (bare) throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
+    // A path names one doc; only a name may span doc types.
+    if (bare && index.carriesName(address)) {
+      throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
+    }
     if (typed.length > 1) {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
@@ -282,8 +287,8 @@ void _refuseMigratePending(Directory workingDirectory) {
     if (MoveJournal.pendingMigrate(folder)) {
       throw WriteFault(
         WriteFaultCode.migratePending,
-        'a migration is unfinished; ask the Owner to run specstone migrate '
-        'at an interactive terminal to finish it, then run the command again',
+        'a migration is unfinished; run specstone migrate '
+        '$ownerConfirmationWays, to finish it, then run the command again',
         file: MoveJournal.journalPath,
       );
     }

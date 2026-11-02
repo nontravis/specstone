@@ -25,7 +25,7 @@ final class DocLines {
   /// refresh stores it.
   ///
   /// The empty docPath resolves no link relative to a folder, so [links] are
-  /// those of a doc at the docs root. Only tests call this.
+  /// those of a doc at the docs root.
   factory of(String text) => DocLines.from(
     parseIndexedDoc(
       docPath: '',

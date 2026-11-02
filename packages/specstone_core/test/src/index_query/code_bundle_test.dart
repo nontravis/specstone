@@ -37,7 +37,7 @@ void main() {
         resolveCodePath(
           p,
           workingDirectory: project,
-          projectRoot: session.project.projectRoot,
+          codeRoot: session.project.codeRoot,
         ),
         m,
         noProject: noProject,
@@ -108,7 +108,47 @@ void main() {
       ),
     );
   });
-  test('f01/us05/s12, f01/us05/fr04/e09: a path outside the project root is code_path_outside_project', () async {
+  test('code_root: resolveCodePath counts paths from the code root, not the project root', () async {
+    final workspace = await writeTree({
+      'ws/code/lib/a.dart': '',
+      'ws/docs/x.md': '',
+    });
+    final codeRoot = Directory(
+      Directory.fromUri(workspace.uri.resolve('ws/code'))
+          .resolveSymbolicLinksSync(),
+    );
+    final separator = Platform.pathSeparator;
+
+    final inside = resolveCodePath(
+      '${codeRoot.path}${separator}lib${separator}a.dart',
+      workingDirectory: workspace,
+      codeRoot: codeRoot,
+    );
+
+    expect(inside.path, 'lib/a.dart');
+    expect(inside.isFolder, isFalse);
+    expect(
+      () => resolveCodePath(
+        '${codeRoot.parent.path}${separator}docs${separator}x.md',
+        workingDirectory: workspace,
+        codeRoot: codeRoot,
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having(
+              (x) => x.code,
+              'code',
+              IndexFaultCode.codePathOutsideProject,
+            )
+            .having(
+              (x) => x.message,
+              'message',
+              endsWith('lies outside the code root'),
+            ),
+      ),
+    );
+  });
+  test('f01/us05/s12, f01/us05/fr04/e09: a path outside the code root is code_path_outside_project', () async {
     expect(
       () => code('../', BundleMode.implement),
       throwsA(
@@ -121,7 +161,7 @@ void main() {
             .having(
               (x) => x.message,
               'message',
-              'the code path ../ lies outside the project root',
+              'the code path ../ lies outside the code root',
             ),
       ),
     );
@@ -162,7 +202,7 @@ void main() {
       final code = resolveCodePath(
         'app/lib/main.dart',
         workingDirectory: Directory('${linkParent.path}/proj'),
-        projectRoot: session.project.projectRoot,
+        codeRoot: session.project.codeRoot,
       );
       expect(code.path, 'app/lib/main.dart');
       expect(code.isFolder, isFalse);

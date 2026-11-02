@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -21,21 +22,31 @@ final class _Ref {
   factory toPointer(String kind, String pointer) =>
       _Ref(text: '- $kind: $pointer', json: {'kind': kind, 'pointer': pointer});
 
-  /// The line `- <kind>: <target>` this reference prints as.
+  /// Returns the line [mention] names, as `- <DocPath>:<line>`.
+  factory toMention(Mention mention) => _Ref(
+    text: '- ${mention.doc.docPath}:${mention.line}',
+    json: {'path': mention.doc.docPath, 'line': mention.line},
+  );
+
+  /// The line `- <kind>: <target>`, or `- <DocPath>:<line>` for a mention.
   final String text;
 
-  /// The JSON object with either `name` and `docType` or `pointer`.
+  /// The JSON object with `name` and `docType`, `pointer`, or `path` and
+  /// `line`.
   final Map<String, Object> json;
 }
 
-/// Returns the references of each doc [address] names, outbound and inbound.
+/// Returns the references of each doc [address] names, outbound and inbound,
+/// then the lines that mention its file.
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
 /// links to, each story a journey step names, and the `implements` and
 /// `covers` pointers as written. Inbound holds the docs whose `doc_ref` value
 /// reaches the doc, then those linking to it, then the journeys with a step
-/// naming it, each group in tree order of the referring docs. Throws an
-/// [IndexFault] when no doc carries the name.
+/// naming it, each group in tree order of the referring docs. Mentions holds
+/// each line of another typed doc that names the doc's file in text (see
+/// [mentionsOf]); Untyped mentions holds those of untyped docs, which no write
+/// takes as a target. Throws an [IndexFault] when no doc carries the name.
 ReadAnswer answerRefs(DocIndex index, String address) {
   final inboundByPath = _inboundByPath(index);
   final journeysByStory = _journeysByStory(index);
@@ -64,11 +75,24 @@ ReadAnswer answerRefs(DocIndex index, String address) {
     for (final from in journeysByStory[doc.docPath] ?? const <IndexedDoc>[])
       _Ref.toDoc('step', from),
   ];
+  final allMentions = mentionsOf(index, doc);
+  final mentions = [
+    for (final mention in allMentions)
+      if (mention.doc.isTyped) _Ref.toMention(mention),
+  ];
+  final untypedMentions = [
+    for (final mention in allMentions)
+      if (!mention.doc.isTyped) _Ref.toMention(mention),
+  ];
   final text = StringBuffer('${namingLine(doc)}\n')
     ..writeln('Outbound')
     ..write(_groupLines(outbound))
     ..writeln('Inbound')
-    ..write(_groupLines(inbound));
+    ..write(_groupLines(inbound))
+    ..writeln('Mentions')
+    ..write(_groupLines(mentions))
+    ..writeln('Untyped mentions')
+    ..write(_groupLines(untypedMentions));
   return (
     text: text.toString(),
     json: {
@@ -77,6 +101,8 @@ ReadAnswer answerRefs(DocIndex index, String address) {
       'path': doc.docPath,
       'outbound': [for (final ref in outbound) ref.json],
       'inbound': [for (final ref in inbound) ref.json],
+      'mentions': [for (final ref in mentions) ref.json],
+      'untypedMentions': [for (final ref in untypedMentions) ref.json],
     },
   );
 }

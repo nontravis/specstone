@@ -25,6 +25,7 @@ final class ReadSession {
     required this.store,
     required this.docs,
     required this.indexWarnings,
+    required this.workingDirectory,
   });
 
   /// Opens the project holding [workingDirectory], brings its index up to
@@ -48,15 +49,16 @@ final class ReadSession {
       homeDirectory: homeDirectory,
     );
     try {
-      return _read(
+      return readFrom(
         project,
         IndexStore.open(project.projectRoot, busyTimeout: busyTimeout),
+        workingDirectory: workingDirectory,
       );
     } on SqliteException catch (e) {
       if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
     }
     // A page the first read hit is lost: discard the index and read once more.
-    return _rebuilt(project, busyTimeout);
+    return _rebuilt(project, workingDirectory, busyTimeout);
   }
 
   /// Opens a session as [open] does, returns what [answer] computes from it,
@@ -85,17 +87,25 @@ final class ReadSession {
     }
     // A page only the answer reads is lost: discard the index and answer again.
     try {
-      return _answer(_rebuilt(session.project, busyTimeout), answer);
+      return _answer(
+        _rebuilt(session.project, session.workingDirectory, busyTimeout),
+        answer,
+      );
     } on SqliteException catch (e) {
       throw IndexStore.faultOf(e);
     }
   }
 
-  static ReadSession _rebuilt(DocsProject project, Duration busyTimeout) {
+  static ReadSession _rebuilt(
+    DocsProject project,
+    Directory workingDirectory,
+    Duration busyTimeout,
+  ) {
     try {
-      return _read(
+      return readFrom(
         project,
         IndexStore.openRebuilt(project.projectRoot, busyTimeout: busyTimeout),
+        workingDirectory: workingDirectory,
       );
     } on SqliteException catch (e) {
       throw IndexStore.faultOf(e);
@@ -113,11 +123,9 @@ final class ReadSession {
     }
   }
 
-  static ReadSession _read(DocsProject project, IndexStore store) =>
-      readFrom(project, store);
-
   /// Refreshes [store], then reads every doc from one snapshot of it.
   ///
+  /// [workingDirectory] is the folder a path target is read from.
   /// A peer with another doc-type set can rewrite the index between the
   /// refresh and the snapshot; the stamp is read again inside the snapshot,
   /// and a mismatch ends it and refreshes again. After [_stampAttempts]
@@ -127,6 +135,7 @@ final class ReadSession {
   static ReadSession readFrom(
     DocsProject project,
     IndexStore store, {
+    required Directory workingDirectory,
     void Function()? afterRefresh,
   }) {
     try {
@@ -141,6 +150,7 @@ final class ReadSession {
             store: store,
             docs: store.loadDocs(),
             indexWarnings: [...store.warnings, ...refreshed.warnings],
+            workingDirectory: workingDirectory,
           );
         }
         store.endSnapshot();
@@ -156,6 +166,9 @@ final class ReadSession {
 
   /// The project the session reads.
   final DocsProject project;
+
+  /// The folder the command runs in; a path target is read from it.
+  final Directory workingDirectory;
 
   /// The index, open on the session's snapshot.
   final IndexStore store;
@@ -177,7 +190,12 @@ final class ReadSession {
   MergedSet get set => project.set;
 
   /// The docs of the snapshot, with their names, parent tree, and links.
-  late final DocIndex index = DocIndex(set, docs, store);
+  late final DocIndex index = DocIndex(
+    set,
+    docs,
+    store,
+    (path) => project.docPathAt(path, workingDirectory: workingDirectory),
+  );
 
   /// Ends the snapshot and closes the index.
   void close() {

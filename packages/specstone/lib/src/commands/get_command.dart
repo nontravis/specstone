@@ -26,7 +26,8 @@ class GetCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone get <name>[#<section key>] [--paths | --code] [--json]';
+      'specstone get <name | path>[#<section key>] [--paths | --code] '
+      '[--json]';
 
   @override
   Future<int> run() async {

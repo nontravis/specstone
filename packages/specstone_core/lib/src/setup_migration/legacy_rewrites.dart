@@ -221,10 +221,10 @@ String _withoutIndexes(String lf) {
     if (index < 0) break;
     text = withoutSection(text, index);
   }
-  // Only a removed last section leaves a blank tail to trim; any other tail
-  // stays byte-equal.
-  if (text == lf || lf.endsWith('\n\n') || !text.endsWith('\n\n')) return text;
-  return '${withoutTrailingBlankLines(text)}\n';
+  // A legacy doc that ended in a blank line keeps one (f06/us01/fr04/e12);
+  // `withoutSection` ends a doc whose last section went in one newline.
+  final keepsBlankTail = lf.endsWith('\n\n') && !text.endsWith('\n\n');
+  return keepsBlankTail && text != lf ? '$text\n' : text;
 }
 
 /// Returns [lf] with the `##` header [from] written as [to], or [lf] when it

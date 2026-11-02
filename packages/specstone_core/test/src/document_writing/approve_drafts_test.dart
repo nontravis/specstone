@@ -25,18 +25,6 @@ String? Function() answers(List<String?> list) {
 void main() {
   final skipGit = hasGit ? null : 'git is not available';
 
-  test('f02/us03/s7, f02/us03/fr01/e04, dw-s03/inv12: no interactive terminal is owner_terminal_required, exit 77', () {
-    expect(
-      () => requireOwnerTerminal(interactive: false, message: 'm'),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.exitStatus, 'exitStatus', 77)
-            .having((f) => f.message, 'message', 'm'),
-      ),
-    );
-    requireOwnerTerminal(interactive: true, message: 'm'); // returns
-  });
-
   test('f02/us03/s1, f02/us03/fr01, f02/us03/fr03, f02/us03/fr03/e01, f02/us03/fr02/e03, dw-s03/inv5: y removes draft and writes approved, text unchanged', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
@@ -44,7 +32,7 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'signup',
+        names: ['signup'],
         readLine: answers(['y', 'y']),
         out: out,
       ),
@@ -85,8 +73,12 @@ void main() {
 
     writeIn(
       root,
-      (s) =>
-          approveDrafts(s, name: 'feature:signup', readLine: answer, out: out),
+      (s) => approveDrafts(
+        s,
+        names: ['feature:signup'],
+        readLine: answer,
+        out: out,
+      ),
     );
     expect('==> signup (feature)'.allMatches(out.toString()), hasLength(2));
     expect(readDoc(root, signupFeature), contains('approved: true'));
@@ -113,7 +105,7 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'feature:signup',
+        names: ['feature:signup'],
         readLine: answers(['q']),
         out: out,
       ),
@@ -138,7 +130,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'feature:signup',
+          names: ['feature:signup'],
           readLine: answers(['q']),
           out: out,
         ),
@@ -162,7 +154,7 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'login',
+        names: ['login'],
         readLine: answers(List.filled(9, 'n')),
         out: out,
       ),
@@ -175,6 +167,251 @@ void main() {
     expect(positions, everyElement(isNonNegative));
     expect([...positions]..sort(), positions);
     expect(_prompt.allMatches(shown), hasLength(5));
+  });
+
+  test('ms-r10: several names walk the union of their drafts in tree order, each once', () async {
+    final root = await writeWriteProject();
+    final out = StringBuffer();
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        names: ['feature:signup', 'user_story:login/reset_password', 'login'],
+        readLine: answers(List.filled(12, 'n')),
+        out: out,
+      ),
+    );
+    final shown = out.toString();
+    final positions = [
+      for (final path in [
+        story1,
+        fr12,
+        story3,
+        fr31,
+        fr32,
+        signupFeature,
+        signupArch,
+      ])
+        shown.indexOf('· $path <==\n'),
+    ];
+    expect(positions, everyElement(isNonNegative));
+    expect([...positions]..sort(), positions);
+    expect(_prompt.allMatches(shown), hasLength(7));
+  });
+
+  test('ms-r10: a name no doc carries among several is doc_not_found, and nothing shows', () async {
+    final root = await writeWriteProject();
+    final out = StringBuffer();
+    expect(
+      () => writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          names: ['feature:signup', 'feature:nosuch'],
+          readLine: answers(['y']),
+          out: out,
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.code,
+          'code',
+          IndexFaultCode.docNotFound,
+        ),
+      ),
+    );
+    expect(out.toString(), isEmpty);
+    expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
+  });
+
+  group('approveNamed', () {
+    /// The draft at [address] with the hash `get --json` prints as bases.doc.
+    SeenDraft seen(Directory root, String address) => (
+      name: address,
+      hash: (getDoc(root, address)['bases']! as Map)['doc']! as String,
+    );
+
+    test('ms-r10: approves each named draft with its hash and no prompt, one line per draft in tree order', () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => approveNamed(s, [
+          seen(root, 'feature:signup'),
+          seen(root, 'fr:login/email_login/lock_after_failures'),
+          seen(root, 'user_story:login/email_login'),
+        ]),
+      );
+      expect(
+        answer.text,
+        'approved user_story:login/email_login\n'
+        'approved fr:login/email_login/lock_after_failures\n'
+        'approved feature:signup\n',
+      );
+      expect(answer.json, {
+        'approved': [
+          'user_story:login/email_login',
+          'fr:login/email_login/lock_after_failures',
+          'feature:signup',
+        ],
+      });
+      expect(
+        readDoc(root, signupFeature),
+        '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+      );
+      expect(readDoc(root, story1), contains('\napproved: true\n'));
+      expect(readDoc(root, story1), isNot(contains('draft: true')));
+      expect(readDoc(root, fr12), isNot(contains('draft: true')));
+    });
+
+    test('ms-r10: a name approves only the draft it names, never the drafts under it', () async {
+      final root = await writeWriteProject();
+      writeIn(root, (s) => approveNamed(s, [seen(root, 'feature:signup')]));
+      expect(readDoc(root, signupFeature), contains('approved: true'));
+      expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
+    });
+
+    test("ms-r10: writes the bytes the Owner's y writes, CRLF and BOM kept, and the get hash matches", () async {
+      final walked = await writeWriteProject();
+      final named = await writeWriteProject();
+      for (final root in [walked, named]) {
+        final file = docFile(root, signupFeature);
+        final crlf = file.readAsStringSync().replaceAll('\n', '\r\n');
+        file.writeAsBytesSync([0xEF, 0xBB, 0xBF, ...crlf.codeUnits]);
+      }
+      writeIn(
+        walked,
+        (s) => approveDrafts(
+          s,
+          names: ['feature:signup'],
+          readLine: answers(['y', 'n']),
+          out: StringBuffer(),
+        ),
+      );
+      writeIn(named, (s) => approveNamed(s, [seen(named, 'feature:signup')]));
+      expect(
+        docFile(named, signupFeature).readAsBytesSync(),
+        docFile(walked, signupFeature).readAsBytesSync(),
+      );
+      expect(docFile(named, signupFeature).readAsBytesSync().take(3), [
+        0xEF,
+        0xBB,
+        0xBF,
+      ]);
+    });
+
+    test('ms-r10: a draft changed since the Owner saw it is base_mismatch, exit 75, naming each changed draft, and nothing is approved', () async {
+      final root = await writeWriteProject();
+      final drafts = [
+        seen(root, 'feature:signup'),
+        seen(root, 'architecture:signup'),
+        seen(root, 'user_story:login/email_login'),
+      ];
+      final base = getDoc(root, 'feature:signup#problem')['base']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse('feature:signup#problem', base: base),
+          'Users sign up.\n',
+        ),
+      );
+      docFile(
+        root,
+        story1,
+      ).writeAsStringSync('${readDoc(root, story1)}\nMore.\n');
+      final signupBefore = readDoc(root, signupFeature);
+      final archBefore = readDoc(root, signupArch);
+      expect(
+        () => writeIn(root, (s) => approveNamed(s, drafts)),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+              .having((f) => f.exitStatus, 'exitStatus', 75)
+              .having((f) => f.file, 'file', story1)
+              .having((f) => f.key, 'key', 'doc')
+              .having((f) => f.relatedFiles, 'relatedFiles', [signupFeature])
+              .having(
+                (f) => f.message,
+                'message',
+                'changed since the Owner saw them: '
+                    'user_story:login/email_login, feature:signup; show each '
+                    'again and ask for a new ok',
+              ),
+        ),
+      );
+      expect(readDoc(root, signupFeature), signupBefore);
+      expect(readDoc(root, signupArch), archBefore);
+    });
+
+    test('ms-r10: a named doc that is no draft is draft_not_found, exit 65, naming it, and nothing is approved', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, signupFeature);
+      expect(
+        () => writeIn(
+          root,
+          (s) => approveNamed(s, [
+            seen(root, 'feature:signup'),
+            seen(root, 'feature:login'),
+          ]),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.draftNotFound)
+              .having((f) => f.exitStatus, 'exitStatus', 65)
+              .having(
+                (f) => f.message,
+                'message',
+                'feature:login is no draft waiting for approval',
+              ),
+        ),
+      );
+      expect(readDoc(root, signupFeature), before);
+    });
+
+    test(
+      'ms-r10: a name no doc carries is doc_not_found, and nothing is approved',
+      () async {
+        final root = await writeWriteProject();
+        final before = readDoc(root, signupFeature);
+        expect(
+          () => writeIn(
+            root,
+            (s) => approveNamed(s, [
+              seen(root, 'feature:signup'),
+              (name: 'feature:nosuch', hash: '000000000000'),
+            ]),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+        expect(readDoc(root, signupFeature), before);
+      },
+    );
+
+    test(
+      'ms-r10: a bare name is argument_invalid, as every write target is',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => approveNamed(s, [(name: 'signup', hash: '000000000000')]),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
+          ),
+        );
+      },
+    );
   });
 
   test('f02/us03/fr01/e01: no name walks every typed draft', () async {
@@ -200,7 +437,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'login',
+          names: ['login'],
           readLine: answers(['n', 'q']),
           out: out,
         ),
@@ -219,7 +456,7 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'architecture:signup',
+        names: ['architecture:signup'],
         readLine: answers(['x', 'y']),
         out: out,
       ),
@@ -239,7 +476,7 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'architecture:login',
+        names: ['architecture:login'],
         readLine: answers([]),
         out: out,
       ),
@@ -254,7 +491,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'feature:nosuch',
+          names: ['feature:nosuch'],
           readLine: answers([]),
           out: StringBuffer(),
         ),
@@ -294,7 +531,7 @@ void main() {
       root,
       (s) => approveDrafts(
         s,
-        name: 'feature:signup',
+        names: ['feature:signup'],
         readLine: answers(['y', 'q']),
         out: StringBuffer(),
       ),
@@ -318,7 +555,7 @@ void main() {
 
       writeIn(
         root,
-        (s) => approveDrafts(s, name: 'signup', readLine: answer, out: out),
+        (s) => approveDrafts(s, names: ['signup'], readLine: answer, out: out),
       );
       expect(hasDoc(root, signupFeature), isFalse);
       expect(readDoc(root, signupArch), contains('draft: true'));
@@ -342,7 +579,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'signup',
+          names: ['signup'],
           readLine: answer,
           out: StringBuffer(),
         ),
@@ -379,7 +616,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'feature:signup',
+          names: ['feature:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
         ),
@@ -404,7 +641,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'feature:signup',
+          names: ['feature:signup'],
           readLine: answers(['y']),
           out: StringBuffer(),
         ),
@@ -430,7 +667,7 @@ void main() {
         root,
         (s) => approveDrafts(
           s,
-          name: 'feature:signup',
+          names: ['feature:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
         ),

@@ -6,6 +6,14 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
+/// Returns the hash on the `plan <hash>` line `delete --dry-run` prints for
+/// [target] in [root].
+Future<String> _dryRunPlanHash(Directory root, String target) async {
+  final (:runner, :out, :err) = writeRunner(root);
+  expect(await runner.run(['delete', target, '--dry-run', '--json']), 0);
+  return (jsonDecode(out.toString()) as Map)['plan']! as String;
+}
+
 void main() {
   test('f02/us04/s1: delete prints one removed path per line', () async {
     final root = await writeWriteProject();
@@ -35,10 +43,138 @@ void main() {
     expect(
       error['message'],
       'fr:login/email_login/validate_credentials holds approved docs; '
-      'only the Owner deletes them, at an interactive terminal',
+      'only the Owner deletes them, at an interactive terminal, or with '
+      "--yes after the Owner's ok in the chat",
     );
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
   });
+  const fr11Target = 'fr:login/email_login/validate_credentials';
+  test('ms-r11: --dry-run lists the files and the plan line, removes '
+      'nothing, and needs no terminal', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['delete', fr11Target, '--dry-run']), 0);
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      matches(
+        RegExp(
+          '^${RegExp.escape(fr11)}\nplan [0-9a-f]{12}\n'
+          'dry run: nothing removed\n\$',
+        ),
+      ),
+    );
+    expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+  });
+  test(
+    'ms-r11: --dry-run --json prints the files and the plan as one JSON object',
+    () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', fr11Target, '--dry-run', '--json']),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer['files'], [fr11]);
+      expect(answer['plan'], matches(RegExp(r'^[0-9a-f]{12}$')));
+    },
+  );
+  for (final (args, message) in [
+    (
+      ['--yes'],
+      '--yes needs --plan <hash>, the plan line specstone delete --dry-run '
+          'prints.',
+    ),
+    (['--plan', '1a2b3c4d5e6f'], '--plan goes only with --yes.'),
+    (
+      ['--yes', '--plan', '1a2b3c4d5e6f', '--dry-run'],
+      '--yes cannot go with --dry-run.',
+    ),
+  ]) {
+    test('ms-r11: delete ${args.join(' ')} is a usage error, exit 64, and '
+        'removes nothing', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['delete', fr11Target, ...args]), 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), startsWith('$message\n'));
+      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+    });
+  }
+  test("ms-r11: --yes --plan with the dry run's hash deletes an approved "
+      'unit with no terminal and no prompt', () async {
+    final root = await writeWriteProject();
+    final hash = await _dryRunPlanHash(root, fr11Target);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['delete', fr11Target, '--yes', '--plan', hash]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), '$fr11\n');
+    expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
+  });
+  test(
+    'ms-r11: --yes --plan --json prints the removed paths as one JSON object',
+    () async {
+      final root = await writeWriteProject();
+      final hash = await _dryRunPlanHash(root, fr11Target);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'delete',
+          fr11Target,
+          '--yes',
+          '--plan',
+          hash,
+          '--json',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect((jsonDecode(out.toString()) as Map)['removed'], [fr11]);
+    },
+  );
+  test('ms-r11: --yes --plan after an uncommitted edit to a listed file '
+      'exits 75 and removes nothing', () async {
+    final root = await writeWriteProject();
+    final hash = await _dryRunPlanHash(root, fr11Target);
+    final file = File('${root.path}/docs/$fr11');
+    file.writeAsStringSync('${file.readAsStringSync()}More.\n');
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['delete', fr11Target, '--yes', '--plan', hash]),
+      75,
+    );
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), startsWith('the delete list is not the one'));
+    expect(file.existsSync(), isTrue);
+  });
+  test(
+    'ms-r11: --yes --plan with a stale hash exits 75 and removes nothing',
+    () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'delete',
+          fr11Target,
+          '--yes',
+          '--plan',
+          '000000000000',
+        ]),
+        75,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'the delete list is not the one the Owner saw in the dry run; run '
+        'specstone delete --dry-run again, show it, and ask for a new ok\n',
+      );
+      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+    },
+  );
   test('f02/us04/s3, f02/us04/fr02/e03: the Owner prompt goes to stdout, the removed paths after it', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
@@ -169,12 +305,67 @@ void main() {
     expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
     expect(File('${root.path}/docs/$errors').existsSync(), isTrue);
   });
+  const plan = 'superpowers/plans/plan.md';
+  final withPlan = {
+    ...untyped,
+    'docs/$plan':
+        '# Plan\n\nSee [the notes](../../specs/f01_login/api_notes.md).\n',
+  };
+  const dangles = '$plan links into $notes; the link will dangle';
+  test('f02/us04/fr04/e08: --dry-run on a doc a plan links into exits 0 and warns on stderr that the link will dangle', () async {
+    final root = await writeWriteProject(extra: withPlan);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    final status = await runner.run(['delete', notes, '--dry-run']);
+
+    expect(status, 0);
+    expect(err.toString(), '⚠️ WARNING: $dangles\n');
+    expect(out.toString(), startsWith('$notes\nplan '));
+    expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+  });
+  test(
+    'f02/us04/fr04/e08: under --json the link that will dangle is in warnings',
+    () async {
+      final root = await writeWriteProject(extra: withPlan);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      final status = await runner.run(['delete', notes, '--dry-run', '--json']);
+
+      expect(status, 0);
+      expect(err.toString(), isEmpty);
+      final json = jsonDecode(out.toString()) as Map;
+      expect(json['files'], [notes]);
+      expect(json['warnings'], [dangles]);
+    },
+  );
+  test('f02/us04/fr04/e08: at a terminal, y deletes the doc a plan links into and warns that the link will dangle', () async {
+    final root = await writeWriteProject(extra: withPlan);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+
+    final status = await runner.run(['delete', notes]);
+
+    expect(status, 0);
+    expect(err.toString(), '⚠️ WARNING: $dangles\n');
+    expect(out.toString(), endsWith('delete 1 files? [y/N] $notes\n'));
+    expect(File('${root.path}/docs/$notes').existsSync(), isFalse);
+    expect(File('${root.path}/docs/$plan').existsSync(), isTrue);
+  });
   test('f02/us04/fr04: delete --help shows several targets', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['delete', '--help']), 0);
     expect(
       out.toString(),
-      contains('Usage: specstone delete <target> [<target> …] [--json]'),
+      contains(
+        'Usage: specstone delete <target> [<target> …] '
+        '[--dry-run | --yes --plan <hash>] [--json]',
+      ),
     );
   });
   test('f02/us04/fr04/e01: an untyped DocPath that holds a space deletes that file', () async {

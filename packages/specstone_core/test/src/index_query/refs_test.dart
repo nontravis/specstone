@@ -27,7 +27,8 @@ void main() {
       '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md <==\n'
       'Outbound\n- persona: buyer (persona)\n- link: password_rules (reference)\n'
       '- implements: app/lib/src/login/sign_in_page.dart:SignInPage\n'
-      'Inbound\n- link: login/email_login/validate_credentials (fr)\n',
+      'Inbound\n- link: login/email_login/validate_credentials (fr)\n'
+      'Mentions\n- none\nUntyped mentions\n- none\n',
     );
   });
   test("f01/us07/fr01/e01: a doc_ref targets its field's doc types only, and shows inbound on the target", () async {
@@ -43,7 +44,7 @@ void main() {
   test('f01/us07/s2, f01/us07/fr01/e03, f01/us07/fr01/e10: pointers are outbound only; an empty group prints - none', () async {
     expect(
       answerRefs(index, 'architecture:login').text,
-      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\n',
+      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\nMentions\n- none\nUntyped mentions\n- none\n',
     );
   });
   test(
@@ -64,7 +65,7 @@ void main() {
     });
     expect(
       answerRefs(links, 'notes.md').text,
-      '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\n',
+      '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\nMentions\n- none\nUntyped mentions\n- none\n',
     );
   });
   test(
@@ -184,6 +185,201 @@ void main() {
       contains(
         'Inbound\n- link: login/email_login/validate_credentials (fr)\n- step: sign_in (journey)\n',
       ),
+    );
+  });
+  group('mentions', () {
+    const index = 'docs/specs/INDEX.md';
+    const summary = 'docs/specs/tools/summary.md';
+    const summaryText =
+        '# Summary\n'
+        '\n'
+        'The map sits in `INDEX.md`.\n'
+        'Old notes: specs/INDEX.md, kept for now.\n'
+        '\n'
+        '```text\n'
+        'INDEX.md\n'
+        '```\n'
+        '\n'
+        'Back to the [map](../INDEX.md); INDEX.md has it.\n';
+
+    test('f01/us07/fr01: a backticked file name and a bare DocPath are listed with their line; fenced code and a linking line are not', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        summary: summaryText,
+      });
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        '==> specs/INDEX.md · specs/INDEX.md <==\n'
+        'Outbound\n- none\n'
+        'Inbound\n- link: specs/tools/summary.md\n'
+        'Mentions\n- none\n'
+        'Untyped mentions\n- specs/tools/summary.md:3\n- specs/tools/summary.md:4\n',
+      );
+    });
+    test('f01/us07/fr01: --json lists each mention by path and line', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        summary: summaryText,
+      });
+      final doc =
+          (answerRefs(mentions, 'specs/INDEX.md').json['docs']! as List).single
+              as Map;
+      expect(doc['untypedMentions'], [
+        {'path': 'specs/tools/summary.md', 'line': 3},
+        {'path': 'specs/tools/summary.md', 'line': 4},
+      ]);
+    });
+    test('f01/us07/fr01: a path or a link to a doc of the same file name elsewhere is no mention; nor is a bare shared file name', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        'docs/prds/INDEX.md': '# PRD map\n\nThe old PRD index.\n',
+        'docs/notes.md':
+            '# Notes\n\n'
+            'See prds/INDEX.md and [the PRD map](prds/INDEX.md).\n'
+            'Each tree kept an INDEX.md.\n'
+            'MY_INDEX.md and INDEX.md.bak are other files.\n',
+      });
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
+      );
+    });
+    test(
+      'f01/us07/fr01: a bare file name several docs carry names none of them',
+      () async {
+        final mentions = await indexWith({
+          'docs/superpowers/ledger.md':
+              '# Ledger\n\n'
+              'Each story keeps its USER_STORY.md under its `FEATURE.md`.\n',
+        });
+
+        for (final name in [
+          'prds/features/f01_login/us01_email_login/USER_STORY.md',
+          'prds/features/f01_login/us02_reset_password/USER_STORY.md',
+          featureDoc,
+        ]) {
+          expect(
+            answerRefs(mentions, name).text,
+            endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
+            reason: name,
+          );
+        }
+      },
+    );
+    test('f01/us07/fr01: a path from the mentioning doc, the docs root, or the project root, or a tail one doc alone ends in, names that doc', () async {
+      final mentions = await indexWith({
+        'docs/superpowers/ledger.md':
+            '# Ledger\n\n'
+            'From here: ../prds/features/f01_login/us01_email_login/USER_STORY.md.\n'
+            'From the docs root: prds/features/f01_login/us01_email_login/USER_STORY.md.\n'
+            'From the project: `docs/prds/features/f01_login/us01_email_login/USER_STORY.md`.\n'
+            'A tail: us01_email_login/USER_STORY.md.\n'
+            'Another story: us02_reset_password/USER_STORY.md.\n',
+        'docs/prds/features/f01_login/us01_email_login/notes.md':
+            '# Notes\n\nRead USER_STORY.md first.\n',
+      });
+
+      expect(
+        answerRefs(
+          mentions,
+          'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        ).text,
+        endsWith(
+          'Untyped mentions\n'
+          '- prds/features/f01_login/us01_email_login/notes.md:3\n'
+          '- superpowers/ledger.md:3\n'
+          '- superpowers/ledger.md:4\n'
+          '- superpowers/ledger.md:5\n'
+          '- superpowers/ledger.md:6\n',
+        ),
+      );
+      expect(
+        answerRefs(
+          mentions,
+          'prds/features/f01_login/us02_reset_password/USER_STORY.md',
+        ).text,
+        endsWith('Untyped mentions\n- superpowers/ledger.md:7\n'),
+      );
+    });
+    group('in untyped docs', () {
+      final typedAndUntyped = {
+        'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
+            '# Send a reset link\n\n'
+            '## Statement\nThe system shall mail a link, as `../us01_email_login/USER_STORY.md` signs in.\n',
+        'docs/superpowers/plans/plan.md': '# Plan\n\nEdit `docs/prds/features/f01_login/us01_email_login/USER_STORY.md`.\n',
+      };
+
+      test('f01/us07/fr01: lists_untyped_doc_mentions_apart_when_typed_and_untyped_docs_mention_the_doc', () async {
+        final mentions = await indexWith(typedAndUntyped);
+
+        final text = answerRefs(mentions, 'login/email_login').text;
+
+        expect(
+          text,
+          endsWith(
+            'Mentions\n'
+            '- prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md:4\n'
+            'Untyped mentions\n'
+            '- superpowers/plans/plan.md:3\n',
+          ),
+        );
+      });
+      test(
+        'f01/us07/fr01: json_holds_untyped_doc_mentions_under_untypedMentions',
+        () async {
+          final mentions = await indexWith(typedAndUntyped);
+
+          final doc =
+              (answerRefs(mentions, 'login/email_login').json['docs']! as List)
+                      .single
+                  as Map;
+
+          expect(doc['mentions'], [
+            {
+              'path': 'prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md',
+              'line': 4,
+            },
+          ]);
+          expect(doc['untypedMentions'], [
+            {'path': 'superpowers/plans/plan.md', 'line': 3},
+          ]);
+        },
+      );
+      test('f01/us07/fr01/e10: prints_untyped_mentions_none_when_only_typed_docs_mention_the_doc', () async {
+        final mentions = await indexWith({
+          'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
+              typedAndUntyped['docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md']!,
+        });
+
+        final answer = answerRefs(mentions, 'login/email_login');
+
+        expect(answer.text, endsWith('Untyped mentions\n- none\n'));
+        expect(
+          ((answer.json['docs']! as List).single as Map)['untypedMentions'],
+          isEmpty,
+        );
+      });
+    });
+    test(
+      'f01/us07/fr01: a longer path names the deepest doc it matches',
+      () async {
+        final mentions = await indexWith({
+          index: '# Spec map\n\nThe old index.\n',
+          'docs/INDEX.md': '# Top map\n\nThe top index.\n',
+          'docs/notes.md':
+              '# Notes\n\n'
+              'See docs/specs/INDEX.md.\n'
+              'See docs/INDEX.md.\n',
+        });
+        expect(
+          answerRefs(mentions, 'INDEX.md').text,
+          endsWith('Untyped mentions\n- notes.md:4\n'),
+        );
+        expect(
+          answerRefs(mentions, 'specs/INDEX.md').text,
+          endsWith('Untyped mentions\n- notes.md:3\n'),
+        );
+      },
     );
   });
 }

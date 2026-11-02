@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -160,6 +161,37 @@ void main() {
         },
         {'feature', 'project'},
       );
+    });
+
+    test('f03/us05/fr01, f03/us07/fr01: every code path field is read from '
+        'the code root, which the config sets', () {
+      final codePathFields = [
+        for (final docType in set.docTypes)
+          for (final field in docType.fields)
+            if (field.type == FieldType.outputRef || field.id == 'code')
+              (docType.id, field),
+      ];
+
+      expect(codePathFields.map((e) => '${e.$1}.${e.$2.id}'), [
+        'architecture.covers',
+        'fr.implements',
+        'tech_stack.code',
+        'topic.covers',
+        'user_story.implements',
+      ]);
+      for (final (docTypeId, field) in codePathFields) {
+        expect(
+          field.description,
+          allOf(
+            contains(
+              'relative to the code root (`code_root` in '
+              '`.specstone/config.yaml`, else the project root)',
+            ),
+            isNot(contains('relative to the project root')),
+          ),
+          reason: '$docTypeId.${field.id}',
+        );
+      }
     });
   });
 }

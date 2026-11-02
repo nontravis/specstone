@@ -171,6 +171,50 @@ void main() {
     );
   });
 
+  Future<List<Finding>> bannedIn(String statement) async {
+    final report = checkOf(
+      await writeCheckProject(extra: fr(checkPasswordStatement, statement)),
+    );
+    return report.findings
+        .where((f) => f.kind == FindingKind.bannedWord)
+        .toList();
+  }
+
+  test('f04/us01/fr05/e08: a word inside a single-backtick code span is not reported', () async {
+    expect(await bannedIn('The system shall refuse a `fast` login.'), isEmpty);
+  });
+
+  test('f04/us01/fr05/e08: a word inside a double-backtick code span is not reported', () async {
+    expect(
+      await bannedIn('The system shall refuse a ``fast`x`` login.'),
+      isEmpty,
+    );
+  });
+
+  test('f04/us01/fr05/e08: a bare word on the line of a code span is still reported', () async {
+    final found = await bannedIn(
+      'The system shall refuse `fast` and fast logins.',
+    );
+    expect(found.map((f) => f.toJson()['word']), ['fast']);
+  });
+
+  test('f04/us01/fr05/e08: an unclosed backtick run leaves the rest of the line prose', () async {
+    final found = await bannedIn('The system shall refuse ``fast` logins.');
+    expect(found.map((f) => f.toJson()['word']), ['fast']);
+  });
+
+  test(
+    'f04/us01/fr05/e08: a word inside a fenced code block is not reported',
+    () async {
+      expect(
+        await bannedIn(
+          'The system shall refuse a wrong password.\n```\nfast\n```',
+        ),
+        isEmpty,
+      );
+    },
+  );
+
   test('cc-s03/inv9: a word builds its pattern once per run', () async {
     final session = openSession(await writeCheckProject());
     addTearDown(session.close);

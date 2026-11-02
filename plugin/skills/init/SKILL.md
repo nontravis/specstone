@@ -50,16 +50,10 @@ The tech stack's `code` field lists the folders the code will live in, relative 
 for approval: while it is empty, `specstone check` reports no uncovered code at all. Until a listed folder exists,
 `specstone check` reports `code_root_missing` for it; that is expected in a new project, so keep the entry.
 
-## 3. Ask the Owner to approve
+## 3. Get the drafts approved
 
-Tell the Owner the four drafts are filled, then ask them to run, at their own terminal:
-
-```
-specstone approve
-```
-
-It shows each draft and approves the ones they answer `y` to. Never run it yourself: it refuses any caller but an
-interactive terminal (exit 77).
+Tell the Owner the four drafts are filled, then get each one approved through `specstone:expert-sdd`'s Owner
+confirmation (terminal or chat).
 
 ## 4. Features go to brainstorming
 
@@ -75,4 +69,4 @@ then, and for every later feature, hand it to `specstone:brainstorming-sdd`, one
 | "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.            |
 | "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.           |
 | "The Owner named a feature: `specstone new`."    | Note it; `specstone:brainstorming-sdd` takes it.   |
-| "I'll run `specstone approve` to finish."        | Ask the Owner to run it.                           |
+| "I'll run `specstone approve` without an `ok`."  | Show each draft; wait for the Owner's `ok`.        |

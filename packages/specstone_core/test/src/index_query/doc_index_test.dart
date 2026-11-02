@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -113,6 +115,81 @@ void main() {
     expect(paths(billing.resolve('architecture:billing')), [
       'specs/f05_billing/ARCHITECTURE.md',
     ]);
+  });
+  group('a path to a doc', () {
+    const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
+    TypeMatcher<IndexFault> notFound(String message) => isA<IndexFault>()
+        .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+        .having((f) => f.message, 'message', message);
+
+    /// Returns the index of a login project read from [folder] under it.
+    Future<DocIndex> indexFrom(
+      String folder, [
+      Map<String, String> extra = const {},
+    ]) async {
+      final root = await writeLoginProject(extra: extra);
+      final session = ReadSession.open(
+        templates: TemplateResolver(),
+        workingDirectory: Directory.fromUri(root.uri.resolve(folder)),
+        homeDirectory: null,
+      );
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test("f01/us04/fr01/e09: a typed doc's DocPath resolves to that doc", () {
+      expect(paths(index.resolve(featureDoc)), [featureDoc]);
+      expect(paths(index.resolve(story)), [story]);
+    });
+    test('f01/us04/fr01/e10: docs/ and a DocPath resolves to that doc', () {
+      expect(paths(index.resolve('docs/$featureDoc')), [featureDoc]);
+      expect(paths(index.resolve('docs/prds/d01_context.md')), [
+        'prds/d01_context.md',
+      ]);
+    });
+    test('f01/us04/fr01/e11: a file path from the working directory resolves when the file lies inside the docs root', () async {
+      final nested = await indexFrom('docs/prds/features/f01_login/');
+      expect(paths(nested.resolve('FEATURE.md')), [featureDoc]);
+      expect(paths(nested.resolve('us01_email_login/USER_STORY.md')), [story]);
+      expect(paths(nested.resolve('../../d01_context.md')), [
+        'prds/d01_context.md',
+      ]);
+      final root = await writeLoginProject();
+      final session = openSession(root);
+      addTearDown(session.close);
+      final absolute = File.fromUri(root.uri.resolve(featureKey)).path;
+      expect(paths(session.index.resolve(absolute)), [featureDoc]);
+    });
+    test('f01/us04/fr01/e11: a path to a file outside the docs root, or to a folder, is doc_not_found', () async {
+      final nested = await indexFrom('docs/prds/', {'NOTES.md': '# Notes\n'});
+      for (final outside in [
+        '../../NOTES.md',
+        '../../.specstone/config.yaml',
+        'features/f01_login',
+      ]) {
+        expect(
+          () => nested.resolve(outside),
+          throwsA(notFound('no doc carries the name $outside')),
+        );
+      }
+    });
+    test('f01/us04/fr01/e12: <doc type>:<path> resolves to the doc at the path only when it has that doc type', () {
+      expect(paths(index.resolve('feature:$featureDoc')), [featureDoc]);
+      expect(paths(index.resolve('feature:docs/$featureDoc')), [featureDoc]);
+      expect(
+        () => index.resolve('architecture:$featureDoc'),
+        throwsA(notFound('no architecture doc carries the name $featureDoc')),
+      );
+    });
+    test('f01/us04/fr01/e13: a name wins over a path, and a DocPath over a path from the working directory', () async {
+      final nested = await indexFrom('docs/prds/', {
+        'docs/docs/README.md': '# Docs readme\n',
+        'docs/prds/prds/PROJECT.md': '# Nested project\n',
+      });
+      expect(paths(nested.resolve('docs/README.md')), ['docs/README.md']);
+      expect(paths(nested.resolve('prds/PROJECT.md')), ['prds/PROJECT.md']);
+      expect(paths(nested.resolve('PROJECT.md')), ['prds/PROJECT.md']);
+    });
   });
   group('feature status', () {
     const written = '---\nstatus: implemented\n---\n\n# F\n';

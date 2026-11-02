@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
-    show withoutTrailingBlankLines;
+    show sectionBodyOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The result of formatting one doc.
@@ -81,7 +81,7 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
     final header = '## ${template.header}\n';
     out.write(
       found == null
-          ? header + _addedBody(template.template)
+          ? header + sectionBodyOf(template.template ?? '')
           : header + _endWithLineBreak(found.body),
     );
   }
@@ -116,13 +116,6 @@ List<KeyBlock> _orderedBlocks(List<KeyBlock> blocks, MergedDocType docType) {
   ];
   final rest = keyed.where((b) => !defined.contains(b));
   return [...keyless, ...defined, ...rest];
-}
-
-/// Returns the template text with trailing blank lines dropped, or nothing.
-String _addedBody(String? template) {
-  if (template == null) return '';
-  final text = withoutTrailingBlankLines(template);
-  return text.isEmpty ? '' : '$text\n';
 }
 
 String _endWithLineBreak(String text) =>

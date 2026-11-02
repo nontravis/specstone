@@ -9,6 +9,8 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 void main() {
   const entry = 'app/lib/login.dart:checkPassword';
@@ -40,6 +42,46 @@ void main() {
         containsPair('symbol', 'checkPassword'),
       ),
     );
+  });
+
+  test(
+    'code_root: pointers resolve from the code folder, not the project root',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+            'code/app/lib/login.dart':
+                checkProjectFiles()['app/lib/login.dart']!,
+            ...fr(entry, 'app/lib/b.dart'),
+          },
+          without: {'app/lib/login.dart'},
+        ),
+      );
+      expect(spots(report), ['$loginFr:7: implements_path_unresolved']);
+      expect(
+        report.findings.single.toJson(),
+        containsPair('entry', 'app/lib/b.dart'),
+      );
+    },
+  );
+
+  test('code_root: a folder outside the project root holds the code', () async {
+    final files = checkProjectFiles();
+    final config = '${shippedPinsConfig()}code_root: ../outside\n';
+    final workspace = await writeTree({
+      for (final MapEntry(:key, :value) in files.entries)
+        if (!key.startsWith('app/') && key != '.specstone/config.yaml')
+          'project/$key': value,
+      'project/.specstone/config.yaml': config,
+      'outside/app/lib/login.dart': files['app/lib/login.dart']!,
+    });
+
+    final report = checkOf(
+      Directory.fromUri(workspace.uri.resolve('project/')),
+    );
+
+    expect(report.findings, isEmpty);
   });
 
   test('f04/us02/s7, f04/us02/fr01/e03: a pointer to a folder, or to nothing, names no file', () async {

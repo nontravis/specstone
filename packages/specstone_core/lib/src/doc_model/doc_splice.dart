@@ -31,6 +31,15 @@ String withoutTrailingBlankLines(String lf) {
 
 bool _isBlankChar(int unit) => unit == 0x0A || unit == 0x20 || unit == 0x09;
 
+/// Returns [text] as a section body: trailing blank lines dropped, one line end
+/// kept; empty when nothing is left.
+///
+/// Leading blank lines are body and stay (doc model INV-5).
+String sectionBodyOf(String text) {
+  final kept = withoutTrailingBlankLines(text);
+  return kept.isEmpty ? '' : '$kept\n';
+}
+
 /// Returns [lfText] with the body of section [section] replaced by [body].
 ///
 /// The header line and the blank lines after the old body stay.
@@ -50,16 +59,22 @@ String withSectionBody(String lfText, int section, String body) {
 }
 
 /// Returns [lfText] without section [section]: its header line through the
-/// line before the next header, or through the end.
+/// line before the next header.
+///
+/// Removing the last section also drops the blank lines that separated it, so
+/// the text ends in exactly one newline.
 String withoutSection(String lfText, int section) {
   final doc = Doc.parse(lfText);
   final lines = _lines(doc.afterFrontmatter);
   final indexes = doc.sectionLineIndexes;
-  final end = section + 1 < indexes.length
-      ? indexes[section + 1]
-      : lines.length;
-  return _frontmatterOf(lfText, doc) +
-      [...lines.sublist(0, indexes[section]), ...lines.sublist(end)].join();
+  final isLast = section + 1 >= indexes.length;
+  final head = lines.sublist(0, indexes[section]).join();
+  final frontmatter = _frontmatterOf(lfText, doc);
+  if (isLast) {
+    final kept = withoutTrailingBlankLines(head);
+    return kept.isEmpty ? frontmatter : '$frontmatter$kept\n';
+  }
+  return frontmatter + head + lines.sublist(indexes[section + 1]).join();
 }
 
 /// Returns [lfText] with a section added.
@@ -92,7 +107,8 @@ String withSectionAdded(
 /// slot: directly after the last block whose key comes before [key] in
 /// [fieldOrder], else directly after the keyless block, else at the top. A
 /// [key] that [fieldOrder] lacks goes after the last block. No block moves. A
-/// doc without frontmatter gains one when [blockText] is not null.
+/// doc without frontmatter gains one when [blockText] is not null, then one
+/// blank line before its text, as a template skeleton has.
 String withKeyBlock(
   String lfText,
   String key,
@@ -103,7 +119,9 @@ String withKeyBlock(
   final blocks = doc.frontmatter;
   final block = blockText == null ? null : _endWithNewline(blockText);
   if (blocks == null) {
-    return block == null ? lfText : '---\n$block---\n$lfText';
+    if (block == null) return lfText;
+    final gap = lfText.isEmpty || lfText.startsWith('\n') ? '' : '\n';
+    return '---\n$block---\n$gap$lfText';
   }
   var start = lfText.indexOf('\n') + 1;
   for (final existing in blocks) {

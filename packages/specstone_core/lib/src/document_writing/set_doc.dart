@@ -109,21 +109,30 @@ final class SetRequest {
 /// Returns [lfText] as a draft: unchanged when it is one, else with
 /// `draft: true` added to its frontmatter.
 ///
-/// [fieldOrder] puts the added key at its slot, as [withKeyBlock] reads it.
-String markDraft(String lfText, {List<String>? fieldOrder}) =>
+/// The key lands at its slot in [docType]'s field order, as [withKeyBlock]
+/// reads it, so `set` and `new` place it alike and no key moves.
+String markDraft(String lfText, MergedDocType docType) =>
     Doc.parse(lfText).isDraft
     ? lfText
-    : withKeyBlock(lfText, 'draft', 'draft: true\n', fieldOrder: fieldOrder);
+    : withKeyBlock(
+        lfText,
+        'draft',
+        'draft: true\n',
+        fieldOrder: [for (final field in docType.fields) field.id],
+      );
 
 /// Writes [text] to the target of [request] and prints the doc's new base.
 ///
 /// The write runs under the session lock against a fresh read of the file,
 /// so a target changed since [SetRequest.base] refuses with its current text.
-/// An empty [text] removes an optional section or field; a field key the doc
-/// holds that its type does not declare is removed too. Throws [IndexFault]
-/// for a body that holds a `## ` line, a doc, section, or field that is not
-/// there, a title that is not one line, and [WriteFault] `base_mismatch`,
-/// `required_target`, or a refused field.
+/// A section body is written as [text] gives it, leading blank lines
+/// included, so a `get` then `set` of unchanged text changes no byte; its
+/// trailing blank lines are spacing and are dropped. An empty [text] removes
+/// an optional section or field; a field key the doc holds that its type does
+/// not declare is removed too. Throws [IndexFault] for a body that holds a
+/// `## ` line, a doc, section, or field that is not there, a title that is not
+/// one line, and [WriteFault] `base_mismatch`, `required_target`, or a refused
+/// field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) =>
     switch (request.target) {
       SectionTarget(:final key) => _setSection(session, request, key, text),
@@ -210,7 +219,7 @@ ReadAnswer _setField(
         ? withKeyBlock(lfText, fieldId, null)
         : withKeyBlock(lfText, fieldId, _blockOf(fieldId, stripped));
     if (field?.type != FieldType.outputRef) {
-      spliced = markDraft(spliced);
+      spliced = markDraft(spliced, docType);
     }
     session.writeDoc(doc.docPath, spliced, LineEnding.of(read.content.text));
 
@@ -259,13 +268,13 @@ void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
     key: field.id,
   );
   if (field.list) {
-    if (value is! YamlList) throw takes('a list');
+    if (value is! YamlList) throw takes('a YAML list, one `- item` line each');
     for (final item in value) {
       if (!_itemIs(item, field)) throw takes(_typeOf(field));
     }
     return;
   }
-  if (value is YamlList) throw takes('one value');
+  if (value is YamlList) throw takes('one YAML value, not a list');
   if (!_itemIs(value, field)) throw takes(_typeOf(field));
 }
 
@@ -347,7 +356,7 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
       );
     }
 
-    final written = markDraft(withTitle(lfText, title));
+    final written = markDraft(withTitle(lfText, title), docType);
     session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
 
     final after = parseIndexedDoc(
@@ -382,8 +391,7 @@ ReadAnswer _setSection(
       'the body holds the header line "${header[0]}"; send the body only',
     );
   }
-  final stripped = withoutTrailingBlankLines(lf);
-  final body = stripped.trim().isEmpty ? '' : '$stripped\n';
+  final body = _pipedBodyOf(lf);
 
   final doc = session.target(request.address);
   final docType =
@@ -435,7 +443,7 @@ ReadAnswer _setSection(
     } else {
       spliced = _withTemplateSection(lfText, docType, key, sections, body);
     }
-    final written = markDraft(spliced);
+    final written = markDraft(spliced, docType);
     session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
 
     final after = parseIndexedDoc(
@@ -460,6 +468,10 @@ ReadAnswer _setSection(
     );
   });
 }
+
+/// Returns piped [lf] as a section body, its leading blank lines kept; empty
+/// when [lf] is blank.
+String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
 
 /// Reads [doc] from disk as it is now, not as the session's index saw it.
 ParsedDoc _readLocked(

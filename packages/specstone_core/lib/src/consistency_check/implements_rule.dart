@@ -1,11 +1,8 @@
-import 'dart:io';
-
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
-const _field = 'implements';
-const _symbolMark = ':';
 const _segmentMark = '.';
 const _edge = r'[\p{L}\p{N}_]';
 
@@ -16,15 +13,13 @@ const _edge = r'[\p{L}\p{N}_]';
 /// symbol finding when a segment of its Symbol occurs nowhere in that file as a
 /// whole word. A code file is read only to resolve a Symbol (INV-11).
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
-  if (!context.typeHoldsField(context.typeOf(doc), _field)) return;
+  if (!context.typeHoldsField(context.typeOf(doc), implementsField)) return;
   for (final (:value, :line, text: _)
-      in context.linesOf(doc).entriesOf(_field)) {
+      in context.linesOf(doc).entriesOf(implementsField)) {
     if (value is! String) continue;
-    final split = value.indexOf(_symbolMark);
-    final path = split < 0 ? value : value.substring(0, split);
-    final symbol = split < 0 ? '' : value.substring(split + 1);
-    if (FileSystemEntity.typeSync('${context.projectRoot.path}/$path') !=
-        FileSystemEntityType.file) {
+    final entry = ImplementsEntry(value);
+    final path = entry.path;
+    if (!entry.namesFileFrom(context.codeRoot)) {
       yield context.finding(
         doc,
         FindingKind.implementsPathUnresolved,
@@ -34,6 +29,7 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
       );
       continue;
     }
+    final symbol = entry.symbol;
     if (symbol.isEmpty) continue;
     final text = context.codeTextOf(path);
     if (text == null) continue;

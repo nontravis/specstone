@@ -89,18 +89,18 @@ bool _isCovered(List<String> covers, String path) => covers.any(
 
 bool _namesSomething(CheckContext context, String entry) =>
     FileSystemEntity.typeSync(
-      '${context.projectRoot.path}$_separator${_withoutFinalSlash(entry)}',
+      '${context.codeRoot.path}$_separator${_withoutFinalSlash(entry)}',
     ) !=
     FileSystemEntityType.notFound;
 
 String _withoutFinalSlash(String entry) =>
     entry.endsWith(_separator) ? entry.substring(0, entry.length - 1) : entry;
 
-/// Yields the regular files under [root], as paths from the project root.
+/// Yields the regular files under [root], as paths from the code root.
 ///
 /// Skips names starting with a dot and links. A missing root yields nothing.
 Iterable<String> _filesUnder(CheckContext context, String root) sync* {
-  final folder = Directory('${context.projectRoot.path}$_separator$root');
+  final folder = Directory('${context.codeRoot.path}$_separator$root');
   final List<FileSystemEntity> entities;
   try {
     entities = folder.listSync(followLinks: false);

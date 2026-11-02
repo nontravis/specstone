@@ -37,9 +37,9 @@ void main() {
     );
     expect(
       err.toString(),
-      '.specstone/trash/journal.json: a migration is unfinished; ask the '
-      'Owner to run specstone migrate at an interactive terminal to finish '
-      'it, then run the command again\n',
+      '.specstone/trash/journal.json: a migration is unfinished; run '
+      'specstone migrate at an interactive terminal, or with --yes after the '
+      "Owner's ok in the chat, to finish it, then run the command again\n",
     );
     expect(out.toString(), isEmpty);
   });
@@ -254,6 +254,52 @@ void main() {
     await read.runner.run(['get', 'user_story:login/email_login#use_case']);
     expect(read.out.toString(), contains('base 9042269552ff'));
   });
+  test(
+    'f02/us01/fr03: set --help says --field reads stdin as a YAML value',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['set', '--help']), 0);
+      expect(
+        out.toString(),
+        contains(
+          'The id of the field to write; stdin holds its YAML value, a list as `- item` lines.',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    },
+  );
+  test('f02/us01/fr03/e07: set --field with plain lines for a list field says the stdin is a YAML list, exit 64', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login';
+    final base =
+        ((getDoc(root, target)['bases']! as Map)['fields']! as Map)['vision']!
+            as String;
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(input: 'PV-01\nPV-02\n'),
+    );
+    expect(
+      await runner.run([
+        'set',
+        target,
+        '--field',
+        'vision',
+        '--base',
+        base,
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(jsonDecode(err.toString()), {
+      'error': {
+        'code': 'field_value_invalid',
+        'message': 'vision takes a YAML list, one `- item` line each',
+        'file': story1,
+        'key': 'vision',
+      },
+    });
+  });
   test('f02/us01/fr01: two positionals are a usage error, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['set', 'a', 'b']), 64);
@@ -262,7 +308,7 @@ void main() {
       err.toString(),
       contains(
         'Expected one target, got 2.\n\n'
-        'Usage: specstone set <type>:<name>[#<section key>] '
+        'Usage: specstone set (<type>:<name> | <path>)[#<section key>] '
         '[--field <id> | --title] --base <hash> [--json]\n',
       ),
     );

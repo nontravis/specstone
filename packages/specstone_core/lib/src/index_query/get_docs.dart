@@ -77,17 +77,20 @@ ReadAnswer answerGet(DocIndex index, String address) {
   );
 }
 
-/// Returns the base of the title, of each section, and of each field of a doc.
+/// Returns the base of the whole doc, of its title, of each section, and of
+/// each field.
 ///
-/// A base is the [baseHashOf] of the target's text: the title with no `# `,
-/// a section's body, a field's whole key block. The result holds `title`,
-/// `sections` keyed by section key, and `fields` keyed by field id. [docType],
+/// A base is the [baseHashOf] of the target's text: the whole text with LF
+/// line ends, the title with no `# `, a section's body, a field's whole key
+/// block. The result holds `doc`, `title`, `sections` keyed by section key,
+/// and `fields` keyed by field id. `approve --yes` checks `doc`. [docType],
 /// when given, lists its sections and fields first, in its order, an absent
 /// one with [emptyBaseHash]; held ones its template lacks follow in file order.
 /// Of two sections or two field blocks sharing a key, the first counts; a doc
 /// with no title has the base of empty text.
 Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
-  final doc = Doc.parse(toLf(content.text));
+  final lfText = toLf(content.text);
+  final doc = Doc.parse(lfText);
 
   final sections = <String, String>{
     for (final section in docType?.sections ?? const <MergedSection>[])
@@ -110,6 +113,7 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
   }
 
   return {
+    'doc': baseHashOf(lfText),
     'title': baseHashOf(doc.title ?? ''),
     'sections': sections,
     'fields': fields,

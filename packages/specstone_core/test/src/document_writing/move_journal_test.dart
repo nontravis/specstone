@@ -6,6 +6,7 @@ import 'dart:mirrors';
 
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -660,7 +661,7 @@ void main() {
           (s) => answerDelete(
             s,
             ['user_story:login/reset_password'],
-            interactive: false,
+            confirmation: OwnerConfirmation.missing,
             readLine: () => null,
             prompts: StringBuffer(),
           ),
@@ -704,7 +705,7 @@ void main() {
       (s) => answerDelete(
         s,
         ['user_story:login/reset_password'],
-        interactive: false,
+        confirmation: OwnerConfirmation.missing,
         readLine: () => null,
         prompts: StringBuffer(),
       ),

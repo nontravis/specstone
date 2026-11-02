@@ -118,6 +118,7 @@ void main() {
       final session = ReadSession.readFrom(
         project,
         IndexStore.open(project.projectRoot),
+        workingDirectory: root,
         afterRefresh: () {
           if (peerWrites++ > 0) return;
           peer.write(
@@ -146,6 +147,7 @@ void main() {
         () => ReadSession.readFrom(
           project,
           IndexStore.open(project.projectRoot),
+          workingDirectory: root,
           afterRefresh: () {
             refreshes++;
             peer.write(
@@ -181,6 +183,7 @@ void main() {
         final session = ReadSession.readFrom(
           project,
           IndexStore.open(project.projectRoot),
+          workingDirectory: root,
           afterRefresh: () {
             if (refreshes++ > 0) return;
             peer.write(

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
@@ -20,9 +21,10 @@ final class InitRequest {
     required this.workingDirectory,
     required this.homeDirectory,
     required this.templates,
-    required this.interactive,
+    required this.confirmation,
     required this.readLine,
     required this.out,
+    this.planHash,
     this.runGit = runRealGit,
   });
 
@@ -35,14 +37,19 @@ final class InitRequest {
   /// Loads the carried packs.
   final TemplateResolver templates;
 
-  /// Whether stdin and stdout are both terminals.
-  final bool interactive;
+  /// How the Owner confirms the legacy migrate run: at the terminal's `y`, or
+  /// `--yes`.
+  final OwnerConfirmation confirmation;
 
   /// Reads one line of the Owner's answer, or null at the end of input.
   final String? Function() readLine;
 
   /// Where the run prints.
   final StringSink out;
+
+  /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
+  /// `--yes` the legacy run applies only a plan with this hash.
+  final String? planHash;
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
@@ -67,7 +74,11 @@ int runInit(InitRequest request) {
     );
   }
   if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
-    return runLegacyAt(root, _migrateRequestOf(root, request));
+    return runLegacyAt(
+      root,
+      _migrateRequestOf(root, request),
+      linkFolder: _linkFolderOf(request.workingDirectory, root),
+    );
   }
   return _scaffold(root, request);
 }
@@ -79,11 +90,21 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
       homeDirectory: request.homeDirectory,
       templates: request.templates,
       dryRun: false,
-      interactive: request.interactive,
+      confirmation: request.confirmation,
       readLine: request.readLine,
       out: request.out,
+      planHash: request.planHash,
       runGit: request.runGit,
     );
+
+/// Returns [folder], canonical, when it is not [root], else null.
+///
+/// [root] is `rootThroughDocsLink(folder)`, canonical, which differs from the
+/// folder exactly when the folder's `docs` link led to it.
+Directory? _linkFolderOf(Directory folder, Directory root) {
+  final own = Directory(folder.resolveSymbolicLinksSync());
+  return own.path == root.path ? null : own;
+}
 
 /// Writes each singular draft, then the config last (PD16, F6-D23).
 ///

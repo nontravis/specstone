@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
@@ -390,24 +392,71 @@ final class MergedDocType {
     };
   }
 
-  /// Returns the writing guide: the description, then each section's header
-  /// and description, then the `Guide sources:` block of [reference], each
-  /// block set off by a blank line.
+  /// Returns the writing guide, each block set off by a blank line.
   ///
-  /// A description with only whitespace adds no block, and an absent or empty
-  /// [reference] list adds no sources block.
+  /// The description and the doc-level banned words come first, then each
+  /// section's header, description, own banned words, and template, then the
+  /// `Guide sources:` block of [reference]. A banned word list drops the
+  /// allowed words that apply there, as `check` does; a description, word
+  /// list, template, or [reference] list left empty adds no block.
   String renderGuide() {
+    final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
       ?_trimmedOrNull(description),
+      ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
       for (final section in sections) ...[
         '## ${section.header}',
         ?_trimmedOrNull(section.description),
+        ?_bannedWordsLine(
+          section.bannedWords,
+          allowed: [...docAllowed, ...?section.allowedWords],
+          linePrefix: section.linePrefix,
+        ),
+        ?_templateBlock(section.template),
       ],
       if (sources.isNotEmpty)
         ['Guide sources:', ...sources.map(_sourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
+
+  static final _backtickRun = RegExp('`+');
+
+  /// The shortest fence a markdown code block takes.
+  static const _minFence = 3;
+
+  /// Returns the `Banned words:` line of [words] not in [allowed], or null
+  /// when none is left.
+  ///
+  /// A [linePrefix] names the lines the words apply on.
+  static String? _bannedWordsLine(
+    List<String>? words, {
+    required List<String> allowed,
+    String? linePrefix,
+  }) {
+    final shown = [
+      for (final word in {...?words})
+        if (!allowed.contains(word)) '`$word`',
+    ];
+    if (shown.isEmpty) return null;
+    final where = linePrefix == null ? '' : ' on `$linePrefix` lines';
+    return 'Banned words$where: ${shown.join(', ')}';
+  }
+
+  /// Returns [template] as a `Template:` line and a markdown code block, or
+  /// null when it is empty.
+  ///
+  /// The fence is one backtick longer than the longest backtick run inside,
+  /// so a fence the template holds never closes the block.
+  static String? _templateBlock(String? template) {
+    final body = _trimmedOrNull(template);
+    if (body == null) return null;
+    final longestRun = _backtickRun
+        .allMatches(body)
+        .fold(0, (longest, run) => max(longest, run.end - run.start));
+    final fence = '`' * max(_minFence, longestRun + 1);
+    return 'Template:\n${fence}markdown\n$body\n$fence';
   }
 
   /// Returns the guide line of [entry]: `- <title>[, <locator>][: <target>]`,

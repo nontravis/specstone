@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -28,9 +30,10 @@ const _draftPaths = [
 /// Runs `init` on [root] and returns its status with the printed lines.
 (int, List<String>) _run(
   Directory root, {
-  bool interactive = false,
+  OwnerConfirmation confirmation = OwnerConfirmation.missing,
   List<String?> answers = const [],
   RunGit runGit = _noGit,
+  String? planHash,
 }) {
   final out = StringBuffer();
   var call = 0;
@@ -39,9 +42,10 @@ const _draftPaths = [
       workingDirectory: root,
       homeDirectory: null,
       templates: TemplateResolver(),
-      interactive: interactive,
+      confirmation: confirmation,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
+      planHash: planHash,
       runGit: runGit,
     ),
   );
@@ -226,7 +230,7 @@ void main() {
 
     final (status, lines) = _run(
       root,
-      interactive: true,
+      confirmation: OwnerConfirmation.prompt,
       answers: ['y'],
       runGit: runRealGit,
     );
@@ -238,6 +242,63 @@ void main() {
     expect(subjects, hasLength(3));
     expect(lines.first, startsWith('legacy migration: '));
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "
+      'applies the migrate run with no prompt', () async {
+    final root = await gitFixture(acmeLegacy);
+    final dryRun = StringBuffer();
+    runMigrate(
+      MigrateRequest(
+        workingDirectory: root,
+        homeDirectory: null,
+        templates: TemplateResolver(),
+        dryRun: true,
+        confirmation: OwnerConfirmation.missing,
+        readLine: () => null,
+        out: dryRun,
+      ),
+    );
+    final dryLines = dryRun.toString().split('\n');
+    final hash = dryLines[dryLines.length - 3].substring('plan '.length);
+
+    final (status, lines) = _run(
+      root,
+      confirmation: OwnerConfirmation.given,
+      runGit: runRealGit,
+      planHash: hash,
+    );
+
+    expect(status, 0);
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects, hasLength(3));
+    expect(lines.first, startsWith('legacy migration: '));
+    expect(lines.any((line) => line.contains('apply? [y/N] ')), isFalse);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('ms-r11: a legacy folder under --yes with a stale plan hash refuses '
+      'plan_mismatch and writes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final legacy = _bytesUnder(root);
+
+    expect(
+      () => _run(
+        root,
+        confirmation: OwnerConfirmation.given,
+        runGit: runRealGit,
+        planHash: '000000000000',
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.planMismatch,
+        ),
+      ),
+    );
+    expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us03/fr01/e02: a legacy folder without a terminal prints the '
@@ -252,7 +313,7 @@ void main() {
           workingDirectory: root,
           homeDirectory: null,
           templates: TemplateResolver(),
-          interactive: false,
+          confirmation: OwnerConfirmation.missing,
           readLine: () => null,
           out: out,
           runGit: runRealGit,
@@ -261,11 +322,57 @@ void main() {
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.ownerTerminalRequired)
-            .having((f) => f.exitStatus, 'exitStatus', 77),
+            .having((f) => f.exitStatus, 'exitStatus', 77)
+            .having(
+              (f) => f.message,
+              'message',
+              'migrate applies only at an interactive terminal, or with '
+                  "--yes after the Owner's ok in the chat",
+            ),
       ),
     );
     expect(out.toString(), startsWith('legacy migration: '));
     expect(_bytesUnder(root), legacy);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: the legacy entry from the folder holding the docs '
+      'link plans code_root as migrate does', () async {
+    final tree = await writeTree(
+      linkedAcme({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        'code/lib/a.dart': 'class A {}\n',
+        // Git for Windows may store a link as a file; the plan needs none.
+        '.gitignore': 'code/docs\n',
+      }),
+    );
+    if (!linkCodeDocs(tree)) return;
+    commitRepo(Directory('${tree.path}/ws'));
+    final out = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: Directory('${tree.path}/ws/code'),
+          homeDirectory: null,
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: out,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>().having(
+          (f) => f.code,
+          'code',
+          WriteFaultCode.ownerTerminalRequired,
+        ),
+      ),
+    );
+    expect(
+      out.toString(),
+      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+    );
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
@@ -275,7 +382,7 @@ void main() {
     expect(
       () => _run(
         root,
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         answers: ['y'],
         runGit: (arguments, {required workingDirectory}) =>
             arguments.first == 'commit'
@@ -298,7 +405,7 @@ void main() {
     expect(
       () => _run(
         root,
-        interactive: true,
+        confirmation: OwnerConfirmation.prompt,
         runGit: (arguments, {required workingDirectory}) =>
             throw const ProcessException('git', []),
       ),

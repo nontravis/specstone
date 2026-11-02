@@ -9,7 +9,12 @@ class SetCommand extends WriteCommand {
         'base',
         help: 'The base hash of the target, as `get` prints it.',
       )
-      ..addOption('field', help: 'The id of the field to write.')
+      ..addOption(
+        'field',
+        help:
+            'The id of the field to write; stdin holds its YAML value, '
+            'a list as `- item` lines.',
+      )
       ..addFlag(
         'title',
         negatable: false,
@@ -27,7 +32,7 @@ class SetCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone set <type>:<name>[#<section key>] '
+      'specstone set (<type>:<name> | <path>)[#<section key>] '
       '[--field <id> | --title] --base <hash> [--json]';
 
   @override

@@ -63,7 +63,7 @@ void main() {
     ]);
     expect(
       fieldOf(architecture, 'covers').description,
-      allOf(contains('longest prefix'), contains('project root')),
+      allOf(contains('longest prefix'), contains('code root')),
     );
     expectSections(architecture, const [
       SectionSpec('component_diagram', 'Component diagram', required: true),

@@ -57,7 +57,7 @@ void main() {
         _faultCode(IndexFaultCode.argumentInvalid).having(
           (f) => f.message,
           'message',
-          'name the doc as <doc type>:<name>, such as user_story:login/email_login',
+          'name the doc as <doc type>:<name> or by its path, such as user_story:login/email_login',
         ),
       ),
     );
@@ -81,6 +81,29 @@ void main() {
       );
     },
   );
+
+  test('dw-s03/inv2, f01/us04/fr01/e09, f01/us04/fr01/e10, f01/us04/fr01/e12: a typed doc named by its path is a write target', () async {
+    final root = await writeWriteProject();
+    for (final address in [story1, 'docs/$story1', 'user_story:$story1']) {
+      expect(writeIn(root, (s) => s.target(address).docPath), story1);
+    }
+  });
+
+  test('dw-s03/inv2, f01/us04/fr01/e10: an untyped doc named by docs/ and its DocPath is untyped_target', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => writeIn(root, (s) => s.target('docs/prds/d01_context.md')),
+      throwsA(_faultCode(IndexFaultCode.untypedTarget)),
+    );
+  });
+
+  test('f01/us04/fr01/e09, PD8: a path names one of the two docs a typed name carries', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login again\n'},
+    );
+    const again = 'prds/features/f03_login/FEATURE.md';
+    expect(writeIn(root, (s) => s.target(again).docPath), again);
+  });
 
   test('f02/us01/fr01/e09, PD8: a typed name two docs carry is argument_invalid naming both', () async {
     final root = await writeWriteProject(

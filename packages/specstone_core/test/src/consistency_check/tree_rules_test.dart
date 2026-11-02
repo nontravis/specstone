@@ -74,6 +74,59 @@ void main() {
     );
   });
 
+  group('a feature path with a group folder before f{nn}', () {
+    const groupedFeature = {
+      '.specstone/templates/feature.yaml':
+          'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+    };
+    const audio = 'prds/features/control/f01_audio_player/FEATURE.md';
+    const banner = 'prds/features/display/f01_banner/FEATURE.md';
+    const video = 'prds/features/control/f01_video_player/FEATURE.md';
+
+    test('f04/us01/fr07/e09: an f01 in each of two groups is no order_number_duplicate', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...groupedFeature,
+            'docs/$audio': '# Audio player\n',
+            'docs/$banner': '# Banner\n',
+          },
+        ),
+      );
+
+      expect(spots(report, FindingKind.orderNumberDuplicate), isEmpty);
+    });
+
+    test('f04/us01/fr07/e10: two f01 in one group are reported on each, siblings naming only the same-group doc', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...groupedFeature,
+            'docs/$audio': '# Audio player\n',
+            'docs/$banner': '# Banner\n',
+            'docs/$video': '# Video player\n',
+          },
+        ),
+      );
+
+      expect(spots(report, FindingKind.orderNumberDuplicate), [
+        '$audio:1: order_number_duplicate',
+        '$video:1: order_number_duplicate',
+      ]);
+      expect(
+        {
+          for (final f in report.findings)
+            if (f.kind == FindingKind.orderNumberDuplicate)
+              f.path: f.toJson()['siblings'],
+        },
+        {
+          audio: [video],
+          video: [audio],
+        },
+      );
+    });
+  });
+
   test('f04/us01/s7, f04/us01/fr07/e03, f04/us04/fr01/e09, cc-s03/inv13: a requirement whose story is gone has no '
       'parent and no trace or suspect finding', () async {
     final report = checkOf(

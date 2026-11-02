@@ -1,11 +1,14 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 const _packs = ['prd-core', 'software-tech'];
 
@@ -38,6 +41,49 @@ void main() {
       });
 
       expect(text, shippedPinsConfig());
+    });
+
+    group('configText code_root', () {
+      final pins = {
+        'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
+      };
+
+      test('the default code root writes the packs lines only', () {
+        expect(configText(pins), 'packs:\n  prd-core: 1.2.3\n');
+      });
+
+      test('a code root other than . is the last line', () {
+        expect(
+          configText(pins, codeRoot: 'stratum_ui'),
+          'packs:\n  prd-core: 1.2.3\ncode_root: stratum_ui\n',
+        );
+        expect(
+          configText(pins, codeRoot: '../NTD OS/example'),
+          endsWith('\ncode_root: ../NTD OS/example\n'),
+        );
+      });
+
+      for (final (name, codeRoot, line) in [
+        ('a number', '2024', "code_root: '2024'\n"),
+        ('a comment mark', 'a #b', "code_root: 'a #b'\n"),
+        ('a mapping mark', 'a: b', "code_root: 'a: b'\n"),
+        ('a broken quote', "'a", "code_root: '''a'\n"),
+      ]) {
+        test('a code root YAML reads as $name is quoted', () {
+          expect(configText(pins, codeRoot: codeRoot), endsWith(line));
+        });
+      }
+
+      // `a: b` would read as a drive letter, which the reader refuses.
+      for (final codeRoot in ['2024', 'a #b', 'lib: b']) {
+        test('the config reader reads back code root $codeRoot', () async {
+          final root = await writeTree({
+            '.specstone/config.yaml': configText(pins, codeRoot: codeRoot),
+          });
+
+          expect(ProjectConfig.read(root).codeRoot, codeRoot);
+        });
+      }
     });
 
     test('f06/us01/fr05/e01: an ARCHITECTURE renamed one to one covers each '
@@ -233,6 +279,21 @@ void main() {
       expect(covers?.block, "covers:\n  - 'lib/x: y/'\n");
       expect(covers?.label, 'covers (1 path)');
       expect(coversOf('specs/b/', rows), isNull);
+    });
+
+    test('f06/us01/fr05/e01: covers quotes a path YAML reads as a number or '
+        'a word', () {
+      final rows = [
+        for (final codePath in ['2024', 'true', 'null', '1.5'])
+          SpecMapRow(codePath: codePath, specPath: 'specs/a/', featureId: 'f'),
+      ];
+
+      final covers = coversOf('specs/a/', rows);
+
+      expect(
+        covers?.block,
+        "covers:\n  - '2024'\n  - 'true'\n  - 'null'\n  - '1.5'\n",
+      );
     });
 
     test('f06/us01/fr05/e06: a project-layer singular doc type follows the '

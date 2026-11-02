@@ -50,6 +50,12 @@ void main() {
       '==> prds/d01_context.md · prds/d01_context.md · base 49851a1d1229 <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
     );
   });
+  test('f01/us04/fr01/e09, f01/us04/fr02/e01: a path takes a section key as the name does', () async {
+    expect(
+      answerGet(index, 'docs/specs/f01_login/ARCHITECTURE.md#components').text,
+      answerGet(index, 'architecture:login#components').text,
+    );
+  });
   test('f01/us04/s5: a name no doc carries is doc_not_found', () async {
     expect(() => answerGet(index, 'logn'), throwsA(isA<IndexFault>()));
   });
@@ -208,6 +214,20 @@ void main() {
       (untyped['bases']! as Map)['title'],
       baseHashOf('D-01 — Project context'),
     );
+  });
+
+  test('ms-r10: --json bases.doc hashes the whole text, LF-normalized, the same with CRLF and a BOM', () async {
+    const text = '---\ndraft: true\n---\n\n# Notes\n\n## A\nx\n';
+    final lf = await indexWith({'docs/notes.md': text});
+    final crlf = await indexWith({
+      'docs/notes.md': '﻿${text.replaceAll('\n', '\r\n')}',
+    });
+    Map<Object?, Object?> docBase(DocIndex index) =>
+        ((answerGet(index, 'notes.md').json['docs']! as List).single
+                as Map)['bases']!
+            as Map;
+    expect(docBase(lf)['doc'], baseHashOf(text));
+    expect(docBase(crlf)['doc'], baseHashOf(text));
   });
 
   test('f01/us04/fr02/e10, PD16, H27: a doc with no title has the base of empty text', () async {

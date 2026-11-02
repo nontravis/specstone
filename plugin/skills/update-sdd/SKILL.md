@@ -82,17 +82,18 @@ field; `specstone:expert-sdd` says how to record it.
 ## 4. Name the change for the Owner
 
 Write no design document. Tell the Owner the doc, the section or field, what it said before, and what it says now.
-For a confirmation, add the upstream change you checked it against. Then ask them to run, at their own terminal:
+For a confirmation, add the upstream change you checked it against. Then get it approved through
+`specstone:expert-sdd`'s Owner confirmation (terminal or chat), naming the doc:
 
 ```
 specstone approve <type>:<name>
 ```
 
-When that doc holds others, as a feature holds its stories and a story its FRs, say so with the line: this call
-also approves, at the Owner's `y` for each, every draft under that doc, not only your edit.
+When that doc holds others, as a feature holds its stories and a story its FRs, say so: at the terminal this call
+also walks every draft under that doc; in the chat, show and name each one.
 
-Never run it yourself: it refuses any caller but an interactive terminal (exit 77), and with no design document or
-coverage table, the Owner's look at your named change is the edit's one check.
+With no design document or coverage table, the Owner's look at your named change is the edit's one check: never
+approve before their `ok`.
 
 ## Red flags
 
@@ -102,4 +103,4 @@ coverage table, the Owner's look at your named change is the edit's one check.
 | "The new FR is short; one `set` fits it."          | Hand over to `specstone:brainstorming-sdd`.  |
 | "A quick design document first, to be safe."       | A small edit has none; name the change.      |
 | "Base mismatch: rerun with my text."               | Merge into the current text first.           |
-| "I'll run `specstone approve` to finish."          | Ask the Owner to run it.                     |
+| "I'll run `specstone approve` without an `ok`."    | Show the change; wait for the Owner's `ok`.  |

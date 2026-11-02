@@ -160,7 +160,7 @@ void main() {
       });
     }
 
-    test('f06/us01/fr06: a doc without frontmatter gains one', () {
+    test('f06/us01/fr06: a doc without frontmatter gains one, then a blank line', () {
       const api =
           '# check API\n\n## FR trace\n\n| FR id | Method |\n|---|---|\n| `us01/fr01` | CLI |\n';
 
@@ -169,7 +169,7 @@ void main() {
       expect(
         out.lf,
         startsWith(
-          '---\nconfirmed:\n  - find_template_breaks/check_target ${fingerprintOf(_statement)}\n---\n# check API',
+          '---\nconfirmed:\n  - find_template_breaks/check_target ${fingerprintOf(_statement)}\n---\n\n# check API',
         ),
       );
     });
