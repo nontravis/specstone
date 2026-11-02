@@ -48,10 +48,12 @@ const nasaBannedWords = <String>[
 const nasaHandbookTitle =
     'NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2';
 
-/// The URL of the NASA handbook reference entry.
+/// The URL of the NASA handbook reference entry, the web edition (GS-R2).
 const nasaHandbookUrl =
-    'https://www.nasa.gov/wp-content/uploads/2018/09/'
-    'nasa_systems_engineering_handbook_0.pdf';
+    'https://www.nasa.gov/reference/systems-engineering-handbook/';
+
+/// The locator of the NASA handbook reference entry.
+const nasaHandbookLocator = 'Appendix C and section 4.2';
 
 /// The Statement template `fr` and `nf` share (F3P-D37, F3P-D39).
 const requirementStatementTemplate =
@@ -262,16 +264,36 @@ void expectNasaLint(
   expect(entry.url, nasaHandbookUrl, reason: docType.id);
   expect(entry.file, isNull, reason: docType.id);
   expect(entry.doc, isNull, reason: docType.id);
-  expect(entry.locator, isNull, reason: docType.id);
+  expect(entry.locator, nasaHandbookLocator, reason: docType.id);
 }
 
-/// Expects [docType] to carry no banned words and no reference list.
+/// Expects [docType] to carry no banned words.
 void expectNoNasaLint(MergedDocType docType) {
   expect(docType.lint.bannedWords, isNull, reason: docType.id);
   for (final section in docType.sections) {
     expect(section.bannedWords, isNull, reason: '${docType.id}.${section.id}');
   }
-  expect(docType.reference, isNull, reason: docType.id);
+}
+
+/// Expects [docType]'s reference list to be [sources], each a title and url
+/// in order with no file, doc, or locator; an empty [sources] expects none.
+void expectSources(MergedDocType docType, List<(String, String)> sources) {
+  final reference = docType.reference;
+  if (sources.isEmpty) {
+    expect(reference, isNull, reason: docType.id);
+    return;
+  }
+  expect(
+    [for (final entry in reference!) (entry.title, entry.url)],
+    sources,
+    reason: docType.id,
+  );
+  for (final entry in reference) {
+    final where = '${docType.id}: ${entry.title}';
+    expect(entry.file, isNull, reason: where);
+    expect(entry.doc, isNull, reason: where);
+    expect(entry.locator, isNull, reason: where);
+  }
 }
 
 /// Returns the [nasaBannedWords] entries [text] holds, in list order.

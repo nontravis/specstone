@@ -39,6 +39,7 @@ void main() {
       'English guide, 400 lines, no NASA list', () {
     expectGuideShape(features, title: '# System map');
     expectNoNasaLint(features);
+    expectSources(features, []);
   });
 
   test('f03/us06/fr02: the templates hold the diagram and the Systems '

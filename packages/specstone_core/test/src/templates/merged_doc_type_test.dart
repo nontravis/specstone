@@ -155,6 +155,9 @@ Template:
 ## Out-of-scope
 
 At most five one-line bullets, each naming its owner.
+
+Guide sources:
+- NASA Systems Engineering Handbook, Appendix C
 ''';
 
 /// Returns every value reachable in [node], to look for a `null`.
@@ -444,6 +447,62 @@ sections:
     test('f03/us01/fr02: a doc type with an empty description and no sections '
         'renders nothing', () {
       expect(_merge("description: ''\npath: a.md").renderGuide(), '');
+    });
+
+    test('f03/us01/fr02: an entry with a url prints title, locator, and '
+        'url', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'reference: [{title: T, url: "https://e.example/x", locator: L}]',
+      ).renderGuide();
+
+      expect(guide, 'A.\n\nGuide sources:\n- T, L: https://e.example/x\n');
+    });
+
+    test('f03/us01/fr02: a title-only entry prints its title alone', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\nreference: [{title: T}]',
+      ).renderGuide();
+
+      expect(guide, endsWith('\n\nGuide sources:\n- T\n'));
+    });
+
+    test('f03/us01/fr02: a doc entry from the project layer prints the doc '
+        'identity', () {
+      final guide = _merge(
+        'description: A.\npath: a.md',
+        'reference: {add: [{title: T, doc: prd/feature}]}',
+      ).renderGuide();
+
+      expect(guide, endsWith('Guide sources:\n- T: prd/feature\n'));
+    });
+
+    test('f03/us01/fr02/e05: no reference list prints no sources', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
+      ).renderGuide();
+
+      expect(guide, isNot(contains('Guide sources:')));
+    });
+
+    test('f03/us01/fr02/e05: a project layer that removes every entry prints '
+        'no sources', () {
+      final guide = _merge(
+        _featureLayer,
+        'reference: {remove: [NASA Systems Engineering Handbook]}',
+      ).renderGuide();
+
+      expect(guide, isNot(contains('Guide sources:')));
+      expect(guide, endsWith('each naming its owner.\n'));
+    });
+
+    test('f03/us01/fr02: a doc type with only a reference list prints the '
+        'sources block alone', () {
+      final guide = _merge(
+        "description: ''\npath: a.md\nreference: [{title: T}]",
+      ).renderGuide();
+
+      expect(guide, 'Guide sources:\n- T\n');
     });
   });
 

@@ -395,11 +395,13 @@ final class MergedDocType {
   /// Returns the writing guide, each block set off by a blank line.
   ///
   /// The description and the doc-level banned words come first, then each
-  /// section's header, description, own banned words, and template. A banned
-  /// word list drops the allowed words that apply there, as `check` does; a
-  /// description, word list, or template left empty adds no block.
+  /// section's header, description, own banned words, and template, then the
+  /// `Guide sources:` block of [reference]. A banned word list drops the
+  /// allowed words that apply there, as `check` does; a description, word
+  /// list, template, or [reference] list left empty adds no block.
   String renderGuide() {
     final docAllowed = lint.allowedWords ?? const <String>[];
+    final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
       ?_trimmedOrNull(description),
       ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
@@ -413,6 +415,8 @@ final class MergedDocType {
         ),
         ?_templateBlock(section.template),
       ],
+      if (sources.isNotEmpty)
+        ['Guide sources:', ...sources.map(_sourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
   }
@@ -453,6 +457,16 @@ final class MergedDocType {
         .fold(0, (longest, run) => max(longest, run.end - run.start));
     final fence = '`' * max(_minFence, longestRun + 1);
     return 'Template:\n${fence}markdown\n$body\n$fence';
+  }
+
+  /// Returns the guide line of [entry]: `- <title>[, <locator>][: <target>]`,
+  /// where the target is its url, file, or doc.
+  static String _sourceLine(ReferenceEntry entry) {
+    final locator = entry.locator;
+    final target = entry.url ?? entry.file ?? entry.doc;
+    return '- ${entry.title}'
+        '${locator == null ? '' : ', $locator'}'
+        '${target == null ? '' : ': $target'}';
   }
 
   /// Returns [text] without trailing whitespace, or null when nothing is left.

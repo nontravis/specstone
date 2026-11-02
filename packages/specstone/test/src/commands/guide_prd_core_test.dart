@@ -197,9 +197,8 @@ void main() {
       expect(json['reference'], [
         {
           'title': 'NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2',
-          'url':
-              'https://www.nasa.gov/wp-content/uploads/2018/09/'
-              'nasa_systems_engineering_handbook_0.pdf',
+          'url': 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+          'locator': 'Appendix C and section 4.2',
         },
       ]);
     });
@@ -216,6 +215,27 @@ void main() {
         ),
       );
       expect(out.toString(), isEmpty);
+    });
+
+    test('f03/us06/fr03: guide fr ends with the NASA source', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr']), 0);
+      expect(
+        out.toString(),
+        endsWith(
+          '\n\nGuide sources:\n'
+          '- NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2, '
+          'Appendix C and section 4.2: '
+          'https://www.nasa.gov/reference/systems-engineering-handbook/\n',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('f03/us06/fr03/e01: guide journey prints no sources', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'journey']), 0);
+      expect(out.toString(), isNot(contains('Guide sources:')));
     });
 
     test(

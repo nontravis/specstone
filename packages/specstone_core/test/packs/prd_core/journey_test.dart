@@ -51,5 +51,6 @@ void main() {
       'as the persona says it>, no NASA list', () {
     expectGuideShape(journey, title: '# <the goal as the persona says it>');
     expectNoNasaLint(journey);
+    expectSources(journey, []);
   });
 }

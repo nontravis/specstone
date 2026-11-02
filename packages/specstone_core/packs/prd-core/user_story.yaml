@@ -108,3 +108,12 @@ lint:
       message: history prose; state the present truth only
       in: text
   max_lines: 400
+reference:
+  - title: Dan North, What's in a Story?
+    url: https://dannorth.net/blog/whats-in-a-story/
+  - title: Mike Cohn, User Stories guide
+    url: https://www.mountaingoatsoftware.com/agile/user-stories
+  - title: Cucumber, Gherkin Reference
+    url: https://cucumber.io/docs/gherkin/reference/
+  - title: Matt Wynne, Introducing Example Mapping
+    url: https://cucumber.io/blog/bdd/example-mapping-introduction/

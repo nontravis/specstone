@@ -60,6 +60,24 @@ void main() {
       'f03/us06/fr03/e04: titled # <Name>, no NASA list', () {
     expectGuideShape(feature, title: '# <Name>');
     expectNoNasaLint(feature);
+    expectSources(feature, [
+      (
+        'Bryar & Carr, PR/FAQ Instructions & Template',
+        'https://workingbackwards.com/resources/working-backwards-pr-faq/',
+      ),
+      (
+        'SAFe Fellow blog, Crafting Clarity: Feature Templates (2024)',
+        'https://framework.scaledagile.com/blog/crafting-clarity-using-feature-templates-to-shape-and-communicate-intent/',
+      ),
+      (
+        'Shape Up, Write the Pitch',
+        'https://basecamp.com/shapeup/1.5-chapter-06',
+      ),
+      (
+        'Marty Cagan, Assessing Product Opportunities',
+        'https://www.svpg.com/assessing-product-opportunities/',
+      ),
+    ]);
   });
 
   test('f03/us06/fr02: the templates hold the flow sketch and the line '
