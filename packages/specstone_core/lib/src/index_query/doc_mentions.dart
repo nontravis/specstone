@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -20,25 +21,21 @@ final _inlineDestination = RegExp(r'\]\(\s*(?:<[^>]*>|[^\s)]*)');
 /// A link reference definition, from its label to its destination's end.
 final _definition = RegExp(r'^ {0,3}\[[^\]]+\]:\s*(?:<[^>]*>|\S+)');
 
-/// Returns the lines of other docs that name [target]'s file in text, docs
-/// in tree order, each line once.
+/// Returns the lines of other docs whose text names [target] by a path, plain
+/// or in a code span, docs in tree order, each line once.
 ///
-/// A line names it with a path ending in the target's file name, such as the
-/// bare file name or the DocPath, plain or in a code span. The path's
-/// segments and the DocPath's agree, one a suffix of the other, and no other
-/// doc of that file name shares more of them: a bare file name names every
-/// doc carrying it, `prds/INDEX.md` never names `specs/INDEX.md`. Fenced code
-/// and link destinations are skipped, and so is a line linking to [target]:
-/// a link is a reference, listed apart.
+/// A path names the doc it reaches from its own doc, as a link would, else
+/// the one doc of its file name it aligns with deepest: a bare file name that
+/// several docs carry names none. Fenced code, link destinations, and a line
+/// linking to [target] are skipped; a link is a reference, listed apart.
 List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
-  final targetSegments = _segmentsOf(target.docPath);
-  final fileName = targetSegments.last;
-  final namesakes = [
+  final fileName = _segmentsOf(target.docPath).last;
+  final namesakes = {
     for (final doc in index.docs)
       if (_segmentsOf(doc.docPath) case final segments
           when segments.lastOrNull == fileName)
-        segments,
-  ];
+        doc.docPath: segments,
+  };
   final mentions = <Mention>[];
   for (final doc in index.holding(fileName)) {
     if (doc.docPath == target.docPath) continue;
@@ -54,7 +51,7 @@ List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
       final prose = text
           .replaceAll(_definition, ' ')
           .replaceAll(_inlineDestination, '] ');
-      if (_names(prose, targetSegments, namesakes)) {
+      if (_names(prose, doc.docPath, target.docPath, namesakes)) {
         mentions.add((path: doc.docPath, line: line));
       }
     }
@@ -62,10 +59,15 @@ List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
   return mentions;
 }
 
-/// Whether [line] writes a path that names the doc at [target] segments
-/// rather than one of its [namesakes].
-bool _names(String line, List<String> target, List<List<String>> namesakes) {
-  final fileName = target.last;
+/// Whether [line], in the doc at DocPath [from], writes a path that names the
+/// doc at DocPath [target] rather than another of its [namesakes].
+bool _names(
+  String line,
+  String from,
+  String target,
+  Map<String, List<String>> namesakes,
+) {
+  final fileName = target.substring(target.lastIndexOf('/') + 1);
   for (
     var at = line.indexOf(fileName);
     at >= 0;
@@ -77,14 +79,40 @@ bool _names(String line, List<String> target, List<List<String>> namesakes) {
     while (start > 0 && !_pathBreak.hasMatch(line[start - 1])) {
       start--;
     }
-    final written = _segmentsOf(line.substring(start, end));
-    final shared = _alignedLength(written, target);
-    if (shared == 0) continue;
-    if (namesakes.every((doc) => _alignedLength(written, doc) <= shared)) {
-      return true;
-    }
+    final written = line.substring(start, end);
+    if (_docNamedBy(written, from, namesakes) == target) return true;
   }
   return false;
+}
+
+/// Returns the DocPath of the one doc of [namesakes] that [written], in the
+/// doc at DocPath [from], names, or null when it names none alone.
+///
+/// The doc [written] reaches from [from], as a link would, wins; else the doc
+/// whose segments align with it deepest (see [_alignedLength]), and a tie at
+/// that depth names none.
+String? _docNamedBy(
+  String written,
+  String from,
+  Map<String, List<String>> namesakes,
+) {
+  if (resolveDocLink(written, from) case DocTarget(:final docPath)
+      when namesakes.containsKey(docPath)) {
+    return docPath;
+  }
+  final segments = _segmentsOf(written);
+  String? deepest;
+  var depth = 0;
+  for (final MapEntry(key: docPath, value: docSegments) in namesakes.entries) {
+    final shared = _alignedLength(segments, docSegments);
+    if (shared > depth) {
+      deepest = docPath;
+      depth = shared;
+    } else if (shared == depth) {
+      deepest = null;
+    }
+  }
+  return deepest;
 }
 
 /// Whether a file name starting at [at] in [line] is not the tail of a

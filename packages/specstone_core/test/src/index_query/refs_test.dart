@@ -228,7 +228,7 @@ void main() {
         {'path': 'specs/tools/summary.md', 'line': 4},
       ]);
     });
-    test('f01/us07/fr01: a path or a link to a doc of the same file name elsewhere is no mention; a bare shared file name is', () async {
+    test('f01/us07/fr01: a path or a link to a doc of the same file name elsewhere is no mention; nor is a bare shared file name', () async {
       final mentions = await indexWith({
         index: '# Spec map\n\nThe old index.\n',
         'docs/prds/INDEX.md': '# PRD map\n\nThe old PRD index.\n',
@@ -238,10 +238,67 @@ void main() {
             'Each tree kept an INDEX.md.\n'
             'MY_INDEX.md and INDEX.md.bak are other files.\n',
       });
-      final text = answerRefs(mentions, 'specs/INDEX.md').text;
-      expect(text, contains('Mentions\n- notes.md:4\n'));
-      expect(text, isNot(contains('notes.md:3')));
-      expect(text, isNot(contains('notes.md:5')));
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        endsWith('Mentions\n- none\n'),
+      );
+    });
+    test(
+      'f01/us07/fr01: a bare file name several docs carry names none of them',
+      () async {
+        final mentions = await indexWith({
+          'docs/superpowers/ledger.md':
+              '# Ledger\n\n'
+              'Each story keeps its USER_STORY.md under its `FEATURE.md`.\n',
+        });
+
+        for (final name in [
+          'prds/features/f01_login/us01_email_login/USER_STORY.md',
+          'prds/features/f01_login/us02_reset_password/USER_STORY.md',
+          featureDoc,
+        ]) {
+          expect(
+            answerRefs(mentions, name).text,
+            endsWith('Mentions\n- none\n'),
+            reason: name,
+          );
+        }
+      },
+    );
+    test('f01/us07/fr01: a path from the mentioning doc, the docs root, or the project root, or a tail one doc alone ends in, names that doc', () async {
+      final mentions = await indexWith({
+        'docs/superpowers/ledger.md':
+            '# Ledger\n\n'
+            'From here: ../prds/features/f01_login/us01_email_login/USER_STORY.md.\n'
+            'From the docs root: prds/features/f01_login/us01_email_login/USER_STORY.md.\n'
+            'From the project: `docs/prds/features/f01_login/us01_email_login/USER_STORY.md`.\n'
+            'A tail: us01_email_login/USER_STORY.md.\n'
+            'Another story: us02_reset_password/USER_STORY.md.\n',
+        'docs/prds/features/f01_login/us01_email_login/notes.md':
+            '# Notes\n\nRead USER_STORY.md first.\n',
+      });
+
+      expect(
+        answerRefs(
+          mentions,
+          'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        ).text,
+        endsWith(
+          'Mentions\n'
+          '- prds/features/f01_login/us01_email_login/notes.md:3\n'
+          '- superpowers/ledger.md:3\n'
+          '- superpowers/ledger.md:4\n'
+          '- superpowers/ledger.md:5\n'
+          '- superpowers/ledger.md:6\n',
+        ),
+      );
+      expect(
+        answerRefs(
+          mentions,
+          'prds/features/f01_login/us02_reset_password/USER_STORY.md',
+        ).text,
+        endsWith('Mentions\n- superpowers/ledger.md:7\n'),
+      );
     });
     test(
       'f01/us07/fr01: a longer path names the deepest doc it matches',
