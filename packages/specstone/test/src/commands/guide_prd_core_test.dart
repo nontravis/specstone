@@ -113,6 +113,33 @@ void main() {
       expect(at, orderedEquals(List.of(at)..sort()));
     });
 
+    test('f03/us01/fr02: guide fr lists the statement banned words after the '
+        'description that names them, and shows the verification '
+        'template', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr']), 0);
+      final guide = out.toString();
+      expect(
+        guide,
+        contains(
+          'and the other listed words.\n\n'
+          'Banned words: `flexible`, `easy`, `sufficient`,',
+        ),
+      );
+      expect(guide, contains('`etc.`, `and/or`, `but not limited to`\n\n'));
+      expect(
+        guide,
+        contains(
+          'Never write results here; evidence belongs to the verification '
+          'matrix.\n\n'
+          'Template:\n```markdown\n'
+          '- **Pass criteria:** <what shows the requirement holds>\n'
+          '- **Level:** <level>\n```\n',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('f03/us06/s3, f03/us06/fr01: guide fr --json gives the prds path, '
         'the parent, the fields, and the sections', () async {
       final runner = await runnerIn(await prdCoreProject());
