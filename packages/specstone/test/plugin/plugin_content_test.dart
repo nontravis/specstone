@@ -372,8 +372,16 @@ void _handOffTests() {
 }
 
 void _agentTests() {
-  test('f08/us02/fr02: sdd-engineer has no audit mode', () {
-    expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('audit')));
+  test('f08/us02/fr02: no shipped skill, reference, or agent file names an '
+      'audit mode, in any case', () {
+    final root = pluginRoot();
+    final naming = [
+      for (final file in root.listSync(recursive: true).whereType<File>())
+        if (file.path.endsWith('.md') &&
+            file.readAsStringSync().toLowerCase().contains('audit'))
+          file.path.substring(root.path.length),
+    ];
+    expect(naming, isEmpty);
   });
 
   test('sd-r1: both agent descriptions ask to be used proactively', () {

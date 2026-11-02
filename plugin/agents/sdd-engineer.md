@@ -1,6 +1,6 @@
 ---
 name: sdd-engineer
-description: (Author) Specstone PRD and spec writer. Use proactively in a Specstone project to write docs from an approved design, sync them after code changed, or bootstrap them after a migrate or pack upgrade; not for a one-section edit (`specstone:update-sdd`).
+description: (Author) Specstone doc writer. Use proactively in Specstone projects for PRD and spec docs; pass `mode` `author` (approved design), `sync` (paths or base commit) after code changes, `bootstrap` (procedure, batch) after migrate or pack upgrade; not for one-section edits (`specstone:update-sdd`).
 tools: Bash, Read, Skill
 skills:
   - specstone:expert-sdd
