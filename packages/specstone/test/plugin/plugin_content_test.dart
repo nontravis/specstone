@@ -136,16 +136,13 @@ void main() {
   );
 
   test('f08/us01/fr04/e04: CRLF line ends count as LF', () async {
-    const text = 'one\ntwo\nthree\nfour\n';
-    final lf = await writeTree({'skills/x/SKILL.md': text});
-    final crlf = await writeTree({
-      'skills/x/SKILL.md': text.replaceAll('\n', '\r\n'),
+    final root = await writeTree({
+      'skills/x/at_limit.md': 'a\r\n' * 3000,
+      'skills/x/over.md': 'a\r\n' * 3002,
     });
-    expect(estTokensOf(Directory('${crlf.path}/skills/x')), 4);
-    expect(
-      estTokensOf(Directory('${crlf.path}/skills/x')),
-      estTokensOf(Directory('${lf.path}/skills/x')),
-    );
+    expect(oversizedSkillFiles(root), [
+      'skills/x/over.md: 1501 est. tokens, over 1500',
+    ]);
   });
 
   test('f08/us01/fr04, f08/us01/s5: every shipped skill and agent names only '
@@ -369,6 +366,21 @@ void _handOffTests() {
       expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $skill');
     }
   });
+
+  test("f08/us02/fr02, f08/us02/fr05/e07: a hand-off skill passes the Owner's "
+      'language, and sdd-engineer takes it for the approval view', () {
+    for (final skill in _handOffs) {
+      expect(
+        _pluginText('skills/$skill/SKILL.md'),
+        contains("the Owner's language"),
+        reason: skill,
+      );
+    }
+    expect(
+      _pluginText('agents/sdd-engineer.md'),
+      contains("**Owner's language**"),
+    );
+  });
 }
 
 void _agentTests() {
@@ -396,5 +408,15 @@ void _agentTests() {
         reason: agent,
       );
     }
+  });
+
+  test('f08/us02/fr02, f08/us03/fr01, f08/us05/fr01: the sdd-engineer '
+      'description sends sync and bootstrap through their skills', () {
+    final description = RegExp(
+      r'^description:(.*)$',
+      multiLine: true,
+    ).firstMatch(_pluginText('agents/sdd-engineer.md'))?.group(1);
+    expect(description, contains('`specstone:sync-sdd`'));
+    expect(description, contains('`specstone:bootstrap-prd`'));
   });
 }
