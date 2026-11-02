@@ -104,8 +104,8 @@ Iterable<String> _matchesOf(PatternEntry entry, SearchLine line) sync* {
 
 /// One unfenced line the patterns search, split at its inline code spans once.
 ///
-/// A span runs from a backtick to the next one; a last unpaired backtick
-/// opens none.
+/// A span opens on a run of backticks and closes on the next run of the same
+/// length, as CommonMark counts it; a run that finds no closer is plain text.
 final class SearchLine {
   new(this.raw, this.line);
 
@@ -121,17 +121,17 @@ final class SearchLine {
 
   /// The text inside each code span, backticks dropped.
   late final List<String> code = [
-    for (final (start, end) in _spans) raw.substring(start + 1, end - 1),
+    for (final (:start, :end, :ticks) in _spans)
+      raw.substring(start + ticks, end - ticks),
   ];
 
-  /// The start and end offset of each code span, backticks included.
-  late final List<(int, int)> _spans = _codeSpansOf(raw);
+  late final List<_CodeSpan> _spans = _codeSpansOf(raw);
 
   String _blankSpans() {
     if (_spans.isEmpty) return raw;
     final blanked = StringBuffer();
     var from = 0;
-    for (final (start, end) in _spans) {
+    for (final (:start, :end, ticks: _) in _spans) {
       blanked
         ..write(raw.substring(from, start))
         ..write(' ' * (end - start));
@@ -141,17 +141,46 @@ final class SearchLine {
   }
 }
 
-/// Returns the start and end offset of each code span of [line].
-List<(int, int)> _codeSpansOf(String line) {
+/// One code span of a line: the offsets of its first and one past its last
+/// backtick, and the length of the backtick run that opens and closes it.
+typedef _CodeSpan = ({int start, int end, int ticks});
+
+/// Returns each code span of [line], in order.
+List<_CodeSpan> _codeSpansOf(String line) {
   // indexOf, not a RegExp: the regex engine tries every offset of a pattern
   // that opens with one character.
-  final spans = <(int, int)>[];
+  final spans = <_CodeSpan>[];
   var open = line.indexOf('`');
   while (open >= 0) {
-    final close = line.indexOf('`', open + 1);
-    if (close < 0) break;
-    spans.add((open, close + 1));
-    open = line.indexOf('`', close + 1);
+    final ticks = _runLengthAt(line, open);
+    final close = _closerOf(line, open + ticks, ticks);
+    if (close < 0) {
+      open = line.indexOf('`', open + ticks);
+      continue;
+    }
+    spans.add((start: open, end: close + ticks, ticks: ticks));
+    open = line.indexOf('`', close + ticks);
   }
   return spans;
+}
+
+/// Returns the offset of the first run of exactly [ticks] backticks in [line]
+/// at or after [from], or -1.
+int _closerOf(String line, int from, int ticks) {
+  var at = line.indexOf('`', from);
+  while (at >= 0) {
+    final run = _runLengthAt(line, at);
+    if (run == ticks) return at;
+    at = line.indexOf('`', at + run);
+  }
+  return -1;
+}
+
+/// Returns the length of the backtick run that starts at [at] in [line].
+int _runLengthAt(String line, int at) {
+  var end = at;
+  while (end < line.length && line.codeUnitAt(end) == 0x60) {
+    end++;
+  }
+  return end - at;
 }
