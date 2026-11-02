@@ -25,37 +25,6 @@ String? Function() answers(List<String?> list) {
 void main() {
   final skipGit = hasGit ? null : 'git is not available';
 
-  test('f02/us03/s7, f02/us03/fr01/e04, dw-s03/inv12, ms-r11: neither a terminal nor --yes is owner_terminal_required, exit 77, naming both ways', () {
-    final missing = OwnerConfirmation.of(yes: false, interactive: false);
-    expect(missing, OwnerConfirmation.missing);
-    expect(
-      () => missing.refuseIfMissing('approve runs only'),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.ownerTerminalRequired)
-            .having((f) => f.exitStatus, 'exitStatus', 77)
-            .having(
-              (f) => f.message,
-              'message',
-              "approve runs only at an interactive terminal, or with --yes after the Owner's ok in the chat",
-            ),
-      ),
-    );
-  });
-
-  test('ms-r11: a terminal prompts, --yes confirms with no prompt and wins over a terminal', () {
-    final terminal = OwnerConfirmation.of(yes: false, interactive: true);
-    expect(terminal, OwnerConfirmation.prompt);
-    expect(terminal.prompts, isTrue);
-    terminal.refuseIfMissing('m'); // returns
-    for (final interactive in [false, true]) {
-      final yes = OwnerConfirmation.of(yes: true, interactive: interactive);
-      expect(yes, OwnerConfirmation.given);
-      expect(yes.prompts, isFalse);
-      yes.refuseIfMissing('m'); // returns
-    }
-  });
-
   test('f02/us03/s1, f02/us03/fr01, f02/us03/fr03, f02/us03/fr03/e01, f02/us03/fr02/e03, dw-s03/inv5: y removes draft and writes approved, text unchanged', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
