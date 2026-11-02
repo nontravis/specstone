@@ -28,7 +28,7 @@ void main() {
       'Outbound\n- persona: buyer (persona)\n- link: password_rules (reference)\n'
       '- implements: app/lib/src/login/sign_in_page.dart:SignInPage\n'
       'Inbound\n- link: login/email_login/validate_credentials (fr)\n'
-      'Mentions\n- none\n',
+      'Mentions\n- none\nUntyped mentions\n- none\n',
     );
   });
   test("f01/us07/fr01/e01: a doc_ref targets its field's doc types only, and shows inbound on the target", () async {
@@ -44,7 +44,7 @@ void main() {
   test('f01/us07/s2, f01/us07/fr01/e03, f01/us07/fr01/e10: pointers are outbound only; an empty group prints - none', () async {
     expect(
       answerRefs(index, 'architecture:login').text,
-      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\nMentions\n- none\n',
+      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\nMentions\n- none\nUntyped mentions\n- none\n',
     );
   });
   test(
@@ -65,7 +65,7 @@ void main() {
     });
     expect(
       answerRefs(links, 'notes.md').text,
-      '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\nMentions\n- none\n',
+      '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\nMentions\n- none\nUntyped mentions\n- none\n',
     );
   });
   test(
@@ -212,7 +212,8 @@ void main() {
         '==> specs/INDEX.md · specs/INDEX.md <==\n'
         'Outbound\n- none\n'
         'Inbound\n- link: specs/tools/summary.md\n'
-        'Mentions\n- specs/tools/summary.md:3\n- specs/tools/summary.md:4\n',
+        'Mentions\n- none\n'
+        'Untyped mentions\n- specs/tools/summary.md:3\n- specs/tools/summary.md:4\n',
       );
     });
     test('f01/us07/fr01: --json lists each mention by path and line', () async {
@@ -223,7 +224,7 @@ void main() {
       final doc =
           (answerRefs(mentions, 'specs/INDEX.md').json['docs']! as List).single
               as Map;
-      expect(doc['mentions'], [
+      expect(doc['untypedMentions'], [
         {'path': 'specs/tools/summary.md', 'line': 3},
         {'path': 'specs/tools/summary.md', 'line': 4},
       ]);
@@ -240,7 +241,7 @@ void main() {
       });
       expect(
         answerRefs(mentions, 'specs/INDEX.md').text,
-        endsWith('Mentions\n- none\n'),
+        endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
       );
     });
     test(
@@ -259,7 +260,7 @@ void main() {
         ]) {
           expect(
             answerRefs(mentions, name).text,
-            endsWith('Mentions\n- none\n'),
+            endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
             reason: name,
           );
         }
@@ -284,7 +285,7 @@ void main() {
           'prds/features/f01_login/us01_email_login/USER_STORY.md',
         ).text,
         endsWith(
-          'Mentions\n'
+          'Untyped mentions\n'
           '- prds/features/f01_login/us01_email_login/notes.md:3\n'
           '- superpowers/ledger.md:3\n'
           '- superpowers/ledger.md:4\n'
@@ -297,8 +298,67 @@ void main() {
           mentions,
           'prds/features/f01_login/us02_reset_password/USER_STORY.md',
         ).text,
-        endsWith('Mentions\n- superpowers/ledger.md:7\n'),
+        endsWith('Untyped mentions\n- superpowers/ledger.md:7\n'),
       );
+    });
+    group('in untyped docs', () {
+      final typedAndUntyped = {
+        'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
+            '# Send a reset link\n\n'
+            '## Statement\nThe system shall mail a link, as `../us01_email_login/USER_STORY.md` signs in.\n',
+        'docs/superpowers/plans/plan.md': '# Plan\n\nEdit `docs/prds/features/f01_login/us01_email_login/USER_STORY.md`.\n',
+      };
+
+      test('f01/us07/fr01: lists_untyped_doc_mentions_apart_when_typed_and_untyped_docs_mention_the_doc', () async {
+        final mentions = await indexWith(typedAndUntyped);
+
+        final text = answerRefs(mentions, 'login/email_login').text;
+
+        expect(
+          text,
+          endsWith(
+            'Mentions\n'
+            '- prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md:4\n'
+            'Untyped mentions\n'
+            '- superpowers/plans/plan.md:3\n',
+          ),
+        );
+      });
+      test(
+        'f01/us07/fr01: json_holds_untyped_doc_mentions_under_untypedMentions',
+        () async {
+          final mentions = await indexWith(typedAndUntyped);
+
+          final doc =
+              (answerRefs(mentions, 'login/email_login').json['docs']! as List)
+                      .single
+                  as Map;
+
+          expect(doc['mentions'], [
+            {
+              'path': 'prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md',
+              'line': 4,
+            },
+          ]);
+          expect(doc['untypedMentions'], [
+            {'path': 'superpowers/plans/plan.md', 'line': 3},
+          ]);
+        },
+      );
+      test('f01/us07/fr01/e10: prints_untyped_mentions_none_when_only_typed_docs_mention_the_doc', () async {
+        final mentions = await indexWith({
+          'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
+              typedAndUntyped['docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md']!,
+        });
+
+        final answer = answerRefs(mentions, 'login/email_login');
+
+        expect(answer.text, endsWith('Untyped mentions\n- none\n'));
+        expect(
+          ((answer.json['docs']! as List).single as Map)['untypedMentions'],
+          isEmpty,
+        );
+      });
     });
     test(
       'f01/us07/fr01: a longer path names the deepest doc it matches',
@@ -313,11 +373,11 @@ void main() {
         });
         expect(
           answerRefs(mentions, 'INDEX.md').text,
-          endsWith('Mentions\n- notes.md:4\n'),
+          endsWith('Untyped mentions\n- notes.md:4\n'),
         );
         expect(
           answerRefs(mentions, 'specs/INDEX.md').text,
-          endsWith('Mentions\n- notes.md:3\n'),
+          endsWith('Untyped mentions\n- notes.md:3\n'),
         );
       },
     );

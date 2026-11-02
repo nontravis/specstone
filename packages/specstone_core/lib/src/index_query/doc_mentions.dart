@@ -4,9 +4,9 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
-/// A doc line that names another doc's file in text: the DocPath of the doc
-/// holding the line and its 1-based file line.
-typedef Mention = ({String path, int line});
+/// A doc line that names another doc's file in text: the doc holding the line
+/// and its 1-based file line.
+typedef Mention = ({IndexedDoc doc, int line});
 
 /// A character that ends a path written in prose.
 final _pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
@@ -52,7 +52,7 @@ List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
           .replaceAll(_definition, ' ')
           .replaceAll(_inlineDestination, '] ');
       if (_names(prose, doc.docPath, target.docPath, namesakes)) {
-        mentions.add((path: doc.docPath, line: line));
+        mentions.add((doc: doc, line: line));
       }
     }
   }

@@ -24,8 +24,8 @@ final class _Ref {
 
   /// Returns the line [mention] names, as `- <DocPath>:<line>`.
   factory toMention(Mention mention) => _Ref(
-    text: '- ${mention.path}:${mention.line}',
-    json: {'path': mention.path, 'line': mention.line},
+    text: '- ${mention.doc.docPath}:${mention.line}',
+    json: {'path': mention.doc.docPath, 'line': mention.line},
   );
 
   /// The line `- <kind>: <target>`, or `- <DocPath>:<line>` for a mention.
@@ -44,8 +44,9 @@ final class _Ref {
 /// `covers` pointers as written. Inbound holds the docs whose `doc_ref` value
 /// reaches the doc, then those linking to it, then the journeys with a step
 /// naming it, each group in tree order of the referring docs. Mentions holds
-/// each line of another doc that names the doc's file in text (see
-/// [mentionsOf]). Throws an [IndexFault] when no doc carries the name.
+/// each line of another typed doc that names the doc's file in text (see
+/// [mentionsOf]); Untyped mentions holds those of untyped docs, which no write
+/// takes as a target. Throws an [IndexFault] when no doc carries the name.
 ReadAnswer answerRefs(DocIndex index, String address) {
   final inboundByPath = _inboundByPath(index);
   final journeysByStory = _journeysByStory(index);
@@ -74,8 +75,14 @@ ReadAnswer answerRefs(DocIndex index, String address) {
     for (final from in journeysByStory[doc.docPath] ?? const <IndexedDoc>[])
       _Ref.toDoc('step', from),
   ];
+  final allMentions = mentionsOf(index, doc);
   final mentions = [
-    for (final mention in mentionsOf(index, doc)) _Ref.toMention(mention),
+    for (final mention in allMentions)
+      if (mention.doc.isTyped) _Ref.toMention(mention),
+  ];
+  final untypedMentions = [
+    for (final mention in allMentions)
+      if (!mention.doc.isTyped) _Ref.toMention(mention),
   ];
   final text = StringBuffer('${namingLine(doc)}\n')
     ..writeln('Outbound')
@@ -83,7 +90,9 @@ ReadAnswer answerRefs(DocIndex index, String address) {
     ..writeln('Inbound')
     ..write(_groupLines(inbound))
     ..writeln('Mentions')
-    ..write(_groupLines(mentions));
+    ..write(_groupLines(mentions))
+    ..writeln('Untyped mentions')
+    ..write(_groupLines(untypedMentions));
   return (
     text: text.toString(),
     json: {
@@ -93,6 +102,7 @@ ReadAnswer answerRefs(DocIndex index, String address) {
       'outbound': [for (final ref in outbound) ref.json],
       'inbound': [for (final ref in inbound) ref.json],
       'mentions': [for (final ref in mentions) ref.json],
+      'untypedMentions': [for (final ref in untypedMentions) ref.json],
     },
   );
 }
