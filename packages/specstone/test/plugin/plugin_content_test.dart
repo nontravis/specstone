@@ -102,6 +102,30 @@ void main() {
     ]);
   });
 
+  test('f08/us01/fr04, nfr-te01: oversized procedures list sorted, nested '
+      'files count, non-md and exactly-limit files pass', () async {
+    final root = await writeTree({
+      'procedures/b.md': 'a' * 6004,
+      'procedures/a.md': 'a' * 6004,
+      'procedures/sub/e.md': 'a' * 6004,
+      'procedures/c.txt': 'a' * 9000,
+      'procedures/d.md': 'a' * 6000,
+    });
+    expect(oversizedProcedures(root), [
+      'procedures/a.md: 1501 est. tokens, over 1500',
+      'procedures/b.md: 1501 est. tokens, over 1500',
+      'procedures/sub/e.md: 1501 est. tokens, over 1500',
+    ]);
+  });
+
+  test(
+    'f08/us01/fr04: no procedures folder means no oversized procedure',
+    () async {
+      final root = await writeTree({'skills/x/SKILL.md': 'text'});
+      expect(oversizedProcedures(root), isEmpty);
+    },
+  );
+
   test(
     'f08/us01/fr04: a procedure naming a command the CLI lacks fails',
     () async {

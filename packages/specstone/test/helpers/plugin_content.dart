@@ -69,13 +69,14 @@ List<String> oversizedSkills(Directory plugin, {int limit = 1500}) {
   return problems..sort();
 }
 
-/// Returns one problem per `procedures/*.md` file of [plugin] over [limit]
-/// estimated tokens, sorted; empty when the folder is absent.
+/// Returns one problem per `.md` file under `procedures/` of [plugin] over
+/// [limit] estimated tokens, each file sized alone, sorted; empty when the
+/// folder is absent.
 List<String> oversizedProcedures(Directory plugin, {int limit = 1500}) {
   final procedures = Directory.fromUri(plugin.uri.resolve('procedures/'));
   if (!procedures.existsSync()) return [];
   final problems = <String>[];
-  for (final file in procedures.listSync().whereType<File>()) {
+  for (final file in procedures.listSync(recursive: true).whereType<File>()) {
     if (!file.path.endsWith('.md')) continue;
     final tokens = _codePointsOf(file) ~/ 4;
     if (tokens > limit) {
