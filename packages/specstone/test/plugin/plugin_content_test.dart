@@ -99,7 +99,9 @@ void main() {
           '${'a' * 8000}\n`specstone check` `specstone hook post-edit`';
       expect(await _problemsOf({'agents/a.md': valid}), isEmpty);
       expect(
-        oversizedSkillFiles(await writeTree({'agents/a.md': valid})),
+        oversizedSkillFiles(
+          await writeTree({'skills/x/SKILL.md': 'small', 'agents/a.md': valid}),
+        ),
         isEmpty,
       );
       expect(await _problemsOf({'agents/a.md': '$valid `specstone nope`'}), [
