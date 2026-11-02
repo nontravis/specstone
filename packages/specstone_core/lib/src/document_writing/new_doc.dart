@@ -90,10 +90,9 @@ ReadAnswer answerNew(
       : _valuesOfParent(session, docType, parentDoc);
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
   if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
-  final fieldOrder = [for (final field in docType.fields) field.id];
   final given = text.isEmpty
       ? skeletonOf(docType, title)
-      : markDraft(toLf(text), fieldOrder: fieldOrder);
+      : markDraft(toLf(text), docType);
   final lineEnding = LineEnding.of(text);
 
   return session.locked(() {

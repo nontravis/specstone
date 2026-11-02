@@ -13,6 +13,7 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -133,20 +134,22 @@ void main() {
     },
   );
 
-  test(
-    'dw-s03/inv4: markDraft leaves a draft alone and marks any other doc',
-    () {
-      expect(
-        markDraft('---\ndraft: true\n---\n# T\n'),
-        '---\ndraft: true\n---\n# T\n',
-      );
-      expect(
-        markDraft('---\nstatus: planned\n---\n# T\n'),
-        '---\nstatus: planned\ndraft: true\n---\n# T\n',
-      );
-      expect(markDraft('# T\n'), '---\ndraft: true\n---\n# T\n');
-    },
-  );
+  test('dw-s03/inv4: markDraft leaves a draft alone and marks any other doc at the field-order slot', () {
+    final builtIns = const DocTypeMerger().builtInBase('t');
+    expect(
+      markDraft('---\ndraft: true\n---\n# T\n', builtIns),
+      '---\ndraft: true\n---\n# T\n',
+    );
+    expect(
+      markDraft('---\nstatus: planned\n---\n# T\n', builtIns),
+      '---\nstatus: planned\ndraft: true\n---\n# T\n',
+    );
+    expect(
+      markDraft('---\napproved: true\nsize: 1\n---\n# T\n', builtIns),
+      '---\ndraft: true\napproved: true\nsize: 1\n---\n# T\n',
+    );
+    expect(markDraft('# T\n', builtIns), '---\ndraft: true\n---\n# T\n');
+  });
 
   test('f02/us01/s1, f02/us01/fr01, f02/us01/fr01/e01, dw-s03/inv1, dw-s03/inv13: only the section body changes, and the new base prints', () async {
     final root = await writeWriteProject();
@@ -160,17 +163,12 @@ void main() {
     );
     expect(
       readDoc(root, story1),
-      before
-          .replaceFirst(
-            '## Acceptance Criteria\n\n',
-            '## Acceptance Criteria\n',
-          )
-          .replaceFirst(
-            'a registered email\n',
-            'a registered email and its password\n',
-          ),
+      before.replaceFirst(
+        'a registered email\n',
+        'a registered email and its password\n',
+      ),
     );
-    final written = baseHashOf(body.substring(1));
+    final written = baseHashOf(body);
     expect(
       answer.text,
       '==> login/email_login (user_story) · $story1 · base $written <==\n',
@@ -184,6 +182,61 @@ void main() {
     });
     expect(sectionBase(root, target), written);
   });
+
+  group(
+    'f02/us01/fr01/e01, doc-model/inv5: a get-then-set round trip of a section',
+    () {
+      const target = 'user_story:login/email_login#acceptance_criteria';
+
+      // The body `get --json` gives, its `## ` line cut off as `set` asks.
+      String bodyFromGet(Directory root) {
+        final text = getDoc(root, target)['text']! as String;
+        return text.substring(text.indexOf('\n') + 1);
+      }
+
+      test('of unchanged text leaves every byte as it was', () async {
+        final root = await writeWriteProject();
+        final before = readDoc(root, story1);
+
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            bodyFromGet(root),
+          ),
+        );
+
+        expect(readDoc(root, story1), before);
+      });
+
+      test(
+        'with one word changed keeps the blank line under the header',
+        () async {
+          final root = await writeWriteProject();
+          final before = readDoc(root, story1);
+
+          writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              req(target, sectionBase(root, target)),
+              bodyFromGet(root).replaceFirst('registered', 'verified'),
+            ),
+          );
+
+          expect(
+            readDoc(root, story1),
+            before.replaceFirst('a registered email', 'a verified email'),
+          );
+          expect(
+            readDoc(root, story1),
+            contains('## Acceptance Criteria\n\n### Scenario 1'),
+          );
+        },
+      );
+    },
+  );
 
   test('f02/us01/s2, f02/us01/fr05/e01, f02/us01/fr01/e03: two Agents write two sections of one doc at once and both land', () async {
     final root = await writeWriteProject();
@@ -276,14 +329,12 @@ void main() {
     );
   });
 
-  group('f02/us01/fr01: a section body lands flush under its header, as format writes it,', () {
+  group('f02/us01/fr01, doc-model/inv5: a section body keeps the leading blank lines stdin gives it,', () {
     const target = 'user_story:login/email_login#use_case';
-    const flush =
-        '## Use Case\nSign in with an email and a password.\n\n## Acceptance Criteria\n';
 
     for (final (count, lead) in [(0, ''), (1, '\n'), (2, '\n \n')]) {
       test(
-        'after $count leading blank lines, and a format run changes nothing',
+        'here $count, its trailing blank line dropped, and a format run changes nothing',
         () async {
           final root = await writeWriteProject();
           final project = openProject(root);
@@ -303,8 +354,11 @@ void main() {
             ),
           );
 
-          expect(readDoc(root, story1), contains(flush));
-          const written = 'Sign in with an email and a password.\n';
+          final written = '${lead}Sign in with an email and a password.\n';
+          expect(
+            readDoc(root, story1),
+            contains('## Use Case\n$written\n## Acceptance Criteria\n'),
+          );
           expect(answer.json['base'], baseHashOf(written));
           expect(sectionBase(root, target), baseHashOf(written));
           expect(
@@ -319,28 +373,25 @@ void main() {
       );
     }
 
-    test(
-      'dropping leading blank lines, the first line keeping its indent',
-      () async {
-        final root = await writeWriteProject();
+    test('its first text line keeping its indent', () async {
+      final root = await writeWriteProject();
 
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            '\n \n\t\n    sign_in(email)\n',
-          ),
-        );
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '\n \n\t\n    sign_in(email)\n',
+        ),
+      );
 
-        expect(
-          readDoc(root, story1),
-          contains(
-            '## Use Case\n    sign_in(email)\n\n## Acceptance Criteria\n',
-          ),
-        );
-      },
-    );
+      expect(
+        readDoc(root, story1),
+        contains(
+          '## Use Case\n\n \n\t\n    sign_in(email)\n\n## Acceptance Criteria\n',
+        ),
+      );
+    });
   });
 
   test('f02/us01/fr01/e05: a key no template defines and the doc lacks is section_not_found', () async {
@@ -440,7 +491,7 @@ void main() {
     expect(readDoc(root, story1), before);
   });
 
-  test('f02/us01/fr01/e08, dw-s03/inv4: a doc without draft gains draft: true after its last key block, a doc with no frontmatter gains one', () async {
+  test('f02/us01/fr01/e08, dw-s03/inv4: a doc without draft gains draft: true at its field-order slot, a doc with no frontmatter gains one', () async {
     final root = await writeWriteProject();
     const useCase = 'user_story:login/sign_out#use_case';
     writeIn(
@@ -453,7 +504,7 @@ void main() {
     );
     expect(
       readDoc(root, story2),
-      startsWith('---\nstatus: planned\napproved: true\ndraft: true\n---\n'),
+      startsWith('---\nstatus: planned\ndraft: true\napproved: true\n---\n'),
     );
     expect(readDoc(root, story2), contains('## Use Case\nSign out now.\n'));
 
@@ -818,7 +869,7 @@ void main() {
     );
     expect(
       readDoc(root, loginFeature),
-      '---\nvision:\n  - PV-01\ndraft: true\n---\n\n# Sign in\n\n## Problem\nUsers sign in with an email and a password.\n',
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\nUsers sign in with an email and a password.\n',
     );
     expect(
       answer.text,
@@ -1030,6 +1081,26 @@ void main() {
       ),
     );
   });
+  test('f02/us01/fr03/e09, dw-s03/inv4: a field set adds to a doc with no keys lands below the draft flag, as new orders them', () async {
+    const nf = 'prds/features/f01_login/us01_email_login/nf01_fast_sign_in.md';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$nf': '---\n---\n\n# Fast sign in\n\n## Statement\nThe system shall sign in within 2 s.\n',
+      },
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq('nf:login/email_login/fast_sign_in', 'kind', emptyBaseHash),
+        'relax\n',
+      ),
+    );
+    expect(
+      readDoc(root, nf),
+      startsWith('---\ndraft: true\nkind: relax\n---\n'),
+    );
+  });
   test('f02/us01/fr03/e10: an undeclared id is field_unknown', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login';
@@ -1094,7 +1165,7 @@ void main() {
     );
     expect(
       readDoc(root, loginFeature),
-      startsWith('---\nvision:\n  - PV-01\ndraft: true\n---\n'),
+      startsWith('---\ndraft: true\nvision:\n  - PV-01\n---\n'),
     );
     expect(answer.json['base'], emptyBaseHash);
     expect(answer.json['draft'], isTrue);
