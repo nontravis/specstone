@@ -33,9 +33,9 @@ code into drafts.
 
 ## On-Demand Skills
 
-| Cue              | Skill                       |
-|------------------|-----------------------------|
-| `mode` is `sync` | `Skill(specstone:sync-sdd)` |
+| Cue              | Load                                              |
+|------------------|---------------------------------------------------|
+| `mode` is `sync` | `Read` `${CLAUDE_PLUGIN_ROOT}/procedures/sync.md` |
 
 A failed call: report it and stop; never search the filesystem for it.
 
@@ -53,8 +53,8 @@ A failed call: report it and stop; never search the filesystem for it.
      baseline. Never look for `.specstone/` yourself: that misses a root above.
    - **Other**: report the CLI's error and stop.
 2. **Audit**: report the gate's findings; write nothing; stop.
-3. **Sync**: run the On-Demand skill from its step 2, any given paths as its step 2.1 list in place of `git diff`;
-   step 1's call was its gate. Then step 6.
+3. **Sync**: follow the On-Demand procedure from its step 2, given paths as its step 2.1 list, a given base commit
+   as its `<base>`. Then step 6.
 4. **Author, read**: `Read` the design whole; list each decision by ID or label.
 5. **Author, write**: place each decision in a doc, noting doc and section.
    - **Guide**: run `specstone guide <type>` before a type's first doc, per `specstone:expert-sdd`.
