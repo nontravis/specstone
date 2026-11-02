@@ -54,6 +54,24 @@ void main() {
       'f03/us06/fr03/e04: titled # <archetype title>, no NASA list', () {
     expectGuideShape(persona, title: '# <archetype title>');
     expectNoNasaLint(persona);
+    expectSources(persona, [
+      (
+        'Kim Goodwin, Perfecting Your Personas (Cooper Journal, 2001; Wayback)',
+        'https://web.archive.org/web/20101229102055/http://www.cooper.com/journal/2001/08/perfecting_your_personas.html',
+      ),
+      (
+        'NN/g, 3 Persona Types (2020)',
+        'https://www.nngroup.com/articles/persona-types/',
+      ),
+      (
+        'NN/g, Personas Make Users Memorable (2025)',
+        'https://www.nngroup.com/articles/persona/',
+      ),
+      (
+        '18F Methods, Personas card (archived repo)',
+        'https://github.com/18F/methods/blob/main/_methods/personas.md',
+      ),
+    ]);
   });
 
   test('f03/us06/fr01: share is written only for a statistical persona', () {

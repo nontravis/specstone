@@ -29,6 +29,7 @@ void main() {
       'f03/us06/fr03/e04: titled # <Name>, no NASA list', () {
     expectGuideShape(reference, title: '# <Name>');
     expectNoNasaLint(reference);
+    expectSources(reference, []);
   });
 
   test('f03/us06/fr01: superseded means a newer edition replaced it', () {

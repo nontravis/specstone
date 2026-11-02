@@ -145,3 +145,12 @@ lint:
       message: history prose; state the present truth only
       in: text
   max_lines: 400
+reference:
+  - title: Bryar & Carr, PR/FAQ Instructions & Template
+    url: https://workingbackwards.com/resources/working-backwards-pr-faq/
+  - title: "SAFe Fellow blog, Crafting Clarity: Feature Templates (2024)"
+    url: https://framework.scaledagile.com/blog/crafting-clarity-using-feature-templates-to-shape-and-communicate-intent/
+  - title: Shape Up, Write the Pitch
+    url: https://basecamp.com/shapeup/1.5-chapter-06
+  - title: Marty Cagan, Assessing Product Opportunities
+    url: https://www.svpg.com/assessing-product-opportunities/

@@ -107,3 +107,8 @@ lint:
       message: history prose; state the present truth only
       in: text
   max_lines: 400
+reference:
+  - title: "NN/g, Antipersonas: What, How, Who, and Why? (2022)"
+    url: https://www.nngroup.com/articles/antipersonas-what-how/
+  - title: HubSpot, Buyer persona research
+    url: https://blog.hubspot.com/marketing/buyer-persona-research
