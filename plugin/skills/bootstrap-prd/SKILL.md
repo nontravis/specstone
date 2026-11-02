@@ -5,9 +5,9 @@ description: Use when the PRD docs of a Specstone project lag behind its format 
 
 # Bring the PRD docs up to the new format
 
-This skill takes the `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`, and
+This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`, and
 `code_uncovered` go to `specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write: each leaves a draft,
-a pointer write (`implements`) excepted.
+a pointer write (`implements`, `covers`) excepted.
 
 ## 1. Gate: the first call
 
@@ -28,9 +28,10 @@ goes to `specstone:bootstrap-spec`, clears with no write, or waits on the Owner,
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
 the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
-of `#<key>`); a section body leaves out its `## ` line. Exit 75 `base_mismatch`: read again, merge, retry.
+of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key: never edit the file.
+Exit 75 `base_mismatch`: read again, merge, retry.
 
-Where the old text lacks what the guide needs, write a proposal from the project's own text (a vision entry's Why
+Where the old text lacks what the guide needs, propose it from the project's own text (a vision entry's Why
 line backs its `> en:` summary), named in step 6. Ask the Owner only when no text bears on it.
 
 | Finding | Fix |
@@ -44,15 +45,12 @@ line backs its `> en:` summary), named in step 6. Ask the Owner only when no tex
 | `untyped_doc` | step 4 |
 | any other under `prds/` | rewrite what it names per `specstone guide <type>`; one no write clears goes to step 6 |
 
-To drop a section or key, pipe empty text to `specstone set` on its `#<key>` or `--field <id>` with its base. Never
-edit the file.
-
 ## 3. Move a feature's code pointers
 
 Give each `implements:` entry of a `FEATURE.md` to the story or FR whose behavior that code does, unless it holds it
 already; drop an entry no one doc takes, such as a whole folder, as a proposal named in step 6. Pipe that doc's whole
-new list, as YAML `- item` lines, to `specstone set <type>:<name> --field implements`. A pointer write
-keeps the draft flag, so name it in step 6. Then drop the feature's `implements` key.
+new list, as YAML `- item` lines, to `specstone set <type>:<name> --field implements`. Then drop the feature's
+`implements` key.
 
 ## 4. Merge an old file, or split a full one
 
@@ -70,10 +68,12 @@ mention in a section kept unchanged.
 
 ## 5. Retire the old files
 
-1. Run `specstone refs <path>` per file of the set; its `Inbound` and `Mentions` lines are the referrers.
-2. Referrers inside the set never block. An old untyped referrer joins the set, as no write repoints it; merge it
-   first (`specstone:bootstrap-spec` takes one under `specs/`). Repoint each other link or mention to the doc now
-   holding the content, or drop a mention nothing replaces, through `specstone set` on that section.
+1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
+   referrer.
+2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
+   repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). Leave any other untyped file,
+   such as a plan or a ledger, as history. Repoint each other link or mention to the doc holding the content, or
+   drop a mention nothing replaces, through `specstone set` on that section.
 3. Delete the set in one command once the Owner confirms it per `specstone:expert-sdd`, quoting each path with a
    space:
 
