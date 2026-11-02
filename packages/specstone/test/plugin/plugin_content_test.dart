@@ -242,7 +242,8 @@ const _shipped = <_Shipped>[
     file: 'agents/sdd-engineer.md',
     name: 'sdd-engineer',
     tags:
-        'f08/us02/fr02, f08/us03/fr02, f08/us01/fr03, f08/us02/s1, f08/us03/s2',
+        'f08/us02/fr02, f08/us03/fr02, f08/us05/fr01, f08/us01/fr03, '
+        'f08/us02/s1, f08/us03/s2',
     commands: ['guide', 'new', 'set', 'check'],
   ),
   (
@@ -269,7 +270,7 @@ const _shipped = <_Shipped>[
     tags:
         'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
         'f08/us05/s1',
-    commands: ['check', 'guide', 'new', 'set', 'delete'],
+    commands: ['check'],
   ),
   (
     file: 'skills/bootstrap-spec/SKILL.md',
@@ -277,7 +278,7 @@ const _shipped = <_Shipped>[
     tags:
         'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
         'f08/us05/s1',
-    commands: ['check', 'guide', 'new', 'set', 'delete'],
+    commands: ['check'],
   ),
 ];
 
@@ -313,6 +314,16 @@ const _procedures = <_Procedure>[
     tags: 'f08/us03/fr01, f08/us03/fr02, f08/us03/fr03',
     commands: ['context', 'set', 'check'],
   ),
+  (
+    file: 'skills/bootstrap-prd/references/procedure.md',
+    tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
+    commands: ['check', 'guide', 'new', 'set', 'delete'],
+  ),
+  (
+    file: 'skills/bootstrap-spec/references/procedure.md',
+    tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
+    commands: ['check', 'guide', 'new', 'set', 'delete'],
+  ),
 ];
 
 void _procedureTests() {
@@ -331,14 +342,21 @@ void _procedureTests() {
 
 /// Each skill that hands its work to `specstone:sdd-engineer`; both read the
 /// skill's `references/procedure.md`.
-const _handOffs = ['sync-sdd'];
+const _handOffs = ['sync-sdd', 'bootstrap-prd', 'bootstrap-spec'];
 
 String _pluginText(String file) =>
     File.fromUri(pluginRoot().uri.resolve(file)).readAsStringSync();
 
+final _frontmatter = RegExp(r'^---\r?\n(?:.*\r?\n)*?---\r?\n');
+
+/// [text] without its frontmatter: a `description` may name a command, such
+/// as `specstone migrate`, that the skill never calls.
+String _bodyOf(String text) => text.replaceFirst(_frontmatter, '');
+
 void _handOffTests() {
-  test('f08/us03/fr01: a hand-off skill opens on check, dispatches '
-      'specstone:sdd-engineer, and names the procedure the agent reads', () {
+  test('f08/us03/fr01, f08/us05/fr01: a hand-off skill opens on check, '
+      'dispatches specstone:sdd-engineer, and names the procedure the agent '
+      'reads', () {
     final agent = _pluginText('agents/sdd-engineer.md');
     for (final skill in _handOffs) {
       final path =
@@ -346,7 +364,7 @@ void _handOffTests() {
       final text = _pluginText('skills/$skill/SKILL.md');
       expect(text, contains('`specstone:sdd-engineer`'), reason: skill);
       expect(text, contains(path), reason: skill);
-      expect(cliCommands(text).first, 'check', reason: skill);
+      expect(cliCommands(_bodyOf(text)).first, 'check', reason: skill);
       expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $skill');
     }
   });
