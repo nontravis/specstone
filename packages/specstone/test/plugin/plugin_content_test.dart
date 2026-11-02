@@ -236,7 +236,7 @@ const _shipped = <_Shipped>[
     tags:
         'f08/us03/fr01, f08/us03/fr02, f08/us03/fr03, f08/us01/fr03, '
         'f08/us03/s1',
-    commands: ['check'],
+    commands: ['check', 'get', 'set'],
   ),
   (
     file: 'agents/sdd-engineer.md',
@@ -309,7 +309,7 @@ typedef _Procedure = ({String file, String tags, List<String> commands});
 
 const _procedures = <_Procedure>[
   (
-    file: 'procedures/sync.md',
+    file: 'skills/sync-sdd/references/procedure.md',
     tags: 'f08/us03/fr01, f08/us03/fr02, f08/us03/fr03',
     commands: ['context', 'set', 'check'],
   ),
@@ -329,9 +329,9 @@ void _procedureTests() {
   }
 }
 
-/// Each skill that hands its work to `specstone:sdd-engineer`, with the name
-/// of the procedure file both of them read.
-const _handOffs = [('skills/sync-sdd/SKILL.md', 'sync')];
+/// Each skill that hands its work to `specstone:sdd-engineer`; both read the
+/// skill's `references/procedure.md`.
+const _handOffs = ['sync-sdd'];
 
 String _pluginText(String file) =>
     File.fromUri(pluginRoot().uri.resolve(file)).readAsStringSync();
@@ -340,9 +340,10 @@ void _handOffTests() {
   test('f08/us03/fr01: a hand-off skill opens on check, dispatches '
       'specstone:sdd-engineer, and names the procedure the agent reads', () {
     final agent = _pluginText('agents/sdd-engineer.md');
-    for (final (skill, procedure) in _handOffs) {
-      final path = '\${CLAUDE_PLUGIN_ROOT}/procedures/$procedure.md';
-      final text = _pluginText(skill);
+    for (final skill in _handOffs) {
+      final path =
+          '\${CLAUDE_PLUGIN_ROOT}/skills/$skill/references/procedure.md';
+      final text = _pluginText('skills/$skill/SKILL.md');
       expect(text, contains('`specstone:sdd-engineer`'), reason: skill);
       expect(text, contains(path), reason: skill);
       expect(cliCommands(text).first, 'check', reason: skill);

@@ -26,13 +26,17 @@ costs a call the gate already makes.
 
 With the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync` and the changed paths the task lists, or
 the base commit when it lists none. Send no doc text, and work no step of the procedure yourself. Without the tool,
-or when the dispatch fails, read `${CLAUDE_PLUGIN_ROOT}/procedures/sync.md` and follow it.
+or when the dispatch fails, read `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` and follow it.
 
 ## 3. After the report
 
+When you followed the procedure yourself, its report stands in for item 1.
+
 1. Relay `sdd-engineer`'s report to the Owner whole.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
-3. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
+3. Ask the Owner each open question; send the answers to the same agent while it is live, else dispatch a new one
+   with them.
+4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
    list to `specstone set <type>:<name> --field implements --base <hash>` (or `--field covers`), the hash from
    `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <type>:<name> --json`.
-4. Run `specstone:brainstorming-sdd` for each behavior the report hands over.
+5. Run `specstone:brainstorming-sdd` for each behavior the report hands over.

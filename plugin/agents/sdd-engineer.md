@@ -26,16 +26,17 @@ code into drafts.
 
 - **`mode`** (required, no default): `author`, `audit`, or `sync`.
 - **Design document** (author, required): the Owner-approved document's path.
-- **Changed paths** (sync, optional): absent, step 2 of `${CLAUDE_PLUGIN_ROOT}/procedures/sync.md` finds them.
+- **Changed paths** (sync, optional): absent, step 2 of
+  `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` finds them.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per gap; stop.
 - **Plan or design mode**: none. Name `specstone:brainstorming-sdd` for designs and `superpowers:writing-plans`,
   outside this plugin, for plans; stop.
 
-## On-Demand Skills
+## On-Demand Loads
 
-| Cue              | Load                                              |
-|------------------|---------------------------------------------------|
-| `mode` is `sync` | `Read` `${CLAUDE_PLUGIN_ROOT}/procedures/sync.md` |
+| Cue              | Load                                                                   |
+|------------------|------------------------------------------------------------------------|
+| `mode` is `sync` | `Read` `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` |
 
 A failed call: report it and stop; never search the filesystem for it.
 
