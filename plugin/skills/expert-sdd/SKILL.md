@@ -51,9 +51,9 @@ own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
    - `approve`: each draft's file path and its hash, `bases.doc` of `specstone get <type>:<name> --json`, then each
-     changed section or field, its old text marked `📜 เดิม:`, a blank line, then its new text marked `🆕 ใหม่:`, never shortened
-     with `...`. Mark text you wrote `[AI เขียน]` and a removal you propose `[AI เสนอ]`; keep these markers verbatim,
-     as the Owner reads Thai.
+     changed section or field: its full old text, a blank line, then its full new text, each labelled old or new in
+     the Owner's language and never shortened with `...`. Mark text you wrote and a removal you propose, so the
+     Owner can tell them from text you only moved.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.

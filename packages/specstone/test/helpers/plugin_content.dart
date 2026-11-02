@@ -6,6 +6,7 @@ import 'package_root.dart';
 
 final _inlineSpan = RegExp(r'`([^`\n]+)`');
 final _specstoneCall = RegExp(r'\bspecstone\s+(\S+)');
+final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
 
 /// Returns the shipped plugin folder, two levels above the specstone package.
 Directory pluginRoot() =>
@@ -60,6 +61,24 @@ List<String> oversizedSkills(Directory plugin, {int limit = 1500}) {
       problems.add(
         '${_relativePath(plugin, folder)}: $tokens est. tokens, over $limit',
       );
+    }
+  }
+  return problems..sort();
+}
+
+/// Returns `<file>:<line>` for each line of a file under [plugin] that holds
+/// a letter outside the Latin script, sorted.
+///
+/// The plugin is written in English; the agent speaks the Owner's language, so
+/// a label in another script presumes one Owner's language.
+List<String> nonLatinLetterLines(Directory plugin) {
+  final problems = <String>[];
+  for (final file in plugin.listSync(recursive: true).whereType<File>()) {
+    final lines = file.readAsLinesSync();
+    for (var index = 0; index < lines.length; index++) {
+      if (_nonLatinLetter.hasMatch(lines[index])) {
+        problems.add('${_relativePath(plugin, file)}:${index + 1}');
+      }
     }
   }
   return problems..sort();

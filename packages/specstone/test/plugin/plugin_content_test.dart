@@ -117,6 +117,27 @@ void main() {
     expect(oversizedSkills(pluginRoot()), isEmpty);
   });
 
+  test(
+    'f08/us02/fr05/e07: a line with a letter outside the Latin script '
+    'fails naming its file and line; accents, emoji, and symbols pass',
+    () async {
+      final root = await writeTree({
+        'skills/x/SKILL.md': 'Old text, café.\nMark it `เดิม:`.\n📜 ⊆ … —\n',
+        'hooks/h.sh': '# 日本\n',
+      });
+
+      expect(nonLatinLetterLines(root), [
+        'hooks/h.sh:1',
+        'skills/x/SKILL.md:2',
+      ]);
+    },
+  );
+
+  test("f08/us02/fr05/e07: no shipped plugin file presumes the Owner's "
+      'language with a letter outside the Latin script', () {
+    expect(nonLatinLetterLines(pluginRoot()), isEmpty);
+  });
+
   test('f08/us06/fr01, f09/us05/fr01/e05, ms-r12: hooks.json keeps only the '
       'PostToolUse Write|Edit hook beside the SessionStart entry', () {
     final decoded = jsonDecode(
