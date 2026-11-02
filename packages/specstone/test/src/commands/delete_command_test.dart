@@ -305,6 +305,58 @@ void main() {
     expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
     expect(File('${root.path}/docs/$errors').existsSync(), isTrue);
   });
+  const plan = 'superpowers/plans/plan.md';
+  final withPlan = {
+    ...untyped,
+    'docs/$plan':
+        '# Plan\n\nSee [the notes](../../specs/f01_login/api_notes.md).\n',
+  };
+  const dangles = '$plan links into $notes; the link will dangle';
+  test('f02/us04/fr04/e08: --dry-run on a doc a plan links into exits 0 and warns on stderr that the link will dangle', () async {
+    final root = await writeWriteProject(extra: withPlan);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    final status = await runner.run(['delete', notes, '--dry-run']);
+
+    expect(status, 0);
+    expect(err.toString(), '⚠️ WARNING: $dangles\n');
+    expect(out.toString(), startsWith('$notes\nplan '));
+    expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+  });
+  test(
+    'f02/us04/fr04/e08: under --json the link that will dangle is in warnings',
+    () async {
+      final root = await writeWriteProject(extra: withPlan);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      final status = await runner.run(['delete', notes, '--dry-run', '--json']);
+
+      expect(status, 0);
+      expect(err.toString(), isEmpty);
+      final json = jsonDecode(out.toString()) as Map;
+      expect(json['files'], [notes]);
+      expect(json['warnings'], [dangles]);
+    },
+  );
+  test('f02/us04/fr04/e08: at a terminal, y deletes the doc a plan links into and warns that the link will dangle', () async {
+    final root = await writeWriteProject(extra: withPlan);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+
+    final status = await runner.run(['delete', notes]);
+
+    expect(status, 0);
+    expect(err.toString(), '⚠️ WARNING: $dangles\n');
+    expect(out.toString(), endsWith('delete 1 files? [y/N] $notes\n'));
+    expect(File('${root.path}/docs/$notes').existsSync(), isFalse);
+    expect(File('${root.path}/docs/$plan').existsSync(), isTrue);
+  });
   test('f02/us04/fr04: delete --help shows several targets', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['delete', '--help']), 0);

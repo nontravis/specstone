@@ -846,6 +846,111 @@ void main() {
       expect(hasDoc(root, errors), isTrue);
     });
 
+    const plan = 'superpowers/plans/2026-11-01-retire.md';
+    const planText =
+        '# Retire\n\nSee [notes](../../specs/f01_login/api_notes.md), '
+        '[errors](../../specs/f01_login/api_errors.md), and '
+        '[scratch](../../specs/f01_login/scratch.md).\n';
+    final withPlan = {...untyped, 'docs/$plan': planText};
+
+    test('f02/us04/fr04/e08: a link from an untyped file outside the checked folders does not block; the delete warns it will dangle', () async {
+      final root = await writeWriteProject(extra: withPlan);
+
+      final answer = del(root, [scratch]);
+
+      expect(answer.json, {
+        'removed': [scratch],
+      });
+      expect(answer.warnings, [
+        '$plan links into $scratch; the link will dangle',
+      ]);
+      expect(hasDoc(root, scratch), isFalse);
+      expect(readDoc(root, plan), planText);
+    });
+
+    test('f02/us04/fr04/e08, ms-r11: a dry run warns of the link that will dangle, as the run does', () async {
+      final root = await writeWriteProject(extra: withPlan);
+
+      final answer = writeIn(root, (s) => answerDeleteDryRun(s, [scratch]));
+
+      expect(answer.json['files'], [scratch]);
+      expect(answer.warnings, [
+        '$plan links into $scratch; the link will dangle',
+      ]);
+      expect(hasDoc(root, scratch), isTrue);
+    });
+
+    test('f02/us04/fr04/e08, f02/us04/fr04/e02: after the Owner answers y, the delete warns of the link that will dangle', () async {
+      final root = await writeWriteProject(extra: withPlan);
+
+      final answer = del(
+        root,
+        [notes],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+
+      expect(answer.json, {
+        'removed': [notes],
+      });
+      expect(answer.warnings, [
+        '$plan links into $notes; the link will dangle',
+      ]);
+    });
+
+    test('f02/us04/fr04/e04, f02/us04/fr04/e08: an old untyped file under specs/ that links in is doc_referenced; the plan beside it is not listed', () async {
+      final root = await writeWriteProject(extra: withPlan);
+
+      expect(
+        () => del(root, [errors]),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
+              .having((f) => f.relatedFiles, 'relatedFiles', [notes]),
+        ),
+      );
+      expect(hasDoc(root, errors), isTrue);
+    });
+
+    test('f02/us04/fr04/e04, f02/us04/fr04/e08: a typed doc outside the checked folders that links in is doc_referenced', () async {
+      const memo = 'retire_memo.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...untyped,
+          '.specstone/templates/memo.yaml':
+              'id: memo\ndescription: A memo\npath: "{slug}_memo.md"\n',
+          'docs/$memo':
+              '# Retire\n\nSee [scratch](specs/f01_login/scratch.md).\n',
+        },
+      );
+
+      expect(
+        () => del(root, [scratch]),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
+              .having((f) => f.relatedFiles, 'relatedFiles', [memo]),
+        ),
+      );
+      expect(hasDoc(root, scratch), isTrue);
+    });
+
+    test('f02/us04/fr04/e08: a link from one file of the set to another neither blocks nor warns', () async {
+      final root = await writeWriteProject(extra: withPlan);
+
+      final answer = del(
+        root,
+        [scratch, plan],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+
+      expect(answer.json, {
+        'removed': [scratch, plan]..sort(),
+      });
+      expect(answer.warnings, isEmpty);
+    });
+
     test('f02/us04/fr04/e05: a target inside the unit of another counts each file once', () async {
       final root = await writeWriteProject(extra: withoutLink);
       final answer = del(root, [

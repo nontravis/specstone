@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
@@ -26,9 +27,11 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// untyped doc's one file; it holds every file under them, whatever the
 /// extension, each once. Every target resolves before any file is read, in
 /// the order given, and the first refusal refuses the call. A doc outside the
-/// unit that refers to a doc inside it refuses the delete, and no file moves.
-/// An approved `.md` file in the unit (an untyped one included) leaves the
-/// delete to the Owner, as [confirmation] says. At a terminal [prompts] lists
+/// unit that refers to a doc inside it refuses the delete, and no file moves,
+/// except an untyped doc outside the checked folders, such as a plan: its link
+/// is left to dangle, and the answer warns of each such link. An approved
+/// `.md` file in the unit (an untyped one included) leaves the delete to the
+/// Owner, as [confirmation] says. At a terminal [prompts] lists
 /// the files and asks, one answer from [readLine] outside the lock; anything
 /// but `y`, or the end of input, keeps them all. After a `y` the index is read
 /// afresh, the targets resolve again, and the referrers are checked again;
@@ -52,7 +55,7 @@ ReadAnswer answerDelete(
   String? planHash,
 }) {
   var unit = _resolveTargets(session, targets);
-  _refuseIfReferenced(session, unit);
+  var dangling = _checkReferrers(session, unit);
   while (true) {
     final shown = _readUnit(session, unit.roots);
     if (confirmation == OwnerConfirmation.given &&
@@ -76,7 +79,7 @@ ReadAnswer answerDelete(
       if (readLine() != 'y') return _answerFor(const []);
       session.refresh();
       unit = _resolveTargets(session, targets);
-      _refuseIfReferenced(session, unit);
+      dangling = _checkReferrers(session, unit);
     }
     final roots = unit.roots;
     final removed = session.locked(() {
@@ -86,7 +89,7 @@ ReadAnswer answerDelete(
           .run(JournalTarget.of(session.project));
       return current.keys.toList();
     });
-    if (removed != null) return _answerFor(removed);
+    if (removed != null) return _answerFor(removed, warnings: dangling);
   }
 }
 
@@ -95,16 +98,18 @@ ReadAnswer answerDelete(
 /// The list is the one the terminal prompt shows before its `y`, and nothing
 /// is removed. The text ends with the `plan <hash>` line and
 /// `dry run: nothing removed`; the JSON holds `files` and `plan`.
-/// Throws as [answerDelete] does before its prompt.
+/// Warns of each link left to dangle, and throws, as [answerDelete] does
+/// before its prompt.
 ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
   final unit = _resolveTargets(session, targets);
-  _refuseIfReferenced(session, unit);
+  final dangling = _checkReferrers(session, unit);
   final unitFiles = _readUnit(session, unit.roots);
   final files = unitFiles.keys.toList();
   final hash = _planHashOf(session, unitFiles);
   return ReadAnswer(
     text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
     json: {'files': files, 'plan': hash},
+    warnings: dangling,
   );
 }
 
@@ -206,18 +211,45 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
   ];
 }
 
-/// Throws [WriteFault] `doc_referenced` when a doc outside the unit refers
-/// to a doc inside it.
-void _refuseIfReferenced(WriteSession session, _DeleteSet unit) {
+/// Returns a warning per link a history file holds into the unit, in tree
+/// order of the linked docs.
+///
+/// A history file, such as a plan, is an untyped doc outside the checked
+/// folders: no write repoints it and no check reads it, so its link dangles.
+/// Throws [WriteFault] `doc_referenced` when any other doc outside the unit
+/// refers to a doc inside it.
+List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
   final inUnit = {for (final root in unit.roots) ..._filesUnder(session, root)};
-  final outside = <String>{};
+  final checkedFolders = checkedFoldersOf(session.index.set);
+  final blocking = <String>{};
+  final dangling = <String>[];
   for (final doc in session.index.docs) {
     if (!inUnit.contains(doc.docPath)) continue;
     for (final from in referrersOf(session.index, doc)) {
-      if (!inUnit.contains(from.docPath)) outside.add(from.docPath);
+      if (inUnit.contains(from.docPath)) continue;
+      if (_isHistory(from, checkedFolders)) {
+        dangling.add(
+          '${from.docPath} links into ${doc.docPath}; the link will dangle',
+        );
+      } else {
+        blocking.add(from.docPath);
+      }
     }
   }
-  if (outside.isEmpty) return;
+  if (blocking.isNotEmpty) _refuseReferred(session, unit, blocking);
+  return dangling;
+}
+
+/// Whether [doc] is untyped and lies outside every folder in [checkedFolders].
+bool _isHistory(IndexedDoc doc, Set<String> checkedFolders) =>
+    !doc.isTyped && !checkedFolders.contains(doc.docPath.split('/').first);
+
+/// Throws [WriteFault] `doc_referenced`, naming the docs in [outside].
+Never _refuseReferred(
+  WriteSession session,
+  _DeleteSet unit,
+  Set<String> outside,
+) {
   throw WriteFault(
     WriteFaultCode.docReferenced,
     'docs outside ${unit.subject} link into it',
@@ -371,7 +403,11 @@ List<JournalStep> _stepsFor(
   ];
 }
 
-ReadAnswer _answerFor(List<String> removed) => ReadAnswer(
+ReadAnswer _answerFor(
+  List<String> removed, {
+  List<String> warnings = const [],
+}) => ReadAnswer(
   text: [for (final docPath in removed) '$docPath\n'].join(),
   json: {'removed': removed},
+  warnings: warnings,
 );
