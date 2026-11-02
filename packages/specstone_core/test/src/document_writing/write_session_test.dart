@@ -57,7 +57,7 @@ void main() {
         _faultCode(IndexFaultCode.argumentInvalid).having(
           (f) => f.message,
           'message',
-          'name the doc as <doc type>:<name>, such as user_story:login/email_login',
+          'name the doc as <doc type>:<name> or by its path, such as user_story:login/email_login',
         ),
       ),
     );

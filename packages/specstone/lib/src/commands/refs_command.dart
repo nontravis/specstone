@@ -18,7 +18,7 @@ class RefsCommand extends SpecstoneCommand {
   String get description => 'Print the references of a doc.';
 
   @override
-  String get invocation => 'specstone refs <name> [--json]';
+  String get invocation => 'specstone refs <name | path> [--json]';
 
   @override
   Future<int> run() async {

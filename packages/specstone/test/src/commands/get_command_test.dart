@@ -17,6 +17,19 @@ void main() {
       ),
     );
   });
+  test('f01/us04/fr01/e09: two names are a usage error whose usage line takes a name or a path, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['get', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected one name, got 2.\n\n'
+        'Usage: specstone get <name | path>[#<section key>] '
+        '[--paths | --code] [--json]\n',
+      ),
+    );
+  });
   test('f01/us04/fr02/e06: no name is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['get']), 64);

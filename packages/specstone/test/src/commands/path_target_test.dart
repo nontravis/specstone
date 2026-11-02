@@ -205,7 +205,10 @@ void main() {
           '9042269552ff',
         ], console: FakeConsole(input: 'x\n'));
         expect(run.status, 64);
-        expect(run.err, contains('name the doc as <doc type>:<name>'));
+        expect(
+          run.err,
+          contains('name the doc as <doc type>:<name> or by its path'),
+        );
       },
     );
   });

@@ -59,4 +59,16 @@ void main() {
       {'kind': 'step', 'name': 'login/email_login', 'docType': 'user_story'},
     ]);
   });
+  test('f01/us04/fr01/e09: two names are a usage error whose usage line takes a name or a path, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['refs', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected one name, got 2.\n\n'
+        'Usage: specstone refs <name | path> [--json]\n',
+      ),
+    );
+  });
 }

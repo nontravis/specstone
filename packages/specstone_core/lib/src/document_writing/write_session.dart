@@ -127,7 +127,7 @@ final class WriteSession {
       projectPath.substring(_docsPrefix.length);
 
   static const _namePrompt =
-      'name the doc as <doc type>:<name>, '
+      'name the doc as <doc type>:<name> or by its path, '
       'such as user_story:login/email_login';
 
   /// Returns the one typed doc [address] names.

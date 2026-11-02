@@ -91,7 +91,8 @@ void main() {
         err.toString(),
         contains(
           'Expected one target, got 2.\n\n'
-          'Usage: specstone reorder <type>:<name> --to <n> [--json]\n',
+          'Usage: specstone reorder (<type>:<name> | <path>) --to <n> '
+          '[--json]\n',
         ),
       );
     },

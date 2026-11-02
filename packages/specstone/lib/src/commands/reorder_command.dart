@@ -16,7 +16,8 @@ class ReorderCommand extends WriteCommand {
   String get description => 'Move a doc to a place among its siblings.';
 
   @override
-  String get invocation => 'specstone reorder <type>:<name> --to <n> [--json]';
+  String get invocation =>
+      'specstone reorder (<type>:<name> | <path>) --to <n> [--json]';
 
   @override
   Future<int> run() async {
