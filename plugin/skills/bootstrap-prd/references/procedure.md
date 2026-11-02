@@ -62,16 +62,16 @@ mention in a section kept unchanged.
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
    Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
    holding the content, or drop a mention nothing replaces, through `specstone set` on that section.
-3. On a batch, delete nothing: hand the set as one `specstone delete` line to `specstone:bootstrap-prd`'s step 3.4,
-   which joins the round's lines. With no batch, delete the set in one command once the Owner confirms it per
-   `specstone:expert-sdd`, quoting each path with a space:
+3. Name the set in one `specstone delete` line, quoting each path with a space:
 
 ```
 specstone delete <path> <path> …
 ```
 
-Without the Owner's word the CLI refuses (exit 77). Never run `git rm`: it deletes while links still point in. On
-`doc_referenced` (exit 64), repoint the referrers it lists, then ask again.
+On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4, which joins the round's lines.
+With no batch, run it once the Owner confirms it per `specstone:expert-sdd`. Without the Owner's word the CLI refuses
+(exit 77). Never run `git rm`: it deletes while links still point in. On `doc_referenced` (exit 64), repoint the
+referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 

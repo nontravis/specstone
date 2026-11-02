@@ -65,16 +65,15 @@ the doc held its content.
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
    Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
    holding the content, or drop a mention nothing replaces.
-3. On a batch, delete nothing: hand the set as one `specstone delete` line to `specstone:bootstrap-spec`'s step 3.4,
-   which joins the round's lines. With no batch, delete the set through `specstone:expert-sdd`'s Owner confirmation,
-   one command naming every path, quoting each path with a space:
+3. Name the set in one `specstone delete` line, every path in it, quoting each path with a space:
 
 ```
 specstone delete <path> <path> …
 ```
 
-Exit 77: a file without `draft: true` is approved and needs the Owner's word. Exit 64 `doc_referenced`:
-repoint the referrers it lists, then ask again.
+On a batch, delete nothing: hand that line to `specstone:bootstrap-spec`'s step 3.4, which joins the round's lines.
+With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Exit 77: a file without `draft: true` is
+approved and needs the Owner's word. Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 

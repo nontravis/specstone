@@ -48,8 +48,9 @@ in for item 4.
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
-   one command naming each path once, with each path `specstone:bootstrap-prd` left waiting on a file this round
-   merged, and get the Owner's word on it per `specstone:expert-sdd`. On exit 64, dispatch again each batch whose file
-   a listed referrer names, with those referrers.
+   one command naming each path once, each still quoted, with each path `specstone:bootstrap-prd` left waiting on a
+   file this round merged, and get the Owner's word on it per `specstone:expert-sdd`. On exit 64, dispatch again each
+   batch whose file a listed referrer names, with those referrers.
 5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless the last reports
-   name it as one that clears with no write or waits on the Owner. With none left, stop.
+   name it as one that clears with no write or waits on the Owner, or it waits on `specstone:bootstrap-prd`, such as
+   a finding on a file that a `prds/` untyped doc it left still names. With none left, stop.
