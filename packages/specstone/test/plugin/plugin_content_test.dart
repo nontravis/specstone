@@ -72,13 +72,24 @@ void main() {
     );
   });
 
-  test('f08/us01/fr04/e02, nfr-te01: a reference file that brings a folder to '
-      '1,620 est. tokens fails naming it', () async {
+  test('f08/us01/fr04/e02, nfr-te01: a reference file of 1,620 est. tokens '
+      'fails alone naming it', () async {
     final root = await writeTree({
       'skills/x/SKILL.md': 'a' * 4000,
-      'skills/x/reference.md': 'b' * 2480,
+      'skills/x/reference.md': 'b' * 6480,
     });
-    expect(oversizedSkills(root), ['skills/x: 1620 est. tokens, over 1500']);
+    expect(oversizedSkillFiles(root), [
+      'skills/x/reference.md: 1620 est. tokens, over 1500',
+    ]);
+  });
+
+  test('f08/us01/fr04, nfr-te01: files of one skill that sum past 1,500 est. '
+      'tokens pass when each stays within it', () async {
+    final root = await writeTree({
+      'skills/x/SKILL.md': 'a' * 4000,
+      'skills/x/reference.md': 'b' * 4000,
+    });
+    expect(oversizedSkillFiles(root), isEmpty);
   });
 
   test(
@@ -87,52 +98,38 @@ void main() {
       final valid =
           '${'a' * 8000}\n`specstone check` `specstone hook post-edit`';
       expect(await _problemsOf({'agents/a.md': valid}), isEmpty);
-      expect(oversizedSkills(await writeTree({'agents/a.md': valid})), isEmpty);
+      expect(
+        oversizedSkillFiles(await writeTree({'agents/a.md': valid})),
+        isEmpty,
+      );
       expect(await _problemsOf({'agents/a.md': '$valid `specstone nope`'}), [
         'agents/a.md: specstone has no command nope',
       ]);
     },
   );
 
-  test('f08/us01/fr04, nfr-te01: a procedure file over 1,500 est. tokens '
-      'fails naming it', () async {
-    final root = await writeTree({'procedures/x.md': 'a' * 6004});
-    expect(oversizedProcedures(root), [
-      'procedures/x.md: 1501 est. tokens, over 1500',
-    ]);
-  });
-
-  test('f08/us01/fr04, nfr-te01: oversized procedures list sorted, nested '
-      'files count, non-md and exactly-limit files pass', () async {
+  test('f08/us01/fr04, nfr-te01: oversized skill files list sorted, nested '
+      'and non-md files are sized, exactly-limit files pass', () async {
     final root = await writeTree({
-      'procedures/b.md': 'a' * 6004,
-      'procedures/a.md': 'a' * 6004,
-      'procedures/sub/e.md': 'a' * 6004,
-      'procedures/c.txt': 'a' * 9000,
-      'procedures/d.md': 'a' * 6000,
+      'skills/y/b.md': 'a' * 6004,
+      'skills/y/a.md': 'a' * 6004,
+      'skills/y/sub/e.md': 'a' * 6004,
+      'skills/y/c.txt': 'a' * 6004,
+      'skills/y/d.md': 'a' * 6000,
     });
-    expect(oversizedProcedures(root), [
-      'procedures/a.md: 1501 est. tokens, over 1500',
-      'procedures/b.md: 1501 est. tokens, over 1500',
-      'procedures/sub/e.md: 1501 est. tokens, over 1500',
+    expect(oversizedSkillFiles(root), [
+      'skills/y/a.md: 1501 est. tokens, over 1500',
+      'skills/y/b.md: 1501 est. tokens, over 1500',
+      'skills/y/c.txt: 1501 est. tokens, over 1500',
+      'skills/y/sub/e.md: 1501 est. tokens, over 1500',
     ]);
   });
 
   test(
-    'f08/us01/fr04: no procedures folder means no oversized procedure',
+    'f08/us01/fr04: no skills folder means no oversized skill file',
     () async {
-      final root = await writeTree({'skills/x/SKILL.md': 'text'});
-      expect(oversizedProcedures(root), isEmpty);
-    },
-  );
-
-  test(
-    'f08/us01/fr04: a procedure naming a command the CLI lacks fails',
-    () async {
-      expect(
-        await _problemsOf({'procedures/x.md': 'Run `specstone lint docs`.'}),
-        ['procedures/x.md: specstone has no command lint'],
-      );
+      final root = await writeTree({'agents/a.md': 'text'});
+      expect(oversizedSkillFiles(root), isEmpty);
     },
   );
 
@@ -154,14 +151,9 @@ void main() {
     expect(unknownCliNames(pluginRoot(), SpecstoneCommandRunner()), isEmpty);
   });
 
-  test('f08/us01/fr04, nfr-te01: every shipped skill folder stays within '
+  test('f08/us01/fr04, nfr-te01: every shipped skill file stays within '
       '1,500 est. tokens', () {
-    expect(oversizedSkills(pluginRoot()), isEmpty);
-  });
-
-  test('f08/us01/fr04, nfr-te01: every shipped procedure file stays within '
-      '1,500 est. tokens', () {
-    expect(oversizedProcedures(pluginRoot()), isEmpty);
+    expect(oversizedSkillFiles(pluginRoot()), isEmpty);
   });
 
   test(

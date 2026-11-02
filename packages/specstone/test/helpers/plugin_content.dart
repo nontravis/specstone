@@ -12,8 +12,8 @@ final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
 Directory pluginRoot() =>
     Directory.fromUri(packageRoot().uri.resolve('../../plugin/'));
 
-/// Returns the problems in every CLI call that `.md` files under `skills/`,
-/// `agents/`, and `procedures/` of [plugin] name, sorted.
+/// Returns the problems in every CLI call that `.md` files under `skills/` and
+/// `agents/` of [plugin] name, sorted.
 ///
 /// Scans inline code spans and fenced code lines. A `specstone <word>` must
 /// name a command of [runner], then one of its subcommands when it has any;
@@ -52,32 +52,14 @@ int estTokensOf(Directory folder) {
 int _codePointsOf(File file) =>
     file.readAsStringSync().replaceAll('\r\n', '\n').runes.length;
 
-/// Returns one problem per skill folder of [plugin] over [limit] estimated
-/// tokens, sorted. Agent files are never sized.
-List<String> oversizedSkills(Directory plugin, {int limit = 1500}) {
+/// Returns one problem per file under `skills/` of [plugin] over [limit]
+/// estimated tokens, each file sized alone, sorted; empty when the folder is
+/// absent. Agent files are never sized.
+List<String> oversizedSkillFiles(Directory plugin, {int limit = 1500}) {
   final skills = Directory.fromUri(plugin.uri.resolve('skills/'));
   if (!skills.existsSync()) return [];
   final problems = <String>[];
-  for (final folder in skills.listSync().whereType<Directory>()) {
-    final tokens = estTokensOf(folder);
-    if (tokens > limit) {
-      problems.add(
-        '${_relativePath(plugin, folder)}: $tokens est. tokens, over $limit',
-      );
-    }
-  }
-  return problems..sort();
-}
-
-/// Returns one problem per `.md` file under `procedures/` of [plugin] over
-/// [limit] estimated tokens, each file sized alone, sorted; empty when the
-/// folder is absent.
-List<String> oversizedProcedures(Directory plugin, {int limit = 1500}) {
-  final procedures = Directory.fromUri(plugin.uri.resolve('procedures/'));
-  if (!procedures.existsSync()) return [];
-  final problems = <String>[];
-  for (final file in procedures.listSync(recursive: true).whereType<File>()) {
-    if (!file.path.endsWith('.md')) continue;
+  for (final file in skills.listSync(recursive: true).whereType<File>()) {
     final tokens = _codePointsOf(file) ~/ 4;
     if (tokens > limit) {
       problems.add(
@@ -107,7 +89,7 @@ List<String> nonLatinLetterLines(Directory plugin) {
 }
 
 Iterable<File> _markdownFiles(Directory plugin) sync* {
-  for (final top in const ['skills', 'agents', 'procedures']) {
+  for (final top in const ['skills', 'agents']) {
     final folder = Directory.fromUri(plugin.uri.resolve('$top/'));
     if (!folder.existsSync()) continue;
     yield* folder
