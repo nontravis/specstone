@@ -50,6 +50,12 @@ void main() {
       '==> prds/d01_context.md · prds/d01_context.md · base 49851a1d1229 <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
     );
   });
+  test('f01/us04/fr01/e09, f01/us04/fr02/e01: a path takes a section key as the name does', () async {
+    expect(
+      answerGet(index, 'docs/specs/f01_login/ARCHITECTURE.md#components').text,
+      answerGet(index, 'architecture:login#components').text,
+    );
+  });
   test('f01/us04/s5: a name no doc carries is doc_not_found', () async {
     expect(() => answerGet(index, 'logn'), throwsA(isA<IndexFault>()));
   });

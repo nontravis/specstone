@@ -326,6 +326,12 @@ void main() {
     expect([hasDoc(root, fr31), hasDoc(root, story3)], [true, true]);
   });
 
+  test('f01/us04/fr01/e09, f02/us04/fr01/e02: an FR named by its DocPath goes alone', () async {
+    final root = await writeWriteProject();
+    expect(del(root, [fr32]).json['removed'], [fr32]);
+    expect([hasDoc(root, fr31), hasDoc(root, story3)], [true, true]);
+  });
+
   test(
     'f02/us04/s2, f02/us04/fr01/e03: a feature goes with its spec folder',
     () async {
@@ -747,6 +753,15 @@ void main() {
         expect(hasDoc(root, loginArch), isTrue);
       },
     );
+
+    test('f01/us04/fr01/e10, f02/us04/fr04/e01: docs/ and an untyped DocPath deletes that one file only', () async {
+      final root = await writeWriteProject(extra: untyped);
+      expect(del(root, ['docs/$scratch']).json, {
+        'removed': [scratch],
+      });
+      expect(hasDoc(root, scratch), isFalse);
+      expect(hasDoc(root, loginArch), isTrue);
+    });
 
     test("f02/us04/fr04/e02: an Agent's delete of an untyped doc with no draft is owner_terminal_required", () async {
       final root = await writeWriteProject(extra: untyped);

@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -11,11 +12,14 @@ const _planned = 'planned';
 const _implemented = 'implemented';
 const _deprecated = 'deprecated';
 
+/// The docs root as a path from the project root begins.
+const _docsPrefix = 'docs/';
+
 /// The docs of one read snapshot, with their names, parent tree, and links.
 ///
 /// Every list it returns is in tree order.
 final class DocIndex {
-  new(this.set, this.docs, this._store)
+  new(this.set, this.docs, this._store, this._docPathOfFile)
     : _byPath = {for (final doc in docs) doc.docPath: doc},
       _children = _childrenByParent(docs),
       _byName = _groupBy(docs, (doc) => doc.name),
@@ -29,6 +33,9 @@ final class DocIndex {
   final List<IndexedDoc> docs;
 
   final IndexStore _store;
+
+  /// Returns the DocPath of the file a working-directory path names, or null.
+  final String? Function(String path) _docPathOfFile;
   final Map<String, IndexedDoc> _byPath;
   final Map<String, List<IndexedDoc>> _children;
   final Map<String, List<IndexedDoc>> _byName;
@@ -63,14 +70,28 @@ final class DocIndex {
     return chain;
   }
 
-  /// Returns every doc [name] addresses.
+  /// Returns every doc [address] names, read as a name first, then as a path.
   ///
-  /// [name] is a bare name, `<doc type>:<name>`, or an untyped doc's DocPath;
-  /// a DocPath that holds a colon resolves when the text before the colon is
-  /// no doc type id.
-  /// Throws a [TemplateFault] for a doc type id the set lacks, and an
-  /// [IndexFault] when no doc carries the name.
-  List<IndexedDoc> resolve(String name) {
+  /// - A name: bare, `<doc type>:<name>`, or an untyped doc's DocPath.
+  /// - A path, tried in order: a DocPath, `docs/` and a DocPath, a file path
+  ///   from the working directory inside the docs root. `<doc type>:<path>`
+  ///   keeps the doc only when it has that doc type.
+  ///
+  /// Throws, when no path names a doc either, a [TemplateFault] for a doc type
+  /// id the set lacks and an [IndexFault] when no doc carries the name.
+  List<IndexedDoc> resolve(String address) {
+    try {
+      return _named(address);
+    } on SpecstoneFault {
+      if (_atPath(address) case final doc?) return [doc];
+      rethrow;
+    }
+  }
+
+  /// Whether some doc carries [name] as its name.
+  bool carriesName(String name) => _byName.containsKey(name);
+
+  List<IndexedDoc> _named(String name) {
     final colon = name.indexOf(':');
     if (colon < 0) {
       return _byName[name] ?? _notFound('no doc carries the name $name');
@@ -78,9 +99,6 @@ final class DocIndex {
     final typeId = name.substring(0, colon);
     final bare = name.substring(colon + 1);
     if (set.lookup(typeId) == null) {
-      // A DocPath may hold a colon, and an untyped doc's name is its DocPath.
-      final untyped = _byName[name]?.where((doc) => doc.docTypeId == null);
-      if (untyped != null && untyped.isNotEmpty) return untyped.toList();
       throw TemplateFault(
         FaultCode.docTypeUnknown,
         'Could not find a doc type named "$typeId".',
@@ -88,6 +106,28 @@ final class DocIndex {
     }
     return _byTypeAndName['$typeId:$bare'] ??
         _notFound('no $typeId doc carries the name $bare');
+  }
+
+  /// Returns the doc [address] names as a path, or null when none.
+  IndexedDoc? _atPath(String address) {
+    final colon = address.indexOf(':');
+    if (colon > 0) {
+      final typeId = address.substring(0, colon);
+      final typed = _docAtPath(address.substring(colon + 1));
+      if (typed != null && typed.docTypeId == typeId) return typed;
+    }
+    return _docAtPath(address);
+  }
+
+  IndexedDoc? _docAtPath(String path) {
+    if (_byPath[path] case final doc?) return doc;
+    if (path.startsWith(_docsPrefix)) {
+      if (_byPath[path.substring(_docsPrefix.length)] case final doc?) {
+        return doc;
+      }
+    }
+    final docPath = _docPathOfFile(path);
+    return docPath == null ? null : _byPath[docPath];
   }
 
   /// Returns the subtrees of every doc [name] addresses, each doc once.

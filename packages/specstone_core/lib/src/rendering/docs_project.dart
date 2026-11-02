@@ -120,6 +120,16 @@ final class DocsProject {
     return _targetAt(docsRoot.path, asGiven: 'docs/');
   }
 
+  /// Returns the DocPath of the file [path] names from [workingDirectory], or
+  /// null when it names no existing file inside the docs root.
+  ///
+  /// Symbolic links and `..` resolve first, as [resolveTarget] resolves them.
+  String? docPathAt(String path, {required Directory workingDirectory}) {
+    final absolute = _absolute(path, workingDirectory);
+    if (!FileSystemEntity.isFileSync(absolute)) return null;
+    return _docPathOf(File(absolute).resolveSymbolicLinksSync());
+  }
+
   /// Returns [entity] relative to the project root with `/` separators, or
   /// its absolute path when it lies outside the project root.
   ///

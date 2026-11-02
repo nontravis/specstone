@@ -144,8 +144,8 @@ class _DeleteSet(
 
 /// Resolves every target of [targets], in the order given.
 ///
-/// A target is untyped when the Index holds a doc with no doc type at that
-/// DocPath; every other target goes through [WriteSession.target].
+/// A target is untyped when it names one doc, with no doc type, by its DocPath
+/// or another path; every other target goes through [WriteSession.target].
 _DeleteSet _resolveTargets(WriteSession session, List<String> targets) {
   return _DeleteSet([
     for (final address in targets)
@@ -172,7 +172,7 @@ _DeleteSet _resolveTargets(WriteSession session, List<String> targets) {
   );
 }
 
-/// Returns the doc with no doc type whose DocPath is [address], else null.
+/// Returns the one doc with no doc type that [address] names, else null.
 IndexedDoc? _untypedDocAt(WriteSession session, String address) {
   final List<IndexedDoc> found;
   try {
@@ -181,10 +181,10 @@ IndexedDoc? _untypedDocAt(WriteSession session, String address) {
     // A name no untyped doc carries; WriteSession.target gives the refusal.
     return null;
   }
-  for (final doc in found) {
-    if (doc.docTypeId == null && doc.docPath == address) return doc;
-  }
-  return null;
+  return switch (found) {
+    [final doc] when doc.docTypeId == null => doc,
+    _ => null,
+  };
 }
 
 /// Returns the paths of the unit of [target]: its own segment, a folder

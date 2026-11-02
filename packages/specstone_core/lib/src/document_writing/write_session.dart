@@ -131,8 +131,9 @@ final class WriteSession {
 
   /// Returns the one typed doc [address] names.
   ///
-  /// [address] is `<doc type>:<name>`; a bare name is ambiguous across doc
-  /// types and refuses.
+  /// [address] is `<doc type>:<name>` or a path to the doc, as
+  /// [DocIndex.resolve] reads it; a bare name is ambiguous across doc types
+  /// and refuses.
   /// Throws [IndexFault] `argument_invalid` for a bare name, found or
   /// not, or a name two docs carry, `untyped_target` for a doc with no doc
   /// type, and `doc_not_found` when a typed name matches
@@ -159,7 +160,10 @@ final class WriteSession {
         'migrate it to one before a write',
       );
     }
-    if (bare) throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
+    // A path names one doc; only a name may span doc types.
+    if (bare && index.carriesName(address)) {
+      throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
+    }
     if (typed.length > 1) {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
