@@ -46,17 +46,13 @@ class MigrateCommand extends SpecstoneCommand {
     }
     final dryRun = args.flag('dry-run');
     final yes = args.flag('yes');
-    if (dryRun && yes) usageException('--yes cannot go with --dry-run.');
     final planHash = args.option('plan');
-    if (yes && planHash == null) {
-      usageException(
-        '--yes needs --plan <hash>, the plan line specstone migrate --dry-run '
-        'prints.',
-      );
-    }
-    if (!yes && planHash != null) {
-      usageException('--plan goes only with --yes.');
-    }
+    checkPlanFlags(
+      yes: yes,
+      planHash: planHash,
+      planCommand: 'specstone migrate',
+      dryRun: dryRun,
+    );
     final runner = specstoneRunner;
     final console = runner.console;
     try {

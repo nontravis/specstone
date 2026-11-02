@@ -56,16 +56,12 @@ class DeleteCommand extends WriteCommand {
     final dryRun = args.flag('dry-run');
     final yes = args.flag('yes');
     final planHash = args.option('plan');
-    if (dryRun && yes) usageException('--yes cannot go with --dry-run.');
-    if (yes && planHash == null) {
-      usageException(
-        '--yes needs --plan <hash>, the plan line specstone delete --dry-run '
-        'prints.',
-      );
-    }
-    if (!yes && planHash != null) {
-      usageException('--plan goes only with --yes.');
-    }
+    checkPlanFlags(
+      yes: yes,
+      planHash: planHash,
+      planCommand: 'specstone delete',
+      dryRun: dryRun,
+    );
     if (dryRun) {
       return runWrite(
         (session) => answerDeleteDryRun(session, rest),

@@ -41,15 +41,11 @@ class InitCommand extends SpecstoneCommand {
     }
     final yes = args.flag('yes');
     final planHash = args.option('plan');
-    if (yes && planHash == null) {
-      usageException(
-        '--yes needs --plan <hash>, the plan line specstone migrate --dry-run '
-        'prints.',
-      );
-    }
-    if (!yes && planHash != null) {
-      usageException('--plan goes only with --yes.');
-    }
+    checkPlanFlags(
+      yes: yes,
+      planHash: planHash,
+      planCommand: 'specstone migrate',
+    );
     final runner = specstoneRunner;
     final console = runner.console;
     try {

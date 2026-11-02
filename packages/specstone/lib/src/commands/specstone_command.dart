@@ -46,6 +46,28 @@ abstract class SpecstoneCommand extends Command<int> {
     return fault.exitStatus;
   }
 
+  /// Refuses, as a usage error, `--yes` with `--dry-run` or without `--plan`,
+  /// and `--plan` without `--yes`.
+  ///
+  /// - [planCommand]: the command whose `--dry-run` prints the plan line.
+  void checkPlanFlags({
+    required bool yes,
+    required String? planHash,
+    required String planCommand,
+    bool dryRun = false,
+  }) {
+    if (dryRun && yes) usageException('--yes cannot go with --dry-run.');
+    if (yes && planHash == null) {
+      usageException(
+        '--yes needs --plan <hash>, the plan line $planCommand --dry-run '
+        'prints.',
+      );
+    }
+    if (!yes && planHash != null) {
+      usageException('--plan goes only with --yes.');
+    }
+  }
+
   /// Writes each of [warnings] to `err` as `⚠️ WARNING: <warning>`.
   void warn(Iterable<String> warnings) {
     for (final warning in warnings) {
