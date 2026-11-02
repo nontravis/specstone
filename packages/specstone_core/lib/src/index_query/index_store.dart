@@ -37,7 +37,7 @@ const _notWritableMessage =
 /// banned-match JSON, and how that JSON is computed. An index of another
 /// layout is then rebuilt instead of failing a read (INV-2). An older build's
 /// reset recreates the meta row without it, so its index is rebuilt too.
-const _layoutVersion = 5;
+const _layoutVersion = 6;
 
 const _schema = '''
 CREATE TABLE meta (
