@@ -213,7 +213,8 @@ void main() {
           '- Google AIP-180, Backwards compatibility, Guidance (source, wire, '
           'semantic compatibility): https://google.aip.dev/180\n'
           '- Microsoft Azure REST API Guidelines, Exactly Once Behavior; '
-          'Handling Errors: https://github.com/microsoft/api-guidelines/blob/'
+          'Handling Errors: '
+          'https://github.com/microsoft/api-guidelines/blob/'
           'vNext/azure/Guidelines.md\n',
         ),
       );
