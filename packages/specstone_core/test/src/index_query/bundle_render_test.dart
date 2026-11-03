@@ -72,7 +72,7 @@ void main() {
       '- login (architecture)',
     ]);
   });
-  test('f01/us05/s2, f01/us05/fr02, s03/inv28, db-r1: a sibling prints marked, title and summary sections only', () {
+  test('f01/us05/s2, f01/us05/fr02, s03/inv25, db-r1: a sibling prints marked, title and summary sections only', () {
     final a = ctx('login/email_login', BundleMode.design);
     expect(
       a.text,
@@ -169,7 +169,7 @@ void main() {
     );
     expect(printed, lessThan(full));
   });
-  test('s03/inv28, db-c9: a doc a bundle: join adds prints whole, once', () async {
+  test('s03/inv25, db-c9: a doc a bundle: join adds prints whole, once', () async {
     final i = await indexWith({
       '.specstone/templates/fr.yaml': 'bundle: [design]\n',
     });
