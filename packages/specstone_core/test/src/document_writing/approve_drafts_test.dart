@@ -39,10 +39,9 @@ void main() {
     );
     expect(
       out.toString(),
-      startsWith(
-        '==> signup (feature) · $signupFeature <==\n---\ndraft: true\n---\n\n# Signup\n',
-      ),
+      startsWith('### Draft 1/2 · Signup\n`docs/$signupFeature`\n'),
     );
+    expect(out.toString(), contains('+# Signup\n'));
     expect(out.toString(), contains(_prompt));
     expect(
       readDoc(root, signupFeature),
@@ -80,7 +79,7 @@ void main() {
         out: out,
       ),
     );
-    expect('==> signup (feature)'.allMatches(out.toString()), hasLength(2));
+    expect('### Draft 1/2 · Signup\n'.allMatches(out.toString()), hasLength(2));
     expect(readDoc(root, signupFeature), contains('approved: true'));
     expect(readDoc(root, signupFeature), contains('Users sign up.\n'));
   });
@@ -138,10 +137,14 @@ void main() {
       expect(
         out.toString(),
         startsWith(
-          '==> signup (feature) · $signupFeature <==\n'
-          '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n'
-          '$_prompt',
+          '### Draft 1/2 · Signup\n'
+          '`docs/$signupFeature`\n',
         ),
+      );
+      expect(out.toString(), contains('| old     | none: never approved |\n'));
+      expect(
+        out.toString(),
+        contains('+## Problem\n+Users create an account.\n```\n$_prompt'),
       );
     },
     skip: skipGit,
@@ -162,7 +165,7 @@ void main() {
     final shown = out.toString();
     final positions = [
       for (final path in [story1, fr12, story3, fr31, fr32])
-        shown.indexOf('· $path <==\n'),
+        shown.indexOf('`docs/$path`\n'),
     ];
     expect(positions, everyElement(isNonNegative));
     expect([...positions]..sort(), positions);
@@ -192,7 +195,7 @@ void main() {
         signupFeature,
         signupArch,
       ])
-        shown.indexOf('· $path <==\n'),
+        shown.indexOf('`docs/$path`\n'),
     ];
     expect(positions, everyElement(isNonNegative));
     expect([...positions]..sort(), positions);
@@ -222,6 +225,124 @@ void main() {
     );
     expect(out.toString(), isEmpty);
     expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
+  });
+
+  test('f02/us03/fr01: the walk prints the view before its prompt', () async {
+    final root = await writeWriteProject();
+    final out = StringBuffer();
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        names: ['architecture:signup'],
+        readLine: answers(['q']),
+        out: out,
+      ),
+    );
+    final shown = out.toString();
+    expect(shown.indexOf('### Draft 1/1 · '), isNonNegative);
+    expect(shown.indexOf('### Draft 1/1 · '), lessThan(shown.indexOf(_prompt)));
+    expect(shown, isNot(contains('==> ')));
+  });
+
+  group('approveDryRun', () {
+    test('f02/us03/fr05/e05: dry run prints each draft in tree order and writes nothing', () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      );
+      final shown = answer.text;
+      expect(shown.indexOf('### Draft 1/2 · '), isNonNegative);
+      expect(
+        shown.indexOf('### Draft 1/2 · '),
+        lessThan(shown.indexOf('### Draft 2/2 · ')),
+      );
+      expect(shown, contains('`docs/$signupFeature`'));
+      expect(
+        shown.indexOf('`docs/$signupFeature`'),
+        lessThan(shown.indexOf('`docs/$signupArch`')),
+      );
+      expect(shown, contains('`\n\n| field   | value |'));
+      expect(shown, contains('\n\n### Draft 2/2 · '));
+      expect(shown, endsWith('\n'));
+      expect(answer.json, isEmpty);
+      expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
+      expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
+    });
+
+    test('f02/us03/fr05/e04: dry run with no draft says so', () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['architecture:login']),
+      );
+      expect(answer.text, 'no draft waits for approval\n');
+      expect(answer.json, isEmpty);
+    });
+
+    test(
+      'f02/us03/fr05/e05: a name no doc carries fails before printing',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                approveDryRun(s, names: ['feature:signup', 'feature:nosuch']),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+      },
+    );
+
+    test('f02/us03/fr05/e07: colour marks the diff lines', () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup'], color: true),
+      );
+      expect(answer.text, contains('\x1b[32m+# Signup'));
+    });
+
+    test(
+      'f02/us03/fr05/e07: context sets the lines kept around a change',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+          },
+        );
+        expect(git(root, ['init', '-q']).exitCode, 0);
+        expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+        expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+        expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+        commitAll(root, 'approved');
+        File('${root.path}/docs/$signupFeature').writeAsStringSync(
+          '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\n',
+        );
+        commitAll(root, 'edited as a draft');
+        String viewWith(int? context) => writeIn(
+          root,
+          (s) => approveDryRun(s, names: ['feature:signup'], context: context),
+        ).text;
+        final whole = viewWith(null);
+        final narrow = viewWith(0);
+        expect(
+          narrow,
+          contains('-Users create an account.\n+Users sign up.\n'),
+        );
+        expect(whole, contains('-Users create an account.\n+Users sign up.\n'));
+        expect(narrow, isNot(equals(whole)));
+      },
+      skip: skipGit,
+    );
   });
 
   group('approveNamed', () {
@@ -423,8 +544,8 @@ void main() {
           approveDrafts(s, readLine: answers(List.filled(12, 'n')), out: out),
     );
     expect(_prompt.allMatches(out.toString()), hasLength(9));
-    expect(out.toString(), contains('· $persona <==\n'));
-    expect(out.toString(), contains('· $antiPersona <==\n'));
+    expect(out.toString(), contains('`docs/$persona`\n'));
+    expect(out.toString(), contains('`docs/$antiPersona`\n'));
   });
 
   test(
@@ -464,7 +585,7 @@ void main() {
     expect(_prompt.allMatches(out.toString()), hasLength(2));
     expect(readDoc(root, signupArch), startsWith('---\napproved: true\n---\n'));
     expect(
-      '==> signup (architecture)'.allMatches(out.toString()),
+      '### Draft 1/1 · Signup architecture\n'.allMatches(out.toString()),
       hasLength(1),
     );
   });
@@ -559,7 +680,7 @@ void main() {
       );
       expect(hasDoc(root, signupFeature), isFalse);
       expect(readDoc(root, signupArch), contains('draft: true'));
-      expect(out.toString(), contains('· $signupArch <==\n'));
+      expect(out.toString(), contains('`docs/$signupArch`\n'));
     },
   );
 

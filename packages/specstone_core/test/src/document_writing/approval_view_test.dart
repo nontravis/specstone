@@ -148,6 +148,17 @@ void main() {
       expect(view, isNot(contains('```')));
     });
 
+    test('f02/us03/fr02/e08: a CRLF approved copy diffs as LF', () {
+      final view = _render(
+        _draft(text: _neuDraft, lookup: _copy(_neu.replaceAll('\n', '\r\n'))),
+      );
+
+      expect(
+        view,
+        endsWith('| changes | none |\n\nno change since the approved copy\n'),
+      );
+    });
+
     test("f02/us03/fr02/e13: the fence outlasts the doc's own fence", () {
       const oldText = '# T\n\n## Behavior\n```mermaid\nflowchart\n```\n';
       const newText = '# T\n\n## Behavior\n```mermaid\nflowchart X\n```\n';
