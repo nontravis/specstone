@@ -39,8 +39,9 @@ Sections, in this order:
 5. **Decisions**: one per thing decided, each with its own ID (`D1`, `D2`, ...), as the Owner decided it.
 6. **Docs to change**: a table, one row per doc: its `<type>:<name>` (a new doc: its type and parent), the sections
    it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. A
-   ruling that supersedes doc text gets a row for each doc that states it. The `architecture` doc of each feature
-   the change reaches gets a row for its `design_references` section, a link to this document.
+   ruling that supersedes doc text gets a row for each doc that states it. Each feature the change reaches that
+   has an `architecture` doc gets a row for its `design_references` section, a link to this document; when that
+   section already holds three links, ask under Open questions which one this replaces.
 7. **Open questions**: each gap that neither the brief nor any doc bears on.
 
 Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or list of
@@ -62,7 +63,6 @@ Write the file with `Write`, or the change with `Edit` when it exists. Write no 
 ## 5. Report
 
 ```
-Main session: show this report to the Owner whole before you act on it.
 Design document: <path>, written | amended
 Sections touched: <each section an amend or a ruling sweep changed, or none>
 Open questions:

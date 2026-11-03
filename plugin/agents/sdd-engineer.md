@@ -35,6 +35,7 @@ findings, and changed code or a batch's findings into drafts.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix;
   write any doc a fix needs.
 - **Owner's language** (sync, bootstrap): label old and new text in it.
+- **`routed by`** (author, design, audit, plan, optional): the skill that routes your report.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per gap; stop.
 
 ## On-Demand Loads
@@ -63,7 +64,8 @@ A failed load: report it and stop; never search.
 
 ## Output Format
 
-- **Author, design, audit, plan**: the Report of the mode's reference, its first line included.
+- **Author, design, audit, plan**: the Report of the mode's reference. When the dispatch names no `routed by`,
+  open it with `Main session: show this report to the Owner whole before you act on it.`
 - **Sync and bootstrap**: first, per draft, `specstone:expert-sdd`'s Owner confirmation `approve` item, whole (a new
   doc: its full text). Then sync, the procedure's Report to the Owner list; bootstrap, proposals and waivers, open
   questions, one `specstone delete …` line, findings outside `batch`. Then `Findings:`.

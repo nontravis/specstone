@@ -44,29 +44,30 @@ document holds no open question; approval of an approach is not approval of the 
 
 ## 3. Write the document: design mode
 
+Each `specstone:sdd-engineer` dispatch in steps 3 to 5 also passes `routed by: specstone:brainstorming-sdd`.
+
 Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the
-open questions) to a temp file outside the repository, such as one `mktemp` makes. Dispatch
-`specstone:sdd-engineer` with `mode: design`, that brief's path, and
-`docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. Show the Owner its open questions and `Findings:`; send the
-answers, and each change from the builder check or the Owner, the same way to the same path.
+open questions) to a temp file outside the repository, such as one `mktemp` makes. Dispatch `mode: design` with
+that brief's path and `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. Show the Owner its open questions
+and `Findings:`. Add the answers, and each change from the builder check or the Owner, to the brief, and dispatch
+again with the same inputs.
 
 ## 4. Write the drafts, then audit them
 
-1. After the approval, and never before, dispatch `specstone:sdd-engineer` with `mode: author` and the document's
-   path. Put no doc text and no design text in the prompt: the path is the hand-off.
-2. Dispatch a fresh `specstone:sdd-engineer` with `mode: audit`, the document's path, and the author's drafts list
-   as its targets.
+1. After the approval, and never before, dispatch `mode: author` with the document's path. Put no doc text and no
+   design text in the prompt: the path is the hand-off.
+2. Dispatch a fresh `mode: audit` with the document's path and the author's drafts list as its targets.
 3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
    dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two such
-   fix rounds.
-4. Show the Owner the author's report and the last audit's, each whole, before they approve any draft. Each doc
-   stays a draft until the Owner approves it, per `specstone:expert-sdd`.
+   fix rounds. The drafts list is the first report's, plus each doc a fix round adds.
+4. Show the Owner each author report and the last audit's, whole, before they approve any draft. Each doc stays a
+   draft until the Owner approves it, per `specstone:expert-sdd`.
 
 ## 5. Write the plan, then ask how to run it
 
-After the Owner approves the drafts, dispatch `specstone:sdd-engineer` with `mode: plan`, the document's path, the
-drafts list, and `docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Show the Owner its `NOT PLANNED` rows and open
-questions first, and send the answers to plan mode at the same path. Then show the plan and ask how to run it.
+After the Owner approves the drafts, dispatch `mode: plan` with the document's path, the drafts list, and
+`docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Show the Owner its `NOT PLANNED` rows and open questions first,
+and send the answers to plan mode with the same inputs. Then show the plan and ask how to run it.
 
 ## Without the `Agent` tool
 
@@ -85,8 +86,6 @@ fresh reader's, since you saw the drafts being made: tell the Owner so.
 | Thought                                         | Do instead                                                 |
 |-------------------------------------------------|------------------------------------------------------------|
 | "The design is clear; draft the docs now."      | No `mode: author` before the document's approval.          |
-| "Check that `.specstone/` exists first."        | The `context` call is the check.                           |
 | "I'll write the design document myself."        | Step 3: you hold the answers; the agent holds the docs.    |
 | "The coverage table is clean; skip the audit."  | A fresh reader finds what the author's own table cannot.   |
-| "It is one value in one doc."                   | A small edit: `specstone:update-sdd`.                      |
 | "Brainstorming says: invoke writing-plans now." | Step 4 first; step 5's plan cites IDs the drafts now hold. |

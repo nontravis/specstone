@@ -428,16 +428,56 @@ void _handOffTests() {
     }
   });
 
-  test("f08/us02/fr02, f08/us02/fr06, f08/us02/fr07: each mode's report "
-      'that no skill relays opens with the line that tells the main session '
-      'to show it to the Owner whole', () {
+  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07: sdd-engineer opens an '
+      'author, design, audit, or plan report with the relay line only when '
+      'no routed by names a skill, and brainstorming-sdd names itself', () {
+    final agent = _pluginText('agents/sdd-engineer.md');
+    expect(_sectionOf(agent, 'Input Contract'), contains('**`routed by`**'));
+    final output = _sectionOf(agent, 'Output Format');
+    expect(output, contains('no `routed by`'));
+    expect(output, contains('`$_relayLine`'));
+    expect(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      contains('`routed by: specstone:brainstorming-sdd`'),
+    );
     for (final mode in _brainstormModes) {
       expect(
         _pluginText('skills/brainstorming-sdd/references/$mode.md'),
-        contains('```\n$_relayLine\n'),
-        reason: mode,
+        isNot(contains(_relayLine)),
+        reason: '$mode.md must leave the line to the agent',
       );
     }
+  });
+
+  test('f08/us02/fr01, f08/us02/fr07: the audit report splits Findings, '
+      'Waits on the Owner, and Outside the drafts, and only Findings drives '
+      'a fix round', () {
+    final report = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      '3. Report',
+    );
+    for (final heading in [
+      'Findings:',
+      'Waits on the Owner:',
+      'Outside the drafts:',
+    ]) {
+      expect(report, contains('\n$heading\n'), reason: heading);
+    }
+    expect(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      contains('`Findings:` lines'),
+    );
+  });
+
+  test('f08/us02/fr02: author mode runs a bare specstone check before its '
+      'first write and after its last', () {
+    final check = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      '4. Check',
+    );
+    expect(check, contains('`specstone check`'));
+    expect(check, contains('before your first write'));
+    expect(check, contains('after your last'));
   });
 }
 

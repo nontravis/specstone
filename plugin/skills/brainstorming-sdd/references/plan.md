@@ -47,7 +47,6 @@ Write the file with `Write`, or the change with `Edit` when it exists. Write no 
 ## 5. Report
 
 ```
-Main session: show this report to the Owner whole before you act on it.
 Plan: <path>, written | amended
 | Story or FR | Task |
 |-------------|------|
