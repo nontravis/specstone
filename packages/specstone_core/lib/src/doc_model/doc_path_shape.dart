@@ -37,20 +37,30 @@ final class _Segment {
 /// The shape of a doc type's `path:`: which segment is the doc's own, and
 /// what its placeholders hold (s03 OwnSegment).
 final class DocPathShape {
-  new _(this.segments, this.ownIndex, this.parentCount, this._patterns);
+  new _(
+    this.segments,
+    this.ownIndex,
+    this.parentCount,
+    this.depth,
+    this._patterns,
+  );
 
-  /// Returns the shape of [docType], or null when it or its parent type has
-  /// no `path:`.
-  static DocPathShape? of(MergedDocType docType, MergedSet set) {
-    final path = docType.path;
-    if (path == null) return null;
-    final parentId = docType.parent;
-    final parentCount = switch (parentId) {
-      null => 0,
-      final id => _placeholdersIn(set.lookup(id)?.path),
-    };
+  /// Returns the shape of [docType] at nesting [depth], or null when it or
+  /// its parent type has no `path:` at that depth.
+  ///
+  /// The parent count at [depth] is the placeholders in the parent type's
+  /// pattern for the same depth; the nesting type above depth 0 counts its
+  /// own pattern one depth up.
+  static DocPathShape? of(
+    MergedDocType docType,
+    MergedSet set, {
+    int depth = 0,
+  }) {
+    final paths = docType.paths;
+    if (depth < 0 || depth >= paths.length) return null;
+    final parentCount = _parentCountAt(docType, set, depth);
     if (parentCount == null) return null;
-    final segments = path.split('/');
+    final segments = paths[depth].split('/');
     final patterns = [for (final s in segments) _Segment(s)];
     var running = 0;
     var ownIndex = segments.length - 1;
@@ -61,11 +71,37 @@ final class DocPathShape {
         break;
       }
     }
-    return DocPathShape._(segments, ownIndex, parentCount, patterns);
+    return DocPathShape._(segments, ownIndex, parentCount, depth, patterns);
   }
 
-  static int? _placeholdersIn(String? path) =>
-      path == null ? null : _placeholder.allMatches(path).length;
+  /// Returns the shape of the depth whose pattern [docPath] matches, or null
+  /// when none does.
+  static DocPathShape? ofDoc(
+    MergedDocType docType,
+    MergedSet set,
+    String docPath,
+  ) {
+    for (var depth = 0; depth < docType.paths.length; depth++) {
+      final shape = of(docType, set, depth: depth);
+      if (shape?.valuesOf(docPath) != null) return shape;
+    }
+    return null;
+  }
+
+  static int? _parentCountAt(MergedDocType docType, MergedSet set, int depth) {
+    if (depth > 0 && docType.id == set.nestingType?.id) {
+      return _placeholdersIn(docType.paths[depth - 1]);
+    }
+    final parentId = docType.parent;
+    if (parentId == null) return 0;
+    final parentPaths = set.lookup(parentId)?.paths ?? const <String>[];
+    return depth < parentPaths.length
+        ? _placeholdersIn(parentPaths[depth])
+        : null;
+  }
+
+  static int _placeholdersIn(String path) =>
+      _placeholder.allMatches(path).length;
 
   /// The `path:` split on `/`.
   final List<String> segments;
@@ -75,6 +111,9 @@ final class DocPathShape {
 
   /// The number of placeholders in the parent doc type's `path:`.
   final int parentCount;
+
+  /// How many more times the nesting segment repeats than in the base `path:`.
+  final int depth;
 
   final List<_Segment> _patterns;
 
@@ -178,7 +217,7 @@ Iterable<(MergedDocType, String)> specChildrenOf(
   final own = shape.ownPathOf(shape.build(values));
   for (final child in set.docTypes) {
     if (child.parent != docType.id) continue;
-    final childShape = DocPathShape.of(child, set);
+    final childShape = DocPathShape.of(child, set, depth: shape.depth);
     if (childShape == null || !isSpecDocShape(childShape)) continue;
     final folder = childShape.containerOf(values);
     if (folder.isNotEmpty && !folder.startsWith(own)) yield (child, folder);
@@ -190,13 +229,14 @@ Iterable<(MergedDocType, String)> specChildrenOf(
 ///
 /// These are the folders of the child doc types whose own segment is their
 /// last segment and holds no placeholder (a feature's spec docs), each once,
-/// sorted.
+/// sorted. [depth] is the nesting depth of the doc.
 List<String> specFoldersOf(
   MergedSet set,
   MergedDocType docType,
-  List<String> values,
-) {
-  final shape = DocPathShape.of(docType, set);
+  List<String> values, {
+  int depth = 0,
+}) {
+  final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
   return {
     for (final (_, folder) in specChildrenOf(set, docType, shape, values))
@@ -212,9 +252,11 @@ List<String>? unitRootsOf(
   MergedDocType docType,
   String docPath,
 ) {
-  final shape = DocPathShape.of(docType, set);
-  if (shape == null) return null;
-  final values = shape.valuesOf(docPath);
-  if (values == null) return null;
-  return [shape.ownPathOf(docPath), ...specFoldersOf(set, docType, values)];
+  final shape = DocPathShape.ofDoc(docType, set, docPath);
+  final values = shape?.valuesOf(docPath);
+  if (shape == null || values == null) return null;
+  return [
+    shape.ownPathOf(docPath),
+    ...specFoldersOf(set, docType, values, depth: shape.depth),
+  ];
 }

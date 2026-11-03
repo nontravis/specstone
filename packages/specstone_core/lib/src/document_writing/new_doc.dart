@@ -18,6 +18,7 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Refuses [lfText] whose frontmatter holds an `approved` key of any value.
@@ -81,14 +82,25 @@ ReadAnswer answerNew(
         IndexFaultCode.argumentInvalid,
         '$docTypeId has no path to create a doc at',
       ));
-  _checkArguments(docType, shape, parent: parent, slug: slug);
+  final parentTypeId = _parentTypeIdOf(docType, set);
+  _checkArguments(docType, shape, parentTypeId, parent: parent, slug: slug);
 
   final parentDoc = parent == null
       ? null
-      : session.target('${docType.parent}:$parent');
+      : session.target('$parentTypeId:$parent');
+  final parentShape = parentDoc == null
+      ? null
+      : _shapeOfParent(set, parentTypeId!, parentDoc);
   final parentValues = parentDoc == null
       ? const <String>[]
-      : _valuesOfParent(session, docType, parentDoc);
+      : parentShape!.valuesOf(parentDoc.docPath)!;
+  final depth = _depthOf(docType, set, parentDoc, parentShape);
+  final placed =
+      DocPathShape.of(docType, set, depth: depth) ??
+      (throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        '$docTypeId has no path to create a doc at',
+      ));
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
   if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
   final given = text.isEmpty
@@ -98,8 +110,8 @@ ReadAnswer answerNew(
 
   return session.locked(() {
     final docsRoot = session.project.docsRoot;
-    final siblings = siblingsOnDisk(docsRoot, shape, parentValues);
-    _checkNoClash(session, docType, shape, parentValues, siblings, slug);
+    final siblings = siblingsOnDisk(docsRoot, placed, parentValues);
+    _checkNoClash(session, docType, placed, parentValues, siblings, slug);
     final highest = siblings.fold(0, (top, s) => max(top, s.number ?? 0));
     final created = <Directory>[];
     File? claimed;
@@ -108,7 +120,7 @@ ReadAnswer answerNew(
     try {
       (docPath, claimed) = _claim(
         session,
-        shape,
+        placed,
         docType,
         parentValues,
         slug,
@@ -149,19 +161,30 @@ ReadAnswer answerNew(
   });
 }
 
+/// Returns the id of the doc type [docType]'s `--parent` names: its declared
+/// `parent:`, or itself when it is the nesting type and nests; else null.
+String? _parentTypeIdOf(MergedDocType docType, MergedSet set) {
+  if (docType.parent case final declared?) return declared;
+  final nesting = set.nestingType;
+  return nesting != null && nesting.id == docType.id && nesting.nests
+      ? docType.id
+      : null;
+}
+
 /// Throws the fault for a [parent] or [slug] that [docType] needs and lacks,
 /// or takes no value for, or a [slug] that is no slug.
 void _checkArguments(
   MergedDocType docType,
-  DocPathShape shape, {
+  DocPathShape shape,
+  String? parentTypeId, {
   required String? parent,
   required String? slug,
 }) {
-  final parentType = docType.parent;
-  if (parentType != null && parent == null) {
+  final declaredParent = docType.parent;
+  if (declaredParent != null && parent == null) {
     throw IndexFault(
       IndexFaultCode.argumentMissing,
-      '${docType.id} needs --parent, the name of a $parentType',
+      '${docType.id} needs --parent, the name of a $declaredParent',
     );
   }
   if (shape.slugged && slug == null) {
@@ -170,7 +193,7 @@ void _checkArguments(
       '${docType.id} needs --slug, lowercase letters, digits, and _',
     );
   }
-  if (parentType == null && parent != null) {
+  if (parentTypeId == null && parent != null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       '${docType.id} takes no --parent',
@@ -185,20 +208,43 @@ void _checkArguments(
   if (slug != null) checkSlug(slug);
 }
 
-/// Returns the placeholder values of [parentDoc], the doc [docType] hangs
-/// under.
-List<String> _valuesOfParent(
-  WriteSession session,
-  MergedDocType docType,
+/// Returns the shape of [parentDoc], the doc of type [parentTypeId] that the
+/// new doc hangs under.
+DocPathShape _shapeOfParent(
+  MergedSet set,
+  String parentTypeId,
   IndexedDoc parentDoc,
 ) {
-  final set = session.index.set;
-  final parentType = set.lookup(docType.parent ?? '');
-  final parentShape = parentType == null
+  final parentType = set.lookup(parentTypeId);
+  final shape = parentType == null
       ? null
-      : DocPathShape.of(parentType, set);
-  return parentShape?.valuesOf(parentDoc.docPath) ??
+      : DocPathShape.ofDoc(parentType, set, parentDoc.docPath);
+  return shape ??
       (throw StateError('${parentDoc.docPath} does not match its doc type'));
+}
+
+/// Returns the nesting depth the new doc takes: its parent's, or one deeper
+/// for a doc of the nesting type under another.
+///
+/// Throws [IndexFault] `argument_invalid` when that parent already sits at
+/// the limit.
+int _depthOf(
+  MergedDocType docType,
+  MergedSet set,
+  IndexedDoc? parentDoc,
+  DocPathShape? parentShape,
+) {
+  if (parentDoc == null || parentShape == null) return 0;
+  if (docType.parent != null) return parentShape.depth;
+  final limit = set.nestingType!.maxDepth!;
+  if (parentShape.depth >= limit) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '${nameWithType(parentDoc)} sits ${parentShape.depth} levels deep, '
+      'the limit, so it takes no sub-${docType.id}',
+    );
+  }
+  return parentShape.depth + 1;
 }
 
 /// Throws [WriteFault] `doc_exists` when a doc of [docType] already holds the

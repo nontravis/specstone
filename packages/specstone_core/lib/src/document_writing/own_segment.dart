@@ -96,14 +96,15 @@ List<SiblingEntry> siblingsOnDisk(
 /// Returns the spec folder moves that follow [docType]'s doc from
 /// [oldValues] to [newValues], each folder paired with the one the same child
 /// doc type holds after the move, sorted by old folder; a folder that does
-/// not change is left out.
+/// not change is left out. [depth] is the nesting depth of the doc.
 List<PathMove> specFolderMovesOf(
   MergedSet set,
   MergedDocType docType,
   List<String> oldValues,
-  List<String> newValues,
-) {
-  final shape = DocPathShape.of(docType, set);
+  List<String> newValues, {
+  int depth = 0,
+}) {
+  final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
   final newFolders = {
     for (final (child, folder) in specChildrenOf(

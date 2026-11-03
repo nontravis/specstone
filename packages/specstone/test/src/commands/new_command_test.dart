@@ -8,6 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart' show baseHashOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -39,6 +40,31 @@ void main() {
     expect(text, startsWith('---\ndraft: true\n---\n\n# recover_account\n'));
     expect(text, contains('## Use Case'));
   });
+  test(
+    'sf-c11: new feature --parent prints the sub-feature path under --json',
+    () async {
+      final root = await writeNestedProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(
+        await runner.run([
+          'new',
+          'feature',
+          '--parent',
+          'shop',
+          '--slug',
+          'ship',
+          '--json',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['path'], 'prds/features/f02_shop/f03_ship/FEATURE.md');
+    },
+  );
   test('f06/us01/s15: new refuses while a migration is unfinished', () async {
     final root = await writeWriteProject();
     writeJournal(root, [
