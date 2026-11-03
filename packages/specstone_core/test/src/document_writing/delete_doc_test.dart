@@ -1212,10 +1212,34 @@ void main() {
       answer.json['removed'],
       containsAll([cartFeature, cartAdd, cartAddFr, cartDrop, cartDomain]),
     );
-    expect(hasDoc(root, 'prds/features/f02_shop/f01_cart'), isFalse);
-    expect(hasDoc(root, 'specs/f02_shop/f01_cart'), isFalse);
+    for (final folder in [
+      'prds/features/f02_shop/f01_cart',
+      'specs/f02_shop/f01_cart',
+    ]) {
+      expect(Directory('${root.path}/docs/$folder').existsSync(), isFalse);
+    }
     expect(hasDoc(root, shopFeature), isTrue);
     expect(hasDoc(root, payCard), isTrue);
     expect(hasDoc(root, shopDomain), isTrue);
+  });
+
+  test('f02/us04/fr01/e06, f02/us04/fr01/e14: a doc outside that links into a sub-feature is doc_referenced, and nothing is removed', () async {
+    final root = await writeNestedProject();
+    expect(
+      () => del(root, ['feature:shop/cart']),
+      throwsA(
+        isA<WriteFault>().having(
+          (f) => f.code,
+          'code',
+          WriteFaultCode.docReferenced,
+        ),
+      ),
+    );
+    expect(
+      Directory('${root.path}/docs/prds/features/f02_shop/f01_cart')
+          .existsSync(),
+      isTrue,
+    );
+    expect(hasDoc(root, cartDomain), isTrue);
   });
 }

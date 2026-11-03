@@ -783,7 +783,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr01: renaming a sub-feature spec doc names the sub-feature to rename', () async {
+    test('f02/us06/fr01/e06: renaming a sub-feature spec doc names the sub-feature to rename', () async {
       final root = await writeNestedProject();
       expect(
         () => rename(root, 'domain:shop/cart', 'basket'),
@@ -811,6 +811,8 @@ void main() {
         writeIn(root, (s) => s.index.carriesName('market/cart/add_item')),
         isTrue,
       );
+      expect(hasDoc(root, 'specs/f02_market/f01_cart/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, 'specs/f02_market/DOMAIN.md'), isTrue);
     });
   });
 }
