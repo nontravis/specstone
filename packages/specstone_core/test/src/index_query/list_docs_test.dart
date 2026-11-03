@@ -6,6 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   late DocIndex index;
@@ -140,5 +141,17 @@ void main() {
       for (final t in index.set.docTypes)
         ...names(answerList(index, t.id, const ListFilters())),
     ], isNot(contains('prds/d01_context.md')));
+  });
+  test('f01/us03/fr02/e08: list user_story --under shop lists add_item, drop_item, card, refund in tree order', () async {
+    final nested = await nestedIndexWith();
+    expect(
+      names(answerList(nested, 'user_story', const ListFilters(under: 'shop'))),
+      [
+        'shop/cart/add_item',
+        'shop/cart/drop_item',
+        'shop/pay/card',
+        'shop/pay/refund',
+      ],
+    );
   });
 }

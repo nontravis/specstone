@@ -10,6 +10,7 @@ import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -166,7 +167,7 @@ final class CheckContext {
 
   /// Whether the doc type of [doc] names a parent and [doc] has none (INV-13).
   bool hasNoParent(IndexedDoc doc) =>
-      typeOf(doc)?.parent != null && doc.parentPath == null;
+      parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
 
   /// Whether the merged set holds a `gnfr` doc type.
   bool get hasGnfr =>

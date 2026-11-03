@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
@@ -12,6 +13,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 
 void main() {
@@ -245,5 +247,33 @@ void main() {
     );
     addTearDown(session.close);
     expect(spots(runCheck(session), FindingKind.visionQuoteMissing), isEmpty);
+  });
+  group('nested features', () {
+    test('f04/us01/fr07/e11, sf-c11: cart with no shop FEATURE.md is parent_missing', () async {
+      final report = checkOf(
+        await writeNestedProject(without: {'docs/$shopFeature'}),
+      );
+      final spots = report.findings
+          .where((f) => f.kind == FindingKind.parentMissing)
+          .map((f) => f.path)
+          .toList();
+      expect(spots, containsAll([cartFeature, payFeature, shopDomain]));
+      expect(spots, isNot(contains(cartAdd)));
+    });
+
+    test('f04/us01/fr07/e12: nested siblings cart/pay and add_item/drop_item give no order_number_duplicate; a second f01_x beside cart gives one', () async {
+      List<String> duplicates(CheckReport report) => [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.orderNumberDuplicate) f.path,
+      ];
+      expect(duplicates(checkOf(await writeNestedProject())), isEmpty);
+      const twin = 'prds/features/f02_shop/f01_x/FEATURE.md';
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {'docs/$twin': nestedFiles()['docs/$cartFeature']!},
+        ),
+      );
+      expect(duplicates(report), unorderedEquals([cartFeature, twin]));
+    });
   });
 }

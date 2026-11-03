@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
 const _pathSeparator = '/';
@@ -107,7 +108,8 @@ Finding _parentProblem(CheckContext context, IndexedDoc doc) {
     FindingKind.parentMissing,
     line: 1,
     message:
-        'no ${context.typeOf(doc)?.parent} doc is the parent of ${doc.name}',
+        'no ${parentTypeOf(doc, context.index.set)?.id} doc is the parent of '
+        '${doc.name}',
   );
 }
 
@@ -177,24 +179,26 @@ Map<_SiblingKey, List<IndexedDoc>> _groupSiblings(CheckContext context) {
 ///
 /// The folder before the `{nn}` segment scopes the group, so a pattern such
 /// as `prds/features/{slug}/f{nn}_{slug}/FEATURE.md` numbers each group apart.
+/// The pattern is the doc type path that matches [doc], so a nested doc reads
+/// its own depth's `{nn}`.
 _SiblingKey? _keyOf(CheckContext context, IndexedDoc doc) {
   final type = context.typeOf(doc);
-  final path = type?.path;
-  if (type == null || path == null || context.hasNoParent(doc)) return null;
+  if (type == null || context.hasNoParent(doc)) return null;
   final segments = doc.docPath.split(_pathSeparator);
-  final pattern = (_pathPatterns[context] ??= {}).putIfAbsent(
-    path,
-    () => PathPattern(path),
-  );
-  for (var depth = segments.length; depth > 0; depth--) {
-    final number = pattern.numberAt(segments.sublist(0, depth));
-    if (number == null) continue;
-    return (
-      typeId: type.id,
-      parentPath: doc.parentPath,
-      folder: segments.take(depth - 1).join(_pathSeparator),
-      number: number,
-    );
+  final patterns = _pathPatterns[context] ??= {};
+  for (final path in type.paths) {
+    final pattern = patterns.putIfAbsent(path, () => PathPattern(path));
+    if (!pattern.matches(doc.docPath)) continue;
+    for (var depth = segments.length; depth > 0; depth--) {
+      final number = pattern.numberAt(segments.sublist(0, depth));
+      if (number == null) continue;
+      return (
+        typeId: type.id,
+        parentPath: doc.parentPath,
+        folder: segments.take(depth - 1).join(_pathSeparator),
+        number: number,
+      );
+    }
   }
   return null;
 }

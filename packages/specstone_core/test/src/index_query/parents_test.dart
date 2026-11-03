@@ -2,9 +2,12 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/software_tech.dart';
+import '../../helpers/temp_tree.dart';
 
 void main() {
   late MergedSet set;
@@ -112,6 +115,51 @@ void main() {
       ], custom);
       expect(result.parents, isEmpty);
       expect(result.warnings, isEmpty);
+    });
+    group('nested features', () {
+      late MergedSet nested;
+      setUpAll(() async {
+        nested = TemplateResolver().resolve(
+          workingDirectory: await writeNestedProject(),
+          homeDirectory: await writeTree({}),
+        );
+      });
+      final docs = [
+        doc(shopFeature, 'feature', 'shop'),
+        doc(cartFeature, 'feature', 'shop/cart'),
+        doc(payFeature, 'feature', 'shop/pay'),
+        doc(cartAdd, 'user_story', 'shop/cart/add_item'),
+        doc(cartAddFr, 'fr', 'shop/cart/add_item/check_stock'),
+        doc(cartDomain, 'domain', 'shop/cart'),
+        doc(shopDomain, 'domain', 'shop'),
+      ];
+
+      test('f01/us01/fr03/e16, s03/inv7, sf-c11: shop/cart takes shop, shop/cart/add_item takes shop/cart, and specs/f02_shop/f01_cart/DOMAIN.md takes shop/cart', () {
+        final result = resolveParents(docs, nested);
+        expect(result.parents[cartFeature], shopFeature);
+        expect(result.parents[payFeature], shopFeature);
+        expect(result.parents[cartAdd], cartFeature);
+        expect(result.parents[cartAddFr], cartAdd);
+        expect(result.parents[cartDomain], cartFeature);
+        expect(result.parents[shopDomain], shopFeature);
+        expect(result.warnings, isEmpty);
+      });
+      test('f01/us01/fr03/e17: the top feature shop has no parent', () {
+        expect(
+          resolveParents(docs, nested).parents,
+          isNot(contains(shopFeature)),
+        );
+        expect(parentTypeOf(docs.first, nested), isNull);
+      });
+      test('sf-c11: parentTypeOf names the nesting type or the parent', () {
+        expect(parentTypeOf(docs[1], nested)?.id, 'feature');
+        expect(parentTypeOf(docs[3], nested)?.id, 'feature');
+        expect(parentTypeOf(docs[4], nested)?.id, 'user_story');
+        expect(parentTypeOf(docs[5], nested)?.id, 'feature');
+      });
+      test('sf-c11: a flat set never gives a feature a parent', () {
+        expect(parentTypeOf(docs[1], set), isNull);
+      });
     });
   });
 }

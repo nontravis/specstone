@@ -144,15 +144,15 @@ final class DocIndex {
 
   /// Returns the status of [doc].
   ///
-  /// A feature takes it from its stories: `planned` with no story,
-  /// `deprecated` when every story is, `implemented` when every story that is
-  /// not deprecated is, else `planned`. Any other doc returns the status it
-  /// writes, or null.
+  /// A feature takes it from the stories of its whole subtree: `planned` with
+  /// no story, `deprecated` when every story is, `implemented` when every story
+  /// that is not deprecated is, else `planned`. Any other doc returns the
+  /// status it writes, or null.
   String? statusOf(IndexedDoc doc) {
     if (doc.docTypeId != _featureType) return doc.writtenStatus;
     final stories = [
-      for (final child in childrenOf(doc))
-        if (child.docTypeId == _storyType) child.writtenStatus,
+      for (final member in subtreeOf(doc).skip(1))
+        if (member.docTypeId == _storyType) member.writtenStatus,
     ];
     if (stories.isEmpty) return _planned;
     if (stories.every((status) => status == _deprecated)) return _deprecated;

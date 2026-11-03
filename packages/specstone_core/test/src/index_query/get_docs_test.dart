@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   late DocIndex index;
@@ -336,6 +337,14 @@ void main() {
     expect(
       answerGet(withEmpty, 'prds/empty.md').text,
       '==> prds/empty.md · prds/empty.md <==\n\n',
+    );
+  });
+  test('f01/us04/fr02: get feature:shop/cart prints the text of the nested feature', () async {
+    final nested = await nestedIndexWith();
+    expect(
+      answerGet(nested, 'feature:shop/cart').text,
+      '==> shop/cart (feature) · $cartFeature <==\n'
+      '${nestedFiles()['docs/$cartFeature']}',
     );
   });
 }

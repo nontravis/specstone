@@ -1,11 +1,12 @@
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart';
 
 final _slugPlaceholder = RegExp(r'\{slug\}');
 
 /// Resolves the parent doc of each doc in [docs] from the `parent` of its doc
-/// type in [set].
+/// type in [set], or from the nesting type for a nested doc of that type.
 ///
 /// Returns each resolved parent by child docPath. A doc with two or more
 /// candidate parents has no parent and gets a warning by its docPath instead.
@@ -15,7 +16,6 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
   Iterable<IndexedDoc> docs,
   MergedSet set,
 ) {
-  final typeById = {for (final type in set.docTypes) type.id: type};
   final docPathsByName = <(String, String), List<String>>{};
   for (final doc in docs) {
     if (doc.docTypeId case final typeId?) {
@@ -25,12 +25,14 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
   final parents = <String, String>{};
   final warnings = <String, String>{};
   for (final doc in docs) {
-    final parentType = _parentTypeOf(doc, typeById);
-    if (parentType == null) continue;
-    final nameSegments = doc.name.split('/');
-    final slugCount = _slugCountOf(parentType);
-    if (slugCount == 0 || nameSegments.length < slugCount) continue;
-    final parentName = nameSegments.take(slugCount).join('/');
+    final type = _typeOf(doc, set);
+    final parentType = type == null ? null : _parentTypeOf(doc, type, set);
+    if (type == null || parentType == null) continue;
+    final parentSlugCount = _slugCountOf(parentType);
+    final parentLength =
+        doc.name.split('/').length - _ownSlugCount(type, parentType);
+    if (parentSlugCount == 0 || parentLength < parentSlugCount) continue;
+    final parentName = doc.name.split('/').take(parentLength).join('/');
     final candidates = docPathsByName[(parentType.id, parentName)] ?? const [];
     if (candidates.length == 1) {
       parents[doc.docPath] = candidates.single;
@@ -46,13 +48,47 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
   return (parents: parents, warnings: warnings);
 }
 
+/// Returns the doc type of [doc]'s parent doc, or null when it takes none.
+///
+/// The doc type's `parent` type; for a doc of the nesting type whose name holds
+/// more segments than its base `path` holds `{slug}`s, the nesting type itself.
+MergedDocType? parentTypeOf(IndexedDoc doc, MergedSet set) {
+  final type = _typeOf(doc, set);
+  return type == null ? null : _parentTypeOf(doc, type, set);
+}
+
+MergedDocType? _typeOf(IndexedDoc doc, MergedSet set) =>
+    switch (doc.docTypeId) {
+      final id? => set.lookup(id),
+      null => null,
+    };
+
 MergedDocType? _parentTypeOf(
   IndexedDoc doc,
-  Map<String, MergedDocType> typeById,
+  MergedDocType type,
+  MergedSet set,
 ) {
-  final typeId = doc.docTypeId;
-  final parentId = typeId == null ? null : typeById[typeId]?.parent;
-  return parentId == null ? null : typeById[parentId];
+  if (type.parent case final parentId?) return set.lookup(parentId);
+  final isNested =
+      type.id == set.nestingType?.id &&
+      _nestingSlugCount(type) > 0 &&
+      doc.name.split('/').length > _slugCountOf(type);
+  return isNested ? type : null;
+}
+
+/// Counts the `{slug}` segments a doc of [type] adds to its parent's name.
+///
+/// A nested doc of the nesting type adds those of its nesting segment; any
+/// other doc, the `{slug}`s its base `path` holds beyond [parentType]'s.
+int _ownSlugCount(MergedDocType type, MergedDocType parentType) =>
+    parentType.id == type.id
+    ? _nestingSlugCount(type)
+    : _slugCountOf(type) - _slugCountOf(parentType);
+
+int _nestingSlugCount(MergedDocType nesting) {
+  final path = nesting.path;
+  final segment = path == null ? null : nestingSegmentOf(path, nesting);
+  return _slugPlaceholder.allMatches(segment?.text ?? '').length;
 }
 
 int _slugCountOf(MergedDocType type) =>
