@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -223,6 +224,20 @@ void main() {
     expect(
       File('${project.path}/.specstone/index.sqlite').existsSync(),
       isFalse,
+    );
+  });
+  test("sf-c7: context shop/cart/add_item --for design prints shop's names list with shop/pay", () async {
+    final (:runner, :out, :err) = readRunner(await writeNestedProject());
+    expect(
+      await runner.run(['context', 'shop/cart/add_item', '--for', 'design']),
+      0,
+    );
+    expect(out.toString(), contains('==> names: shop (feature) <==\n'));
+    expect(
+      out.toString(),
+      matches(
+        RegExp(r'^- shop/pay \(feature\) · \d+ tokens$', multiLine: true),
+      ),
     );
   });
 }

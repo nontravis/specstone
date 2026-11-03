@@ -102,21 +102,44 @@ final class Bundle {
     }
   }
 
-  /// Adds the design docs of [target]: a top doc takes its whole subtree, or
-  /// with [summary] its non-ChainType children whole and the rest in summary;
-  /// any other target takes its unit (the chain doc below the top) whole, the
-  /// top's non-ChainType children whole, and the top's other ChainType
-  /// children's subtrees in summary.
+  /// Adds the design docs of [target] read from its nearest nesting doc.
+  ///
+  /// That doc, the design top, takes its whole subtree when it is the target
+  /// (or with [summary] its non-ChainType children whole and the rest in
+  /// summary); otherwise its unit (the chain doc below it) takes the subtree,
+  /// its non-ChainType children whole, and its other ChainType children's
+  /// subtrees in summary. Each chain doc above it prints whole with its
+  /// non-ChainType children, and its ChainType children as a name list.
   void _addDesign(DocIndex index, IndexedDoc target, IndexedDoc top) {
-    final isTop = target.docPath == top.docPath;
+    final designTop = _designTopOf(index, target, top);
+    _addDesignSubtree(index, target, designTop);
+    final chain = index.chainOf(target);
+    for (final ancestor in chain.skip(chain.indexOf(designTop) + 1)) {
+      docPaths.add(ancestor.docPath);
+      for (final child in index.childrenOf(ancestor)) {
+        final typeId = child.docTypeId;
+        if (typeId == null || !index.isChainType(typeId)) {
+          _addAll(docPaths, index.subtreeOf(child));
+        }
+      }
+      nameListTops.add(ancestor.docPath);
+    }
+  }
+
+  void _addDesignSubtree(
+    DocIndex index,
+    IndexedDoc target,
+    IndexedDoc designTop,
+  ) {
+    final isTop = target.docPath == designTop.docPath;
     if (isTop && !summary) {
-      _addAll(docPaths, index.subtreeOf(top));
+      _addAll(docPaths, index.subtreeOf(designTop));
       return;
     }
     final chain = index.chainOf(target);
-    final unit = isTop ? null : chain[chain.length - 2];
-    docPaths.add(top.docPath);
-    for (final child in index.childrenOf(top)) {
+    final unit = isTop ? null : chain[chain.indexOf(designTop) - 1];
+    docPaths.add(designTop.docPath);
+    for (final child in index.childrenOf(designTop)) {
       final typeId = child.docTypeId;
       if (typeId == null || !index.isChainType(typeId)) {
         _addAll(docPaths, index.subtreeOf(child));
@@ -166,6 +189,16 @@ final class Bundle {
       }
     }
     nameListTops.add(top.docPath);
+  }
+
+  IndexedDoc _designTopOf(DocIndex index, IndexedDoc target, IndexedDoc top) {
+    final nestingId = index.set.nestingType?.id;
+    if (nestingId == null) return top;
+    return index
+            .chainOf(target)
+            .where((doc) => doc.docTypeId == nestingId)
+            .firstOrNull ??
+        top;
   }
 
   IndexedDoc _topDocOf(DocIndex index, IndexedDoc target) {
