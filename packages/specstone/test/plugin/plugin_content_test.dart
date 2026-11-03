@@ -240,8 +240,8 @@ const _shipped = <_Shipped>[
     file: 'agents/sdd-engineer.md',
     name: 'sdd-engineer',
     tags:
-        'f08/us02/fr02, f08/us03/fr02, f08/us05/fr01, f08/us01/fr03, '
-        'f08/us02/s1, f08/us03/s2',
+        'f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
+        'f08/us05/fr01, f08/us01/fr03, f08/us02/s1, f08/us03/s2',
     commands: ['guide', 'new', 'set', 'check'],
   ),
   (
@@ -322,17 +322,43 @@ const _procedures = <_Procedure>[
     tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
     commands: ['check', 'guide', 'new', 'set', 'delete'],
   ),
+  (
+    file: 'skills/brainstorming-sdd/references/design.md',
+    tags: 'f08/us02/fr01, f08/us02/fr06',
+    commands: ['context'],
+  ),
+  (
+    file: 'skills/brainstorming-sdd/references/audit.md',
+    tags: 'f08/us02/fr01, f08/us02/fr07',
+    commands: ['context', 'check'],
+  ),
+  (
+    file: 'skills/brainstorming-sdd/references/plan.md',
+    tags: 'f08/us02/fr01, f08/us02/fr06',
+    commands: ['context'],
+  ),
 ];
 
 void _procedureTests() {
   for (final procedure in _procedures) {
-    test('${procedure.tags}: ${procedure.file} exists and names its row '
-        'commands', () {
+    test('${procedure.tags}, nfr-te01: ${procedure.file} exists, names its '
+        'row commands, stays within 1,500 est. tokens, and names only '
+        'commands and flags the CLI has', () {
       final file = File.fromUri(pluginRoot().uri.resolve(procedure.file));
       expect(file.existsSync(), isTrue, reason: '${procedure.file} is missing');
       expect(
         cliCommands(file.readAsStringSync()),
         containsAll(procedure.commands),
+      );
+      bool ofThisFile(String problem) =>
+          problem.startsWith('${procedure.file}:');
+      expect(oversizedSkillFiles(pluginRoot()).where(ofThisFile), isEmpty);
+      expect(
+        unknownCliNames(
+          pluginRoot(),
+          SpecstoneCommandRunner(),
+        ).where(ofThisFile),
+        isEmpty,
       );
     });
   }
@@ -381,19 +407,68 @@ void _handOffTests() {
       contains("**Owner's language**"),
     );
   });
+
+  test('f08/us02/fr01, f08/us02/fr06, f08/us02/fr07: brainstorming-sdd '
+      'dispatches specstone:sdd-engineer in each of its modes and names the '
+      'reference of each mode it can run itself, as the agent does', () {
+    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final agent = _pluginText('agents/sdd-engineer.md');
+    expect(skill, contains('`specstone:sdd-engineer`'));
+    for (final mode in ['author', ..._brainstormReferences]) {
+      expect(skill, contains('`mode: $mode`'), reason: mode);
+    }
+    for (final mode in _brainstormReferences) {
+      final path =
+          '\${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/$mode.md';
+      expect(skill, contains(path), reason: 'brainstorming-sdd, $mode');
+      expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $mode');
+    }
+  });
 }
 
+/// The `sdd-engineer` modes whose steps live in a reference file of
+/// `brainstorming-sdd`, each named after its mode.
+const _brainstormReferences = ['design', 'audit', 'plan'];
+
+/// The body of the `## <heading>` section of [text], up to the next `## `
+/// heading; empty when [text] has no such section.
+String _sectionOf(String text, String heading) {
+  final lines = text.replaceAll('\r\n', '\n');
+  final start = lines.indexOf('\n## $heading\n');
+  if (start < 0) return '';
+  final body = lines.substring(start + '\n## $heading\n'.length);
+  final end = body.indexOf('\n## ');
+  return end < 0 ? body : body.substring(0, end);
+}
+
+/// The `- **`mode`**` bullet with its indented continuation lines, its label
+/// left out.
+final _modeBullet = RegExp(
+  r'^- \*\*`mode`\*\*(.*(?:\n {2}.*)*)',
+  multiLine: true,
+);
+
+final _codeSpan = RegExp(r'`([^`\n]+)`');
+
 void _agentTests() {
-  test('f08/us02/fr02: no shipped skill, reference, or agent file names an '
-      'audit mode, in any case', () {
-    final root = pluginRoot();
-    final naming = [
-      for (final file in root.listSync(recursive: true).whereType<File>())
-        if (file.path.endsWith('.md') &&
-            file.readAsStringSync().toLowerCase().contains('audit'))
-          file.path.substring(root.path.length),
-    ];
-    expect(naming, isEmpty);
+  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, sd-r9: the sdd-engineer '
+      'Input Contract names exactly its six modes', () {
+    final contract = _sectionOf(
+      _pluginText('agents/sdd-engineer.md'),
+      'Input Contract',
+    );
+    final bullet = _modeBullet.firstMatch(contract)?.group(1) ?? '';
+    expect(
+      [for (final span in _codeSpan.allMatches(bullet)) span.group(1)],
+      unorderedEquals([
+        'author',
+        'sync',
+        'bootstrap',
+        'design',
+        'audit',
+        'plan',
+      ]),
+    );
   });
 
   test('sd-r1: both agent descriptions ask to be used proactively', () {
@@ -410,13 +485,18 @@ void _agentTests() {
     }
   });
 
-  test('f08/us02/fr02, f08/us03/fr01, f08/us05/fr01: the sdd-engineer '
-      'description sends sync and bootstrap through their skills', () {
+  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr01, '
+      'f08/us05/fr01: the sdd-engineer description sends sync and bootstrap '
+      'through their skills and names the four modes a caller may dispatch '
+      'directly', () {
     final description = RegExp(
       r'^description:(.*)$',
       multiLine: true,
     ).firstMatch(_pluginText('agents/sdd-engineer.md'))?.group(1);
     expect(description, contains('`specstone:sync-sdd`'));
     expect(description, contains('`specstone:bootstrap-prd`'));
+    for (final mode in ['author', ..._brainstormReferences]) {
+      expect(description, contains('`$mode`'), reason: mode);
+    }
   });
 }

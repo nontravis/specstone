@@ -30,42 +30,59 @@ from a project's subfolder goes on, while a look at the working directory alone 
 
 ## 2. Reach an approved design document
 
-- **`superpowers:brainstorming` in your skill list:** run it on the change, grounded in step 1's docs. When it
-  reaches its hand-off to `superpowers:writing-plans`, invoke nothing yet: go to step 3.
+You hold the conversation, the answers, and the approvals; `specstone:sdd-engineer` writes the document (step 3).
+
+- **`superpowers:brainstorming` in your skill list:** run it on the change, grounded in step 1's docs. It keeps the
+  conversation, the builder check, and the approval; at its write step, write through step 3. When it reaches its
+  hand-off to `superpowers:writing-plans`, invoke nothing: go to step 4.
 - **Not in your skill list:** run this flow; it ends at the same document and the same approval.
   1. Ask the Owner one question per message until scope, behavior, edge cases, and what stays out are clear.
   2. Offer two or three approaches with their trade-offs, and recommend one.
-  3. Write `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`: each decision with its own ID (`D1`, `D2`, …),
-     the stories and FRs it adds or changes, and the docs it changes or adds.
-  4. Ask the Owner to approve the document; revise and ask again until they do.
+  3. Write the document through step 3.
+  4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
 
-Until the Owner approves, write no PRD or spec doc and do not dispatch `specstone:sdd-engineer`. Approval of an
-approach is not approval of the document.
+Until the Owner approves, write no PRD or spec doc and dispatch no `mode: author`. Approval of an approach is not
+approval of the document.
 
-## 3. Hand the design to the engineer
+## 3. Write the document: design mode
 
-After the approval, and never before, dispatch `specstone:sdd-engineer` with `mode: author` and the design
-document's path. Put no doc text and no design text in the prompt: the path is the hand-off.
+Write the Owner's approved answers to a brief file outside `docs/`: the decisions, the rulings in the Owner's own
+words, the approach picked, and the open questions. Dispatch `specstone:sdd-engineer` with `mode: design`, the
+brief's path, and the document's path, `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. A change from the
+builder check or the Owner goes the same way, to the same path. Ask the Owner each open question it reports.
 
-Show the Owner its report whole, `Not landed:` lines included, before they approve any draft. Each doc it wrote
-stays a draft until the Owner approves it, per `specstone:expert-sdd`.
+## 4. Write the drafts, then audit them
 
-## 4. Name the next step: the plan
+1. After the approval, and never before, dispatch `specstone:sdd-engineer` with `mode: author` and the document's
+   path. Put no doc text and no design text in the prompt: the path is the hand-off.
+2. Dispatch a fresh `specstone:sdd-engineer` with `mode: audit`, the document's path, and the docs the author
+   touched as its targets.
+3. On findings, send them to the author while it is live, else to a new `mode: author` dispatch with the
+   document's path; then audit again with a fresh agent. Run at most two such fix rounds.
+4. Show the Owner the author's report whole, `Not landed:` lines included, and what the last audit still finds,
+   before they approve any draft. Each doc stays a draft until the Owner approves it, per `specstone:expert-sdd`.
 
-End by telling the Owner the next step is `superpowers:writing-plans`, with this rule for its plan:
+## 5. Write the plan, then ask how to run it
 
-- Every task names the story and FR IDs it builds, and nothing of their text: no statement, edge case, or table.
-- Its implementer reads each one fresh by running `specstone context <target> --for implement`
-  (`specstone:read-sdd`).
+After the Owner approves the drafts, dispatch `specstone:sdd-engineer` with `mode: plan`, the document's path, and
+the plan's path, `docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Show the Owner the plan and ask how to run it.
 
-Write no plan here.
+## Without the `Agent` tool
+
+Without it, or when a design, audit, or plan dispatch fails, read that mode's reference and follow it yourself:
+
+- **Design:** `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md`
+- **Audit:** `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`. You saw the drafts being made, so
+  your audit is not a fresh reader's: tell the Owner so with its findings.
+- **Plan:** `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`
 
 ## Red flags
 
-| Thought                                           | Do instead                                              |
-|---------------------------------------------------|---------------------------------------------------------|
-| "The design is clear; draft the docs now."        | No doc and no dispatch before the document's approval.  |
-| "Check that `.specstone/` exists first."          | The `context` call is the check.                        |
-| "Paste the FR into the plan task to save a call." | Cite its ID; the doc may change before the task runs.   |
-| "It is one value in one doc."                     | A small edit: `specstone:update-sdd`.                   |
-| "Brainstorming says: invoke writing-plans now."   | Step 3 first: the plan cites IDs the engineer writes.   |
+| Thought                                         | Do instead                                                 |
+|-------------------------------------------------|------------------------------------------------------------|
+| "The design is clear; draft the docs now."      | No `mode: author` before the document's approval.          |
+| "Check that `.specstone/` exists first."        | The `context` call is the check.                           |
+| "I'll write the design document myself."        | Step 3: you hold the answers; the agent holds the docs.    |
+| "The coverage table is clean; skip the audit."  | A fresh reader finds what the author's own table cannot.   |
+| "It is one value in one doc."                   | A small edit: `specstone:update-sdd`.                      |
+| "Brainstorming says: invoke writing-plans now." | Step 4 first; step 5's plan cites IDs the drafts now hold. |
