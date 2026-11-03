@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
-import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -199,16 +199,8 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape =
-      DocPathShape.of(docType, set) ??
-      (throw StateError('${docType.id} has no path'));
-  final values =
-      shape.valuesOf(target.docPath) ??
-      (throw StateError('${target.docPath} does not match its doc type'));
-  return [
-    shape.ownPathOf(target.docPath),
-    ...specFoldersOf(set, docType, values),
-  ];
+  return unitRootsOf(set, docType, target.docPath) ??
+      (throw StateError('${target.docPath} does not match ${docType.id}'));
 }
 
 /// Returns a warning per link a history file holds into the unit, in tree
