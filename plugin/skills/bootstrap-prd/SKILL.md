@@ -39,7 +39,7 @@ over every finding this skill takes; after a failed dispatch, for each batch no 
 When you followed the procedure yourself, its report stands in for item 1; on no batch, its step 5.3 delete stands
 in for item 4.
 
-1. Show the Owner each agent's `Report:` line, then its relay block word for word, before any note of your own.
+1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them.

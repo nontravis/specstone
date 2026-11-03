@@ -66,15 +66,16 @@ A failed load: report it and stop; never search.
 ## Output Format
 
 Write your whole report with `Write` to the `report` file: author, design, audit, and plan, the Report of the mode's
-reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines
-the Owner acts on, copied from the file.
+reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the
+Owner acts on, copied from the file, always including the `Findings:` line.
 
 - **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Findings:` line.
 - **Design**: the `Design document:` line, `Open questions:` with its items, the `Findings:` line.
 - **Audit**: `Findings:`, `Waits on the Owner:`, and `Outside the drafts:`, each with its items.
 - **Plan**: the `Plan:` line, each `NOT PLANNED` row, `Open questions:` with its items, the `Findings:` line.
-- **Sync**: the drafts, one `<type>:<name>` line each with one sentence on why it changed, never their text; each
-  behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an approval; then `Findings:`.
+- **Sync**: the drafts, one `<type>:<name>` line each with one sentence on why it changed, never their text;
+  each pointer fixed; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an
+  approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; open questions; one `specstone delete …` line;
   findings outside `batch`; then `Findings:`.
 

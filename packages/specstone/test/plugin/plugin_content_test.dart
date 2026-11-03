@@ -429,7 +429,11 @@ void _handOffTests() {
       expect(text, contains('`report:`'), reason: skill);
       expect(text, contains('`mktemp`'), reason: skill);
       expect(text, contains('`Report:` line'), reason: skill);
-      expect(text, contains('relay block word for word'), reason: skill);
+      expect(
+        text,
+        contains('relay block word for word, before your own notes'),
+        reason: skill,
+      );
       expect(text, isNot(contains('to the Owner whole')), reason: skill);
     }
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
@@ -466,6 +470,8 @@ void _handOffTests() {
     final output = _sectionOf(agent, 'Output Format');
     expect(output, contains('`Report: <path>`'));
     expect(output, contains('relay block'));
+    expect(output, contains('always including the `Findings:` line'));
+    expect(output, contains('each pointer fixed'));
     expect(output, contains('never their text'));
     for (final mode in [
       'author',
@@ -606,7 +612,8 @@ void _agentTests() {
 
   test('inv-10, f08/us02/fr06, f08/us02/fr07: sdd-engineer holds Write and '
       'Edit for the one file under docs/superpowers/ a design or plan '
-      'dispatch names, and audit mode writes only its report file', () {
+      'dispatch names, and audit, design, and plan mode write no other '
+      'file but the report file', () {
     final agent = _pluginText('agents/sdd-engineer.md');
     final tools = RegExp(
       r'^tools:(.*)$',
@@ -620,6 +627,19 @@ void _agentTests() {
       _pluginText('skills/brainstorming-sdd/references/audit.md'),
       contains("Write nothing but the agent's `report:`"),
     );
+    for (final file in ['design.md', 'plan.md']) {
+      final text = _pluginText('skills/brainstorming-sdd/references/$file');
+      expect(
+        text,
+        contains("Write no other file but the agent's `report:` file"),
+        reason: file,
+      );
+      expect(
+        text,
+        contains("write nothing but the agent's `report:` file"),
+        reason: file,
+      );
+    }
   });
 
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '

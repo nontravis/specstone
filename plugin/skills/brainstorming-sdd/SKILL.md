@@ -47,7 +47,7 @@ document holds no open question; approval of an approach is not approval of the 
 ## 3. Write the document: design mode
 
 Each `specstone:sdd-engineer` dispatch in steps 3 to 5 also passes `report:`, a `mktemp` file outside the repository;
-show the Owner each reply's `Report:` line, then its relay block word for word.
+show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
 Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the open
 questions) to a `mktemp` file outside the repository. Dispatch `mode: design` with that brief's path and
@@ -62,14 +62,14 @@ Owner, to the brief, and dispatch again with the same inputs.
 3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
    dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two such
    fix rounds. The drafts list is the first author report's drafts plus each doc a fix round added.
-4. Show each author report and the last audit's before the Owner approves any draft. Each doc stays a
-   draft until the Owner approves it, per `specstone:expert-sdd`.
+4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
+   until then, per `specstone:expert-sdd`.
 
 ## 5. Write the plan, then ask how to run it
 
 After the Owner approves the drafts, dispatch `mode: plan` with the document's path, the drafts list, and
-`docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Show the Owner its `NOT PLANNED` rows and open questions first,
-and send the answers to plan mode with the same inputs. Then show the plan and ask how to run it.
+`docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Send the Owner's answers on its `NOT PLANNED` rows and open questions
+to plan mode with the same inputs. Then show the plan and ask how to run it.
 
 ## Without the `Agent` tool
 

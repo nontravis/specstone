@@ -33,7 +33,7 @@ file (`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follo
 
 When you followed the procedure yourself, its report stands in for item 1.
 
-1. Show the Owner the agent's `Report:` line, then its relay block word for word, before any note of your own.
+1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 3. Ask the Owner each open question; send the answers to the same agent while it is live, else dispatch a new one
    with them.
