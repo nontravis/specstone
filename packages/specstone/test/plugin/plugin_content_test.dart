@@ -472,6 +472,13 @@ void _handOffTests() {
     expect(output, contains('relay block'));
     expect(output, contains('always including the `Findings:` line'));
     expect(output, contains('each pointer fixed'));
+    expect(
+      output,
+      contains(
+        'then `Findings:`, each finding left in `batch` '
+        'or added by your writes',
+      ),
+    );
     expect(output, contains('never their text'));
     for (final mode in [
       'author',

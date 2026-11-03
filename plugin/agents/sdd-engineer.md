@@ -77,7 +77,7 @@ Owner acts on, copied from the file, always including the `Findings:` line.
   each pointer fixed; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an
   approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; open questions; one `specstone delete …` line;
-  findings outside `batch`; then `Findings:`.
+  findings outside `batch`; then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
 ## Scope Boundaries
 
