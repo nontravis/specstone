@@ -36,10 +36,16 @@ sealed class ApprovalLookup {
 
 /// The newest committed copy that is not a draft.
 final class ApprovedCopy extends ApprovalLookup {
-  const new(this.text);
+  const new(this.text, {required this.commit, required this.path});
 
   /// The text of the copy as committed.
   final String text;
+
+  /// The full hash of the commit that holds the copy.
+  final String commit;
+
+  /// The project path of the doc at [commit], its old path after a rename.
+  final String path;
 }
 
 /// A history in which no committed copy is free of `draft`.
@@ -83,7 +89,9 @@ final class ApprovalHistory {
         ], workingDirectory: projectRoot.path);
         if (show.exitCode != 0) return const UnknownHistory();
         final copy = show.stdout as String;
-        if (!Doc.parse(toLf(copy)).isDraft) return ApprovedCopy(copy);
+        if (!Doc.parse(toLf(copy)).isDraft) {
+          return ApprovedCopy(copy, commit: sha, path: path);
+        }
       }
       return const NoApprovedCopy();
     } on ProcessException {

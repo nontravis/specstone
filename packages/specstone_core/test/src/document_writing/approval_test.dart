@@ -107,6 +107,42 @@ void main() {
     );
   }, skip: skipGit);
 
+  test('f02/us03/fr02/e01, dw-s03/inv11: the approved copy names its commit and path', () async {
+    const path = 'docs/$signupFeature';
+    final repo = await _repo({path: _approvedText});
+    commitAll(repo, 'approved');
+    final approvingCommit = (git(repo, ['rev-parse', 'HEAD']).stdout as String)
+        .trim();
+    File('${repo.path}/$path').writeAsStringSync(_draftText);
+    commitAll(repo, 'edited as draft');
+
+    expect(
+      const ApprovalHistory().lastApproved(repo, path),
+      isA<ApprovedCopy>()
+          .having((c) => c.commit, 'commit', approvingCommit)
+          .having((c) => c.path, 'path', path),
+    );
+  }, skip: skipGit);
+
+  test("f02/us03/fr02/e02, dw-s03/inv11: a renamed doc's approved copy names its old path", () async {
+    const oldPath = 'docs/$story3';
+    const newPath =
+        'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
+    final repo = await _repo({oldPath: _longApproved});
+    commitAll(repo, 'approved');
+    Directory(File('${repo.path}/$newPath').parent.path)
+        .createSync(recursive: true);
+    expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
+    File('${repo.path}/$newPath')
+        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+    commitAll(repo, 'moved and drafted');
+
+    expect(
+      const ApprovalHistory().lastApproved(repo, newPath),
+      isA<ApprovedCopy>().having((c) => c.path, 'path', oldPath),
+    );
+  }, skip: skipGit);
+
   test(
     'f02/us03/fr02/e02: --follow reaches the approved copy under its old path',
     () async {
