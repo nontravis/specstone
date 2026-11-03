@@ -98,7 +98,8 @@ ReadAnswer approveDryRun(
 }
 
 /// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
-/// `bases.doc` hash `get --json` printed for it.
+/// hash `approve --dry-run` printed in its `hash` row, the `bases.doc` hash
+/// `get --json` gives.
 typedef SeenDraft = ({String name, String hash});
 
 /// Approves each draft in [seen] with no prompt, as `y` does.
