@@ -97,6 +97,10 @@ final class DocPathShape {
     );
   }
 
+  /// Whether a segment after the own one holds a placeholder.
+  bool get belowOwnHasPlaceholder =>
+      segments.skip(ownIndex + 1).any(_placeholder.hasMatch);
+
   /// Whether the own segment holds `{nn}`.
   bool get numbered => _patterns[ownIndex].tokens.contains(_numberToken);
 

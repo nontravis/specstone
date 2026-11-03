@@ -199,8 +199,13 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  return unitRootsOf(set, docType, target.docPath) ??
-      (throw StateError('${target.docPath} does not match ${docType.id}'));
+  final roots = unitRootsOf(set, docType, target.docPath);
+  if (roots != null) return roots;
+  throw StateError(
+    DocPathShape.of(docType, set) == null
+        ? '${docType.id} has no path'
+        : '${target.docPath} does not match the path of ${docType.id}',
+  );
 }
 
 /// Returns a warning per link a history file holds into the unit, in tree

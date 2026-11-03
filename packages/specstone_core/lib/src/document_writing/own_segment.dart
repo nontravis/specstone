@@ -10,7 +10,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
 final _slugShape = RegExp(r'^[a-z0-9_]+$');
-final _placeholder = RegExp(r'\{nn\}|\{slug\}');
 
 /// Returns [n] zero-padded to two digits; a number past 99 keeps its digits.
 String padNumber(int n) => n.toString().padLeft(2, '0');
@@ -32,7 +31,7 @@ void checkSlug(String slug) {
 bool _holdsDoc(DocPathShape shape, FileSystemEntity own) {
   if (shape.ownIsFile) return true;
   final rest = shape.segments.sublist(shape.ownIndex + 1);
-  if (rest.any(_placeholder.hasMatch)) return true;
+  if (shape.belowOwnHasPlaceholder) return true;
   return File([own.path, ...rest].join(Platform.pathSeparator)).existsSync();
 }
 
