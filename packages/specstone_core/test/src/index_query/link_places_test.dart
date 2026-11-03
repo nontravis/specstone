@@ -9,7 +9,57 @@ import 'package:test/test.dart';
 void main() {
   group('linkPlacesOf', () {
     List<LinkPlace> placesOf(String body) =>
-        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!.docLinks;
+
+    test(
+      'f04/us02/fr04/e10-e14, PS-R3: every relative link that is no doc link '
+      'is a file link, placed at its line with the path it reaches',
+      () {
+        final places = linkPlacesOf(
+          '[a](b.md)\n\n![f](flow%20chart.png#top) [r](a.png?raw=1)\n\n'
+          '[g](../../../x/g.dart) [w](https://e.com) [m](mailto:a@b.c) '
+          '[abs](/abs/x.md) [s](#top) [me](FEATURE.md)\n',
+          docPath: 'prds/f/FEATURE.md',
+          firstLine: 1,
+        )!;
+
+        expect(places.docLinks.map((p) => p.target), ['prds/f/b.md']);
+        expect(places.fileLinks, [
+          (
+            target: 'prds/f/flow chart.png',
+            line: 3,
+            shown: 'flow%20chart.png#top',
+          ),
+          (target: 'prds/f/a.png', line: 3, shown: 'a.png?raw=1'),
+          (target: '../x/g.dart', line: 5, shown: '../../../x/g.dart'),
+        ]);
+      },
+    );
+
+    test('f04/us02/fr04/e14, PS-R3: a .md link above the docs root is a file '
+        'link', () {
+      final places = linkPlacesOf(
+        '[o](../../../o.md)\n',
+        docPath: 'prds/f/FEATURE.md',
+        firstLine: 1,
+      )!;
+
+      expect(places.docLinks, isEmpty);
+      expect(places.fileLinks.single.target, '../o.md');
+    });
+
+    test('f04/us02/fr04/e10, PS-R3: a link read by use keeps its class', () {
+      // `\.` makes the scan and `markdown` disagree, so the nth use of an href
+      // places the link.
+      final places = linkPlacesOf(
+        '[a](b\\.png)\n\n[u](z.md)\n\n[c](b.png)\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+
+      expect(places.docLinks.map((p) => p.target), ['z.md']);
+      expect(places.fileLinks.map((p) => p.target), ['b.png', 'b.png']);
+    });
 
     test('final-fix M1: a link is placed by its own href, whatever the links '
         'before it matched', () {
@@ -144,7 +194,7 @@ void main() {
         firstLine: 1,
       );
 
-      expect(places, [
+      expect(places!.docLinks, [
         (target: 'prds/f/us/\u{FFFD}.md', line: 3, shown: '%DB.md'),
       ]);
     });
@@ -166,13 +216,14 @@ void main() {
         firstLine: 1,
       );
 
-      expect(places, isEmpty);
+      expect(places!.docLinks, isEmpty);
+      expect(places.fileLinks, isEmpty);
     });
   });
 
   group('look-alikes', () {
     List<LinkPlace> placesOf(String body, {int firstLine = 1}) =>
-        linkPlacesOf(body, docPath: 'x.md', firstLine: firstLine)!;
+        linkPlacesOf(body, docPath: 'x.md', firstLine: firstLine)!.docLinks;
 
     void placed(
       String name,
@@ -608,7 +659,7 @@ void main() {
     within(
       '10,000 links in one image description are dropped',
       (n) => '![${'[x](b.md) ' * n}](i.png)\n\n[l](b.md)\n',
-      [(3, 'b.md')],
+      [(1, 'i.png'), (3, 'b.md')],
     );
 
     within(
@@ -703,7 +754,7 @@ void main() {
 
   group('look-alikes in containers', () {
     List<LinkPlace> placesOf(String body) =>
-        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!.docLinks;
 
     void placed(String name, String body, List<LinkPlace> expected) {
       test(name, () => expect(placesOf(body), expected));
@@ -787,7 +838,7 @@ void main() {
 
   group('final-fix label and line folding', () {
     List<LinkPlace> placesOf(String body) =>
-        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!;
+        linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!.docLinks;
 
     test('f04/us02/fr04, LA1: a label folds the blanks markdown folds and '
         'no other', () {

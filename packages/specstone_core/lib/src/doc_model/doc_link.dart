@@ -107,29 +107,67 @@ DocLinkTarget resolveDocLink(String href, String docPath) {
   if (uri.hasAuthority || uri.path.startsWith('/')) return OutsideTarget(href);
   // An empty path (`#frag`, `?q`) names the doc itself.
   if (uri.path.isEmpty) return DocTarget(docPath);
-  final segments = [
-    for (final segment in uri.path.split('/')) percentDecoded(segment),
-  ];
-  final resolved = _resolveSegments(segments, docPath);
+  final resolved = _resolveSegments(_decodedSegmentsOf(uri), docPath);
   if (resolved == null || resolved.isEmpty) return OutsideTarget(href);
   return DocTarget(resolved);
 }
+
+/// Returns the path [href], written in the doc at [docPath], reaches from
+/// the docs root, decoded and normalized, or null when [href] names no file
+/// path.
+///
+/// A path that leaves the docs root keeps its leading `../` segments. The
+/// fragment and query are not part of the path. Null for a web address,
+/// another scheme, an authority, a rooted path, an empty path, a path whose
+/// walk ends at the doc's own folder, and a segment holding an encoded slash.
+String? relativeFilePathOf(String href, String docPath) {
+  final uri = Uri.tryParse(href);
+  if (uri == null ||
+      uri.hasScheme ||
+      uri.hasAuthority ||
+      uri.path.isEmpty ||
+      uri.path.startsWith('/')) {
+    return null;
+  }
+  final path = _resolveSegments(
+    _decodedSegmentsOf(uri),
+    docPath,
+    keepParents: true,
+  );
+  return path == null || path.isEmpty ? null : path;
+}
+
+/// Returns the percent-decoded segments of [uri]'s path.
+List<String> _decodedSegmentsOf(Uri uri) => [
+  for (final segment in uri.path.split('/')) percentDecoded(segment),
+];
 
 /// Returns the docPath [segments] reach from [docPath]'s folder, or null when
 /// a `..` pops past the docs root or a segment holds a `/`. An empty result
 /// names the docs root.
 ///
+/// With [keepParents], a `..` past the docs root stays in the result instead
+/// of failing.
+///
 /// [segments] are already percent-decoded, so an encoded slash (`%2F`)
 /// decoded to one segment cannot name a doc.
-String? _resolveSegments(List<String> segments, String docPath) {
+String? _resolveSegments(
+  List<String> segments,
+  String docPath, {
+  bool keepParents = false,
+}) {
   final path = docPath.split('/')..removeLast();
   for (final segment in segments) {
     switch (segment) {
       case '' || '.':
         continue;
       case '..':
-        if (path.isEmpty) return null;
-        path.removeLast();
+        if (path.isEmpty || path.last == '..') {
+          if (!keepParents) return null;
+          path.add('..');
+        } else {
+          path.removeLast();
+        }
       case _ when segment.contains('/'):
         return null;
       default:
