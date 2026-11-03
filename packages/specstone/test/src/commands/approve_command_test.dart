@@ -210,8 +210,86 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone approve [<name> …] | <type>:<name>@<hash> … --yes',
+        'Usage: specstone approve [<name> …] [--dry-run] [--context <n>] | <type>:<name>@<hash> … --yes',
       ),
     );
   });
+
+  test(
+    'f02/us03/fr05/e01: dry run needs no terminal and prints no colour',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['approve', '--dry-run']), 0);
+      expect(out.toString(), contains('### Draft 1/'));
+      expect(out.toString(), contains('```diff'));
+      expect(out.toString(), isNot(contains('\x1b[')));
+      expect(err.toString(), isEmpty);
+    },
+  );
+  test('f02/us03/fr05/e02: dry run with --yes is a usage error', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'approve',
+        '--dry-run',
+        '--yes',
+        _seen(root, 'feature:signup'),
+      ]),
+      64,
+    );
+    expect(err.toString(), contains('--dry-run goes without --yes.'));
+  });
+  test('f02/us03/fr05/e03: a hash with --dry-run is a usage error', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['approve', '--dry-run', _seen(root, 'feature:signup')]),
+      64,
+    );
+  });
+  test('f02/us03/fr05/e07: --context rules', () async {
+    final root = await writeWriteProject();
+    final seen = _seen(root, 'feature:signup');
+    var (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['approve', '--yes', '--context', '3', seen]), 64);
+    expect(err.toString(), contains('--context goes without --yes.'));
+    for (final bad in ['-1', 'x']) {
+      (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', '--dry-run', '--context', bad]), 64);
+      expect(
+        err.toString(),
+        contains('--context takes a whole number from 0.'),
+      );
+    }
+    (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['approve', '--dry-run', '--context', '0']), 0);
+  });
+  test(
+    'f02/us03/fr02/e16: the walk colours at a terminal unless NO_COLOR',
+    () async {
+      final root = await writeWriteProject();
+      var (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['n'],
+        ),
+      );
+      expect(await runner.run(['approve', 'signup']), 0);
+      expect(out.toString(), contains('\x1b[32m+'));
+      (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          noColor: true,
+          answers: ['n'],
+        ),
+      );
+      expect(await runner.run(['approve', 'signup']), 0);
+      expect(out.toString(), isNot(contains('\x1b[')));
+    },
+  );
 }

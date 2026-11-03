@@ -5,13 +5,26 @@ import 'package:specstone_core/specstone_core.dart';
 /// drafts named `<type>:<name>@<hash>` under `--yes`.
 class ApproveCommand extends WriteCommand {
   new() {
-    argParser.addFlag(
-      'yes',
-      negatable: false,
-      help:
-          'Approve the named drafts without the terminal prompt; the agent '
-          "runs it after the Owner's ok.",
-    );
+    argParser
+      ..addFlag(
+        'yes',
+        negatable: false,
+        help:
+            'Approve the named drafts without the terminal prompt; the agent '
+            "runs it after the Owner's ok.",
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help:
+            'Print each draft as the walk shows it, without a terminal and '
+            'without approving.',
+      )
+      ..addOption(
+        'context',
+        valueHelp: 'n',
+        help: 'Show n unchanged lines around each change; the default is 3.',
+      );
   }
 
   static final _seenDraft = RegExp(r'^(.+)@([0-9a-f]{12})$');
@@ -24,13 +37,23 @@ class ApproveCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone approve [<name> …] | <type>:<name>@<hash> … --yes';
+      'specstone approve [<name> …] [--dry-run] [--context <n>] '
+      '| <type>:<name>@<hash> … --yes';
 
   @override
   Future<int> run() async {
     final args = argResults!;
     final names = args.rest;
     final yes = args.flag('yes');
+    final dryRun = args.flag('dry-run');
+    final contextArg = args.option('context');
+    if (dryRun && yes) {
+      usageException('--dry-run goes without --yes.');
+    }
+    if (contextArg != null && yes) {
+      usageException('--context goes without --yes.');
+    }
+    final context = contextArg == null ? null : _contextOf(contextArg);
     if (yes && names.isEmpty) {
       usageException('--yes needs the names of the drafts it approves.');
     }
@@ -38,6 +61,18 @@ class ApproveCommand extends WriteCommand {
       for (final name in names.where((name) => name.contains('@'))) {
         usageException('$name: a @<hash> goes only with --yes.');
       }
+    }
+    final color = console.stdoutIsTerminal && !console.noColor;
+    if (dryRun) {
+      return runWrite(
+        (session) => approveDryRun(
+          session,
+          names: names,
+          context: context,
+          color: color,
+        ),
+        asJson: false,
+      );
     }
     final seen = yes ? names.map(_seenDraftOf).toList() : const <SeenDraft>[];
     final confirmation = OwnerConfirmation.of(
@@ -58,9 +93,22 @@ class ApproveCommand extends WriteCommand {
         names: names,
         readLine: console.readLine,
         out: specstoneRunner.out,
+        context: context,
+        color: color,
       );
       return const ReadAnswer(text: '', json: {});
     }, asJson: false);
+  }
+
+  /// Returns the whole number from 0 in [text].
+  ///
+  /// Throws a usage error for any other [text].
+  int _contextOf(String text) {
+    final value = int.tryParse(text);
+    if (value == null || value < 0) {
+      usageException('--context takes a whole number from 0.');
+    }
+    return value;
   }
 
   /// Returns the draft and hash of an `--yes` [arg], `<type>:<name>@<hash>`.
