@@ -81,16 +81,12 @@ field; `specstone:expert-sdd` says how to record it.
 
 ## 4. Name the change for the Owner
 
-Write no design document. Tell the Owner the doc, the section or field, what it said before, and what it says now.
-For a confirmation, add the upstream change you checked it against. Then get it approved through
-`specstone:expert-sdd`'s Owner confirmation (terminal or chat), naming the doc:
+Write no design document. Name the change through `specstone:expert-sdd`'s Owner confirmation: its `Why:` line,
+adding for a confirmation the upstream change you checked it against, then the view
+`specstone approve <type>:<name> --dry-run` prints.
 
-```
-specstone approve <type>:<name>
-```
-
-When that doc holds others, as a feature holds its stories and a story its FRs, say so: at the terminal this call
-also walks every draft under that doc; in the chat, show and name each one.
+When that doc holds others, as a feature holds its stories and a story its FRs, say so: at the terminal the approve
+call also walks every draft under that doc; in the chat, the dry run prints and you send each one.
 
 With no design document or coverage table, the Owner's look at your named change is the edit's one check: never
 approve before their `ok`.

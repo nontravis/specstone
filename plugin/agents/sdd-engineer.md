@@ -35,7 +35,6 @@ findings, and changed code or a batch's findings into drafts.
   `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` finds them.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix;
   write any doc a fix needs.
-- **Owner's language** (sync, bootstrap): label old and new text in it.
 - **`routed by`** (author, design, audit, plan, optional): the skill that routes your report.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per gap; stop.
 
@@ -67,8 +66,8 @@ A failed load: report it and stop; never search.
 
 - **Author, design, audit, plan**: the Report of the mode's reference. When the dispatch names no `routed by`,
   open it with `Main session: show this report to the Owner whole before you act on it.`
-- **Sync and bootstrap**: first, per draft, `specstone:expert-sdd`'s Owner confirmation `approve` item, whole (a new
-  doc: its full text). Then sync, the procedure's Report to the Owner list; bootstrap, proposals and waivers, open
+- **Sync and bootstrap**: first, the drafts, one `<type>:<name>` line each with one sentence on why it changed, never their
+  text. Then sync, the procedure's Report to the Owner list; bootstrap, proposals and waivers, open
   questions, one `specstone delete …` line, findings outside `batch`. Then `Findings:`.
 
 ## Scope Boundaries
