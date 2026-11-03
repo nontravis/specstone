@@ -165,7 +165,7 @@ final class CheckContext {
   /// Whether [doc] lies in a checked folder.
   bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);
 
-  /// Whether the doc type of [doc] names a parent and [doc] has none (INV-13).
+  /// Whether [doc] takes a parent doc ([parentTypeOf]) and has none (INV-13).
   bool hasNoParent(IndexedDoc doc) =>
       parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
 

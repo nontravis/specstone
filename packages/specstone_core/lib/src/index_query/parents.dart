@@ -26,13 +26,14 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
   final warnings = <String, String>{};
   for (final doc in docs) {
     final type = _typeOf(doc, set);
-    final parentType = type == null ? null : _parentTypeOf(doc, type, set);
-    if (type == null || parentType == null) continue;
+    if (type == null) continue;
+    final nameSegments = doc.name.split('/');
+    final parentType = _parentTypeOf(type, nameSegments.length, set);
+    if (parentType == null) continue;
     final parentSlugCount = _slugCountOf(parentType);
-    final parentLength =
-        doc.name.split('/').length - _ownSlugCount(type, parentType);
+    final parentLength = nameSegments.length - _ownSlugCount(type, parentType);
     if (parentSlugCount == 0 || parentLength < parentSlugCount) continue;
-    final parentName = doc.name.split('/').take(parentLength).join('/');
+    final parentName = nameSegments.take(parentLength).join('/');
     final candidates = docPathsByName[(parentType.id, parentName)] ?? const [];
     if (candidates.length == 1) {
       parents[doc.docPath] = candidates.single;
@@ -54,7 +55,9 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
 /// more segments than its base `path` holds `{slug}`s, the nesting type itself.
 MergedDocType? parentTypeOf(IndexedDoc doc, MergedSet set) {
   final type = _typeOf(doc, set);
-  return type == null ? null : _parentTypeOf(doc, type, set);
+  return type == null
+      ? null
+      : _parentTypeOf(type, doc.name.split('/').length, set);
 }
 
 MergedDocType? _typeOf(IndexedDoc doc, MergedSet set) =>
@@ -64,15 +67,15 @@ MergedDocType? _typeOf(IndexedDoc doc, MergedSet set) =>
     };
 
 MergedDocType? _parentTypeOf(
-  IndexedDoc doc,
   MergedDocType type,
+  int nameLength,
   MergedSet set,
 ) {
   if (type.parent case final parentId?) return set.lookup(parentId);
   final isNested =
       type.id == set.nestingType?.id &&
       _nestingSlugCount(type) > 0 &&
-      doc.name.split('/').length > _slugCountOf(type);
+      nameLength > _slugCountOf(type);
   return isNested ? type : null;
 }
 

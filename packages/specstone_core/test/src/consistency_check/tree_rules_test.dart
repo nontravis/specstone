@@ -4,7 +4,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
@@ -253,27 +252,43 @@ void main() {
       final report = checkOf(
         await writeNestedProject(without: {'docs/$shopFeature'}),
       );
-      final spots = report.findings
-          .where((f) => f.kind == FindingKind.parentMissing)
-          .map((f) => f.path)
-          .toList();
-      expect(spots, containsAll([cartFeature, payFeature, shopDomain]));
-      expect(spots, isNot(contains(cartAdd)));
+      final found = spots(report, FindingKind.parentMissing);
+      expect(
+        found,
+        containsAll([
+          '$cartFeature:1: parent_missing',
+          '$payFeature:1: parent_missing',
+          '$shopDomain:1: parent_missing',
+        ]),
+      );
+      expect(found, isNot(contains('$cartAdd:1: parent_missing')));
+      expect(
+        report.findings
+            .singleWhere(
+              (f) =>
+                  f.path == cartFeature && f.kind == FindingKind.parentMissing,
+            )
+            .message,
+        'no feature doc is the parent of shop/cart',
+      );
     });
 
     test('f04/us01/fr07/e12: nested siblings cart/pay and add_item/drop_item give no order_number_duplicate; a second f01_x beside cart gives one', () async {
-      List<String> duplicates(CheckReport report) => [
-        for (final f in report.findings)
-          if (f.kind == FindingKind.orderNumberDuplicate) f.path,
-      ];
-      expect(duplicates(checkOf(await writeNestedProject())), isEmpty);
+      const kind = FindingKind.orderNumberDuplicate;
+      expect(spots(checkOf(await writeNestedProject()), kind), isEmpty);
       const twin = 'prds/features/f02_shop/f01_x/FEATURE.md';
       final report = checkOf(
         await writeNestedProject(
           extra: {'docs/$twin': nestedFiles()['docs/$cartFeature']!},
         ),
       );
-      expect(duplicates(report), unorderedEquals([cartFeature, twin]));
+      expect(
+        spots(report, kind),
+        unorderedEquals([
+          '$cartFeature:1: order_number_duplicate',
+          '$twin:1: order_number_duplicate',
+        ]),
+      );
     });
   });
 }
