@@ -16,10 +16,14 @@ Before the first write to a type, run `specstone guide <type>` (`--json` lists i
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
 the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
 of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key: never edit the file.
-Exit 75 `base_mismatch`: read again, merge, retry.
+The text between the title and the first `##` section is `#_lead`. Exit 75 `base_mismatch`: read again, merge,
+retry.
+
+Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
+`#quot;`.
 
 Where the old text lacks what the guide needs, propose it from the project's own text (a vision entry's Why
-line backs its `> en:` summary), named in step 6. Ask the Owner only when no text bears on it.
+line backs its `> en:` summary), named in step 6. Ask the Owner only if no text bears on it.
 
 | Finding | Fix |
 |---|---|
@@ -60,8 +64,8 @@ mention in a section kept unchanged.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
    repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). On a batch, the set holds only
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
-   Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
-   holding the content, or drop a mention nothing replaces, through `specstone set` on that section.
+   Leave any other untyped file (a plan, a ledger) as history. Repoint each other link or mention to the doc holding
+   the content, or drop a mention nothing replaces, through `specstone set` on that section.
 3. Name the set in one `specstone delete` line, quoting each path with a space:
 
 ```

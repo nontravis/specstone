@@ -14,7 +14,11 @@ omits `code_uncovered`). Stop when each finding left is under `prds/`, clears wi
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
 `--title` in place of `#<key>`); a section body leaves out its `## ` line, a list field takes its whole list, and
-empty text drops the section or key: never edit the file. Exit 75 `base_mismatch`: read again, merge, retry.
+empty text drops the section or key: never edit the file. The text between the title and the first `##` section is
+`#_lead`. Exit 75 `base_mismatch`: read again, merge, retry.
+
+Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
+`#quot;`.
 
 For a finding a write clears: write nothing a project doc holds already (cite where in step 6); where the old text
 lacks what the guide needs, propose it from the project's own text, named in step 6; ask the Owner only when no
