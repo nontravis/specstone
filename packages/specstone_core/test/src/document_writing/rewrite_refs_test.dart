@@ -206,6 +206,17 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02, M2: a link to an ancestor folder of its own doc keeps every byte when that folder is renamed', () {
+    expect(
+      rewriteDocLinks(
+        '[a](../) [b](..) [c](../#top)\n',
+        docPath: 'prds/features/f01_x/us01/USER_STORY.md',
+        moves: [(from: 'prds/features/f01_x/', to: 'prds/features/f02_x/')],
+      ),
+      isNull,
+    );
+  });
+
   test('PD13: a swap is rewritten in one pass, and a reference definition follows too', () {
     const swap = <PathMove>[
       (from: 'a/f01_x/', to: 'a/f02_x/'),
@@ -492,6 +503,18 @@ void main() {
       step.text,
       '# Notes\n\n![flow](features/f01_login/us03_sign_out/flow.png)\n',
     );
+  });
+
+  test('f02/us05/fr02, M2: planRewrites reaches a doc whose only link is a folder link with no trailing slash', () async {
+    root = await writeWriteProject(
+      extra: {
+        'docs/prds/d02_notes.md':
+            '# Notes\n\n[a](features/f01_login/us02_sign_out)\n',
+      },
+    );
+    final step = plan(reorderMoves)
+        .singleWhere((step) => step.path == 'docs/prds/d02_notes.md');
+    expect(step.text, '# Notes\n\n[a](features/f01_login/us03_sign_out)\n');
   });
 
   test('f02/us05/fr02: a step is written to the path after the moves, in the file line ends', () async {

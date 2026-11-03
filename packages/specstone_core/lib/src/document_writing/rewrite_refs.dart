@@ -194,7 +194,7 @@ bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
         .contentOf(doc)
         .lineFacts
         .fileLinks
-        .any((link) => _movedFilePath(link.target, moves) != link.target);
+        .any((link) => _movedFilePath(link.target, moves).$1 != link.target);
 
 WriteStep? _stepFor(
   WriteSession session,
@@ -382,10 +382,13 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
   if (!percentDecodesCleanly(cut < 0 ? href : href.substring(0, cut))) {
     return null;
   }
-  final before = relativeHref(docPath, target);
-  final after = relativeHref(
-    movedPath(docPath, moves),
-    _movedFilePath(target, moves),
+  final (movedTarget, isFolder) = _movedFilePath(target, moves);
+  // A folder is reached through a dummy child, so `relativeHref` does not
+  // read it as a file and a link to an ancestor of its own doc compares true.
+  final child = isFolder ? '/.' : '';
+  final before = _withoutChild(relativeHref(docPath, '$target$child'));
+  final after = _withoutChild(
+    relativeHref(movedPath(docPath, moves), '$movedTarget$child'),
   );
   if (before == after) return null;
   final path = cut < 0 ? href : href.substring(0, cut);
@@ -395,15 +398,21 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
 }
 
 /// Returns [path], a file or a folder under the docs root or outside it,
-/// after [moves].
+/// after [moves], and whether [moves] moved it as a folder.
 ///
-/// A folder path has no trailing `/`, so it is moved as the folder it names.
-String _movedFilePath(String path, List<PathMove> moves) {
+/// A folder path has no trailing `/`, so it is moved as the folder it names
+/// when no move names it as a file.
+(String, bool) _movedFilePath(String path, List<PathMove> moves) {
   final moved = movedPath(path, moves);
-  if (moved != path) return moved;
+  if (moved != path) return (moved, false);
   final folder = movedPath('$path/', moves);
-  return folder == '$path/' ? path : folder.substring(0, folder.length - 1);
+  if (folder == '$path/') return (path, false);
+  return (folder.substring(0, folder.length - 1), true);
 }
+
+/// Returns [href] without the dummy child [_movedHref] adds to a folder.
+String _withoutChild(String href) =>
+    href.endsWith('/.') ? href.substring(0, href.length - 2) : href;
 
 /// Returns the key block [text] of [field] with each renamed value replaced.
 ///

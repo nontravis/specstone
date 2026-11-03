@@ -516,12 +516,12 @@ Let a user sign in.
     test('f06/us01/fr04/e15: a doc moved one folder deeper keeps its code '
         'link pointing at the same file', () {
       final result = rewriteLinks(
-        '[code](../../lib/a.dart)\n',
+        '[code](../../../lib/a.dart)\n',
         docPath: 'specs/f01/s01.md',
         moves: [(from: 'specs/f01/s01.md', to: 'specs/f01/sub/s01.md')],
       );
 
-      expect(result.lf, '[code](../../../lib/a.dart)\n');
+      expect(result.lf, '[code](../../../../lib/a.dart)\n');
       expect(result.label, '1 link');
     });
 
