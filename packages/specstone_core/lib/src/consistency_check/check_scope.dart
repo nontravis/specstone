@@ -1,12 +1,12 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
-import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 /// The docs and files one check run reports on (INV-12).
 ///
-/// A target's scope is the docs it resolves to, every doc whose parent chain
-/// reaches one, and every file at any depth under the folder of each of those
-/// docs whose doc type is a folder doc. The whole project has no limit.
+/// A target's scope is, for each doc it resolves to, the unit `delete` takes:
+/// the doc's own path segment with every file in it, a feature's spec folder
+/// too, and an untyped doc's one file. The whole project has no limit.
 final class CheckScope {
   new project() : _docPaths = null, _folders = const [];
 
@@ -15,19 +15,18 @@ final class CheckScope {
 
   /// Returns the scope of [target], resolved as `get` resolves a name.
   factory of(CheckContext context, String target) {
-    final docs = context.index.under(target);
-    final isFolderDoc = <String, bool>{};
+    final docPaths = <String>{};
     final folders = <String>{};
-    for (final doc in docs) {
-      final path = context.typeOf(doc)?.path;
-      if (path == null) continue;
-      if (isFolderDoc.putIfAbsent(path, () => PathPattern(path).isFolderDoc)) {
-        folders.add(_folderOf(doc));
+    for (final doc in context.index.resolve(target)) {
+      final type = context.typeOf(doc);
+      final roots = type == null
+          ? null
+          : unitRootsOf(context.index.set, type, doc.docPath);
+      for (final root in roots ?? [doc.docPath]) {
+        (root.endsWith('/') ? folders : docPaths).add(root);
       }
     }
-    return CheckScope._({
-      for (final doc in docs) doc.docPath,
-    }, folders.toList());
+    return CheckScope._(docPaths, folders.toList());
   }
 
   new _(this._docPaths, this._folders);
@@ -48,7 +47,4 @@ final class CheckScope {
 
   /// Whether [doc] is in scope.
   bool containsDoc(IndexedDoc doc) => contains(doc.docPath);
-
-  static String _folderOf(IndexedDoc doc) =>
-      doc.docPath.substring(0, doc.docPath.lastIndexOf('/') + 1);
 }

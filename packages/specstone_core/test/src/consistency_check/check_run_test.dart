@@ -154,6 +154,62 @@ void main() {
     );
   });
 
+  test('f04/us01/fr01/e15, cc-s03/inv12: a spec doc target reports its own file, not the spec doc beside it', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...doc(
+          loginApi,
+          'Signs the Agent in.',
+          'Signs the Agent in. See [x](../../../nowhere.md).',
+        ),
+        ...doc(
+          loginArchitecture,
+          'One box.',
+          'One box. See [y](../../../nowhere.md).',
+        ),
+      },
+    );
+    const missing = FindingKind.linkTargetMissing;
+    expect(spots(checkOf(project, target: 'architecture:login'), missing), [
+      '$loginArchitecture:9: link_target_missing',
+    ]);
+    expect(spots(checkOf(project, target: 'api:login'), missing), [
+      '$loginApi:15: link_target_missing',
+    ]);
+  });
+
+  test('f04/us01/fr01/e16, cc-s03/inv12: a feature target reports the feature folder and its spec folder', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...doc(
+          loginApi,
+          'Signs the Agent in.',
+          'Signs the Agent in. See [x](../../../nowhere.md).',
+        ),
+        'docs/specs/f02_signup/API.md':
+            '# Sign up API\n\nSee [z](../../../nowhere.md).\n',
+      },
+    );
+    expect(
+      spots(
+        checkOf(project, target: 'feature:login'),
+        FindingKind.linkTargetMissing,
+      ),
+      ['$loginApi:15: link_target_missing'],
+    );
+  });
+
+  test('f04/us01/fr01/e17, cc-s03/inv12: an untyped DocPath target reports that one file', () async {
+    const notes = 'prds/features/f01_login/notes.md';
+    const sibling = 'prds/features/f01_login/other.md';
+    final project = await writeCheckProject(
+      extra: {'docs/$notes': '# Notes\n', 'docs/$sibling': '# Other\n'},
+    );
+    expect(spots(checkOf(project, target: notes), FindingKind.untypedDoc), [
+      '$notes:1: untyped_doc',
+    ]);
+  });
+
   test('f04/us01/fr01/e03: a typed name checks that doc only', () async {
     final project = await writeCheckProject(
       extra: {
