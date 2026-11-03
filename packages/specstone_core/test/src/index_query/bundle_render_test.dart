@@ -12,6 +12,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/prd_core.dart';
 
 void main() {
   late DocIndex index;
@@ -65,11 +66,125 @@ void main() {
       '- login/email_login/validate_credentials (fr)',
       '- login/email_login/lock_after_failures (fr)',
       '- login/email_login/login_latency (nf)',
-      '- login/reset_password (user_story)',
-      '- login/reset_password/send_reset_link (fr)',
+      '- login/reset_password (user_story) · summary',
+      '- login/reset_password/send_reset_link (fr) · summary',
       '- login (api)',
       '- login (architecture)',
     ]);
+  });
+  test('f01/us05/s2, f01/us05/fr02, s03/inv28, db-r1: a sibling prints marked, title and summary sections only', () {
+    final a = ctx('login/email_login', BundleMode.design);
+    expect(
+      a.text,
+      contains(
+        '==> login/reset_password (user_story) · prds/features/f01_login/us02_reset_password/USER_STORY.md · summary <==\n'
+        '# Agent resets a password\n\n## Use Case\nReset it.\n',
+      ),
+    );
+    expect(
+      a.text,
+      contains(
+        '==> login/reset_password/send_reset_link (fr) · prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md · summary <==\n'
+        '# Send a reset link\n\n## Statement\nThe system shall mail a link.\n',
+      ),
+    );
+    expect(
+      a.text,
+      isNot(contains('status: planned\n---\n\n# Agent resets a password')),
+    );
+    expect(
+      a.text,
+      endsWith(
+        '- login/reset_password (user_story) · summary\n'
+        '- login/reset_password/send_reset_link (fr) · summary\n- login (api)\n- login (architecture)\n'
+        '- login (domain)\n- login (error)\n'
+        'Read a summary doc whole with: specstone context <name> --for implement\n',
+      ),
+    );
+    final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
+    expect(
+      [
+        for (final d in docs)
+          if (d['summary'] == true) d['name'],
+      ],
+      ['login/reset_password', 'login/reset_password/send_reset_link'],
+    );
+  });
+  test('f01/us05/fr02/e09: a summary section still holding its starter text leaves banner and title', () async {
+    final useCase = sectionOf(
+      prdCoreDocType(await resolvePrdCore(), 'user_story'),
+      'use_case',
+    ).template!;
+    final i = await indexWith({
+      'docs/prds/features/f01_login/us03_sign_up_later/USER_STORY.md':
+          '# Agent signs up later\n\n## Use Case\n$useCase\n\n## Acceptance Criteria\n- Given a guest\n',
+    });
+    expect(
+      ctxIn(i, 'login/email_login', BundleMode.design).text,
+      contains(
+        '==> login/sign_up_later (user_story) · prds/features/f01_login/us03_sign_up_later/USER_STORY.md · summary <==\n'
+        '# Agent signs up later\n\n==> ',
+      ),
+    );
+  });
+  test('f01/us05/fr02/e10, db-c6: a doc type whose layer turns every summary section off prints banner and title', () async {
+    final i = await indexWith({
+      '.specstone/templates/fr.yaml':
+          'sections: [{id: statement, summary: false}]\n',
+    });
+    expect(
+      ctxIn(i, 'login/email_login', BundleMode.design).text,
+      contains(
+        '==> login/reset_password/send_reset_link (fr) · prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md · summary <==\n'
+        '# Send a reset link\n\n==> ',
+      ),
+    );
+  });
+  test('f01/us05/fr02/e11: a feature with one story prints no summary doc and no next-step line', () {
+    final a = ctx('signup/create_account', BundleMode.design);
+    expect(a.text, isNot(contains('· summary')));
+    expect(a.text, isNot(contains('Read a summary doc whole')));
+  });
+  test('f01/us05/fr03/e08, db-r1: over budget, a summary doc is listed marked at its printed size', () {
+    final whole = ctx('login', BundleMode.design);
+    final a = ctx('login/email_login', BundleMode.design, budget: 1);
+    final printed =
+        (ctx('login/email_login', BundleMode.design).json['docs']! as List)
+                .cast<Map<String, Object?>>()
+                .firstWhere(
+                  (d) => d['name'] == 'login/reset_password',
+                )['tokens']!
+            as int;
+    final full =
+        (whole.json['docs']! as List).cast<Map<String, Object?>>().firstWhere(
+              (d) => d['name'] == 'login/reset_password',
+            )['tokens']!
+            as int;
+    expect(a.exitStatus, 1);
+    expect(
+      a.text,
+      contains(
+        '- login/reset_password (user_story) · summary · $printed tokens\n',
+      ),
+    );
+    expect(printed, lessThan(full));
+  });
+  test('s03/inv28, db-c9: a doc a bundle: join adds prints whole, once', () async {
+    final i = await indexWith({
+      '.specstone/templates/fr.yaml': 'bundle: [design]\n',
+    });
+    final a = ctxIn(i, 'login/email_login', BundleMode.design);
+    const banner =
+        '==> login/reset_password/send_reset_link (fr) · prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md <==';
+    expect(RegExp(RegExp.escape(banner)).allMatches(a.text), hasLength(1));
+    expect(
+      a.text,
+      isNot(
+        contains(
+          'send_reset_link (fr) · prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md · summary',
+        ),
+      ),
+    );
   });
   test('f01/us05/s3, f01/us05/fr02/e05: query prints query sections with no frontmatter, then the map', () async {
     final a = ctx('login', BundleMode.query);

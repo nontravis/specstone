@@ -7,6 +7,16 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 
+const _summaryNextStep =
+    'Read a summary doc whole with: specstone context <name> --for implement';
+
+String _overBudgetLine(IndexedDoc doc, bool summary, int tokens) =>
+    '- ${_listName(doc, summary)} · $tokens tokens\n';
+
+/// Returns the closing-list name of [doc], marked ` · summary` when [summary].
+String _listName(IndexedDoc doc, bool summary) =>
+    summary ? '${nameWithType(doc)} · summary' : nameWithType(doc);
+
 /// Renders [bundle]'s docs as one `context` answer (us05 FR-02).
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
@@ -21,8 +31,11 @@ ReadAnswer answerContext(
   int? budget,
 }) {
   final ordered = _orderedDocs(index, bundle);
+  final summaryOnly = bundle.summaryOnly;
+  bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
   final docBlocks = [
-    for (final doc in ordered) _docBlock(index, doc, bundle.mode),
+    for (final doc in ordered)
+      _docBlock(index, doc, bundle.mode, summary: inSummary(doc)),
   ];
   final mapBlocks = [
     for (final top in _byTreeOrder(index, bundle.mapTops))
@@ -38,6 +51,7 @@ ReadAnswer answerContext(
     return _overBudget(
       ordered,
       docBlocks,
+      summaryOnly,
       bundle,
       label: label,
       byCode: byCode,
@@ -45,10 +59,14 @@ ReadAnswer answerContext(
       tokens: tokens,
     );
   }
+  final list = [
+    for (final doc in ordered) '- ${_listName(doc, inSummary(doc))}\n',
+  ];
   final text =
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
-      '${[for (final doc in ordered) '- ${nameWithType(doc)}\n'].join()}';
+      '${list.join()}'
+      '${summaryOnly.isEmpty ? '' : '$_summaryNextStep\n'}';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
     'for': bundle.mode.wire,
@@ -61,6 +79,7 @@ ReadAnswer answerContext(
           'path': ordered[doc].docPath,
           'tokens': tokenSizeOf(block),
           'text': _blockBody(block),
+          if (inSummary(ordered[doc])) 'summary': true,
         },
     ],
     ..._mapJson(index, bundle.mapTops),
@@ -74,6 +93,7 @@ ReadAnswer answerContext(
 ReadAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,
+  Set<String> summaryOnly,
   Bundle bundle, {
   required String label,
   required bool byCode,
@@ -84,7 +104,7 @@ ReadAnswer _overBudget(
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
     for (final (i, doc) in ordered.indexed)
-      '- ${nameWithType(doc)} · ${sizes[i]} tokens\n',
+      _overBudgetLine(doc, summaryOnly.contains(doc.docPath), sizes[i]),
   ];
   final text =
       'The bundle holds $tokens est. tokens, over the budget of $budget; '
@@ -105,6 +125,7 @@ ReadAnswer _overBudget(
           'docType': ?doc.docTypeId,
           'path': doc.docPath,
           'tokens': sizes[i],
+          if (summaryOnly.contains(doc.docPath)) 'summary': true,
         },
     ],
     'next': next,
@@ -120,7 +141,7 @@ ReadAnswer _overBudget(
 /// Returns [bundle]'s docs in bundle order: the joined docs in tree order,
 /// then a pre-order walk from each doc of `docPaths` whose parent is outside
 /// it, children inside `docPaths` sorted by chain type first, then doc type
-/// id, then DocPath, by code point (INV-15).
+/// id, then DocPath, by code point (INV-15). A joined doc prints once, whole.
 List<IndexedDoc> _orderedDocs(DocIndex index, Bundle bundle) {
   final inDocPaths = {...bundle.docPaths, ...bundle.summaryPaths};
   final roots = [
@@ -136,7 +157,8 @@ List<IndexedDoc> _orderedDocs(DocIndex index, Bundle bundle) {
   return [
     for (final doc in index.docs)
       if (bundle.joinedPaths.contains(doc.docPath)) doc,
-    ...walkOrder,
+    for (final doc in walkOrder)
+      if (!bundle.joinedPaths.contains(doc.docPath)) doc,
   ];
 }
 
@@ -174,10 +196,21 @@ bool _isChainDoc(DocIndex index, IndexedDoc doc) {
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
 /// joined by one blank line (Plan decision 21, INV-14).
-String _docBlock(DocIndex index, IndexedDoc doc, BundleMode mode) {
+String _docBlock(
+  DocIndex index,
+  IndexedDoc doc,
+  BundleMode mode, {
+  required bool summary,
+}) {
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
   final parts = <String>[];
+  if (summary) {
+    final title = doc.title;
+    if (title != null) parts.add('# $title');
+    parts.addAll(_summaryBlocks(content, docType, mode));
+    return '${namingLine(doc, summary: true)}\n${parts.join('\n\n')}';
+  }
   if (mode != BundleMode.query) {
     final frontmatter = content.frontmatterText;
     if (frontmatter != null) parts.add(frontmatter.trimRight());
@@ -185,12 +218,30 @@ String _docBlock(DocIndex index, IndexedDoc doc, BundleMode mode) {
     if (head.trim().isNotEmpty) parts.add(head.trimRight());
   }
   for (final section in _keptSections(content, docType, mode)) {
-    parts.add(
-      '${section.headerLine}\n${_removeComments(section.body).trimRight()}',
-    );
+    parts.add(_sectionBlock(section));
   }
   return '${namingLine(doc)}\n${parts.join('\n\n')}';
 }
+
+/// Returns the kept sections of a summary doc whose merged section is a
+/// summary section, in section order (INV-28).
+Iterable<String> _summaryBlocks(
+  DocContent content,
+  MergedDocType? docType,
+  BundleMode mode,
+) {
+  final summaryIds = {
+    for (final section in docType?.sections ?? const <MergedSection>[])
+      if (section.summary == true) section.id,
+  };
+  return [
+    for (final section in _keptSections(content, docType, mode))
+      if (summaryIds.contains(section.key)) _sectionBlock(section),
+  ];
+}
+
+String _sectionBlock(IndexedSection section) =>
+    '${section.headerLine}\n${_removeComments(section.body).trimRight()}';
 
 /// Returns the sections [content] keeps for [mode], in its doc type's section
 /// order, a section the type does not define after them in file order

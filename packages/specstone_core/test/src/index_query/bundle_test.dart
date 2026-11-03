@@ -174,6 +174,22 @@ void main() {
     expect(b.joinedPaths, isEmpty);
     expect(b.summaryOnly, hasLength(2));
   });
+  test(
+    's03/inv13, db-c9: a doc a bundle: join adds is whole, never summary-only',
+    () async {
+      final i = await indexWith({
+        '.specstone/templates/fr.yaml': 'bundle: [design]\n',
+      });
+      final b = pickBundle(
+        i,
+        'login/email_login',
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.summaryOnly, {'$us02/USER_STORY.md'});
+      expect(b.joinedPaths, contains('$us02/fr01_send_reset_link.md'));
+    },
+  );
   test('f01/us05/fr01/e04, s03/inv12: a feature for implement gives its spec docs and its story name list', () async {
     final b = pickBundle(
       index,

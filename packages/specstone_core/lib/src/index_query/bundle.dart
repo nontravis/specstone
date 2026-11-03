@@ -52,8 +52,10 @@ final class Bundle {
   /// The docs that join only through their doc type's `bundle:` list.
   final Set<String> joinedPaths = {};
 
-  /// The docs that print in summary only: [summaryPaths] no target picks whole.
-  Set<String> get summaryOnly => summaryPaths.difference(docPaths);
+  /// The docs that print in summary only: [summaryPaths] that no target picks
+  /// whole and no `bundle:` join adds (DB-C9).
+  Set<String> get summaryOnly =>
+      summaryPaths.difference(docPaths).difference(joinedPaths);
 
   /// The tops whose query map prints.
   final Set<String> mapTops = {};
