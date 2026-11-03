@@ -20,14 +20,15 @@ specstone context <target> --for design --budget 20000
 ```
 
 - **0:** the printed bundle grounds the brainstorm. Work from it; open none of its files.
-- **1:** the bundle is over budget. Give `specstone:sdd-reader` the target IDs, mode `design`, `--summary` when the
-  call used it, and the change in a sentence, with no doc text; the whole sections it returns are the ground.
+- **1:** the bundle is over budget. Give `specstone:sdd-reader` the target IDs, `--summary` beside each target
+  whose call used it, mode `design`, and the change in a sentence, with no doc text; the whole sections it returns
+  are the ground.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
-That call is the gate. Never look for `.specstone/` yourself first: the CLI searches each folder upward, while a look
-at the working directory alone misses a project root above it.
+That call is the gate. Never look for `.specstone/` yourself first: the CLI searches upward from each folder, and a look
+at the working directory misses a root above it.
 
 ## 2. Reach an approved design document
 

@@ -594,19 +594,40 @@ void _agentTests() {
     expect(_pluginText('agents/sdd-reader.md'), contains('· summary'));
   });
 
-  test('f08/us01/fr02, db-r6: sdd-reader takes --summary and the design '
-      'callers hand it over on the over-budget route', () {
+  test('f08/us01/fr02, db-r6: sdd-reader takes --summary per target and the '
+      'design callers hand it over beside each target on the over-budget '
+      'route', () {
     String flat(String f) => _pluginText(f).replaceAll(RegExp(r'\s+'), ' ');
     final reader = flat('agents/sdd-reader.md');
-    expect(reader, contains('**`--summary`** (optional)'));
+    expect(reader, contains('Each may come marked `--summary`'));
     expect(reader, contains('[--summary]'));
     expect(
+      reader,
+      contains('only on the call for a target the dispatch marks with it'),
+    );
+    expect(reader, isNot(contains('**`--summary`** (optional)')));
+    expect(
       flat('skills/brainstorming-sdd/SKILL.md'),
-      contains('mode `design`, `--summary` when the call used it'),
+      contains('`--summary` beside each target whose call used it'),
     );
     expect(
       flat('skills/read-sdd/SKILL.md'),
-      contains('`--summary` when the call used it'),
+      contains('`--summary` beside each ID whose call used it'),
+    );
+  });
+
+  test('f08/us02/fr01, db-r5: design.md names the smallest doc itself, as the '
+      'design-mode agent never reads SKILL.md', () {
+    final text = _pluginText('skills/brainstorming-sdd/references/design.md')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      text,
+      contains(
+        "on the smallest doc that holds the brief's whole change: the story "
+        'for a change inside one story, the feature for one across stories, '
+        'the feature with `--summary` to add a story, and `project` to add a '
+        'feature.',
+      ),
     );
   });
 }

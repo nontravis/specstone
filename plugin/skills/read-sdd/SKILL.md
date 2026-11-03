@@ -17,8 +17,8 @@ work from text a plan or brief quotes.
   `specstone context <story> --for implement --budget 20000` per story. Every tool call from the first CLI call counts
   toward three, a `Read` of a saved output included: run the next story's call only while the calls so far, plus that
   call and its possible `Read`, stay within three. When the task cites more than three stories, the next call would
-  pass three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites, `--summary` when the call used
-  it, and no doc text.
+  pass three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites,
+  `--summary` beside each ID whose call used it, and no doc text.
 - **Mode:**
 
 | Task                                | `--for`     |
