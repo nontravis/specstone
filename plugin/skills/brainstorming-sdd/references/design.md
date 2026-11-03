@@ -11,7 +11,7 @@ and the PRD and spec docs carry the content once the Owner approves it.
   and the open questions. Read it whole.
 - **Design document**: the file to write, under `docs/superpowers/specs/`, named `<YYYY-MM-DD>-<topic>-design.md`.
   When it exists, read it whole: you amend it with `Edit` and never write a second file.
-- **A path outside `docs/superpowers/specs/`, or a PRD or spec doc named as the file:** write nothing; report the
+- **A path outside `docs/superpowers/specs/`, or a PRD or spec doc named as the file:** write nothing but the agent's `report:` file; report the
   path as an open question.
 
 ## 2. Ground each claim
@@ -52,7 +52,7 @@ three drafted stories. Restate nothing the bundle says; cite it.
 When you amend, sweep each ruling: search the document for the text the ruling supersedes, and edit every place
 that still states it. Your report lists each section you touched.
 
-Write the file with `Write`, or the change with `Edit` when it exists. Write no other file and no PRD or spec doc.
+Write the file with `Write`, or the change with `Edit` when it exists. Write no other file but the agent's `report:` file, and no PRD or spec doc.
 
 ## 4. Check before you report
 

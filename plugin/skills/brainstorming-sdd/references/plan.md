@@ -11,7 +11,7 @@ changes, and the docs say what each change now is.
 - **Approved drafts**: the `<type>:<name>` list the author reported, each now approved.
 - **Plan**: the file to write, under `docs/superpowers/plans/`. When it exists, read it whole: you amend it with
   `Edit` and never write a second file.
-- **A plan path outside `docs/superpowers/plans/`, or a PRD or spec doc named as the file:** write nothing; report
+- **A plan path outside `docs/superpowers/plans/`, or a PRD or spec doc named as the file:** write nothing but the agent's `report:` file; report
   the path as an open question.
 
 ## 2. Read the stories
@@ -35,7 +35,7 @@ Either way, every task:
 - Tells its implementer to read each one fresh with `specstone context <target> --for implement`
   (`specstone:read-sdd`) before writing code, since the doc may change before the task runs.
 
-Write the file with `Write`, or the change with `Edit` when it exists. Write no other file and no PRD or spec doc.
+Write the file with `Write`, or the change with `Edit` when it exists. Write no other file but the agent's `report:` file, and no PRD or spec doc.
 
 ## 4. Check before you report
 
