@@ -459,6 +459,25 @@ lint:
       );
     });
 
+    test('f03/us03/fr01, tpl-s03/inv23, db-r7: a section summary is read as '
+        'written', () {
+      expect(
+        _parse('sections: [{id: goal, summary: true}]\n')
+            .sections
+            .single
+            .summary,
+        isTrue,
+      );
+    });
+
+    test('f03/us03/fr01/e19, tpl-s03/inv23, db-r7: a section summary that is '
+        'not a boolean is unknown_value', () {
+      expect(
+        () => _parse('sections: [{id: goal, summary: yes please}]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.summary')),
+      );
+    });
+
     test('f03/us03/fr01/e19, tpl-s03/inv23: a section query that is not a boolean is unknown_value', () {
       expect(
         () => _parse('sections: [{id: goal, query: yes please}]\n'),
