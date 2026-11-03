@@ -655,9 +655,7 @@ void main() {
       (s) => answerRename(s, 'feature:shop/cart', slug: 'basket'),
     );
     expect(answer.json['rewritten'], contains(shopApi));
-    final stock = fingerprintFor(
-      'The system shall refuse an item that is out of stock.',
-    );
+    final stock = fingerprintFor(checkStockStatement);
     expect(
       readDoc(nested, shopApi),
       contains('  - basket/add_item/check_stock $stock\n'),

@@ -24,9 +24,7 @@ const _copy =
 final String _fp1 = fingerprintOf(loginScenario1);
 final String _fp2 = fingerprintOf(loginScenario2);
 final String _fpStatement = fingerprintFor(checkPasswordStatement);
-final String _fpCheckStock = fingerprintFor(
-  'The system shall refuse an item that is out of stock.',
-);
+final String _fpCheckStock = fingerprintFor(checkStockStatement);
 
 const Set<FindingKind> _storyKinds = {
   FindingKind.suspect,
@@ -336,7 +334,10 @@ void main() {
     () async {
       final root = await _nestedWithCartApi();
       final answer = _rename(root, 'feature:shop/cart', 'basket');
-      expect(answer.json['rewritten'], isNot(contains(_cartApi)));
+      expect(
+        answer.json['rewritten'],
+        isNot(contains('specs/f02_shop/f01_basket/API.md')),
+      );
       final cartApi = readDoc(root, 'specs/f02_shop/f01_basket/API.md');
       expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
       expect(cartApi, contains('  - add_item/check_stock $_fpCheckStock\n'));

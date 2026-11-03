@@ -46,7 +46,8 @@ const shopApi = 'specs/f02_shop/API.md';
 /// The DocPath of the domain doc of `shop/cart`.
 const cartDomain = 'specs/f02_shop/f01_cart/DOMAIN.md';
 
-const _checkStockStatement =
+/// The statement of the FR `shop/cart/add_item/check_stock`.
+const checkStockStatement =
     'The system shall refuse an item that is out of stock.';
 
 String _scenario(String title) =>
@@ -85,7 +86,7 @@ Map<String, String> nestedFiles() => {
   'docs/$cartAddFr':
       '---\nstatus: implemented\ntraced_from:\n  - S1\nverify_method: test\nimplements:\n'
       '  - app/lib/shop.dart:Shop\nconfirmed:\n  - S1 ${fingerprintFor(_scenario('Add an item'))}\n---\n\n'
-      '# Check the stock\n\n## Statement\n$_checkStockStatement\n\n'
+      '# Check the stock\n\n## Statement\n$checkStockStatement\n\n'
       '## Edge cases\n1. E01 — A sold-out item → refused.\n\n## Rationale\nStock is finite.\n\n'
       '## Verification\nTest: a sold-out item is refused.\n',
   'docs/$cartDrop': _story(
@@ -102,7 +103,7 @@ Map<String, String> nestedFiles() => {
       '## Component diagram\nOne box.\n\n## Components\n- Shop\n\n'
       '## Concerns\n- Errors: see Components\n- Rollout: N/A — one release\n',
   'docs/$shopApi':
-      '---\nconfirmed:\n  - cart/add_item/check_stock ${fingerprintFor(_checkStockStatement)}\n---\n\n'
+      '---\nconfirmed:\n  - cart/add_item/check_stock ${fingerprintFor(checkStockStatement)}\n---\n\n'
       '# Shop API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
       '| cart/add_item/check_stock | `addItem` |\n\n'
       '## Operations\n### addItem\nAdds an item for the story '

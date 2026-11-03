@@ -29,17 +29,11 @@ bool carriesLinkLabels(String? docTypeId) =>
     docTypeId == journeyTypeId || docTypeId == apiTypeId;
 
 /// Returns [lfText] with each step: identity, FR trace cell, and confirmed
-/// label naming a renamed doc set to its new name, the `S<N>` and every
-/// fingerprint kept; null when nothing changes.
+/// label naming a renamed doc set to its new name; null when nothing changes.
 ///
-/// [renamed] maps `(doc type id, old name)` to the new name. Only a `journey`
-/// and an `api` doc change. [featureName] is the `api` doc's feature before
-/// the renames and [newFeatureName] after them, null when it keeps its name.
-/// A cell names an FR by its Name less `<feature>/`, so it resolves under
-/// [featureName] and becomes the FR's new Name less `<newFeatureName>/`; a
-/// cell stays as written when the new Name does not start with that prefix.
-/// A step line inside a fence or a generated block, and the prose, keep every
-/// byte.
+/// [renamed] maps `(doc type id, old name)` to the new name. An FR cell is the
+/// FR's Name less `<feature>/`: it resolves under [featureName] and becomes
+/// the new Name less `<newFeatureName>/`, kept when that prefix is missing.
 String? rewriteLinkLabels(
   String lfText, {
   required MergedDocType? docType,
@@ -88,7 +82,7 @@ void _rewriteBody(
   Doc doc,
   int firstLine,
   MergedDocType docType,
-  String? Function(String cell) newCell,
+  String? Function(String label) newLabel,
   Map<(String, String), String> renamed,
 ) {
   final isJourney = docType.id == journeyTypeId;
@@ -106,7 +100,7 @@ void _rewriteBody(
   if (isJourney) {
     _rewriteSteps(lines, start, body, docType, renamed);
   } else {
-    _rewriteFrRows(lines, start, body, newCell);
+    _rewriteFrRows(lines, start, body, newLabel);
   }
 }
 
