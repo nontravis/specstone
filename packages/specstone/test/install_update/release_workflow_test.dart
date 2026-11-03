@@ -162,17 +162,12 @@ void main() {
     expect(_stepText(publish), contains('actions/download-artifact@v8'));
   });
 
-  test('f09/us04/fr07, f09/us04/s2: ci.yaml tests the four targets and '
-      'answers workflow_call', () {
+  test('f09/us04/fr07, f09/us04/s2: ci.yaml tests on Linux, macOS arm64, and '
+      'Windows and answers workflow_call', () {
     expect((ci['on'] as YamlMap).containsKey('workflow_call'), isTrue);
     final matrix =
         (_job(ci, 'test')['strategy'] as YamlMap)['matrix'] as YamlMap;
-    expect(matrix['os'], [
-      'ubuntu-latest',
-      'macos-latest',
-      'macos-15-intel',
-      'windows-latest',
-    ]);
+    expect(matrix['os'], ['ubuntu-latest', 'macos-latest', 'windows-latest']);
   });
 
   test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
