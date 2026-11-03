@@ -3,14 +3,15 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
-import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
@@ -199,25 +200,24 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape =
-      DocPathShape.of(docType, set) ??
-      (throw StateError('${docType.id} has no path'));
-  final values =
-      shape.valuesOf(target.docPath) ??
-      (throw StateError('${target.docPath} does not match its doc type'));
-  return [
-    shape.ownPathOf(target.docPath),
-    ...specFoldersOf(set, docType, values),
-  ];
+  final roots = unitRootsOf(set, docType, target.docPath);
+  if (roots != null) return roots;
+  throw StateError(
+    DocPathShape.of(docType, set) == null
+        ? '${docType.id} has no path'
+        : '${target.docPath} does not match the path of ${docType.id}',
+  );
 }
 
-/// Returns a warning per link a history file holds into the unit, in tree
-/// order of the linked docs.
+/// Returns a warning per link a history file holds into the unit, then one
+/// per typed doc outside the unit that mentions a doc of it, each in tree
+/// order of the linked or mentioned docs.
 ///
 /// A history file, such as a plan, is an untyped doc outside the checked
 /// folders: no write repoints it and no check reads it, so its link dangles.
-/// Throws [WriteFault] `doc_referenced` when any other doc outside the unit
-/// refers to a doc inside it.
+/// A mention is a path written in text, never a reference, so it dangles
+/// without blocking. Throws [WriteFault] `doc_referenced` when any other doc
+/// outside the unit refers to a doc inside it.
 List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
   final inUnit = {for (final root in unit.roots) ..._filesUnder(session, root)};
   final checkedFolders = checkedFoldersOf(session.index.set);
@@ -237,7 +237,27 @@ List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
     }
   }
   if (blocking.isNotEmpty) _refuseReferred(session, unit, blocking);
-  return dangling;
+  return [...dangling, ..._mentionWarnings(session, inUnit)];
+}
+
+/// Returns a warning per pair of a doc of the unit and a typed doc outside it
+/// that mentions it, in tree order of the mentioned docs, then of the
+/// mentioning docs. A doc that also links into the unit has refused the
+/// delete before this runs.
+List<String> _mentionWarnings(WriteSession session, Set<String> inUnit) {
+  final warnings = <String>[];
+  for (final doc in session.index.docs) {
+    if (!inUnit.contains(doc.docPath)) continue;
+    final from = {
+      for (final mention in mentionsOf(session.index, doc))
+        if (mention.doc.isTyped && !inUnit.contains(mention.doc.docPath))
+          mention.doc.docPath,
+    };
+    for (final path in from) {
+      warnings.add('$path mentions ${doc.docPath}; the mention will dangle');
+    }
+  }
+  return warnings;
 }
 
 /// Whether [doc] is untyped and lies outside every folder in [checkedFolders].

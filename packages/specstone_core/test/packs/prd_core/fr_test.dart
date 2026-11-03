@@ -84,6 +84,14 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
+  test('f03/us06/fr02: the behavior guide ends with the Mermaid quoting '
+      'sentence', () {
+    expect(
+      sectionOf(fr, 'behavior').description,
+      endsWith('\n$mermaidQuoteSentence'),
+    );
+  });
+
   test('f03/us06/fr02: Edge cases asks for detect, report, handle, and '
       'recover', () {
     expect(

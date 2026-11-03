@@ -3,12 +3,19 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
-/// A doc link of a doc: the docPath it resolves to, the file line it is
-/// written on, and its destination as written.
+/// A link of a doc: the path it resolves to, the file line it is written on,
+/// and its destination as written.
+///
+/// The target is a docPath for a doc link, and the path under the docs root
+/// for a file link.
 typedef LinkPlace = ({String target, int line, String shown});
 
-/// Returns the links of [lfBody] that resolve to a `.md` doc other than
-/// [docPath], in source order.
+/// The links of a doc: the doc links, which resolve to a `.md` doc other than
+/// the doc itself, and the file links, every other relative link.
+typedef LinkPlaces = ({List<LinkPlace> docLinks, List<LinkPlace> fileLinks});
+
+/// Returns the links of [lfBody], doc links and file links, each in source
+/// order.
 ///
 /// [lfBody] is the doc text after the frontmatter, with LF line ends, and
 /// [firstLine] is its first file line. `markdown` decides which links exist.
@@ -21,30 +28,41 @@ typedef LinkPlace = ({String target, int line, String shown});
 /// destination.
 ///
 /// Returns null when `markdown` fails on [lfBody] (see [parseMarkdown]), and
-/// `const []` for a body with no link syntax, which it never parses.
-List<LinkPlace>? linkPlacesOf(
+/// no links for a body with no link syntax, which it never parses.
+LinkPlaces? linkPlacesOf(
   String lfBody, {
   required String docPath,
   required int firstLine,
 }) {
   // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
   // is absolute, so it never resolves to a doc.
-  if (!lfBody.contains('](') && !lfBody.contains(']:')) return const [];
+  if (!lfBody.contains('](') && !lfBody.contains(']:')) {
+    return (docLinks: const [], fileLinks: const []);
+  }
   final hrefs = _hrefsOf(lfBody);
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);
   final sources = linkSourcesOf(lfBody, firstLine: firstLine);
-  if (readersAgree(sources, hrefs)) {
-    return [
-      for (final (:index, :href, :docPath) in placed)
-        (
-          target: docPath,
-          line: sources[index].line,
-          shown: sources[index].shown ?? href,
-        ),
-    ];
-  }
-  return _placedByUse(placed, sources);
+  final places = readersAgree(sources, hrefs)
+      ? [
+          for (final (:index, :href, :target, isFile: _) in placed)
+            (
+              target: target,
+              line: sources[index].line,
+              shown: sources[index].shown ?? href,
+            ),
+        ]
+      : _placedByUse(placed, sources);
+  return (
+    docLinks: [
+      for (final (i, place) in places.indexed)
+        if (!placed[i].isFile) place,
+    ],
+    fileLinks: [
+      for (final (i, place) in places.indexed)
+        if (placed[i].isFile) place,
+    ],
+  );
 }
 
 /// Returns the places of [placed], each href taking its nth use among the
@@ -62,13 +80,13 @@ List<LinkPlace> _placedByUse(
   }
   final places = <LinkPlace>[];
   final taken = <String, int>{};
-  for (final (:href, :docPath, index: _) in placed) {
+  for (final (:href, :target, index: _, isFile: _) in placed) {
     final sameHref = usesOf[href] ?? const <LinkSource>[];
     final nth = taken[href] ?? 0;
     taken[href] = nth + 1;
     final use = nth < sameHref.length ? sameHref[nth] : null;
     places.add((
-      target: docPath,
+      target: target,
       line: use?.line ?? 1,
       shown: use?.shown ?? href,
     ));
@@ -89,26 +107,37 @@ bool readersAgree(List<LinkSource> sources, List<String> hrefs) {
   return true;
 }
 
-/// A placed href together with its index among the hrefs and the doc path it
-/// resolved to.
-typedef _PlacedHref = ({int index, String href, String docPath});
+/// A placed href together with its index among the hrefs, the path it
+/// resolved to, and whether that path is a file link, not a doc link.
+typedef _PlacedHref = ({int index, String href, String target, bool isFile});
 
-/// Returns the hrefs [linkPlacesOf] places, each with its index in [hrefs] and
-/// the doc path it resolved to.
+/// Returns the hrefs [linkPlacesOf] places, each with its index in [hrefs],
+/// the path it resolved to, and its class.
 ///
-/// Each href resolves exactly once: the caller reads the doc path from here
+/// A link to a `.md` doc other than [docPath] is a doc link; a link to
+/// [docPath] itself, an empty path, a web address, another scheme, and a
+/// rooted path are left out; every other relative link is a file link.
+///
+/// Each href resolves exactly once: the caller reads the path from here
 /// instead of resolving again.
 List<_PlacedHref> _placedHrefs(String docPath, List<String> hrefs) {
   final placed = <_PlacedHref>[];
   for (var index = 0; index < hrefs.length; index++) {
     final href = hrefs[index];
     final target = resolveDocLink(href, docPath);
-    if (target is! DocTarget ||
-        !target.docPath.endsWith('.md') ||
-        target.docPath == docPath) {
+    if (target is DocTarget && target.docPath.endsWith('.md')) {
+      if (target.docPath == docPath) continue;
+      placed.add((
+        index: index,
+        href: href,
+        target: target.docPath,
+        isFile: false,
+      ));
       continue;
     }
-    placed.add((index: index, href: href, docPath: target.docPath));
+    final filePath = relativeFilePathOf(href, docPath);
+    if (filePath == null) continue;
+    placed.add((index: index, href: href, target: filePath, isFile: true));
   }
   return placed;
 }
@@ -121,8 +150,8 @@ String _normalize(String dest) => dest.splitMapJoin(
   onNonMatch: Uri.encodeFull,
 );
 
-/// Returns the hrefs of the links in [body], in order, or null when `markdown`
-/// fails on it.
+/// Returns the hrefs of the links and images in [body], in order, or null when
+/// `markdown` fails on it.
 List<String>? _hrefsOf(String body) {
   final nodes = parseMarkdown(body);
   if (nodes == null) return null;
@@ -130,8 +159,12 @@ List<String>? _hrefsOf(String body) {
   void visit(List<Node> nodes) {
     for (final node in nodes) {
       if (node is! Element) continue;
-      final href = node.attributes['href'];
-      if (node.tag == 'a' && href != null) hrefs.add(href);
+      final href = switch (node.tag) {
+        'a' => node.attributes['href'],
+        'img' => node.attributes['src'],
+        _ => null,
+      };
+      if (href != null) hrefs.add(href);
       final children = node.children;
       if (children != null) visit(children);
     }

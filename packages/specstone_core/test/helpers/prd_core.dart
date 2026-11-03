@@ -59,6 +59,11 @@ const nasaHandbookLocator = 'Appendix C and section 4.2';
 const requirementStatementTemplate =
     'The <product> shall <verb> <object> <value ± tolerance> <condition>.';
 
+/// The Mermaid quoting sentence that ends every flowchart guide text.
+const mermaidQuoteSentence =
+    'Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in '
+    '`A["Save (draft)"]`; write `"` in it as `#quot;`.';
+
 /// The Verification template `fr` and `nf` share.
 const verificationTemplate =
     '- **Pass criteria:** <what shows the requirement holds>\n'

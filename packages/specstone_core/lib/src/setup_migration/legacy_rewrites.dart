@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
+    show rewritePathMentions;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove, rewriteDocLinksCounted;
 import 'package:specstone_core/src/document_writing/write_session.dart'
@@ -166,9 +168,11 @@ DocRewrite rewriteLegacyDoc(
   );
 }
 
-/// Points each relative link of [lf] at the path [moves] leave its target at.
+/// Points each relative link of [lf], to a file of any extension or a folder,
+/// at the path [moves] leave its target at.
 ///
-/// [docPath] is where the doc sits before the moves. The label is `1 link` or
+/// [docPath] is where the doc sits before the moves; a link that leaves the
+/// docs root follows a doc that changes depth. The label is `1 link` or
 /// `<n> links`, and null when no link changes.
 ({String lf, String? label}) rewriteLinks(
   String lf, {
@@ -180,6 +184,31 @@ DocRewrite rewriteLegacyDoc(
   return (
     lf: result.lfText,
     label: result.count == 1 ? '1 link' : '${result.count} links',
+  );
+}
+
+/// Points each path mention of [lf] that names a file or folder [exists] at
+/// the path [moves] leave it at.
+///
+/// [docPath] is where the doc sits before the moves, and [exists] reads the
+/// legacy tree as it stands before them. The label is `1 mention` or
+/// `<n> mentions`, and null when no mention changes.
+({String lf, String? label}) rewriteMentions(
+  String lf, {
+  required String docPath,
+  required List<PathMove> moves,
+  required bool Function(String path) exists,
+}) {
+  final result = rewritePathMentions(
+    lf,
+    docPath: docPath,
+    moves: moves,
+    exists: exists,
+  );
+  if (result == null) return (lf: lf, label: null);
+  return (
+    lf: result.lfText,
+    label: result.count == 1 ? '1 mention' : '${result.count} mentions',
   );
 }
 

@@ -22,6 +22,14 @@ void main() {
     features = prdCoreDocType(await resolvePrdCore(), 'features');
   });
 
+  test('f03/us06/fr01: the diagram guide ends with the Mermaid quoting '
+      'sentence', () {
+    expect(
+      sectionOf(features, 'diagram').description,
+      endsWith('\n$mermaidQuoteSentence'),
+    );
+  });
+
   test('f03/us06/fr01: features sits at prds/FEATURES.md with no parent, no '
       'own field, and two sections', () {
     expect(features.path, 'prds/FEATURES.md');

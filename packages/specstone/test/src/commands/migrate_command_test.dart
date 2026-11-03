@@ -59,6 +59,23 @@ void main() {
     },
   );
 
+  test('f06/us01/fr04/e16: migrate --dry-run labels a doc changed by a path '
+      'mention', () async {
+    final root = await writeTree({
+      ...acmeLegacy,
+      'docs/prds/d04_glossary.md': [
+        '# Glossary\n\nSee features/f01_login/us01_email_login/',
+        'functional_requirements/fr01_validate_credentials.md:85.\n',
+      ].join(),
+    });
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--dry-run']), 0);
+
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), contains('  prds/d04_glossary.md: 1 mention\n'));
+  });
+
   test('f06/us01/fr01/e01: no project is project_not_found, exit 78', () async {
     final root = await writeTree({'notes.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);

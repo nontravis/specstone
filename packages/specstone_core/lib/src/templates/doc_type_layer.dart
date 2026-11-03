@@ -674,6 +674,15 @@ SectionEntry _parseSection(
     file: file,
     prefix: 'sections[$index].',
   );
+  if (id.startsWith('_')) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'a section id must not start with _, '
+      'which marks a reserved key such as _lead',
+      file: file,
+      key: 'sections[$index].id',
+    );
+  }
   checkKeys(
     entry,
     _sectionKeys,

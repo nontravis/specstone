@@ -87,6 +87,14 @@ void main() {
     }
   });
 
+  test('f03/us06/fr02: the flow guide ends with the Mermaid quoting '
+      'sentence', () {
+    expect(
+      sectionOf(feature, 'flow').description,
+      endsWith('\n$mermaidQuoteSentence'),
+    );
+  });
+
   test('f03/us06/fr02: Out-of-scope carries no line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
   });

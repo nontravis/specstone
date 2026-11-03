@@ -357,6 +357,44 @@ void main() {
     expect(File('${root.path}/docs/$notes').existsSync(), isFalse);
     expect(File('${root.path}/docs/$plan').existsSync(), isTrue);
   });
+  const mentioningProject = 'prds/PROJECT.md';
+  const mentionWarning =
+      '$mentioningProject mentions $loginFeature; the mention will dangle';
+  Future<Directory> mentionedLogin() => writeWriteProject(
+    extra: {
+      'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
+      'docs/$persona':
+          '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+      'docs/$mentioningProject':
+          '# Project context\n\nSee `features/f01_login/FEATURE.md`.\n',
+    },
+  );
+  test('f02/us04/fr01/e13, ms-r11: --dry-run on a feature a typed doc mentions exits 0 and warns on stderr that the mention will dangle', () async {
+    final root = await mentionedLogin();
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['delete', 'feature:login', '--dry-run']), 0);
+
+    expect(err.toString(), '⚠️ WARNING: $mentionWarning\n');
+    expect(File('${root.path}/docs/$loginFeature').existsSync(), isTrue);
+  });
+  test('f02/us04/fr01/e13: delete of a feature a typed doc mentions exits 0 and warns on stderr that the mention will dangle', () async {
+    final root = await mentionedLogin();
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+
+    expect(await runner.run(['delete', 'feature:login']), 0);
+
+    expect(err.toString(), '⚠️ WARNING: $mentionWarning\n');
+    expect(File('${root.path}/docs/$loginFeature').existsSync(), isFalse);
+    expect(File('${root.path}/docs/$mentioningProject').existsSync(), isTrue);
+  });
   test('f02/us04/fr04: delete --help shows several targets', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['delete', '--help']), 0);

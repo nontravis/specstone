@@ -8,10 +8,10 @@ import 'package:markdown/markdown.dart'
         InlineHtmlSyntax;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 
-/// A source of an `a` element markdown makes: the body offset of its first
-/// character, its file line, and, for an inline or reference link, its
-/// destination as written (null for an autolink, an email autolink, or a GFM
-/// bare URL or email).
+/// A source of an `a` or `img` element markdown makes: the body offset of its
+/// first character, its file line, and, for an inline or reference link or
+/// image, its destination as written (null for an autolink, an email autolink,
+/// or a GFM bare URL or email).
 typedef LinkSource = ({int offset, int line, String? shown});
 
 /// Returns the sources of the links in [lfBody], in source order.
@@ -25,11 +25,11 @@ typedef LinkSource = ({int offset, int line, String? shown});
 /// opener as an inline link, a full, collapsed, or shortcut reference, or is
 /// text. A link turns off every link opener pushed before it, so a link inside
 /// link text leaves the outer brackets as text; a link in an image description
-/// is dropped with the image. Each autolink, email autolink, and bare URL or
-/// email is a source with no destination. Where `markdown` differs from the
-/// CommonMark text, the scan reads as `markdown` does: a tab stays in a bare
-/// destination, a title after an open paren keeps the destination open, and a
-/// bare URL runs through the brackets after it.
+/// is dropped with the image, which is a source itself. Each autolink, email
+/// autolink, and bare URL or email is a source with no destination. Where
+/// `markdown` differs from the CommonMark text, the scan reads as `markdown`
+/// does: a tab stays in a bare destination, a title after an open paren keeps
+/// the destination open, and a bare URL runs through the brackets after it.
 ///
 /// Past the block pass (see [leafTextOf], O(size x nesting depth)), the scan
 /// stays linear in the size of [lfBody]. Each `]` is decided once,
@@ -63,7 +63,7 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
   return sources;
 }
 
-/// A link the reader found: the offset of its first character and its
+/// A link or image the reader found: the offset of its first character and its
 /// destination.
 typedef _Found = ({int offset, String? shown});
 
@@ -87,7 +87,7 @@ final class _Opener {
   final int linksClosed;
 
   /// The number of sources found before this opener was pushed; an image that
-  /// closes drops the sources after it.
+  /// closes drops the sources after it, its description's links.
   final int found;
 
   /// Whether another opener was pushed after this one.
@@ -166,12 +166,9 @@ final class _Reader {
           i++;
           continue;
         }
-        if (opener.image) {
-          found.length = opener.found;
-        } else {
-          found.add((offset: opener.offset, shown: close.shown));
-          linksClosed++;
-        }
+        if (opener.image) found.length = opener.found;
+        found.add((offset: opener.offset, shown: close.shown));
+        if (!opener.image) linksClosed++;
         i = close.end;
       } else if (unit == _backtick) {
         i = _codeSpan(i);

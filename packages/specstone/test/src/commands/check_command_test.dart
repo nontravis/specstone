@@ -33,6 +33,31 @@ void main() {
     );
   });
 
+  test('f04/us01/fr01/e15: check architecture:login prints the finding of ARCHITECTURE.md only, not API.md beside it', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {
+          ...doc(
+            loginApi,
+            'Signs the Agent in.',
+            'Signs the Agent in. See [x](../../../nowhere.md).',
+          ),
+          ...doc(
+            loginArchitecture,
+            'One box.',
+            'One box. See [y](../../../nowhere.md).',
+          ),
+        },
+      ),
+    );
+    expect(await runner.run(['check', 'architecture:login']), 1);
+    expect(
+      out.toString(),
+      allOf(contains(loginArchitecture), isNot(contains(loginApi))),
+    );
+    expect(out.toString(), endsWith('1 finding\n'));
+  });
+
   test("f04/us01/s8, f04/us01/fr02: --json gives each finding's kind, file, name, line, and message, and the count", () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(extra: frWith('verify_method: maybe')),

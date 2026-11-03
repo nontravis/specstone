@@ -17,9 +17,8 @@ const _targetExample =
     'specstone set user_story:login/email_login#use_case '
     '--base 3f9a1c0b7e21';
 
-final _headerLine = RegExp(r'^## .*$', multiLine: true);
-
-/// What a `set` call writes: a section, a frontmatter field, or the title.
+/// What a `set` call writes: a section, a frontmatter field, the title, or the
+/// lead.
 sealed class SetTarget {
   const new();
 }
@@ -28,7 +27,7 @@ sealed class SetTarget {
 final class SectionTarget extends SetTarget {
   const new(this.key);
 
-  /// The template section id, else the heading slug.
+  /// The template section id, else the [sectionKeyOf] key of the header.
   final String key;
 }
 
@@ -38,6 +37,11 @@ final class FieldTarget extends SetTarget {
 
   /// The template field id.
   final String fieldId;
+}
+
+/// The lead: the head text after the title line.
+final class LeadTarget extends SetTarget {
+  const new();
 }
 
 /// The title line.
@@ -75,7 +79,9 @@ final class SetRequest {
       );
     }
     final SetTarget chosen;
-    if (sectionKey != null) {
+    if (sectionKey == leadKey) {
+      chosen = const LeadTarget();
+    } else if (sectionKey != null) {
       chosen = SectionTarget(sectionKey);
     } else if (field != null) {
       chosen = FieldTarget(field);
@@ -129,15 +135,17 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// included, so a `get` then `set` of unchanged text changes no byte; its
 /// trailing blank lines are spacing and are dropped. An empty [text] removes
 /// an optional section or field; a field key the doc holds that its type does
-/// not declare is removed too. Throws [IndexFault] for a body that holds a
-/// `## ` line, a doc, section, or field that is not there, a title that is not
-/// one line, and [WriteFault] `base_mismatch`, `required_target`, or a refused
-/// field.
+/// not declare is removed too. The lead is written as a section body, and
+/// empty [text] empties it. Throws [IndexFault] for a body that holds a
+/// `## ` line, a lead that holds a `# ` line, a doc, section, or field that is
+/// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
+/// `required_target`, or a refused field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) =>
     switch (request.target) {
       SectionTarget(:final key) => _setSection(session, request, key, text),
       FieldTarget(:final fieldId) => _setField(session, request, fieldId, text),
       TitleTarget() => _setTitle(session, request, text),
+      LeadTarget() => _setLead(session, request, text),
     };
 
 /// The one ComputedField (PD17): a feature's status, computed from stories.
@@ -378,6 +386,90 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   });
 }
 
+/// Reads [lf] as [Doc.parse] would, from outside any fence.
+///
+/// `refused` is the first line outside fenced code that [isRefused] accepts.
+/// `openFence` is the delimiter of a fence the text leaves open.
+({String? refused, String? openFence}) _scanStdin(
+  String lf,
+  bool Function(String line) isRefused,
+) {
+  final lines = lf.split('\n');
+  final scan = fenceScan(lines);
+  String? refused;
+  for (var i = 0; i < lines.length; i++) {
+    if (!scan.fenced[i] && isRefused(lines[i])) {
+      refused = lines[i];
+      break;
+    }
+  }
+  return (refused: refused, openFence: scan.openFence);
+}
+
+ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
+  final lf = toLf(stdin);
+  final scan = _scanStdin(
+    lf,
+    (line) => isTitleLine(line) || isSectionHeaderLine(line),
+  );
+  if (scan.refused case final refused?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the lead holds the line "$refused"; send the lead only',
+    );
+  }
+  if (scan.openFence case final fence?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the lead leaves the fence "$fence" open; close it',
+    );
+  }
+  final body = _pipedBodyOf(lf);
+
+  final doc = session.target(request.address);
+  final docType =
+      session.index.typeOf(doc) ??
+      (throw StateError('${doc.docPath} is typed but its type is gone'));
+  final match = MatchedDocType(docType);
+
+  return session.locked(() {
+    final read = _readLocked(session, doc, match);
+    final lfText = toLf(read.content.text);
+    final currentLead = Doc.parse(lfText).lead;
+    final currentBase = baseHashOf(currentLead);
+    if (currentBase != request.base) {
+      throw _staleBase(
+        doc,
+        target: 'lead',
+        key: leadKey,
+        sinceBase: request.base,
+        currentText: currentLead,
+        currentBase: currentBase,
+      );
+    }
+
+    final written = markDraft(withLead(lfText, body), docType);
+    session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
+
+    final after = parseIndexedDoc(
+      docPath: doc.docPath,
+      bytes: utf8.encode(written),
+      match: match,
+    );
+    final base = baseHashOf(Doc.parse(written).lead);
+    return ReadAnswer(
+      text: '${namingLine(doc, base: base)}\n',
+      json: {
+        'name': doc.name,
+        'docType': ?doc.docTypeId,
+        'path': doc.docPath,
+        'base': base,
+        'draft': after.doc.isDraft,
+      },
+    );
+  });
+}
+
 ReadAnswer _setSection(
   WriteSession session,
   SetRequest request,
@@ -385,10 +477,17 @@ ReadAnswer _setSection(
   String stdin,
 ) {
   final lf = toLf(stdin);
-  if (_headerLine.firstMatch(lf) case final header?) {
+  final scan = _scanStdin(lf, isSectionHeaderLine);
+  if (scan.refused case final header?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      'the body holds the header line "${header[0]}"; send the body only',
+      'the body holds the header line "$header"; send the body only',
+    );
+  }
+  if (scan.openFence case final fence?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the body leaves the fence "$fence" open; close it',
     );
   }
   final body = _pipedBodyOf(lf);

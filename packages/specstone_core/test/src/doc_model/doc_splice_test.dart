@@ -146,6 +146,50 @@ void main() {
     );
   });
 
+  test('f02/us01/fr06/e01: a lead is replaced, the title line and the blank line before the first header kept', () {
+    const text =
+        '---\ndraft: true\n---\n\n# GNFR\n\nLead [x](a.md).\n\n## P\nfast\n';
+    expect(
+      withLead(text, 'New lead.\n'),
+      '---\ndraft: true\n---\n\n# GNFR\nNew lead.\n\n## P\nfast\n',
+    );
+    expect(
+      withLead(text, '\nNew lead.\n'),
+      '---\ndraft: true\n---\n\n# GNFR\n\nNew lead.\n\n## P\nfast\n',
+    );
+  });
+
+  test(
+    'f02/us01/fr06/e05: an empty body empties the lead and keeps the rest',
+    () {
+      const text = '# GNFR\n\nLead.\n\n## A\nx\n';
+      expect(withLead(text, ''), '# GNFR\n\n## A\nx\n');
+      expect(withLead('# GNFR\n\n## A\nx\n', ''), '# GNFR\n\n## A\nx\n');
+    },
+  );
+
+  test(
+    'f02/us01/fr06/e02: a doc with no title line has its whole head replaced',
+    () {
+      expect(
+        withLead('---\na: 1\n---\n\nOld.\n\n## A\nx\n', 'New.\n'),
+        '---\na: 1\n---\nNew.\n\n## A\nx\n',
+      );
+    },
+  );
+
+  test('f02/us01/fr06/e03: text before the title line stays byte-equal', () {
+    expect(
+      withLead('before\n# T\nold\n\n## A\nx\n', 'new\n'),
+      'before\n# T\nnew\n\n## A\nx\n',
+    );
+  });
+
+  test('f02/us01/fr06/e01: a lead is written into a doc with no section', () {
+    expect(withLead('# T\nold\n', 'new\n'), '# T\nnew\n');
+    expect(withLead('# T', 'new\n'), '# T\nnew\n');
+  });
+
   test('f02/us02/fr02: with fieldOrder an absent key lands at its slot and no block moves', () {
     const text = '---\nb: 1\nd: 2\n---\n';
     const order = ['a', 'b', 'c', 'd'];

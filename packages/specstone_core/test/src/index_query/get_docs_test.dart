@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 // The expected values are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
@@ -44,9 +48,9 @@ void main() {
       );
     },
   );
-  test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its heading slug', () async {
+  test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its snake_case key', () async {
     expect(
-      answerGet(index, 'prds/d01_context.md#project-vision').text,
+      answerGet(index, 'prds/d01_context.md#project_vision').text,
       '==> prds/d01_context.md · prds/d01_context.md · base 49851a1d1229 <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
     );
   });
@@ -75,7 +79,7 @@ void main() {
   });
   test('f01/us04/fr02/e03, s03/inv4: the head is no section', () async {
     expect(
-      () => answerGet(index, 'login/email_login#agent-signs-in-with-email'),
+      () => answerGet(index, 'login/email_login#agent_signs_in_with_email'),
       throwsA(isA<IndexFault>()),
     );
   });
@@ -101,12 +105,33 @@ void main() {
       '==> notes.md · notes.md · base b640e840b19d <==\n## Notes\nfirst\n## Notes\nsecond\n',
     );
   });
+  test('f01/us01/fr03/e13, f01/us04/fr02: headers Root schema and Root-schema key alike and both print', () async {
+    final doc = await indexWith({
+      'docs/roots.md':
+          '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
+    });
+    final text = answerGet(doc, 'roots.md#root_schema').text;
+    expect(text, contains('## Root schema\nfirst\n'));
+    expect(text, contains('## Root-schema\nsecond\n'));
+    expect(text, startsWith('==> roots.md · roots.md · base '));
+    final content = parseIndexedDoc(
+      docPath: 'roots.md',
+      bytes: utf8.encode(
+        '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
+      ),
+      match: const NoDocType(),
+    ).content;
+    expect(content.sections.map((s) => s.key), ['root_schema', 'root_schema']);
+    expect(basesOf(content, null)['sections'], {
+      'root_schema': baseHashOf(content.sections.first.body),
+    });
+  });
   test('f01/us04/fr02: --json gives name, path, section, and text; no docType on an untyped doc', () async {
-    expect(answerGet(index, 'prds/d01_context.md#project-name').json['docs'], [
+    expect(answerGet(index, 'prds/d01_context.md#project_name').json['docs'], [
       {
         'name': 'prds/d01_context.md',
         'path': 'prds/d01_context.md',
-        'section': 'project-name',
+        'section': 'project_name',
         'base': '908c3a4a7ade',
         'text': '## Project name\n- **Human:** Specstone\n- **Code:** `specstone`\n',
       },
@@ -206,8 +231,8 @@ void main() {
         (answerGet(index, 'prds/d01_context.md').json['docs']! as List).single
             as Map;
     expect(((untyped['bases']! as Map)['sections']! as Map).keys, [
-      'project-name',
-      'project-vision',
+      'project_name',
+      'project_vision',
     ]);
     expect((untyped['bases']! as Map)['fields'], isEmpty);
     expect(
@@ -258,5 +283,59 @@ void main() {
     final fields = (feature['bases']! as Map)['fields']! as Map;
     expect(fields['status'], baseHashOf('"status": planned\n'));
     expect(fields.containsKey('"status"'), isFalse);
+  });
+
+  const gnfrWithLead = '# GNFR\n\nLead [x](a.md).\n\n## Performance\nN/A\n';
+
+  test('f01/us04/fr02/e11: #_lead prints the lead under its base', () async {
+    final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
+    final answer = answerGet(withLead, 'gnfr#_lead');
+    const lead = '\nLead [x](a.md).\n';
+    expect(
+      answer.text,
+      '==> gnfr (gnfr) · prds/GNFR.md · base ${baseHashOf(lead)} <==\n$lead',
+    );
+    final doc = (answer.json['docs']! as List).single as Map;
+    expect(doc['section'], '_lead');
+    expect(doc['base'], baseHashOf(lead));
+    expect(doc['text'], lead);
+  });
+
+  test('f01/us04/fr02/e12: #_lead of a doc with no lead prints the naming line with the empty-text base', () async {
+    final answer = answerGet(index, 'gnfr#_lead');
+    expect(
+      answer.text,
+      '==> gnfr (gnfr) · prds/GNFR.md · base $emptyBaseHash <==\n',
+    );
+    final doc = (answer.json['docs']! as List).single as Map;
+    expect(doc['base'], emptyBaseHash);
+    expect(doc['text'], '');
+  });
+
+  test('f01/us04/fr02/e10: bases.sections lists _lead first only when the lead holds non-blank text', () async {
+    final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
+    final held =
+        ((answerGet(withLead, 'gnfr').json['docs']! as List).single
+                as Map)['bases']!
+            as Map;
+    expect((held['sections']! as Map).keys.first, '_lead');
+    expect(
+      (held['sections']! as Map)['_lead'],
+      baseHashOf('\nLead [x](a.md).\n'),
+    );
+
+    final bare =
+        ((answerGet(index, 'gnfr').json['docs']! as List).single
+                as Map)['bases']!
+            as Map;
+    expect((bare['sections']! as Map).containsKey('_lead'), isFalse);
+  });
+
+  test('f01/us04/fr02: a whole-doc get of an empty file prints the naming line and one blank line, as at 404b9a7', () async {
+    final withEmpty = await indexWith({'docs/prds/empty.md': ''});
+    expect(
+      answerGet(withEmpty, 'prds/empty.md').text,
+      '==> prds/empty.md · prds/empty.md <==\n\n',
+    );
   });
 }

@@ -525,6 +525,43 @@ name: Login API
     expect(plan.left, contains('prds/d04_glossary.md'));
   });
 
+  test('f06/us01/fr04/e16: a path mention of a moved legacy file follows it, '
+      'labelled as mentions', () async {
+    const fr =
+        'features/f01_login/us01_email_login/functional_requirements/'
+        'fr01_validate_credentials.md';
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/prds/d04_glossary.md':
+          '# Glossary\n\nSee `$fr:85` and\n$fr. Not `and/or` or ghost/$fr.\n',
+    });
+
+    final rewrite = _rewrite(plan, 'prds/d04_glossary.md');
+
+    expect(rewrite.changes, ['2 mentions']);
+    expect(
+      rewrite.text,
+      [
+        '# Glossary\n\nSee `features/f01_login/us01_email_login/',
+        'fr01_validate_credentials.md:85` and\n',
+        'features/f01_login/us01_email_login/fr01_validate_credentials.md. ',
+        'Not `and/or` or ghost/$fr.\n',
+      ].join(),
+    );
+  });
+
+  test('f06/us01/fr04/e16: one mention is labelled in the singular', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/prds/d04_glossary.md': [
+        '# Glossary\n\nSee features/f01_login/us01_email_login/',
+        'functional_requirements/fr01_validate_credentials.md:7.\n',
+      ].join(),
+    });
+
+    expect(_rewrite(plan, 'prds/d04_glossary.md').changes, ['1 mention']);
+  });
+
   test('f06/us01/fr06/e01: the fingerprint hashes the Statement as the run '
       'writes it', () async {
     final plan = await _plan(

@@ -1002,6 +1002,133 @@ void main() {
     });
   });
 
+  group('mentions of the unit', () {
+    const project = 'prds/PROJECT.md';
+    const mentionWarning =
+        '$project mentions $loginFeature; the mention will dangle';
+
+    /// A project where nothing but [files] points into the login feature.
+    Future<Directory> mentioning(
+      Map<String, String> files,
+    ) => writeWriteProject(
+      extra: {
+        'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
+        'docs/$persona':
+            '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+        for (final MapEntry(:key, :value) in files.entries) 'docs/$key': value,
+      },
+    );
+
+    ReadAnswer delLogin(Directory root) => del(
+      root,
+      ['feature:login'],
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+    );
+
+    test('f02/us04/fr01/e13: a typed doc outside the unit that mentions a doc of it makes the delete warn; the delete goes on', () async {
+      final root = await mentioning({
+        project: '# Project context\n\nSee `features/f01_login/FEATURE.md`.\n',
+      });
+
+      final answer = delLogin(root);
+
+      expect(answer.json['removed'], contains(loginFeature));
+      expect(answer.warnings, [mentionWarning]);
+      expect(hasDoc(root, loginFeature), isFalse);
+      expect(hasDoc(root, project), isTrue);
+    });
+
+    test('f02/us04/fr01/e13, ms-r11: a dry run warns of the mention, as the run does', () async {
+      final root = await mentioning({
+        project: '# Project context\n\nSee `features/f01_login/FEATURE.md`.\n',
+      });
+
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['feature:login']),
+      );
+
+      expect(answer.warnings, [mentionWarning]);
+      expect(hasDoc(root, loginFeature), isTrue);
+    });
+
+    test('f02/us04/fr01/e13: two mentions on two lines of one doc give one warning', () async {
+      final root = await mentioning({
+        project:
+            '# Project context\n\nSee `features/f01_login/FEATURE.md`.\n\n'
+            'Again `features/f01_login/FEATURE.md`.\n',
+      });
+
+      expect(delLogin(root).warnings, [mentionWarning]);
+    });
+
+    test(
+      'f02/us04/fr01/e13: a mention from inside the unit gives no warning',
+      () async {
+        final root = await mentioning({
+          'prds/features/f01_login/us01_email_login/USER_STORY.md':
+              writeProject['docs/$story1']!.replaceFirst(
+                'Sign in with an email.',
+                'Sign in with an email, see `features/f01_login/FEATURE.md`.',
+              ),
+        });
+
+        expect(delLogin(root).warnings, isEmpty);
+      },
+    );
+
+    test(
+      'f02/us04/fr01/e13: a mention from an untyped doc gives no warning',
+      () async {
+        final root = await mentioning({
+          'prds/d02_notes.md':
+              '# Notes\n\nSee `features/f01_login/FEATURE.md`.\n',
+        });
+
+        expect(delLogin(root).warnings, isEmpty);
+      },
+    );
+
+    test('f02/us04/fr01/e13: the link warning comes first, then the mentions in tree order of the mentioned docs, then of the mentioning docs', () async {
+      const plan = 'superpowers/plans/2026-11-01-retire.md';
+      const gnfr = 'prds/GNFR.md';
+      final root = await mentioning({
+        plan: '# Retire\n\nSee [story](../../prds/features/f01_login/us01_email_login/USER_STORY.md).\n',
+        project:
+            '# Project context\n\n`features/f01_login/FEATURE.md` and '
+            '`features/f01_login/us01_email_login/USER_STORY.md`.\n',
+        gnfr: '# Global non-functional requirements\n\n`features/f01_login/us01_email_login/USER_STORY.md`.\n',
+      });
+
+      expect(delLogin(root).warnings, [
+        '$plan links into $story1; the link will dangle',
+        '$project mentions $loginFeature; the mention will dangle',
+        '$gnfr mentions $story1; the mention will dangle',
+        '$project mentions $story1; the mention will dangle',
+      ]);
+    });
+
+    test('f02/us04/fr01/e13: a doc that links into the unit still refuses, with no mention warning', () async {
+      final root = await mentioning({
+        project:
+            '# Project context\n\n[login](features/f01_login/FEATURE.md)\n'
+            'and `features/f01_login/FEATURE.md`.\n',
+      });
+
+      expect(
+        () => delLogin(root),
+        throwsA(
+          isA<WriteFault>().having(
+            (f) => f.code,
+            'code',
+            WriteFaultCode.docReferenced,
+          ),
+        ),
+      );
+    });
+  });
+
   group('journeys as referrers', () {
     Matcher refusedForJourney(String file) => throwsA(
       isA<WriteFault>()

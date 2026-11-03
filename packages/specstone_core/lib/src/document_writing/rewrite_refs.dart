@@ -6,8 +6,11 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -19,10 +22,8 @@ import 'package:specstone_core/src/rendering/render_fault.dart'
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// One move of a doc or a folder, as DocPaths.
-///
-/// A folder ends in `/`, a file does not.
-typedef PathMove = ({String from, String to});
+export 'package:specstone_core/src/document_writing/moved_paths.dart'
+    show PathMove, movedPath, relativeHref;
 
 /// The byte-order mark as the one character a journal step's text carries.
 const _bom = '\uFEFF';
@@ -30,43 +31,16 @@ const _bom = '\uFEFF';
 /// A comment that ends a YAML value; `#` opens it only after a space.
 const _trailingComment = r'(?<tail>\s+#.*)?';
 
-/// Returns [docPath] after the first of [moves] whose `from` is the path
-/// itself or a folder holding it.
-String movedPath(String docPath, List<PathMove> moves) {
-  for (final move in moves) {
-    final holds = move.from.endsWith('/')
-        ? docPath.startsWith(move.from)
-        : docPath == move.from;
-    if (holds) return move.to + docPath.substring(move.from.length);
-  }
-  return docPath;
-}
-
-/// Returns the `/`-separated path from the folder of [fromDocPath] to
-/// [toDocPath], with `..` segments up to the common folder.
-String relativeHref(String fromDocPath, String toDocPath) {
-  final fromFolder = fromDocPath.split('/')..removeLast();
-  final to = toDocPath.split('/');
-  var common = 0;
-  while (common < fromFolder.length &&
-      common < to.length - 1 &&
-      fromFolder[common] == to[common]) {
-    common++;
-  }
-  return [
-    ...List.filled(fromFolder.length - common, '..'),
-    ...to.skip(common),
-  ].join('/');
-}
-
 /// Returns [lfText] with each doc link set to the path [moves] leave its
 /// target at, or null when no link changes.
 ///
-/// [docPath] is where the doc sits before the moves. A link is a `.md`
-/// target the markdown parser reports and the doc model resolves; its new
-/// href is the relative path between the moved doc and the moved target,
-/// with the `?` or `#` part kept. A link whose relative path is unchanged,
-/// a web address, and a path outside the docs root keep their text.
+/// [docPath] is where the doc sits before the moves. A link is a relative
+/// target of any extension, or a folder, that the markdown parser reports,
+/// whether it stays under the docs root or leaves it; its new href is the
+/// relative path between the moved doc and the moved target, with the `?` or
+/// `#` part and a folder's trailing `/` kept. A link whose relative path is
+/// unchanged, a web address, another scheme, and a rooted path keep their
+/// text.
 ///
 /// Only the text after the frontmatter is read, as the doc model does, so a
 /// link-shaped frontmatter value keeps every byte. The parser reports no
@@ -91,9 +65,7 @@ String? rewriteDocLinks(
   final body = Doc.parse(lfText).afterFrontmatter;
   if (!body.contains('](') && !body.contains(']:')) return null;
   final edits = <({int start, int end, String text})>[];
-  for (final match in RegExp(r'\](?:\(|:)\s*').allMatches(body)) {
-    final span = _destinationAt(body, match.end);
-    if (span == null) continue;
+  for (final span in destinationsIn(body)) {
     final href = _hrefOfSpelling(
       body.substring(span.start, span.end),
       span.angle,
@@ -148,12 +120,13 @@ String? rewriteDocRefs(
 /// Returns the journal writes that keep every link and `doc_ref` value true
 /// after [moves] and the renames in [renamed].
 ///
-/// The candidates are the docs, typed or untyped, that link to a doc under a
-/// moved path, and, for [renamed], the typed docs whose `doc_ref` values
-/// name a renamed doc and the `journey` and `api` docs whose step
-/// identities, FR trace cells, or `confirmed` labels do. A doc is chosen
-/// from a lenient read, so a non-UTF-8 doc that names nothing renamed never
-/// blocks. Each is read from disk before the moves; a step
+/// The candidates are the docs, typed or untyped, that link to a doc or to
+/// any other file or folder under a moved path, that hold a path mention
+/// [rewritePathMentions] changes, and, for [renamed], the
+/// typed docs whose `doc_ref` values name a renamed doc and the `journey` and
+/// `api` docs whose step identities, FR trace cells, or `confirmed` labels do.
+/// A doc is chosen from a lenient read, so a non-UTF-8 doc that names nothing
+/// renamed never blocks. Each is read from disk before the moves; a step
 /// holds its text after the rewrites, in the file's line endings and BOM,
 /// at its project path after the moves. Steps are sorted by path. No draft
 /// or approved mark is touched.
@@ -172,6 +145,10 @@ List<WriteStep> planRewrites(
         candidates[linker.docPath] = linker;
       }
     }
+    if (_linksToMovedFile(index, doc, moves) ||
+        _mentionsMovedFile(session, doc, moves)) {
+      candidates[doc.docPath] = doc;
+    }
     if (_namesRenamedDoc(index, doc, renamed) ||
         _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
@@ -184,6 +161,38 @@ List<WriteStep> planRewrites(
   return steps;
 }
 
+/// Whether [doc] holds a file link, a link that is no doc link, to a path
+/// that [moves] move.
+bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
+    index
+        .contentOf(doc)
+        .lineFacts
+        .fileLinks
+        .any((link) => movedFilePath(link.target, moves) != link.target);
+
+/// Whether [doc] holds a path mention that [moves] change.
+bool _mentionsMovedFile(
+  WriteSession session,
+  IndexedDoc doc,
+  List<PathMove> moves,
+) =>
+    rewritePathMentions(
+      toLf(session.index.contentOf(doc).text),
+      docPath: doc.docPath,
+      moves: moves,
+      exists: (path) => _existsBeforeMoves(session, path),
+    ) !=
+    null;
+
+/// Whether [path], from the docs root and possibly leaving it, names an
+/// indexed doc or a file or folder on disk.
+///
+/// Planning runs before the moves, so this reads the tree as it stands.
+bool _existsBeforeMoves(WriteSession session, String path) =>
+    session.index.at(path) != null ||
+    FileSystemEntity.typeSync(session.fileOf(path).path) !=
+        FileSystemEntityType.notFound;
+
 WriteStep? _stepFor(
   WriteSession session,
   IndexedDoc doc,
@@ -195,10 +204,18 @@ WriteStep? _stepFor(
   final raw = utf8.decode(bytes);
   final lfText = toLf(raw);
   final linked = rewriteDocLinks(lfText, docPath: doc.docPath, moves: moves);
+  final mentioned =
+      rewritePathMentions(
+        linked ?? lfText,
+        docPath: doc.docPath,
+        moves: moves,
+        exists: (path) => _existsBeforeMoves(session, path),
+      )?.lfText ??
+      linked;
   final fields = session.index.typeOf(doc)?.fields ?? const <MergedField>[];
   final refs =
-      rewriteDocRefs(linked ?? lfText, fields: fields, renamed: renamed) ??
-      linked;
+      rewriteDocRefs(mentioned ?? lfText, fields: fields, renamed: renamed) ??
+      mentioned;
   final text =
       rewriteLinkLabels(
         refs ?? lfText,
@@ -283,7 +300,8 @@ String? _newName(
   return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
 }
 
-/// Returns the hrefs of every link the markdown parser finds in [lfText].
+/// Returns the hrefs of every link and image the markdown parser finds in
+/// [lfText].
 ///
 /// Returns none when the parser fails on it, so no span of it proves a link.
 Set<String> _hrefsOf(String lfText) {
@@ -293,7 +311,12 @@ Set<String> _hrefsOf(String lfText) {
   void visit(List<Node> nodes) {
     for (final node in nodes) {
       if (node is! Element) continue;
-      if (node.tag == 'a') hrefs.add(node.attributes['href'] ?? '');
+      final href = switch (node.tag) {
+        'a' => node.attributes['href'] ?? '',
+        'img' => node.attributes['src'],
+        _ => null,
+      };
+      if (href != null) hrefs.add(href);
       final children = node.children;
       if (children != null) visit(children);
     }
@@ -301,40 +324,6 @@ Set<String> _hrefsOf(String lfText) {
 
   visit(nodes);
   return hrefs;
-}
-
-/// Where a link destination sits in a text, and whether it is `<...>`.
-typedef _Destination = ({int start, int end, bool angle});
-
-/// Returns the destination that begins at [from], as spelled, or null.
-///
-/// An angle destination ends at the first `>` no backslash escapes; a plain
-/// one ends at whitespace or at the `)` that closes the link, parentheses in
-/// it balanced.
-_Destination? _destinationAt(String text, int from) {
-  final angle = from < text.length && text[from] == '<';
-  final start = angle ? from + 1 : from;
-  var depth = 0;
-  var i = start;
-  while (i < text.length) {
-    final c = text[i];
-    if (c == r'\') {
-      i += 2;
-      continue;
-    }
-    if (angle ? (c == '>' || c == '\n') : c.trim().isEmpty) break;
-    if (!angle && c == '(') depth++;
-    if (!angle && c == ')') {
-      if (depth == 0) break;
-      depth--;
-    }
-    i++;
-  }
-  final end = i.clamp(start, text.length);
-  if (end == start || (angle && (i >= text.length || text[i] != '>'))) {
-    return null;
-  }
-  return (start: start, end: end, angle: angle);
 }
 
 /// Returns the href the markdown parser makes of [raw] alone, or null when it
@@ -352,24 +341,20 @@ bool _yieldsLinkAt(String lfText, int start, int end) {
 }
 
 /// Returns [href] after [moves], or null when the link keeps its text.
+///
+/// The target is any relative file, or a folder, under or outside the docs
+/// root. A folder link keeps its trailing `/`.
 String? _movedHref(String href, String docPath, List<PathMove> moves) {
-  final target = resolveDocLink(href, docPath);
-  if (target is! DocTarget || !target.docPath.endsWith('.md')) return null;
   final cut = href.indexOf(RegExp('[?#]'));
-  if (cut == 0) return null;
+  final path = cut < 0 ? href : href.substring(0, cut);
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
-  if (!percentDecodesCleanly(cut < 0 ? href : href.substring(0, cut))) {
-    return null;
-  }
-  final before = relativeHref(docPath, target.docPath);
-  final after = relativeHref(
-    movedPath(docPath, moves),
-    movedPath(target.docPath, moves),
-  );
-  if (before == after) return null;
+  if (!percentDecodesCleanly(path)) return null;
+  final after = movedRelativePath(path, docPath, moves);
+  if (after == null) return null;
+  final slash = path.endsWith('/') ? '/' : '';
   final encoded = after.split('/').map(Uri.encodeComponent).join('/');
-  return cut < 0 ? encoded : '$encoded${href.substring(cut)}';
+  return cut < 0 ? '$encoded$slash' : '$encoded$slash${href.substring(cut)}';
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.

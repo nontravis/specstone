@@ -1,11 +1,14 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 
-/// Returns the `doc_ref_unresolved`, `link_unresolved`, and `markdown_unparsed`
-/// findings of [doc].
+/// Returns the `doc_ref_unresolved`, `link_unresolved`, `link_target_missing`,
+/// and `markdown_unparsed` findings of [doc].
 ///
 /// A typed doc is checked for both references and links, an untyped doc of a
 /// checked folder for links only. A doc the markdown parser failed on gets a
@@ -25,6 +28,7 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   }
   if (doc.isTyped) yield* _unresolvedDocRefs(context, doc);
   yield* _unresolvedLinks(context, doc);
+  yield* _missingFileLinks(context, doc);
 }
 
 /// Yields a finding per `doc_ref` value that no doc of the field's doc types
@@ -72,4 +76,55 @@ Iterable<Finding> _unresolvedLinks(CheckContext context, IndexedDoc doc) sync* {
       keys: {'target': place.shown},
     );
   }
+}
+
+/// Yields a finding per file link of [doc] whose file or folder is missing
+/// under the docs root.
+///
+/// A target that leaves the docs root is checked on disk the same way; the
+/// message names it from the project root.
+Iterable<Finding> _missingFileLinks(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  final root = context.docsRoot.path;
+  final separator = Platform.pathSeparator;
+  for (final place in context.linesOf(doc).fileLinks) {
+    final onDisk = [
+      if (root.endsWith(separator))
+        root.substring(0, root.length - 1)
+      else
+        root,
+      ...place.target.split('/'),
+    ].join(separator);
+    if (FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound) {
+      continue;
+    }
+    yield context.finding(
+      doc,
+      FindingKind.linkTargetMissing,
+      line: place.line,
+      message:
+          'link target ${place.shown} is missing at '
+          '${_projectPathOf(place.target)}',
+      keys: {'target': place.shown, 'path': _projectPathOf(place.target)},
+    );
+  }
+}
+
+/// Returns [target], a path under the docs root, as a path from the project
+/// root: `docs/<target>` with each `..` folded lexically, so `docs/../../x`
+/// is `../x`.
+String _projectPathOf(String target) {
+  final parts = <String>[docsFolderName];
+  for (final segment in target.split('/')) {
+    if (segment != '..') {
+      parts.add(segment);
+    } else if (parts.isEmpty || parts.last == '..') {
+      parts.add('..');
+    } else {
+      parts.removeLast();
+    }
+  }
+  return parts.join('/');
 }

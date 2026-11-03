@@ -102,6 +102,7 @@ sections:
     description: |-
       Draw a Mermaid diagram when the behavior branches; skip it for a straight line of steps.
       State a required order of functions as a requirement, and an assumed order as an assumption.
+      Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
     template: |-
       ```mermaid
       flowchart TD

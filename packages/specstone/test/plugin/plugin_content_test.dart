@@ -199,6 +199,7 @@ void main() {
   _shippedFileTests();
   _procedureTests();
   _handOffTests();
+  _leadAndMermaidTests();
   _agentTests();
 }
 
@@ -367,6 +368,36 @@ void _procedureTests() {
       );
     });
   }
+}
+
+/// [text] with every run of whitespace, a wrapped line end included, as one
+/// space.
+String _oneLine(String text) => text.replaceAll(RegExp(r'\s+'), ' ');
+
+const _mermaidSentence =
+    'Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in '
+    '`A["Save (draft)"]`; write `"` in it as `#quot;`.';
+
+const _leadSentence =
+    'The text between the title and the first `##` section is `#_lead`.';
+
+void _leadAndMermaidTests() {
+  for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+    final file = 'skills/$skill/references/procedure.md';
+    test('d-ps2: $file holds the Mermaid quoting sentence and names the '
+        '`#_lead` target of `specstone set`', () {
+      final text = _oneLine(_pluginText(file));
+      expect(text, contains(_mermaidSentence));
+      expect(text, contains(_leadSentence));
+    });
+  }
+
+  test('d-ps2: update-sdd names the `#_lead` target', () {
+    expect(
+      _oneLine(_pluginText('skills/update-sdd/SKILL.md')),
+      contains(_leadSentence),
+    );
+  });
 }
 
 /// Each skill that hands its work to `specstone:sdd-engineer`; both read the

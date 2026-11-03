@@ -93,10 +93,142 @@ void main() {
                 '![diagram](diagram.png), [idea](../../../notes/idea.md), and USER_STORY.md in prose.',
           ),
           'docs/notes/idea.md': '# Idea\n\n[gone](gone.md)\n',
+          'docs/prds/features/f01_login/diagram.png': 'png',
         },
       ),
     );
     expect(report.findings, isEmpty);
+  });
+
+  group('link_target_missing', () {
+    const picture = 'docs/prds/features/f01_login/flow chart.png';
+
+    List<String> missingOf(Directory project) => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == FindingKind.linkTargetMissing) f.textLine,
+    ];
+
+    Map<String, String> linking(String text) => doc(
+      loginFeature,
+      'Users forget passwords.',
+      'Users forget passwords; $text',
+    );
+
+    test('f04/us02/fr04/e10, PS-R2, M6: a link out of the docs root to a file that is not there names the project path', () async {
+      final project = await writeCheckProject(
+        extra: doc(
+          gnfrDoc,
+          'N/A — none applies.',
+          'See [x](../../../docs/prds/d03_non_functional.md).',
+        ),
+      );
+      expect(spots(checkOf(project), FindingKind.linkTargetMissing), [
+        'prds/GNFR.md:9: link_target_missing',
+      ]);
+      expect(missingOf(project), [
+        'prds/GNFR.md:9: link_target_missing: link target ../../../docs/prds/d03_non_functional.md is missing at ../docs/prds/d03_non_functional.md',
+      ]);
+      final finding = checkOf(project).findings
+          .firstWhere((f) => f.kind == FindingKind.linkTargetMissing);
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('target', '../../../docs/prds/d03_non_functional.md'),
+          containsPair('path', '../docs/prds/d03_non_functional.md'),
+        ),
+      );
+      expect(finding.kind.isProjectLevel, isFalse);
+    });
+
+    test('f04/us02/fr04/e11, PS-R3: a picture with no file is a finding inside docs too', () async {
+      final project = await writeCheckProject(
+        extra: linking('![flow](flow.png)'),
+      );
+      expect(missingOf(project), [
+        '$loginFeature:11: link_target_missing: link target flow.png is missing at docs/prds/features/f01_login/flow.png',
+      ]);
+    });
+
+    test(
+      'f04/us02/fr04/e11: a picture whose file is there is no finding',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            ...linking('![flow](flow.png)'),
+            'docs/prds/features/f01_login/flow.png': 'png',
+          },
+        );
+        expect(missingOf(project), isEmpty);
+      },
+    );
+
+    test('f04/us02/fr04/e11, PS-R2: the target is reported as written while the escape is checked decoded', () async {
+      final missing = await writeCheckProject(
+        extra: linking('![flow](flow%20chart.png#top)'),
+      );
+      expect(missingOf(missing), [
+        '$loginFeature:11: link_target_missing: link target flow%20chart.png#top is missing at docs/prds/features/f01_login/flow chart.png',
+      ]);
+      final present = await writeCheckProject(
+        extra: {...linking('![flow](flow%20chart.png#top)'), picture: 'png'},
+      );
+      expect(missingOf(present), isEmpty);
+    });
+
+    test('f04/us02/fr04/e11: a query is left out of the checked path', () async {
+      final missing = await writeCheckProject(
+        extra: linking('![a](a.png?raw=1)'),
+      );
+      expect(missingOf(missing), [
+        '$loginFeature:11: link_target_missing: link target a.png?raw=1 is missing at docs/prds/features/f01_login/a.png',
+      ]);
+      final present = await writeCheckProject(
+        extra: {
+          ...linking('![a](a.png?raw=1)'),
+          'docs/prds/features/f01_login/a.png': 'png',
+        },
+      );
+      expect(missingOf(present), isEmpty);
+    });
+
+    test('f04/us02/fr04, M6: an existing folder counts as present', () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...linking('[assets](assets/)'),
+          'docs/prds/features/f01_login/assets/a.txt': 'a',
+        },
+      );
+      expect(missingOf(project), isEmpty);
+    });
+
+    test('f04/us02/fr04/e12: a link to an existing file outside the project is no finding', () async {
+      final outside = File(
+        '${Directory.systemTemp.path}${Platform.pathSeparator}specstone_e12_${DateTime.now().microsecondsSinceEpoch}.txt',
+      )..writeAsStringSync('x');
+      addTearDown(outside.deleteSync);
+      final project = await writeCheckProject(
+        extra: linking('[o](../../../../../${outside.uri.pathSegments.last})'),
+      );
+      expect(project.parent.path, Directory.systemTemp.path);
+      expect(missingOf(project), isEmpty);
+    });
+
+    test('f04/us02/fr04/e13: a web address, mailto, and a rooted path are no finding', () async {
+      final project = await writeCheckProject(
+        extra: linking(
+          '[w](https://example.com/a.png) [m](mailto:a@b.c) [r](/abs/x.md) [s](#top)',
+        ),
+      );
+      expect(missingOf(project), isEmpty);
+    });
+
+    test('f04/us02/fr04/e14, PS-R3: a missing in-tree .md link stays link_unresolved only', () async {
+      final project = await writeCheckProject(extra: linking('[g](gone.md)'));
+      expect(missingOf(project), isEmpty);
+      expect(spots(checkOf(project), FindingKind.linkUnresolved), [
+        '$loginFeature:11: link_unresolved',
+      ]);
+    });
   });
 
   test('f04/us02/fr04/e05, f04/us01/fr01/e04, f04/us01/fr06/e03: an old-format, untyped doc gets its links checked, '

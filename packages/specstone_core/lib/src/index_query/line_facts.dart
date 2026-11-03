@@ -52,6 +52,7 @@ List<String> lfLinesOf(String lfText) {
 final class LineFacts {
   const new({
     required this.links,
+    required this.fileLinks,
     required this.sectionLines,
     required this.sectionCounts,
     required this.fenced,
@@ -87,7 +88,8 @@ final class LineFacts {
     );
     if (links == null) warnings.add(markdownUnparsedWarning(docPath));
     return LineFacts(
-      links: links ?? const [],
+      links: links?.docLinks ?? const [],
+      fileLinks: links?.fileLinks ?? const [],
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
@@ -105,15 +107,8 @@ final class LineFacts {
   }) {
     final fenced = json['fenced']! as List<Object?>;
     return LineFacts(
-      links: [
-        for (final place
-            in (json['links']! as List<Object?>).cast<List<Object?>>())
-          (
-            target: place[0]! as String,
-            line: place[1]! as int,
-            shown: place[2]! as String,
-          ),
-      ],
+      links: _placesOfJson(json['links']!),
+      fileLinks: _placesOfJson(json['file_links']!),
       sectionLines: (json['sections']! as List<Object?>).cast<int>(),
       sectionCounts: sectionCounts,
       fenced: [
@@ -128,6 +123,11 @@ final class LineFacts {
 
   /// The doc links that resolve to another `.md` doc, in source order.
   final List<LinkPlace> links;
+
+  /// The relative links that are no doc link, in source order; each target is
+  /// the path under the docs root, with leading `../` segments when it leaves
+  /// the root.
+  final List<LinkPlace> fileLinks;
 
   /// The header line of each section, in the order of `Doc.sections`.
   final List<int> sectionLines;
@@ -174,9 +174,8 @@ final class LineFacts {
 
   /// Returns the facts as JSON values, apart from [sectionCounts].
   Map<String, Object?> toJson() => {
-    'links': [
-      for (final place in links) [place.target, place.line, place.shown],
-    ],
+    'links': _placesToJson(links),
+    'file_links': _placesToJson(fileLinks),
     'sections': sectionLines,
     'fenced': [
       for (final range in fenced) [range.first, range.last],
@@ -186,6 +185,21 @@ final class LineFacts {
     'yaml_error': frontmatterErrorLine,
   };
 }
+
+/// Returns the places [json] holds, as [_placesToJson] wrote them.
+List<LinkPlace> _placesOfJson(Object json) => [
+  for (final place in (json as List<Object?>).cast<List<Object?>>())
+    (
+      target: place[0]! as String,
+      line: place[1]! as int,
+      shown: place[2]! as String,
+    ),
+];
+
+/// Returns [places] as JSON values.
+List<List<Object>> _placesToJson(List<LinkPlace> places) => [
+  for (final place in places) [place.target, place.line, place.shown],
+];
 
 /// Returns the lines of [text], using [breaks] as its `\n` count when known.
 int _lineCount(String text, {int? breaks}) {
