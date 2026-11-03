@@ -93,36 +93,59 @@ void _checkNesting(
       if (docType.maxDepth != null) docType,
   ];
   if (carriers.length > 1) {
-    final (:file, :related) = rankFaultFiles([
-      for (final carrier in carriers)
-        _writerOf(carrier.id, _wroteMaxDepth, layerLists),
-    ], loadIndex);
-    throw TemplateFault(
-      FaultCode.unknownValue,
-      'max_depth sits on ${_joinIds([for (final c in carriers) c.id])}; '
-      'only one doc type may carry it',
-      file: file,
-      key: 'max_depth',
-      relatedFiles: related,
-    );
+    _throwSecondCarrier(carriers, layerLists, loadIndex);
   }
   for (final carrier in carriers) {
-    final String message;
-    if (carrier.parent != null) {
-      message = 'max_depth sits on ${carrier.id}, which has a parent';
-    } else if (carrier.nests && !_lastFolderHoldsSlug(carrier.path)) {
-      message = 'max_depth needs a path whose last folder holds {slug}';
-    } else {
-      continue;
+    final message = _carrierFault(carrier);
+    if (message != null) {
+      throw _maxDepthFault(message, carrier, layerLists);
     }
-    throw TemplateFault(
-      FaultCode.unknownValue,
-      message,
-      file: _writerOf(carrier.id, _wroteMaxDepth, layerLists),
-      key: 'max_depth',
-    );
   }
 }
+
+/// Throws the fault for more than one doc type writing `max_depth`.
+///
+/// The message names the carriers in the order of [carriers].
+Never _throwSecondCarrier(
+  List<MergedDocType> carriers,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final (:file, :related) = rankFaultFiles([
+    for (final carrier in carriers)
+      _writerOf(carrier.id, _wroteMaxDepth, layerLists),
+  ], loadIndex);
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'only one doc type takes max_depth: '
+    '${_joinIds([for (final c in carriers) c.id])} write it',
+    file: file,
+    key: 'max_depth',
+    relatedFiles: related,
+  );
+}
+
+/// The fault message for the lone [carrier], or null when it is valid.
+String? _carrierFault(MergedDocType carrier) {
+  if (carrier.parent != null) {
+    return 'a doc type with a parent takes no max_depth';
+  }
+  if (carrier.nests && !_lastFolderHoldsSlug(carrier.path)) {
+    return 'max_depth needs a path whose last folder holds {slug}';
+  }
+  return null;
+}
+
+TemplateFault _maxDepthFault(
+  String message,
+  MergedDocType carrier,
+  Map<String, DocTypeLayers> layerLists,
+) => TemplateFault(
+  FaultCode.unknownValue,
+  message,
+  file: _writerOf(carrier.id, _wroteMaxDepth, layerLists),
+  key: 'max_depth',
+);
 
 bool _wroteMaxDepth(DocTypeLayer layer) => layer.maxDepth != null;
 

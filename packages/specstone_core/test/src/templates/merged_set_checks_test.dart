@@ -165,8 +165,8 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'max_depth sits on playbook and runbook; '
-                    'only one doc type may carry it',
+                'only one doc type takes max_depth: '
+                    'playbook and runbook write it',
               )
               .having((f) => f.file, 'file', _runbookFile)
               .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
@@ -200,7 +200,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'max_depth sits on story, which has a parent',
+                'a doc type with a parent takes no max_depth',
               )
               .having((f) => f.file, 'file', _storyFile),
         ),
@@ -214,7 +214,8 @@ void main() {
       };
       expect(
         () => check([
-          builtIn('runbook').copyWith(path: 'ops/FEATURE.md', maxDepth: 3),
+          builtIn('runbook')
+              .copyWith(path: 'prds/features/FEATURE.md', maxDepth: 3),
         ], layers),
         throwsA(
           isA<TemplateFault>()
