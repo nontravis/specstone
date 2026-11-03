@@ -62,11 +62,13 @@ String relativeHref(String fromDocPath, String toDocPath) {
 /// Returns [lfText] with each doc link set to the path [moves] leave its
 /// target at, or null when no link changes.
 ///
-/// [docPath] is where the doc sits before the moves. A link is a `.md`
-/// target the markdown parser reports and the doc model resolves; its new
-/// href is the relative path between the moved doc and the moved target,
-/// with the `?` or `#` part kept. A link whose relative path is unchanged,
-/// a web address, and a path outside the docs root keep their text.
+/// [docPath] is where the doc sits before the moves. A link is a relative
+/// target of any extension, or a folder, that the markdown parser reports,
+/// whether it stays under the docs root or leaves it; its new href is the
+/// relative path between the moved doc and the moved target, with the `?` or
+/// `#` part and a folder's trailing `/` kept. A link whose relative path is
+/// unchanged, a web address, another scheme, and a rooted path keep their
+/// text.
 ///
 /// Only the text after the frontmatter is read, as the doc model does, so a
 /// link-shaped frontmatter value keeps every byte. The parser reports no
@@ -148,12 +150,12 @@ String? rewriteDocRefs(
 /// Returns the journal writes that keep every link and `doc_ref` value true
 /// after [moves] and the renames in [renamed].
 ///
-/// The candidates are the docs, typed or untyped, that link to a doc under a
-/// moved path, and, for [renamed], the typed docs whose `doc_ref` values
-/// name a renamed doc and the `journey` and `api` docs whose step
-/// identities, FR trace cells, or `confirmed` labels do. A doc is chosen
-/// from a lenient read, so a non-UTF-8 doc that names nothing renamed never
-/// blocks. Each is read from disk before the moves; a step
+/// The candidates are the docs, typed or untyped, that link to a doc or to
+/// any other file or folder under a moved path, and, for [renamed], the
+/// typed docs whose `doc_ref` values name a renamed doc and the `journey` and
+/// `api` docs whose step identities, FR trace cells, or `confirmed` labels do.
+/// A doc is chosen from a lenient read, so a non-UTF-8 doc that names nothing
+/// renamed never blocks. Each is read from disk before the moves; a step
 /// holds its text after the rewrites, in the file's line endings and BOM,
 /// at its project path after the moves. Steps are sorted by path. No draft
 /// or approved mark is touched.
@@ -172,6 +174,7 @@ List<WriteStep> planRewrites(
         candidates[linker.docPath] = linker;
       }
     }
+    if (_linksToMovedFile(index, doc, moves)) candidates[doc.docPath] = doc;
     if (_namesRenamedDoc(index, doc, renamed) ||
         _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
@@ -183,6 +186,15 @@ List<WriteStep> planRewrites(
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
 }
+
+/// Whether [doc] holds a file link, a link that is no doc link, to a path
+/// that [moves] move.
+bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
+    index
+        .contentOf(doc)
+        .lineFacts
+        .fileLinks
+        .any((link) => _movedFilePath(link.target, moves) != link.target);
 
 WriteStep? _stepFor(
   WriteSession session,
@@ -283,7 +295,8 @@ String? _newName(
   return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
 }
 
-/// Returns the hrefs of every link the markdown parser finds in [lfText].
+/// Returns the hrefs of every link and image the markdown parser finds in
+/// [lfText].
 ///
 /// Returns none when the parser fails on it, so no span of it proves a link.
 Set<String> _hrefsOf(String lfText) {
@@ -293,7 +306,12 @@ Set<String> _hrefsOf(String lfText) {
   void visit(List<Node> nodes) {
     for (final node in nodes) {
       if (node is! Element) continue;
-      if (node.tag == 'a') hrefs.add(node.attributes['href'] ?? '');
+      final href = switch (node.tag) {
+        'a' => node.attributes['href'] ?? '',
+        'img' => node.attributes['src'],
+        _ => null,
+      };
+      if (href != null) hrefs.add(href);
       final children = node.children;
       if (children != null) visit(children);
     }
@@ -352,24 +370,39 @@ bool _yieldsLinkAt(String lfText, int start, int end) {
 }
 
 /// Returns [href] after [moves], or null when the link keeps its text.
+///
+/// The target is any relative file, or a folder, under or outside the docs
+/// root. A folder link keeps its trailing `/`.
 String? _movedHref(String href, String docPath, List<PathMove> moves) {
-  final target = resolveDocLink(href, docPath);
-  if (target is! DocTarget || !target.docPath.endsWith('.md')) return null;
+  final target = relativeFilePathOf(href, docPath);
+  if (target == null) return null;
   final cut = href.indexOf(RegExp('[?#]'));
-  if (cut == 0) return null;
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
   if (!percentDecodesCleanly(cut < 0 ? href : href.substring(0, cut))) {
     return null;
   }
-  final before = relativeHref(docPath, target.docPath);
+  final before = relativeHref(docPath, target);
   final after = relativeHref(
     movedPath(docPath, moves),
-    movedPath(target.docPath, moves),
+    _movedFilePath(target, moves),
   );
   if (before == after) return null;
+  final path = cut < 0 ? href : href.substring(0, cut);
+  final slash = path.endsWith('/') ? '/' : '';
   final encoded = after.split('/').map(Uri.encodeComponent).join('/');
-  return cut < 0 ? encoded : '$encoded${href.substring(cut)}';
+  return cut < 0 ? '$encoded$slash' : '$encoded$slash${href.substring(cut)}';
+}
+
+/// Returns [path], a file or a folder under the docs root or outside it,
+/// after [moves].
+///
+/// A folder path has no trailing `/`, so it is moved as the folder it names.
+String _movedFilePath(String path, List<PathMove> moves) {
+  final moved = movedPath(path, moves);
+  if (moved != path) return moved;
+  final folder = movedPath('$path/', moves);
+  return folder == '$path/' ? path : folder.substring(0, folder.length - 1);
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.

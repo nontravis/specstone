@@ -166,9 +166,11 @@ DocRewrite rewriteLegacyDoc(
   );
 }
 
-/// Points each relative link of [lf] at the path [moves] leave its target at.
+/// Points each relative link of [lf], to a file of any extension or a folder,
+/// at the path [moves] leave its target at.
 ///
-/// [docPath] is where the doc sits before the moves. The label is `1 link` or
+/// [docPath] is where the doc sits before the moves; a link that leaves the
+/// docs root follows a doc that changes depth. The label is `1 link` or
 /// `<n> links`, and null when no link changes.
 ({String lf, String? label}) rewriteLinks(
   String lf, {
