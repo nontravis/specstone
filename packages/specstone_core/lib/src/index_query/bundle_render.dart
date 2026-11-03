@@ -224,7 +224,7 @@ String _docBlock(
 }
 
 /// Returns the kept sections of a summary doc whose merged section is a
-/// summary section, in section order (INV-28).
+/// summary section, in section order (INV-25).
 Iterable<String> _summaryBlocks(
   DocContent content,
   MergedDocType? docType,
