@@ -28,7 +28,7 @@ sealed class SetTarget {
 final class SectionTarget extends SetTarget {
   const new(this.key);
 
-  /// The template section id, else the heading slug.
+  /// The template section id, else the [sectionKeyOf] key of the header.
   final String key;
 }
 

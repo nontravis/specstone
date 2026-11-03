@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 // The expected values are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
@@ -110,6 +114,17 @@ void main() {
     expect(text, contains('## Root schema\nfirst\n'));
     expect(text, contains('## Root-schema\nsecond\n'));
     expect(text, startsWith('==> roots.md · roots.md · base '));
+    final content = parseIndexedDoc(
+      docPath: 'roots.md',
+      bytes: utf8.encode(
+        '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
+      ),
+      match: const NoDocType(),
+    ).content;
+    expect(content.sections.map((s) => s.key), ['root_schema', 'root_schema']);
+    expect(basesOf(content, null)['sections'], {
+      'root_schema': baseHashOf(content.sections.first.body),
+    });
   });
   test('f01/us04/fr02: --json gives name, path, section, and text; no docType on an untyped doc', () async {
     expect(answerGet(index, 'prds/d01_context.md#project_name').json['docs'], [
