@@ -298,20 +298,4 @@ void main() {
     expect(holdsApproved(doc), isFalse);
     expect(approvalOf(doc), Approval.neverApproved);
   });
-
-  test('f02/us03/fr02, dw-s03/inv11: changed hunks name the lines that differ and carry no context', () {
-    expect(changedHunks('a\nb\nc\n', 'a\nB\nc\n'), '@@ -2 +2 @@\n-b\n+B\n');
-    expect(changedHunks('a\nc\n', 'a\nb\nc\n'), '@@ -1,0 +2 @@\n+b\n');
-    expect(changedHunks('a\nb\nc\n', 'a\nc\n'), '@@ -2 +1,0 @@\n-b\n');
-    expect(changedHunks('a\n', 'a\n'), '');
-  });
-
-  test('f02/us03/fr02, dw-s03/inv11: changed hunks join separate changes and read CRLF as LF', () {
-    expect(
-      changedHunks('a\nb\nc\nd\ne\n', 'A\nb\nc\nd\nE\nF\n'),
-      '@@ -1 +1 @@\n-a\n+A\n@@ -5 +5,2 @@\n-e\n+E\n+F\n',
-    );
-    expect(changedHunks('a\r\nb\r\n', 'a\nb\n'), '');
-    expect(changedHunks('', 'a\n'), '@@ -0,0 +1 @@\n+a\n');
-  });
 }

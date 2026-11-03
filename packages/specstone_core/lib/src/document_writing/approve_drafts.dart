@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/approval_diff.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -189,7 +190,9 @@ String _viewOf(
     session.project.projectRoot,
     session.projectPathOf(doc.docPath),
   );
-  if (approved is ApprovedCopy) return changedHunks(approved.text, text);
+  if (approved is ApprovedCopy) {
+    return approvalDiff(approved.text, text, context: 0);
+  }
   return text.endsWith('\n') ? text : '$text\n';
 }
 
