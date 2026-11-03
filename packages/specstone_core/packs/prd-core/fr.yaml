@@ -49,6 +49,7 @@ sections:
       Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
+    summary: true
     lint:
       banned_words:
         - flexible

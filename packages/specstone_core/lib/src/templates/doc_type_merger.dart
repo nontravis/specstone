@@ -323,6 +323,7 @@ final class DocTypeMerger {
             ),
             linePrefix: entry.lint?.linePrefix,
             query: entry.query,
+            summary: entry.summary,
             bannedPatterns: _mergeSectionPatterns(
               null,
               entry.lint?.bannedPatterns,
@@ -369,6 +370,7 @@ final class DocTypeMerger {
         ),
         linePrefix: entry.lint?.linePrefix,
         query: entry.query,
+        summary: entry.summary,
         bannedPatterns: _mergeSectionPatterns(
           sections[index].bannedPatterns,
           entry.lint?.bannedPatterns,

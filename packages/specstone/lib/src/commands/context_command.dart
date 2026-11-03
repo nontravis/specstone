@@ -20,6 +20,11 @@ class ContextCommand extends SpecstoneCommand {
         help: 'Print no doc text when the bundle exceeds this many tokens.',
       )
       ..addFlag(
+        'summary',
+        negatable: false,
+        help: 'With a feature and --for design, print every story in summary.',
+      )
+      ..addFlag(
         'no-project',
         negatable: false,
         help: 'Leave out the docs that join through `bundle:` lists.',
@@ -36,13 +41,14 @@ class ContextCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone context [<target> | --code <path>] --for <mode> [--budget N] '
-      '[--no-project] [--json]';
+      '[--summary] [--no-project] [--json]';
 
   @override
   Future<int> run() async {
     final args = argResults!;
     final asJson = args.flag('json');
     final rest = args.rest;
+    final summary = args.flag('summary');
     final code = args.option('code');
     if (code != null && rest.isNotEmpty) {
       return fail(
@@ -74,6 +80,18 @@ class ContextCommand extends SpecstoneCommand {
         );
       }
       mode = BundleMode.parse(args.option('for'));
+      if (summary && mode != BundleMode.design) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          '--summary works only with --for design',
+        );
+      }
+      if (summary && code != null) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          'give --summary with a target, not --code',
+        );
+      }
       budget = parsePositiveOption('--budget', args.option('budget'));
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);
@@ -99,7 +117,13 @@ class ContextCommand extends SpecstoneCommand {
     return runRead(
       (session) => answerContext(
         session.index,
-        pickBundle(session.index, target, mode, noProject: noProject),
+        pickBundle(
+          session.index,
+          target,
+          mode,
+          noProject: noProject,
+          summary: summary,
+        ),
         label: target,
         byCode: false,
         budget: budget,

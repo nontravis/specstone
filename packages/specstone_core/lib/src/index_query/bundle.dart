@@ -35,16 +35,27 @@ enum BundleMode {
 
 /// The docs one `context` call prints, picked by [BundleMode].
 final class Bundle {
-  new(this.mode);
+  new(this.mode, {this.summary = false});
 
   /// The mode the docs are picked for.
   final BundleMode mode;
 
+  /// Whether `--summary` asked for the feature's stories in summary.
+  final bool summary;
+
   /// The docs the chain rule picks, by DocPath.
   final Set<String> docPaths = {};
 
+  /// The docs a design bundle prints in summary, by DocPath.
+  final Set<String> summaryPaths = {};
+
   /// The docs that join only through their doc type's `bundle:` list.
   final Set<String> joinedPaths = {};
+
+  /// The docs that print in summary only: [summaryPaths] that no target picks
+  /// whole and no `bundle:` join adds (DB-C9).
+  Set<String> get summaryOnly =>
+      summaryPaths.difference(docPaths).difference(joinedPaths);
 
   /// The tops whose query map prints.
   final Set<String> mapTops = {};
@@ -71,9 +82,7 @@ final class Bundle {
         }
         mapTops.add(top.docPath);
       case BundleMode.design:
-        for (final doc in index.subtreeOf(top)) {
-          docPaths.add(doc.docPath);
-        }
+        _addDesign(index, effective, top);
       case BundleMode.implement:
         _addImplement(index, effective, top);
     }
@@ -90,6 +99,38 @@ final class Bundle {
           !docPaths.contains(doc.docPath)) {
         joinedPaths.add(doc.docPath);
       }
+    }
+  }
+
+  /// Adds the design docs of [target]: a top doc takes its whole subtree, or
+  /// with [summary] its non-ChainType children whole and the rest in summary;
+  /// any other target takes its unit (the chain doc below the top) whole, the
+  /// top's non-ChainType children whole, and the top's other ChainType
+  /// children's subtrees in summary.
+  void _addDesign(DocIndex index, IndexedDoc target, IndexedDoc top) {
+    final isTop = target.docPath == top.docPath;
+    if (isTop && !summary) {
+      _addAll(docPaths, index.subtreeOf(top));
+      return;
+    }
+    final chain = index.chainOf(target);
+    final unit = isTop ? null : chain[chain.length - 2];
+    docPaths.add(top.docPath);
+    for (final child in index.childrenOf(top)) {
+      final typeId = child.docTypeId;
+      if (typeId == null || !index.isChainType(typeId)) {
+        _addAll(docPaths, index.subtreeOf(child));
+      } else if (child.docPath == unit?.docPath) {
+        _addAll(docPaths, index.subtreeOf(child));
+      } else {
+        _addAll(summaryPaths, index.subtreeOf(child));
+      }
+    }
+  }
+
+  void _addAll(Set<String> paths, Iterable<IndexedDoc> docs) {
+    for (final doc in docs) {
+      paths.add(doc.docPath);
     }
   }
 
@@ -142,13 +183,22 @@ final class Bundle {
 
 /// Returns the bundle [target] holds for [mode] (us05 FR-01).
 ///
-/// `--no-project` drops the docs that join through `bundle:` lists.
+/// `--no-project` drops the docs that join through `bundle:` lists. [summary]
+/// prints a top doc's ChainType children in summary and throws
+/// `argument_conflict` outside `BundleMode.design`.
 Bundle pickBundle(
   DocIndex index,
   String target,
   BundleMode mode, {
   required bool noProject,
+  bool summary = false,
 }) {
+  if (summary && mode != BundleMode.design) {
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      '--summary works only with --for design',
+    );
+  }
   final resolved = index.resolve(target);
   final untyped = resolved.where((doc) => doc.docTypeId == null).toList();
   if (untyped.isNotEmpty) {
@@ -166,7 +216,18 @@ Bundle pickBundle(
   final picked = chainDocs.length == 1
       ? <IndexedDoc>[chainDocs.single]
       : resolved;
-  final bundle = Bundle(mode);
+  if (summary) {
+    for (final doc in picked) {
+      if (index.parentOf(doc) != null || index.childrenOf(doc).isEmpty) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          '--summary takes a doc with children and no parent, such as a '
+          'feature; ${nameWithType(doc)} is not one',
+        );
+      }
+    }
+  }
+  final bundle = Bundle(mode, summary: summary);
   for (final doc in picked) {
     bundle.addTarget(index, doc);
   }

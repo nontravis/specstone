@@ -60,6 +60,7 @@ sections:
       Do not use EARS keywords.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
+    summary: true
     lint:
       banned_words:
         - flexible

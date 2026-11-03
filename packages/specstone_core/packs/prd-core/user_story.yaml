@@ -44,6 +44,7 @@ sections:
       - **As a** <Role> [who <situation>]
       - **I want to** <action>
       - **so that** <benefit>
+    summary: true
   - id: rules
     header: Rules
     prefix_id: BR-
@@ -53,6 +54,7 @@ sections:
       Cite a rule's id at the end of the title of each scenario that illustrates it.
     template: |-
       - **BR-01** — <rule>
+    summary: true
   - id: acceptance_criteria
     header: Acceptance Criteria
     required: true
