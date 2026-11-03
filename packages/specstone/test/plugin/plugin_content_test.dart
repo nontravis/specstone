@@ -410,6 +410,7 @@ void _handOffTests() {
       _pluginText('agents/sdd-engineer.md'),
       isNot(contains("Owner's language")),
     );
+    expect(_pluginText('agents/sdd-engineer.md'), contains('never their text'));
     for (final skill in ['expert-sdd', 'update-sdd']) {
       final text = _pluginText('skills/$skill/SKILL.md');
       expect(text, contains('--dry-run'), reason: skill);
