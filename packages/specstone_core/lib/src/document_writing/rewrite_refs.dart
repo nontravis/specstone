@@ -8,6 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -93,9 +94,7 @@ String? rewriteDocLinks(
   final body = Doc.parse(lfText).afterFrontmatter;
   if (!body.contains('](') && !body.contains(']:')) return null;
   final edits = <({int start, int end, String text})>[];
-  for (final match in RegExp(r'\](?:\(|:)\s*').allMatches(body)) {
-    final span = _destinationAt(body, match.end);
-    if (span == null) continue;
+  for (final span in destinationsIn(body)) {
     final href = _hrefOfSpelling(
       body.substring(span.start, span.end),
       span.angle,
@@ -151,7 +150,8 @@ String? rewriteDocRefs(
 /// after [moves] and the renames in [renamed].
 ///
 /// The candidates are the docs, typed or untyped, that link to a doc or to
-/// any other file or folder under a moved path, and, for [renamed], the
+/// any other file or folder under a moved path, that hold a path mention
+/// [rewritePathMentions] changes, and, for [renamed], the
 /// typed docs whose `doc_ref` values name a renamed doc and the `journey` and
 /// `api` docs whose step identities, FR trace cells, or `confirmed` labels do.
 /// A doc is chosen from a lenient read, so a non-UTF-8 doc that names nothing
@@ -174,7 +174,10 @@ List<WriteStep> planRewrites(
         candidates[linker.docPath] = linker;
       }
     }
-    if (_linksToMovedFile(index, doc, moves)) candidates[doc.docPath] = doc;
+    if (_linksToMovedFile(index, doc, moves) ||
+        _mentionsMovedFile(session, doc, moves)) {
+      candidates[doc.docPath] = doc;
+    }
     if (_namesRenamedDoc(index, doc, renamed) ||
         _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
@@ -196,6 +199,29 @@ bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
         .fileLinks
         .any((link) => _movedFilePath(link.target, moves) != link.target);
 
+/// Whether [doc] holds a path mention that [moves] change.
+bool _mentionsMovedFile(
+  WriteSession session,
+  IndexedDoc doc,
+  List<PathMove> moves,
+) =>
+    rewritePathMentions(
+      toLf(session.index.contentOf(doc).text),
+      docPath: doc.docPath,
+      moves: moves,
+      exists: (path) => _existsBeforeMoves(session, path),
+    ) !=
+    null;
+
+/// Whether [path], from the docs root and possibly leaving it, names an
+/// indexed doc or a file or folder on disk.
+///
+/// Planning runs before the moves, so this reads the tree as it stands.
+bool _existsBeforeMoves(WriteSession session, String path) =>
+    session.index.at(path) != null ||
+    FileSystemEntity.typeSync(session.fileOf(path).path) !=
+        FileSystemEntityType.notFound;
+
 WriteStep? _stepFor(
   WriteSession session,
   IndexedDoc doc,
@@ -207,10 +233,18 @@ WriteStep? _stepFor(
   final raw = utf8.decode(bytes);
   final lfText = toLf(raw);
   final linked = rewriteDocLinks(lfText, docPath: doc.docPath, moves: moves);
+  final mentioned =
+      rewritePathMentions(
+        linked ?? lfText,
+        docPath: doc.docPath,
+        moves: moves,
+        exists: (path) => _existsBeforeMoves(session, path),
+      )?.lfText ??
+      linked;
   final fields = session.index.typeOf(doc)?.fields ?? const <MergedField>[];
   final refs =
-      rewriteDocRefs(linked ?? lfText, fields: fields, renamed: renamed) ??
-      linked;
+      rewriteDocRefs(mentioned ?? lfText, fields: fields, renamed: renamed) ??
+      mentioned;
   final text =
       rewriteLinkLabels(
         refs ?? lfText,
@@ -322,14 +356,25 @@ Set<String> _hrefsOf(String lfText) {
 }
 
 /// Where a link destination sits in a text, and whether it is `<...>`.
-typedef _Destination = ({int start, int end, bool angle});
+typedef LinkDestination = ({int start, int end, bool angle});
+
+/// Returns every destination that follows a `](` or `]:` in [text], as
+/// spelled, in text order.
+///
+/// A destination is only read, not proven a link's; the link rewrite proves
+/// each, and a mention scan skips every one.
+Iterable<LinkDestination> destinationsIn(String text) sync* {
+  for (final match in RegExp(r'\](?:\(|:)\s*').allMatches(text)) {
+    if (_destinationAt(text, match.end) case final span?) yield span;
+  }
+}
 
 /// Returns the destination that begins at [from], as spelled, or null.
 ///
 /// An angle destination ends at the first `>` no backslash escapes; a plain
 /// one ends at whitespace or at the `)` that closes the link, parentheses in
 /// it balanced.
-_Destination? _destinationAt(String text, int from) {
+LinkDestination? _destinationAt(String text, int from) {
   final angle = from < text.length && text[from] == '<';
   final start = angle ? from + 1 : from;
   var depth = 0;
@@ -374,24 +419,33 @@ bool _yieldsLinkAt(String lfText, int start, int end) {
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
 String? _movedHref(String href, String docPath, List<PathMove> moves) {
-  final target = relativeFilePathOf(href, docPath);
-  if (target == null) return null;
   final cut = href.indexOf(RegExp('[?#]'));
+  final path = cut < 0 ? href : href.substring(0, cut);
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
-  if (!percentDecodesCleanly(cut < 0 ? href : href.substring(0, cut))) {
-    return null;
-  }
-  final movedDoc = movedPath(docPath, moves);
-  final movedTarget = _movedFilePath(target, moves);
-  // The text stays when, read from the doc's place after the moves, it still
-  // reaches the moved target; it may leave a moved folder and re-enter it.
-  if (relativeFilePathOf(href, movedDoc) == movedTarget) return null;
-  final after = relativeHref(movedDoc, movedTarget);
-  final path = cut < 0 ? href : href.substring(0, cut);
+  if (!percentDecodesCleanly(path)) return null;
+  final after = movedRelativePath(path, docPath, moves);
+  if (after == null) return null;
   final slash = path.endsWith('/') ? '/' : '';
   final encoded = after.split('/').map(Uri.encodeComponent).join('/');
   return cut < 0 ? '$encoded$slash' : '$encoded$slash${href.substring(cut)}';
+}
+
+/// Returns the decoded path [path], written in the doc at [docPath], must
+/// carry after [moves], or null when it keeps its text.
+///
+/// [path] has no `?` or `#` part. It keeps its text when, read from the doc's
+/// place after the moves, it still reaches the moved target, which it may do
+/// by leaving a moved folder and re-entering it, or when it names no file
+/// path (see [relativeFilePathOf]). A link and a prose mention share this
+/// one decision.
+String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
+  final target = relativeFilePathOf(path, docPath);
+  if (target == null) return null;
+  final movedDoc = movedPath(docPath, moves);
+  final movedTarget = _movedFilePath(target, moves);
+  if (relativeFilePathOf(path, movedDoc) == movedTarget) return null;
+  return relativeHref(movedDoc, movedTarget);
 }
 
 /// Returns [path], a file or a folder under the docs root or outside it,

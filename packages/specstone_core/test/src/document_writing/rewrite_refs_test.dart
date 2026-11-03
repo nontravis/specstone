@@ -596,4 +596,41 @@ void main() {
       expect(persona.text, contains('draft: true\n'));
     },
   );
+
+  test('f02/us05/fr02/e10: a doc that only mentions a moved file is rewritten, a mention of nothing stays', () async {
+    final mentioning = await writeWriteProject(
+      extra: {
+        'docs/prds/NOTES.md': '# Notes\n\nSee `features/f01_login/us02_sign_out/USER_STORY.md` and prds/x.md or and/or.\n',
+      },
+    );
+
+    final steps = writeIn(mentioning, (s) => planRewrites(s, reorderMoves));
+    final notes = steps.singleWhere(
+      (step) => step.path == 'docs/prds/NOTES.md',
+    );
+
+    expect(
+      notes.text,
+      '# Notes\n\nSee `features/f01_login/us03_sign_out/USER_STORY.md` and prds/x.md or and/or.\n',
+    );
+  });
+
+  test('f02/us05/fr02/e10: a mention of a file on disk that no doc indexes follows its folder', () async {
+    final mentioning = await writeWriteProject(
+      extra: {
+        'docs/prds/features/f01_login/us02_sign_out/flow.png': 'png',
+        'docs/prds/NOTES.md': '# Notes\n\nDiagram: features/f01_login/us02_sign_out/flow.png:3, ghost: features/f01_login/us02_sign_out/ghost.png\n',
+      },
+    );
+
+    final steps = writeIn(mentioning, (s) => planRewrites(s, reorderMoves));
+    final notes = steps.singleWhere(
+      (step) => step.path == 'docs/prds/NOTES.md',
+    );
+
+    expect(
+      notes.text,
+      '# Notes\n\nDiagram: features/f01_login/us03_sign_out/flow.png:3, ghost: features/f01_login/us02_sign_out/ghost.png\n',
+    );
+  });
 }

@@ -88,6 +88,7 @@ RunPlan planLegacyRun(
     specMap: specMap,
     features: features,
     carriedGnfr: carriedGnfr,
+    exists: (path) => _existsIn(docsRoot, path),
   );
   final overrides = _overridesOf(
     features,
@@ -232,6 +233,7 @@ _Rewrites _rewritesOf(
   required List<SpecMapRow> specMap,
   required LegacyFeatures features,
   required Set<String> carriedGnfr,
+  required bool Function(String path) exists,
 }) {
   final carriedKeys = {for (final header in carriedGnfr) headerKey(header)};
   final newOf = {
@@ -282,7 +284,7 @@ _Rewrites _rewritesOf(
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
-    _rewriteLinks(work, legacy.moves);
+    _rewriteRefs(work, legacy.moves, exists);
   }
   for (final work in works.where((work) => work.awaitsFingerprints)) {
     final fingerprints = writeFirstFingerprints(
@@ -292,7 +294,7 @@ _Rewrites _rewritesOf(
     work.lf = fingerprints.lf;
     final label = fingerprints.label;
     if (label != null) work.changes.add(label);
-    _rewriteLinks(work, legacy.moves);
+    _rewriteRefs(work, legacy.moves, exists);
   }
 
   return (
@@ -310,12 +312,36 @@ _Rewrites _rewritesOf(
   );
 }
 
-void _rewriteLinks(_Work work, List<PathMove> moves) {
+/// Points the links and path mentions of [work] at the paths [moves] leave
+/// their files at, labelling each kind that changes.
+void _rewriteRefs(
+  _Work work,
+  List<PathMove> moves,
+  bool Function(String path) exists,
+) {
   final links = rewriteLinks(work.lf, docPath: work.legacyPath, moves: moves);
   work.lf = links.lf;
-  final label = links.label;
-  if (label != null) work.changes.add(label);
+  final linkLabel = links.label;
+  if (linkLabel != null) work.changes.add(linkLabel);
+  final mentions = rewriteMentions(
+    work.lf,
+    docPath: work.legacyPath,
+    moves: moves,
+    exists: exists,
+  );
+  work.lf = mentions.lf;
+  final mentionLabel = mentions.label;
+  if (mentionLabel != null) work.changes.add(mentionLabel);
 }
+
+/// Whether [path], from [docsRoot] and possibly leaving it, names a file or
+/// folder of the legacy tree.
+bool _existsIn(Directory docsRoot, String path) =>
+    FileSystemEntity.typeSync(
+      '${docsRoot.path}${Platform.pathSeparator}'
+      '${path.split('/').join(Platform.pathSeparator)}',
+    ) !=
+    FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and keeps every
 /// other pin and the code root of the existing [config], or null when the

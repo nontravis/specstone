@@ -31,6 +31,34 @@ void main() {
       ),
     );
   });
+  test(
+    'f02/us05/fr02/e10: reorder lists a doc changed by a path mention only',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/prds/NOTES.md': '# Notes\n\nSee `features/f01_login/us03_reset_password/USER_STORY.md:4`.\n',
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          '1',
+        ]),
+        0,
+      );
+
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), contains('rewrote prds/NOTES.md\n'));
+      expect(
+        readDoc(root, 'prds/NOTES.md'),
+        '# Notes\n\nSee `features/f01_login/us01_reset_password/USER_STORY.md:4`.\n',
+      );
+    },
+  );
   test('f02/us05/s5: a place outside the list prints the sidecar error line, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
