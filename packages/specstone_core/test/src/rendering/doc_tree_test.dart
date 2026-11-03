@@ -110,6 +110,24 @@ void main() {
       );
     });
 
+    test('f05/us02/fr01/e13: a feature folder yields its own files, then each sub-feature in number order', () async {
+      final walk = await _walk([
+        'prds/features/f01_shop/f02_pay/FEATURE.md',
+        'prds/features/f01_shop/f01_cart/us01_a/USER_STORY.md',
+        'prds/features/f01_shop/f01_cart/FEATURE.md',
+        'prds/features/f01_shop/us01_browse/USER_STORY.md',
+        'prds/features/f01_shop/FEATURE.md',
+      ]);
+
+      expect(_docPaths(walk.collect('docs/prds/features/f01_shop')), [
+        'prds/features/f01_shop/FEATURE.md',
+        'prds/features/f01_shop/f01_cart/FEATURE.md',
+        'prds/features/f01_shop/f01_cart/us01_a/USER_STORY.md',
+        'prds/features/f01_shop/f02_pay/FEATURE.md',
+        'prds/features/f01_shop/us01_browse/USER_STORY.md',
+      ]);
+    });
+
     test('f05/us02/fr01/e06: a folder target holds only its own subtree, the '
         'docs root holds every folder', () async {
       final walk = await _walk();

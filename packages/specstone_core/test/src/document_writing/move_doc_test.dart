@@ -11,6 +11,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/failing_rename.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
@@ -725,5 +726,91 @@ void main() {
       readDoc(root, linkFile),
       contains('](../us03_recover_account/USER_STORY.md#use-case)'),
     );
+  });
+
+  group('nested features', () {
+    const shop = 'prds/features/f02_shop';
+    const payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
+
+    test('f02/us05/fr01/e11, sf-c2: reordering a sub-feature renumbers only its siblings and moves its spec folder', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$payDomain': '# Pay domain\n'},
+      );
+      final answer = reorder(root, 'feature:shop/pay', '1');
+      expect(answer.text, contains('moved $shop/f02_pay/ to $shop/f01_pay/\n'));
+      expect(answer.text, contains('moved $shop/f01_cart/ to $shop/f02_cart/'));
+      expect(
+        answer.text,
+        contains('moved specs/f02_shop/f02_pay/ to specs/f02_shop/f01_pay/'),
+      );
+      expect(hasDoc(root, '$shop/f01_pay/FEATURE.md'), isTrue);
+      expect(
+        hasDoc(root, '$shop/f02_cart/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+      expect(hasDoc(root, 'specs/f02_shop/f01_pay/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, 'specs/f02_shop/f02_cart/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, shopFeature), isTrue);
+    });
+
+    test('f02/us05/fr01/e11, sf-c2: reordering a story under a sub-feature moves only the stories of that sub-feature', () async {
+      final root = await writeNestedProject();
+      final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shop/f01_cart/us02_drop_item/ to $shop/f01_cart/us01_drop_item/\n'
+          'moved $shop/f01_cart/us01_add_item/ to $shop/f01_cart/us02_add_item/\n',
+        ),
+      );
+      expect(hasDoc(root, '$shop/f02_pay/us01_card/USER_STORY.md'), isTrue);
+    });
+
+    test('f02/us06/fr01/e11: renaming a sub-feature moves its folder and spec folder', () async {
+      final root = await writeNestedProject();
+      final answer = rename(root, 'feature:shop/cart', 'basket');
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shop/f01_cart/ to $shop/f01_basket/\n'
+          'moved specs/f02_shop/f01_cart/ to specs/f02_shop/f01_basket/\n',
+        ),
+      );
+      expect(hasDoc(root, 'specs/f02_shop/f01_basket/DOMAIN.md'), isTrue);
+      expect(
+        hasDoc(root, '$shop/f01_basket/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+    });
+
+    test('f02/us06/fr01: renaming a sub-feature spec doc names the sub-feature to rename', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => rename(root, 'domain:shop/cart', 'basket'),
+        throwsA(
+          isA<WriteFault>().having(
+            (f) => f.message,
+            'message',
+            contains('rename feature:shop/cart instead'),
+          ),
+        ),
+      );
+    });
+
+    test('f02/us06/fr01/e11: renaming the top feature renames the docs under every sub-feature', () async {
+      final root = await writeNestedProject();
+      rename(root, 'feature:shop', 'market');
+      expect(
+        hasDoc(
+          root,
+          'prds/features/f02_market/f01_cart/us01_add_item/USER_STORY.md',
+        ),
+        isTrue,
+      );
+      expect(
+        writeIn(root, (s) => s.index.carriesName('market/cart/add_item')),
+        isTrue,
+      );
+    });
   });
 }

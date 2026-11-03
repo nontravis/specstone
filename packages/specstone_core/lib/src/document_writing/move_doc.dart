@@ -56,7 +56,7 @@ ReadAnswer answerReorder(
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape = DocPathShape.of(docType, session.index.set);
+  final shape = DocPathShape.ofDoc(docType, session.index.set, target.docPath);
   if (shape == null || !shape.numbered) {
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
@@ -110,7 +110,7 @@ ReadAnswer answerRename(
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape = DocPathShape.of(docType, session.index.set);
+  final shape = DocPathShape.ofDoc(docType, session.index.set, target.docPath);
   if (shape == null || !shape.slugged) {
     throw _noSlugFault(session, address, target, docType, shape);
   }
@@ -142,7 +142,7 @@ WriteFault _noSlugFault(
     final parentDocType = session.index.set.lookup(parentType);
     final parentShape = parentDocType == null
         ? null
-        : DocPathShape.of(parentDocType, session.index.set);
+        : DocPathShape.of(parentDocType, session.index.set, depth: shape.depth);
     final values = shape.valuesOf(target.docPath);
     if (parentDocType != null && parentShape != null && values != null) {
       final parentName = docNameOf(
@@ -202,7 +202,13 @@ List<PathMove> _renameMoves(
   final moves = [
     (from: shape.ownPathOf(target.docPath), to: shape.ownPathOf(newDocPath)),
   ];
-  for (final move in specFolderMovesOf(set, docType, oldValues, newValues)) {
+  for (final move in specFolderMovesOf(
+    set,
+    docType,
+    oldValues,
+    newValues,
+    depth: shape.depth,
+  )) {
     if (_folderExists(session, move.from)) moves.add(move);
   }
   _checkNoClash(
@@ -343,7 +349,13 @@ List<PathMove> _movesFor(
     final to = shape.ownPathOf(shape.build(newValues));
     if (from == to) continue;
     moves.add((from: from, to: to));
-    for (final move in specFolderMovesOf(set, docType, oldValues, newValues)) {
+    for (final move in specFolderMovesOf(
+      set,
+      docType,
+      oldValues,
+      newValues,
+      depth: shape.depth,
+    )) {
       if (_folderExists(session, move.from)) moves.add(move);
     }
   }

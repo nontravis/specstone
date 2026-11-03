@@ -16,6 +16,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/failing_rename.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -1195,5 +1196,26 @@ void main() {
       );
       expect(hasDoc(root, story3), isTrue);
     });
+  });
+
+  test('f02/us04/fr01/e14: deleting a sub-feature takes its folder and its spec folder, and the top feature stays', () async {
+    final root = await writeNestedProject(
+      extra: {'docs/$shopApi': '# Shop API\n'},
+    );
+    final answer = del(
+      root,
+      ['feature:shop/cart'],
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+    );
+    expect(
+      answer.json['removed'],
+      containsAll([cartFeature, cartAdd, cartAddFr, cartDrop, cartDomain]),
+    );
+    expect(hasDoc(root, 'prds/features/f02_shop/f01_cart'), isFalse);
+    expect(hasDoc(root, 'specs/f02_shop/f01_cart'), isFalse);
+    expect(hasDoc(root, shopFeature), isTrue);
+    expect(hasDoc(root, payCard), isTrue);
+    expect(hasDoc(root, shopDomain), isTrue);
   });
 }
