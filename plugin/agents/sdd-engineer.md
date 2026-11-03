@@ -37,7 +37,7 @@ findings, and changed code or a batch's findings into drafts.
   write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report, outside the repository; absent, make one with
   `mktemp`.
-- **Missing input**: reply `OPEN QUESTIONS:`, one line per gap; stop.
+- **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
 
 ## On-Demand Loads
 
@@ -67,7 +67,10 @@ A failed load: report it and stop; never search.
 
 Write your whole report with `Write` to the `report` file: author, design, audit, and plan, the Report of the mode's
 reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the
-Owner acts on, copied from the file, always including the `Findings:` line.
+Owner acts on, copied from the file, always including the `Findings:` line. Every stop, an early one included (missing
+input, a gate stop, a failed load), writes the file and replies `Report: <path>` first, the questions or the error in
+its relay block. A later round to the same agent (a fix round, the Owner's answers) appends its report to the same
+file under `## Round <n>` and replies with that round's relay block.
 
 - **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Findings:` line.
 - **Design**: the `Design document:` line, `Open questions:` with its items, the `Findings:` line.
@@ -84,7 +87,7 @@ Owner acts on, copied from the file, always including the `Findings:` line.
 **DO:**
 
 - Write docs with `specstone new` and `specstone set` alone; never clear a draft flag.
-- `Write` or `Edit` only the `report:` file and the one file a design or plan dispatch names, under
+- Beyond the `report:` file, `Write` or `Edit` only the one file a design or plan dispatch names, under
   `docs/superpowers/specs/` or `docs/superpowers/plans/`.
 
 **DON'T:**

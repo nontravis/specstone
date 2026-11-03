@@ -473,6 +473,11 @@ void _handOffTests() {
         contains('one file `mktemp` makes per batch'),
         reason: skill,
       );
+      expect(
+        _pluginText('skills/$skill/SKILL.md'),
+        contains('`mode: bootstrap`'),
+        reason: skill,
+      );
     }
   });
 
@@ -498,6 +503,7 @@ void _handOffTests() {
     final input = _sectionOf(agent, 'Input Contract');
     expect(input, contains('**`report`**'));
     expect(input, contains('`mktemp`'));
+    expect(input, contains('write `OPEN QUESTIONS:`'));
     final output = _sectionOf(agent, 'Output Format');
     expect(output, contains('`Report: <path>`'));
     expect(output, contains('relay block'));
@@ -525,7 +531,15 @@ void _handOffTests() {
         reason: '$mode names its relay block',
       );
     }
+    expect(output, contains('Every stop, an early one included'));
+    expect(output, contains('`## Round <n>`'));
     expect(_sectionOf(agent, 'Scope Boundaries'), contains('`report:`'));
+    expect(
+      _sectionOf(agent, 'Scope Boundaries'),
+      contains(
+        'Beyond the `report:` file, `Write` or `Edit` only the one file',
+      ),
+    );
   });
 
   test('f08/us02/fr02: no shipped plugin file holds the relay line or '
