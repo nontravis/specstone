@@ -330,4 +330,12 @@ void main() {
             as Map;
     expect((bare['sections']! as Map).containsKey('_lead'), isFalse);
   });
+
+  test('f01/us04/fr02: a whole-doc get of an empty file prints the naming line and one blank line, as at 404b9a7', () async {
+    final withEmpty = await indexWith({'docs/prds/empty.md': ''});
+    expect(
+      answerGet(withEmpty, 'prds/empty.md').text,
+      '==> prds/empty.md · prds/empty.md <==\n\n',
+    );
+  });
 }

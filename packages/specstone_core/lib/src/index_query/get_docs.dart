@@ -33,7 +33,14 @@ ReadAnswer answerGet(DocIndex index, String address) {
     }
     if (key == leadKey) {
       final lead = Doc.parse(toLf(content.text)).lead;
-      blocks.add(_GetBlock(doc, lead, base: baseHashOf(lead)));
+      blocks.add(
+        _GetBlock(
+          doc,
+          lead,
+          base: baseHashOf(lead),
+          printsEmptyAsNothing: true,
+        ),
+      );
       continue;
     }
     final held = [
@@ -130,7 +137,13 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
 
 /// One doc `answerGet` prints: its [text] and the base or bases it names.
 final class _GetBlock {
-  const new(this.doc, this.text, {this.base, this.bases});
+  const new(
+    this.doc,
+    this.text, {
+    this.base,
+    this.bases,
+    this.printsEmptyAsNothing = false,
+  });
 
   final IndexedDoc doc;
   final String text;
@@ -141,9 +154,13 @@ final class _GetBlock {
   /// The bases of every target of the doc; null for a section read.
   final Map<String, Object>? bases;
 
+  /// Whether empty [text] prints as the naming line alone; true for a lead.
+  final bool printsEmptyAsNothing;
+
   /// The naming line, then [text] ended by a line break.
-  String get printed =>
-      '${namingLine(doc, base: base)}\n${text.isEmpty ? '' : _endedLine(text)}';
+  String get printed => printsEmptyAsNothing && text.isEmpty
+      ? '${namingLine(doc, base: base)}\n'
+      : '${namingLine(doc, base: base)}\n${_endedLine(text)}';
 }
 
 /// Returns [text] ended by a line break, adding one only when it lacks it.
