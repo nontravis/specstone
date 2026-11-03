@@ -88,12 +88,12 @@ void main() {
     expect(doc.warnings, ['prds/x.md matches 3 doc types: a, b, c']);
   });
 
-  test('f01/us01/fr03/e07, s03/inv4: a template header takes its id, any other header its heading slug', () {
+  test('f01/us01/fr03/e07, s03/inv4: a template header takes its id, any other header its snake_case key', () {
     final keys = parse(
       'prds/features/f01_login/FEATURE.md',
       '# Login\n\n## Problem\nx\n\n## Open Notes\ny\n',
     ).content.sections.map((s) => s.key);
-    expect(keys, ['problem', 'open-notes']);
+    expect(keys, ['problem', 'open_notes']);
   });
 
   test(
@@ -238,12 +238,20 @@ void main() {
     expect(parsed.content.sections.map((s) => s.key), ['a']);
   });
 
-  test('s03/inv4: heading slugs lowercase, drop punctuation, and turn spaces into hyphens', () {
-    expect(headingSlug('Project vision'), 'project-vision');
+  test('f01/us01/fr03/e13, is-s03/inv4: an undeclared header keys as lowercase words joined by _', () {
+    expect(sectionKeyOf('Project vision'), 'project_vision');
     expect(
-      headingSlug('Assumptions & rabbit holes'),
-      'assumptions--rabbit-holes',
+      sectionKeyOf('Assumptions & rabbit holes'),
+      'assumptions_rabbit_holes',
     );
-    expect(headingSlug('ค้นหา เอกสาร'), 'ค้นหา-เอกสาร');
+    expect(sectionKeyOf('Root-schema'), 'root_schema');
+    expect(sectionKeyOf('ค้นหา เอกสาร'), 'ค้นหา_เอกสาร');
+    expect(sectionKeyOf('_Lead_'), 'lead');
+    expect(sectionKeyOf('---'), '');
+    expect(sectionKeyOf('_'), '');
+  });
+
+  test('f01/us01/fr03/e14, is-s03/inv4: the reserved lead key is _lead', () {
+    expect(leadKey, '_lead');
   });
 }

@@ -18,14 +18,25 @@ String contentHashOf(List<int> bytes) => sha256.convert(bytes).toString();
 /// down.
 int tokenSizeOf(String text) => text.runes.length ~/ 4;
 
-final _outsideSlug = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
+final _outsideKey = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
+final _keySeparators = RegExp('[ _-]+');
+final _keyEdges = RegExp(r'^_+|_+$');
+
+/// The key of the lead: the text before a doc's first `##` header.
+///
+/// Reserved: no template section id and no derived key may start with `_`.
+const leadKey = '_lead';
 
 /// Returns the section key a header without a template id takes.
 ///
 /// The header lowercases, loses every character that is not a letter, mark,
-/// digit, space, `-`, or `_`, and turns each space into `-`.
-String headingSlug(String headerText) =>
-    headerText.toLowerCase().replaceAll(_outsideSlug, '').replaceAll(' ', '-');
+/// digit, space, `-`, or `_`, turns each run of spaces, `-`, and `_` into one
+/// `_`, and loses `_` at both ends. Empty when no word remains.
+String sectionKeyOf(String headerText) => headerText
+    .toLowerCase()
+    .replaceAll(_outsideKey, '')
+    .replaceAll(_keySeparators, '_')
+    .replaceAll(_keyEdges, '');
 
 /// Returns the name a doc answers to in a query.
 ///
@@ -47,7 +58,7 @@ String countWord(int n) => n == 2 ? 'two' : '$n';
 final class IndexedSection {
   const new({required this.key, required this.headerLine, required this.body});
 
-  /// The template section id, else the heading slug.
+  /// The template section id, else the [sectionKeyOf] key of the header.
   final String key;
 
   /// The `##` line as written, without its line ending.
@@ -269,7 +280,7 @@ IndexedSection _sectionOf(Section section, MergedDocType? docType) {
       .where((s) => s.header == headerText)
       .firstOrNull;
   return IndexedSection(
-    key: template?.id ?? headingSlug(headerText),
+    key: template?.id ?? sectionKeyOf(headerText),
     headerLine: section.headerLine,
     body: section.body,
   );

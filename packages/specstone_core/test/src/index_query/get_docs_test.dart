@@ -44,9 +44,9 @@ void main() {
       );
     },
   );
-  test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its heading slug', () async {
+  test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its snake_case key', () async {
     expect(
-      answerGet(index, 'prds/d01_context.md#project-vision').text,
+      answerGet(index, 'prds/d01_context.md#project_vision').text,
       '==> prds/d01_context.md · prds/d01_context.md · base 49851a1d1229 <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
     );
   });
@@ -75,7 +75,7 @@ void main() {
   });
   test('f01/us04/fr02/e03, s03/inv4: the head is no section', () async {
     expect(
-      () => answerGet(index, 'login/email_login#agent-signs-in-with-email'),
+      () => answerGet(index, 'login/email_login#agent_signs_in_with_email'),
       throwsA(isA<IndexFault>()),
     );
   });
@@ -101,12 +101,22 @@ void main() {
       '==> notes.md · notes.md · base b640e840b19d <==\n## Notes\nfirst\n## Notes\nsecond\n',
     );
   });
+  test('f01/us01/fr03/e13, f01/us04/fr02: headers Root schema and Root-schema key alike and both print', () async {
+    final doc = await indexWith({
+      'docs/roots.md':
+          '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
+    });
+    final text = answerGet(doc, 'roots.md#root_schema').text;
+    expect(text, contains('## Root schema\nfirst\n'));
+    expect(text, contains('## Root-schema\nsecond\n'));
+    expect(text, startsWith('==> roots.md · roots.md · base '));
+  });
   test('f01/us04/fr02: --json gives name, path, section, and text; no docType on an untyped doc', () async {
-    expect(answerGet(index, 'prds/d01_context.md#project-name').json['docs'], [
+    expect(answerGet(index, 'prds/d01_context.md#project_name').json['docs'], [
       {
         'name': 'prds/d01_context.md',
         'path': 'prds/d01_context.md',
-        'section': 'project-name',
+        'section': 'project_name',
         'base': '908c3a4a7ade',
         'text': '## Project name\n- **Human:** Specstone\n- **Code:** `specstone`\n',
       },
@@ -206,8 +216,8 @@ void main() {
         (answerGet(index, 'prds/d01_context.md').json['docs']! as List).single
             as Map;
     expect(((untyped['bases']! as Map)['sections']! as Map).keys, [
-      'project-name',
-      'project-vision',
+      'project_name',
+      'project_vision',
     ]);
     expect((untyped['bases']! as Map)['fields'], isEmpty);
     expect(

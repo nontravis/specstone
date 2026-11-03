@@ -45,6 +45,20 @@ void main() {
       );
     });
 
+    test('f03/us03/fr01/e15, is-s03/inv4: a section id starting with _ is unknown_value', () {
+      expect(
+        () => _parse('sections: [{id: _notes}]'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'sections[0].id').having(
+            (f) => f.message,
+            'message',
+            'a section id must not start with _, '
+                'which marks a reserved key such as _lead',
+          ),
+        ),
+      );
+    });
+
     test('f03/us03/fr01/e02: an unknown section key is unknown_key with the id path', () {
       expect(
         () => _parse('sections: [{id: goal, colour: x}]'),
