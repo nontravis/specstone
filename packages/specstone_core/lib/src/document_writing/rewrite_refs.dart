@@ -221,6 +221,7 @@ WriteStep? _stepFor(
         refs ?? lfText,
         docType: session.index.typeOf(doc),
         featureName: session.index.parentOf(doc)?.name,
+        newFeatureName: _newParentName(session, doc, renamed),
         renamed: renamed,
       ) ??
       refs;
@@ -231,6 +232,18 @@ WriteStep? _stepFor(
     session.projectPathOf(movedPath(doc.docPath, moves)),
     '$bom${LineEnding.of(raw).apply(text)}',
   );
+}
+
+/// Returns the Name of [doc]'s parent after the renames in [renamed], null
+/// when [doc] has no parent.
+String? _newParentName(
+  WriteSession session,
+  IndexedDoc doc,
+  Map<(String, String), String> renamed,
+) {
+  final parent = session.index.parentOf(doc);
+  if (parent == null) return null;
+  return renamed[(parent.docTypeId, parent.name)] ?? parent.name;
 }
 
 /// Whether a `journey` or `api` [doc] holds a step identity, FR trace cell,
@@ -257,6 +270,7 @@ bool _namesRenamedLabel(
         toLf(text),
         docType: session.index.typeOf(doc),
         featureName: session.index.parentOf(doc)?.name,
+        newFeatureName: _newParentName(session, doc, renamed),
         renamed: renamed,
       ) !=
       null;

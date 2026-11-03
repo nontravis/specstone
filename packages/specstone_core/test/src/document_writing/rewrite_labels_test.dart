@@ -12,6 +12,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/write_fixture.dart' show docFile, readDoc, writeIn;
 
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -23,6 +24,9 @@ const _copy =
 final String _fp1 = fingerprintOf(loginScenario1);
 final String _fp2 = fingerprintOf(loginScenario2);
 final String _fpStatement = fingerprintFor(checkPasswordStatement);
+final String _fpCheckStock = fingerprintFor(
+  'The system shall refuse an item that is out of stock.',
+);
 
 const Set<FindingKind> _storyKinds = {
   FindingKind.suspect,
@@ -53,6 +57,51 @@ int _unresolvedSteps(Directory root) => checkOf(
 Set<FindingKind> _kindsOf(Directory root, String docPath) => {
   for (final f in checkOf(root, docPath: docPath).findings) f.kind,
 };
+
+const _cartApi = 'specs/f02_shop/f01_cart/API.md';
+
+// The sub-feature `cart` holds its own API doc, whose cells sit below cart.
+Future<Directory> _nestedWithCartApi() => writeNestedProject(
+  extra: {
+    'docs/$_cartApi':
+        '---\nconfirmed:\n  - add_item/check_stock $_fpCheckStock\n---\n\n'
+        '# Cart API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+        '| add_item/check_stock | `addItem` |\n\n## Operations\nNone.\n',
+  },
+);
+
+// Stratum's layout: a group folder before the first `f{nn}_` segment.
+Future<Directory> _groupedProject() {
+  const feature = 'prds/features/foundation/f01_layout/FEATURE.md';
+  const story =
+      'prds/features/foundation/f01_layout/us01_email_login/USER_STORY.md';
+  const fr =
+      'prds/features/foundation/f01_layout/us01_email_login/fr01_check_password.md';
+  const api = 'specs/foundation/f01_layout/API.md';
+  final files = checkProjectFiles();
+  return writeCheckProject(
+    without: {
+      'docs/$loginFeature',
+      'docs/$loginStory',
+      'docs/$loginFr',
+      'docs/$loginNf',
+      'docs/$loginArchitecture',
+      'docs/$loginApi',
+    },
+    extra: {
+      '.specstone/templates/feature.yaml':
+          'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+      '.specstone/templates/user_story.yaml': 'path: prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md\n',
+      '.specstone/templates/fr.yaml': 'path: prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md\n',
+      '.specstone/templates/api.yaml':
+          'path: specs/{slug}/f{nn}_{slug}/API.md\n',
+      'docs/$feature': files['docs/$loginFeature']!,
+      'docs/$story': files['docs/$loginStory']!,
+      'docs/$fr': files['docs/$loginFr']!,
+      'docs/$api': files['docs/$loginApi']!,
+    },
+  );
+}
 
 void main() {
   test('f02/us06/s7, f02/us06/fr03/e01, f04/us02/fr06/e07: rename of a story rewrites its journey step and entry', () async {
@@ -255,5 +304,50 @@ void main() {
         '### 2. Next\nstep: login/password_login S2\nafter: 1\n',
       );
     }
+  });
+
+  test('f02/us06/fr03/e10: rename of a sub-feature rewrites its parent api cell and entry', () async {
+    final root = await _nestedWithCartApi();
+    _rename(root, 'feature:shop/cart', 'basket');
+    final api = readDoc(root, shopApi);
+    expect(api, contains('| basket/add_item/check_stock | `addItem` |'));
+    expect(api, contains('  - basket/add_item/check_stock $_fpCheckStock\n'));
+    final kinds = _kindsOf(root, shopApi);
+    expect(kinds, isNot(contains(FindingKind.frTraceUnresolved)));
+    expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
+    expect(kinds, isNot(contains(FindingKind.confirmedEntryMalformed)));
+  });
+
+  test(
+    'f02/us06/fr03/e11: rename of a top feature keeps every cell of its api',
+    () async {
+      final root = await _nestedWithCartApi();
+      _rename(root, 'feature:shop', 'market');
+      final api = readDoc(root, 'specs/f02_market/API.md');
+      expect(api, contains('| cart/add_item/check_stock | `addItem` |'));
+      expect(api, contains('  - cart/add_item/check_stock $_fpCheckStock\n'));
+      final cartApi = readDoc(root, 'specs/f02_market/f01_cart/API.md');
+      expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
+    },
+  );
+
+  test(
+    'f02/us06/fr03/e12: rename of a sub-feature keeps the cells of its own api',
+    () async {
+      final root = await _nestedWithCartApi();
+      final answer = _rename(root, 'feature:shop/cart', 'basket');
+      expect(answer.json['rewritten'], isNot(contains(_cartApi)));
+      final cartApi = readDoc(root, 'specs/f02_shop/f01_basket/API.md');
+      expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
+      expect(cartApi, contains('  - add_item/check_stock $_fpCheckStock\n'));
+    },
+  );
+
+  test('f02/us06/fr03/e13: rename of a story under a group feature cuts the cell at the feature name', () async {
+    final root = await _groupedProject();
+    _rename(root, 'user_story:foundation/layout/email_login', 'password_login');
+    final api = readDoc(root, 'specs/foundation/f01_layout/API.md');
+    expect(api, contains('| password_login/check_password | `signIn` |'));
+    expect(api, contains('  - password_login/check_password $_fpStatement\n'));
   });
 }

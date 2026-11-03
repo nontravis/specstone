@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 
 void main() {
@@ -382,6 +383,36 @@ void main() {
     expect(spots(withSlug, FindingKind.frTraceUnresolved), [
       '$loginApi:11: fr_trace_unresolved',
     ]);
+  });
+
+  test('f04/us03/fr03/e07: a row naming an FR by its path below the api feature resolves', () async {
+    final report = checkOf(await writeNestedProject(), docPath: shopApi);
+
+    expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
+  });
+
+  test('f04/us03/fr03/e08: a row that drops the sub-feature slug is fr_trace_unresolved', () async {
+    final report = checkOf(
+      await writeNestedProject(
+        extra: {
+          'docs/$shopApi': nestedFiles()['docs/$shopApi']!.replaceFirst(
+            '| cart/add_item/check_stock |',
+            '| add_item/check_stock |',
+          ),
+        },
+      ),
+      docPath: shopApi,
+    );
+
+    expect(spots(report, FindingKind.frTraceUnresolved), [
+      '$shopApi:11: fr_trace_unresolved',
+    ]);
+    expect(
+      report.findings
+          .firstWhere((f) => f.kind == FindingKind.frTraceUnresolved)
+          .toJson()['fr'],
+      'add_item/check_stock',
+    );
   });
 
   test('f04/us03/fr03/e04: code with no architecture doc is architecture_missing on the feature', () async {
