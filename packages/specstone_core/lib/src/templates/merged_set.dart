@@ -43,10 +43,8 @@ final class MergedSet {
       ? null
       : const LineSplitter().convert(text).firstOrNull ?? '';
 
-  /// Returns an unmodifiable [docTypes] copy sorted by id (INV-22).
-  static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) {
-    final sorted = List<MergedDocType>.of(docTypes)
-      ..sort((a, b) => compareCodePoints(a.id, b.id));
-    return List.unmodifiable(sorted);
-  }
+  /// Returns a [docTypes] copy sorted by id (INV-22).
+  static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) =>
+      List<MergedDocType>.of(docTypes)
+        ..sort((a, b) => compareCodePoints(a.id, b.id));
 }
