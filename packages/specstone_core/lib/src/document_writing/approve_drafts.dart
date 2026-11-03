@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -12,39 +13,93 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 const _prompt = 'approve? [y/n/q] ';
+const _nothingWaits = 'no draft waits for approval\n';
 
 /// Shows each typed draft in tree order and approves it at the Owner's `y`.
 ///
-/// The drafts are all of them, or those under any of [names], each once. Each
-/// prompt waits outside the write lock; `y` re-reads the file under the lock
-/// and writes only when its bytes are those the Owner saw, else the draft
-/// shows again. A draft with an approved copy in git shows the hunks changed
-/// since, else the whole file. `n` moves on; `q` and the end of input from
+/// The drafts are all of them, or those under any of [names], each once, less
+/// any whose file is gone. Each shows its approval view (see
+/// [renderApprovalView]) as `Draft n/m` over the drafts selected, with
+/// [context] lines of context per hunk and ANSI [color] when set. Each prompt
+/// waits outside the write lock; `y` re-reads the file under the lock and
+/// writes only when its bytes are those the Owner saw, else the draft shows
+/// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
 /// `draft` and adds `approved: true` unless the doc already holds it.
-/// Throws [IndexFault] `doc_not_found` for a name no doc carries, before any
-/// draft shows, and `index_busy` when another call holds the lock; approvals
-/// already written stay.
+/// Reads every selected draft before the first view shows.
+/// Throws [IndexFault] `doc_not_found` for a name no doc carries,
+/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
+/// not UTF-8, both before any draft shows, and `index_busy` when another call
+/// holds the lock; approvals already written stay.
 void approveDrafts(
   WriteSession session, {
   List<String> names = const [],
   required String? Function() readLine,
   required StringSink out,
+  int? context,
+  bool color = false,
   ApprovalHistory? history,
 }) {
-  final drafts = _draftsUnder(session.index, names);
+  final drafts = _shownDraftsUnder(session, names);
   if (drafts.isEmpty) {
-    out.write('no draft waits for approval\n');
+    out.write(_nothingWaits);
     return;
   }
   final lookup = history ?? const ApprovalHistory();
-  for (final doc in drafts) {
-    if (!_approveOne(session, doc, lookup, readLine, out)) return;
+  for (final (at, (:doc, bytes: _)) in drafts.indexed) {
+    String viewOf(List<int> bytes) => _viewOf(
+      session,
+      doc,
+      bytes,
+      lookup,
+      position: at + 1,
+      count: drafts.length,
+      context: context,
+      color: color,
+    );
+    if (!_approveOne(session, doc, viewOf, readLine, out)) return;
   }
 }
 
+/// Returns the approval view of each typed draft, for the chat; writes nothing.
+///
+/// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks for
+/// [names]. The text is their views joined by a blank line, else `no draft
+/// waits for approval`; the JSON is `{}`. It takes no lock.
+/// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
+/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
+/// not UTF-8, both before any view prints.
+ReadAnswer approveDryRun(
+  WriteSession session, {
+  List<String> names = const [],
+  int? context,
+  bool color = false,
+  ApprovalHistory? history,
+}) {
+  final drafts = _shownDraftsUnder(session, names);
+  final lookup = history ?? const ApprovalHistory();
+  final views = [
+    for (final (at, (:doc, :bytes)) in drafts.indexed)
+      _viewOf(
+        session,
+        doc,
+        bytes,
+        lookup,
+        position: at + 1,
+        count: drafts.length,
+        context: context,
+        color: color,
+      ),
+  ];
+  return ReadAnswer(
+    text: views.isEmpty ? _nothingWaits : views.join('\n'),
+    json: const {},
+  );
+}
+
 /// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
-/// `bases.doc` hash `get --json` printed for it.
+/// hash `approve --dry-run` printed in its `hash` row, the `bases.doc` hash
+/// `get --json` gives.
 typedef SeenDraft = ({String name, String hash});
 
 /// Approves each draft in [seen] with no prompt, as `y` does.
@@ -142,21 +197,35 @@ List<IndexedDoc> _draftsUnder(DocIndex index, List<String> names) {
 
 bool _waitsForApproval(IndexedDoc doc) => doc.isTyped && doc.isDraft;
 
+/// A draft and the bytes of its file at selection.
+typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
+
+/// Returns [_draftsUnder] with the bytes of each, less the drafts whose file
+/// is gone, so the numbers `Draft n/m` count only drafts the Owner can see.
+List<_ShownDraft> _shownDraftsUnder(WriteSession session, List<String> names) {
+  final shown = <_ShownDraft>[];
+  for (final doc in _draftsUnder(session.index, names)) {
+    final bytes = session.readDocBytes(doc.docPath);
+    if (bytes != null) shown.add((doc: doc, bytes: bytes));
+  }
+  return shown;
+}
+
 /// Walks one draft to its answer; returns false when the walk ends.
+///
+/// [viewOf] renders the draft from the bytes read on each showing.
 bool _approveOne(
   WriteSession session,
   IndexedDoc doc,
-  ApprovalHistory history,
+  String Function(List<int> bytes) viewOf,
   String? Function() readLine,
   StringSink out,
 ) {
   while (true) {
     final shown = session.readDocBytes(doc.docPath);
     if (shown == null) return true;
-    final text = utf8.decode(shown);
     out
-      ..write('${namingLine(doc)}\n')
-      ..write(_viewOf(session, doc, history, text))
+      ..write(viewOf(shown))
       ..write(_prompt);
     switch (_answer(readLine, out)) {
       case 'y':
@@ -179,18 +248,35 @@ String? _answer(String? Function() readLine, StringSink out) {
   }
 }
 
+/// Returns the approval view of the typed draft [doc] holding [bytes].
 String _viewOf(
   WriteSession session,
   IndexedDoc doc,
-  ApprovalHistory history,
-  String text,
-) {
-  final approved = history.lastApproved(
-    session.project.projectRoot,
-    session.projectPathOf(doc.docPath),
+  List<int> bytes,
+  ApprovalHistory history, {
+  required int position,
+  required int count,
+  required int? context,
+  required bool color,
+}) {
+  final projectPath = session.projectPathOf(doc.docPath);
+  final draft = DraftView(
+    name: doc.name,
+    // `_waitsForApproval` kept only typed drafts, so the type id is set.
+    docType: doc.docTypeId!,
+    title: doc.title,
+    status: session.index.statusOf(doc),
+    projectPath: projectPath,
+    text: utf8.decode(bytes),
+    lookup: history.lastApproved(session.project.projectRoot, projectPath),
   );
-  if (approved is ApprovedCopy) return changedHunks(approved.text, text);
-  return text.endsWith('\n') ? text : '$text\n';
+  return renderApprovalView(
+    draft,
+    position: position,
+    count: count,
+    context: context,
+    color: color,
+  );
 }
 
 /// Writes the approval under the lock; returns false when the bytes changed.

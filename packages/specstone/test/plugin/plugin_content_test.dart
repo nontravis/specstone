@@ -398,18 +398,27 @@ void _handOffTests() {
     }
   });
 
-  test("f08/us02/fr02, f08/us02/fr05/e07: a hand-off skill passes the Owner's "
-      'language, and sdd-engineer takes it for the approval view', () {
+  test('f08/us02/fr05/e07: approval flows paste the printed view', () {
     for (final skill in _handOffs) {
       expect(
         _pluginText('skills/$skill/SKILL.md'),
-        contains("the Owner's language"),
+        isNot(contains("Owner's language")),
         reason: skill,
       );
     }
     expect(
       _pluginText('agents/sdd-engineer.md'),
-      contains("**Owner's language**"),
+      isNot(contains("Owner's language")),
+    );
+    expect(_pluginText('agents/sdd-engineer.md'), contains('never their text'));
+    for (final skill in ['expert-sdd', 'update-sdd']) {
+      final text = _pluginText('skills/$skill/SKILL.md');
+      expect(text, contains('--dry-run'), reason: skill);
+      expect(text, contains('`Why:`'), reason: skill);
+    }
+    expect(
+      _pluginText('skills/expert-sdd/SKILL.md'),
+      contains('pasted verbatim'),
     );
   });
 

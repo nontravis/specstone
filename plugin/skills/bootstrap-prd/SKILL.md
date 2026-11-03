@@ -27,8 +27,8 @@ With the `Agent` tool, split the gate's findings this skill takes by doc path: o
 for the rest. In the first round the rest batch always runs, even with no finding, and names `project:project`,
 `features:features`, and `gnfr:gnfr`, the skeletons the procedure's step 6 fills; no feature batch fills them. In a
 later round it runs only when findings it owns remain. Dispatch one `specstone:sdd-engineer` per batch with
-`mode: bootstrap`, `procedure: bootstrap-prd`, `batch:` the batch's paths, and the Owner's language; batches may run
-at once. Send no doc text, and work no step of the procedure yourself.
+`mode: bootstrap`, `procedure: bootstrap-prd`, and `batch:` the batch's paths; batches may run at once. Send no doc
+text, and work no step of the procedure yourself.
 
 Without the tool, or when a dispatch fails, read `references/procedure.md` beside this file
 (`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`) and follow it yourself: without the tool,

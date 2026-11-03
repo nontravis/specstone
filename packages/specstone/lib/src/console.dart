@@ -13,6 +13,9 @@ abstract interface class Console {
   /// Whether stdout is an interactive terminal.
   bool get stdoutIsTerminal;
 
+  /// Whether the user asked for no colour (`NO_COLOR` set and not empty).
+  bool get noColor;
+
   /// Reads stdin to its end as UTF-8 text.
   Future<String> readAll();
 
@@ -39,6 +42,9 @@ final class SystemConsole implements Console {
 
   @override
   bool get stdoutIsTerminal => stdout.hasTerminal;
+
+  @override
+  bool get noColor => (Platform.environment['NO_COLOR'] ?? '').isNotEmpty;
 
   /// Reads stdin to its end as UTF-8 text.
   ///

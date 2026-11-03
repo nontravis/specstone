@@ -15,6 +15,7 @@ final class FakeConsole implements Console {
     this.input = '',
     this.stdinIsTerminal = false,
     this.stdoutIsTerminal = false,
+    this.noColor = false,
     this.answers = const [],
     this.onReadLine,
   });
@@ -27,6 +28,9 @@ final class FakeConsole implements Console {
 
   @override
   final bool stdoutIsTerminal;
+
+  @override
+  final bool noColor;
 
   /// What [readLine] returns, one entry per call.
   final List<String?> answers;

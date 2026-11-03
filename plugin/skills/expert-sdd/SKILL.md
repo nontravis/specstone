@@ -50,16 +50,16 @@ working directory alone misses a project root above it, and spends a tool call t
 own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
-   - `approve`: each draft's file path and its hash, `bases.doc` of `specstone get <type>:<name> --json`, then each
-     changed section or field: its full old text, a blank line, then its full new text, each labelled old or new in
-     the Owner's language and never shortened with `...`. Mark text you wrote and a removal you propose, so the
-     Owner can tell them from text you only moved.
+   - `approve`: run `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own
+     message: first the literal `Why:` (in English), then one sentence in the language of the conversation on why
+     the draft changed; then the draft's printed text, pasted verbatim. Never write, shorten, or reformat that text
+     yourself. When the tool output is cut, run `--dry-run` again per draft, so every draft is pasted whole.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.
 2. The Owner answers `ok` or says what to fix. Fix it through `specstone set`, then show that item again.
 3. Run the `--yes` command only after the Owner's `ok` for what you showed (the Owner may tell you to answer for
-   them). After `ok` on every item of the batch, run one command, passing the hashes you showed:
+   them). After `ok` on every item of the batch, run one command, passing the hashes shown:
    `specstone approve <type>:<name>@<hash> … --yes` (each draft named, as a name approves only itself),
    `specstone delete <path> … --yes --plan <hash>`, `specstone migrate --yes --plan <hash>`, or
    `specstone init --yes --plan <hash>`. Exit 75 means an item changed since you showed it: show it again. Write every
