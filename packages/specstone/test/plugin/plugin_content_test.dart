@@ -437,24 +437,41 @@ void _handOffTests() {
     }
   });
 
-  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07: sdd-engineer opens an '
-      'author, design, audit, or plan report with the relay line only when '
-      'no routed by names a skill, and brainstorming-sdd names itself', () {
+  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
+      'f08/us05/fr01: sdd-engineer writes its whole report to the report file '
+      'and replies with the Report line and the relay block', () {
     final agent = _pluginText('agents/sdd-engineer.md');
-    expect(_sectionOf(agent, 'Input Contract'), contains('**`routed by`**'));
+    final input = _sectionOf(agent, 'Input Contract');
+    expect(input, contains('**`report`**'));
+    expect(input, contains('`mktemp`'));
     final output = _sectionOf(agent, 'Output Format');
-    expect(output, contains('no `routed by`'));
-    expect(output, contains('`$_relayLine`'));
-    expect(
-      _pluginText('skills/brainstorming-sdd/SKILL.md'),
-      contains('`routed by: specstone:brainstorming-sdd`'),
-    );
-    for (final mode in _brainstormModes) {
+    expect(output, contains('`Report: <path>`'));
+    expect(output, contains('relay block'));
+    expect(output, contains('never their text'));
+    for (final mode in [
+      'author',
+      'design',
+      'audit',
+      'plan',
+      'sync',
+      'bootstrap',
+    ]) {
       expect(
-        _pluginText('skills/brainstorming-sdd/references/$mode.md'),
-        isNot(contains(_relayLine)),
-        reason: '$mode.md must leave the line to the agent',
+        output,
+        contains('**${mode[0].toUpperCase()}${mode.substring(1)}'),
+        reason: '$mode names its relay block',
       );
+    }
+    expect(_sectionOf(agent, 'Scope Boundaries'), contains('`report:`'));
+  });
+
+  test('f08/us02/fr02: no shipped plugin file holds the relay line or '
+      'routed by', () {
+    for (final file
+        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+      final text = file.readAsStringSync();
+      expect(text, isNot(contains(_relayLine)), reason: file.path);
+      expect(text, isNot(contains('routed by')), reason: file.path);
     }
   });
 
@@ -494,8 +511,7 @@ void _handOffTests() {
 /// its steps in the skill's `references/<mode>.md`.
 const _brainstormModes = ['author', 'design', 'audit', 'plan'];
 
-/// The first line of each [_brainstormModes] report: a direct dispatch runs no
-/// skill, so the report itself tells the main session how to relay it.
+/// The relay line the report file replaced; no shipped file may hold it.
 const _relayLine =
     'Main session: show this report to the Owner whole before you act on it.';
 
