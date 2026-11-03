@@ -84,6 +84,41 @@ void main() {
     expect(readDoc(root, signupFeature), contains('Users sign up.\n'));
   });
 
+  test('f02/us03/fr01/e07: a draft at position 2 edited while the prompt waits shows again as Draft 2/2', () async {
+    final root = await writeWriteProject();
+    final out = StringBuffer();
+    var calls = 0;
+    String? answer() {
+      calls++;
+      if (calls == 1) return 'n';
+      if (calls == 2) {
+        docFile(
+          root,
+          signupArch,
+        ).writeAsStringSync('${readDoc(root, signupArch)}\nMore.\n');
+        return 'y';
+      }
+      return 'q';
+    }
+
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        names: ['feature:signup'],
+        readLine: answer,
+        out: out,
+      ),
+    );
+    expect('### Draft 1/2 · Signup\n'.allMatches(out.toString()), hasLength(1));
+    expect(
+      '### Draft 2/2 · Signup architecture\n'.allMatches(out.toString()),
+      hasLength(2),
+    );
+    expect(out.toString(), isNot(contains('/3')));
+    expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
+  });
+
   test('f02/us03/s2, f02/us03/fr02/e01: an edited doc shows only the hunks changed since its approved commit', () async {
     final root = await writeWriteProject(
       extra: {
@@ -269,6 +304,53 @@ void main() {
       expect(answer.json, isEmpty);
       expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
       expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
+    });
+
+    test('f02/us03/fr05/e05: a draft whose file is gone is not counted in Draft n/m', () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(root, (s) {
+        // the index already holds both drafts; the file goes before selection
+        docFile(root, signupFeature).deleteSync();
+        return approveDryRun(s, names: ['feature:signup']);
+      });
+      expect(answer.text, startsWith('### Draft 1/1 · Signup architecture\n'));
+      expect(answer.text, isNot(contains('/2')));
+      expect('### Draft '.allMatches(answer.text), hasLength(1));
+    });
+
+    test('f02/us03/fr01, f02/us03/fr05: the walk prints what the dry run prints, view for view', () async {
+      final root = await writeWriteProject();
+      for (final (:context, :color) in [
+        (context: null, color: false),
+        (context: 0, color: true),
+      ]) {
+        final out = StringBuffer();
+        writeIn(
+          root,
+          (s) => approveDrafts(
+            s,
+            names: ['login'],
+            readLine: answers(List.filled(9, 'n')),
+            out: out,
+            context: context,
+            color: color,
+          ),
+        );
+        final dry = writeIn(
+          root,
+          (s) => approveDryRun(
+            s,
+            names: ['login'],
+            context: context,
+            color: color,
+          ),
+        );
+        expect(_prompt.allMatches(out.toString()), hasLength(5));
+        expect(
+          out.toString().replaceAll(_prompt, ''),
+          dry.text.replaceAll('\n\n### Draft ', '\n### Draft '),
+        );
+      }
     });
 
     test('f02/us03/fr05/e04: dry run with no draft says so', () async {

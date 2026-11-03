@@ -26,9 +26,11 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
 /// `draft` and adds `approved: true` unless the doc already holds it.
-/// Throws [IndexFault] `doc_not_found` for a name no doc carries, before any
-/// draft shows, and `index_busy` when another call holds the lock; approvals
-/// already written stay.
+/// Reads every selected draft before the first view shows.
+/// Throws [IndexFault] `doc_not_found` for a name no doc carries,
+/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
+/// not UTF-8, both before any draft shows, and `index_busy` when another call
+/// holds the lock; approvals already written stay.
 void approveDrafts(
   WriteSession session, {
   List<String> names = const [],
@@ -64,7 +66,9 @@ void approveDrafts(
 /// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks for
 /// [names]. The text is their views joined by a blank line, else `no draft
 /// waits for approval`; the JSON is `{}`. It takes no lock.
-/// Throws [IndexFault] `doc_not_found` for a name no doc carries.
+/// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
+/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
+/// not UTF-8, both before any view prints.
 ReadAnswer approveDryRun(
   WriteSession session, {
   List<String> names = const [],
