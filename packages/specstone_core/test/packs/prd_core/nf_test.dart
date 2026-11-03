@@ -76,4 +76,14 @@ void main() {
       allOf(contains('tighten'), contains('relax'), contains('add')),
     );
   });
+
+  test('f03/us06/fr01, db-r1, db-r8: nf marks statement summary', () {
+    expect(
+      [
+        for (final s in nf.sections)
+          if (s.summary == true) s.id,
+      ],
+      ['statement'],
+    );
+  });
 }

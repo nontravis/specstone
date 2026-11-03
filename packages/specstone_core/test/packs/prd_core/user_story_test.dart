@@ -97,4 +97,17 @@ void main() {
       contains('two or more rules'),
     );
   });
+
+  test(
+    'f03/us06/fr01, db-r1, db-r8: user_story marks use_case and rules summary',
+    () {
+      expect(
+        [
+          for (final s in story.sections)
+            if (s.summary == true) s.id,
+        ],
+        ['use_case', 'rules'],
+      );
+    },
+  );
 }

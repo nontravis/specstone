@@ -96,4 +96,14 @@ void main() {
       ),
     );
   });
+
+  test('f03/us06/fr01, db-r1, db-r8: fr marks statement summary', () {
+    expect(
+      [
+        for (final s in fr.sections)
+          if (s.summary == true) s.id,
+      ],
+      ['statement'],
+    );
+  });
 }
