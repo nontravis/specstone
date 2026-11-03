@@ -165,6 +165,12 @@ final class DocIndex {
   /// Whether the doc type [docTypeId] sits on the parent chain of a query.
   bool isChainType(String docTypeId) => _chainTypes.contains(docTypeId);
 
+  /// Whether [doc] is typed with a ChainType.
+  bool isChainDoc(IndexedDoc doc) {
+    final typeId = doc.docTypeId;
+    return typeId != null && isChainType(typeId);
+  }
+
   /// Returns the doc type of [doc], or null when it is untyped.
   MergedDocType? typeOf(IndexedDoc doc) {
     final typeId = doc.docTypeId;
