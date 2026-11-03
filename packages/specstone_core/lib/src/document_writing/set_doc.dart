@@ -386,20 +386,42 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   });
 }
 
-/// Returns the first line of [lf] that [isRefused] accepts, or null.
-String? _firstLine(String lf, bool Function(String line) isRefused) =>
-    lf.split('\n').where(isRefused).firstOrNull;
+/// Reads [lf] as [Doc.parse] would, from outside any fence.
+///
+/// `refused` is the first line outside fenced code that [isRefused] accepts.
+/// `openFence` is the delimiter of a fence the text leaves open.
+({String? refused, String? openFence}) _scanStdin(
+  String lf,
+  bool Function(String line) isRefused,
+) {
+  final lines = lf.split('\n');
+  final scan = fenceScan(lines);
+  String? refused;
+  for (var i = 0; i < lines.length; i++) {
+    if (!scan.fenced[i] && isRefused(lines[i])) {
+      refused = lines[i];
+      break;
+    }
+  }
+  return (refused: refused, openFence: scan.openFence);
+}
 
 ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
   final lf = toLf(stdin);
-  final refused = _firstLine(
+  final scan = _scanStdin(
     lf,
     (line) => isTitleLine(line) || isSectionHeaderLine(line),
   );
-  if (refused != null) {
+  if (scan.refused case final refused?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'the lead holds the line "$refused"; send the lead only',
+    );
+  }
+  if (scan.openFence case final fence?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the lead leaves the fence "$fence" open; close it',
     );
   }
   final body = _pipedBodyOf(lf);
@@ -455,10 +477,17 @@ ReadAnswer _setSection(
   String stdin,
 ) {
   final lf = toLf(stdin);
-  if (_firstLine(lf, isSectionHeaderLine) case final header?) {
+  final scan = _scanStdin(lf, isSectionHeaderLine);
+  if (scan.refused case final header?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'the body holds the header line "$header"; send the body only',
+    );
+  }
+  if (scan.openFence case final fence?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the body leaves the fence "$fence" open; close it',
     );
   }
   final body = _pipedBodyOf(lf);

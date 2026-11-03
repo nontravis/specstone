@@ -634,6 +634,53 @@ void main() {
     expect(readDoc(root, story1), contains('## Use Case\nSign in again.\n'));
   });
 
+  test('f02/us01/fr01/e17, I1: a body that leaves a fence open is refused and the file stays', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          'See:\n\n```bash\nmake\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having((f) => f.message, 'message', contains('```bash')),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test(
+    'f02/us01/fr01/e15, I1: a fenced "## install" line in a body round-trips',
+    () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#use_case';
+      const fenced = 'Run:\n\n```bash\n## install\nmake\n```\n';
+      writeIn(
+        root,
+        (s) => answerSet(s, req(target, sectionBase(root, target)), fenced),
+      );
+      final text = getDoc(root, target)['text']! as String;
+      expect(text, contains('## install'));
+      final body = text.substring(text.indexOf('\n') + 1);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          body.replaceFirst('Run', 'Go'),
+        ),
+      );
+      expect(readDoc(root, story1), contains('Go:\n\n```bash\n## install'));
+    },
+  );
+
   test(
     'f02/us01/fr01/e15: a body line starting ## is argument_invalid',
     () async {
@@ -1685,6 +1732,44 @@ void main() {
       expect(answer.json['base'], written);
       expect(answer.json['draft'], isTrue);
       expect(leadBase(root), written);
+    });
+
+    test('f02/us01/fr06/e08, I1: a lead that leaves a fence open is refused and the file stays', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, leadBase(root)),
+            'See:\n\n```bash\nmake\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.message, 'message', contains('```bash')),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('f02/us01/fr06/e04, I1: a fenced "# install" line in the lead round-trips', () async {
+      final root = await project();
+      const fenced = 'Run:\n\n```bash\n# install\nmake\n```\n';
+      writeIn(root, (s) => answerSet(s, req(target, leadBase(root)), fenced));
+      expect(getDoc(root, target)['text'], fenced);
+      final text = getDoc(root, target)['text']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, leadBase(root)),
+          text.replaceFirst('Run', 'Go'),
+        ),
+      );
+      expect(getDoc(root, target)['text'], fenced.replaceFirst('Run', 'Go'));
     });
 
     test('f02/us01/fr06/e04: a stdin line starting "# " or "## " refuses with argument_invalid', () async {
