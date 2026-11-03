@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -115,7 +116,7 @@ Iterable<Finding> _missingFileLinks(
 /// root: `docs/<target>` with each `..` folded lexically, so `docs/../../x`
 /// is `../x`.
 String _projectPathOf(String target) {
-  final parts = <String>['docs'];
+  final parts = <String>[docsFolderName];
   for (final segment in target.split('/')) {
     if (segment != '..') {
       parts.add(segment);
