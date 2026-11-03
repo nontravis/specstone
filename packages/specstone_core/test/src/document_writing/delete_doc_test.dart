@@ -1090,6 +1090,25 @@ void main() {
       },
     );
 
+    test('f02/us04/fr01/e13: the link warning comes first, then the mentions in tree order of the mentioned docs, then of the mentioning docs', () async {
+      const plan = 'superpowers/plans/2026-11-01-retire.md';
+      const gnfr = 'prds/GNFR.md';
+      final root = await mentioning({
+        plan: '# Retire\n\nSee [story](../../prds/features/f01_login/us01_email_login/USER_STORY.md).\n',
+        project:
+            '# Project context\n\n`features/f01_login/FEATURE.md` and '
+            '`features/f01_login/us01_email_login/USER_STORY.md`.\n',
+        gnfr: '# Global non-functional requirements\n\n`features/f01_login/us01_email_login/USER_STORY.md`.\n',
+      });
+
+      expect(delLogin(root).warnings, [
+        '$plan links into $story1; the link will dangle',
+        '$project mentions $loginFeature; the mention will dangle',
+        '$gnfr mentions $story1; the mention will dangle',
+        '$project mentions $story1; the mention will dangle',
+      ]);
+    });
+
     test('f02/us04/fr01/e13: a doc that links into the unit still refuses, with no mention warning', () async {
       final root = await mentioning({
         project:
