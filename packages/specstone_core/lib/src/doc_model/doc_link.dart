@@ -116,10 +116,12 @@ DocLinkTarget resolveDocLink(String href, String docPath) {
 /// the docs root, decoded and normalized, or null when [href] names no file
 /// path.
 ///
-/// A path that leaves the docs root keeps its leading `../` segments. The
-/// fragment and query are not part of the path. Null for a web address,
-/// another scheme, an authority, a rooted path, an empty path, a path whose
-/// walk ends at the doc's own folder, and a segment holding an encoded slash.
+/// A path that leaves the docs root keeps its leading `../` segments, except
+/// one that re-enters it as `../docs/...`, which names the same file as the
+/// path without those two segments. The fragment and query are not part of
+/// the path. Null for a web address, another scheme, an authority, a rooted
+/// path, an empty path, a path whose walk ends at the docs root itself, and a
+/// segment holding an encoded slash.
 String? relativeFilePathOf(String href, String docPath) {
   final uri = Uri.tryParse(href);
   if (uri == null ||
@@ -142,12 +144,16 @@ List<String> _decodedSegmentsOf(Uri uri) => [
   for (final segment in uri.path.split('/')) percentDecoded(segment),
 ];
 
+/// The folder name of the docs root under the project root.
+const docsFolderName = 'docs';
+
 /// Returns the docPath [segments] reach from [docPath]'s folder, or null when
 /// a `..` pops past the docs root or a segment holds a `/`. An empty result
 /// names the docs root.
 ///
-/// With [keepParents], a `..` past the docs root stays in the result instead
-/// of failing.
+/// A walk that leaves the docs root by exactly one `..` and re-enters it
+/// through [docsFolderName] resolves as if it never left. With [keepParents],
+/// any other `..` past the docs root stays in the result instead of failing.
 ///
 /// [segments] are already percent-decoded, so an encoded slash (`%2F`)
 /// decoded to one segment cannot name a doc.
@@ -163,7 +169,6 @@ String? _resolveSegments(
         continue;
       case '..':
         if (path.isEmpty || path.last == '..') {
-          if (!keepParents) return null;
           path.add('..');
         } else {
           path.removeLast();
@@ -174,5 +179,9 @@ String? _resolveSegments(
         path.add(segment);
     }
   }
+  if (path.length >= 2 && path[0] == '..' && path[1] == docsFolderName) {
+    path.removeRange(0, 2);
+  }
+  if (!keepParents && path.isNotEmpty && path.first == '..') return null;
   return path.join('/');
 }

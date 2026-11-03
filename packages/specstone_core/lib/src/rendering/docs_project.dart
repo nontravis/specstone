@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -67,7 +68,7 @@ final class DocsProject {
     return DocsProject._(
       projectRoot: projectRoot,
       docsRoot: Directory(
-        _canonicalPath('${projectRoot.path}${_separator}docs'),
+        _canonicalPath('${projectRoot.path}$_separator$docsFolderName'),
       ),
       codeRoot: Directory(
         _canonicalPath('${projectRoot.path}$_separator$codeRoot'),
@@ -139,7 +140,9 @@ final class DocsProject {
   String displayPath(FileSystemEntity entity) {
     final path = _canonicalPath(entity.absolute.path);
     final docPath = _docPathOf(path);
-    if (docPath != null) return docPath.isEmpty ? 'docs' : 'docs/$docPath';
+    if (docPath != null) {
+      return docPath.isEmpty ? docsFolderName : '$docsFolderName/$docPath';
+    }
     final root = projectRoot.path;
     if (path == root) return '.';
     final prefix = root.endsWith(_separator) ? root : '$root$_separator';

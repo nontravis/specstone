@@ -1,5 +1,5 @@
+import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:test/test.dart';
 
 bool everything(String path) => true;
@@ -39,6 +39,15 @@ void main() {
       expect(result?.count, 1);
     },
   );
+
+  test('f02/us05/fr02/e10, M1: a link out of the docs root and back in by '
+      'name follows the moved file', () {
+    const moves = <PathMove>[(from: 'prds/x.md', to: 'prds/y.md')];
+    expect(
+      movedRelativePath('../../../docs/prds/x.md', 'prds/f/a.md', moves),
+      '../y.md',
+    );
+  });
 
   test('f02/us05/fr02/e10, M2: a plain mention follows the moved folder', () {
     expect(
