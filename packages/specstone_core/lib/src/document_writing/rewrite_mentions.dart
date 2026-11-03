@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
+import 'package:specstone_core/src/document_writing/link_destinations.dart';
+import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
 
@@ -111,16 +112,16 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
 
 /// Returns the path part of [token], or null when it holds none a prose
 /// reader could mean.
-///
-/// A `%` is never decoded, as prose carries no escape, and a token of dots
-/// and slashes alone, such as `...`, names no file.
 String? _pathOf(String token) {
   final hash = token.indexOf('#');
   final path = (hash < 0 ? token : token.substring(0, hash))
       .replaceFirst(_closingMark, '')
       .replaceFirst(_lineSuffix, '');
+  // Dots and slashes alone (`...`, `../..`) name an ancestor folder that
+  // exists, so an ellipsis would be rewritten when its doc moves.
   final named = path
       .split('/')
       .any((s) => s.isNotEmpty && s != '.' && s != '..');
+  // Prose carries no percent escape, and the path resolver would decode one.
   return named && !path.contains('%') ? path : null;
 }
