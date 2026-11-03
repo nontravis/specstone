@@ -58,6 +58,25 @@ String withSectionBody(String lfText, int section, String body) {
       ].join();
 }
 
+/// Returns [lfText] with the lead replaced by [body].
+///
+/// The lead is the head text after the title line, or the whole head without a
+/// title line. The title line, the text before it, and the blank lines after
+/// the old lead stay.
+String withLead(String lfText, String body) {
+  final doc = Doc.parse(lfText);
+  final lines = _lines(doc.afterFrontmatter);
+  final titleAt = doc.titleLineIndex;
+  final start = titleAt == null ? 0 : titleAt + 1;
+  final end = start + _lines(doc.lead).length;
+  final before = lines.sublist(0, start);
+  if (before.isNotEmpty && !before.last.endsWith('\n')) {
+    before.last = '${before.last}\n';
+  }
+  return _frontmatterOf(lfText, doc) +
+      [...before, _endWithNewline(body), ...lines.sublist(end)].join();
+}
+
 /// Returns [lfText] without section [section]: its header line through the
 /// line before the next header.
 ///

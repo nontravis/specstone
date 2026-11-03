@@ -284,4 +284,50 @@ void main() {
     expect(fields['status'], baseHashOf('"status": planned\n'));
     expect(fields.containsKey('"status"'), isFalse);
   });
+
+  const gnfrWithLead = '# GNFR\n\nLead [x](a.md).\n\n## Performance\nN/A\n';
+
+  test('f01/us04/fr02/e11: #_lead prints the lead under its base', () async {
+    final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
+    final answer = answerGet(withLead, 'gnfr#_lead');
+    const lead = '\nLead [x](a.md).\n';
+    expect(
+      answer.text,
+      '==> gnfr (gnfr) · prds/GNFR.md · base ${baseHashOf(lead)} <==\n$lead',
+    );
+    final doc = (answer.json['docs']! as List).single as Map;
+    expect(doc['section'], '_lead');
+    expect(doc['base'], baseHashOf(lead));
+    expect(doc['text'], lead);
+  });
+
+  test('f01/us04/fr02/e12: #_lead of a doc with no lead prints the naming line with the empty-text base', () async {
+    final answer = answerGet(index, 'gnfr#_lead');
+    expect(
+      answer.text,
+      '==> gnfr (gnfr) · prds/GNFR.md · base $emptyBaseHash <==\n',
+    );
+    final doc = (answer.json['docs']! as List).single as Map;
+    expect(doc['base'], emptyBaseHash);
+    expect(doc['text'], '');
+  });
+
+  test('f01/us04/fr02/e10: bases.sections lists _lead first only when the lead holds non-blank text', () async {
+    final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
+    final held =
+        ((answerGet(withLead, 'gnfr').json['docs']! as List).single
+                as Map)['bases']!
+            as Map;
+    expect((held['sections']! as Map).keys.first, '_lead');
+    expect(
+      (held['sections']! as Map)['_lead'],
+      baseHashOf('\nLead [x](a.md).\n'),
+    );
+
+    final bare =
+        ((answerGet(index, 'gnfr').json['docs']! as List).single
+                as Map)['bases']!
+            as Map;
+    expect((bare['sections']! as Map).containsKey('_lead'), isFalse);
+  });
 }

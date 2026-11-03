@@ -19,7 +19,8 @@ const _targetExample =
 
 final _headerLine = RegExp(r'^## .*$', multiLine: true);
 
-/// What a `set` call writes: a section, a frontmatter field, or the title.
+/// What a `set` call writes: a section, a frontmatter field, the title, or the
+/// lead.
 sealed class SetTarget {
   const new();
 }
@@ -38,6 +39,11 @@ final class FieldTarget extends SetTarget {
 
   /// The template field id.
   final String fieldId;
+}
+
+/// The lead: the head text after the title line.
+final class LeadTarget extends SetTarget {
+  const new();
 }
 
 /// The title line.
@@ -75,7 +81,9 @@ final class SetRequest {
       );
     }
     final SetTarget chosen;
-    if (sectionKey != null) {
+    if (sectionKey == leadKey) {
+      chosen = const LeadTarget();
+    } else if (sectionKey != null) {
       chosen = SectionTarget(sectionKey);
     } else if (field != null) {
       chosen = FieldTarget(field);
@@ -129,15 +137,17 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// included, so a `get` then `set` of unchanged text changes no byte; its
 /// trailing blank lines are spacing and are dropped. An empty [text] removes
 /// an optional section or field; a field key the doc holds that its type does
-/// not declare is removed too. Throws [IndexFault] for a body that holds a
-/// `## ` line, a doc, section, or field that is not there, a title that is not
-/// one line, and [WriteFault] `base_mismatch`, `required_target`, or a refused
-/// field.
+/// not declare is removed too. The lead is written as a section body, and
+/// empty [text] empties it. Throws [IndexFault] for a body that holds a
+/// `## ` line, a lead that holds a `# ` line, a doc, section, or field that is
+/// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
+/// `required_target`, or a refused field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) =>
     switch (request.target) {
       SectionTarget(:final key) => _setSection(session, request, key, text),
       FieldTarget(:final fieldId) => _setField(session, request, fieldId, text),
       TitleTarget() => _setTitle(session, request, text),
+      LeadTarget() => _setLead(session, request, text),
     };
 
 /// The one ComputedField (PD17): a feature's status, computed from stories.
@@ -365,6 +375,63 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
       match: match,
     );
     final base = baseHashOf(title);
+    return ReadAnswer(
+      text: '${namingLine(doc, base: base)}\n',
+      json: {
+        'name': doc.name,
+        'docType': ?doc.docTypeId,
+        'path': doc.docPath,
+        'base': base,
+        'draft': after.doc.isDraft,
+      },
+    );
+  });
+}
+
+final _titleOrHeaderLine = RegExp('^#{1,2} ', multiLine: true);
+
+ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
+  final lf = toLf(stdin);
+  if (_titleOrHeaderLine.firstMatch(lf) case final line?) {
+    final text = lf.substring(line.start, lf.indexOf('\n', line.start));
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the lead holds the line "$text"; send the lead only',
+    );
+  }
+  final body = _pipedBodyOf(lf);
+
+  final doc = session.target(request.address);
+  final docType =
+      session.index.typeOf(doc) ??
+      (throw StateError('${doc.docPath} is typed but its type is gone'));
+  final match = MatchedDocType(docType);
+
+  return session.locked(() {
+    final read = _readLocked(session, doc, match);
+    final lfText = toLf(read.content.text);
+    final currentLead = Doc.parse(lfText).lead;
+    final currentBase = baseHashOf(currentLead);
+    if (currentBase != request.base) {
+      throw _staleBase(
+        doc,
+        target: 'lead',
+        key: leadKey,
+        sinceBase: request.base,
+        currentText: currentLead,
+        currentBase: currentBase,
+      );
+    }
+
+    final written = markDraft(withLead(lfText, body), docType);
+    session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
+
+    final after = parseIndexedDoc(
+      docPath: doc.docPath,
+      bytes: utf8.encode(written),
+      match: match,
+    );
+    final base = baseHashOf(Doc.parse(written).lead);
     return ReadAnswer(
       text: '${namingLine(doc, base: base)}\n',
       json: {

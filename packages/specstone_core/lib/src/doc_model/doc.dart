@@ -131,6 +131,19 @@ final class Doc {
   /// Null exactly when [title] is null.
   final int? titleLineIndex;
 
+  /// The head text after the title line, or the whole head without a title
+  /// line, in the form of a section body.
+  ///
+  /// Trailing blank lines are dropped and leading ones stay; empty when
+  /// nothing but blank lines follows. Text before the title line is neither
+  /// title nor lead.
+  String get lead {
+    final at = titleLineIndex;
+    final text = _splitLines(head).skip(at == null ? 0 : at + 1).join();
+    if (text.trim().isEmpty) return '';
+    return text.endsWith('\n') ? text : '$text\n';
+  }
+
   /// Whether the `draft` key holds the YAML boolean `true`.
   ///
   /// A value that is not valid YAML counts as false.

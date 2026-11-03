@@ -257,6 +257,31 @@ void main() {
       expect(Doc.parse('lead\n#  Spaced \n# second\n').title, ' Spaced ');
     });
 
+    test('f01/us04/fr02/e11: lead is the head text after the title line, as a section body', () {
+      const text =
+          '---\ndraft: true\n---\n\n# GNFR\n\nLead [x](a.md).\n\n## P\nfast\n';
+      expect(Doc.parse(text).lead, '\nLead [x](a.md).\n');
+    });
+
+    test('f01/us04/fr02/e11: lead is the whole head when the doc has no title line', () {
+      const text =
+          '---\ndraft: true\n---\n\nOnly lead.\n\n## Performance\nfast\n';
+      expect(Doc.parse(text).lead, '\nOnly lead.\n');
+    });
+
+    test(
+      'f01/us04/fr02/e12: lead is empty when nothing follows the title line',
+      () {
+        expect(Doc.parse('# GNFR\n\n## A\n').lead, '');
+        expect(Doc.parse('# GNFR\n').lead, '');
+        expect(Doc.parse('').lead, '');
+      },
+    );
+
+    test('f01/us04/fr02/e11: text before the title line is no lead', () {
+      expect(Doc.parse('before\n# T\nlead\n\n## A\n').lead, 'lead\n');
+    });
+
     test(
       'titleLineIndex is the title line among the afterFrontmatter lines',
       () {

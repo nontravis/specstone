@@ -1647,4 +1647,116 @@ void main() {
     );
     expect(answer.text, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 5)));
+
+  group('f02/us01/fr06: set writes the lead through #_lead', () {
+    const target = 'user_story:login/email_login#_lead';
+    const address = 'user_story:login/email_login';
+    final withLead = writeProject['docs/$story1']!.replaceFirst(
+      '# Sign in with email\n',
+      '# Sign in with email\n\nOld lead.\n',
+    );
+
+    Future<Directory> project() =>
+        writeWriteProject(extra: {'docs/$story1': withLead});
+
+    String leadBase(Directory root) => getDoc(root, target)['base']! as String;
+
+    test('f02/us01/fr06/e01: #_lead parses to a LeadTarget', () {
+      expect(SetRequest.parse(target, base: 'abc').target, isA<LeadTarget>());
+      expect(SetRequest.parse(target, base: 'abc').address, address);
+    });
+
+    test('f02/us01/fr06/e01: the lead is replaced, the doc turns draft, and the new base prints', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
+      );
+      expect(
+        readDoc(root, story1),
+        before.replaceFirst('\nOld lead.\n', 'New lead.\n'),
+      );
+      final written = baseHashOf('New lead.\n');
+      expect(
+        answer.text,
+        '==> login/email_login (user_story) · $story1 · base $written <==\n',
+      );
+      expect(answer.json['base'], written);
+      expect(answer.json['draft'], isTrue);
+      expect(leadBase(root), written);
+    });
+
+    test('f02/us01/fr06/e04: a stdin line starting "# " or "## " refuses with argument_invalid', () async {
+      for (final body in ['# X\n', '## X\n', 'fine\n# X\n']) {
+        final root = await project();
+        final before = readDoc(root, story1);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(s, req(target, leadBase(root)), body),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      }
+    });
+
+    test('f02/us01/fr06/e05: empty stdin empties the lead', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, leadBase(root)), ''),
+      );
+      expect(readDoc(root, story1), before.replaceFirst('\nOld lead.\n', ''));
+      expect(answer.json['base'], emptyBaseHash);
+    });
+
+    test(
+      'f02/us01/fr06/e06: a stale base refuses with the current lead',
+      () async {
+        final root = await project();
+        expect(
+          () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+                .having((f) => f.current?.text, 'current', '\nOld lead.\n')
+                .having(
+                  (f) => f.current?.base,
+                  'base',
+                  baseHashOf('\nOld lead.\n'),
+                ),
+          ),
+        );
+      },
+    );
+
+    test('f02/us01/fr06/e07: a CRLF doc keeps CRLF', () async {
+      final root = await project();
+      docFile(
+        root,
+        story1,
+      ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
+      writeIn(
+        root,
+        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
+      );
+      expect(
+        readDoc(root, story1),
+        contains('# Sign in with email\r\nNew lead.\r\n'),
+      );
+      expect(
+        readDoc(root, story1).replaceAll('\r\n', ''),
+        isNot(contains('\n')),
+      );
+    });
+  });
 }
