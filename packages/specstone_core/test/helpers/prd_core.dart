@@ -61,9 +61,8 @@ const requirementStatementTemplate =
 
 /// The Mermaid quoting sentence that ends every flowchart guide text.
 const mermaidQuoteSentence =
-    'Wrap a node label in double quotes, such as `A["Save (draft)"]`, when it '
-    'holds `(`, `)`, `[`, `]`, `{`, or `}`, and write a `"` inside it as '
-    '`#quot;`.';
+    'Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in '
+    '`A["Save (draft)"]`; write `"` in it as `#quot;`.';
 
 /// The Verification template `fr` and `nf` share.
 const verificationTemplate =
@@ -232,7 +231,7 @@ void expectGuideShape(
     expect(section.description, isNotEmpty, reason: where);
     expect(lines.length, lessThanOrEqualTo(5), reason: where);
     for (final line in lines) {
-      expect(line.length, lessThanOrEqualTo(150), reason: '$where: $line');
+      expect(line.length, lessThanOrEqualTo(120), reason: '$where: $line');
     }
   }
   expect(_guideTexts(docType).where(_thai.hasMatch), isEmpty, reason: id);
