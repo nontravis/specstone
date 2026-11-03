@@ -11,8 +11,9 @@ edit: use `specstone:update-sdd` instead.
 
 ## 1. Ground: the first call
 
-Make this your first CLI call, before any other command or file read. Target the feature the change touches, one
-call per feature; a change that adds a feature targets `project`.
+Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
+change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
+with `--summary` to add a story, and `project` to add a feature.
 
 ```
 specstone context <target> --for design --budget 20000

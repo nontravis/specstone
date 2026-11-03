@@ -16,7 +16,7 @@ and the PRD and spec docs carry the content once the Owner approves it.
 
 ## 2. Ground each claim
 
-For each feature the brief touches, run `specstone context <target> --for design`; a change that adds a feature
+Run `specstone context <target> --for design` on the doc `SKILL.md` step 1 targets; a change that adds a feature
 targets `project`. As the skill's runner, its step 1 bundle is your ground: run no second call.
 
 - **0:** the printed bundle is the ground. Cite only what it printed.

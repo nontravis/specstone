@@ -10,7 +10,8 @@ work from text a plan or brief quotes.
 
 ## Pick the target and mode
 
-- **Target:** the doc the task names. For a plan task, use the story it cites. In `implement` mode the story's bundle
+- **Target:** the doc the task names. For `design`, the smallest doc that holds the change: a story's bundle holds its
+  sibling stories in summary; a feature's holds them whole. For a plan task, use the story it cites. In `implement` mode the story's bundle
   already holds its FRs, so one call covers the story and every FR ID the task lists. When a plan task cites several
   stories, run one `specstone context <story> --for implement --budget 20000` per story. Every tool call from the
   first CLI call counts toward three, a `Read` of a saved output included: run the next story's call only while the

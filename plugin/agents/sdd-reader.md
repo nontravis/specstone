@@ -44,7 +44,7 @@ and section.
 3. **Long output**: when the host cuts the output short and saves it to a file, `Read` that file in parts through
    its closing `==> bundle:` line. It is the bundle, and the only file you open.
 4. **More targets**: run step 1 per remaining target ID, skipping any that an earlier bundle's closing doc list
-   already names.
+   already names without ` · summary`.
 5. **Select**: pick the sections the task needs. A section runs from its `## ` line to the line before the next
    line starting `## ` or `==>`. Copy every line as printed; never summarize, paraphrase, shorten, or reorder.
    A section the task needs only in part still goes back whole.

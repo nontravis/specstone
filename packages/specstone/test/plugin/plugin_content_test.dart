@@ -577,4 +577,20 @@ void _agentTests() {
       contains('Write nothing'),
     );
   });
+
+  test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
+      'doc and adds a story with --summary', () {
+    final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      text,
+      contains('Target the smallest doc that holds the whole change'),
+    );
+    expect(text, contains('the feature with `--summary` to add a story'));
+  });
+
+  test('f08/us01/fr02/e05, db-r1: sdd-reader still pulls a target an earlier '
+      'bundle listed in summary', () {
+    expect(_pluginText('agents/sdd-reader.md'), contains('· summary'));
+  });
 }
