@@ -66,9 +66,9 @@ A failed load: report it and stop; never search.
 
 - **Author, design, audit, plan**: the Report of the mode's reference. When the dispatch names no `routed by`,
   open it with `Main session: show this report to the Owner whole before you act on it.`
-- **Sync and bootstrap**: first, the drafts, one `<type>:<name>` line each with one sentence on why it changed, never their
-  text. Then sync, the procedure's Report to the Owner list; bootstrap, proposals and waivers, open
-  questions, one `specstone delete …` line, findings outside `batch`. Then `Findings:`.
+- **Sync and bootstrap**: first, the drafts, one `<type>:<name>` line each with one sentence on why it
+  changed, never their text. Then sync, the procedure's Report to the Owner list; bootstrap, proposals and waivers,
+  open questions, one `specstone delete …` line, findings outside `batch`. Then `Findings:`.
 
 ## Scope Boundaries
 
