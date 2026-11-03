@@ -168,6 +168,11 @@ void main() {
       ),
     );
     expect(printed, lessThan(full));
+    final overBudgetDoc = (a.json['docs']! as List)
+        .cast<Map<String, Object?>>()
+        .firstWhere((d) => d['name'] == 'login/reset_password');
+    expect(overBudgetDoc.keys.last, 'summary');
+    expect(overBudgetDoc['summary'], true);
   });
   test('s03/inv25, db-c9: a doc a bundle: join adds prints whole, once', () async {
     final i = await indexWith({
