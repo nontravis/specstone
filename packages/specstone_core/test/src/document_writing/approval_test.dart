@@ -143,6 +143,105 @@ void main() {
     );
   }, skip: skipGit);
 
+  test('f02/us03/fr02/e01, e15: a project below the repository top-level names '
+      'its copy by project path', () async {
+    const path = 'docs/$signupFeature';
+    final repo = await _repo({'sub/$path': _approvedText});
+    commitAll(repo, 'approved');
+    File('${repo.path}/sub/$path').writeAsStringSync(_draftText);
+    commitAll(repo, 'edited as draft');
+
+    expect(
+      const ApprovalHistory().lastApproved(Directory('${repo.path}/sub'), path),
+      isA<ApprovedCopy>()
+          .having((c) => c.text, 'text', _approvedText)
+          .having((c) => c.path, 'path', path),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e15, H29: a non-ASCII folder above the project strips '
+      'from the path', () async {
+    const sub = 'my ล็อก';
+    const path = 'docs/$signupFeature';
+    final repo = await _repo({'$sub/$path': _approvedText});
+    // A user's global core.quotepath=false must not hide the quoting.
+    expect(git(repo, ['config', 'core.quotepath', 'true']).exitCode, 0);
+    commitAll(repo, 'approved');
+    File('${repo.path}/$sub/$path').writeAsStringSync(_draftText);
+    commitAll(repo, 'edited as draft');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        Directory('${repo.path}/$sub'),
+        path,
+      ),
+      isA<ApprovedCopy>().having((c) => c.path, 'path', path),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e02, e15: a rename inside a project below the '
+      'top-level names the old project path', () async {
+    const oldPath = 'docs/$story3';
+    const newPath =
+        'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
+    final repo = await _repo({'sub/$oldPath': _longApproved});
+    commitAll(repo, 'approved');
+    Directory(File('${repo.path}/sub/$newPath').parent.path)
+        .createSync(recursive: true);
+    expect(git(repo, ['mv', 'sub/$oldPath', 'sub/$newPath']).exitCode, 0);
+    File('${repo.path}/sub/$newPath')
+        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+    commitAll(repo, 'moved and drafted');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        Directory('${repo.path}/sub'),
+        newPath,
+      ),
+      isA<ApprovedCopy>()
+          .having((c) => c.text, 'text', _longApproved)
+          .having((c) => c.path, 'path', oldPath),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e02, e15: a doc renamed in from outside the project '
+      'keeps its top-level path', () async {
+    const oldPath = 'elsewhere/$story3';
+    const newPath = 'docs/$story3';
+    final repo = await _repo({oldPath: _longApproved});
+    commitAll(repo, 'approved');
+    Directory(File('${repo.path}/sub/$newPath').parent.path)
+        .createSync(recursive: true);
+    expect(git(repo, ['mv', oldPath, 'sub/$newPath']).exitCode, 0);
+    File('${repo.path}/sub/$newPath')
+        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+    commitAll(repo, 'moved and drafted');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        Directory('${repo.path}/sub'),
+        newPath,
+      ),
+      isA<ApprovedCopy>()
+          .having((c) => c.text, 'text', _longApproved)
+          .having((c) => c.path, 'path', oldPath),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e04: a failing rev-parse is UnknownHistory', () {
+    final failing = ApprovalHistory(
+      runGit: (arguments, {required workingDirectory}) =>
+          arguments.first == 'rev-parse'
+          ? ProcessResult(0, 128, '', 'fatal: not a git repository')
+          : ProcessResult(0, 0, '', ''),
+    );
+
+    expect(
+      failing.lastApproved(Directory.systemTemp, 'docs/$story1'),
+      isA<UnknownHistory>(),
+    );
+  });
+
   test(
     'f02/us03/fr02/e02: --follow reaches the approved copy under its old path',
     () async {
@@ -282,9 +381,11 @@ void main() {
       final sha = 'a' * 40;
       final failing = ApprovalHistory(
         runGit: (arguments, {required workingDirectory}) =>
-            arguments.first == 'log'
-            ? ProcessResult(0, 0, '$sha\x00\ndocs/$story1\x00', '')
-            : ProcessResult(0, 128, '', 'fatal: bad object'),
+            switch (arguments.first) {
+              'rev-parse' => ProcessResult(0, 0, '\n', ''),
+              'log' => ProcessResult(0, 0, '$sha\x00\ndocs/$story1\x00', ''),
+              _ => ProcessResult(0, 128, '', 'fatal: bad object'),
+            },
       );
       expect(
         failing.lastApproved(Directory.systemTemp, 'docs/$story1'),

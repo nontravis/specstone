@@ -12,6 +12,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
+import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
 const _prompt = 'approve? [y/n/q] ';
@@ -148,6 +149,34 @@ void main() {
     expect(out.toString(), contains('-Users create an account.\n'));
     expect(out.toString(), contains('+Users sign up.\n'));
     expect(out.toString(), isNot(contains('# Signup')));
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e01, f02/us03/fr02/e15: a project below the repository top-level shows an edited draft with no rename line', () async {
+    final repo = await writeTree({
+      for (final MapEntry(:key, :value) in writeProject.entries)
+        'sub/$key': value,
+      'sub/docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+    });
+    final root = Directory('${repo.path}/sub');
+    expect(git(repo, ['init', '-q']).exitCode, 0);
+    expect(git(repo, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(repo, 'approved');
+    File('${root.path}/docs/$signupFeature').writeAsStringSync(
+      '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\n',
+    );
+    commitAll(repo, 'edited as a draft');
+
+    final view = writeIn(
+      root,
+      (s) => approveDryRun(s, names: ['feature:signup']),
+    ).text;
+
+    expect(
+      view,
+      startsWith('### Draft 1/2 · Signup\n`docs/$signupFeature`\n\n'),
+    );
+    expect(view, isNot(contains('renamed from')));
+    expect(view, contains('| old     | approved copy in commit `'));
   }, skip: skipGit);
 
   test(

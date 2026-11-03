@@ -45,6 +45,9 @@ final class ApprovedCopy extends ApprovalLookup {
   final String commit;
 
   /// The project path of the doc at [commit], its old path after a rename.
+  ///
+  /// An old path outside the project root stays relative to the repository
+  /// top-level.
   final String path;
 }
 
@@ -67,10 +70,17 @@ final class ApprovalHistory {
 
   /// Returns the newest committed copy of [projectPath] without `draft`.
   ///
-  /// [projectPath] is relative to [projectRoot], the repository root; the
-  /// history follows renames and skips the commits that deleted the file.
+  /// [projectPath] is relative to [projectRoot], which may sit below the
+  /// repository top-level; the history follows renames and skips the commits
+  /// that deleted the file.
   ApprovalLookup lastApproved(Directory projectRoot, String projectPath) {
     try {
+      final revParse = _runGit([
+        'rev-parse',
+        '--show-prefix',
+      ], workingDirectory: projectRoot.path);
+      if (revParse.exitCode != 0) return const UnknownHistory();
+      final prefix = _prefixOf(revParse.stdout as String);
       final log = _runGit([
         'log',
         '--follow',
@@ -90,7 +100,11 @@ final class ApprovalHistory {
         if (show.exitCode != 0) return const UnknownHistory();
         final copy = show.stdout as String;
         if (!Doc.parse(toLf(copy)).isDraft) {
-          return ApprovedCopy(copy, commit: sha, path: path);
+          return ApprovedCopy(
+            copy,
+            commit: sha,
+            path: _belowPrefix(path, prefix),
+          );
         }
       }
       return const NoApprovedCopy();
@@ -102,6 +116,18 @@ final class ApprovalHistory {
     }
   }
 }
+
+/// Returns the folder `git rev-parse --show-prefix` printed in [output].
+///
+/// The prefix is the project root's path below the top-level, ending in `/`,
+/// or empty at the top-level; git ends the line with a newline.
+String _prefixOf(String output) => output.replaceFirst(RegExp(r'\r?\n$'), '');
+
+/// Returns [topLevelPath] relative to [prefix], or as given outside it.
+String _belowPrefix(String topLevelPath, String prefix) =>
+    topLevelPath.startsWith(prefix)
+    ? topLevelPath.substring(prefix.length)
+    : topLevelPath;
 
 final _sha = RegExp(r'^(?:[0-9a-f]{40}|[0-9a-f]{64})$');
 
