@@ -12,7 +12,13 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 /// space, `-`, or `+`; a count of 1 is left out and a zero count names the
 /// line before the change. Equal texts give `''`.
 String approvalDiff(String oldText, String newText, {int? context}) {
-  if (context != null) RangeError.checkNotNegative(context, 'context');
+  if (context != null && context < 0) {
+    throw ArgumentError.value(
+      context,
+      'context',
+      'must be a whole number from 0',
+    );
+  }
   final before = _linesOf(oldText);
   final after = _linesOf(newText);
   final ops = _opsOf(before, after);
@@ -36,7 +42,8 @@ String approvalDiff(String oldText, String newText, {int? context}) {
 /// Returns the `changes` rows naming each unit that differs in [oldText] and
 /// [newText].
 ///
-/// Both texts are read as LF. A unit is one frontmatter key (by name), the
+/// Both texts are read as LF lines, as [approvalDiff] reads them, so a final
+/// newline alone changes no unit. A unit is one frontmatter key (by name), the
 /// frontmatter lines no key owns, the title, the lead (the head without its
 /// title line), or one `##` section (by header text). A row names the unit as
 /// ``field `key` ``, `frontmatter`, `title`, `lead`, or `` `## header` ``, with
@@ -91,6 +98,12 @@ List<String> _linesOf(String text) {
   final lines = lf.split('\n');
   if (lines.last.isEmpty) lines.removeLast();
   return lines;
+}
+
+/// Returns [text] as LF whose last line, if any, ends in `\n`.
+String _withFinalNewline(String text) {
+  final lines = _linesOf(text);
+  return lines.isEmpty ? '' : '${lines.join('\n')}\n';
 }
 
 /// Returns the LCS diff of [a] and [b]; per change block, deletes come first.
@@ -249,7 +262,7 @@ String _range(int start, int count) {
 typedef _Unit = ({String id, String label, String content, bool present});
 
 List<_Unit> _unitsOf(String text) {
-  final doc = Doc.parse(toLf(text));
+  final doc = Doc.parse(_withFinalNewline(text));
   final lines = doc.afterFrontmatter.split('\n');
   final firstSection = doc.sectionLineIndexes.firstOrNull ?? lines.length;
   final headLines = lines.sublist(0, firstSection);

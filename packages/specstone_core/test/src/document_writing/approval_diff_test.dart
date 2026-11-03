@@ -118,6 +118,19 @@ void main() {
       );
     });
 
+    test('f02/us03/fr02/e14: a negative context is an argument error', () {
+      expect(
+        () => approvalDiff('a\n', 'b\n', context: -1),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            'must be a whole number from 0',
+          ),
+        ),
+      );
+    });
+
     test('f02/us03/fr02/e08: equal texts give no hunk', () {
       expect(approvalDiff(_old, _old), '');
       expect(approvalDiff('', ''), '');
@@ -250,6 +263,12 @@ void main() {
       expect(changedUnits('## A\na\n## B\nb\n', '## A\na\n\n## B\nb\n'), [
         '`## A`',
       ]);
+    });
+
+    test('f02/us03/fr02/e08: a final newline alone is no change', () {
+      expect(changedUnits('## A\nx\n', '## A\nx'), isEmpty);
+      expect(changedUnits('## A\nx', '## A\nx\n'), isEmpty);
+      expect(approvalDiff('## A\nx\n', '## A\nx'), '');
     });
 
     test('f02/us03/fr02/e08: equal texts, even in another line ending, change no unit', () {
