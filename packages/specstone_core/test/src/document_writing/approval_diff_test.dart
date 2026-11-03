@@ -187,6 +187,28 @@ void main() {
       },
     );
 
+    test('f02/us03/fr02/e08: a change no key owns in the frontmatter names the frontmatter', () {
+      // A comment above a key belongs to that key, so the lines no key owns
+      // are a stray line above the first key, or a frontmatter with no key.
+      expect(
+        changedUnits('---\nstray\nk: v\n---\n', '---\nstray2\nk: v\n---\n'),
+        ['frontmatter'],
+      );
+      expect(changedUnits('---\n# note\n---\n', '---\n# note2\n---\n'), [
+        'frontmatter',
+      ]);
+    });
+
+    test(
+      'f02/us03/fr02/e08: the frontmatter row comes before the field rows',
+      () {
+        expect(
+          changedUnits('---\nstray\nk: v\n---\n', '---\nstray2\nk: w\n---\n'),
+          ['frontmatter', 'field `k`'],
+        );
+      },
+    );
+
     test(
       'f02/us03/fr02/e08: a doc gaining frontmatter lists its fields as new',
       () {

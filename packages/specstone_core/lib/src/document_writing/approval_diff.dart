@@ -37,11 +37,12 @@ String approvalDiff(String oldText, String newText, {int? context}) {
 /// [newText].
 ///
 /// Both texts are read as LF. A unit is one frontmatter key (by name), the
-/// `title`, the `lead` (the head without its title line), or one `##` section
-/// (by header text). A row names the unit as `field `key``, `title`, `lead`,
-/// or `` `## header` ``, with ` (new)` or ` (removed)` when only one text has
-/// the unit. Rows follow the new text; a removed unit follows the row of the
-/// unit before it in the old text, or comes first when none precedes it.
+/// frontmatter lines no key owns, the title, the lead (the head without its
+/// title line), or one `##` section (by header text). A row names the unit as
+/// ``field `key` ``, `frontmatter`, `title`, `lead`, or `` `## header` ``, with
+/// ` (new)` or ` (removed)` when only one text has the unit. Rows follow the
+/// new text; a removed unit follows the row of the unit before it in the old
+/// text, or comes first when none precedes it.
 List<String> changedUnits(String oldText, String newText) {
   final before = _unitsOf(oldText);
   final after = _unitsOf(newText);
@@ -265,13 +266,12 @@ List<_Unit> _unitsOf(String text) {
 
   return [
     for (final block in doc.frontmatter ?? const <KeyBlock>[])
-      if (block.key.isNotEmpty)
-        (
-          id: idOf('field:${block.name}'),
-          label: 'field `${block.name}`',
-          content: block.text,
-          present: true,
-        ),
+      (
+        id: block.key.isEmpty ? 'frontmatter#0' : idOf('field:${block.name}'),
+        label: block.key.isEmpty ? 'frontmatter' : 'field `${block.name}`',
+        content: block.text,
+        present: true,
+      ),
     if (title != null)
       (id: 'title#0', label: 'title', content: title, present: true),
     (
