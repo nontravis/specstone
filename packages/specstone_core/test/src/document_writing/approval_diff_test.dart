@@ -8,6 +8,16 @@ const _new =
     '---\nverify_method: demonstration\n---\n\n# FR-01 — T\n\n'
     '## Statement\nA.\n\n## Rationale\nR2.\n';
 
+ChangedUnit _field(String key, [UnitSide side = .both]) =>
+    (kind: .field, name: key, side: side);
+
+ChangedUnit _section(String header, [UnitSide side = .both]) =>
+    (kind: .section, name: header, side: side);
+
+/// A changed unit of a [kind] that has no key or header text.
+ChangedUnit _bare(UnitKind kind, [UnitSide side = .both]) =>
+    (kind: kind, name: '', side: side);
+
 void main() {
   group('approvalDiff', () {
     test('f02/us03/fr02/e08, e10: unit context shows each changed unit whole and no other', () {
@@ -149,8 +159,8 @@ void main() {
       'f02/us03/fr02/e08: changed units name fields, title, lead, and sections',
       () {
         expect(changedUnits(_old, _new), [
-          'field `verify_method`',
-          '`## Rationale`',
+          _field('verify_method'),
+          _section('Rationale'),
         ]);
       },
     );
@@ -159,20 +169,31 @@ void main() {
       'f02/us03/fr02/e08: a renamed header is one removed and one new unit',
       () {
         expect(changedUnits('## A\nx\n', '## B\nx\n'), [
-          '`## A` (removed)',
-          '`## B` (new)',
+          _section('A', .removed),
+          _section('B', .added),
+        ]);
+      },
+    );
+
+    test(
+      'f02/us03/fr02/e08: a row holds the key or header text as written',
+      () {
+        const header = '`specstone approve` | A';
+
+        expect(changedUnits('## $header\nx\n', '## $header\ny\n'), [
+          _section(header),
         ]);
       },
     );
 
     test('f02/us03/fr02/e08: a changed title is the title unit', () {
-      expect(changedUnits('# T\n', '# U\n'), ['title']);
+      expect(changedUnits('# T\n', '# U\n'), [_bare(.title)]);
     });
 
     test('f02/us03/fr02/e08: a changed lead is the lead unit', () {
       expect(
         changedUnits('# T\n\nlead\n\n## S\nx\n', '# T\n\nlead2\n\n## S\nx\n'),
-        ['lead'],
+        [_bare(.lead)],
       );
     });
 
@@ -180,10 +201,10 @@ void main() {
       'f02/us03/fr02/e08: a lead that appears or goes is new or removed',
       () {
         expect(changedUnits('# T\n\n## S\nx\n', '# T\n\nlead\n\n## S\nx\n'), [
-          'lead (new)',
+          _bare(.lead, .added),
         ]);
         expect(changedUnits('# T\n\nlead\n\n## S\nx\n', '# T\n\n## S\nx\n'), [
-          'lead (removed)',
+          _bare(.lead, .removed),
         ]);
       },
     );
@@ -192,10 +213,10 @@ void main() {
       'f02/us03/fr02/e08: a field that appears or goes is new or removed',
       () {
         expect(changedUnits('---\na: 1\n---\n', '---\na: 1\nb: 2\n---\n'), [
-          'field `b` (new)',
+          _field('b', .added),
         ]);
         expect(changedUnits('---\na: 1\nb: 2\n---\n', '---\na: 1\n---\n'), [
-          'field `b` (removed)',
+          _field('b', .removed),
         ]);
       },
     );
@@ -205,10 +226,10 @@ void main() {
       // are a stray line above the first key, or a frontmatter with no key.
       expect(
         changedUnits('---\nstray\nk: v\n---\n', '---\nstray2\nk: v\n---\n'),
-        ['frontmatter'],
+        [_bare(.frontmatter)],
       );
       expect(changedUnits('---\n# note\n---\n', '---\n# note2\n---\n'), [
-        'frontmatter',
+        _bare(.frontmatter),
       ]);
     });
 
@@ -217,7 +238,7 @@ void main() {
       () {
         expect(
           changedUnits('---\nstray\nk: v\n---\n', '---\nstray2\nk: w\n---\n'),
-          ['frontmatter', 'field `k`'],
+          [_bare(.frontmatter), _field('k')],
         );
       },
     );
@@ -226,8 +247,8 @@ void main() {
       'f02/us03/fr02/e08: a doc gaining frontmatter lists its fields as new',
       () {
         expect(changedUnits('# T\n', '---\na: 1\nb: 2\n---\n# T\n'), [
-          'field `a` (new)',
-          'field `b` (new)',
+          _field('a', .added),
+          _field('b', .added),
         ]);
       },
     );
@@ -236,32 +257,32 @@ void main() {
       const before = '## A\na\n## B\nb\n## C\nc\n';
       const after = '## A\nA\n## C\nC\n';
       expect(changedUnits(before, after), [
-        '`## A`',
-        '`## B` (removed)',
-        '`## C`',
+        _section('A'),
+        _section('B', .removed),
+        _section('C'),
       ]);
     });
 
     test('f02/us03/fr02/e08: a removed first unit comes first', () {
       expect(changedUnits('## A\na\n## B\nb\n', '## B\nb\n'), [
-        '`## A` (removed)',
+        _section('A', .removed),
       ]);
       expect(changedUnits('## A\na\n## B\nb\n', '## B\nB\n'), [
-        '`## A` (removed)',
-        '`## B`',
+        _section('A', .removed),
+        _section('B'),
       ]);
     });
 
     test('f02/us03/fr02/e09: a ## inside a code fence is no section', () {
       expect(
         changedUnits('## A\n```\n## x\n```\nx\n', '## A\n```\n## x\n```\nX\n'),
-        ['`## A`'],
+        [_section('A')],
       );
     });
 
     test('f02/us03/fr02/e08: a change in spacing between sections names the section above', () {
       expect(changedUnits('## A\na\n## B\nb\n', '## A\na\n\n## B\nb\n'), [
-        '`## A`',
+        _section('A'),
       ]);
     });
 

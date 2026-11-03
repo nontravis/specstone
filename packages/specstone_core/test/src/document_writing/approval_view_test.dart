@@ -23,12 +23,14 @@ DraftView _draft({
   ApprovalLookup? lookup,
   String? title = 'FR-01 — T',
   String? status = 'planned',
+  String name = 'fr01_t',
+  String projectPath = _path,
 }) => DraftView(
-  name: 'fr01_t',
+  name: name,
   docType: 'fr',
   title: title,
   status: status,
-  projectPath: _path,
+  projectPath: projectPath,
   text: text,
   lookup: lookup ?? _copy(_old),
 );
@@ -177,6 +179,54 @@ void main() {
 
       expect(view, contains('\n``````diff\n'));
       expect(view, endsWith('\n``````\n'));
+    });
+
+    test(
+      'f02/us03/fr02/e13: a header holding backticks prints in a longer span',
+      () {
+        const header = '`specstone approve [<name> …] --dry-run` — US-03 FR-05';
+        const oldText = '# T\n\n## $header\nA.\n';
+        const newText = '# T\n\n## $header\nB.\n';
+
+        final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+
+        expect(view, contains('| changes | ``## $header`` |\n'));
+      },
+    );
+
+    test('f02/us03/fr02/e13: a span whose text ends in a backtick pads it', () {
+      const oldText = '# T\n\n## Run `get`\nA.\n';
+      const newText = '# T\n\n## Run `get`\nB.\n';
+
+      final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+
+      expect(view, contains('| changes | `` ## Run `get` `` |\n'));
+    });
+
+    test('f02/us03/fr02/e13: a | in a table cell is escaped', () {
+      const oldText = '---\n"a|b": 1\n---\n# T\n\n## A | B\nA.\n';
+      const newText = '---\n"a|b": 2\n---\n# T\n\n## A | B\nB.\n';
+
+      final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+
+      expect(view, contains('| changes | field `a\\|b` |\n'));
+      expect(view, contains('|         | `## A \\| B` |\n'));
+    });
+
+    test('f02/us03/fr02/e13, e15: a name or path holding backticks prints in '
+        'a longer span', () {
+      final view = _render(
+        _draft(
+          name: 'fr01_`t`',
+          projectPath: 'docs/fr01_`t`.md',
+          lookup: _copy(_old, path: 'docs/old/fr01_`t`.md'),
+        ),
+      );
+      final lines = view.split('\n');
+
+      expect(lines[1], '``docs/fr01_`t`.md``');
+      expect(lines[2], 'renamed from ``docs/old/fr01_`t`.md``');
+      expect(lines[6], '| doc     | `` fr01_`t` `` (fr) |');
     });
 
     test(

@@ -70,25 +70,27 @@ String renderApprovalView(
   final changes = switch (oldText) {
     null => const ['whole doc'],
     _ when !hasDiff => const ['none'],
-    final old => changedUnits(old, newText),
+    final old => [
+      for (final unit in changedUnits(old, newText)) _changeCell(unit),
+    ],
   };
 
   final out = StringBuffer()
     ..writeln('### Draft $position/$count · ${draft.title ?? draft.name}')
-    ..writeln('`${draft.projectPath}`');
+    ..writeln(_codeSpan(draft.projectPath));
   if (lookup case ApprovedCopy(:final path) when path != draft.projectPath) {
-    out.writeln('renamed from `$path`');
+    out.writeln('renamed from ${_codeSpan(path)}');
   }
   out
     ..writeln()
     ..writeln(_row('field', 'value'))
     ..writeln('|---------|-------|')
-    ..writeln(_row('doc', '`${draft.name}` (${draft.docType})'));
+    ..writeln(_row('doc', '${_codeSpan(draft.name)} (${draft.docType})'));
   if (draft.status case final status?) {
-    out.writeln(_row('status', '`$status`'));
+    out.writeln(_row('status', _codeSpan(status)));
   }
   out
-    ..writeln(_row('hash', '`${baseHashOf(toLf(draft.text))}`'))
+    ..writeln(_row('hash', _codeSpan(baseHashOf(toLf(draft.text)))))
     ..writeln(_row('old', _oldCell(lookup)));
   for (final (at, change) in changes.indexed) {
     out.writeln(_row(at == 0 ? 'changes' : '', change));
@@ -106,26 +108,63 @@ const _noChange = 'no change since the approved copy';
 
 // MARK: - Table
 
-String _row(String field, String value) => '| ${field.padRight(7)} | $value |';
+/// Returns one table row; a `|` in either cell is escaped so it splits none.
+String _row(String field, String value) =>
+    '| ${_escapePipes(field.padRight(7))} | ${_escapePipes(value)} |';
+
+String _escapePipes(String cell) => cell.replaceAll('|', r'\|');
 
 String _oldCell(ApprovalLookup lookup) => switch (lookup) {
   ApprovedCopy(:final commit) =>
-    'approved copy in commit `${commit.substring(0, 7)}`',
+    'approved copy in commit ${_codeSpan(commit.substring(0, 7))}',
   NoApprovedCopy() => 'none: never approved',
   UnknownHistory() => 'unknown: git cannot answer',
 };
+
+/// Returns the `changes` cell naming [unit], a suffix marking a one-side unit.
+String _changeCell(ChangedUnit unit) {
+  final label = switch (unit.kind) {
+    .frontmatter => 'frontmatter',
+    .field => 'field ${_codeSpan(unit.name)}',
+    .title => 'title',
+    .lead => 'lead',
+    .section => _codeSpan('## ${unit.name}'),
+  };
+  return switch (unit.side) {
+    .both => label,
+    .added => '$label (new)',
+    .removed => '$label (removed)',
+  };
+}
+
+// MARK: - Markdown
+
+/// Returns [text] as a markdown code span that no backtick inside it closes.
+///
+/// The span's backtick run is one longer than the longest run in [text]; a
+/// space pads each side when [text] starts or ends with a backtick, as
+/// CommonMark strips one such space from each side.
+String _codeSpan(String text) {
+  final fence = '`' * (_longestBacktickRun(text) + 1);
+  final pad = text.startsWith('`') || text.endsWith('`') ? ' ' : '';
+  return '$fence$pad$text$pad$fence';
+}
+
+int _longestBacktickRun(String text) {
+  var longest = 0;
+  for (final run in RegExp('`+').allMatches(text)) {
+    if (run.end - run.start > longest) longest = run.end - run.start;
+  }
+  return longest;
+}
 
 // MARK: - Diff block
 
 /// Returns the fence for [diff]: backticks, one more than its longest backtick
 /// run, at least three.
 String _fenceFor(String diff) {
-  var length = 3;
-  for (final run in RegExp('`+').allMatches(diff)) {
-    final needed = run.end - run.start + 1;
-    if (needed > length) length = needed;
-  }
-  return '`' * length;
+  final length = _longestBacktickRun(diff) + 1;
+  return '`' * (length < 3 ? 3 : length);
 }
 
 String _fenced(String body, String fence) => '${fence}diff\n$body$fence\n';

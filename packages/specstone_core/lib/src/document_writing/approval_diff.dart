@@ -39,18 +39,51 @@ String approvalDiff(String oldText, String newText, {int? context}) {
   return out.toString();
 }
 
-/// Returns the `changes` rows naming each unit that differs in [oldText] and
-/// [newText].
+/// The part of a doc a [ChangedUnit] names.
+enum UnitKind {
+  /// The frontmatter lines no key owns.
+  frontmatter,
+
+  /// One frontmatter key, by name.
+  field,
+
+  /// The title line.
+  title,
+
+  /// The head without its title line.
+  lead,
+
+  /// One `##` section, by header text.
+  section,
+}
+
+/// Which of the two texts hold a [ChangedUnit].
+enum UnitSide {
+  /// Both texts hold the unit, each with other content.
+  both,
+
+  /// Only the new text holds the unit.
+  added,
+
+  /// Only the old text holds the unit.
+  removed,
+}
+
+/// A unit that differs between two texts.
+///
+/// `name` is the key of a [UnitKind.field] or the header text of a
+/// [UnitKind.section], as written, and empty for the other kinds.
+typedef ChangedUnit = ({UnitKind kind, String name, UnitSide side});
+
+/// Returns each unit that differs in [oldText] and [newText].
 ///
 /// Both texts are read as LF lines, as [approvalDiff] reads them, so a final
 /// newline alone changes no unit. A unit is one frontmatter key (by name), the
 /// frontmatter lines no key owns, the title, the lead (the head without its
-/// title line), or one `##` section (by header text). A row names the unit as
-/// ``field `key` ``, `frontmatter`, `title`, `lead`, or `` `## header` ``, with
-/// ` (new)` or ` (removed)` when only one text has the unit. Rows follow the
-/// new text; a removed unit follows the row of the unit before it in the old
-/// text, or comes first when none precedes it.
-List<String> changedUnits(String oldText, String newText) {
+/// title line), or one `##` section (by header text). The units follow the
+/// new text; a removed unit follows the unit before it in the old text, or
+/// comes first when none precedes it.
+List<ChangedUnit> changedUnits(String oldText, String newText) {
   final before = _unitsOf(oldText);
   final after = _unitsOf(newText);
   final oldById = {for (final unit in before) unit.id: unit};
@@ -70,7 +103,7 @@ List<String> changedUnits(String oldText, String newText) {
 
   return [
     for (final unit in merged)
-      ?_rowOf(unit.label, oldById[unit.id], newById[unit.id]),
+      ?_changeOf(unit, oldById[unit.id], newById[unit.id]),
   ];
 }
 
@@ -257,9 +290,15 @@ String _range(int start, int count) {
 
 /// One comparable part of a doc.
 ///
-/// `present` is false for a unit that is always listed but may hold no text,
-/// the lead.
-typedef _Unit = ({String id, String label, String content, bool present});
+/// `name` is as [ChangedUnit] gives it. `present` is false for a unit that is
+/// always listed but may hold no text, the lead.
+typedef _Unit = ({
+  String id,
+  UnitKind kind,
+  String name,
+  String content,
+  bool present,
+});
 
 List<_Unit> _unitsOf(String text) {
   final doc = Doc.parse(_withFinalNewline(text));
@@ -279,24 +318,36 @@ List<_Unit> _unitsOf(String text) {
 
   return [
     for (final block in doc.frontmatter ?? const <KeyBlock>[])
-      (
-        id: block.key.isEmpty ? 'frontmatter#0' : idOf('field:${block.name}'),
-        label: block.key.isEmpty ? 'frontmatter' : 'field `${block.name}`',
-        content: block.text,
-        present: true,
-      ),
+      if (block.key.isEmpty)
+        (
+          id: 'frontmatter#0',
+          kind: .frontmatter,
+          name: '',
+          content: block.text,
+          present: true,
+        )
+      else
+        (
+          id: idOf('field:${block.name}'),
+          kind: .field,
+          name: block.name,
+          content: block.text,
+          present: true,
+        ),
     if (title != null)
-      (id: 'title#0', label: 'title', content: title, present: true),
+      (id: 'title#0', kind: .title, name: '', content: title, present: true),
     (
       id: 'lead#0',
-      label: 'lead',
+      kind: .lead,
+      name: '',
       content: lead,
       present: lead.trim().isNotEmpty,
     ),
     for (var s = 0; s < doc.sections.length; s++)
       (
         id: idOf('section:${doc.sections[s].headerText}'),
-        label: '`## ${doc.sections[s].headerText}`',
+        kind: .section,
+        name: doc.sections[s].headerText,
         content: lines
             .sublist(
               doc.sectionLineIndexes[s],
@@ -310,15 +361,18 @@ List<_Unit> _unitsOf(String text) {
   ];
 }
 
-/// Returns the row for a unit that differs between [before] and [after], else
-/// null.
-String? _rowOf(String label, _Unit? before, _Unit? after) {
+/// Returns [unit] as a change when it differs between [before] and [after],
+/// else null.
+ChangedUnit? _changeOf(_Unit unit, _Unit? before, _Unit? after) {
+  ChangedUnit withSide(UnitSide side) =>
+      (kind: unit.kind, name: unit.name, side: side);
+
   final had = before != null && before.present;
   final has = after != null && after.present;
-  if (has && !had) return '$label (new)';
-  if (had && !has) return '$label (removed)';
+  if (has && !had) return withSide(.added);
+  if (had && !has) return withSide(.removed);
   if (before != null && after != null && before.content != after.content) {
-    return label;
+    return withSide(.both);
   }
   return null;
 }
