@@ -593,4 +593,20 @@ void _agentTests() {
       'bundle listed in summary', () {
     expect(_pluginText('agents/sdd-reader.md'), contains('· summary'));
   });
+
+  test('f08/us01/fr02, db-r6: sdd-reader takes --summary and the design '
+      'callers hand it over on the over-budget route', () {
+    String flat(String f) => _pluginText(f).replaceAll(RegExp(r'\s+'), ' ');
+    final reader = flat('agents/sdd-reader.md');
+    expect(reader, contains('**`--summary`** (optional)'));
+    expect(reader, contains('[--summary]'));
+    expect(
+      flat('skills/brainstorming-sdd/SKILL.md'),
+      contains('mode `design`, `--summary` when the call used it'),
+    );
+    expect(
+      flat('skills/read-sdd/SKILL.md'),
+      contains('`--summary` when the call used it'),
+    );
+  });
 }

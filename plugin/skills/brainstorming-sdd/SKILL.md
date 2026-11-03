@@ -20,7 +20,7 @@ specstone context <target> --for design --budget 20000
 ```
 
 - **0:** the printed bundle grounds the brainstorm. Work from it; open none of its files.
-- **1:** the bundle is over budget. Give `specstone:sdd-reader` the target IDs, mode `design`, and the change in a
+- **1:** the bundle is over budget. Give `specstone:sdd-reader` the target IDs, mode `design`, `--summary` when the call used it, and the change in a
   sentence, with no doc text; the whole sections it returns are the ground.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.

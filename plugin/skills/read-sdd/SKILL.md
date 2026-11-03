@@ -11,13 +11,14 @@ work from text a plan or brief quotes.
 ## Pick the target and mode
 
 - **Target:** the doc the task names. For `design`, the smallest doc that holds the change: a story's bundle holds its
-  sibling stories in summary; a feature's holds them whole. For a plan task, use the story it cites. In `implement` mode the story's bundle
-  already holds its FRs, so one call covers the story and every FR ID the task lists. When a plan task cites several
-  stories, run one `specstone context <story> --for implement --budget 20000` per story. Every tool call from the
-  first CLI call counts toward three, a `Read` of a saved output included: run the next story's call only while the
-  calls so far, plus that call and its possible `Read`, stay within three. When the task cites more than three
-  stories, the next call would pass three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites
-  and no doc text.
+  sibling stories in summary; a feature's holds them whole; add `--summary` on the feature to add a story. For a plan
+  task, use the story it cites. In `implement` mode the story's bundle already holds its FRs, so one call covers the
+  story and every FR ID the task lists. When a plan task cites several stories, run one
+  `specstone context <story> --for implement --budget 20000` per story. Every tool call from the first CLI call counts
+  toward three, a `Read` of a saved output included: run the next story's call only while the calls so far, plus that
+  call and its possible `Read`, stay within three. When the task cites more than three stories, the next call would
+  pass three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites, `--summary` when the call used
+  it, and no doc text.
 - **Mode:**
 
 | Task                                | `--for`     |

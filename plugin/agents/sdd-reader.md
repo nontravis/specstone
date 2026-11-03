@@ -24,6 +24,8 @@ and section.
 - **Target IDs** (required): one or more doc names, such as a story and its FR IDs.
 - **`--for` value** (required): `query`, `implement`, or `design`, as the main session used it; `<mode>` below.
 - **Task** (required): what the docs are for.
+- **`--summary`** (optional): when the main session used it, pass it to every `context` call; a feature target then
+  prints every story in summary.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per missing input, and stop.
 - **Doc text or a doc list in the prompt**: no source. Your own `context` call prints each doc as it stands now.
 
@@ -32,10 +34,10 @@ and section.
 1. **Pull**: through Bash, make this your first CLI call, on the first target ID:
 
    ```
-   specstone context <target> --for <mode>
+   specstone context <target> --for <mode> [--summary]
    ```
 
-   Pass no `--budget`: read the bundle whole.
+   Add `--summary` only when the dispatch gives it. Pass no `--budget`: read the bundle whole.
 2. **Exit status**:
    - **0**: the printed bundle is your only source. A subfolder works: the CLI looks upward for the project.
    - **78 with `project_not_found`**: reply that the project is still on the old format, and that
