@@ -17,8 +17,6 @@ const _targetExample =
     'specstone set user_story:login/email_login#use_case '
     '--base 3f9a1c0b7e21';
 
-final _headerLine = RegExp(r'^## .*$', multiLine: true);
-
 /// What a `set` call writes: a section, a frontmatter field, the title, or the
 /// lead.
 sealed class SetTarget {
@@ -388,15 +386,20 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   });
 }
 
-final _titleOrHeaderLine = RegExp('^#{1,2} ', multiLine: true);
+/// Returns the first line of [lf] that [isRefused] accepts, or null.
+String? _firstLine(String lf, bool Function(String line) isRefused) =>
+    lf.split('\n').where(isRefused).firstOrNull;
 
 ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
   final lf = toLf(stdin);
-  if (_titleOrHeaderLine.firstMatch(lf) case final line?) {
-    final text = lf.substring(line.start, lf.indexOf('\n', line.start));
+  final refused = _firstLine(
+    lf,
+    (line) => isTitleLine(line) || isSectionHeaderLine(line),
+  );
+  if (refused != null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      'the lead holds the line "$text"; send the lead only',
+      'the lead holds the line "$refused"; send the lead only',
     );
   }
   final body = _pipedBodyOf(lf);
@@ -452,10 +455,10 @@ ReadAnswer _setSection(
   String stdin,
 ) {
   final lf = toLf(stdin);
-  if (_headerLine.firstMatch(lf) case final header?) {
+  if (_firstLine(lf, isSectionHeaderLine) case final header?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      'the body holds the header line "${header[0]}"; send the body only',
+      'the body holds the header line "$header"; send the body only',
     );
   }
   final body = _pipedBodyOf(lf);

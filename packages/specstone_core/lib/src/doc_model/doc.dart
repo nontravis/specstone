@@ -163,6 +163,14 @@ final _keyLine = RegExp(
   r'''^("[^"]*"|'[^']*'|[^\s#'"\[\]{}&*!|>%@`?-].*?)[ \t]*:(?=[ \t\r\n]|$)''',
 );
 final _sectionHeader = RegExp(r'^ {0,3}##(?:[ \t]|$)');
+
+/// Whether [line], without its line ending, is a `##` header line as
+/// [Doc.parse] reads it outside fenced code.
+bool isSectionHeaderLine(String line) => _sectionHeader.hasMatch(line);
+
+/// Whether [line], without its line ending, is a `# ` title line as
+/// [Doc.parse] reads it outside fenced code.
+bool isTitleLine(String line) => line.startsWith('# ');
 final _fenceOpen = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$');
 final _fenceClose = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*$');
 
@@ -263,14 +271,14 @@ _scan(List<String> lines) {
     final line = lines[i];
     final bare = _withoutNewline(line);
     final fenced = fence.consume(bare);
-    if (!fenced && _sectionHeader.hasMatch(bare)) {
+    if (!fenced && isSectionHeaderLine(bare)) {
       closeSection();
       headerLine = bare;
       sectionLineIndexes.add(i);
     } else if (headerLine != null) {
       bodyLines.add(line);
     } else {
-      if (!fenced && title == null && bare.startsWith('# ')) {
+      if (!fenced && title == null && isTitleLine(bare)) {
         title = bare.substring(2);
         titleLineIndex = headLines.length;
       }

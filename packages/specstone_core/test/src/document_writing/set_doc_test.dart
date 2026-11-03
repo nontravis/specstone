@@ -1708,6 +1708,52 @@ void main() {
       }
     });
 
+    test('f02/us01/fr06/e04: a refused last line with no final newline refuses with argument_invalid', () async {
+      for (final body in ['# X', '## X', 'fine\n## X']) {
+        final root = await project();
+        final before = readDoc(root, story1);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(s, req(target, leadBase(root)), body),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      }
+    });
+
+    test('f02/us01/fr06/e04: every line Doc.parse reads as a header is refused for a lead and for a section body', () async {
+      const sectionTarget = 'user_story:login/email_login#use_case';
+      for (final body in ['  ## X\n', '##\n', '##', '   ##\tX\n']) {
+        final root = await project();
+        final before = readDoc(root, story1);
+        for (final (t, base) in [
+          (target, leadBase(root)),
+          (sectionTarget, sectionBase(root, sectionTarget)),
+        ]) {
+          expect(
+            () => writeIn(root, (s) => answerSet(s, req(t, base), body)),
+            throwsA(
+              isA<IndexFault>().having(
+                (f) => f.code,
+                'code',
+                IndexFaultCode.argumentInvalid,
+              ),
+            ),
+            reason: '$t <- ${body.replaceAll('\n', r'\n')}',
+          );
+        }
+        expect(readDoc(root, story1), before);
+      }
+    });
+
     test('f02/us01/fr06/e05: empty stdin empties the lead', () async {
       final root = await project();
       final before = readDoc(root, story1);
