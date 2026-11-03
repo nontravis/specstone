@@ -8,8 +8,9 @@ Write every doc through the CLI, per `specstone:expert-sdd`: each write leaves a
 
 - **Design document**: the Owner-approved document's path. Read it whole, and list each decision, each ruling, and
   each row of its Docs to change by its ID or label.
-- **Audit findings and drafts** (a fix round): the audit's `Findings:` lines and the `<type>:<name>` drafts the
-  first author report listed. Fix only those findings, and only in those drafts, as step 2 writes; then go to step 4.
+- **Audit findings and drafts** (a fix round): the audit's `Findings:` lines and the drafts list, the first author
+  report's drafts plus each doc a fix round added, as `<type>:<name>`. Fix only those findings, and only in those
+  drafts, as step 2 writes; then go to step 4.
   List each finding that points outside those drafts under `Findings:`, unfixed.
 
 ## 2. Place each decision
@@ -54,5 +55,5 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Rows**: one per decision; in a fix round, one per finding. `Not landed:` lines come first, read before any
   approval.
-- **Drafts**: every doc you wrote or confirmed again; in a fix round, the given list plus each doc you added. The
-  audit and plan modes take this list.
+- **Drafts**: every doc you wrote or confirmed again; in a fix round, the first author report's drafts plus each doc
+  a fix round added, this one's included. The audit and plan modes take this list.

@@ -59,7 +59,7 @@ again with the same inputs.
 2. Dispatch a fresh `mode: audit` with the document's path and the author's drafts list as its targets.
 3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
    dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two such
-   fix rounds. The drafts list is the first report's, plus each doc a fix round adds.
+   fix rounds. The drafts list is the first author report's drafts plus each doc a fix round added.
 4. Show the Owner each author report and the last audit's, whole, before they approve any draft. Each doc stays a
    draft until the Owner approves it, per `specstone:expert-sdd`.
 

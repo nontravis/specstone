@@ -44,11 +44,13 @@ Waits on the Owner:
 - check: <each unconfirmed link on a draft, as printed>
 Outside the drafts:
 - <a gap or check finding whose fix lies in no draft>
+- <type>:<name>: invented whole, a deletion for the Owner
 ```
 
-- **`Findings:`**: each gap or `check` finding whose fix lies in a draft, so a fix round can act on it.
+- **`Findings:`**: each gap or `check` finding a write inside a draft fixes, so a fix round can act on it.
 - **`Waits on the Owner:`**: each `unconfirmed` link on a draft; the Owner's approval clears it.
 - **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft, such as a baseline finding on
-  an approved doc under a target, or a decision the author reported not landed. It goes to the Owner, never to a
-  fix round.
+  an approved doc under a target, or a decision the author reported not landed; and each whole draft story or FR
+  that is invented, marked as a deletion for the Owner, since author mode deletes no doc. It goes to the Owner,
+  never to a fix round.
 - **An empty heading:** write `none` under it. A fix round takes only the `Findings:` lines.
