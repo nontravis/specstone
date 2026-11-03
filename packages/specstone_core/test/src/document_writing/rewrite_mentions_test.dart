@@ -290,4 +290,14 @@ void main() {
 
     expect(result?.lfText, 'See ./d.md and ./c.md\n');
   });
+
+  test('f02/us05/fr02/e10, review 3: a leading ./ goes when the new path starts with ../', () {
+    final result = rewrite(
+      'See ./b.md\n',
+      docPath: 'a/x.md',
+      moves: [(from: 'a/b.md', to: 'c/b.md')],
+    );
+
+    expect(result?.lfText, 'See ../c/b.md\n');
+  });
 }

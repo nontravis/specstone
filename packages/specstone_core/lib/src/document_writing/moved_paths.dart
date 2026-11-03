@@ -40,7 +40,7 @@ String relativeHref(String fromDocPath, String toDocPath) {
 /// [path] has no `?` or `#` part. It keeps its text when, read from the doc's
 /// place after the moves, it still reaches the moved target, which it may do
 /// by leaving a moved folder and re-entering it, or when it names no file
-/// path (see [relativeFilePathOf]). A leading `./` stays. A link and a prose
+/// path (see [relativeFilePathOf]). A leading `./` stays unless the new path starts with `../`. A link and a prose
 /// mention share this one decision.
 String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
   final target = relativeFilePathOf(path, docPath);
@@ -49,7 +49,7 @@ String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
   final movedTarget = movedFilePath(target, moves);
   if (relativeFilePathOf(path, movedDoc) == movedTarget) return null;
   final after = relativeHref(movedDoc, movedTarget);
-  return path.startsWith('./') ? './$after' : after;
+  return path.startsWith('./') && !after.startsWith('../') ? './$after' : after;
 }
 
 /// Returns [path], a file or a folder under the docs root or outside it,
