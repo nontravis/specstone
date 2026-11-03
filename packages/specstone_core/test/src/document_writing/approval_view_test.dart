@@ -77,6 +77,25 @@ void main() {
       );
     });
 
+    test(
+      'f02/us03/fr02/e08: a renamed header prints its removed and new rows',
+      () {
+        final renamed = _render(
+          _draft(
+            text: '---\nk: v\ndraft: true\n---\n\n## B\nx\n',
+            lookup: _copy('---\nk: v\n---\n\n## A\nx\n'),
+          ),
+        );
+
+        expect(
+          renamed,
+          contains(
+            '| changes | `## A` (removed) |\n|         | `## B` (new) |\n',
+          ),
+        );
+      },
+    );
+
     test('f02/us03/fr02: the hash is the base of the draft read as LF', () {
       final crlf = _neuDraft.replaceAll('\n', '\r\n');
 
