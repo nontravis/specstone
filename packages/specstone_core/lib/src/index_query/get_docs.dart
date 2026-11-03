@@ -12,7 +12,8 @@ const _sectionSeparator = '#';
 /// Returns the text of each doc [address] names, or of one of its sections.
 ///
 /// [address] is a name as `resolve` takes it, then `#` and a section key to
-/// keep that section of each doc that holds it. A whole doc prints as written.
+/// keep that section of each doc that holds it, or [leadKey] to keep the lead
+/// of every resolved doc, empty or not. A whole doc prints as written.
 /// Throws an [IndexFault] when no doc carries the name, or when no resolved
 /// doc holds a section with the key.
 ReadAnswer answerGet(DocIndex index, String address) {
@@ -27,6 +28,18 @@ ReadAnswer answerGet(DocIndex index, String address) {
     if (key == null) {
       blocks.add(
         _GetBlock(doc, content.text, bases: basesOf(content, docType)),
+      );
+      continue;
+    }
+    if (key == leadKey) {
+      final lead = Doc.parse(toLf(content.text)).lead;
+      blocks.add(
+        _GetBlock(
+          doc,
+          lead,
+          base: baseHashOf(lead),
+          printsEmptyAsNothing: true,
+        ),
       );
       continue;
     }
@@ -83,7 +96,8 @@ ReadAnswer answerGet(DocIndex index, String address) {
 /// A base is the [baseHashOf] of the target's text: the whole text with LF
 /// line ends, the title with no `# `, a section's body, a field's whole key
 /// block. The result holds `doc`, `title`, `sections` keyed by section key,
-/// and `fields` keyed by field id. `approve --yes` checks `doc`. [docType],
+/// and `fields` keyed by field id. `approve --yes` checks `doc`. `sections`
+/// lists [leadKey] first when the lead holds non-blank text. [docType],
 /// when given, lists its sections and fields first, in its order, an absent
 /// one with [emptyBaseHash]; held ones its template lacks follow in file order.
 /// Of two sections or two field blocks sharing a key, the first counts; a doc
@@ -93,6 +107,7 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
   final doc = Doc.parse(lfText);
 
   final sections = <String, String>{
+    if (doc.lead.isNotEmpty) leadKey: baseHashOf(doc.lead),
     for (final section in docType?.sections ?? const <MergedSection>[])
       section.id: emptyBaseHash,
   };
@@ -122,7 +137,13 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
 
 /// One doc `answerGet` prints: its [text] and the base or bases it names.
 final class _GetBlock {
-  const new(this.doc, this.text, {this.base, this.bases});
+  const new(
+    this.doc,
+    this.text, {
+    this.base,
+    this.bases,
+    this.printsEmptyAsNothing = false,
+  });
 
   final IndexedDoc doc;
   final String text;
@@ -133,8 +154,13 @@ final class _GetBlock {
   /// The bases of every target of the doc; null for a section read.
   final Map<String, Object>? bases;
 
+  /// Whether empty [text] prints as the naming line alone; true for a lead.
+  final bool printsEmptyAsNothing;
+
   /// The naming line, then [text] ended by a line break.
-  String get printed => '${namingLine(doc, base: base)}\n${_endedLine(text)}';
+  String get printed => printsEmptyAsNothing && text.isEmpty
+      ? '${namingLine(doc, base: base)}\n'
+      : '${namingLine(doc, base: base)}\n${_endedLine(text)}';
 }
 
 /// Returns [text] ended by a line break, adding one only when it lacks it.

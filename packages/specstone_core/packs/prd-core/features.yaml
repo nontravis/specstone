@@ -10,6 +10,7 @@ sections:
     required: true
     description: |-
       Draw one Mermaid diagram of the actors, the systems, and the external systems.
+      Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
     template: |-
       ```mermaid
       flowchart LR

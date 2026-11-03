@@ -275,7 +275,8 @@ String _blocksBody(
   return body.toString();
 }
 
-/// Returns every `a` href of `parseMarkdown(body)`, in tree order, or null
+/// Returns every `a` href and `img` src of `parseMarkdown(body)`, in tree
+/// order, or null
 /// when `markdown` fails on [body]: `linkPlacesOf` then reads no links (LP2),
 /// so the scan never meets that body.
 List<String>? markdownHrefs(String body) {
@@ -285,8 +286,12 @@ List<String>? markdownHrefs(String body) {
   void visit(List<Node> nodes) {
     for (final node in nodes) {
       if (node is! Element) continue;
-      final href = node.attributes['href'];
-      if (node.tag == 'a' && href != null) hrefs.add(href);
+      final href = switch (node.tag) {
+        'a' => node.attributes['href'],
+        'img' => node.attributes['src'],
+        _ => null,
+      };
+      if (href != null) hrefs.add(href);
       final children = node.children;
       if (children != null) visit(children);
     }

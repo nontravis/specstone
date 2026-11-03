@@ -31,9 +31,9 @@ void main() {
     expect(answer.text, contains('\n  '));
     expect(answer.text, contains('lock the account'));
   });
-  test('f01/us06/s2, f01/us06/fr01/e02, f01/us06/fr01/e06, f01/us01/s7: a Thai phrase hits the untyped doc by DocPath and heading slug', () async {
+  test('f01/us06/s2, f01/us06/fr01/e02, f01/us06/fr01/e06, f01/us01/s7: a Thai phrase hits the untyped doc by DocPath and snake_case key', () async {
     expect(heads(answerSearch(index, 'ค้นหา', const SearchOptions())), [
-      'prds/d01_context.md#project-vision — D-01 — Project context',
+      'prds/d01_context.md#project_vision — D-01 — Project context',
     ]);
   });
   test(

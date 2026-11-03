@@ -634,6 +634,53 @@ void main() {
     expect(readDoc(root, story1), contains('## Use Case\nSign in again.\n'));
   });
 
+  test('f02/us01/fr01/e17, I1: a body that leaves a fence open is refused and the file stays', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          'See:\n\n```bash\nmake\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having((f) => f.message, 'message', contains('```bash')),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test(
+    'f02/us01/fr01/e15, I1: a fenced "## install" line in a body round-trips',
+    () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#use_case';
+      const fenced = 'Run:\n\n```bash\n## install\nmake\n```\n';
+      writeIn(
+        root,
+        (s) => answerSet(s, req(target, sectionBase(root, target)), fenced),
+      );
+      final text = getDoc(root, target)['text']! as String;
+      expect(text, contains('## install'));
+      final body = text.substring(text.indexOf('\n') + 1);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          body.replaceFirst('Run', 'Go'),
+        ),
+      );
+      expect(readDoc(root, story1), contains('Go:\n\n```bash\n## install'));
+    },
+  );
+
   test(
     'f02/us01/fr01/e15: a body line starting ## is argument_invalid',
     () async {
@@ -1647,4 +1694,200 @@ void main() {
     );
     expect(answer.text, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 5)));
+
+  group('f02/us01/fr06: set writes the lead through #_lead', () {
+    const target = 'user_story:login/email_login#_lead';
+    const address = 'user_story:login/email_login';
+    final withLead = writeProject['docs/$story1']!.replaceFirst(
+      '# Sign in with email\n',
+      '# Sign in with email\n\nOld lead.\n',
+    );
+
+    Future<Directory> project() =>
+        writeWriteProject(extra: {'docs/$story1': withLead});
+
+    String leadBase(Directory root) => getDoc(root, target)['base']! as String;
+
+    test('f02/us01/fr06/e01: #_lead parses to a LeadTarget', () {
+      expect(SetRequest.parse(target, base: 'abc').target, isA<LeadTarget>());
+      expect(SetRequest.parse(target, base: 'abc').address, address);
+    });
+
+    test('f02/us01/fr06/e01: the lead is replaced, the doc turns draft, and the new base prints', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
+      );
+      expect(
+        readDoc(root, story1),
+        before.replaceFirst('\nOld lead.\n', 'New lead.\n'),
+      );
+      final written = baseHashOf('New lead.\n');
+      expect(
+        answer.text,
+        '==> login/email_login (user_story) · $story1 · base $written <==\n',
+      );
+      expect(answer.json['base'], written);
+      expect(answer.json['draft'], isTrue);
+      expect(leadBase(root), written);
+    });
+
+    test('f02/us01/fr06/e08, I1: a lead that leaves a fence open is refused and the file stays', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, leadBase(root)),
+            'See:\n\n```bash\nmake\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.message, 'message', contains('```bash')),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('f02/us01/fr06/e04, I1: a fenced "# install" line in the lead round-trips', () async {
+      final root = await project();
+      const fenced = 'Run:\n\n```bash\n# install\nmake\n```\n';
+      writeIn(root, (s) => answerSet(s, req(target, leadBase(root)), fenced));
+      expect(getDoc(root, target)['text'], fenced);
+      final text = getDoc(root, target)['text']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, leadBase(root)),
+          text.replaceFirst('Run', 'Go'),
+        ),
+      );
+      expect(getDoc(root, target)['text'], fenced.replaceFirst('Run', 'Go'));
+    });
+
+    test('f02/us01/fr06/e04: a stdin line starting "# " or "## " refuses with argument_invalid', () async {
+      for (final body in ['# X\n', '## X\n', 'fine\n# X\n']) {
+        final root = await project();
+        final before = readDoc(root, story1);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(s, req(target, leadBase(root)), body),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      }
+    });
+
+    test('f02/us01/fr06/e04: a refused last line with no final newline refuses with argument_invalid', () async {
+      for (final body in ['# X', '## X', 'fine\n## X']) {
+        final root = await project();
+        final before = readDoc(root, story1);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(s, req(target, leadBase(root)), body),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      }
+    });
+
+    test('f02/us01/fr06/e04: every line Doc.parse reads as a header is refused for a lead and for a section body', () async {
+      const sectionTarget = 'user_story:login/email_login#use_case';
+      for (final body in ['  ## X\n', '##\n', '##', '   ##\tX\n']) {
+        final root = await project();
+        final before = readDoc(root, story1);
+        for (final (t, base) in [
+          (target, leadBase(root)),
+          (sectionTarget, sectionBase(root, sectionTarget)),
+        ]) {
+          expect(
+            () => writeIn(root, (s) => answerSet(s, req(t, base), body)),
+            throwsA(
+              isA<IndexFault>().having(
+                (f) => f.code,
+                'code',
+                IndexFaultCode.argumentInvalid,
+              ),
+            ),
+            reason: '$t <- ${body.replaceAll('\n', r'\n')}',
+          );
+        }
+        expect(readDoc(root, story1), before);
+      }
+    });
+
+    test('f02/us01/fr06/e05: empty stdin empties the lead', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, leadBase(root)), ''),
+      );
+      expect(readDoc(root, story1), before.replaceFirst('\nOld lead.\n', ''));
+      expect(answer.json['base'], emptyBaseHash);
+    });
+
+    test(
+      'f02/us01/fr06/e06: a stale base refuses with the current lead',
+      () async {
+        final root = await project();
+        expect(
+          () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+                .having((f) => f.current?.text, 'current', '\nOld lead.\n')
+                .having(
+                  (f) => f.current?.base,
+                  'base',
+                  baseHashOf('\nOld lead.\n'),
+                ),
+          ),
+        );
+      },
+    );
+
+    test('f02/us01/fr06/e07: a CRLF doc keeps CRLF', () async {
+      final root = await project();
+      docFile(
+        root,
+        story1,
+      ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
+      writeIn(
+        root,
+        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
+      );
+      expect(
+        readDoc(root, story1),
+        contains('# Sign in with email\r\nNew lead.\r\n'),
+      );
+      expect(
+        readDoc(root, story1).replaceAll('\r\n', ''),
+        isNot(contains('\n')),
+      );
+    });
+  });
 }

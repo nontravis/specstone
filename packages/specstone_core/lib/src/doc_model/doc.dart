@@ -131,6 +131,19 @@ final class Doc {
   /// Null exactly when [title] is null.
   final int? titleLineIndex;
 
+  /// The head text after the title line, or the whole head without a title
+  /// line, in the form of a section body.
+  ///
+  /// Trailing blank lines are dropped and leading ones stay; empty when
+  /// nothing but blank lines follows. Text before the title line is neither
+  /// title nor lead.
+  String get lead {
+    final at = titleLineIndex;
+    final text = _splitLines(head).skip(at == null ? 0 : at + 1).join();
+    if (text.trim().isEmpty) return '';
+    return text.endsWith('\n') ? text : '$text\n';
+  }
+
   /// Whether the `draft` key holds the YAML boolean `true`.
   ///
   /// A value that is not valid YAML counts as false.
@@ -150,6 +163,14 @@ final _keyLine = RegExp(
   r'''^("[^"]*"|'[^']*'|[^\s#'"\[\]{}&*!|>%@`?-].*?)[ \t]*:(?=[ \t\r\n]|$)''',
 );
 final _sectionHeader = RegExp(r'^ {0,3}##(?:[ \t]|$)');
+
+/// Whether [line], without its line ending, is a `##` header line as
+/// [Doc.parse] reads it outside fenced code.
+bool isSectionHeaderLine(String line) => _sectionHeader.hasMatch(line);
+
+/// Whether [line], without its line ending, is a `# ` title line as
+/// [Doc.parse] reads it outside fenced code.
+bool isTitleLine(String line) => line.startsWith('# ');
 final _fenceOpen = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$');
 final _fenceClose = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*$');
 
@@ -250,14 +271,14 @@ _scan(List<String> lines) {
     final line = lines[i];
     final bare = _withoutNewline(line);
     final fenced = fence.consume(bare);
-    if (!fenced && _sectionHeader.hasMatch(bare)) {
+    if (!fenced && isSectionHeaderLine(bare)) {
       closeSection();
       headerLine = bare;
       sectionLineIndexes.add(i);
     } else if (headerLine != null) {
       bodyLines.add(line);
     } else {
-      if (!fenced && title == null && bare.startsWith('# ')) {
+      if (!fenced && title == null && isTitleLine(bare)) {
         title = bare.substring(2);
         titleLineIndex = headLines.length;
       }
@@ -285,9 +306,18 @@ String _joinWithoutTrailingBlank(List<String> lines) {
 
 /// Returns, per line of [lines] (each without its line end), whether it is
 /// fenced code content or a fence delimiter.
-List<bool> fencedLines(List<String> lines) {
+List<bool> fencedLines(List<String> lines) => fenceScan(lines).fenced;
+
+/// Reads [lines] (each without its line end) the way [Doc.parse] does,
+/// starting outside any fence.
+///
+/// `fenced` holds, per line, whether it is fenced code content or a fence
+/// delimiter. `openFence` is the delimiter line of a fence still open after
+/// the last line, or null when every fence closed.
+({List<bool> fenced, String? openFence}) fenceScan(List<String> lines) {
   final fence = _FenceTracker();
-  return [for (final line in lines) fence.consume(line)];
+  final fenced = [for (final line in lines) fence.consume(line)];
+  return (fenced: fenced, openFence: fence.openingLine);
 }
 
 /// Tracks whether the scan is inside a fenced code block.
@@ -297,6 +327,10 @@ List<bool> fencedLines(List<String> lines) {
 final class _FenceTracker {
   String? _char;
   var _length = 0;
+  String? _openingLine;
+
+  /// The delimiter line of the open fence, or null outside a fence.
+  String? get openingLine => _openingLine;
 
   /// Whether the lines fed so far end inside an open fence.
   bool get isOpen => _char != null;
@@ -308,6 +342,7 @@ final class _FenceTracker {
     final run = close?.group(1);
     if (run != null && run[0] == _char && run.length >= _length) {
       _char = null;
+      _openingLine = null;
     }
     return true;
   }
@@ -320,6 +355,7 @@ final class _FenceTracker {
     if (isBacktick && match!.group(2)!.contains('`')) return false;
     _char = run[0];
     _length = run.length;
+    _openingLine = line;
     return true;
   }
 }

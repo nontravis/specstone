@@ -63,6 +63,19 @@ void main() {
       );
     });
 
+    test('f04/us02/fr04, PS-R3: line facts hold each file link apart from the doc links', () {
+      const linked =
+          '---\na: 1\n---\n# T\n\nSee [s](us01_x/USER_STORY.md) ![f](flow.png).\n';
+      const docPath = 'prds/f01_a/FEATURE.md';
+      final facts = _factsOf(linked, docPath: docPath);
+      expect(facts.links.map((p) => p.target), [
+        'prds/f01_a/us01_x/USER_STORY.md',
+      ]);
+      expect(facts.fileLinks, [
+        (target: 'prds/f01_a/flow.png', line: 6, shown: 'flow.png'),
+      ]);
+    });
+
     test('f04/nfr-p03: isFenced is true on a fence line and its content and false elsewhere', () {
       final facts = _factsOf(text);
       expect(
@@ -201,10 +214,21 @@ void main() {
       expect(back.toJson(), facts.toJson());
       expect(back.sectionCounts, facts.sectionCounts);
       expect(back.links, facts.links);
+      expect(back.fileLinks, facts.fileLinks);
       expect(back.sectionLines, [7, 13]);
       expect(back.fenced, [(first: 9, last: 11)]);
       expect(back.isFenced(10), isTrue);
       expect(back.isFenced(12), isFalse);
+    });
+
+    test('f04/us02/fr04, PS-R3: the JSON round-trips the file links', () {
+      final facts = _factsOf('# T\n\n![f](flow%20a.png) [c](../x.dart)\n');
+      expect(facts.fileLinks, hasLength(2));
+      final back = LineFacts.fromJson(
+        jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+        sectionCounts: facts.sectionCounts,
+      );
+      expect(back.fileLinks, facts.fileLinks);
     });
   });
 }

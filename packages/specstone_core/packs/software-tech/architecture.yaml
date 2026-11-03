@@ -24,6 +24,7 @@ sections:
       Write a Mermaid diagram that stands alone, so the reader needs no prose to read it.
       Give it a title, and type every box with its technology.
       Label every arrow with its intent and protocol; write no bare `Uses`.
+      Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
   - id: components
     header: Components
     required: true

@@ -77,5 +77,72 @@ void main() {
     test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
     });
+
+    test('f04/us02/fr04/e10, M1: a path out of the docs root and back in '
+        'by name is the doc it names', () {
+      final target = resolveDocLink('../../../docs/prds/x.md', 'prds/f/a.md');
+      expect(target, isA<DocTarget>());
+      expect((target as DocTarget).docPath, 'prds/x.md');
+      expect(
+        resolveDocLink('../../../../docs/prds/x.md', 'prds/f/a.md'),
+        isA<OutsideTarget>(),
+      );
+    });
+  });
+
+  group('relativeFilePathOf', () {
+    const from = 'prds/f/FEATURE.md';
+
+    test('f04/us02/fr04/e10: a path leaving the docs root keeps its leading '
+        '../ segments', () {
+      expect(relativeFilePathOf('../../../x/a.png', from), '../x/a.png');
+      expect(relativeFilePathOf('../../../../x.md', from), '../../x.md');
+      expect(
+        relativeFilePathOf('../../../../docs/p.md', from),
+        '../../docs/p.md',
+      );
+    });
+
+    test('f04/us02/fr04/e10, M1: a path out of the docs root and back in '
+        'by name is relative to the docs root', () {
+      expect(
+        relativeFilePathOf('../../../docs/prds/x.md', 'prds/f/a.md'),
+        'prds/x.md',
+      );
+      expect(
+        relativeFilePathOf('../../../../docs/prds/x.md', 'prds/f/a.md'),
+        '../../docs/prds/x.md',
+      );
+    });
+
+    test('f04/us02/fr04/e11: a path inside the docs root is relative to it, '
+        'decoded, with no fragment or query', () {
+      expect(
+        relativeFilePathOf('flow%20chart.png#top', from),
+        'prds/f/flow chart.png',
+      );
+      expect(relativeFilePathOf('a.png?raw=1', from), 'prds/f/a.png');
+      expect(
+        relativeFilePathOf('./sub/../a/./b.dart', from),
+        'prds/f/a/b.dart',
+      );
+      expect(relativeFilePathOf('../../d03.md', from), 'd03.md');
+    });
+
+    test('f04/us02/fr04/e13: a web address, another scheme, an authority, a '
+        'rooted path, and an empty path give null', () {
+      for (final href in [
+        'https://e.com/a.png',
+        'mailto:a@b.c',
+        '//host/a.png',
+        '/abs/x.md',
+        '#top',
+        '?q=1',
+        '',
+        'a%2Fb.png',
+      ]) {
+        expect(relativeFilePathOf(href, from), isNull, reason: href);
+      }
+    });
   });
 }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -272,7 +273,7 @@ void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
 JournalTarget _targetOf(Directory root, MigrateRequest request) =>
     JournalTarget(
       projectRoot: root,
-      docsRoot: Directory.fromUri(root.uri.resolve('docs')),
+      docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
       runGit: request.runGit,
     );
 

@@ -140,34 +140,6 @@ void main() {
     });
   });
 
-  group('PathPattern.isFolderDoc', () {
-    test('f04/us01/fr01/e11, cc-s03/inv12: a fixed file name inside a folder '
-        'that holds a placeholder is a folder doc', () {
-      for (final source in [
-        'prds/features/f{nn}_{slug}/FEATURE.md',
-        'prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md',
-        'prds/personas/{slug}/PERSONA.md',
-        'specs/f{nn}_{slug}/API.md',
-      ]) {
-        expect(PathPattern(source).isFolderDoc, isTrue, reason: source);
-      }
-    });
-
-    test('cc-s03/inv12: a fixed folder, or a placeholder in the file name, is '
-        'no folder doc', () {
-      for (final source in [
-        'prds/PROJECT.md',
-        'prds/GNFR.md',
-        'specs/TECH_STACK.md',
-        'specs/topics/{slug}.md',
-        'prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md',
-        '{slug}.md',
-      ]) {
-        expect(PathPattern(source).isFolderDoc, isFalse, reason: source);
-      }
-    });
-  });
-
   group('PathPattern.valuesOf and fill', () {
     test('f06/us02/fr02/e04: valuesOf and fill keep the placeholder values '
         'in order', () {

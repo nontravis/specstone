@@ -9,7 +9,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 typedef Mention = ({IndexedDoc doc, int line});
 
 /// A character that ends a path written in prose.
-final _pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
+final pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
 
 /// A character that continues a file name.
 final _nameChar = RegExp(r'[\p{L}\p{M}\p{N}_-]', unicode: true);
@@ -76,7 +76,7 @@ bool _names(
     final end = at + fileName.length;
     if (!_opensName(line, at) || !_closesName(line, end)) continue;
     var start = at;
-    while (start > 0 && !_pathBreak.hasMatch(line[start - 1])) {
+    while (start > 0 && !pathBreak.hasMatch(line[start - 1])) {
       start--;
     }
     final written = line.substring(start, end);
@@ -120,7 +120,7 @@ String? _docNamedBy(
 bool _opensName(String line, int at) {
   if (at == 0) return true;
   final before = line[at - 1];
-  return before == '/' || _pathBreak.hasMatch(before);
+  return before == '/' || pathBreak.hasMatch(before);
 }
 
 /// Whether a file name ending at [end] in [line] is not the head of a longer

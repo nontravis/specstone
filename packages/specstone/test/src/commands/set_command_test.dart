@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
@@ -312,5 +313,34 @@ void main() {
         '[--field <id> | --title] --base <hash> [--json]\n',
       ),
     );
+  });
+
+  test('f02/us01/fr06: set #_lead writes the lead end to end and prints the new base', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+          '# Sign in with email\n',
+          '# Sign in with email\n\nOld lead.\n',
+        ),
+      },
+    );
+    const target = 'user_story:login/email_login#_lead';
+    final base = getDoc(root, target)['base']! as String;
+    expect(base, baseHashOf('\nOld lead.\n'));
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(input: 'New lead.\n'),
+    );
+    expect(await runner.run(['set', target, '--base', base]), 0);
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      '==> login/email_login (user_story) · $story1 · base ${baseHashOf('New lead.\n')} <==\n',
+    );
+    expect(
+      readDoc(root, story1),
+      contains('# Sign in with email\nNew lead.\n\n## Use Case\n'),
+    );
+    expect(readDoc(root, story1), contains('draft: true'));
   });
 }

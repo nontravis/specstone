@@ -162,6 +162,72 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02/e09, M2: a link to a non-doc file of a moved folder follows the move, its image form too', () {
+    expect(
+      rewriteDocLinks(
+        '![flow](us02_sign_out/flow.png)\n',
+        docPath: 'prds/features/f01_login/FEATURE.md',
+        moves: reorderMoves,
+      ),
+      '![flow](us03_sign_out/flow.png)\n',
+    );
+  });
+
+  test('f02/us05/fr02, M2: a link to a moved folder itself follows the move, with or without the slash', () {
+    expect(
+      rewriteDocLinks(
+        '[a](../us02_sign_out/) [b](../us02_sign_out) [c](../us02_sign_out/#top)\n',
+        docPath: story3,
+        moves: reorderMoves,
+      ),
+      '[a](../us03_sign_out/) [b](../us03_sign_out) [c](../us03_sign_out/#top)\n',
+    );
+  });
+
+  test('f02/us05/fr02, M2: a link to an unmoved file from an unmoved doc keeps every byte', () {
+    expect(
+      rewriteDocLinks(
+        '[a](./flow.png?raw=1) [b](../us01_email_login/a%20b.png#x) [c](../../../../../lib/a.dart)\n',
+        docPath: story1,
+        moves: reorderMoves,
+      ),
+      isNull,
+    );
+  });
+
+  test('f02/us05/fr02, M2: a moved doc keeps a link that leaves the docs root pointing at the same file', () {
+    expect(
+      rewriteDocLinks(
+        '[code](../../../../lib/a.dart)\n',
+        docPath: 'prds/f/FEATURE.md',
+        moves: [(from: 'prds/f/FEATURE.md', to: 'prds/f/sub/FEATURE.md')],
+      ),
+      '[code](../../../../../lib/a.dart)\n',
+    );
+  });
+
+  test('f02/us05/fr02, M2: a link to an ancestor folder of its own doc keeps every byte when that folder is renamed', () {
+    expect(
+      rewriteDocLinks(
+        '[a](../) [b](..) [c](../#top)\n',
+        docPath: 'prds/features/f01_x/us01/USER_STORY.md',
+        moves: [(from: 'prds/features/f01_x/', to: 'prds/features/f02_x/')],
+      ),
+      isNull,
+    );
+  });
+
+  test('f02/us05/fr02, M2: a link that leaves a moved ancestor and re-enters it by name follows the rename', () {
+    expect(
+      rewriteDocLinks(
+        '[a](../../f01_x/) [b](../../f01_x/FEATURE.md#top) [c](../../f01_x)\n',
+        docPath: 'prds/features/f01_x/us01/USER_STORY.md',
+        moves: [(from: 'prds/features/f01_x/', to: 'prds/features/f02_x/')],
+      ),
+      '[a](../../f02_x/) [b](../FEATURE.md#top) [c](../../f02_x)\n',
+    );
+  });
+
   test('PD13: a swap is rewritten in one pass, and a reference definition follows too', () {
     const swap = <PathMove>[
       (from: 'a/f01_x/', to: 'a/f02_x/'),
@@ -197,15 +263,15 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02: an angle-bracket href and an href with a query are rewritten, a longer href sharing its prefix is not', () {
+  test('f02/us05/fr02: an angle-bracket href and an href with a query are rewritten, a folder sharing the prefix of a moved one is not', () {
     const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
       rewriteDocLinks(
-        '[x](<a/f01_x/F.md>) [q](a/f01_x/F.md?v=1) [l](a/f01_x/F.md.bak)\n',
+        '[x](<a/f01_x/F.md>) [q](a/f01_x/F.md?v=1) [l](a/f01_xy/F.md)\n',
         docPath: 'I.md',
         moves: moves,
       ),
-      '[x](<a/f02_x/F.md>) [q](a/f02_x/F.md?v=1) [l](a/f01_x/F.md.bak)\n',
+      '[x](<a/f02_x/F.md>) [q](a/f02_x/F.md?v=1) [l](a/f01_xy/F.md)\n',
     );
   });
 
@@ -435,6 +501,33 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02/e09, M2: planRewrites reaches a doc that links only to a moved non-doc file', () async {
+    root = await writeWriteProject(
+      extra: {
+        'docs/prds/d02_notes.md':
+            '# Notes\n\n![flow](features/f01_login/us02_sign_out/flow.png)\n',
+      },
+    );
+    final step = plan(reorderMoves)
+        .singleWhere((step) => step.path == 'docs/prds/d02_notes.md');
+    expect(
+      step.text,
+      '# Notes\n\n![flow](features/f01_login/us03_sign_out/flow.png)\n',
+    );
+  });
+
+  test('f02/us05/fr02, M2: planRewrites reaches a doc whose only link is a folder link with no trailing slash', () async {
+    root = await writeWriteProject(
+      extra: {
+        'docs/prds/d02_notes.md':
+            '# Notes\n\n[a](features/f01_login/us02_sign_out)\n',
+      },
+    );
+    final step = plan(reorderMoves)
+        .singleWhere((step) => step.path == 'docs/prds/d02_notes.md');
+    expect(step.text, '# Notes\n\n[a](features/f01_login/us03_sign_out)\n');
+  });
+
   test('f02/us05/fr02: a step is written to the path after the moves, in the file line ends', () async {
     root = await writeWriteProject(
       extra: {
@@ -503,4 +596,52 @@ void main() {
       expect(persona.text, contains('draft: true\n'));
     },
   );
+
+  test('f02/us05/fr02/e10: a doc that only mentions a moved file is rewritten, a mention of nothing stays', () async {
+    final mentioning = await writeWriteProject(
+      extra: {
+        'docs/prds/NOTES.md': '# Notes\n\nSee `features/f01_login/us02_sign_out/USER_STORY.md` and prds/x.md or and/or.\n',
+      },
+    );
+
+    final steps = writeIn(mentioning, (s) => planRewrites(s, reorderMoves));
+    final notes = steps.singleWhere(
+      (step) => step.path == 'docs/prds/NOTES.md',
+    );
+
+    expect(
+      notes.text,
+      '# Notes\n\nSee `features/f01_login/us03_sign_out/USER_STORY.md` and prds/x.md or and/or.\n',
+    );
+  });
+
+  test('f02/us05/fr02/e10: a mention of a file on disk that no doc indexes follows its folder', () async {
+    final mentioning = await writeWriteProject(
+      extra: {
+        'docs/prds/features/f01_login/us02_sign_out/flow.png': 'png',
+        'docs/prds/NOTES.md': '# Notes\n\nDiagram: features/f01_login/us02_sign_out/flow.png:3, ghost: features/f01_login/us02_sign_out/ghost.png\n',
+      },
+    );
+
+    final steps = writeIn(mentioning, (s) => planRewrites(s, reorderMoves));
+    final notes = steps.singleWhere(
+      (step) => step.path == 'docs/prds/NOTES.md',
+    );
+
+    expect(
+      notes.text,
+      '# Notes\n\nDiagram: features/f01_login/us03_sign_out/flow.png:3, ghost: features/f01_login/us02_sign_out/ghost.png\n',
+    );
+  });
+
+  test('f02/us05/fr02/e04, review 3: a leading ./ stays on a link', () {
+    expect(
+      rewriteDocLinks(
+        '[b](./b.md#x) [c](./c.md)\n',
+        docPath: 'a/x.md',
+        moves: [(from: 'a/b.md', to: 'a/d.md')],
+      ),
+      '[b](./d.md#x) [c](./c.md)\n',
+    );
+  });
 }

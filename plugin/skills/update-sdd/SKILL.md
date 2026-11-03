@@ -55,6 +55,8 @@ specstone get <type>:<name> --json
   second lists each section key under `bases.sections`.
 - **A field:** the second; the base is `bases.fields.<id>`.
 
+The text between the title and the first `##` section is `#_lead`.
+
 If the text shows the change reaches past this one target, go to step 1's hand-over with nothing written. A non-zero
 exit: report the CLI's error and stop.
 

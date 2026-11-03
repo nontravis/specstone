@@ -88,6 +88,14 @@ void main() {
     expectSectionsSay(architecture, _says);
   });
 
+  test('f03/us07/fr02: the component diagram guide ends with the Mermaid '
+      'quoting sentence', () {
+    expect(
+      sectionOf(architecture, 'component_diagram').description,
+      endsWith('\n$mermaidQuoteSentence'),
+    );
+  });
+
   test('f03/us07/s2, f03/us07/fr02: the guide gives the title form, then each '
       'section header in section order', () {
     final guide = architecture.renderGuide();

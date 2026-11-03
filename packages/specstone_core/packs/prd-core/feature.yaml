@@ -79,6 +79,7 @@ sections:
     description: |-
       Sketch the core elements of the solution as a Mermaid diagram.
       Stay at sketch level; leave layout and visual detail to design.
+      Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
     template: |-
       ```mermaid
       flowchart LR
