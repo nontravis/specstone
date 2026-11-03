@@ -45,7 +45,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e15, is-s03/inv4: a section id starting with _ is unknown_value', () {
+    test('f03/us03/fr01/e28, is-s03/inv4: a section id starting with _ is unknown_value', () {
       expect(
         () => _parse('sections: [{id: _notes}]'),
         throwsA(
