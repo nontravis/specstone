@@ -8,6 +8,7 @@ changes, and the docs say what each change now is.
 ## 1. Check the inputs
 
 - **Design document**: the approved document's path. Read it whole.
+- **Approved drafts**: the `<type>:<name>` list the author reported, each now approved.
 - **Plan**: the file to write, under `docs/superpowers/plans/`. When it exists, read it whole: you amend it with
   `Edit` and never write a second file.
 - **A plan path outside `docs/superpowers/plans/`, or a PRD or spec doc named as the file:** write nothing; report
@@ -15,9 +16,9 @@ changes, and the docs say what each change now is.
 
 ## 2. Read the stories
 
-For each story the document changes or adds, run `specstone context <story> --for implement`. Each bundle holds the
-story's FRs: their IDs and their present text are what the tasks build. Any non-zero exit: report the CLI's error and
-stop.
+For each story among the approved drafts, and the story above each draft FR or NFR, run
+`specstone context <story> --for implement` once. Each bundle holds the story's FRs: their IDs and their present
+text are what the tasks build. Any non-zero exit: report the CLI's error and stop.
 
 ## 3. Write the plan
 
@@ -38,20 +39,22 @@ Write the file with `Write`, or the change with `Edit` when it exists. Write no 
 
 ## 4. Check before you report
 
-- Each FR that the document adds or changes is built by a task.
+- Each FR among the approved drafts is built by a task.
 - No task quotes a doc's text; each cites IDs only.
 - Each cited ID is one that a step 2 bundle printed.
+- Each existing file and symbol a task changes is one you opened; list each you cannot find under `Findings:`.
 
 ## 5. Report
 
 ```
+Main session: show this report to the Owner whole before you act on it.
 Plan: <path>, written | amended
 | Story or FR | Task |
 |-------------|------|
 | <ID> | <task number>, or NOT PLANNED |
 Open questions:
 - <a gap neither the document nor any doc bears on>
-Findings: <each ID no bundle printed, or none>
+Findings: <each ID no bundle printed, each file or symbol not found, or none>
 ```
 
 Stop there: the main session shows the plan and asks the Owner how to run it.

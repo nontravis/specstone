@@ -242,7 +242,7 @@ const _shipped = <_Shipped>[
     tags:
         'f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
         'f08/us05/fr01, f08/us01/fr03, f08/us02/s1, f08/us03/s2',
-    commands: ['guide', 'new', 'set', 'check'],
+    commands: ['new', 'set', 'check'],
   ),
   (
     file: 'skills/brainstorming-sdd/SKILL.md',
@@ -323,6 +323,11 @@ const _procedures = <_Procedure>[
     commands: ['check', 'guide', 'new', 'set', 'delete'],
   ),
   (
+    file: 'skills/brainstorming-sdd/references/author.md',
+    tags: 'f08/us02/fr01, f08/us02/fr02',
+    commands: ['guide', 'new', 'get', 'set', 'search', 'check'],
+  ),
+  (
     file: 'skills/brainstorming-sdd/references/design.md',
     tags: 'f08/us02/fr01, f08/us02/fr06',
     commands: ['context'],
@@ -330,7 +335,7 @@ const _procedures = <_Procedure>[
   (
     file: 'skills/brainstorming-sdd/references/audit.md',
     tags: 'f08/us02/fr01, f08/us02/fr07',
-    commands: ['context', 'check'],
+    commands: ['context', 'list', 'check'],
   ),
   (
     file: 'skills/brainstorming-sdd/references/plan.md',
@@ -414,21 +419,36 @@ void _handOffTests() {
     final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
     final agent = _pluginText('agents/sdd-engineer.md');
     expect(skill, contains('`specstone:sdd-engineer`'));
-    for (final mode in ['author', ..._brainstormReferences]) {
+    for (final mode in _brainstormModes) {
       expect(skill, contains('`mode: $mode`'), reason: mode);
-    }
-    for (final mode in _brainstormReferences) {
       final path =
           '\${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/$mode.md';
       expect(skill, contains(path), reason: 'brainstorming-sdd, $mode');
       expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $mode');
     }
   });
+
+  test("f08/us02/fr02, f08/us02/fr06, f08/us02/fr07: each mode's report "
+      'that no skill relays opens with the line that tells the main session '
+      'to show it to the Owner whole', () {
+    for (final mode in _brainstormModes) {
+      expect(
+        _pluginText('skills/brainstorming-sdd/references/$mode.md'),
+        contains('```\n$_relayLine\n'),
+        reason: mode,
+      );
+    }
+  });
 }
 
-/// The `sdd-engineer` modes whose steps live in a reference file of
-/// `brainstorming-sdd`, each named after its mode.
-const _brainstormReferences = ['design', 'audit', 'plan'];
+/// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
+/// its steps in the skill's `references/<mode>.md`.
+const _brainstormModes = ['author', 'design', 'audit', 'plan'];
+
+/// The first line of each [_brainstormModes] report: a direct dispatch runs no
+/// skill, so the report itself tells the main session how to relay it.
+const _relayLine =
+    'Main session: show this report to the Owner whole before you act on it.';
 
 /// The body of the `## <heading>` section of [text], up to the next `## `
 /// heading; empty when [text] has no such section.
@@ -495,8 +515,26 @@ void _agentTests() {
     ).firstMatch(_pluginText('agents/sdd-engineer.md'))?.group(1);
     expect(description, contains('`specstone:sync-sdd`'));
     expect(description, contains('`specstone:bootstrap-prd`'));
-    for (final mode in ['author', ..._brainstormReferences]) {
+    for (final mode in _brainstormModes) {
       expect(description, contains('`$mode`'), reason: mode);
     }
+  });
+
+  test('inv-10, f08/us02/fr06, f08/us02/fr07: sdd-engineer holds Write and '
+      'Edit for the one file under docs/superpowers/ a design or plan '
+      'dispatch names, and audit mode writes nothing', () {
+    final agent = _pluginText('agents/sdd-engineer.md');
+    final tools = RegExp(
+      r'^tools:(.*)$',
+      multiLine: true,
+    ).firstMatch(agent)?.group(1)?.split(',').map((tool) => tool.trim());
+    expect(tools, containsAll(['Write', 'Edit']));
+    final scope = _sectionOf(agent, 'Scope Boundaries');
+    expect(scope, contains('`docs/superpowers/specs/`'));
+    expect(scope, contains('`docs/superpowers/plans/`'));
+    expect(
+      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      contains('Write nothing'),
+    );
   });
 }

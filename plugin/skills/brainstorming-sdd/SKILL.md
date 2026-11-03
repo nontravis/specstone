@@ -25,12 +25,10 @@ specstone context <target> --for design --budget 20000
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
-That call is the gate. Never look for `.specstone/` yourself first: the CLI searches each folder upward, so a run
-from a project's subfolder goes on, while a look at the working directory alone would stop there by mistake.
+That call is the gate. Never look for `.specstone/` yourself first: the CLI searches each folder upward, while a look
+at the working directory alone misses a project root above it.
 
 ## 2. Reach an approved design document
-
-You hold the conversation, the answers, and the approvals; `specstone:sdd-engineer` writes the document (step 3).
 
 - **`superpowers:brainstorming` in your skill list:** run it on the change, grounded in step 1's docs. It keeps the
   conversation, the builder check, and the approval; at its write step, write through step 3. When it reaches its
@@ -41,40 +39,46 @@ You hold the conversation, the answers, and the approvals; `specstone:sdd-engine
   3. Write the document through step 3.
   4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
 
-Until the Owner approves, write no PRD or spec doc and dispatch no `mode: author`. Approval of an approach is not
-approval of the document.
+Until the Owner approves, write no PRD or spec doc and dispatch no `mode: author`. Ask for approval only once the
+document holds no open question; approval of an approach is not approval of the document.
 
 ## 3. Write the document: design mode
 
-Write the Owner's approved answers to a brief file outside `docs/`: the decisions, the rulings in the Owner's own
-words, the approach picked, and the open questions. Dispatch `specstone:sdd-engineer` with `mode: design`, the
-brief's path, and the document's path, `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. A change from the
-builder check or the Owner goes the same way, to the same path. Ask the Owner each open question it reports.
+Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the
+open questions) to a temp file outside the repository, such as one `mktemp` makes. Dispatch
+`specstone:sdd-engineer` with `mode: design`, that brief's path, and
+`docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. Show the Owner its open questions and `Findings:`; send the
+answers, and each change from the builder check or the Owner, the same way to the same path.
 
 ## 4. Write the drafts, then audit them
 
 1. After the approval, and never before, dispatch `specstone:sdd-engineer` with `mode: author` and the document's
    path. Put no doc text and no design text in the prompt: the path is the hand-off.
-2. Dispatch a fresh `specstone:sdd-engineer` with `mode: audit`, the document's path, and the docs the author
-   touched as its targets.
-3. On findings, send them to the author while it is live, else to a new `mode: author` dispatch with the
-   document's path; then audit again with a fresh agent. Run at most two such fix rounds.
-4. Show the Owner the author's report whole, `Not landed:` lines included, and what the last audit still finds,
-   before they approve any draft. Each doc stays a draft until the Owner approves it, per `specstone:expert-sdd`.
+2. Dispatch a fresh `specstone:sdd-engineer` with `mode: audit`, the document's path, and the author's drafts list
+   as its targets.
+3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
+   dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two such
+   fix rounds.
+4. Show the Owner the author's report and the last audit's, each whole, before they approve any draft. Each doc
+   stays a draft until the Owner approves it, per `specstone:expert-sdd`.
 
 ## 5. Write the plan, then ask how to run it
 
-After the Owner approves the drafts, dispatch `specstone:sdd-engineer` with `mode: plan`, the document's path, and
-the plan's path, `docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Show the Owner the plan and ask how to run it.
+After the Owner approves the drafts, dispatch `specstone:sdd-engineer` with `mode: plan`, the document's path, the
+drafts list, and `docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Show the Owner its `NOT PLANNED` rows and open
+questions first, and send the answers to plan mode at the same path. Then show the plan and ask how to run it.
 
 ## Without the `Agent` tool
 
-Without it, or when a design, audit, or plan dispatch fails, read that mode's reference and follow it yourself:
+Without it, or when a dispatch fails, read that mode's reference and follow it yourself. An audit you run is not a
+fresh reader's, since you saw the drafts being made: tell the Owner so.
 
-- **Design:** `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md`
-- **Audit:** `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`. You saw the drafts being made, so
-  your audit is not a fresh reader's: tell the Owner so with its findings.
-- **Plan:** `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`
+| Mode   | Reference                                                             |
+|--------|-----------------------------------------------------------------------|
+| author | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md` |
+| design | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md` |
+| audit  | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`  |
+| plan   | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`   |
 
 ## Red flags
 

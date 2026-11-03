@@ -7,26 +7,28 @@ report what the author's own coverage table cannot show.
 
 ## 1. Read
 
-1. **Targets**: the docs the author touched, or the feature or doc the Owner named. For each, run
-   `specstone context <target> --for design` and read the bundle whole.
+1. **Targets**: the drafts the author reported, or the feature or doc the Owner named. Run
+   `specstone context <target> --for design` once for each feature the targets fall under (`project` for a
+   project-level doc), not once per target: a design bundle already holds the whole feature. Read each bundle whole.
    - **0:** the bundle is what you audit.
-   - **Any other exit:** report the CLI's error for that target as a finding, and go on with the rest.
+   - **Any other exit:** report the CLI's error for that call as a finding, and go on with the rest.
 2. **Design document**, when given: read it whole, and list each decision and ruling by its ID or label. Then run
-   `specstone list user_story --draft` and `specstone list fr --draft`: the drafts among the targets are what this
-   change wrote.
-3. **Check**: run `specstone check`, and keep each finding as printed.
+   `specstone list user_story --draft`, `specstone list fr --draft`, and `specstone list nf --draft`: the drafts
+   among the targets are what this change wrote.
+3. **Check**: run `specstone check <target>` once per target, not over the whole project, and keep each finding as
+   printed. An `unconfirmed` link on a draft is no gap: it waits for the Owner's approval.
 
 ## 2. Compare
 
 Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 
-| Gap                  | What you find                                                                              |
-|----------------------|--------------------------------------------------------------------------------------------|
-| Decision dropped     | a decision or ruling of the design document that no target doc carries                     |
-| Requirement invented | a draft story or FR, or a draft section of one, that traces to no decision of the document |
-| PRD and spec apart   | a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for |
-| Docs contradict      | two docs that state different values or behavior for one thing; name both                  |
-| Statement untested   | an FR statement, or a clause of one, that no scenario of its story and no edge case covers |
+| Gap                  | What you find                                                                                |
+|----------------------|----------------------------------------------------------------------------------------------|
+| Decision dropped     | a decision or ruling of the design document that no target doc carries                       |
+| Requirement invented | a draft story, FR, or NFR, or a draft section of one, tracing to no decision of the document |
+| PRD and spec apart   | a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for   |
+| Docs contradict      | two docs that state different values or behavior for one thing; name both                    |
+| Statement untested   | an FR statement, or a clause of one, that no scenario of its story and no edge case covers   |
 
 - **No design document:** skip the first two rows; every other comparison and `check` still run.
 - **A gap you could fix:** report it and fix nothing. The author fixes it in a fix round, or the Owner decides.
@@ -34,11 +36,14 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 ## 3. Report
 
 ```
+Main session: show this report to the Owner whole before you act on it.
 Audit: <targets>; design document: <path, or none>
 Findings:
 - <type>:<name>#<section>: <gap>
 - check: <finding, as printed>
+Waits on the Owner:
+- check: <each unconfirmed link on a draft, as printed>
 ```
 
-One line per gap, then one per `check` finding. With no gap and no `check` finding, the report says
-`Findings: none`.
+One `Findings:` line per gap, then one per other `check` finding. With no gap and no such finding, the report says
+`Findings: none`. A fix round takes only the `Findings:` lines.

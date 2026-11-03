@@ -1,6 +1,6 @@
 ---
 name: sdd-engineer
-description: (Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs: `author` (approved design path), `design` (brief, design path), `audit` (targets, design path if any), or `plan` (design, plan paths). Sync and bootstrap enter through `specstone:sync-sdd` and `specstone:bootstrap-prd`/`-spec`. Not for one-section edits (`specstone:update-sdd`).
+description: (Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs: `author` (approved design path), `design` (brief, design path), `audit` (targets, design path if any), or `plan` (design path, approved drafts, plan path). Sync and bootstrap enter through `specstone:sync-sdd` and `specstone:bootstrap-prd`/`-spec`. Not for one-section edits (`specstone:update-sdd`).
 tools: Bash, Read, Write, Edit, Skill
 skills:
   - specstone:expert-sdd
@@ -26,9 +26,10 @@ findings, and changed code or a batch's findings into drafts.
 
 - **`mode`** (required, no default): `author`, `sync`, `bootstrap`, `design`, `audit`, or `plan`.
 - **Design document** (author, plan: required; audit: optional): the Owner-approved document's path.
-- **Audit findings** (author, optional): fix each where it points.
+- **Audit findings, drafts** (author, optional): a fix round's `Findings:` lines and the first report's drafts.
 - **Brief, design path** (design, required): the Owner's approved answers; the document to write or amend.
-- **Targets, plan path** (audit, plan, required): the docs to read; the plan file to write.
+- **Targets** (audit, required): the docs to read.
+- **Approved drafts, plan path** (plan, required): the docs the author reported; the plan file to write.
 - **Changed paths or base commit** (sync, optional): absent, step 2 of
   `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` finds them.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix;
@@ -43,6 +44,7 @@ findings, and changed code or a batch's findings into drafts.
 | `mode: sync`                | `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`       |
 | `procedure: bootstrap-prd`  | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`  |
 | `procedure: bootstrap-spec` | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md` |
+| `mode: author`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md` |
 | `mode: design`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md` |
 | `mode: audit`               | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`  |
 | `mode: plan`                | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`   |
@@ -53,39 +55,18 @@ A failed load: report it and stop; never search.
 
 1. **Gate**: first run `specstone check` per `specstone:expert-sdd`'s project gate, replying what it tells the Owner.
 2. **Sync**: follow the On-Demand procedure from its step 2, given paths as its step 2.1 list, a given base commit
-   as its `<base>`. Then Workflow step 7.
+   as its `<base>`. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
-   each write through `--base`; list other findings. Then Workflow step 7.
-4. **Design, audit, plan**: follow the On-Demand reference through its report; then stop.
-5. **Author, read**: `Read` the design whole; list each decision by ID or label, and each given finding.
-6. **Author, write**: place each decision in a doc, noting doc and section; fix each finding where it points.
-   - **Guide**: run `specstone guide <type>` per `specstone:expert-sdd`.
-   - **New doc**: pipe its text to `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes
-     them), parents first.
-   - **Section**: base from the naming line of `specstone get <type>:<name>#<key>`; pipe the body to
-     `specstone set <type>:<name>#<key> --base <hash>`.
-   - **Field**: base from `bases.fields.<id>` of `specstone get <type>:<name> --json`; pipe the value to
-     `specstone set <type>:<name> --field <id> --base <hash>`.
-7. **Check and report**: after writing, run `specstone check`; fix each finding your writes added.
+   each write through `--base`; list other findings. Then Workflow step 5.
+4. **Author, design, audit, plan**: follow the On-Demand reference through its report; then stop.
+5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added.
 
 ## Output Format
 
-Author mode:
-
-```
-Not landed: <decision>: <why no doc took it>
-| Decision | Doc that took it |
-|----------|------------------|
-| <ID or label> | <type>:<name>#<key>, or NOT LANDED |
-Drafts for the Owner's specstone approve <type>:<name>: <type>:<name>, ...
-Findings: <step 7's lines, or none>
-```
-
-- **Rows**: one per decision; `Not landed:` lines first, read before any approval.
+- **Author, design, audit, plan**: the Report of the mode's reference, its first line included.
 - **Sync and bootstrap**: first, per draft, `specstone:expert-sdd`'s Owner confirmation `approve` item, whole (a new
   doc: its full text). Then sync, the procedure's Report to the Owner list; bootstrap, proposals and waivers, open
   questions, one `specstone delete …` line, findings outside `batch`. Then `Findings:`.
-- **Design, audit, plan**: its reference's Report.
 
 ## Scope Boundaries
 
