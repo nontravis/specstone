@@ -1073,5 +1073,13 @@ lint: {banned_words: [simply]}
       expect(section(merged, 'goal').linePrefix, '- **Rule:**');
       expect(section(merged, 'goal').bannedWords, ['fast', 'robust']);
     });
+
+    test('f03/us03/fr05/e02: a higher layer max_depth replaces a lower one, '
+        '0 included', () {
+      final base = project(shipped(), 'max_depth: 3');
+      expect(base.maxDepth, 3);
+      expect(project(base, 'max_depth: 0').maxDepth, 0);
+      expect(project(base, 'description: Another').maxDepth, 3);
+    });
   });
 }

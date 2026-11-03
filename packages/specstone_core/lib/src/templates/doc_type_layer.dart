@@ -284,6 +284,7 @@ final class DocTypeLayer {
     required this.parent,
     required this.extendsId,
     required this.path,
+    required this.maxDepth,
     required this.fields,
     required this.sections,
     required this.lint,
@@ -327,6 +328,7 @@ final class DocTypeLayer {
       parent: optionalValue<String>(map, 'parent', file: file),
       extendsId: optionalValue<String>(map, 'extends', file: file),
       path: optionalValue<String>(map, 'path', file: file),
+      maxDepth: _parseMaxDepth(map, file: file),
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
@@ -362,6 +364,9 @@ final class DocTypeLayer {
 
   /// The file pattern, when this layer writes it.
   final String? path;
+
+  /// The folder nesting cap, when this layer writes it; 0 keeps the type flat.
+  final int? maxDepth;
 
   /// The fields this layer writes, in file order.
   final List<FieldEntry> fields;
@@ -502,10 +507,28 @@ bool isDocTypeFileName(String name) {
   return name.endsWith('.yaml');
 }
 
+/// Returns the `max_depth` of [map], or null when absent.
+///
+/// Throws `unknown_value` for a value that is no integer from 0.
+int? _parseMaxDepth(YamlMap map, {required String file}) {
+  final value = map['max_depth'];
+  return switch (value) {
+    null => null,
+    final int depth when depth >= 0 => depth,
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'max_depth takes an integer from 0',
+      file: file,
+      key: 'max_depth',
+    ),
+  };
+}
+
 const _topKeys = {
   'id',
   'description',
   'path',
+  'max_depth',
   'parent',
   'extends',
   'fields',

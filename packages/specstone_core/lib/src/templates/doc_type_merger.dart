@@ -50,6 +50,7 @@ final class DocTypeMerger {
       parent: parent,
       extendsId: layer.extendsId,
       path: layer.path,
+      maxDepth: layer.maxDepth,
       bundle: _mergeList<String>(
         base.bundle,
         layer.bundle,

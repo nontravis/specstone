@@ -169,6 +169,32 @@ Iterable<Object?> _leaves(Object? node) => switch (node) {
 
 void main() {
   group('MergedDocType.toJson', () {
+    test('tpl-s03/inv28: toJson prints maxDepth right after path', () {
+      final merged = _merge(_featureLayer, 'max_depth: 2');
+
+      expect(merged.maxDepth, 2);
+      expect(merged.nests, isTrue);
+      expect(merged.toJson().keys.take(5), [
+        'id',
+        'description',
+        'path',
+        'maxDepth',
+        'fields',
+      ]);
+      expect(merged.toJson()['maxDepth'], 2);
+    });
+
+    test('tpl-s03/inv28: maxDepth 0 prints and does not nest; no key prints '
+        'nothing', () {
+      final flat = _merge(_featureLayer, 'max_depth: 0');
+      expect(flat.toJson()['maxDepth'], 0);
+      expect(flat.nests, isFalse);
+
+      final unset = _merge(_featureLayer);
+      expect(unset.toJson().containsKey('maxDepth'), isFalse);
+      expect(unset.nests, isFalse);
+    });
+
     test('f03/us01/fr03: the merged schema matches the s02 example', () {
       final json = _merge(
         _featureLayer,

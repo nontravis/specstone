@@ -75,10 +75,62 @@ void checkMergedSet(
 }) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
+  _checkNesting(sorted, layerLists, loadIndex);
   _checkPaths(sorted, layerLists, loadIndex);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
+}
+
+/// Throws `unknown_value` for a `max_depth` that breaks INV-28 (SF-R11).
+void _checkNesting(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final carriers = [
+    for (final docType in docTypes)
+      if (docType.maxDepth != null) docType,
+  ];
+  if (carriers.length > 1) {
+    final (:file, :related) = rankFaultFiles([
+      for (final carrier in carriers)
+        _writerOf(carrier.id, _wroteMaxDepth, layerLists),
+    ], loadIndex);
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'max_depth sits on ${_joinIds([for (final c in carriers) c.id])}; '
+      'only one doc type may carry it',
+      file: file,
+      key: 'max_depth',
+      relatedFiles: related,
+    );
+  }
+  for (final carrier in carriers) {
+    final String message;
+    if (carrier.parent != null) {
+      message = 'max_depth sits on ${carrier.id}, which has a parent';
+    } else if (carrier.nests && !_lastFolderHoldsSlug(carrier.path)) {
+      message = 'max_depth needs a path whose last folder holds {slug}';
+    } else {
+      continue;
+    }
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      message,
+      file: _writerOf(carrier.id, _wroteMaxDepth, layerLists),
+      key: 'max_depth',
+    );
+  }
+}
+
+bool _wroteMaxDepth(DocTypeLayer layer) => layer.maxDepth != null;
+
+/// Whether the last folder segment of [path] holds `{slug}`.
+bool _lastFolderHoldsSlug(String? path) {
+  final segments = path?.split('/') ?? const <String>[];
+  return segments.length > 1 &&
+      segments[segments.length - 2].contains('{slug}');
 }
 
 /// Throws `doc_type_path_conflict` for a `path` two doc types share

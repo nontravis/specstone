@@ -468,7 +468,7 @@ final class TemplateResolver {
   }
 
   /// The base of the doc type [id] extending [targetId]: every key of the
-  /// merged target kept but `id` and `path` (F3-D49).
+  /// merged target kept but `id`, `path`, and `max_depth` (F3-D49).
   ///
   /// `pack` and `files` restart with the defining layer; `extendsId` holds
   /// the target. Every list is unmodifiable, so the base is frozen as
@@ -485,6 +485,7 @@ final class TemplateResolver {
       parent: target.parent,
       extendsId: targetId,
       path: null,
+      maxDepth: null,
       bundle: target.bundle == null ? null : List.unmodifiable(target.bundle!),
       generators: target.generators == null
           ? null
