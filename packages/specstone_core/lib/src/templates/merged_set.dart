@@ -2,14 +2,23 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart';
 
 /// The merged doc types of one resolve, sorted by id in code point order.
 final class MergedSet {
   new({required List<MergedDocType> docTypes})
-    : docTypes = _sortedCopy(docTypes);
+    : docTypes = _sortedCopy(withNestedPaths(docTypes));
 
   /// The merged doc types, sorted by id; the caller's list is untouched.
   final List<MergedDocType> docTypes;
+
+  /// The doc type that writes `max_depth`, 0 included; null when none does.
+  MergedDocType? get nestingType {
+    for (final docType in docTypes) {
+      if (docType.maxDepth != null) return docType;
+    }
+    return null;
+  }
 
   /// Returns the doc type [id], or null when the set holds none.
   MergedDocType? lookup(String id) {

@@ -361,5 +361,38 @@ void main() {
         ),
       );
     });
+
+    test('f03/us03/fr02/e07: grid at a nested feature pattern is '
+        'doc_type_path_conflict', () {
+      const nestedPath = 'prds/features/f{nn}_{slug}/f{nn}_{slug}/FEATURE.md';
+      final layers = {
+        'feature': [
+          layerOf(
+            'feature',
+            'path: prds/features/f{nn}_{slug}/FEATURE.md\nmax_depth: 1\n',
+            file: 'packs/prd-core/feature.yaml',
+          ),
+        ],
+        'grid': [layerOf('grid', 'path: $nestedPath\n')],
+      };
+      expect(
+        () => check([
+          builtIn('feature').copyWith(
+            path: 'prds/features/f{nn}_{slug}/FEATURE.md',
+            maxDepth: 1,
+          ),
+          builtIn('grid').copyWith(path: nestedPath),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                'doc types feature and grid share the path $nestedPath',
+              ),
+        ),
+      );
+    });
   });
 }

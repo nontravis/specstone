@@ -2,6 +2,7 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The layers the resolver folded for one doc type, lowest first.
@@ -168,9 +169,10 @@ void _checkPaths(
   LoadIndex loadIndex,
 ) {
   final byPath = <String, List<MergedDocType>>{};
-  for (final docType in docTypes) {
-    final path = docType.path;
-    if (path != null) byPath.putIfAbsent(path, () => []).add(docType);
+  for (final docType in withNestedPaths(docTypes)) {
+    for (final path in docType.paths) {
+      byPath.putIfAbsent(path, () => []).add(docType);
+    }
   }
   for (final MapEntry(key: path, value: holders) in byPath.entries) {
     if (holders.length < 2) continue;
