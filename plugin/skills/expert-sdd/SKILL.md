@@ -51,8 +51,9 @@ own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
    - `approve`: run `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own
-     message: first `Why:` and one sentence, in the language of the conversation, on why the draft changed; then
-     the draft's printed text, pasted verbatim. Never write, shorten, or reformat that text yourself.
+     message: first the literal `Why:` (in English), then one sentence in the language of the conversation on why
+     the draft changed; then the draft's printed text, pasted verbatim. Never write, shorten, or reformat that text
+     yourself. When the tool output is cut, run `--dry-run` again per draft, so every draft is pasted whole.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.

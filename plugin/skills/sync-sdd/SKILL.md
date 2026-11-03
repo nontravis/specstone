@@ -24,9 +24,9 @@ costs a call the gate already makes.
 
 ## 2. Hand off
 
-With the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, and the changed
-paths the task lists, or the base commit when it lists none. Send no doc text, and work no step of the procedure
-yourself. Without the tool, or when the dispatch fails, read `references/procedure.md` beside this file
+With the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync` and the changed paths the task lists, or
+the base commit when it lists none. Send no doc text, and work no step of the procedure yourself. Without the tool,
+or when the dispatch fails, read `references/procedure.md` beside this file
 (`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follow it.
 
 ## 3. After the report
