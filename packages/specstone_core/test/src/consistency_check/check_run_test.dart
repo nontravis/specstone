@@ -188,15 +188,17 @@ void main() {
         ),
         'docs/specs/f02_signup/API.md':
             '# Sign up API\n\nSee [z](../../../nowhere.md).\n',
+        'docs/prds/features/f01_login/notes.md': '# Notes\n',
+        'docs/prds/features/f02_signup/notes.md': '# Notes\n',
       },
     );
-    expect(
-      spots(
-        checkOf(project, target: 'feature:login'),
-        FindingKind.linkTargetMissing,
-      ),
-      ['$loginApi:15: link_target_missing'],
-    );
+    final report = checkOf(project, target: 'feature:login');
+    expect(spots(report, FindingKind.linkTargetMissing), [
+      '$loginApi:15: link_target_missing',
+    ]);
+    expect(spots(report, FindingKind.untypedDoc), [
+      'prds/features/f01_login/notes.md:1: untyped_doc',
+    ]);
   });
 
   test('f04/us01/fr01/e17, cc-s03/inv12: an untyped DocPath target reports that one file', () async {
