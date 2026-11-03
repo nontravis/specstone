@@ -423,7 +423,7 @@ void main() {
         isFalse,
       );
     });
-    test('f01/us05/fr03/e19, db-r6: over budget with --summary, the next step names --summary for the reader', () {
+    test('f01/us05/fr03/e09, db-r6: over budget with --summary, the next step names --summary for the reader', () {
       const next =
           'narrow the target, or hand login with --summary to specstone:sdd-reader';
       final answer = answerContext(
