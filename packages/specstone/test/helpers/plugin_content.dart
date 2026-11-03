@@ -39,27 +39,24 @@ List<String> cliCommands(String markdown) => [
     for (final call in _specstoneCall.allMatches(scanned)) call.group(1)!,
 ];
 
-/// Returns the estimated tokens of every file under [folder]: code points,
-/// with `\r\n` folded to `\n`, divided by 4 and rounded down.
-int estTokensOf(Directory folder) {
-  var codePoints = 0;
-  for (final file in folder.listSync(recursive: true).whereType<File>()) {
-    codePoints += file.readAsStringSync().replaceAll('\r\n', '\n').runes.length;
-  }
-  return codePoints ~/ 4;
-}
+int _codePointsOf(File file) =>
+    file.readAsStringSync().replaceAll('\r\n', '\n').runes.length;
 
-/// Returns one problem per skill folder of [plugin] over [limit] estimated
-/// tokens, sorted. Agent files are never sized.
-List<String> oversizedSkills(Directory plugin, {int limit = 1500}) {
+/// Returns one problem per file under `skills/` of [plugin] over [limit]
+/// estimated tokens, each file sized alone, sorted; empty when the folder is
+/// absent. Agent files are never sized.
+///
+/// A file's estimated tokens are its code points, with `\r\n` folded to `\n`,
+/// divided by 4 and rounded down.
+List<String> oversizedSkillFiles(Directory plugin, {int limit = 1500}) {
   final skills = Directory.fromUri(plugin.uri.resolve('skills/'));
   if (!skills.existsSync()) return [];
   final problems = <String>[];
-  for (final folder in skills.listSync().whereType<Directory>()) {
-    final tokens = estTokensOf(folder);
+  for (final file in skills.listSync(recursive: true).whereType<File>()) {
+    final tokens = _codePointsOf(file) ~/ 4;
     if (tokens > limit) {
       problems.add(
-        '${_relativePath(plugin, folder)}: $tokens est. tokens, over $limit',
+        '${_relativePath(plugin, file)}: $tokens est. tokens, over $limit',
       );
     }
   }
