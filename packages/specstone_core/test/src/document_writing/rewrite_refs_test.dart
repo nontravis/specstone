@@ -217,6 +217,17 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02, M2: a link that leaves a moved ancestor and re-enters it by name follows the rename', () {
+    expect(
+      rewriteDocLinks(
+        '[a](../../f01_x/) [b](../../f01_x/FEATURE.md#top) [c](../../f01_x)\n',
+        docPath: 'prds/features/f01_x/us01/USER_STORY.md',
+        moves: [(from: 'prds/features/f01_x/', to: 'prds/features/f02_x/')],
+      ),
+      '[a](../../f02_x/) [b](../FEATURE.md#top) [c](../../f02_x)\n',
+    );
+  });
+
   test('PD13: a swap is rewritten in one pass, and a reference definition follows too', () {
     const swap = <PathMove>[
       (from: 'a/f01_x/', to: 'a/f02_x/'),
