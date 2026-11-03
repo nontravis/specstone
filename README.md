@@ -36,7 +36,7 @@ Uninstalling keeps your personal packs in `~/.specstone/packs`.
 ## Status
 
 The CLI sets up a project (`init`, `migrate`), reads docs (`list`, `get`, `search`, `structure`, `context`, `refs`,
-`guide`), writes them as drafts (`new`, `set`, `rename`, `reorder`, `delete`), and leaves approval to the Owner
+`guide`), writes them as drafts (`new`, `set`, `rename`, `reorder`, `move`, `delete`), and leaves approval to the Owner
 (`approve`). It also checks a project (`check`, `hook post-edit`) and formats and renders docs (`format`, `build`).
 The MCP server still lists no tools.
 
