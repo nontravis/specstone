@@ -122,7 +122,7 @@ ReadAnswer _overBudget(
 /// it, children inside `docPaths` sorted by chain type first, then doc type
 /// id, then DocPath, by code point (INV-15).
 List<IndexedDoc> _orderedDocs(DocIndex index, Bundle bundle) {
-  final inDocPaths = bundle.docPaths;
+  final inDocPaths = {...bundle.docPaths, ...bundle.summaryPaths};
   final roots = [
     for (final doc in index.docs)
       if (inDocPaths.contains(doc.docPath) &&
