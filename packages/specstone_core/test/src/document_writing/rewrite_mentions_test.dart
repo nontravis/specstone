@@ -240,4 +240,54 @@ void main() {
   test('f02/us05/fr02/e10: a doc with no mention returns null', () {
     expect(rewrite('# T\n\nNothing here.\n'), isNull);
   });
+
+  test(
+    'f02/us05/fr02/e11, review 1: a plain word equal to a sibling name stays',
+    () {
+      const moves = <PathMove>[(from: 'a/b/x.md', to: 'a/y/x.md')];
+
+      expect(
+        rewrite(
+          'The architecture of the system. See reports for detail.\n',
+          docPath: 'a/b/x.md',
+          moves: moves,
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test('f02/us05/fr02/e10, review 1: a folder with a slash and a bare file '
+      'name still count', () {
+    final result = rewrite(
+      'See reports/ and archive.md\n',
+      docPath: 'a/b/x.md',
+      moves: [(from: 'a/b/x.md', to: 'a/y/x.md')],
+    );
+
+    expect(result?.lfText, 'See ../b/reports/ and ../b/archive.md\n');
+  });
+
+  test('f02/us05/fr02/e10, review 2: exists runs once per path', () {
+    var calls = 0;
+    rewrite(
+      'See ../us02_sign_out/a.md and ../us02_sign_out/a.md again\n',
+      exists: (path) {
+        calls++;
+        return true;
+      },
+    );
+
+    expect(calls, 1);
+  });
+
+  test('f02/us05/fr02/e10, review 3: a leading ./ stays on a mention', () {
+    final result = rewrite(
+      'See ./b.md and ./c.md\n',
+      docPath: 'a/x.md',
+      moves: [(from: 'a/b.md', to: 'a/d.md')],
+    );
+
+    expect(result?.lfText, 'See ./d.md and ./c.md\n');
+  });
 }

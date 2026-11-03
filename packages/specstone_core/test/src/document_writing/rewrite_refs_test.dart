@@ -633,4 +633,15 @@ void main() {
       '# Notes\n\nDiagram: features/f01_login/us03_sign_out/flow.png:3, ghost: features/f01_login/us02_sign_out/ghost.png\n',
     );
   });
+
+  test('f02/us05/fr02/e04, review 3: a leading ./ stays on a link', () {
+    expect(
+      rewriteDocLinks(
+        '[b](./b.md#x) [c](./c.md)\n',
+        docPath: 'a/x.md',
+        moves: [(from: 'a/b.md', to: 'a/d.md')],
+      ),
+      '[b](./d.md#x) [c](./c.md)\n',
+    );
+  });
 }

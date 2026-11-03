@@ -8,6 +8,9 @@ import 'package:specstone_core/src/index_query/doc_mentions.dart'
 /// A closing `.`, `,`, `;`, or `:` that prose adds after a path.
 final _closingMark = RegExp(r'[.,;:]$');
 
+/// A file extension: a `.` and letters or digits that end a path.
+final _extension = RegExp(r'\.[A-Za-z0-9]+$');
+
 /// A line, or line and column, suffix such as `:12` or `:12:5`.
 final _lineSuffix = RegExp(r'(?::\d+)+$');
 
@@ -20,8 +23,9 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// changes only when [exists] holds for the path it names, given as
 /// [relativeFilePathOf] gives it, and the shared decision of
 /// [movedRelativePath] says the text no longer reaches the moved file. A
-/// token holding an escape, a web address, and a path of dots alone are not
-/// mentions.
+/// token holding an escape, a web address, a path of dots alone, and a word
+/// with neither a `/` nor a file extension are not mentions. [exists] runs
+/// once per path.
 ///
 /// Only the text after the frontmatter is read. Fenced code and link
 /// destinations keep every byte, since the link rewrite owns the
@@ -37,6 +41,9 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
   final fenced = fencedLines(lines);
   final inDestination = _destinationMask(body);
   final edits = <({int start, int end, String text})>[];
+  // A prose word is stat'ed once per run, however often it repeats.
+  final known = <String, bool>{};
+  bool existsOnce(String path) => known.putIfAbsent(path, () => exists(path));
   var lineStart = 0;
   for (final (i, line) in lines.indexed) {
     if (!fenced[i]) {
@@ -45,7 +52,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
           line.substring(start, end),
           docPath,
           moves,
-          exists,
+          existsOnce,
         );
         if (edit == null) continue;
         final from = lineStart + start;
@@ -122,6 +129,9 @@ String? _pathOf(String token) {
   final named = path
       .split('/')
       .any((s) => s.isNotEmpty && s != '.' && s != '..');
+  // A plain word is no path, though a sibling may carry its name: a mention
+  // holds a `/` or ends in a file extension.
+  final shaped = path.contains('/') || _extension.hasMatch(path);
   // Prose carries no percent escape, and the path resolver would decode one.
-  return named && !path.contains('%') ? path : null;
+  return named && shaped && !path.contains('%') ? path : null;
 }
