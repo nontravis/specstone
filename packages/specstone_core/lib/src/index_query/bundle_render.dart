@@ -100,7 +100,8 @@ ReadAnswer _overBudget(
   required int budget,
   required int tokens,
 }) {
-  final next = 'narrow the target, or hand $label to specstone:sdd-reader';
+  final handOver = bundle.summary ? '$label with --summary' : label;
+  final next = 'narrow the target, or hand $handOver to specstone:sdd-reader';
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
     for (final (i, doc) in ordered.indexed)
@@ -139,9 +140,10 @@ ReadAnswer _overBudget(
 }
 
 /// Returns [bundle]'s docs in bundle order: the joined docs in tree order,
-/// then a pre-order walk from each doc of `docPaths` whose parent is outside
-/// it, children inside `docPaths` sorted by chain type first, then doc type
-/// id, then DocPath, by code point (INV-15). A joined doc prints once, whole.
+/// then a pre-order walk from each doc of `docPaths` and `summaryPaths` whose
+/// parent is outside both, children inside both sorted by chain type first,
+/// then doc type id, then DocPath, by code point (INV-15). The walk drops a
+/// joined doc, which prints once, whole.
 List<IndexedDoc> _orderedDocs(DocIndex index, Bundle bundle) {
   final inDocPaths = {...bundle.docPaths, ...bundle.summaryPaths};
   final roots = [

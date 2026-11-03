@@ -184,7 +184,8 @@ final class Bundle {
 /// Returns the bundle [target] holds for [mode] (us05 FR-01).
 ///
 /// `--no-project` drops the docs that join through `bundle:` lists. [summary]
-/// prints a top doc's ChainType children in summary.
+/// prints a top doc's ChainType children in summary and throws
+/// `argument_conflict` outside `BundleMode.design`.
 Bundle pickBundle(
   DocIndex index,
   String target,
@@ -192,6 +193,12 @@ Bundle pickBundle(
   required bool noProject,
   bool summary = false,
 }) {
+  if (summary && mode != BundleMode.design) {
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      '--summary works only with --for design',
+    );
+  }
   final resolved = index.resolve(target);
   final untyped = resolved.where((doc) => doc.docTypeId == null).toList();
   if (untyped.isNotEmpty) {

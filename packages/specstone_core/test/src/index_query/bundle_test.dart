@@ -129,6 +129,28 @@ void main() {
       '$us02/fr01_send_reset_link.md',
     });
   });
+  test('f01/us05/fr01/e18, db-c2: summary with query or implement is argument_conflict, before the target check', () {
+    for (final mode in [BundleMode.query, BundleMode.implement]) {
+      expect(
+        () => pickBundle(
+          index,
+          'login/email_login',
+          mode,
+          noProject: false,
+          summary: true,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                '--summary works only with --for design',
+              ),
+        ),
+      );
+    }
+  });
   test('f01/us05/fr01/e17, db-c2: summary on a story, a spec doc, or project is argument_conflict', () {
     for (final (target, named) in [
       ('login/email_login', 'login/email_login (user_story)'),

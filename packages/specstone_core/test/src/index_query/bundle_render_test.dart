@@ -423,6 +423,26 @@ void main() {
         isFalse,
       );
     });
+    test('f01/us05/fr03/e19, db-r6: over budget with --summary, the next step names --summary for the reader', () {
+      const next =
+          'narrow the target, or hand login with --summary to specstone:sdd-reader';
+      final answer = answerContext(
+        index,
+        pickBundle(
+          index,
+          'login',
+          BundleMode.design,
+          noProject: false,
+          summary: true,
+        ),
+        label: 'login',
+        byCode: false,
+        budget: 1,
+      );
+      expect(answer.exitStatus, 1);
+      expect(answer.text, endsWith('Next step: $next.\n'));
+      expect(answer.json['next'], next);
+    });
     test('f01/us05/fr03/e07: a --budget that is not a positive integer is argument_invalid', () {
       for (final v in ['0', '-5', '5k']) {
         expect(
