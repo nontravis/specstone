@@ -21,7 +21,8 @@ and section.
 
 ## Input Contract
 
-- **Target IDs** (required): one or more doc names, such as a story and its FR IDs.
+- **Target IDs** (required): one or more doc names, such as a story and its FR IDs. Each may come marked
+  `--summary`; a feature so marked prints every story in summary.
 - **`--for` value** (required): `query`, `implement`, or `design`, as the main session used it; `<mode>` below.
 - **Task** (required): what the docs are for.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per missing input, and stop.
@@ -32,10 +33,10 @@ and section.
 1. **Pull**: through Bash, make this your first CLI call, on the first target ID:
 
    ```
-   specstone context <target> --for <mode>
+   specstone context <target> --for <mode> [--summary]
    ```
 
-   Pass no `--budget`: read the bundle whole.
+   Add `--summary` only on the call for a target the dispatch marks with it. Pass no `--budget`: read the bundle whole.
 2. **Exit status**:
    - **0**: the printed bundle is your only source. A subfolder works: the CLI looks upward for the project.
    - **78 with `project_not_found`**: reply that the project is still on the old format, and that
@@ -44,7 +45,7 @@ and section.
 3. **Long output**: when the host cuts the output short and saves it to a file, `Read` that file in parts through
    its closing `==> bundle:` line. It is the bundle, and the only file you open.
 4. **More targets**: run step 1 per remaining target ID, skipping any that an earlier bundle's closing doc list
-   already names.
+   already names without ` · summary`.
 5. **Select**: pick the sections the task needs. A section runs from its `## ` line to the line before the next
    line starting `## ` or `==>`. Copy every line as printed; never summarize, paraphrase, shorten, or reorder.
    A section the task needs only in part still goes back whole.

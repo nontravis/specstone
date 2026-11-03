@@ -35,10 +35,12 @@ String nameWithType(IndexedDoc doc) {
 /// Returns the line that heads the text of [doc] in `get`, `refs`, and
 /// `context`: `==> <name> (<doc type>) · <DocPath> <==`.
 ///
-/// A [base] adds ` · base <base>` before the closing ` <==`.
-String namingLine(IndexedDoc doc, {String? base}) =>
+/// A [base] adds ` · base <base>` before the closing ` <==`; a [summary] adds
+/// ` · summary` there.
+String namingLine(IndexedDoc doc, {String? base, bool summary = false}) =>
     '==> ${nameWithType(doc)} · ${doc.docPath}'
-    '${base == null ? '' : ' · base $base'} <==';
+    '${base == null ? '' : ' · base $base'}'
+    '${summary ? ' · summary' : ''} <==';
 
 /// Returns the one-line description of [doc].
 ///

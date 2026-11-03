@@ -918,6 +918,18 @@ sections:
         expect(later.sections.firstWhere((s) => s.id == 'goal').query, isTrue);
       },
     );
+
+    test('f03/us03/fr01, db-r7: a section summary survives a layer that leaves '
+        'it out; a later false turns it off', () {
+      final on = project(shipped(), 'sections: [{id: goal, summary: true}]\n');
+      final kept = project(
+        on,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(kept.sections.firstWhere((s) => s.id == 'goal').summary, isTrue);
+      final off = project(on, 'sections: [{id: goal, summary: false}]\n');
+      expect(off.sections.firstWhere((s) => s.id == 'goal').summary, isFalse);
+    });
   });
 
   group('DocTypeMerger.apply result lists', () {

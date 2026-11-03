@@ -101,6 +101,7 @@ final class MergedSection {
     this.allowedWords,
     this.linePrefix,
     this.query,
+    this.summary,
     this.bannedPatterns,
     this.requiredPatterns,
   });
@@ -149,6 +150,10 @@ final class MergedSection {
   /// Whether the section is a query section; null when no layer sets it.
   final bool? query;
 
+  /// Whether the section prints in a summary doc of a design bundle; null when
+  /// no layer sets it.
+  final bool? summary;
+
   /// The section's own banned patterns, merged by `id`; null when no layer
   /// sets them.
   final List<PatternEntry>? bannedPatterns;
@@ -170,6 +175,7 @@ final class MergedSection {
     List<String>? allowedWords,
     String? linePrefix,
     bool? query,
+    bool? summary,
     List<PatternEntry>? bannedPatterns,
     List<PatternEntry>? requiredPatterns,
   }) => MergedSection(
@@ -185,6 +191,7 @@ final class MergedSection {
     allowedWords: allowedWords ?? this.allowedWords,
     linePrefix: linePrefix ?? this.linePrefix,
     query: query ?? this.query,
+    summary: summary ?? this.summary,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
     requiredPatterns: requiredPatterns ?? this.requiredPatterns,
   );
@@ -214,6 +221,7 @@ final class MergedSection {
       'template': ?template,
       if (lint.isNotEmpty) 'lint': lint,
       'query': ?query,
+      'summary': ?summary,
     };
   }
 }

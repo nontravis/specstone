@@ -202,6 +202,7 @@ final class SectionEntry {
     this.lint,
     this.after,
     this.query,
+    this.summary,
     required this.disabled,
   });
 
@@ -231,6 +232,10 @@ final class SectionEntry {
 
   /// Whether the section is a query section, when written.
   final bool? query;
+
+  /// Whether the section prints in a summary doc of a design bundle, when
+  /// written.
+  final bool? summary;
 
   /// Whether the section is turned off by this layer.
   final bool disabled;
@@ -534,6 +539,7 @@ const _sectionKeys = {
   'disabled',
   'after',
   'query',
+  'summary',
 };
 
 const _docLintKeys = {
@@ -714,6 +720,7 @@ SectionEntry _parseSection(
         : _parseSectionLint(lintMap, file: file, prefix: prefix),
     after: optionalValue<String>(entry, 'after', file: file, prefix: prefix),
     query: optionalValue<bool>(entry, 'query', file: file, prefix: prefix),
+    summary: optionalValue<bool>(entry, 'summary', file: file, prefix: prefix),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,

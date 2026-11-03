@@ -43,6 +43,65 @@ void main() {
       '--for takes query, implement, or design, not deploy\n',
     );
   });
+  test('f01/us05/s15, db-r6: context --summary on a feature prints its stories in summary, exit 0', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run(['context', 'login', '--for', 'design', '--summary']),
+      0,
+    );
+    expect(
+      out.toString(),
+      contains('- login/email_login (user_story) · summary\n'),
+    );
+  });
+  test('f01/us05/fr01/e18, db-c2: --summary with another mode or --code refuses with exit 64', () async {
+    final project = await writeReadProject();
+    final mode = readRunner(project);
+    expect(
+      await mode.runner.run([
+        'context',
+        'login',
+        '--for',
+        'implement',
+        '--summary',
+      ]),
+      64,
+    );
+    expect(mode.err.toString(), '--summary works only with --for design\n');
+    final code = readRunner(project);
+    expect(
+      await code.runner.run([
+        'context',
+        '--code',
+        'app/lib/src/login/',
+        '--for',
+        'design',
+        '--summary',
+      ]),
+      64,
+    );
+    expect(code.err.toString(), 'give --summary with a target, not --code\n');
+  });
+  test(
+    'f01/us05/fr01/e17, db-c2: --summary on a story refuses with exit 64',
+    () async {
+      final r = readRunner(await writeReadProject());
+      expect(
+        await r.runner.run([
+          'context',
+          'login/email_login',
+          '--for',
+          'design',
+          '--summary',
+        ]),
+        64,
+      );
+      expect(
+        r.err.toString(),
+        '--summary takes a doc with children and no parent, such as a feature; login/email_login (user_story) is not one\n',
+      );
+    },
+  );
   test('f01/us05/fr03/e06: over budget with --json exits 1 with stdout one object and stderr empty', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(

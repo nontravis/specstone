@@ -127,6 +127,22 @@ void main() {
       expect(sections.first['query'], isTrue);
     });
 
+    test('f03/us01/fr03, db-r7: guide <type> --json prints a section summary '
+        'set by a project layer', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml':
+              'sections: [{id: goal, summary: true}]\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final sections = (json['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.first['summary'], isTrue);
+    });
+
     test('f03/us01/s6, f03/us01/fr02/e01: an unknown type prints usage and '
         'exits 64', () async {
       final runner = await runnerIn(await projectWith({}));

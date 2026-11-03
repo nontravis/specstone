@@ -318,6 +318,21 @@ void main() {
       });
     });
 
+    test('f03/us01/fr03, db-r7: summary prints right after query', () {
+      const section = MergedSection(
+        id: 'goal',
+        header: 'Goal',
+        query: true,
+        summary: true,
+      );
+      expect(section.toJson(), {
+        'id': 'goal',
+        'header': 'Goal',
+        'query': true,
+        'summary': true,
+      });
+    });
+
     test('f03/us01/fr03: no bundle and no query print no key, as E05 says', () {
       const docType = MergedDocType(
         id: 'feature',
