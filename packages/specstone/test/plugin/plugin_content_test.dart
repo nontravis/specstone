@@ -422,6 +422,25 @@ void _handOffTests() {
     );
   });
 
+  test('f08/us02/fr01, f08/us03/fr01, f08/us05/fr01: each dispatching skill '
+      'passes a mktemp report file and shows the reply word for word', () {
+    for (final skill in [..._handOffs, 'brainstorming-sdd']) {
+      final text = _pluginText('skills/$skill/SKILL.md');
+      expect(text, contains('`report:`'), reason: skill);
+      expect(text, contains('`mktemp`'), reason: skill);
+      expect(text, contains('`Report:` line'), reason: skill);
+      expect(text, contains('relay block word for word'), reason: skill);
+      expect(text, isNot(contains('to the Owner whole')), reason: skill);
+    }
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      expect(
+        _pluginText('skills/$skill/SKILL.md'),
+        contains('one file `mktemp` makes per batch'),
+        reason: skill,
+      );
+    }
+  });
+
   test('f08/us02/fr01, f08/us02/fr06, f08/us02/fr07: brainstorming-sdd '
       'dispatches specstone:sdd-engineer in each of its modes and names the '
       'reference of each mode it can run itself, as the agent does', () {
@@ -587,7 +606,7 @@ void _agentTests() {
 
   test('inv-10, f08/us02/fr06, f08/us02/fr07: sdd-engineer holds Write and '
       'Edit for the one file under docs/superpowers/ a design or plan '
-      'dispatch names, and audit mode writes nothing', () {
+      'dispatch names, and audit mode writes only its report file', () {
     final agent = _pluginText('agents/sdd-engineer.md');
     final tools = RegExp(
       r'^tools:(.*)$',
@@ -599,7 +618,7 @@ void _agentTests() {
     expect(scope, contains('`docs/superpowers/plans/`'));
     expect(
       _pluginText('skills/brainstorming-sdd/references/audit.md'),
-      contains('Write nothing'),
+      contains("Write nothing but the agent's `report:`"),
     );
   });
 

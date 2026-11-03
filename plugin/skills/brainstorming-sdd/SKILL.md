@@ -46,13 +46,13 @@ document holds no open question; approval of an approach is not approval of the 
 
 ## 3. Write the document: design mode
 
-Each `specstone:sdd-engineer` dispatch in steps 3 to 5 also passes `routed by: specstone:brainstorming-sdd`.
+Each `specstone:sdd-engineer` dispatch in steps 3 to 5 also passes `report:`, a `mktemp` file outside the repository;
+show the Owner each reply's `Report:` line, then its relay block word for word.
 
-Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the
-open questions) to a temp file outside the repository, such as one `mktemp` makes. Dispatch `mode: design` with
-that brief's path and `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. Show the Owner its open questions
-and `Findings:`. Add the answers, and each change from the builder check or the Owner, to the brief, and dispatch
-again with the same inputs.
+Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the open
+questions) to a `mktemp` file outside the repository. Dispatch `mode: design` with that brief's path and
+`docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. Add the answers, and each change from the builder check or the
+Owner, to the brief, and dispatch again with the same inputs.
 
 ## 4. Write the drafts, then audit them
 
@@ -62,7 +62,7 @@ again with the same inputs.
 3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
    dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two such
    fix rounds. The drafts list is the first author report's drafts plus each doc a fix round added.
-4. Show the Owner each author report and the last audit's, whole, before they approve any draft. Each doc stays a
+4. Show each author report and the last audit's before the Owner approves any draft. Each doc stays a
    draft until the Owner approves it, per `specstone:expert-sdd`.
 
 ## 5. Write the plan, then ask how to run it

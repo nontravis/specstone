@@ -29,10 +29,11 @@ PROJECT's Tech stack, that `specstone:bootstrap-prd` leaves for it.
 
 With the `Agent` tool, split the gate's findings this skill takes by doc path: one batch per feature folder, each
 `architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included. In the first
-round the rest batch always runs, even with no finding, and names `tech_stack:tech_stack`, the doc the procedure's
-step 6 fills; no feature batch fills it. In a later round it runs only when findings it owns remain. Dispatch one
-`specstone:sdd-engineer` per batch with `mode: bootstrap`, `procedure: bootstrap-spec`, and `batch:` the batch's paths;
-batches may run at once. Send no doc text, and work no step of the procedure yourself.
+round the rest batch always runs, even with no finding, and names `tech_stack:tech_stack`, the doc the procedure's step
+6 fills; no feature batch fills it. In a later round it runs only when findings it owns remain. Dispatch one
+`specstone:sdd-engineer` per batch with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, and
+`report:`, one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work
+no step of the procedure yourself.
 
 Without the tool, or when a dispatch fails, read `references/procedure.md` beside this file
 (`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md`) and follow it yourself: without the tool,
@@ -43,7 +44,7 @@ over every finding this skill takes; after a failed dispatch, for each batch no 
 When you followed the procedure yourself, its report stands in for item 1; on no batch, its step 5.3 delete stands
 in for item 4.
 
-1. Relay each `sdd-engineer` report to the Owner whole.
+1. Show the Owner each agent's `Report:` line, then its relay block word for word, before any note of your own.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them.
