@@ -330,7 +330,9 @@ final class MergedDocType {
   bool get nests => (maxDepth ?? 0) > 0;
 
   /// One path pattern per depth, from 0 to the nesting type's `max_depth`;
-  /// null when the doc type does not nest.
+  /// null when the doc type's path holds no nesting segment.
+  ///
+  /// A `MergedSet` derives it, so [copyWith] never carries it over.
   final List<String>? nestedPaths;
 
   /// The path patterns a doc of this type matches: [nestedPaths], else [path],
@@ -389,7 +391,7 @@ final class MergedDocType {
     extendsId: extendsId ?? this.extendsId,
     path: path ?? this.path,
     maxDepth: maxDepth ?? this.maxDepth,
-    nestedPaths: nestedPaths ?? this.nestedPaths,
+    nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
     generators: generators ?? this.generators,
     fields: fields ?? this.fields,

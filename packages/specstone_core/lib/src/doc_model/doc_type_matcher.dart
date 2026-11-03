@@ -38,7 +38,7 @@ final class DocTypeMatcher {
       ],
       _nesting = set.nestingType;
 
-  /// Doc types with a path, in set order (sorted by id in code point order).
+  /// One (doc type, pattern) entry per path pattern, in set order.
   final List<(MergedDocType, PathPattern)> _candidates;
 
   final MergedDocType? _nesting;
@@ -56,11 +56,8 @@ final class DocTypeMatcher {
     };
   }
 
-  /// Returns the depth past `max_depth` at which the nesting type matches
-  /// [docPath], or null.
-  ///
-  /// The nesting type's `path` with its folder segment repeated that many more
-  /// times than `max_depth` allows is what [docPath] reads.
+  /// Returns the depth of [docPath] when it reads the nesting type's `path`
+  /// with its segment repeated more than `max_depth` times; null otherwise.
   int? depthPastLimit(String docPath) {
     final nesting = _nesting;
     final path = nesting?.path;

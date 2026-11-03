@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:test/test.dart';
 
 MergedDocType docType(
@@ -134,6 +135,47 @@ void main() {
       final set = MergedSet(docTypes: [feature(maxDepth: 1), a, b]);
 
       expect(set.lookup('a')!.paths, ['x/{slug}/A.md']);
+    });
+
+    test('sf-r6: a parentless doc type at specs/f{nn}_{slug}/NOTES.md keeps '
+        'one pattern', () {
+      final notes = docType('notes', 'specs/f{nn}_{slug}/NOTES.md');
+      final set = MergedSet(docTypes: [feature(maxDepth: 2), notes]);
+
+      expect(set.lookup('notes')!.paths, ['specs/f{nn}_{slug}/NOTES.md']);
+    });
+
+    test('sf-r6: a child of feature at specs/g{nn}_{slug}/X.md keeps one '
+        'pattern', () {
+      final x = docType('x', 'specs/g{nn}_{slug}/X.md', parent: 'feature');
+      final set = MergedSet(docTypes: [feature(maxDepth: 2), x]);
+
+      expect(set.lookup('x')!.paths, ['specs/g{nn}_{slug}/X.md']);
+    });
+
+    test('a doc type that does not nest is the same object in the set', () {
+      final set = MergedSet(docTypes: [feature(maxDepth: 2), story, topic]);
+
+      expect(set.lookup('topic'), same(topic));
+      expect(withNestedPaths([feature(maxDepth: 2), topic])[1], same(topic));
+    });
+
+    test('copyWith does not carry nestedPaths across a copy', () {
+      final set = MergedSet(docTypes: [feature(maxDepth: 2), story]);
+      final copy = set.lookup('user_story')!.copyWith(path: 'specs/{slug}.md');
+
+      expect(copy.nestedPaths, isNull);
+      expect(copy.paths, ['specs/{slug}.md']);
+    });
+
+    test('nestingType and withNestedPaths pick the same carrier', () {
+      final first = docType('a', 'prds/a/f{nn}_{slug}/A.md', maxDepth: 1);
+      final second = docType('b', 'prds/b/f{nn}_{slug}/B.md', maxDepth: 2);
+      final set = MergedSet(docTypes: [second, first]);
+
+      expect(set.nestingType!.id, 'a');
+      expect(set.lookup('a')!.paths, hasLength(2));
+      expect(set.lookup('b')!.paths, hasLength(1));
     });
   });
 }

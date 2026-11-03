@@ -42,13 +42,22 @@ String pathAtDepth(String path, NestingSegment segment, int depth) {
   ].join('/');
 }
 
+/// Returns the nesting type of [docTypes]: the first that writes `max_depth`,
+/// 0 included, or null.
+MergedDocType? nestingTypeOf(List<MergedDocType> docTypes) {
+  for (final docType in docTypes) {
+    if (docType.maxDepth != null) return docType;
+  }
+  return null;
+}
+
 /// Returns [docTypes] with a pattern per depth on each doc type that nests.
 ///
 /// The nesting type is the doc type that writes `max_depth`; a doc type nests
 /// with it when its `parent` chain reaches it and its `path` holds the
 /// repeating segment. Every other doc type comes back as the same object.
 List<MergedDocType> withNestedPaths(List<MergedDocType> docTypes) {
-  final nesting = docTypes.where((t) => t.maxDepth != null).firstOrNull;
+  final nesting = nestingTypeOf(docTypes);
   if (nesting == null || !nesting.nests) return docTypes;
   final byId = {for (final docType in docTypes) docType.id: docType};
   return [for (final docType in docTypes) _nestedCopy(docType, nesting, byId)];
