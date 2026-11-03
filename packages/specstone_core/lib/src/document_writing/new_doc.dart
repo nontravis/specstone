@@ -46,7 +46,8 @@ typedef NewDocFill = String Function(
 
 /// Creates a doc of [docTypeId] from its template at its next sibling number.
 ///
-/// [parent] names a doc of the doc type's `parent:`, [slug] fills `{slug}`, and
+/// [parent] names a doc of the doc type's `parent:`, or for the nesting type a
+/// doc of its own type that sits above `max_depth`; [slug] fills `{slug}`, and
 /// a non-empty [text] is the doc's text, forced to `draft: true` at its field
 /// slot with no key of [text] moved; otherwise the doc is the template's
 /// skeleton. Under the session lock and before the write, [generators] fill
@@ -59,7 +60,8 @@ typedef NewDocFill = String Function(
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
 /// not take, [WriteFault] `doc_exists` when the doc is there and
 /// `field_not_writable` when [text] holds an `approved` key, and [RenderFault]
-/// `output_not_writable` when the disk refuses.
+/// `output_not_writable` when the disk refuses. A [parent] already at
+/// `max_depth` is `argument_invalid`.
 ReadAnswer answerNew(
   WriteSession session, {
   required String docTypeId,
@@ -88,18 +90,15 @@ ReadAnswer answerNew(
   final parentDoc = parent == null
       ? null
       : session.target('$parentTypeId:$parent');
-  final parentShape = parentDoc == null
-      ? null
+  final (parentShape, parentValues) = parentDoc == null
+      ? (null, const <String>[])
       : _shapeOfParent(set, parentTypeId!, parentDoc);
-  final parentValues = parentDoc == null
-      ? const <String>[]
-      : parentShape!.valuesOf(parentDoc.docPath)!;
   final depth = _depthOf(docType, set, parentDoc, parentShape);
   final placed =
       DocPathShape.of(docType, set, depth: depth) ??
       (throw IndexFault(
         IndexFaultCode.argumentInvalid,
-        '$docTypeId has no path to create a doc at',
+        '$docTypeId has no path to create a doc at depth $depth',
       ));
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
   if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
@@ -209,8 +208,8 @@ void _checkArguments(
 }
 
 /// Returns the shape of [parentDoc], the doc of type [parentTypeId] that the
-/// new doc hangs under.
-DocPathShape _shapeOfParent(
+/// new doc hangs under, with the placeholder values its path holds.
+(DocPathShape, List<String>) _shapeOfParent(
   MergedSet set,
   String parentTypeId,
   IndexedDoc parentDoc,
@@ -219,8 +218,11 @@ DocPathShape _shapeOfParent(
   final shape = parentType == null
       ? null
       : DocPathShape.ofDoc(parentType, set, parentDoc.docPath);
-  return shape ??
-      (throw StateError('${parentDoc.docPath} does not match its doc type'));
+  final values = shape?.valuesOf(parentDoc.docPath);
+  if (shape == null || values == null) {
+    throw StateError('${parentDoc.docPath} does not match its doc type');
+  }
+  return (shape, values);
 }
 
 /// Returns the nesting depth the new doc takes: its parent's, or one deeper

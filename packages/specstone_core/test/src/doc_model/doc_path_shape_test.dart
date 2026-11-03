@@ -123,54 +123,45 @@ void main() {
     DocPathShape? ofDoc(String id, String docPath) =>
         DocPathShape.ofDoc(nested.lookup(id)!, nested, docPath);
 
-    test(
-      'dw-s03/inv10: ofDoc gives cart depth 1, ownIndex 3, parentCount 2',
-      () {
-        final cart = ofDoc('feature', cartFeature)!;
-        expect(cart.depth, 1);
-        expect(cart.ownIndex, 3);
-        expect(cart.parentCount, 2);
-        expect(ofDoc('feature', shopFeature)!.depth, 0);
-        expect(ofDoc('feature', cartAdd), isNull);
-      },
-    );
+    test('doc_model/s03/inv10: ofDoc gives cart depth 1, ownIndex 3, parentCount 2', () {
+      final cart = ofDoc('feature', cartFeature)!;
+      expect(cart.depth, 1);
+      expect(cart.ownIndex, 3);
+      expect(cart.parentCount, 2);
+      expect(ofDoc('feature', shopFeature)!.depth, 0);
+      expect(ofDoc('feature', cartAdd), isNull);
+    });
 
-    test('dw-s03/inv10: a depth-1 domain is a spec doc shape', () {
+    test('doc_model/s03/inv10: a depth-1 domain is a spec doc shape', () {
       final domain = ofDoc('domain', cartDomain)!;
       expect(domain.depth, 1);
       expect(isSpecDocShape(domain), isTrue);
       expect(domain.parentCount, 4);
     });
 
-    test('dw-s03/inv10: of gives null past the last depth', () {
+    test('doc_model/s03/inv10: of gives null past the last depth', () {
       final feature = nested.lookup('feature')!;
       expect(DocPathShape.of(feature, nested, depth: 3), isNotNull);
       expect(DocPathShape.of(feature, nested, depth: 4), isNull);
     });
 
-    test(
-      'dw-s03/inv10: specFoldersOf cart at depth 1 is its own spec folder',
-      () {
-        expect(
-          specFoldersOf(nested, nested.lookup('feature')!, [
-            '02',
-            'shop',
-            '01',
-            'cart',
-          ], depth: 1),
-          ['specs/f02_shop/f01_cart/'],
-        );
-      },
-    );
+    test('doc_model/s03/inv10: specFoldersOf cart at depth 1 is its own spec folder', () {
+      expect(
+        specFoldersOf(nested, nested.lookup('feature')!, [
+          '02',
+          'shop',
+          '01',
+          'cart',
+        ], depth: 1),
+        ['specs/f02_shop/f01_cart/'],
+      );
+    });
 
-    test(
-      'dw-s03/inv10: unitRootsOf cart is its prd folder and its spec folder',
-      () {
-        expect(unitRootsOf(nested, nested.lookup('feature')!, cartFeature), [
-          'prds/features/f02_shop/f01_cart/',
-          'specs/f02_shop/f01_cart/',
-        ]);
-      },
-    );
+    test('doc_model/s03/inv10: unitRootsOf cart is its prd folder and its spec folder', () {
+      expect(unitRootsOf(nested, nested.lookup('feature')!, cartFeature), [
+        'prds/features/f02_shop/f01_cart/',
+        'specs/f02_shop/f01_cart/',
+      ]);
+    });
   });
 }

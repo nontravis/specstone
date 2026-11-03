@@ -103,13 +103,14 @@ final class DocPathShape {
   static int _placeholdersIn(String path) =>
       _placeholder.allMatches(path).length;
 
-  /// The `path:` split on `/`.
+  /// The pattern at [depth], split on `/`.
   final List<String> segments;
 
   /// The index of the segment that names the doc itself.
   final int ownIndex;
 
-  /// The number of placeholders in the parent doc type's `path:`.
+  /// The number of placeholders in the parent pattern at [depth]; for the
+  /// nesting type above depth 0, in its own pattern one depth up.
   final int parentCount;
 
   /// How many more times the nesting segment repeats than in the base `path:`.

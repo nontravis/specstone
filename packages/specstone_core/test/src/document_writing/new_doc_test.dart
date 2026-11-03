@@ -313,10 +313,20 @@ void main() {
 
     test('f02/us02/fr01/e14, sf-c11: a story under a sub-feature takes the next story number in its folder', () async {
       final root = await writeNestedProject();
+      final answer = writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'shop/cart',
+          slug: 'wish',
+        ),
+      );
       expect(
-        pathOf(root, 'user_story', 'shop/cart', 'wish'),
+        answer.json['path'],
         'prds/features/f02_shop/f01_cart/us03_wish/USER_STORY.md',
       );
+      expect(answer.json['name'], 'shop/cart/wish');
     });
 
     test('f02/us02/fr01/e15, sf-c11: a feature with --parent lands in that feature at the next feature number', () async {
@@ -394,6 +404,11 @@ void main() {
               'feature takes no --parent',
             ),
           ),
+        );
+        expect(
+          Directory('${root.path}/docs/prds/features/f01_login/f01_x')
+              .existsSync(),
+          isFalse,
         );
       },
     );
