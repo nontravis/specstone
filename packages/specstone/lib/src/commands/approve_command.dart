@@ -23,7 +23,9 @@ class ApproveCommand extends WriteCommand {
       ..addOption(
         'context',
         valueHelp: 'n',
-        help: 'Show n unchanged lines around each change; the default is 3.',
+        help:
+            'Show n lines around each change, in place of the whole changed '
+            'unit.',
       );
   }
 
