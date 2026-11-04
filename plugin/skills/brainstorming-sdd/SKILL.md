@@ -27,11 +27,11 @@ specstone context <target> --for design --budget 20000
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
-For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
-questions, and show the Owner each answer; go on only after their yes.
-
 That call is the gate. Never look for `.specstone/` yourself first: the CLI searches upward from each folder, and a look
 at the working directory misses a root above it.
+
+For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
+questions, and show the Owner each answer; go on only after their yes.
 
 ## 2. Reach an approved design document
 
