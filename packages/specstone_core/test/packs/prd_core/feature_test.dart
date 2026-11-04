@@ -1,7 +1,14 @@
+// The placement lines are the pack's text, kept verbatim on one line each.
+// ignore_for_file: lines_longer_than_80_chars
+
+import 'dart:convert';
+
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 const _templates = {
@@ -13,6 +20,17 @@ const _templates = {
   'out_of_scope': '- <thing> — <owning feature | not planned>',
   'success_measures': '- <behavior change> — <target> by <date>',
 };
+
+const _placementLines = [
+  'Place a new requirement by three questions, and state the answer to each when you propose its place:',
+  '1. Does it use an entity, invariant, or rule an existing feature owns (in its domain doc, where the project has one)? No: a new top feature.',
+  '2. Yes: how many stories does it yield? One: a new story in the deepest such feature that holds stories.',
+  "3. Several: do those stories own entities or invariants the feature's other stories do not use? Yes: a new sub-feature under that feature. No: new stories in that feature.",
+  'A sub-feature holds at least 2 stories or sub-features; a lone story never starts one.',
+  'A feature that holds sub-features holds no story; a lone story whose only spec is such a parent goes to the sub-feature whose stories it is closest to, and the proposal says so.',
+  'The parent keeps only what all its sub-features share.',
+  "When `check` reports `chars_over_limit` on a feature's spec doc, propose a split by the same three questions; the Owner approves it.",
+];
 
 void main() {
   late MergedDocType feature;
@@ -110,5 +128,27 @@ void main() {
       ],
       ['problem', 'out_of_scope'],
     );
+  });
+
+  test('f03/us06/fr01, sf-r5: feature carries max_depth 3', () {
+    expect(feature.maxDepth, 3);
+  });
+
+  test('f03/us06/fr02, sf-r8: the feature description in guide feature ends '
+      'with the placement questions', () {
+    final lines = const LineSplitter().convert(feature.description!);
+    expect(
+      lines.sublist(lines.length - _placementLines.length),
+      _placementLines,
+    );
+  });
+
+  test('sf-r5: writeNestedProject without its feature.yaml still names '
+      'shop/cart', () async {
+    final session = openSession(
+      await writeNestedProject(without: {'.specstone/templates/feature.yaml'}),
+    );
+    addTearDown(session.close);
+    expect(session.index.at(cartFeature)!.name, 'shop/cart');
   });
 }

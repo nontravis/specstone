@@ -158,7 +158,19 @@ void main() {
         expect(parentTypeOf(docs[5], nested)?.id, 'feature');
       });
       test('sf-c11: a flat set never gives a feature a parent', () {
-        expect(parentTypeOf(docs[1], set), isNull);
+        final flat = MergedSet(
+          docTypes: const [
+            MergedDocType(
+              id: 'feature',
+              path: 'prds/features/f{nn}_{slug}/FEATURE.md',
+              fields: [],
+              sections: [],
+              lint: MergedLint(),
+              files: [],
+            ),
+          ],
+        );
+        expect(parentTypeOf(docs[1], flat), isNull);
       });
     });
   });

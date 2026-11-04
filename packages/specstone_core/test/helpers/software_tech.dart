@@ -221,9 +221,15 @@ void expectSpecGuide(
   MergedDocType docType, {
   required String title,
   List<String> says = const [],
+  int? maxChars,
 }) {
   final id = docType.id;
-  expectGuideShape(docType, title: title, pack: 'software-tech');
+  expectGuideShape(
+    docType,
+    title: title,
+    pack: 'software-tech',
+    maxChars: maxChars,
+  );
   final description = docType.description!;
   expect(description, contains('Never write `status:`'), reason: id);
   final text = _squash(description);
@@ -253,11 +259,12 @@ void expectSectionsSay(MergedDocType docType, Map<String, List<String>> says) {
   }
 }
 
-/// Expects the 400-line cap and the four research sources on [docType].
-void expectSpecLint(MergedDocType docType) {
+/// Expects the 400-line cap, the [maxChars] cap, and the four research
+/// sources on [docType].
+void expectSpecLint(MergedDocType docType, {int? maxChars}) {
   final id = docType.id;
   expect(docType.lint.maxLines, 400, reason: id);
-  expect(docType.lint.maxChars, isNull, reason: id);
+  expect(docType.lint.maxChars, maxChars, reason: id);
   expect(docType.lint.bannedWords, isNull, reason: id);
   expect(docType.lint.allowedWords, isNull, reason: id);
   for (final section in docType.sections) {
