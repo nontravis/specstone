@@ -24,16 +24,16 @@ costs a call the gate already makes.
 
 ## 2. Hand off
 
-With the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync` and the changed paths the task lists, or
-the base commit when it lists none. Send no doc text, and work no step of the procedure yourself. Without the tool,
-or when the dispatch fails, read `references/procedure.md` beside this file
-(`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follow it.
+With the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a file `mktemp` makes outside the
+repository, and the changed paths the task lists, or the base commit when it lists none. Send no doc text, and work no
+step of the procedure yourself. Without the tool, or when the dispatch fails, read `references/procedure.md` beside this
+file (`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follow it.
 
 ## 3. After the report
 
 When you followed the procedure yourself, its report stands in for item 1.
 
-1. Relay `sdd-engineer`'s report to the Owner whole.
+1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 3. Ask the Owner each open question; send the answers to the same agent while it is live, else dispatch a new one
    with them.

@@ -1,6 +1,6 @@
 `specstone:sdd-engineer` runs this in `mode: audit`, its gate already made; so does the runner of
-`specstone:brainstorming-sdd` when it has no `Agent` tool or the dispatch failed. Write nothing: no doc, no file, no
-fix. As the agent, ask the Owner nothing: each gap goes into your report.
+`specstone:brainstorming-sdd` when it has no `Agent` tool or the dispatch failed. Write nothing but the agent's `report:`
+file: no doc, no other file, no fix. As the agent, ask the Owner nothing: each gap goes into your report.
 
 `specstone check` reads each doc's form, not what it means. Read the docs as a reader who did not write them, and
 report what the author's own coverage table cannot show.

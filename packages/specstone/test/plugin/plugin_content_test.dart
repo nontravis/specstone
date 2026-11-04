@@ -453,6 +453,34 @@ void _handOffTests() {
     );
   });
 
+  test('f08/us02/fr01, f08/us03/fr01, f08/us05/fr01: each dispatching skill '
+      'passes a mktemp report file and shows the reply word for word', () {
+    for (final skill in [..._handOffs, 'brainstorming-sdd']) {
+      final text = _pluginText('skills/$skill/SKILL.md');
+      expect(text, contains('`report:`'), reason: skill);
+      expect(text, contains('`mktemp`'), reason: skill);
+      expect(text, contains('`Report:` line'), reason: skill);
+      expect(
+        text,
+        contains('relay block word for word, before your own notes'),
+        reason: skill,
+      );
+      expect(text, isNot(contains('to the Owner whole')), reason: skill);
+    }
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      expect(
+        _pluginText('skills/$skill/SKILL.md'),
+        contains('one file `mktemp` makes per batch'),
+        reason: skill,
+      );
+      expect(
+        _pluginText('skills/$skill/SKILL.md'),
+        contains('`mode: bootstrap`'),
+        reason: skill,
+      );
+    }
+  });
+
   test('f08/us02/fr01, f08/us02/fr06, f08/us02/fr07: brainstorming-sdd '
       'dispatches specstone:sdd-engineer in each of its modes and names the '
       'reference of each mode it can run itself, as the agent does', () {
@@ -468,24 +496,59 @@ void _handOffTests() {
     }
   });
 
-  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07: sdd-engineer opens an '
-      'author, design, audit, or plan report with the relay line only when '
-      'no routed by names a skill, and brainstorming-sdd names itself', () {
+  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
+      'f08/us05/fr01: sdd-engineer writes its whole report to the report file '
+      'and replies with the Report line and the relay block', () {
     final agent = _pluginText('agents/sdd-engineer.md');
-    expect(_sectionOf(agent, 'Input Contract'), contains('**`routed by`**'));
+    final input = _sectionOf(agent, 'Input Contract');
+    expect(input, contains('**`report`**'));
+    expect(input, contains('`mktemp`'));
+    expect(input, contains('write `OPEN QUESTIONS:`'));
     final output = _sectionOf(agent, 'Output Format');
-    expect(output, contains('no `routed by`'));
-    expect(output, contains('`$_relayLine`'));
+    expect(output, contains('`Report: <path>`'));
+    expect(output, contains('relay block'));
+    expect(output, contains('always including the `Findings:` line'));
+    expect(output, contains('each pointer fixed'));
     expect(
-      _pluginText('skills/brainstorming-sdd/SKILL.md'),
-      contains('`routed by: specstone:brainstorming-sdd`'),
+      output,
+      contains(
+        'then `Findings:`, each finding left in `batch` '
+        'or added by your writes',
+      ),
     );
-    for (final mode in _brainstormModes) {
+    expect(output, contains('never their text'));
+    for (final mode in [
+      'author',
+      'design',
+      'audit',
+      'plan',
+      'sync',
+      'bootstrap',
+    ]) {
       expect(
-        _pluginText('skills/brainstorming-sdd/references/$mode.md'),
-        isNot(contains(_relayLine)),
-        reason: '$mode.md must leave the line to the agent',
+        output,
+        contains('**${mode[0].toUpperCase()}${mode.substring(1)}'),
+        reason: '$mode names its relay block',
       );
+    }
+    expect(output, contains('Every stop, an early one included'));
+    expect(output, contains('`## Round <n>`'));
+    expect(_sectionOf(agent, 'Scope Boundaries'), contains('`report:`'));
+    expect(
+      _sectionOf(agent, 'Scope Boundaries'),
+      contains(
+        'Beyond the `report:` file, `Write` or `Edit` only the one file',
+      ),
+    );
+  });
+
+  test('f08/us02/fr02: no shipped plugin file holds the relay line or '
+      'routed by', () {
+    for (final file
+        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+      final text = file.readAsStringSync();
+      expect(text, isNot(contains(_relayLine)), reason: file.path);
+      expect(text, isNot(contains('routed by')), reason: file.path);
     }
   });
 
@@ -525,8 +588,7 @@ void _handOffTests() {
 /// its steps in the skill's `references/<mode>.md`.
 const _brainstormModes = ['author', 'design', 'audit', 'plan'];
 
-/// The first line of each [_brainstormModes] report: a direct dispatch runs no
-/// skill, so the report itself tells the main session how to relay it.
+/// The relay line the report file replaced; no shipped file may hold it.
 const _relayLine =
     'Main session: show this report to the Owner whole before you act on it.';
 
@@ -602,7 +664,8 @@ void _agentTests() {
 
   test('inv-10, f08/us02/fr06, f08/us02/fr07: sdd-engineer holds Write and '
       'Edit for the one file under docs/superpowers/ a design or plan '
-      'dispatch names, and audit mode writes nothing', () {
+      'dispatch names, and audit, design, and plan mode write no other '
+      'file but the report file', () {
     final agent = _pluginText('agents/sdd-engineer.md');
     final tools = RegExp(
       r'^tools:(.*)$',
@@ -614,8 +677,21 @@ void _agentTests() {
     expect(scope, contains('`docs/superpowers/plans/`'));
     expect(
       _pluginText('skills/brainstorming-sdd/references/audit.md'),
-      contains('Write nothing'),
+      contains("Write nothing but the agent's `report:`"),
     );
+    for (final file in ['design.md', 'plan.md']) {
+      final text = _pluginText('skills/brainstorming-sdd/references/$file');
+      expect(
+        text,
+        contains("Write no other file but the agent's `report:` file"),
+        reason: file,
+      );
+      expect(
+        text,
+        contains("write nothing but the agent's `report:` file"),
+        reason: file,
+      );
+    }
   });
 
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
