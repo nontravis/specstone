@@ -905,6 +905,41 @@ void main() {
       );
     });
 
+    for (final (first, second) in [
+      ('add_item', 'drop_item'),
+      ('drop_item', 'add_item'),
+    ]) {
+      test(
+        'f02/us05/fr02, f02/us07/fr02: two sibling stories that link each other move under login, $first first, and each link resolves',
+        () async {
+          final root = await writeNestedProject();
+          appendTo(
+            root,
+            cartAdd,
+            '\nSee [drop item](../us02_drop_item/USER_STORY.md).\n',
+          );
+          appendTo(
+            root,
+            cartDrop,
+            '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+          );
+          move(root, 'user_story:shop/cart/$first', 'login');
+          move(root, 'user_story:shop/cart/$second', 'login');
+          String folderOf(String slug) =>
+              slug == first ? 'us02_$slug' : 'us03_$slug';
+          expect(
+            readDoc(root, '$f/${folderOf('add_item')}/USER_STORY.md'),
+            contains('(../${folderOf('drop_item')}/USER_STORY.md)'),
+          );
+          expect(
+            readDoc(root, '$f/${folderOf('drop_item')}/USER_STORY.md'),
+            contains('(../${folderOf('add_item')}/fr01_check_stock.md)'),
+          );
+          expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        },
+      );
+    }
+
     test('f02/us07/fr01/e01, sf-c6: no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
       final root = await writeNestedProject();
       final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
