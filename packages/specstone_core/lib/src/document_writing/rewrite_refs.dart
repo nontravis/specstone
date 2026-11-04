@@ -121,11 +121,11 @@ String? rewriteDocRefs(
 /// after [moves] and the renames in [renamed].
 ///
 /// The candidates are the docs, typed or untyped, that link to a doc or to
-/// any other file or folder under a moved path, that move away from a link's
-/// target, that hold a path mention [rewritePathMentions] changes, and, for
-/// [renamed], the typed docs whose `doc_ref` values name a renamed doc and
-/// the `journey` and `api` docs whose step identities, FR trace cells, or
-/// `confirmed` labels do.
+/// any other file or folder under a moved path, that move and hold a link
+/// [rewriteDocLinks] changes, that hold a path mention [rewritePathMentions]
+/// changes, and, for [renamed], the typed docs whose `doc_ref` values name a
+/// renamed doc and the `journey` and `api` docs whose step identities, FR
+/// trace cells, or `confirmed` labels do.
 /// A doc is chosen from a lenient read, so a non-UTF-8 doc that names nothing
 /// renamed never blocks. Each is read from disk before the moves; a step
 /// holds its text after the rewrites, in the file's line endings and BOM,
@@ -147,7 +147,7 @@ List<WriteStep> planRewrites(
       }
     }
     if (_linksToMovedFile(index, doc, moves) ||
-        _movesAwayFromLink(index, doc, moves) ||
+        _movesWithChangedLink(index, doc, moves) ||
         _mentionsMovedFile(session, doc, moves)) {
       candidates[doc.docPath] = doc;
     }
@@ -172,18 +172,20 @@ bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
         .fileLinks
         .any((link) => movedFilePath(link.target, moves) != link.target);
 
-/// Whether [doc] moves and a link it holds takes another shortest path from
-/// its new folder; a link that keeps its shortest path still reaches it.
-bool _movesAwayFromLink(DocIndex index, IndexedDoc doc, List<PathMove> moves) {
-  final movedDoc = movedPath(doc.docPath, moves);
-  if (movedDoc == doc.docPath) return false;
-  final facts = index.contentOf(doc).lineFacts;
-  return [...facts.links, ...facts.fileLinks].any(
-    (link) =>
-        relativeHref(movedDoc, movedFilePath(link.target, moves)) !=
-        relativeHref(doc.docPath, link.target),
-  );
-}
+/// Whether [doc] moves and [rewriteDocLinks] changes a link it holds, a link
+/// to itself or to a target that stays included.
+bool _movesWithChangedLink(
+  DocIndex index,
+  IndexedDoc doc,
+  List<PathMove> moves,
+) =>
+    movedPath(doc.docPath, moves) != doc.docPath &&
+    rewriteDocLinks(
+          toLf(index.contentOf(doc).text),
+          docPath: doc.docPath,
+          moves: moves,
+        ) !=
+        null;
 
 /// Whether [doc] holds a path mention that [moves] change.
 bool _mentionsMovedFile(

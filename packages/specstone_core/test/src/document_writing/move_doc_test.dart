@@ -54,6 +54,23 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02, dw-s03/inv10: a reordered story links to itself through its own folder, and the link follows it', () async {
+    final root = await writeWriteProject();
+    docFile(root, story2).writeAsStringSync(
+      '\nSee [me](../us02_sign_out/USER_STORY.md#use-case).\n',
+      mode: FileMode.append,
+    );
+    reorder(root, 'user_story:login/sign_out', '1');
+    expect(
+      readDoc(root, '$f/us01_sign_out/USER_STORY.md'),
+      contains('[me](USER_STORY.md#use-case)'),
+    );
+    expect(
+      spots(checkOf(root), FindingKind.linkUnresolved),
+      isNot(contains(startsWith('$f/us01_sign_out/'))),
+    );
+  });
+
   test('f02/us05/s4, f02/us05/fr01/e05, f02/us05/fr02/e03: a feature moves with its spec folder, and untyped referrers follow', () async {
     final root = await writeWriteProject();
     expect(reorder(root, 'feature:signup', '1').json, {
@@ -910,7 +927,7 @@ void main() {
       ('drop_item', 'add_item'),
     ]) {
       test(
-        'f02/us05/fr02, f02/us07/fr02: two sibling stories that link each other move under login, $first first, and each link resolves',
+        'f02/us05/fr02, f02/us07/fr02/e03, dw-s03/inv10: two sibling stories that link each other move under login, $first first, and each link resolves',
         () async {
           final root = await writeNestedProject();
           appendTo(
@@ -939,6 +956,80 @@ void main() {
         },
       );
     }
+
+    test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to itself through its own folder, and the link follows it', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [me](../us02_drop_item/USER_STORY.md#x).\n',
+      );
+      move(root, 'user_story:shop/cart/drop_item', 'shop/pay');
+      expect(
+        readDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
+        contains('[me](USER_STORY.md#x)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to a plain file that stays, and the link follows', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$shop/f01_cart/flow.png': 'png'},
+      );
+      appendTo(root, cartDrop, '\n![flow](../flow.png)\n');
+      move(root, 'user_story:shop/cart/drop_item', 'login');
+      expect(
+        readDoc(root, '$f/us02_drop_item/USER_STORY.md'),
+        contains('![flow](../../f02_shop/f01_cart/flow.png)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkTargetMissing), isEmpty);
+    });
+
+    test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link must change refuses with output_not_writable, and nothing moves', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [stock](../us01_add_item/fr01_check_stock.md).\n',
+      );
+      docFile(root, cartDrop).writeAsBytesSync([0xff], mode: FileMode.append);
+      expect(
+        () => move(root, 'user_story:shop/cart/drop_item', 'shop/pay'),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $cartDrop: not UTF-8 text',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartDrop), isTrue);
+      expect(
+        hasDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
+        isFalse,
+      );
+    });
+
+    test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link still reaches its target moves with every byte kept', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [cart](../../../f02_shop/f01_cart/FEATURE.md).\n',
+      );
+      docFile(root, cartDrop).writeAsBytesSync([0xff], mode: FileMode.append);
+      final bytes = docFile(root, cartDrop).readAsBytesSync();
+      move(root, 'user_story:shop/cart/drop_item', 'shop/pay');
+      expect(
+        docFile(
+          root,
+          '$shop/f02_pay/us03_drop_item/USER_STORY.md',
+        ).readAsBytesSync(),
+        bytes,
+      );
+    });
 
     test('f02/us07/fr01/e01, sf-c6: no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
       final root = await writeNestedProject();
