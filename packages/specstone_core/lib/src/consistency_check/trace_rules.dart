@@ -176,12 +176,31 @@ Iterable<Finding> _unresolvedRole(
   );
 }
 
-Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
-  final feature = context.index.parentOf(doc);
+Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) =>
+    _goalSets(context, doc, context.index.parentOf(doc), 'feature');
+
+Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) {
+  final parent = context.index.parentOf(doc);
+  return _goalSets(
+    context,
+    doc,
+    parent?.docTypeId == doc.docTypeId ? parent : null,
+    'parent feature',
+  );
+}
+
+/// Yields the unresolved and widened ids of [doc]; a null [holder] skips the
+/// widened check, and [holderLabel] names the holder in its message.
+Iterable<Finding> _goalSets(
+  CheckContext context,
+  IndexedDoc doc,
+  IndexedDoc? holder,
+  String holderLabel,
+) sync* {
   for (final key in _storyVisionKeys) {
     final line = context.linesOf(doc).keyLine(key);
     if (line == null) continue;
-    final held = feature?.valuesOf(key).toSet();
+    final held = holder?.valuesOf(key).toSet();
     for (final id in doc.valuesOf(key)) {
       yield* _unresolvedId(context, doc, id, line);
       if (held != null && !held.contains(id)) {
@@ -189,20 +208,10 @@ Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
           doc,
           FindingKind.visionGoalWidened,
           line: line,
-          message: '$id is not in the $key of the feature',
+          message: '$id is not in the $key of the $holderLabel',
           keys: {_idKey: id},
         );
       }
-    }
-  }
-}
-
-Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) sync* {
-  for (final key in _storyVisionKeys) {
-    final line = context.linesOf(doc).keyLine(key);
-    if (line == null) continue;
-    for (final id in doc.valuesOf(key)) {
-      yield* _unresolvedId(context, doc, id, line);
     }
   }
 }
@@ -314,7 +323,8 @@ Iterable<Finding> _missingArchitecture(
       .any((doc) => doc.valuesOf(_implementsKey).isNotEmpty);
   if (!hasCode) return;
   final hasArchitecture = index
-      .childrenOf(feature)
+      .chainOf(feature)
+      .expand(index.childrenOf)
       .any((doc) => doc.docTypeId == _architectureType);
   if (hasArchitecture) return;
   yield context.finding(

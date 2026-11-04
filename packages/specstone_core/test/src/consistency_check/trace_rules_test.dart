@@ -424,6 +424,24 @@ void main() {
     ]);
   });
 
+  test("f04/us03/fr03/e09, sf-c12: cart with an implements entry and only shop's ARCHITECTURE gives no architecture_missing", () async {
+    final report = checkOf(await writeNestedProject());
+
+    expect(spots(report, FindingKind.architectureMissing), isEmpty);
+  });
+
+  test("f04/us03/fr03/e09, sf-c12: without shop's ARCHITECTURE, cart, pay, and shop each get architecture_missing", () async {
+    final report = checkOf(
+      await writeNestedProject(without: {'docs/$shopArchitecture'}),
+    );
+
+    expect(spots(report, FindingKind.architectureMissing), [
+      '$shopFeature:1: architecture_missing',
+      '$cartFeature:1: architecture_missing',
+      '$payFeature:1: architecture_missing',
+    ]);
+  });
+
   test('f04/us03/fr03/e05, f04/us03/fr04/e05, cc-s03/inv2: a prd-core-only project runs neither rule', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -586,4 +604,56 @@ void main() {
       expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
     },
   );
+
+  group('goal sets of a nested feature', () {
+    final projectWithPg02 = edit(projectDoc, [
+      (
+        'Halve the password resets.\n\n',
+        'Halve the password resets.\n### PG-02 — Fewer lockouts\n**Serves:** PV-01\nHalve the lockouts.\n\n',
+      ),
+    ]);
+    final cartGoalsWithPg02 = nestedFiles()['docs/$cartFeature']!.replaceFirst(
+      'goals:\n  - PG-01',
+      'goals:\n  - PG-01\n  - PG-02',
+    );
+
+    test("f04/us03/fr02/e10, sf-c12: cart's PG-02 outside shop's goals gives vision_goal_widened, PG-02 is not in the goals of the parent feature", () async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {...projectWithPg02, 'docs/$cartFeature': cartGoalsWithPg02},
+        ),
+      );
+
+      expect(spots(report, FindingKind.visionGoalWidened), [
+        '$cartFeature:4: vision_goal_widened',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.visionGoalWidened)
+            .toJson()['id'],
+        'PG-02',
+      );
+    });
+
+    test(
+      'f04/us03/fr02/e11: shop is checked against the project only',
+      () async {
+        final report = checkOf(
+          await writeNestedProject(
+            extra: {
+              ...projectWithPg02,
+              'docs/$shopFeature': nestedFiles()['docs/$shopFeature']!
+                  .replaceFirst(
+                    'goals:\n  - PG-01',
+                    'goals:\n  - PG-01\n  - PG-02',
+                  ),
+            },
+          ),
+        );
+
+        expect(spots(report, FindingKind.visionGoalWidened), isEmpty);
+        expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      },
+    );
+  });
 }
