@@ -1021,27 +1021,32 @@ void main() {
       expect(
         () => move(root, 'user_story:shop/cart/add_item', 'nothing'),
         throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.docNotFound,
-          ),
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no feature doc carries the name nothing',
+              ),
         ),
       );
       expect(hasDoc(root, cartAdd), isTrue);
     });
 
-    test('sf-r1: a move out of a mixed parent is allowed', () async {
-      const orphan = '$shop/us01_orphan';
-      final root = await writeNestedProject(
-        extra: {'docs/$orphan/USER_STORY.md': '# Orphan\n'},
-      );
-      final answer = move(root, 'user_story:shop/orphan', 'shop/pay');
-      expect(
-        answer.text,
-        startsWith('moved $orphan/ to $shop/f02_pay/us03_orphan/\n'),
-      );
-      expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
-    });
+    test(
+      'f02/us07/fr01/e10, sf-r1: a move out of a mixed parent is allowed',
+      () async {
+        const orphan = '$shop/us01_orphan';
+        final root = await writeNestedProject(
+          extra: {'docs/$orphan/USER_STORY.md': '# Orphan\n'},
+        );
+        final answer = move(root, 'user_story:shop/orphan', 'shop/pay');
+        expect(
+          answer.text,
+          startsWith('moved $orphan/ to $shop/f02_pay/us03_orphan/\n'),
+        );
+        expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
+      },
+    );
   });
 }

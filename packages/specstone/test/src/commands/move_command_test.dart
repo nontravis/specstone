@@ -98,7 +98,7 @@ void main() {
       final (:runner, :out, :err) = writeRunner(await writeNestedProject());
       expect(await runner.run(['move', addItem, '--under', 'nothing']), 64);
       expect(out.toString(), isEmpty);
-      expect(err.toString(), contains('nothing'));
+      expect(err.toString(), 'no feature doc carries the name nothing\n');
     },
   );
 

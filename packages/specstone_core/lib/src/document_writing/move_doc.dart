@@ -133,20 +133,12 @@ ReadAnswer answerRename(
 const _storyType = 'user_story';
 
 /// Moves the story [address] names into the feature [under] as its last
-/// story.
-///
-/// The story's folder, with every FR and nf in it, takes the next free
-/// number of the target and keeps its slug. The source's other stories keep
-/// their numbers. Links, `doc_ref` values, path mentions, `api` cells, and
-/// `confirmed` labels follow. No draft mark is written. A story already
-/// under [under] changes nothing.
+/// story, at the next free number with its slug kept, and rewrites every
+/// reference to it. A story already under [under] changes nothing.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// `doc_exists` when the target holds a story with the slug or a path on
-/// disk is where the folder would land; an `IndexFault` for a missing
-/// [under], a bad address, a feature that holds sub-features, or
-/// `doc_not_found` when no feature carries [under]; `index_busy` when
-/// another call holds the lock.
+/// `doc_exists` for a clash; an `IndexFault` for a missing or unknown
+/// [under] or a feature that holds sub-features.
 ReadAnswer answerMove(
   WriteSession session,
   String address, {
