@@ -113,13 +113,9 @@ Iterable<Finding> _overrideProblems(
 ///
 /// Covers US-03 FR-02.
 ///
-/// A `persona` or `user_story` role names a Role entry of a `project` doc; a
-/// story's `vision:` and `goals:` IDs sit in its feature and a project
-/// heading, and a feature's IDs sit in its parent feature, if any, and a
-/// project heading. Each goal of a
-/// `project` doc names, in a `**Serves:**` line, the `PV-` headings it serves.
-/// The rule runs only when the merged set holds `project`, and the role part
-/// only when `project` holds its `roles` section (INV-2).
+/// A role names a `project` Role entry (INV-2); vision and goal IDs sit in
+/// the parent feature, if any, and a project heading; a project goal names
+/// its `PV-` headings in `**Serves:**`. Runs only with `project` in the set.
 Iterable<Finding> checkRolesAndGoals(
   CheckContext context,
   IndexedDoc doc,
