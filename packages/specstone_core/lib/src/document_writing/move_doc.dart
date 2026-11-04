@@ -132,9 +132,8 @@ ReadAnswer answerRename(
 /// The doc type `move` takes, as `rewrite_labels.dart` names it.
 const _storyType = 'user_story';
 
-/// Moves the story [address] names into the feature [under] as its last
-/// story, at the next free number with its slug kept, and rewrites every
-/// reference to it. A story already under [under] changes nothing.
+/// Moves the story [address] names to be the last story of [under], slug
+/// kept, and rewrites every reference to it. A story already there stays.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
 /// `doc_exists` for a clash; an `IndexFault` for a missing or unknown
