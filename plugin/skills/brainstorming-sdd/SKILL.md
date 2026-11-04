@@ -6,8 +6,8 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 # Brainstorm a change into an approved design
 
 A change this skill takes reaches the PRD and spec only after the Owner approves its design document. When the
-change only rewrites a single section or field of a doc that already exists, and adds no story or FR, it is a small
-edit: use `specstone:update-sdd` instead.
+change only rewrites one section or field of a doc that already exists, and adds no story or FR, it is a small edit:
+use `specstone:update-sdd` instead.
 
 ## 1. Ground: the first call
 
@@ -26,6 +26,9 @@ specstone context <target> --for design --budget 20000
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
+
+For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
+questions, and show the Owner each answer; go on only after their yes.
 
 That call is the gate. Never look for `.specstone/` yourself first: the CLI searches upward from each folder, and a look
 at the working directory misses a root above it.
@@ -76,12 +79,10 @@ and send the answers to plan mode with the same inputs. Then show the plan and a
 Without it, or when a dispatch fails, read that mode's reference and follow it yourself. An audit you run is not a
 fresh reader's, since you saw the drafts being made: tell the Owner so.
 
-| Mode   | Reference                                                             |
-|--------|-----------------------------------------------------------------------|
-| author | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md` |
-| design | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md` |
-| audit  | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`  |
-| plan   | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`   |
+- author: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md`
+- design: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md`
+- audit: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`
+- plan: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`
 
 ## Red flags
 

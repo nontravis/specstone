@@ -73,7 +73,7 @@ One block per section, in bundle order, a blank line between blocks, and nothing
 
 **DON'T:**
 
-- Run a write command: `new`, `set`, `approve`, `delete`, `reorder`, or `rename`.
+- Run a write command: `new`, `set`, `approve`, `delete`, `reorder`, `rename`, or `move`.
 - Write or edit any file, by file tool or shell redirect.
 - Open a doc file or list the docs folder.
 - Look for `.specstone/` first: the first call is the check, and a look here misses a project root above.

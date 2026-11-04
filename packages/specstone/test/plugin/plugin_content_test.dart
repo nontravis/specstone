@@ -629,6 +629,22 @@ void _agentTests() {
     expect(text, contains('the feature with `--summary` to add a story'));
   });
 
+  test('f08/us02/fr01/e11, sf-r8: brainstorming-sdd step 1 runs specstone '
+      'guide feature for a new story or feature', () {
+    final step = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      '1. Ground: the first call',
+    ).replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      step,
+      contains(
+        'For a change that adds a story or a feature, run `specstone guide '
+        'feature` after that call, answer its placement questions, and show '
+        'the Owner each answer; go on only after their yes.',
+      ),
+    );
+  });
+
   test('f08/us01/fr02/e05, db-r1: sdd-reader still pulls a target an earlier '
       'bundle listed in summary', () {
     expect(_pluginText('agents/sdd-reader.md'), contains('· summary'));
