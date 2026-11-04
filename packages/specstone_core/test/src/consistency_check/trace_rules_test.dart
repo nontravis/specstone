@@ -153,6 +153,10 @@ void main() {
     );
     expect(spots(report), ['$loginStory:3: vision_goal_widened']);
     expect(report.findings.single.toJson()['id'], 'PG-03');
+    expect(
+      report.findings.single.message,
+      'PG-03 is not in the goals of the feature',
+    );
   });
 
   test('f04/us03/fr02/e05: an ID no project heading holds is unresolved, and widened too', () async {
@@ -627,12 +631,39 @@ void main() {
       expect(spots(report, FindingKind.visionGoalWidened), [
         '$cartFeature:4: vision_goal_widened',
       ]);
-      expect(
-        report.findings
-            .firstWhere((f) => f.kind == FindingKind.visionGoalWidened)
-            .toJson()['id'],
-        'PG-02',
+      final finding = report.findings.firstWhere(
+        (f) => f.kind == FindingKind.visionGoalWidened,
       );
+      expect(finding.toJson()['id'], 'PG-02');
+      expect(
+        finding.message,
+        'PG-02 is not in the goals of the parent feature',
+      );
+    });
+
+    test("f04/us03/fr02/e10, sf-c12: a feature under cart is held to cart's goals, not shop's", () async {
+      const deepFeature = 'prds/features/f02_shop/f01_cart/f01_deep/FEATURE.md';
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            ...projectWithPg02,
+            'docs/$shopFeature': nestedFiles()['docs/$shopFeature']!
+                .replaceFirst(
+                  'goals:\n  - PG-01',
+                  'goals:\n  - PG-01\n  - PG-02',
+                ),
+            'docs/$deepFeature': nestedFiles()['docs/$cartFeature']!
+                .replaceFirst(
+                  'goals:\n  - PG-01',
+                  'goals:\n  - PG-01\n  - PG-02',
+                ),
+          },
+        ),
+      );
+
+      expect(spots(report, FindingKind.visionGoalWidened), [
+        '$deepFeature:4: vision_goal_widened',
+      ]);
     });
 
     test(
