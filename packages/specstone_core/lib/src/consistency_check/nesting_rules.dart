@@ -17,37 +17,51 @@ const _minimumChildren = 2;
 Iterable<Finding> checkNesting(CheckContext context, IndexedDoc doc) sync* {
   final nesting = context.index.set.nestingType;
   if (nesting == null || doc.docTypeId != nesting.id) return;
-  final childTypes = {
-    for (final child in context.index.childrenOf(doc))
-      if (context.index.isChainDoc(child)) child.docTypeId!,
-  };
+  final childTypes = _chainChildTypes(context, doc);
   if (childTypes.contains(nesting.id) && childTypes.length > 1) {
-    final ids = childTypes.toList()..sort();
-    yield context.finding(
-      doc,
-      FindingKind.featureMixedChildren,
-      line: 1,
-      message: 'holds both ${ids.join(' and ')} children',
-      keys: {'docTypes': ids},
-    );
+    yield _mixed(context, doc, childTypes);
   }
-  final parent = context.index.parentOf(doc);
-  if (parent?.docTypeId != nesting.id) return;
-  final held = context.index
-      .childrenOf(doc)
-      .where(context.index.isChainDoc)
-      .length;
-  if (held >= _minimumChildren) return;
-  yield context.finding(
+  if (context.index.parentOf(doc)?.docTypeId != nesting.id) return;
+  final held = _chainChildren(context, doc).length;
+  if (held < _minimumChildren) yield _tooSmall(context, doc, nesting.id, held);
+}
+
+Iterable<IndexedDoc> _chainChildren(CheckContext context, IndexedDoc doc) =>
+    context.index.childrenOf(doc).where(context.index.isChainDoc);
+
+Set<String> _chainChildTypes(CheckContext context, IndexedDoc doc) => {
+  for (final child in _chainChildren(context, doc)) child.docTypeId!,
+};
+
+Finding _mixed(CheckContext context, IndexedDoc doc, Set<String> types) {
+  final ids = types.toList()..sort();
+  return context.finding(
     doc,
-    FindingKind.subFeatureTooSmall,
+    FindingKind.featureMixedChildren,
     line: 1,
-    message:
-        'holds $held children; a nested ${nesting.id} holds at '
-        'least $_minimumChildren',
-    keys: {'minimum': _minimumChildren, 'actual': held},
+    message: 'holds ${_listed(ids)} children',
+    keys: {'docTypes': ids},
   );
 }
+
+String _listed(List<String> ids) => ids.length == 2
+    ? 'both ${ids.first} and ${ids.last}'
+    : '${ids.take(ids.length - 1).join(', ')}, and ${ids.last}';
+
+Finding _tooSmall(
+  CheckContext context,
+  IndexedDoc doc,
+  String nestingId,
+  int held,
+) => context.finding(
+  doc,
+  FindingKind.subFeatureTooSmall,
+  line: 1,
+  message:
+      'holds $held children; a nested $nestingId holds at least '
+      '$_minimumChildren',
+  keys: {'minimum': _minimumChildren, 'actual': held},
+);
 
 /// Returns `path_over_limit` for [doc] when `docs/<DocPath>` is too long
 /// (FR-11).

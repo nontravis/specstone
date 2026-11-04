@@ -61,6 +61,28 @@ void main() {
       ]);
     });
 
+    test('f04/us01/fr10/e01: a third chain type among the children is listed with commas, ids in code point order', () async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            '.specstone/templates/epic.yaml':
+                'id: epic\ndescription: An epic.\nparent: feature\n'
+                'path: prds/features/f{nn}_{slug}/ep{nn}_{slug}/EPIC.md\n',
+            '.specstone/templates/task.yaml':
+                'id: task\ndescription: A task.\nparent: epic\n'
+                'path: prds/features/f{nn}_{slug}/ep{nn}_{slug}/t{nn}_{slug}.md\n',
+            'docs/prds/features/f02_shop/us01_extra/USER_STORY.md':
+                nestedFiles()['docs/$cartDrop']!,
+            'docs/prds/features/f02_shop/ep01_big/EPIC.md': '# Big\n',
+            'docs/prds/features/f02_shop/ep01_big/t01_one.md': '# One\n',
+          },
+        ),
+      );
+      final found = _jsonOf(report, FindingKind.featureMixedChildren).single;
+      expect(found['message'], 'holds epic, feature, and user_story children');
+      expect(found['docTypes'], ['epic', 'feature', 'user_story']);
+    });
+
     test('f04/us01/fr10/e01, sf-r10: new feature --parent under a feature that holds stories makes check report feature_mixed_children on it', () async {
       final root = await writeNestedProject();
       writeIn(
