@@ -969,6 +969,26 @@ path: prds/notes/{slug}/NOTE.md
       ]);
     });
 
+    test('f03/us03/fr05/e03: a doc type extending feature carries no '
+        'max_depth', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': 'max_depth: 3\n',
+        '.specstone/templates/epic.yaml':
+            'id: epic\nextends: feature\npath: prds/epics/{slug}/EPIC.md\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature')!.maxDepth, 3);
+      expect(merged.lookup('epic')!.maxDepth, isNull);
+    });
+
     test('f03/us03/s1, f03/us03/fr02: a project template with a new id '
         'adds a doc type', () async {
       final project = await writeTree({

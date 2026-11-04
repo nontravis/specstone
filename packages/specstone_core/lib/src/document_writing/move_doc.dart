@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -56,7 +57,7 @@ ReadAnswer answerReorder(
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape = DocPathShape.of(docType, session.index.set);
+  final shape = DocPathShape.ofDoc(docType, session.index.set, target.docPath);
   if (shape == null || !shape.numbered) {
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
@@ -110,7 +111,7 @@ ReadAnswer answerRename(
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape = DocPathShape.of(docType, session.index.set);
+  final shape = DocPathShape.ofDoc(docType, session.index.set, target.docPath);
   if (shape == null || !shape.slugged) {
     throw _noSlugFault(session, address, target, docType, shape);
   }
@@ -128,6 +129,133 @@ ReadAnswer answerRename(
   });
 }
 
+/// The doc type `move` takes, as `rewrite_labels.dart` names it.
+const _storyType = 'user_story';
+
+/// Moves the story [address] names to be the last story of [under], slug
+/// kept, and rewrites every reference to it. A story already there stays.
+///
+/// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
+/// `doc_exists` for a clash; an `IndexFault` for a missing or unknown
+/// [under] or a feature that holds sub-features.
+ReadAnswer answerMove(
+  WriteSession session,
+  String address, {
+  required String? under,
+}) {
+  if (under == null) {
+    throw missingArgument(
+      'move',
+      'a feature',
+      'specstone move user_story:login/reset_password --under account',
+    );
+  }
+  final target = session.target(address);
+  final docType =
+      session.index.typeOf(target) ??
+      (throw StateError('${target.docPath} has no doc type'));
+  if (docType.id != _storyType) {
+    throw WriteFault(
+      WriteFaultCode.docTypeNotMovable,
+      '${docType.id} docs cannot move; move takes a $_storyType',
+    );
+  }
+  final parentTypeId =
+      docType.parent ?? (throw StateError('${docType.id} has no parent type'));
+  final newParent = session.target('$parentTypeId:$under');
+  if (session.index.parentOf(target)?.docPath == newParent.docPath) {
+    return _answerFor(session, const [], const []);
+  }
+  _checkTakesStory(session, newParent, parentTypeId);
+  return session.locked(() {
+    final moves = [_storyMove(session, target, docType, newParent)];
+    final renamed = _renamedNames(session, moves);
+    final rewrites = planRewrites(session, moves, renamed: renamed);
+    MoveJournal([
+      for (final move in moves)
+        MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+      ...rewrites,
+    ]).run(JournalTarget.of(session.project));
+    return _answerFor(session, moves, rewrites);
+  });
+}
+
+/// Throws [IndexFault] `argument_invalid` when [parent] holds a doc of the
+/// nesting type, since a feature holds stories or features (SF-R1).
+void _checkTakesStory(
+  WriteSession session,
+  IndexedDoc parent,
+  String parentTypeId,
+) {
+  final nestingId = session.index.set.nestingType?.id;
+  final holdsSubFeature = session.index
+      .childrenOf(parent)
+      .any((child) => child.docTypeId == nestingId);
+  if (!holdsSubFeature) return;
+  throw IndexFault(
+    IndexFaultCode.argumentInvalid,
+    '${nameWithType(parent)} holds sub-${parentTypeId}s, so it takes no story',
+  );
+}
+
+/// Returns the move that puts [story] last among the stories of [newParent],
+/// its slug kept.
+///
+/// Throws [WriteFault] `doc_exists` as [_checkNoClash] does.
+PathMove _storyMove(
+  WriteSession session,
+  IndexedDoc story,
+  MergedDocType docType,
+  IndexedDoc newParent,
+) {
+  final set = session.index.set;
+  final shape =
+      DocPathShape.ofDoc(docType, set, story.docPath) ??
+      (throw StateError('${story.docPath} does not match its doc type'));
+  final slug =
+      shape.matchOwn(story.docPath.split('/')[shape.ownIndex])?.slug ??
+      (throw StateError('${story.docPath} carries no slug'));
+  final parentType =
+      set.lookup(newParent.docTypeId!) ??
+      (throw StateError('${newParent.docPath} has no doc type'));
+  final parentShape =
+      DocPathShape.ofDoc(parentType, set, newParent.docPath) ??
+      (throw StateError('${newParent.docPath} does not match its doc type'));
+  final parentValues =
+      parentShape.valuesOf(newParent.docPath) ??
+      (throw StateError('${newParent.docPath} does not match its doc type'));
+  final landedShape =
+      DocPathShape.of(docType, set, depth: parentShape.depth) ??
+      (throw StateError(
+        '${docType.id} has no path at depth ${parentShape.depth}',
+      ));
+  final siblings = siblingsOnDisk(
+    session.project.docsRoot,
+    landedShape,
+    parentValues,
+  );
+  final highest = siblings.fold(0, (top, s) => max(top, s.number ?? 0));
+  final newDocPath = landedShape.build([
+    ...parentValues,
+    ...landedShape.ownValues(number: padNumber(highest + 1), slug: slug),
+  ]);
+  final move = (
+    from: shape.ownPathOf(story.docPath),
+    to: landedShape.ownPathOf(newDocPath),
+  );
+  _checkNoClash(
+    session,
+    docType,
+    landedShape,
+    parentValues,
+    siblings,
+    slug: slug,
+    newDocPath: newDocPath,
+    moves: [move],
+  );
+  return move;
+}
+
 /// Returns the fault for a doc type that [shape] gives no slug to: a spec
 /// doc names its parent, any other type says it carries no slug.
 WriteFault _noSlugFault(
@@ -142,7 +270,7 @@ WriteFault _noSlugFault(
     final parentDocType = session.index.set.lookup(parentType);
     final parentShape = parentDocType == null
         ? null
-        : DocPathShape.of(parentDocType, session.index.set);
+        : DocPathShape.of(parentDocType, session.index.set, depth: shape.depth);
     final values = shape.valuesOf(target.docPath);
     if (parentDocType != null && parentShape != null && values != null) {
       final parentName = docNameOf(
@@ -202,7 +330,13 @@ List<PathMove> _renameMoves(
   final moves = [
     (from: shape.ownPathOf(target.docPath), to: shape.ownPathOf(newDocPath)),
   ];
-  for (final move in specFolderMovesOf(set, docType, oldValues, newValues)) {
+  for (final move in specFolderMovesOf(
+    set,
+    docType,
+    oldValues,
+    newValues,
+    depth: shape.depth,
+  )) {
     if (_folderExists(session, move.from)) moves.add(move);
   }
   _checkNoClash(
@@ -343,7 +477,13 @@ List<PathMove> _movesFor(
     final to = shape.ownPathOf(shape.build(newValues));
     if (from == to) continue;
     moves.add((from: from, to: to));
-    for (final move in specFolderMovesOf(set, docType, oldValues, newValues)) {
+    for (final move in specFolderMovesOf(
+      set,
+      docType,
+      oldValues,
+      newValues,
+      depth: shape.depth,
+    )) {
       if (_folderExists(session, move.from)) moves.add(move);
     }
   }

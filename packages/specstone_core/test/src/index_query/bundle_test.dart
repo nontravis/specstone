@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   late DocIndex index;
@@ -381,6 +382,163 @@ void main() {
       isEmpty,
     );
   });
+  const shopSpecs = {shopDomain, shopArchitecture, shopApi};
+  test("f01/us05/fr01/e19, s03/inv12: implement on shop/cart/add_item gives the chain, shop's spec docs, cartDomain, and the FR", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      'shop/cart/add_item',
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, isEmpty);
+  });
+  test('f01/us05/fr01/e20, sf-r1: a story left in shop joins the implement bundle of shop/cart/add_item', () async {
+    const left = 'prds/features/f02_shop/us01_browse/USER_STORY.md';
+    final b = pickBundle(
+      await nestedIndexWith({'docs/$left': '# Agent browses\n'}),
+      'shop/cart/add_item',
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      left,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, isEmpty);
+  });
+  test("f01/us05/fr01/e21, sf-c7: design on shop/cart/add_item gives cart whole, drop_item in summary, shop with its spec docs, and shop's names list", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      'shop/cart/add_item',
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, {cartDrop});
+    expect(b.nameListTops, {shopFeature});
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payFeature)));
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payCard)));
+  });
+  test("f01/us05/fr01/e22, sf-c7: design on shop/cart gives cart's subtree, shop with its spec docs, and shop's names list", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      'shop/cart',
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+      cartDrop,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, {shopFeature});
+  });
+  test('sf-c7: design on shop keeps its whole subtree', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      'shop',
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+      cartDrop,
+      payFeature,
+      payCard,
+      payRefund,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, isEmpty);
+  });
+  test('sf-c7 (pin): design on an FR gives the bundle of its story under the nearest feature', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      'shop/cart/add_item/check_stock',
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, {cartDrop});
+    expect(b.nameListTops, {shopFeature});
+  });
+  test('sf-c7 (pin): design at depth 2 prints every feature above the nearest one whole with its names list', () async {
+    const promo = 'prds/features/f02_shop/f01_cart/f01_promo/FEATURE.md';
+    const coupon =
+        'prds/features/f02_shop/f01_cart/f01_promo/us01_coupon/USER_STORY.md';
+    final b = pickBundle(
+      await nestedIndexWith({
+        'docs/$promo': '# Promo\n',
+        'docs/$coupon': '# Agent uses a coupon\n',
+      }),
+      'shop/cart/promo/coupon',
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      promo,
+      coupon,
+      cartFeature,
+      cartDomain,
+      shopFeature,
+      ...shopSpecs,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, {cartFeature, shopFeature});
+  });
+  test(
+    "f01/us05/fr01: query on shop/cart/add_item gives the chain and shop's map",
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        'shop/cart/add_item',
+        BundleMode.query,
+        noProject: false,
+      );
+      expect(b.docPaths, {shopFeature, cartFeature, cartAdd});
+      expect(b.mapTops, {shopFeature});
+      expect(b.summaryPaths, isEmpty);
+      expect(b.nameListTops, isEmpty);
+    },
+  );
   test('preflight F12 c: BundleMode wires match bundleModeWires', () {
     expect(BundleMode.values.map((m) => m.wire).toSet(), bundleModeWires);
   });

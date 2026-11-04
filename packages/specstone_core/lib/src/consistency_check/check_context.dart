@@ -10,6 +10,7 @@ import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -164,9 +165,32 @@ final class CheckContext {
   /// Whether [doc] lies in a checked folder.
   bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);
 
-  /// Whether the doc type of [doc] names a parent and [doc] has none (INV-13).
+  /// The folders, ending in `/`, of the untyped docs that read the nesting
+  /// type's `path` past its `max_depth` (INV-17).
+  late final Set<String> overDeepFolders = {
+    for (final doc in index.docs)
+      if (depthPastLimitOf(doc) != null) _folderOf(doc.docPath),
+  };
+
+  /// Returns how many levels the untyped [doc] nests below a top doc of the
+  /// nesting type, when that passes `max_depth`; null otherwise.
+  int? depthPastLimitOf(IndexedDoc doc) =>
+      doc.isTyped ? null : _session.project.matcher.depthPastLimit(doc.docPath);
+
+  /// Whether [doc] lies in the folder of an over-deep doc other than itself.
+  bool isUnderOverDeep(IndexedDoc doc) {
+    final own = depthPastLimitOf(doc) == null ? null : _folderOf(doc.docPath);
+    return overDeepFolders.any(
+      (folder) => folder != own && doc.docPath.startsWith(folder),
+    );
+  }
+
+  static String _folderOf(String docPath) =>
+      docPath.substring(0, docPath.lastIndexOf('/') + 1);
+
+  /// Whether [doc] takes a parent doc ([parentTypeOf]) and has none (INV-13).
   bool hasNoParent(IndexedDoc doc) =>
-      typeOf(doc)?.parent != null && doc.parentPath == null;
+      parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
 
   /// Whether the merged set holds a `gnfr` doc type.
   bool get hasGnfr =>

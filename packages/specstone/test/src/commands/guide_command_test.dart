@@ -127,6 +127,23 @@ void main() {
       expect(sections.first['query'], isTrue);
     });
 
+    test(
+      'f03/us01/fr03: guide feature --json prints maxDepth 2 after path',
+      () async {
+        final runner = await runnerIn(
+          await projectWith({
+            '.specstone/templates/feature.yaml': 'max_depth: 2\n',
+          }),
+        );
+
+        expect(await runner.run(['guide', 'feature', '--json']), 0);
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        final keys = json.keys.toList();
+        expect(keys.indexOf('maxDepth'), keys.indexOf('path') + 1);
+        expect(json['maxDepth'], 2);
+      },
+    );
+
     test('f03/us01/fr03, db-r7: guide <type> --json prints a section summary '
         'set by a project layer', () async {
       final runner = await runnerIn(

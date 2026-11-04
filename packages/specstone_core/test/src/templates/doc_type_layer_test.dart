@@ -45,6 +45,25 @@ void main() {
       );
     });
 
+    test('f03/us03/fr01/e29: max_depth reads an integer from 0 and refuses -1 '
+        'and three', () {
+      expect(_parse('max_depth: 3\n').maxDepth, 3);
+      expect(_parse('max_depth: 0\n').maxDepth, 0);
+      expect(_parse('path: a/{slug}/A.md\n').maxDepth, isNull);
+      for (final value in ['-1', 'three']) {
+        expect(
+          () => _parse('max_depth: $value\n'),
+          throwsA(
+            _fault(FaultCode.unknownValue, key: 'max_depth').having(
+              (f) => f.message,
+              'message',
+              'max_depth takes an integer from 0',
+            ),
+          ),
+        );
+      }
+    });
+
     test('f03/us03/fr01/e28, is-s03/inv4: a section id starting with _ is unknown_value', () {
       expect(
         () => _parse('sections: [{id: _notes}]'),

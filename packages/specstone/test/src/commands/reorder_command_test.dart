@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -137,6 +138,21 @@ void main() {
       expect(
         err.toString(),
         'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
+      );
+    },
+  );
+  test(
+    'f02/us05/fr01/e11: reorder renumbers a sub-feature inside its top feature',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+      expect(await runner.run(['reorder', 'feature:shop/pay', '--to', '1']), 0);
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith(
+          'moved prds/features/f02_shop/f02_pay/ to prds/features/f02_shop/f01_pay/\n'
+          'moved prds/features/f02_shop/f01_cart/ to prds/features/f02_shop/f02_cart/\n',
+        ),
       );
     },
   );

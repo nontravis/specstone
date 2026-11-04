@@ -113,12 +113,9 @@ Iterable<Finding> _overrideProblems(
 ///
 /// Covers US-03 FR-02.
 ///
-/// A `persona` or `user_story` role names a Role entry of a `project` doc; a
-/// story's `vision:` and `goals:` IDs sit in its feature and a project
-/// heading, and a feature's IDs sit in a project heading. Each goal of a
-/// `project` doc names, in a `**Serves:**` line, the `PV-` headings it serves.
-/// The rule runs only when the merged set holds `project`, and the role part
-/// only when `project` holds its `roles` section (INV-2).
+/// A role names a `project` Role entry (INV-2); vision and goal IDs sit in
+/// the parent feature, if any, and a project heading; a project goal names
+/// its `PV-` headings in `**Serves:**`. Runs only with `project` in the set.
 Iterable<Finding> checkRolesAndGoals(
   CheckContext context,
   IndexedDoc doc,
@@ -176,12 +173,31 @@ Iterable<Finding> _unresolvedRole(
   );
 }
 
-Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
-  final feature = context.index.parentOf(doc);
+Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) =>
+    _goalSets(context, doc, switch (context.index.parentOf(doc)) {
+      final feature? => (doc: feature, label: 'feature'),
+      null => null,
+    });
+
+Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) {
+  final parent = context.index.parentOf(doc);
+  if (parent == null || parent.docTypeId != doc.docTypeId) {
+    return _goalSets(context, doc, null);
+  }
+  return _goalSets(context, doc, (doc: parent, label: 'parent feature'));
+}
+
+/// Yields the unresolved and widened ids of [doc]; a null [holder] skips the
+/// widened check, and the holder's label names it in the message.
+Iterable<Finding> _goalSets(
+  CheckContext context,
+  IndexedDoc doc,
+  ({IndexedDoc doc, String label})? holder,
+) sync* {
   for (final key in _storyVisionKeys) {
     final line = context.linesOf(doc).keyLine(key);
     if (line == null) continue;
-    final held = feature?.valuesOf(key).toSet();
+    final held = holder?.doc.valuesOf(key).toSet();
     for (final id in doc.valuesOf(key)) {
       yield* _unresolvedId(context, doc, id, line);
       if (held != null && !held.contains(id)) {
@@ -189,20 +205,10 @@ Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) sync* {
           doc,
           FindingKind.visionGoalWidened,
           line: line,
-          message: '$id is not in the $key of the feature',
+          message: '$id is not in the $key of the ${holder!.label}',
           keys: {_idKey: id},
         );
       }
-    }
-  }
-}
-
-Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) sync* {
-  for (final key in _storyVisionKeys) {
-    final line = context.linesOf(doc).keyLine(key);
-    if (line == null) continue;
-    for (final id in doc.valuesOf(key)) {
-      yield* _unresolvedId(context, doc, id, line);
     }
   }
 }
@@ -272,8 +278,8 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
 /// Returns the findings of a spec doc read against its PRD (US-03 FR-03).
 ///
 /// An `api` row must name an FR of its feature as `<feature name>/<cell>`. A
-/// `feature` with code pointers needs an `architecture` doc when the merged
-/// set holds that type.
+/// `feature` with code pointers needs an `architecture` doc of its own or of a
+/// feature above it when the merged set holds that type.
 Iterable<Finding> checkSpecAgainstPrd(
   CheckContext context,
   IndexedDoc doc,
@@ -314,7 +320,8 @@ Iterable<Finding> _missingArchitecture(
       .any((doc) => doc.valuesOf(_implementsKey).isNotEmpty);
   if (!hasCode) return;
   final hasArchitecture = index
-      .childrenOf(feature)
+      .chainOf(feature)
+      .expand(index.childrenOf)
       .any((doc) => doc.docTypeId == _architectureType);
   if (hasArchitecture) return;
   yield context.finding(

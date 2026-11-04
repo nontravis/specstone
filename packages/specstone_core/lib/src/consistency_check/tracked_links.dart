@@ -19,7 +19,7 @@ const _tighten = 'tighten';
 const _relax = 'relax';
 final _scenarioLabel = RegExp(r'^S[0-9]+$');
 final _wellFormedEntry = RegExp(
-  '^(S[0-9]+|NFR-[A-Za-z]+[0-9]+|[a-z0-9_]+/[a-z0-9_]+'
+  '^(S[0-9]+|NFR-[A-Za-z]+[0-9]+|[a-z0-9_]+(?:/[a-z0-9_]+)+'
   r'|[a-z0-9_]+(?:/[a-z0-9_]+)*#S[0-9]+) ([0-9a-f]{12})$',
 );
 

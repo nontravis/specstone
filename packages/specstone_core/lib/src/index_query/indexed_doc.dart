@@ -40,15 +40,15 @@ String sectionKeyOf(String headerText) => headerText
 
 /// Returns the name a doc answers to in a query.
 ///
-/// The `{slug}` values of the doc type path joined with `/`; the doc type id
-/// when the path has none; [docPath] when [docType] is null.
+/// The `{slug}` values of the doc type path that matches joined with `/`; the
+/// doc type id when that path has none; [docPath] when [docType] is null.
 String docNameOf(String docPath, MergedDocType? docType) {
   if (docType == null) return docPath;
-  final path = docType.path;
-  final slugs = path == null
-      ? const <String>[]
-      : PathPattern(path).slugValues(docPath) ?? const <String>[];
-  return slugs.isEmpty ? docType.id : slugs.join('/');
+  for (final path in docType.paths) {
+    final slugs = PathPattern(path).slugValues(docPath);
+    if (slugs != null) return slugs.isEmpty ? docType.id : slugs.join('/');
+  }
+  return docType.id;
 }
 
 /// Returns [n] as the word a message uses: `two` for 2, else the digits.

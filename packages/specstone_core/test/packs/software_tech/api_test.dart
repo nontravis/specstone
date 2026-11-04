@@ -41,6 +41,14 @@ void main() {
     );
   });
 
+  test('f03/us07/fr02: the api FR trace guide names <sub-feature slug>/<story '
+      'slug>/<fr slug>', () {
+    expect(
+      sectionOf(api, 'fr_trace').description,
+      contains('<sub-feature slug>/<story slug>/<fr slug>'),
+    );
+  });
+
   test('f03/us07/fr01, f03/us07/fr01/e06: api sits under '
       'specs/f{nn}_{slug}/ with parent feature, the confirmed field, and four '
       'sections', () {

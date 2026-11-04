@@ -104,8 +104,7 @@ void _addImplement(
       bundle.addTarget(index, parent);
     } else {
       for (final sibling in index.childrenOf(parent)) {
-        final typeId = sibling.docTypeId;
-        if (typeId == null || !index.isChainType(typeId)) {
+        if (!index.isChainDoc(sibling)) {
           bundle.docPaths.add(sibling.docPath);
         }
       }

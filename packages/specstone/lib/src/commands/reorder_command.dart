@@ -20,26 +20,12 @@ class ReorderCommand extends WriteCommand {
       'specstone reorder (<type>:<name> | <path>) --to <n> [--json]';
 
   @override
-  Future<int> run() async {
+  Future<int> run() {
     final args = argResults!;
-    final asJson = args.flag('json');
-    final rest = args.rest;
-    if (rest.isEmpty) {
-      return fail(
-        missingArgument(
-          'reorder',
-          'a target',
-          'specstone reorder user_story:login/reset_password --to 1',
-        ),
-        asJson: asJson,
-      );
-    }
-    if (rest.length > 1) {
-      usageException('Expected one target, got ${rest.length}.');
-    }
-    return runWrite(
-      (session) => answerReorder(session, rest.first, place: args.option('to')),
-      asJson: asJson,
+    return runWriteOnTarget(
+      'specstone reorder user_story:login/reset_password --to 1',
+      (session, target) =>
+          answerReorder(session, target, place: args.option('to')),
     );
   }
 }

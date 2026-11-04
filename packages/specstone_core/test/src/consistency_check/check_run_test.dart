@@ -10,6 +10,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 
 void main() {
@@ -355,6 +356,30 @@ void main() {
     expect(
       () => checkOf(project, target: 'login', docPath: loginStory),
       throwsArgumentError,
+    );
+  });
+
+  test('f08/us06/fr02, sf-c2: checking a sub-feature scopes to its subtree and its spec folder', () async {
+    final project = await writeNestedProject(
+      extra: {
+        'docs/$cartAddFr': '# Check the stock\n',
+        'docs/$payCard': '# Agent pays by card\n',
+        'docs/$cartDomain': '# Cart domain\n',
+        'docs/$shopDomain': '# Shop domain\n',
+      },
+    );
+    final paths = {
+      for (final f in checkOf(project, target: 'feature:shop/cart').findings)
+        f.path,
+    };
+    expect(paths, isNotEmpty);
+    expect(
+      paths.where(
+        (p) =>
+            !p.startsWith('prds/features/f02_shop/f01_cart/') &&
+            !p.startsWith('specs/f02_shop/f01_cart/'),
+      ),
+      isEmpty,
     );
   });
 }

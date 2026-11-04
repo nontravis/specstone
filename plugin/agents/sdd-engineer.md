@@ -92,6 +92,6 @@ file under `## Round <n>` and replies with that round's relay block.
 
 **DON'T:**
 
-- Run `specstone approve` (the Owner's), `delete`, `rename`, or `reorder`.
+- Run `specstone approve` (the Owner's), `delete`, `rename`, `reorder`, or `move`.
 - Write a file by shell redirect, or a PRD or spec doc with `Write` or `Edit`.
 - Ask the user anything, or commit.

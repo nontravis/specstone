@@ -143,6 +143,121 @@ void main() {
       );
     });
 
+    test('f03/us03/fr05/e04: max_depth on two doc types is unknown_value '
+        'naming both', () {
+      final layers = {
+        'playbook': [
+          layerOf('playbook', 'max_depth: 2\n', file: _playbookFile),
+        ],
+        'runbook': [layerOf('runbook', 'max_depth: 3\n')],
+      };
+      expect(
+        () => check([
+          builtIn('playbook')
+              .copyWith(path: 'ops/{slug}/PLAYBOOK.md', maxDepth: 2),
+          builtIn('runbook')
+              .copyWith(path: 'ops/runbooks/{slug}/RUNBOOK.md', maxDepth: 3),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'max_depth')
+              .having(
+                (f) => f.message,
+                'message',
+                'only one doc type takes max_depth: '
+                    'playbook and runbook write it',
+              )
+              .having((f) => f.file, 'file', _runbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
+        ),
+      );
+    });
+
+    test('f03/us03/fr05/e04: max_depth on a doc type with a parent is '
+        'unknown_value', () {
+      final layers = {
+        'epic': [
+          layerOf('epic', 'path: epics/{slug}/EPIC.md\n', file: _epicFile),
+        ],
+        'story': [
+          layerOf('story', 'parent: epic\nmax_depth: 1\n', file: _storyFile),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('epic').copyWith(path: 'epics/{slug}/EPIC.md'),
+          builtIn('story').copyWith(
+            parent: 'epic',
+            path: 'stories/{slug}/STORY.md',
+            maxDepth: 1,
+          ),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'max_depth')
+              .having(
+                (f) => f.message,
+                'message',
+                'a doc type with a parent takes no max_depth',
+              )
+              .having((f) => f.file, 'file', _storyFile),
+        ),
+      );
+    });
+
+    test('f03/us03/fr05/e05: max_depth above 0 on a path whose last folder '
+        'holds no {slug} is unknown_value naming the writer', () {
+      final layers = {
+        'runbook': [layerOf('runbook', 'max_depth: 3\n')],
+      };
+      expect(
+        () => check([
+          builtIn('runbook')
+              .copyWith(path: 'prds/features/FEATURE.md', maxDepth: 3),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'max_depth')
+              .having(
+                (f) => f.message,
+                'message',
+                'max_depth needs a path whose last folder holds {slug}',
+              )
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('f03/us03/fr05/e02: max_depth 0 on any path, and one carrier with a '
+        'slug folder, pass', () {
+      final layers = {
+        'runbook': [layerOf('runbook', 'max_depth: 0\n')],
+        'playbook': [layerOf('playbook', 'path: x\n', file: _playbookFile)],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(path: 'ops/FEATURE.md', maxDepth: 0),
+          builtIn('playbook').copyWith(path: 'books/{slug}/BOOK.md'),
+        ], layers),
+        returnsNormally,
+      );
+      expect(
+        () => check(
+          [
+            builtIn('runbook')
+                .copyWith(path: 'ops/f{nn}_{slug}/R.md', maxDepth: 3),
+          ],
+          {
+            'runbook': [layerOf('runbook', 'max_depth: 3\n')],
+          },
+        ),
+        returnsNormally,
+      );
+    });
+
     test('f03/us03/fr01/e13: a parent loop is parent_cycle', () {
       final layers = {
         'epic': [layerOf('epic', 'parent: story\n', file: _epicFile)],
@@ -243,6 +358,39 @@ void main() {
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.unknownValue)
               .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('f03/us03/fr02/e07: grid at a nested feature pattern is '
+        'doc_type_path_conflict', () {
+      const nestedPath = 'prds/features/f{nn}_{slug}/f{nn}_{slug}/FEATURE.md';
+      final layers = {
+        'feature': [
+          layerOf(
+            'feature',
+            'path: prds/features/f{nn}_{slug}/FEATURE.md\nmax_depth: 1\n',
+            file: 'packs/prd-core/feature.yaml',
+          ),
+        ],
+        'grid': [layerOf('grid', 'path: $nestedPath\n')],
+      };
+      expect(
+        () => check([
+          builtIn('feature').copyWith(
+            path: 'prds/features/f{nn}_{slug}/FEATURE.md',
+            maxDepth: 1,
+          ),
+          builtIn('grid').copyWith(path: nestedPath),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                'doc types feature and grid share the path $nestedPath',
+              ),
         ),
       );
     });

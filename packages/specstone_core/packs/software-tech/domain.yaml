@@ -51,6 +51,7 @@ sections:
     description: |-
       List only the terms beyond the project glossary.
 lint:
+  max_chars: 60000
   max_lines: 400
 reference:
   - title: Eric Evans, Domain-Driven Design Reference (2015)

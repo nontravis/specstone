@@ -1,6 +1,8 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
@@ -54,12 +56,31 @@ void main() {
 
   test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
       'f03/us07/fr02/e04, f03/us07/fr02/e06: the domain guide', () {
-    expectSpecGuide(domain, title: '# <Feature name> domain');
+    expectSpecGuide(domain, title: '# <Feature name> domain', maxChars: 60000);
     expectSectionsSay(domain, _says);
   });
 
-  test('f03/us07/fr03, f03/us07/fr03/e01: domain caps 400 lines, bans no '
-      'word, and cites its four sources', () {
-    expectSpecLint(domain);
+  test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: domain caps 400 lines and '
+      '60000 characters, bans no word, and cites its four sources', () {
+    expectSpecLint(domain, maxChars: 60000);
+  });
+
+  test('f03/us07/fr03/e03, sf-r4: a 60001-character DOMAIN.md gets '
+      'chars_over_limit, limit 60000, actual 60001', () async {
+    const loginDomain = 'specs/f01_login/DOMAIN.md';
+    const title = '# Login domain\n';
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {'docs/$loginDomain': title + 'x' * (60001 - title.length)},
+      ),
+    );
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.charsOverLimit,
+    );
+    expect(finding.path, loginDomain);
+    expect(
+      finding.toJson(),
+      allOf(containsPair('limit', 60000), containsPair('actual', 60001)),
+    );
   });
 }

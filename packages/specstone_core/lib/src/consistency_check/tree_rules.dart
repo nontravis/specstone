@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
 const _pathSeparator = '/';
@@ -19,9 +20,24 @@ Set<String> checkedFoldersOf(MergedSet set) => {
 
 /// Returns the findings of an untyped [doc] in a checked folder (FR-06).
 ///
-/// A doc that two or more doc types match is `doc_type_ambiguous`; any other
-/// is `untyped_doc`. Each states the F-01 warning it reports.
+/// A doc that two or more doc types match is `doc_type_ambiguous`; one past
+/// the nesting limit is `nesting_over_limit`; any other is `untyped_doc`. A
+/// doc type ambiguity states the F-01 warning it reports.
 Iterable<Finding> checkDocType(CheckContext context, IndexedDoc doc) sync* {
+  final nesting = context.index.set.nestingType;
+  final limit = nesting?.maxDepth;
+  final depth = context.depthPastLimitOf(doc);
+  if (nesting != null && limit != null && depth != null) {
+    yield context.finding(
+      doc,
+      FindingKind.nestingOverLimit,
+      line: 1,
+      message:
+          'nests $depth levels below a top ${nesting.id}; the limit is $limit',
+      keys: {'limit': limit, 'actual': depth},
+    );
+    return;
+  }
   final prefix = '${doc.docPath} matches ';
   for (final warning in doc.warnings) {
     if (!warning.startsWith(prefix)) continue;
@@ -107,7 +123,8 @@ Finding _parentProblem(CheckContext context, IndexedDoc doc) {
     FindingKind.parentMissing,
     line: 1,
     message:
-        'no ${context.typeOf(doc)?.parent} doc is the parent of ${doc.name}',
+        'no ${parentTypeOf(doc, context.index.set)?.id} doc is the parent of '
+        '${doc.name}',
   );
 }
 
@@ -177,24 +194,26 @@ Map<_SiblingKey, List<IndexedDoc>> _groupSiblings(CheckContext context) {
 ///
 /// The folder before the `{nn}` segment scopes the group, so a pattern such
 /// as `prds/features/{slug}/f{nn}_{slug}/FEATURE.md` numbers each group apart.
+/// The pattern is the doc type path that matches [doc], so a nested doc reads
+/// its own depth's `{nn}`.
 _SiblingKey? _keyOf(CheckContext context, IndexedDoc doc) {
   final type = context.typeOf(doc);
-  final path = type?.path;
-  if (type == null || path == null || context.hasNoParent(doc)) return null;
+  if (type == null || context.hasNoParent(doc)) return null;
   final segments = doc.docPath.split(_pathSeparator);
-  final pattern = (_pathPatterns[context] ??= {}).putIfAbsent(
-    path,
-    () => PathPattern(path),
-  );
-  for (var depth = segments.length; depth > 0; depth--) {
-    final number = pattern.numberAt(segments.sublist(0, depth));
-    if (number == null) continue;
-    return (
-      typeId: type.id,
-      parentPath: doc.parentPath,
-      folder: segments.take(depth - 1).join(_pathSeparator),
-      number: number,
-    );
+  final patterns = _pathPatterns[context] ??= {};
+  for (final path in type.paths) {
+    final pattern = patterns.putIfAbsent(path, () => PathPattern(path));
+    if (!pattern.matches(doc.docPath)) continue;
+    for (var depth = segments.length; depth > 0; depth--) {
+      final number = pattern.numberAt(segments.sublist(0, depth));
+      if (number == null) continue;
+      return (
+        typeId: type.id,
+        parentPath: doc.parentPath,
+        folder: segments.take(depth - 1).join(_pathSeparator),
+        number: number,
+      );
+    }
   }
   return null;
 }

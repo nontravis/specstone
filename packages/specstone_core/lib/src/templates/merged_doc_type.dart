@@ -299,6 +299,8 @@ final class MergedDocType {
     this.parent,
     this.extendsId,
     this.path,
+    this.maxDepth,
+    this.nestedPaths,
     this.bundle,
     this.generators,
     this.reference,
@@ -319,6 +321,23 @@ final class MergedDocType {
 
   /// The doc path pattern.
   final String? path;
+
+  /// How many more times the doc type's own folder segment may repeat; null
+  /// when no layer sets it.
+  final int? maxDepth;
+
+  /// Whether the doc type's own folder segment may repeat.
+  bool get nests => (maxDepth ?? 0) > 0;
+
+  /// One path pattern per depth, from 0 to the nesting type's `max_depth`;
+  /// null when the doc type's path holds no nesting segment.
+  ///
+  /// A `MergedSet` derives it, so [copyWith] never carries it over.
+  final List<String>? nestedPaths;
+
+  /// The path patterns a doc of this type matches: [nestedPaths], else [path],
+  /// else none.
+  List<String> get paths => nestedPaths ?? [?path];
 
   /// The bundle modes the doc type takes part in; null when no layer sets it.
   final List<String>? bundle;
@@ -355,6 +374,8 @@ final class MergedDocType {
     String? parent,
     String? extendsId,
     String? path,
+    int? maxDepth,
+    List<String>? nestedPaths,
     List<String>? bundle,
     List<String>? generators,
     List<MergedField>? fields,
@@ -369,6 +390,8 @@ final class MergedDocType {
     parent: parent ?? this.parent,
     extendsId: extendsId ?? this.extendsId,
     path: path ?? this.path,
+    maxDepth: maxDepth ?? this.maxDepth,
+    nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
     generators: generators ?? this.generators,
     fields: fields ?? this.fields,
@@ -391,6 +414,7 @@ final class MergedDocType {
       'parent': ?parent,
       'extends': ?extendsId,
       'path': ?path,
+      'maxDepth': ?maxDepth,
       'bundle': ?bundle,
       'fields': [for (final field in fields) field.toJson()],
       'sections': [for (final section in sections) section.toJson()],

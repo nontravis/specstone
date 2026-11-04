@@ -12,6 +12,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 
 void main() {
@@ -245,5 +246,73 @@ void main() {
     );
     addTearDown(session.close);
     expect(spots(runCheck(session), FindingKind.visionQuoteMissing), isEmpty);
+  });
+  group('nested features', () {
+    test('f04/us01/fr07/e11, sf-c11: cart with no shop FEATURE.md is parent_missing', () async {
+      final report = checkOf(
+        await writeNestedProject(without: {'docs/$shopFeature'}),
+      );
+      final found = spots(report, FindingKind.parentMissing);
+      expect(
+        found,
+        containsAll([
+          '$cartFeature:1: parent_missing',
+          '$payFeature:1: parent_missing',
+          '$shopDomain:1: parent_missing',
+        ]),
+      );
+      expect(found, isNot(contains('$cartAdd:1: parent_missing')));
+      expect(
+        report.findings
+            .singleWhere(
+              (f) =>
+                  f.path == cartFeature && f.kind == FindingKind.parentMissing,
+            )
+            .message,
+        'no feature doc is the parent of shop/cart',
+      );
+    });
+
+    test('f04/us01/fr07/e12: nested siblings cart/pay and add_item/drop_item give no order_number_duplicate; a second f01_x beside cart gives one', () async {
+      const kind = FindingKind.orderNumberDuplicate;
+      expect(spots(checkOf(await writeNestedProject()), kind), isEmpty);
+      const twin = 'prds/features/f02_shop/f01_x/FEATURE.md';
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {'docs/$twin': nestedFiles()['docs/$cartFeature']!},
+        ),
+      );
+      expect(
+        spots(report, kind),
+        unorderedEquals([
+          '$cartFeature:1: order_number_duplicate',
+          '$twin:1: order_number_duplicate',
+        ]),
+      );
+    });
+  });
+
+  test('f04/us01/fr06/e08: a FEATURE.md past max_depth is nesting_over_limit, not untyped_doc, and a note in its folder reports no untyped_doc and no link finding', () async {
+    const folder = 'prds/features/f02_shop/f01_cart/f01_a/f01_b/f01_c';
+    final report = checkOf(
+      await writeNestedProject(
+        extra: {
+          'docs/$folder/FEATURE.md': nestedFiles()['docs/$cartFeature']!,
+          'docs/$folder/NOTES.md': '# Notes\n\nSee [x](../../nowhere.md).\n',
+          'docs/prds/features/f02_shop/NOTES.md':
+              '# Notes\n\nSee [x](../../nowhere.md).\n',
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.nestingOverLimit), [
+      '$folder/FEATURE.md:1: nesting_over_limit',
+    ]);
+    expect(
+      spots(report).where((s) => s.contains('NOTES.md')),
+      unorderedEquals([
+        'prds/features/f02_shop/NOTES.md:1: untyped_doc',
+        'prds/features/f02_shop/NOTES.md:3: link_unresolved',
+      ]),
+    );
   });
 }

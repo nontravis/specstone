@@ -117,19 +117,12 @@ String? rewriteDocRefs(
   return result == lfText ? null : result;
 }
 
-/// Returns the journal writes that keep every link and `doc_ref` value true
-/// after [moves] and the renames in [renamed].
+/// Returns the journal writes that keep every link and `doc_ref` true.
 ///
-/// The candidates are the docs, typed or untyped, that link to a doc or to
-/// any other file or folder under a moved path, that hold a path mention
-/// [rewritePathMentions] changes, and, for [renamed], the
-/// typed docs whose `doc_ref` values name a renamed doc and the `journey` and
-/// `api` docs whose step identities, FR trace cells, or `confirmed` labels do.
-/// A doc is chosen from a lenient read, so a non-UTF-8 doc that names nothing
-/// renamed never blocks. Each is read from disk before the moves; a step
-/// holds its text after the rewrites, in the file's line endings and BOM,
-/// at its project path after the moves. Steps are sorted by path. No draft
-/// or approved mark is touched.
+/// Candidates are docs that link under a moved path, move and hold a link or
+/// path mention a rewrite changes, or, for [renamed], name a renamed doc; a
+/// lenient read keeps a non-UTF-8 doc naming nothing renamed from blocking.
+/// Steps hold the rewritten text, sorted by path, with draft marks untouched.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
@@ -146,6 +139,7 @@ List<WriteStep> planRewrites(
       }
     }
     if (_linksToMovedFile(index, doc, moves) ||
+        _movesWithChangedLink(index, doc, moves) ||
         _mentionsMovedFile(session, doc, moves)) {
       candidates[doc.docPath] = doc;
     }
@@ -169,6 +163,21 @@ bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
         .lineFacts
         .fileLinks
         .any((link) => movedFilePath(link.target, moves) != link.target);
+
+/// Whether [doc] moves and [rewriteDocLinks] changes a link it holds, a link
+/// to itself or to a target that stays included.
+bool _movesWithChangedLink(
+  DocIndex index,
+  IndexedDoc doc,
+  List<PathMove> moves,
+) =>
+    movedPath(doc.docPath, moves) != doc.docPath &&
+    rewriteDocLinks(
+          toLf(index.contentOf(doc).text),
+          docPath: doc.docPath,
+          moves: moves,
+        ) !=
+        null;
 
 /// Whether [doc] holds a path mention that [moves] change.
 bool _mentionsMovedFile(
@@ -221,6 +230,7 @@ WriteStep? _stepFor(
         refs ?? lfText,
         docType: session.index.typeOf(doc),
         featureName: session.index.parentOf(doc)?.name,
+        newFeatureName: _newParentName(session, doc, renamed),
         renamed: renamed,
       ) ??
       refs;
@@ -231,6 +241,18 @@ WriteStep? _stepFor(
     session.projectPathOf(movedPath(doc.docPath, moves)),
     '$bom${LineEnding.of(raw).apply(text)}',
   );
+}
+
+/// Returns the Name of [doc]'s parent after the renames in [renamed], null
+/// when [doc] has no parent.
+String? _newParentName(
+  WriteSession session,
+  IndexedDoc doc,
+  Map<(String, String), String> renamed,
+) {
+  final parent = session.index.parentOf(doc);
+  if (parent == null) return null;
+  return renamed[(parent.docTypeId, parent.name)] ?? parent.name;
 }
 
 /// Whether a `journey` or `api` [doc] holds a step identity, FR trace cell,
@@ -257,6 +279,7 @@ bool _namesRenamedLabel(
         toLf(text),
         docType: session.index.typeOf(doc),
         featureName: session.index.parentOf(doc)?.name,
+        newFeatureName: _newParentName(session, doc, renamed),
         renamed: renamed,
       ) !=
       null;

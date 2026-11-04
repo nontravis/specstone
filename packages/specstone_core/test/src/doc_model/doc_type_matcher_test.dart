@@ -100,4 +100,68 @@ void main() {
       },
     );
   });
+
+  group('DocTypeMatcher nested depths', () {
+    MergedDocType docType(String id, String path, {int? maxDepth}) =>
+        MergedDocType(
+          id: id,
+          path: path,
+          maxDepth: maxDepth,
+          fields: const [],
+          sections: const [],
+          lint: const MergedLint(),
+          files: const [],
+        );
+
+    DocTypeMatcher matcherAt(int maxDepth) => DocTypeMatcher(
+      MergedSet(
+        docTypes: [
+          docType(
+            'feature',
+            'prds/features/f{nn}_{slug}/FEATURE.md',
+            maxDepth: maxDepth,
+          ),
+        ],
+      ),
+    );
+
+    test('doc_model/s03/inv10: depth 3 matches feature and depth 4 matches '
+        'none', () {
+      final matcher = matcherAt(3);
+
+      final match = matcher.match(
+        'prds/features/f01_a/f01_b/f01_c/f01_d/FEATURE.md',
+      );
+      expect((match as MatchedDocType).docType.id, 'feature');
+
+      const tooDeep = 'prds/features/f01_a/f01_b/f01_c/f01_d/f01_e/FEATURE.md';
+      expect(matcher.match(tooDeep), isA<NoDocType>());
+      expect(matcher.depthPastLimit(tooDeep), 4);
+      expect(matcher.depthPastLimit('prds/features/f01_a/FEATURE.md'), isNull);
+    });
+
+    test('doc_model/s03/inv10: max_depth 0 reports depth 1 past the limit', () {
+      expect(
+        matcherAt(0).depthPastLimit('prds/features/f01_a/f01_b/FEATURE.md'),
+        1,
+      );
+    });
+
+    test('depthPastLimit is null for a set with no nesting type', () async {
+      final matcher = DocTypeMatcher(await fixtureDocTypes());
+
+      expect(
+        matcher.depthPastLimit('prds/features/f01_a/f01_b/FEATURE.md'),
+        isNull,
+      );
+    });
+
+    test('doc_model/s03/inv10: entryNumber reads the number of a nested '
+        'segment', () {
+      expect(
+        matcherAt(1).entryNumber(['prds', 'features', 'f01_a', 'f02_b']),
+        2,
+      );
+    });
+  });
 }

@@ -34,6 +34,28 @@ abstract class WriteCommand extends SpecstoneCommand {
     return fail(fault, asJson: asJson, warnings: warnings);
   }
 
+  /// Runs [answer] on the one target the command was given, through
+  /// [runWrite].
+  ///
+  /// No target is `argument_missing` with [example]; more than one is a usage
+  /// error.
+  Future<int> runWriteOnTarget(
+    String example,
+    ReadAnswer Function(WriteSession session, String target) answer,
+  ) {
+    final asJson = argResults!.flag('json');
+    final rest = argResults!.rest;
+    if (rest.isEmpty) {
+      return Future.value(
+        fail(missingArgument(name, 'a target', example), asJson: asJson),
+      );
+    }
+    if (rest.length > 1) {
+      usageException('Expected one target, got ${rest.length}.');
+    }
+    return runWrite((session) => answer(session, rest.first), asJson: asJson);
+  }
+
   /// Opens a write session, prints what [answer] returns, and returns its
   /// exit status.
   ///

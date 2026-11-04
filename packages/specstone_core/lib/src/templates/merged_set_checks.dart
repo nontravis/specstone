@@ -2,6 +2,7 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The layers the resolver folded for one doc type, lowest first.
@@ -75,10 +76,85 @@ void checkMergedSet(
 }) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
+  _checkNesting(sorted, layerLists, loadIndex);
   _checkPaths(sorted, layerLists, loadIndex);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
+}
+
+/// Throws `unknown_value` for a `max_depth` that breaks INV-28 (SF-R11).
+void _checkNesting(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final carriers = [
+    for (final docType in docTypes)
+      if (docType.maxDepth != null) docType,
+  ];
+  if (carriers.length > 1) {
+    _throwSecondCarrier(carriers, layerLists, loadIndex);
+  }
+  for (final carrier in carriers) {
+    final message = _carrierFault(carrier);
+    if (message != null) {
+      throw _maxDepthFault(message, carrier, layerLists);
+    }
+  }
+}
+
+/// Throws the fault for more than one doc type writing `max_depth`.
+///
+/// The message names the carriers in the order of [carriers].
+Never _throwSecondCarrier(
+  List<MergedDocType> carriers,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final (:file, :related) = rankFaultFiles([
+    for (final carrier in carriers)
+      _writerOf(carrier.id, _wroteMaxDepth, layerLists),
+  ], loadIndex);
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'only one doc type takes max_depth: '
+    '${_joinIds([for (final c in carriers) c.id])} write it',
+    file: file,
+    key: 'max_depth',
+    relatedFiles: related,
+  );
+}
+
+/// The fault message for the lone [carrier], or null when it is valid.
+String? _carrierFault(MergedDocType carrier) {
+  if (carrier.parent != null) {
+    return 'a doc type with a parent takes no max_depth';
+  }
+  if (carrier.nests && !_lastFolderHoldsSlug(carrier.path)) {
+    return 'max_depth needs a path whose last folder holds {slug}';
+  }
+  return null;
+}
+
+TemplateFault _maxDepthFault(
+  String message,
+  MergedDocType carrier,
+  Map<String, DocTypeLayers> layerLists,
+) => TemplateFault(
+  FaultCode.unknownValue,
+  message,
+  file: _writerOf(carrier.id, _wroteMaxDepth, layerLists),
+  key: 'max_depth',
+);
+
+bool _wroteMaxDepth(DocTypeLayer layer) => layer.maxDepth != null;
+
+/// Whether the last folder segment of [path] holds `{slug}`.
+bool _lastFolderHoldsSlug(String? path) {
+  final segments = path?.split('/') ?? const <String>[];
+  return segments.length > 1 &&
+      segments[segments.length - 2].contains('{slug}');
 }
 
 /// Throws `doc_type_path_conflict` for a `path` two doc types share
@@ -93,9 +169,10 @@ void _checkPaths(
   LoadIndex loadIndex,
 ) {
   final byPath = <String, List<MergedDocType>>{};
-  for (final docType in docTypes) {
-    final path = docType.path;
-    if (path != null) byPath.putIfAbsent(path, () => []).add(docType);
+  for (final docType in withNestedPaths(docTypes)) {
+    for (final path in docType.paths) {
+      byPath.putIfAbsent(path, () => []).add(docType);
+    }
   }
   for (final MapEntry(key: path, value: holders) in byPath.entries) {
     if (holders.length < 2) continue;

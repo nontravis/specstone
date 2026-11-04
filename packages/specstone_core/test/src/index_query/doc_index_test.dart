@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   const colonSkip = 'Windows forbids : in file names, so no such doc exists';
@@ -263,5 +264,20 @@ void main() {
     ]);
     expect(index.subtreeOf(feature).length, 11);
     expect(index.under('login').length, 11);
+  });
+  group('nested feature status', () {
+    test('f01/us02/fr02/e06, sf-c3: shop is planned while pay/refund is, and implemented once all four stories are', () async {
+      final half = await nestedIndexWith();
+      expect(half.statusOf(half.at(shopFeature)!), 'planned');
+      expect(half.statusOf(half.at(cartFeature)!), 'implemented');
+      expect(half.statusOf(half.at(payFeature)!), 'planned');
+      final done = await nestedIndexWith({
+        'docs/$payRefund': nestedFiles()['docs/$payRefund']!.replaceFirst(
+          'status: planned',
+          'status: implemented',
+        ),
+      });
+      expect(done.statusOf(done.at(shopFeature)!), 'implemented');
+    });
   });
 }

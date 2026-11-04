@@ -29,24 +29,27 @@ bool carriesLinkLabels(String? docTypeId) =>
     docTypeId == journeyTypeId || docTypeId == apiTypeId;
 
 /// Returns [lfText] with each step: identity, FR trace cell, and confirmed
-/// label naming a renamed doc set to its new name, the `S<N>` and every
-/// fingerprint kept; null when nothing changes.
+/// label naming a renamed doc set to its new name; null when nothing changes.
 ///
-/// [renamed] maps `(doc type id, old name)` to the new name. Only a `journey`
-/// and an `api` doc change. [featureName] is the `api` doc's feature before
-/// the rename: an FR ref holds no feature slug, so a cell resolves under it
-/// alone, and a feature rename leaves every cell as written. A step line
-/// inside a fence or a generated block, and the prose, keep every byte.
+/// [renamed] maps `(doc type id, old name)` to the new name. An FR cell is the
+/// FR's Name less `<feature>/`: it resolves under [featureName] and becomes
+/// the new Name less `<newFeatureName>/`, kept when that prefix is missing.
 String? rewriteLinkLabels(
   String lfText, {
   required MergedDocType? docType,
   required String? featureName,
+  String? newFeatureName,
   required Map<(String, String), String> renamed,
 }) {
   if (docType == null || renamed.isEmpty) return null;
   final newLabel = switch (docType.id) {
     journeyTypeId => (String label) => _journeyEntryLabel(label, renamed),
-    apiTypeId => (String label) => _frCell(label, featureName, renamed),
+    apiTypeId => (String label) => _frCell(
+      label,
+      featureName,
+      newFeatureName ?? featureName,
+      renamed,
+    ),
     _ => null,
   };
   if (newLabel == null) return null;
@@ -54,7 +57,7 @@ String? rewriteLinkLabels(
   final lines = lfText.split('\n');
   final prefixLength = lfText.length - doc.afterFrontmatter.length;
   final firstLine = '\n'.allMatches(lfText.substring(0, prefixLength)).length;
-  _rewriteBody(lines, doc, firstLine, docType, featureName, renamed);
+  _rewriteBody(lines, doc, firstLine, docType, newLabel, renamed);
   var result = lines.join('\n');
   final confirmed = doc.frontmatter
       ?.where((block) => block.name == _confirmedKey)
@@ -79,7 +82,7 @@ void _rewriteBody(
   Doc doc,
   int firstLine,
   MergedDocType docType,
-  String? featureName,
+  String? Function(String label) newLabel,
   Map<(String, String), String> renamed,
 ) {
   final isJourney = docType.id == journeyTypeId;
@@ -97,7 +100,7 @@ void _rewriteBody(
   if (isJourney) {
     _rewriteSteps(lines, start, body, docType, renamed);
   } else {
-    _rewriteFrRows(lines, start, body, featureName, renamed);
+    _rewriteFrRows(lines, start, body, newLabel);
   }
 }
 
@@ -128,8 +131,7 @@ void _rewriteFrRows(
   List<String> lines,
   int start,
   String body,
-  String? featureName,
-  Map<(String, String), String> renamed,
+  String? Function(String cell) newCell,
 ) {
   final bodyLines = body.split('\n');
   final fenced = fencedLines(bodyLines);
@@ -138,7 +140,7 @@ void _rewriteFrRows(
       (text: bodyLines[i], line: i, fenced: fenced[i]),
   ]);
   for (final (:cell, :line) in rows) {
-    final name = _frCell(cell, featureName, renamed);
+    final name = newCell(cell);
     if (name == null) continue;
     lines[start + line] = _withFirstCell(lines[start + line], cell, name);
   }
@@ -160,13 +162,14 @@ String _withFirstCell(String row, String cell, String name) {
 String? _frCell(
   String cell,
   String? featureName,
+  String? newFeatureName,
   Map<(String, String), String> renamed,
 ) {
-  if (featureName == null) return null;
+  if (featureName == null || newFeatureName == null) return null;
   final name = renamed[(_frType, '$featureName/$cell')];
-  final cut = name?.indexOf('/') ?? -1;
-  if (name == null || cut < 0) return null;
-  final renamedCell = name.substring(cut + 1);
+  final prefix = '$newFeatureName/';
+  if (name == null || !name.startsWith(prefix)) return null;
+  final renamedCell = name.substring(prefix.length);
   return renamedCell == cell ? null : renamedCell;
 }
 

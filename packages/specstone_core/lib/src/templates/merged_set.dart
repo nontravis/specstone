@@ -2,14 +2,18 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart';
 
 /// The merged doc types of one resolve, sorted by id in code point order.
 final class MergedSet {
   new({required List<MergedDocType> docTypes})
-    : docTypes = _sortedCopy(docTypes);
+    : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes)));
 
   /// The merged doc types, sorted by id; the caller's list is untouched.
   final List<MergedDocType> docTypes;
+
+  /// The doc type that writes `max_depth`, 0 included; null when none does.
+  MergedDocType? get nestingType => nestingTypeOf(docTypes);
 
   /// Returns the doc type [id], or null when the set holds none.
   MergedDocType? lookup(String id) {
@@ -39,10 +43,8 @@ final class MergedSet {
       ? null
       : const LineSplitter().convert(text).firstOrNull ?? '';
 
-  /// Returns an unmodifiable [docTypes] copy sorted by id (INV-22).
-  static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) {
-    final sorted = List<MergedDocType>.of(docTypes)
-      ..sort((a, b) => compareCodePoints(a.id, b.id));
-    return List.unmodifiable(sorted);
-  }
+  /// Returns a [docTypes] copy sorted by id (INV-22).
+  static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) =>
+      List<MergedDocType>.of(docTypes)
+        ..sort((a, b) => compareCodePoints(a.id, b.id));
 }

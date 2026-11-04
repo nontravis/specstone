@@ -13,7 +13,16 @@ description: |-
   Keep the document lean; never specify everything before work starts.
   Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
   State the present truth; history lives in git.
+  Place a new requirement by three questions, and state the answer to each when you propose its place:
+  1. Does it use an entity, invariant, or rule an existing feature owns (in its domain doc, where the project has one)? No: a new top feature.
+  2. Yes: how many stories does it yield? One: a new story in the deepest such feature that holds stories.
+  3. Several: do those stories own entities or invariants the feature's other stories do not use? Yes: a new sub-feature under that feature. No: new stories in that feature.
+  A sub-feature holds at least 2 stories or sub-features; a lone story never starts one.
+  A feature that holds sub-features holds no story; a lone story whose only spec is such a parent goes to the sub-feature whose stories it is closest to, and the proposal says so.
+  The parent keeps only what all its sub-features share.
+  When `check` reports `chars_over_limit` on a feature's spec doc, propose a split by the same three questions; the Owner approves it.
 path: prds/features/f{nn}_{slug}/FEATURE.md
+max_depth: 3
 fields:
   - id: vision
     type: string

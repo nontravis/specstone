@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -10,7 +12,9 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, projectDoc, spots;
 import '../../helpers/failing_rename.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
@@ -47,6 +51,23 @@ void main() {
     expect(
       writeIn(root, (s) => s.target('user_story:login/reset_password').docPath),
       '$f/us01_reset_password/USER_STORY.md',
+    );
+  });
+
+  test('f02/us05/fr02, dw-s03/inv10: a reordered story links to itself through its own folder, and the link follows it', () async {
+    final root = await writeWriteProject();
+    docFile(root, story2).writeAsStringSync(
+      '\nSee [me](../us02_sign_out/USER_STORY.md#use-case).\n',
+      mode: FileMode.append,
+    );
+    reorder(root, 'user_story:login/sign_out', '1');
+    expect(
+      readDoc(root, '$f/us01_sign_out/USER_STORY.md'),
+      contains('[me](USER_STORY.md#use-case)'),
+    );
+    expect(
+      spots(checkOf(root), FindingKind.linkUnresolved),
+      isNot(contains(startsWith('$f/us01_sign_out/'))),
     );
   });
 
@@ -724,6 +745,434 @@ void main() {
     expect(
       readDoc(root, linkFile),
       contains('](../us03_recover_account/USER_STORY.md#use-case)'),
+    );
+  });
+
+  group('nested features', () {
+    const shop = 'prds/features/f02_shop';
+    const payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
+
+    test('f02/us05/fr01/e11, sf-c2: reordering a sub-feature renumbers only its siblings and moves its spec folder', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$payDomain': '# Pay domain\n'},
+      );
+      final answer = reorder(root, 'feature:shop/pay', '1');
+      expect(answer.text, contains('moved $shop/f02_pay/ to $shop/f01_pay/\n'));
+      expect(answer.text, contains('moved $shop/f01_cart/ to $shop/f02_cart/'));
+      expect(
+        answer.text,
+        contains('moved specs/f02_shop/f02_pay/ to specs/f02_shop/f01_pay/'),
+      );
+      expect(hasDoc(root, '$shop/f01_pay/FEATURE.md'), isTrue);
+      expect(
+        hasDoc(root, '$shop/f02_cart/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+      expect(hasDoc(root, 'specs/f02_shop/f01_pay/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, 'specs/f02_shop/f02_cart/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, shopFeature), isTrue);
+    });
+
+    test('f02/us05/fr01/e11, sf-c2: reordering a story under a sub-feature moves only the stories of that sub-feature', () async {
+      final root = await writeNestedProject();
+      final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shop/f01_cart/us02_drop_item/ to $shop/f01_cart/us01_drop_item/\n'
+          'moved $shop/f01_cart/us01_add_item/ to $shop/f01_cart/us02_add_item/\n',
+        ),
+      );
+      expect(hasDoc(root, '$shop/f02_pay/us01_card/USER_STORY.md'), isTrue);
+    });
+
+    test('f02/us06/fr01/e11: renaming a sub-feature moves its folder and spec folder', () async {
+      final root = await writeNestedProject();
+      final answer = rename(root, 'feature:shop/cart', 'basket');
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shop/f01_cart/ to $shop/f01_basket/\n'
+          'moved specs/f02_shop/f01_cart/ to specs/f02_shop/f01_basket/\n',
+        ),
+      );
+      expect(hasDoc(root, 'specs/f02_shop/f01_basket/DOMAIN.md'), isTrue);
+      expect(
+        hasDoc(root, '$shop/f01_basket/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+    });
+
+    test('f02/us06/fr01/e06: renaming a sub-feature spec doc names the sub-feature to rename', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => rename(root, 'domain:shop/cart', 'basket'),
+        throwsA(
+          isA<WriteFault>().having(
+            (f) => f.message,
+            'message',
+            contains('rename feature:shop/cart instead'),
+          ),
+        ),
+      );
+    });
+
+    test('f02/us06/fr01/e11: renaming the top feature renames the docs under every sub-feature', () async {
+      final root = await writeNestedProject();
+      rename(root, 'feature:shop', 'market');
+      expect(
+        hasDoc(
+          root,
+          'prds/features/f02_market/f01_cart/us01_add_item/USER_STORY.md',
+        ),
+        isTrue,
+      );
+      expect(
+        writeIn(root, (s) => s.index.carriesName('market/cart/add_item')),
+        isTrue,
+      );
+      expect(hasDoc(root, 'specs/f02_market/f01_cart/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, 'specs/f02_market/DOMAIN.md'), isTrue);
+    });
+  });
+
+  group('move', () {
+    const shop = 'prds/features/f02_shop';
+    const journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
+    const notesPath = 'notes/ideas.md';
+    const addItemFolder = 'prds/features/f02_shop/f01_cart/us01_add_item';
+    const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
+
+    ReadAnswer move(Directory root, String address, String? under) =>
+        writeIn(root, (s) => answerMove(s, address, under: under));
+
+    void appendTo(Directory root, String docPath, String text) =>
+        docFile(root, docPath).writeAsStringSync(text, mode: FileMode.append);
+
+    test('f02/us07/s1, sf-r3: a story moves to the last place of another feature with its FR, and the old siblings keep their numbers', () async {
+      final root = await writeNestedProject();
+      final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        answer.text,
+        startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+      );
+      expect(answer.json['moved'], [
+        {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+      ]);
+      expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+      expect(hasDoc(root, '$movedFolder/fr01_check_stock.md'), isTrue);
+      expect(hasDoc(root, cartAdd), isFalse);
+      expect(hasDoc(root, cartDrop), isTrue);
+      expect(hasDoc(root, payCard), isTrue);
+      expect(hasDoc(root, payRefund), isTrue);
+    });
+
+    test("f02/us07/fr02/e01, sf-r3: shop's api cell and confirmed label become pay/add_item/check_stock, and a step, a link, and a path mention follow", () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$journeyPath':
+              '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+              '### 1. Add\nstep: shop/cart/add_item S1\n',
+          'docs/$notesPath':
+              '# Ideas\n\nSee `../$addItemFolder/USER_STORY.md` first.\n',
+        },
+      );
+      appendTo(
+        root,
+        projectDoc,
+        '\nSee [add item](features/f02_shop/f01_cart/us01_add_item/USER_STORY.md).\n',
+      );
+      move(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      final api = readDoc(root, shopApi);
+      expect(api, contains('| pay/add_item/check_stock | `addItem` |'));
+      expect(api, contains('  - pay/add_item/check_stock '));
+      expect(api, isNot(contains('cart/add_item')));
+      expect(
+        readDoc(root, journeyPath),
+        contains('step: shop/pay/add_item S1\n'),
+      );
+      expect(
+        readDoc(root, projectDoc),
+        contains('(features/f02_shop/f02_pay/us03_add_item/USER_STORY.md)'),
+      );
+      expect(
+        readDoc(root, notesPath),
+        contains('`../$movedFolder/USER_STORY.md`'),
+      );
+    });
+
+    test('f02/us07/fr02/e02: a move under the top feature f03_other leaves the shop cell, and check reports fr_trace_unresolved on it', () async {
+      final root = await writeNestedProject();
+      const other = 'prds/features/f03_other/FEATURE.md';
+      docFile(root, other)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(readDoc(root, payFeature));
+      move(root, 'user_story:shop/cart/add_item', 'other');
+      expect(
+        hasDoc(root, 'prds/features/f03_other/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+      expect(
+        readDoc(root, shopApi),
+        contains('| cart/add_item/check_stock | `addItem` |'),
+      );
+      expect(
+        spots(checkOf(root), FindingKind.frTraceUnresolved),
+        contains(startsWith('$shopApi:')),
+      );
+    });
+
+    for (final (first, second) in [
+      ('add_item', 'drop_item'),
+      ('drop_item', 'add_item'),
+    ]) {
+      test(
+        'f02/us05/fr02, f02/us07/fr02/e03, dw-s03/inv10: two sibling stories that link each other move under login, $first first, and each link resolves',
+        () async {
+          final root = await writeNestedProject();
+          appendTo(
+            root,
+            cartAdd,
+            '\nSee [drop item](../us02_drop_item/USER_STORY.md).\n',
+          );
+          appendTo(
+            root,
+            cartDrop,
+            '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+          );
+          move(root, 'user_story:shop/cart/$first', 'login');
+          move(root, 'user_story:shop/cart/$second', 'login');
+          String folderOf(String slug) =>
+              slug == first ? 'us02_$slug' : 'us03_$slug';
+          expect(
+            readDoc(root, '$f/${folderOf('add_item')}/USER_STORY.md'),
+            contains('(../${folderOf('drop_item')}/USER_STORY.md)'),
+          );
+          expect(
+            readDoc(root, '$f/${folderOf('drop_item')}/USER_STORY.md'),
+            contains('(../${folderOf('add_item')}/fr01_check_stock.md)'),
+          );
+          expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        },
+      );
+    }
+
+    test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to itself through its own folder, and the link follows it', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [me](../us02_drop_item/USER_STORY.md#x).\n',
+      );
+      move(root, 'user_story:shop/cart/drop_item', 'shop/pay');
+      expect(
+        readDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
+        contains('[me](USER_STORY.md#x)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to a plain file that stays, and the link follows', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$shop/f01_cart/flow.png': 'png'},
+      );
+      appendTo(root, cartDrop, '\n![flow](../flow.png)\n');
+      move(root, 'user_story:shop/cart/drop_item', 'login');
+      expect(
+        readDoc(root, '$f/us02_drop_item/USER_STORY.md'),
+        contains('![flow](../../f02_shop/f01_cart/flow.png)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkTargetMissing), isEmpty);
+    });
+
+    test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link must change refuses with output_not_writable, and nothing moves', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [stock](../us01_add_item/fr01_check_stock.md).\n',
+      );
+      docFile(root, cartDrop).writeAsBytesSync([0xff], mode: FileMode.append);
+      expect(
+        () => move(root, 'user_story:shop/cart/drop_item', 'shop/pay'),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $cartDrop: not UTF-8 text',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartDrop), isTrue);
+      expect(
+        hasDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
+        isFalse,
+      );
+    });
+
+    test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link still reaches its target moves with every byte kept', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [cart](../../../f02_shop/f01_cart/FEATURE.md).\n',
+      );
+      docFile(root, cartDrop).writeAsBytesSync([0xff], mode: FileMode.append);
+      final bytes = docFile(root, cartDrop).readAsBytesSync();
+      move(root, 'user_story:shop/cart/drop_item', 'shop/pay');
+      expect(
+        docFile(
+          root,
+          '$shop/f02_pay/us03_drop_item/USER_STORY.md',
+        ).readAsBytesSync(),
+        bytes,
+      );
+    });
+
+    test('f02/us07/fr01/e01, sf-c6: no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
+      final root = await writeNestedProject();
+      final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      for (final path in [
+        '$movedFolder/USER_STORY.md',
+        '$movedFolder/fr01_check_stock.md',
+        for (final p in answer.json['rewritten']! as List<Object?>) '$p',
+      ]) {
+        expect(readDoc(root, path), isNot(contains('status: draft')));
+      }
+      final report = checkOf(root);
+      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+    });
+
+    test('f02/us07/fr01/e02, review focus 2: a sibling with the story slug is doc_exists naming its path, and nothing moves', () async {
+      const clash = 'prds/features/f02_shop/f02_pay/us03_add_item';
+      final root = await writeNestedProject(
+        extra: {'docs/$clash/USER_STORY.md': '# Add item\n'},
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having(
+                (f) => f.message,
+                'message',
+                'a user_story named shop/pay/add_item exists',
+              )
+              .having((f) => f.file, 'file', '$clash/USER_STORY.md'),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('f02/us07/fr01/e03: a landing path already on disk is doc_exists naming that path, and nothing moves', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$movedFolder/note.md': '# Note\n'},
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having((f) => f.file, 'file', '$movedFolder/'),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('f02/us07/fr01/e04, review focus 3: a story moved into the feature it sits in changes nothing', () async {
+      final root = await writeNestedProject();
+      final answer = move(root, 'user_story:shop/cart/drop_item', 'shop/cart');
+      expect(answer.text, isEmpty);
+      expect(answer.json['moved'], isEmpty);
+      expect(answer.json['rewritten'], isEmpty);
+      expect(hasDoc(root, cartDrop), isTrue);
+    });
+
+    test('f02/us07/fr01/e05, sf-r1: a feature that holds features takes no story, and nothing moves', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'shop (feature) holds sub-features, so it takes no story',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('f02/us07/fr01/e06: a doc of another type is doc_type_not_movable, and nothing moves', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'fr:shop/cart/add_item/check_stock', 'shop/pay'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+              .having(
+                (f) => f.message,
+                'message',
+                'fr docs cannot move; move takes a user_story',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAddFr), isTrue);
+    });
+
+    test('f02/us07/fr01/e07: no --under is argument_missing', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', null),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                'move needs a feature, such as specstone move '
+                    'user_story:login/reset_password --under account',
+              ),
+        ),
+      );
+    });
+
+    test('f02/us07/fr01/e08: an --under no feature carries is doc_not_found, and nothing moves', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'nothing'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no feature doc carries the name nothing',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test(
+      'f02/us07/fr01/e10, sf-r1: a move out of a mixed parent is allowed',
+      () async {
+        const orphan = '$shop/us01_orphan';
+        final root = await writeNestedProject(
+          extra: {'docs/$orphan/USER_STORY.md': '# Orphan\n'},
+        );
+        final answer = move(root, 'user_story:shop/orphan', 'shop/pay');
+        expect(
+          answer.text,
+          startsWith('moved $orphan/ to $shop/f02_pay/us03_orphan/\n'),
+        );
+        expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
+      },
     );
   });
 }

@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   const fp = fingerprintOf;
@@ -400,6 +401,15 @@ void main() {
       ),
     );
     expect(spots(report), ['$loginFr:3: scenario_trace_unresolved']);
+  });
+
+  test('f04/us04/fr03/e10: an api entry naming a nested FR by three segments is well-formed', () async {
+    final report = checkOf(await writeNestedProject(), docPath: shopApi);
+
+    expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
+    expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+    expect(spots(report, FindingKind.suspect), isEmpty);
+    expect(spots(report, FindingKind.unconfirmed), isEmpty);
   });
 
   group('journey step links', () {

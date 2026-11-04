@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -11,6 +12,8 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show fingerprintFor;
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -642,6 +645,20 @@ void main() {
         moves: [(from: 'a/b.md', to: 'a/d.md')],
       ),
       '[b](./d.md#x) [c](./c.md)\n',
+    );
+  });
+
+  test('f02/us06/fr03/e10: a sub-feature rename lists the parent api among the rewrites and sets its confirmed label', () async {
+    final nested = await writeNestedProject();
+    final answer = writeIn(
+      nested,
+      (s) => answerRename(s, 'feature:shop/cart', slug: 'basket'),
+    );
+    expect(answer.json['rewritten'], contains(shopApi));
+    final stock = fingerprintFor(checkStockStatement);
+    expect(
+      readDoc(nested, shopApi),
+      contains('  - basket/add_item/check_stock $stock\n'),
     );
   });
 }

@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   late DocIndex index;
@@ -134,5 +135,25 @@ void main() {
     int keep(IndexedDoc a, IndexedDoc b) => 0;
     expect(() => index.resolve('login').sort(keep), throwsUnsupportedError);
     expect(() => index.childrenOf(feature).sort(keep), throwsUnsupportedError);
+  });
+  test('f01/us02/fr01/e08: structure shop prints shop, cart and its two stories, then pay and its two', () async {
+    final nested = await nestedIndexWith();
+    final lines = answerStructure(nested, target: 'shop').text.split('\n');
+    expect(
+      [
+        for (final line in lines)
+          if (line.contains('(feature)') || line.contains('(user_story)'))
+            line.split(' — ').first,
+      ],
+      [
+        'shop (feature)',
+        '  shop/cart (feature)',
+        '    shop/cart/add_item (user_story)',
+        '    shop/cart/drop_item (user_story)',
+        '  shop/pay (feature)',
+        '    shop/pay/card (user_story)',
+        '    shop/pay/refund (user_story)',
+      ],
+    );
   });
 }

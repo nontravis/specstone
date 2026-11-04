@@ -705,9 +705,47 @@ void _agentTests() {
     expect(text, contains('the feature with `--summary` to add a story'));
   });
 
+  test('f08/us02/fr01/e11, sf-r8: brainstorming-sdd step 1 runs specstone '
+      'guide feature for a new story or feature', () {
+    final step = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      '1. Ground: the first call',
+    ).replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      step,
+      contains(
+        'For a change that adds a story or a feature, run `specstone guide '
+        'feature` after that call, answer its placement questions, and show '
+        'the Owner each answer; go on only after their yes.',
+      ),
+    );
+  });
+
   test('f08/us01/fr02/e05, db-r1: sdd-reader still pulls a target an earlier '
       'bundle listed in summary', () {
     expect(_pluginText('agents/sdd-reader.md'), contains('· summary'));
+  });
+
+  test('f08/us01/fr02/e02, sf-r3: sdd-reader runs no write command, move '
+      'included', () {
+    expect(
+      _sectionOf(_pluginText('agents/sdd-reader.md'), 'Scope Boundaries'),
+      contains(
+        "**DON'T:**\n\n- Run a write command: `new`, `set`, `approve`, "
+        '`delete`, `reorder`, `rename`, or `move`.\n',
+      ),
+    );
+  });
+
+  test('f08/us02/fr02/e02, sf-r3: sdd-engineer runs no approve, delete, '
+      'rename, reorder, or move', () {
+    expect(
+      _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Scope Boundaries'),
+      contains(
+        "**DON'T:**\n\n- Run `specstone approve` (the Owner's), `delete`, "
+        '`rename`, `reorder`, or `move`.\n',
+      ),
+    );
   });
 
   test('f08/us01/fr02, db-r6: sdd-reader takes --summary per target and the '

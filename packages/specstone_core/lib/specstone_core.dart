@@ -11,7 +11,8 @@ export 'src/document_writing/approve_drafts.dart'
     show SeenDraft, approveDrafts, approveDryRun, approveNamed;
 export 'src/document_writing/delete_doc.dart'
     show answerDelete, answerDeleteDryRun;
-export 'src/document_writing/move_doc.dart' show answerRename, answerReorder;
+export 'src/document_writing/move_doc.dart'
+    show answerMove, answerRename, answerReorder;
 export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
 export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;

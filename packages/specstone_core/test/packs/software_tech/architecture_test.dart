@@ -84,6 +84,7 @@ void main() {
       architecture,
       title: '# <Feature name> architecture',
       says: ['no code samples'],
+      maxChars: 60000,
     );
     expectSectionsSay(architecture, _says);
   });
@@ -109,8 +110,8 @@ void main() {
     expect(at, orderedEquals(List.of(at)..sort()));
   });
 
-  test('f03/us07/fr03: architecture caps 400 lines, bans no word, and cites '
-      'its four sources', () {
-    expectSpecLint(architecture);
+  test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: architecture caps 400 lines '
+      'and 60000 characters, bans no word, and cites its four sources', () {
+    expectSpecLint(architecture, maxChars: 60000);
   });
 }

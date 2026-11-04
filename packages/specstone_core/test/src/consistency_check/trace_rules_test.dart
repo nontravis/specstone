@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 
 void main() {
@@ -152,6 +153,10 @@ void main() {
     );
     expect(spots(report), ['$loginStory:3: vision_goal_widened']);
     expect(report.findings.single.toJson()['id'], 'PG-03');
+    expect(
+      report.findings.single.message,
+      'PG-03 is not in the goals of the feature',
+    );
   });
 
   test('f04/us03/fr02/e05: an ID no project heading holds is unresolved, and widened too', () async {
@@ -384,12 +389,60 @@ void main() {
     ]);
   });
 
+  test('f04/us03/fr03/e07: a row naming an FR by its path below the api feature resolves', () async {
+    final report = checkOf(await writeNestedProject(), docPath: shopApi);
+
+    expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
+  });
+
+  test('f04/us03/fr03/e08: a row that drops the sub-feature slug is fr_trace_unresolved', () async {
+    final report = checkOf(
+      await writeNestedProject(
+        extra: {
+          'docs/$shopApi': nestedFiles()['docs/$shopApi']!.replaceFirst(
+            '| cart/add_item/check_stock |',
+            '| add_item/check_stock |',
+          ),
+        },
+      ),
+      docPath: shopApi,
+    );
+
+    expect(spots(report, FindingKind.frTraceUnresolved), [
+      '$shopApi:11: fr_trace_unresolved',
+    ]);
+    expect(
+      report.findings
+          .firstWhere((f) => f.kind == FindingKind.frTraceUnresolved)
+          .toJson()['fr'],
+      'add_item/check_stock',
+    );
+  });
+
   test('f04/us03/fr03/e04: code with no architecture doc is architecture_missing on the feature', () async {
     final report = checkOf(
       await writeCheckProject(without: {'docs/$loginArchitecture'}),
     );
     expect(spots(report, FindingKind.architectureMissing), [
       '$loginFeature:1: architecture_missing',
+    ]);
+  });
+
+  test("f04/us03/fr03/e09, sf-c12: cart with an implements entry and only shop's ARCHITECTURE gives no architecture_missing", () async {
+    final report = checkOf(await writeNestedProject());
+
+    expect(spots(report, FindingKind.architectureMissing), isEmpty);
+  });
+
+  test("f04/us03/fr03/e09, sf-c12: without shop's ARCHITECTURE, cart, pay, and shop each get architecture_missing", () async {
+    final report = checkOf(
+      await writeNestedProject(without: {'docs/$shopArchitecture'}),
+    );
+
+    expect(spots(report, FindingKind.architectureMissing), [
+      '$shopFeature:1: architecture_missing',
+      '$cartFeature:1: architecture_missing',
+      '$payFeature:1: architecture_missing',
     ]);
   });
 
@@ -555,4 +608,83 @@ void main() {
       expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
     },
   );
+
+  group('goal sets of a nested feature', () {
+    final projectWithPg02 = edit(projectDoc, [
+      (
+        'Halve the password resets.\n\n',
+        'Halve the password resets.\n### PG-02 — Fewer lockouts\n**Serves:** PV-01\nHalve the lockouts.\n\n',
+      ),
+    ]);
+    final cartGoalsWithPg02 = nestedFiles()['docs/$cartFeature']!.replaceFirst(
+      'goals:\n  - PG-01',
+      'goals:\n  - PG-01\n  - PG-02',
+    );
+
+    test("f04/us03/fr02/e10, sf-c12: cart's PG-02 outside shop's goals gives vision_goal_widened, PG-02 is not in the goals of the parent feature", () async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {...projectWithPg02, 'docs/$cartFeature': cartGoalsWithPg02},
+        ),
+      );
+
+      expect(spots(report, FindingKind.visionGoalWidened), [
+        '$cartFeature:4: vision_goal_widened',
+      ]);
+      final finding = report.findings.firstWhere(
+        (f) => f.kind == FindingKind.visionGoalWidened,
+      );
+      expect(finding.toJson()['id'], 'PG-02');
+      expect(
+        finding.message,
+        'PG-02 is not in the goals of the parent feature',
+      );
+    });
+
+    test("f04/us03/fr02/e10, sf-c12: a feature under cart is held to cart's goals, not shop's", () async {
+      const deepFeature = 'prds/features/f02_shop/f01_cart/f01_deep/FEATURE.md';
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            ...projectWithPg02,
+            'docs/$shopFeature': nestedFiles()['docs/$shopFeature']!
+                .replaceFirst(
+                  'goals:\n  - PG-01',
+                  'goals:\n  - PG-01\n  - PG-02',
+                ),
+            'docs/$deepFeature': nestedFiles()['docs/$cartFeature']!
+                .replaceFirst(
+                  'goals:\n  - PG-01',
+                  'goals:\n  - PG-01\n  - PG-02',
+                ),
+          },
+        ),
+      );
+
+      expect(spots(report, FindingKind.visionGoalWidened), [
+        '$deepFeature:4: vision_goal_widened',
+      ]);
+    });
+
+    test(
+      'f04/us03/fr02/e11: shop is checked against the project only',
+      () async {
+        final report = checkOf(
+          await writeNestedProject(
+            extra: {
+              ...projectWithPg02,
+              'docs/$shopFeature': nestedFiles()['docs/$shopFeature']!
+                  .replaceFirst(
+                    'goals:\n  - PG-01',
+                    'goals:\n  - PG-01\n  - PG-02',
+                  ),
+            },
+          ),
+        );
+
+        expect(spots(report, FindingKind.visionGoalWidened), isEmpty);
+        expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      },
+    );
+  });
 }

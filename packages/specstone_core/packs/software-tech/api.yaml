@@ -28,7 +28,8 @@ sections:
       Write a table with the columns FR and Operation; write one row per operation.
       Write the `operationId` or the command in Operation; it is the pointer, a name and never a copy.
       Give every row a block in Operations, and every block a row.
-      Name each FR by `<story slug>/<fr slug>`, such as `email_login/validate_credentials`, as its `confirmed` entry does.
+      Name each FR by its path below this API's feature: `<story slug>/<fr slug>`, such as `email_login/validate_credentials`,
+      or `<sub-feature slug>/<story slug>/<fr slug>` for a story in a sub-feature, as its `confirmed` entry does.
   - id: operations
     header: Operations
     required: true

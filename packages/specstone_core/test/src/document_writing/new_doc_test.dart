@@ -10,6 +10,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -289,13 +290,6 @@ void main() {
     );
     refuses(
       IndexFaultCode.argumentInvalid,
-      'feature takes no --parent',
-      type: 'feature',
-      parent: 'login',
-      slug: 'x',
-    );
-    refuses(
-      IndexFaultCode.argumentInvalid,
       'api takes no --slug',
       type: 'api',
       parent: 'login',
@@ -306,6 +300,117 @@ void main() {
       'Bad is no slug: use lowercase letters, digits, and _',
       type: 'feature',
       slug: 'Bad',
+    );
+  });
+
+  group('sub-feature: nested docs', () {
+    String pathOf(Directory root, String type, String parent, String slug) =>
+        writeIn(
+              root,
+              (s) => answerNew(s, docTypeId: type, parent: parent, slug: slug),
+            ).json['path']!
+            as String;
+
+    test('f02/us02/fr01/e14, sf-c11: a story under a sub-feature takes the next story number in its folder', () async {
+      final root = await writeNestedProject();
+      final answer = writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'shop/cart',
+          slug: 'wish',
+        ),
+      );
+      expect(
+        answer.json['path'],
+        'prds/features/f02_shop/f01_cart/us03_wish/USER_STORY.md',
+      );
+      expect(answer.json['name'], 'shop/cart/wish');
+    });
+
+    test('f02/us02/fr01/e15, sf-c11: a feature with --parent lands in that feature at the next feature number', () async {
+      final root = await writeNestedProject();
+      expect(
+        pathOf(root, 'feature', 'shop', 'ship'),
+        'prds/features/f02_shop/f03_ship/FEATURE.md',
+      );
+    });
+
+    test('f02/us02/fr01/e16, sf-r10: a parent holding stories takes a sub-feature, numbered from 01', () async {
+      final root = await writeNestedProject();
+      expect(
+        pathOf(root, 'feature', 'shop/cart', 'gift'),
+        'prds/features/f02_shop/f01_cart/f01_gift/FEATURE.md',
+      );
+    });
+
+    test('f02/us02/fr01/e17, sf-c11: a domain under a sub-feature lands in the sub-feature spec folder', () async {
+      final root = await writeNestedProject(without: {'docs/$cartDomain'});
+      final answer = writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'domain', parent: 'shop/cart'),
+      );
+      expect(answer.json['path'], cartDomain);
+    });
+
+    test('f02/us02/fr01/e18, sf-r5: a parent at the limit refuses a sub-feature and writes nothing', () async {
+      const deep = 'prds/features/f02_shop/f01_cart/f01_deep';
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$deep/FEATURE.md': '# Deep\n',
+          'docs/$deep/f01_deeper/FEATURE.md': '# Deeper\n',
+        },
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'feature',
+            parent: 'shop/cart/deep/deeper',
+            slug: 'x',
+          ),
+        ),
+        throwsA(
+          indexFault(
+            IndexFaultCode.argumentInvalid,
+            'shop/cart/deep/deeper (feature) sits 3 levels deep, the limit, '
+            'so it takes no sub-feature',
+          ),
+        ),
+      );
+      expect(
+        Directory('${root.path}/docs/$deep/f01_deeper/f01_x').existsSync(),
+        isFalse,
+      );
+    });
+
+    test(
+      'f02/us02/fr01/e19: a flat set keeps feature takes no --parent',
+      () async {
+        final root = await writeWriteProject(
+          extra: {'.specstone/templates/feature.yaml': 'max_depth: 0\n'},
+        );
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+          ),
+          throwsA(
+            indexFault(
+              IndexFaultCode.argumentInvalid,
+              'feature takes no --parent',
+            ),
+          ),
+        );
+        expect(
+          Directory('${root.path}/docs/prds/features/f01_login/f01_x')
+              .existsSync(),
+          isFalse,
+        );
+      },
     );
   });
 

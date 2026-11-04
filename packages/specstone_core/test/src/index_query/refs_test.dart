@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 const _journeyDoc = 'docs/prds/journeys/sign_in/JOURNEY.md';
 
@@ -381,5 +382,11 @@ void main() {
         );
       },
     );
+  });
+  test('f01/us07/fr01: refs user_story:shop/cart/add_item lists the API that links it', () async {
+    final nested = await nestedIndexWith();
+    final text = answerRefs(nested, 'user_story:shop/cart/add_item').text;
+    expect(text, contains('Inbound\n- link: shop (api)'));
+    expect(text, contains(cartAdd));
   });
 }

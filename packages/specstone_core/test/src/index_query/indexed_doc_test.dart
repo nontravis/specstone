@@ -3,9 +3,27 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/software_tech.dart';
+
+MergedDocType nestedType(
+  String id,
+  String path, {
+  String? parent,
+  int? maxDepth,
+}) => MergedDocType(
+  id: id,
+  path: path,
+  parent: parent,
+  maxDepth: maxDepth,
+  fields: const [],
+  sections: const [],
+  lint: const MergedLint(),
+  files: const [],
+);
 
 void main() {
   late DocTypeMatcher matcher;
@@ -254,4 +272,43 @@ void main() {
   test('f01/us01/fr03/e14, is-s03/inv4: the reserved lead key is _lead', () {
     expect(leadKey, '_lead');
   });
+
+  test(
+    'f01/us01/fr03/e15, sf-r6: a nested story is named shop/cart/add_item',
+    () {
+      const storyPath =
+          'prds/features/f01_shop/f01_cart/us01_add_item/USER_STORY.md';
+      const domainPath = 'specs/f01_shop/f01_cart/DOMAIN.md';
+      final nested = DocTypeMatcher(
+        MergedSet(
+          docTypes: [
+            nestedType(
+              'feature',
+              'prds/features/f{nn}_{slug}/FEATURE.md',
+              maxDepth: 1,
+            ),
+            nestedType(
+              'user_story',
+              'prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md',
+              parent: 'feature',
+            ),
+            nestedType(
+              'domain',
+              'specs/f{nn}_{slug}/DOMAIN.md',
+              parent: 'feature',
+            ),
+          ],
+        ),
+      );
+
+      String nameOf(String path) => parseIndexedDoc(
+        docPath: path,
+        bytes: utf8.encode('# T\n'),
+        match: nested.match(path),
+      ).doc.name;
+
+      expect(nameOf(storyPath), 'shop/cart/add_item');
+      expect(nameOf(domainPath), 'shop/cart');
+    },
+  );
 }

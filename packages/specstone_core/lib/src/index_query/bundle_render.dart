@@ -182,18 +182,13 @@ void _walk(
 
 int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
     (a, b) {
-      final aChain = _isChainDoc(index, a) ? 0 : 1;
-      final bChain = _isChainDoc(index, b) ? 0 : 1;
+      final aChain = index.isChainDoc(a) ? 0 : 1;
+      final bChain = index.isChainDoc(b) ? 0 : 1;
       if (aChain != bChain) return aChain - bChain;
       final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
       if (byType != 0) return byType;
       return compareCodePoints(a.docPath, b.docPath);
     };
-
-bool _isChainDoc(DocIndex index, IndexedDoc doc) {
-  final typeId = doc.docTypeId;
-  return typeId != null && index.isChainType(typeId);
-}
 
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
@@ -314,7 +309,7 @@ String _mapLine(DocIndex index, IndexedDoc top, IndexedDoc member) =>
 String _namesBlock(DocIndex index, IndexedDoc top) {
   final lines = [
     for (final child in index.childrenOf(top))
-      if (_isChainDoc(index, child))
+      if (index.isChainDoc(child))
         '- ${nameWithType(child)} · ${child.tokens} tokens',
   ];
   return '==> names: ${nameWithType(top)} <==\n${lines.join('\n')}';
@@ -366,7 +361,7 @@ Map<String, Object> _namesJson(DocIndex index, Set<String> tops) => {
     'names': [
       for (final top in _byTreeOrder(index, tops))
         for (final child in index.childrenOf(index.at(top)!))
-          if (_isChainDoc(index, child))
+          if (index.isChainDoc(child))
             {
               'name': child.name,
               'docType': ?child.docTypeId,

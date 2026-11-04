@@ -20,27 +20,13 @@ class RenameCommand extends WriteCommand {
       'specstone rename (<type>:<name> | <path>) --to <slug> [--json]';
 
   @override
-  Future<int> run() async {
+  Future<int> run() {
     final args = argResults!;
-    final asJson = args.flag('json');
-    final rest = args.rest;
-    if (rest.isEmpty) {
-      return fail(
-        missingArgument(
-          'rename',
-          'a target',
-          'specstone rename user_story:login/reset_password '
-              '--to recover_account',
-        ),
-        asJson: asJson,
-      );
-    }
-    if (rest.length > 1) {
-      usageException('Expected one target, got ${rest.length}.');
-    }
-    return runWrite(
-      (session) => answerRename(session, rest.first, slug: args.option('to')),
-      asJson: asJson,
+    return runWriteOnTarget(
+      'specstone rename user_story:login/reset_password '
+      '--to recover_account',
+      (session, target) =>
+          answerRename(session, target, slug: args.option('to')),
     );
   }
 }
