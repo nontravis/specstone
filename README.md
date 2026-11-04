@@ -1,4 +1,6 @@
-# Specstone
+<img src=".github/assets/banner.png" alt="Specstone" width="100%">
+
+# SPECSTONE
 
 Specstone keeps PRD and spec documents for spec-driven development, with a CLI and an MCP server.
 
