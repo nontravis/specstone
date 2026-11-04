@@ -291,4 +291,28 @@ void main() {
       );
     });
   });
+
+  test('f04/us01/fr06/e08: a FEATURE.md past max_depth is nesting_over_limit, not untyped_doc, and a note in its folder reports no untyped_doc and no link finding', () async {
+    const folder = 'prds/features/f02_shop/f01_cart/f01_a/f01_b/f01_c';
+    final report = checkOf(
+      await writeNestedProject(
+        extra: {
+          'docs/$folder/FEATURE.md': nestedFiles()['docs/$cartFeature']!,
+          'docs/$folder/NOTES.md': '# Notes\n\nSee [x](../../nowhere.md).\n',
+          'docs/prds/features/f02_shop/NOTES.md':
+              '# Notes\n\nSee [x](../../nowhere.md).\n',
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.nestingOverLimit), [
+      '$folder/FEATURE.md:1: nesting_over_limit',
+    ]);
+    expect(
+      spots(report).where((s) => s.contains('NOTES.md')),
+      unorderedEquals([
+        'prds/features/f02_shop/NOTES.md:1: untyped_doc',
+        'prds/features/f02_shop/NOTES.md:3: link_unresolved',
+      ]),
+    );
+  });
 }

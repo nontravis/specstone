@@ -20,9 +20,24 @@ Set<String> checkedFoldersOf(MergedSet set) => {
 
 /// Returns the findings of an untyped [doc] in a checked folder (FR-06).
 ///
-/// A doc that two or more doc types match is `doc_type_ambiguous`; any other
-/// is `untyped_doc`. Each states the F-01 warning it reports.
+/// A doc that two or more doc types match is `doc_type_ambiguous`; one past
+/// the nesting limit is `nesting_over_limit`; any other is `untyped_doc`. Each
+/// states the F-01 warning it reports.
 Iterable<Finding> checkDocType(CheckContext context, IndexedDoc doc) sync* {
+  final nesting = context.index.set.nestingType;
+  final limit = nesting?.maxDepth;
+  final depth = context.depthPastLimitOf(doc);
+  if (nesting != null && limit != null && depth != null) {
+    yield context.finding(
+      doc,
+      FindingKind.nestingOverLimit,
+      line: 1,
+      message:
+          'nests $depth levels below a top ${nesting.id}; the limit is $limit',
+      keys: {'limit': limit, 'actual': depth},
+    );
+    return;
+  }
   final prefix = '${doc.docPath} matches ';
   for (final warning in doc.warnings) {
     if (!warning.startsWith(prefix)) continue;

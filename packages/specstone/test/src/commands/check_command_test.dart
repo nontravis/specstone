@@ -8,6 +8,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -56,6 +57,35 @@ void main() {
       allOf(contains(loginArchitecture), isNot(contains(loginApi))),
     );
     expect(out.toString(), endsWith('1 finding\n'));
+  });
+
+  test('f04/us01/fr10/e01: check --json on a feature that holds a story and sub-features lists feature_mixed_children and exits 1', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeNestedProject(
+        extra: {
+          'docs/prds/features/f02_shop/us01_extra/USER_STORY.md':
+              nestedFiles()['docs/$cartDrop']!,
+        },
+      ),
+    );
+    expect(await runner.run(['check', '--json']), 1);
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    expect(
+      [
+        for (final finding in json['findings']! as List)
+          if ((finding as Map)['kind'] == 'feature_mixed_children') finding,
+      ],
+      [
+        {
+          'kind': 'feature_mixed_children',
+          'docPath': shopFeature,
+          'name': 'shop',
+          'line': 1,
+          'message': 'holds both feature and user_story children',
+          'docTypes': ['feature', 'user_story'],
+        },
+      ],
+    );
   });
 
   test("f04/us01/s8, f04/us01/fr02: --json gives each finding's kind, file, name, line, and message, and the count", () async {

@@ -9,6 +9,7 @@ import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/journey_rules.dart';
 import 'package:specstone_core/src/consistency_check/link_rules.dart';
+import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
 import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
@@ -39,11 +40,15 @@ CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
   for (final doc in index.docs) {
     if (!scope.containsDoc(doc)) continue;
     if (!context.isChecked(doc)) continue;
-    findings.addAll(checkTree(context, doc));
+    findings
+      ..addAll(checkTree(context, doc))
+      ..addAll(checkPathLength(context, doc));
     if (!doc.isTyped) {
-      findings
-        ..addAll(checkDocType(context, doc))
-        ..addAll(checkDocLinks(context, doc));
+      if (!context.isUnderOverDeep(doc)) {
+        findings
+          ..addAll(checkDocType(context, doc))
+          ..addAll(checkDocLinks(context, doc));
+      }
       continue;
     }
     if (!context.hasNoParent(doc)) {
@@ -57,6 +62,7 @@ CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
     }
     findings
       ..addAll(checkFrontmatter(context, doc))
+      ..addAll(checkNesting(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkBannedWords(context, doc))
       ..addAll(checkPatterns(context, doc))

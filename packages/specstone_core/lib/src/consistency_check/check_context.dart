@@ -165,6 +165,29 @@ final class CheckContext {
   /// Whether [doc] lies in a checked folder.
   bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);
 
+  /// The folders, ending in `/`, of the untyped docs that read the nesting
+  /// type's `path` past its `max_depth` (INV-17).
+  late final Set<String> overDeepFolders = {
+    for (final doc in index.docs)
+      if (depthPastLimitOf(doc) != null) _folderOf(doc.docPath),
+  };
+
+  /// Returns how many levels the untyped [doc] nests below a top doc of the
+  /// nesting type, when that passes `max_depth`; null otherwise.
+  int? depthPastLimitOf(IndexedDoc doc) =>
+      doc.isTyped ? null : _session.project.matcher.depthPastLimit(doc.docPath);
+
+  /// Whether [doc] lies in the folder of an over-deep doc other than itself.
+  bool isUnderOverDeep(IndexedDoc doc) {
+    final own = depthPastLimitOf(doc) == null ? null : _folderOf(doc.docPath);
+    return overDeepFolders.any(
+      (folder) => folder != own && doc.docPath.startsWith(folder),
+    );
+  }
+
+  static String _folderOf(String docPath) =>
+      docPath.substring(0, docPath.lastIndexOf('/') + 1);
+
   /// Whether [doc] takes a parent doc ([parentTypeOf]) and has none (INV-13).
   bool hasNoParent(IndexedDoc doc) =>
       parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
