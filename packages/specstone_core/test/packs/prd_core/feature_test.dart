@@ -134,13 +134,23 @@ void main() {
     expect(feature.maxDepth, 3);
   });
 
-  test('f03/us06/fr02, sf-r8: the feature description in guide feature ends '
-      'with the placement questions', () {
-    final lines = const LineSplitter().convert(feature.description!);
-    expect(
-      lines.sublist(lines.length - _placementLines.length),
-      _placementLines,
-    );
+  test(
+    'f03/us06/fr02/e05, sf-r8: the feature description in guide feature ends '
+    'with the placement questions',
+    () {
+      final lines = const LineSplitter().convert(feature.description!);
+      expect(
+        lines.sublist(lines.length - _placementLines.length),
+        _placementLines,
+      );
+    },
+  );
+
+  test('f03/us03/fr05/e01: a project feature.yaml of max_depth 3 makes the '
+      'nested FEATURE.md the feature shop/cart', () async {
+    final session = openSession(await writeNestedProject());
+    addTearDown(session.close);
+    expect(session.index.at(cartFeature)!.name, 'shop/cart');
   });
 
   test('sf-r5: writeNestedProject without its feature.yaml still names '

@@ -43,6 +43,9 @@ final class DocTypeMatcher {
 
   final MergedDocType? _nesting;
 
+  /// The over-limit pattern per depth, compiled on first use.
+  final Map<int, PathPattern> _overDeepPatterns = {};
+
   /// Returns the doc type whose pattern matches [docPath], or why none does.
   DocTypeMatch match(String docPath) {
     final matched = [
@@ -66,9 +69,10 @@ final class DocTypeMatcher {
     if (segment == null) return null;
     final extra = docPath.split('/').length - path.split('/').length;
     for (var depth = nesting.maxDepth! + 1; depth <= extra; depth++) {
-      if (PathPattern(pathAtDepth(path, segment, depth)).matches(docPath)) {
-        return depth;
-      }
+      final pattern = _overDeepPatterns[depth] ??= PathPattern(
+        pathAtDepth(path, segment, depth),
+      );
+      if (pattern.matches(docPath)) return depth;
     }
     return null;
   }

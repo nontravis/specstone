@@ -46,22 +46,16 @@ typedef NewDocFill = String Function(
 
 /// Creates a doc of [docTypeId] from its template at its next sibling number.
 ///
-/// [parent] names a doc of the doc type's `parent:`, or for the nesting type a
-/// doc of its own type that sits above `max_depth`; [slug] fills `{slug}`, and
-/// a non-empty [text] is the doc's text, forced to `draft: true` at its field
-/// slot with no key of [text] moved; otherwise the doc is the template's
-/// skeleton. Under the session lock and before the write, [generators] fill
-/// the generated blocks the doc type lists, then [firstConfirmations] runs on
-/// the result. The number is the highest sibling number on disk plus one, read
-/// under the session lock; the path is claimed with an exclusive create, so a
-/// doc that appears meanwhile is never overwritten. A failed write removes the
-/// file and the folders this call created.
+/// [parent] names a doc of the doc type's `parent:`, or of the nesting type
+/// below `max_depth`; [slug] fills `{slug}`; a non-empty [text] is the doc,
+/// forced to `draft: true`. Under the session lock, [generators] and
+/// [firstConfirmations] fill it, then an exclusive create writes it.
 /// Throws [TemplateFault] `doc_type_unknown`, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
-/// not take, [WriteFault] `doc_exists` when the doc is there and
-/// `field_not_writable` when [text] holds an `approved` key, and [RenderFault]
-/// `output_not_writable` when the disk refuses. A [parent] already at
-/// `max_depth` is `argument_invalid`.
+/// not take, or a [parent] already at `max_depth`, [WriteFault] `doc_exists`
+/// when the doc is there and `field_not_writable` when [text] holds an
+/// `approved` key, and [RenderFault] `output_not_writable` when the disk
+/// refuses, after removing what this call created.
 ReadAnswer answerNew(
   WriteSession session, {
   required String docTypeId,

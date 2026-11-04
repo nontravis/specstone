@@ -117,20 +117,12 @@ String? rewriteDocRefs(
   return result == lfText ? null : result;
 }
 
-/// Returns the journal writes that keep every link and `doc_ref` value true
-/// after [moves] and the renames in [renamed].
+/// Returns the journal writes that keep every link and `doc_ref` true.
 ///
-/// The candidates are the docs, typed or untyped, that link to a doc or to
-/// any other file or folder under a moved path, that move and hold a link
-/// [rewriteDocLinks] changes, that hold a path mention [rewritePathMentions]
-/// changes, and, for [renamed], the typed docs whose `doc_ref` values name a
-/// renamed doc and the `journey` and `api` docs whose step identities, FR
-/// trace cells, or `confirmed` labels do.
-/// A doc is chosen from a lenient read, so a non-UTF-8 doc that names nothing
-/// renamed never blocks. Each is read from disk before the moves; a step
-/// holds its text after the rewrites, in the file's line endings and BOM,
-/// at its project path after the moves. Steps are sorted by path. No draft
-/// or approved mark is touched.
+/// Candidates are docs that link under a moved path, move and hold a link or
+/// path mention a rewrite changes, or, for [renamed], name a renamed doc; a
+/// lenient read keeps a non-UTF-8 doc naming nothing renamed from blocking.
+/// Steps hold the rewritten text, sorted by path, with draft marks untouched.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
