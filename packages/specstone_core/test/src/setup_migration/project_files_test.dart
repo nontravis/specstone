@@ -86,6 +86,53 @@ void main() {
       }
     });
 
+    group('configText agent_file_roots', () {
+      final pins = {
+        'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
+      };
+      const source = 'setup_migration/migrate_legacy_docs/write_project_files';
+
+      test('$source: no agent file roots write no key', () {
+        expect(configText(pins, agentFileRoots: const []), configText(pins));
+      });
+
+      test(
+        '$source: the key follows packs and code_root, one entry a line',
+        () {
+          expect(
+            configText(
+              pins,
+              codeRoot: 'stratum_ui',
+              agentFileRoots: const ['../stratum_ui', '../other'],
+            ),
+            'packs:\n  prd-core: 1.2.3\n'
+            'code_root: stratum_ui\n'
+            'agent_file_roots:\n  - ../stratum_ui\n  - ../other\n',
+          );
+        },
+      );
+
+      test('$source: an entry YAML reads as another value is quoted', () {
+        expect(
+          configText(pins, agentFileRoots: const ['2024']),
+          endsWith("agent_file_roots:\n  - '2024'\n"),
+        );
+      });
+
+      for (final roots in [
+        ['../stratum_ui'],
+        ['../a', 'b/c', '2024', 'x #y'],
+      ]) {
+        test('$source: the config reader reads back $roots', () async {
+          final root = await writeTree({
+            '.specstone/config.yaml': configText(pins, agentFileRoots: roots),
+          });
+
+          expect(ProjectConfig.read(root).agentFileRoots, roots);
+        });
+      }
+    });
+
     test('f06/us01/fr05/e01: an ARCHITECTURE renamed one to one covers each '
         'Code path of its old folder, in row order', () {
       final rows = [

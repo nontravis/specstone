@@ -36,15 +36,26 @@ const _yamlWords = {'true', 'false', 'null'};
 /// Returns the `config.yaml` text pinning each of [pins] (INV-15).
 ///
 /// Writes `packs:`, one pin per line in code point order of the name, then a
-/// `code_root:` line only when [codeRoot] is not `.`, quoted when plain YAML
-/// would read it as another value.
-String configText(Map<String, PackVersion> pins, {String codeRoot = '.'}) {
+/// `code_root:` line only when [codeRoot] is not `.`, then an
+/// `agent_file_roots:` list only when [agentFileRoots] is not empty; each
+/// scalar is quoted when plain YAML would read it as another value.
+String configText(
+  Map<String, PackVersion> pins, {
+  String codeRoot = '.',
+  List<String> agentFileRoots = const [],
+}) {
   final names = pins.keys.toList()..sort(compareCodePoints);
   final lines = [for (final name in names) '  $name: ${pins[name]}\n'];
   final codeRootLine = codeRoot == '.'
       ? ''
       : 'code_root: ${_stringScalar(codeRoot)}\n';
-  return 'packs:\n${lines.join()}$codeRootLine';
+  final rootLines = [
+    for (final root in agentFileRoots) '  - ${_stringScalar(root)}\n',
+  ];
+  final agentFileRootsLine = rootLines.isEmpty
+      ? ''
+      : 'agent_file_roots:\n${rootLines.join()}';
+  return 'packs:\n${lines.join()}$codeRootLine$agentFileRootsLine';
 }
 
 /// Returns the `covers:` block of the spec folder [legacyFolder], or null.

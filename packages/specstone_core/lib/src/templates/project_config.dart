@@ -10,6 +10,7 @@ const projectConfigPath = '.specstone/config.yaml';
 
 const _coreName = 'prd-core';
 const _codeRootKey = 'code_root';
+const _agentFileRootsKey = 'agent_file_roots';
 
 /// Lowercase letters and digits in hyphen-separated groups.
 final _kebabCase = RegExp(r'^[a-z0-9]+(-[a-z0-9]+)*$');
@@ -91,15 +92,21 @@ Directory? findProjectRoot(Directory start) => findRootUpward(
 /// The project config: the pack version each pack is pinned to and the folder
 /// code paths are written from.
 final class ProjectConfig {
-  new _({required this.pins, required this.codeRoot});
+  new _({
+    required this.pins,
+    required this.codeRoot,
+    required this.agentFileRoots,
+  });
 
   /// Reads `.specstone/config.yaml` under the project [root].
   ///
-  /// Throws `unknown_key` for a key other than `packs` and `code_root` or a
-  /// `packs` key that is not kebab-case, `missing_key` when `packs` is absent,
-  /// `pack_version_invalid` for a bad pin, `prd_core_missing` when `packs`
-  /// pins no `prd-core`, and `unknown_value` for a `code_root` that is not a
-  /// string, is empty, is absolute, or holds a backslash.
+  /// Throws `unknown_key` for a key other than `packs`, `code_root`, and
+  /// `agent_file_roots` or a `packs` key that is not kebab-case, `missing_key`
+  /// when `packs` is absent, `pack_version_invalid` for a bad pin,
+  /// `prd_core_missing` when `packs` pins no `prd-core`, and `unknown_value`
+  /// for a `code_root` that is not a string, is empty, is absolute, or holds a
+  /// backslash, and for an `agent_file_roots` that is not a list of such
+  /// strings.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -111,7 +118,7 @@ final class ProjectConfig {
     final map = readYamlMap(text, file: projectConfigPath);
     checkKeys(
       map,
-      {'packs', _codeRootKey},
+      {'packs', _codeRootKey, _agentFileRootsKey},
       file: projectConfigPath,
       format: 'config',
     );
@@ -144,6 +151,7 @@ final class ProjectConfig {
     return ProjectConfig._(
       pins: Map.unmodifiable(pins),
       codeRoot: _readCodeRoot(map),
+      agentFileRoots: _readAgentFileRoots(map),
     );
   }
 
@@ -155,6 +163,12 @@ final class ProjectConfig {
   /// `/`-separated and possibly outside the project root (`../code`); `.` when
   /// the config has no `code_root`.
   final String codeRoot;
+
+  /// The repository tops already offered agent files, each as written.
+  ///
+  /// `/`-separated paths from the project root, possibly outside it
+  /// (`../stratum_ui`); empty when the config has no `agent_file_roots`.
+  final List<String> agentFileRoots;
 
   /// The config path, relative to the project root.
   String get file => projectConfigPath;
@@ -177,6 +191,20 @@ String _readCodeRoot(YamlMap map) {
     );
   }
   return value;
+}
+
+List<String> _readAgentFileRoots(YamlMap map) {
+  final roots = stringList(map, _agentFileRootsKey, file: projectConfigPath);
+  if (!roots.every(isCodeRootValue)) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $_agentFileRootsKey must hold non-empty relative paths with / '
+      'separators',
+      file: projectConfigPath,
+      key: _agentFileRootsKey,
+    );
+  }
+  return List.unmodifiable(roots);
 }
 
 /// Whether [value] is a `code_root` the config reader accepts: a non-empty
