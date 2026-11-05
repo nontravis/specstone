@@ -317,7 +317,11 @@ void main() {
 
     test('f06/us02/s6: nothing to upgrade prints nothing to migrate and writes '
         'nothing', () async {
-      final home = await _home(version: '1.0.0', migrations: '');
+      final home = await _home(
+        version: '1.0.0',
+        migrations: '',
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
       final root = await _project();
       final before = _bytesUnder(root);
 
