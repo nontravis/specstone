@@ -6,11 +6,13 @@ import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
@@ -98,6 +100,8 @@ void main() {
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
+      'created .specstone/AGENT.md',
+      'created AGENTS.md',
       _configLine(),
     ]);
     expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
@@ -119,6 +123,8 @@ void main() {
         'created docs/prds/FEATURES.md (draft)',
         'created docs/prds/GNFR.md (draft)',
         'created docs/specs/TECH_STACK.md (draft)',
+        'created .specstone/AGENT.md',
+        'created AGENTS.md',
         _configLine(),
       ]);
       expect(_read(root, 'docs/prds/PROJECT.md'), '# Mine\n');
@@ -145,10 +151,108 @@ void main() {
       'kept docs/prds/FEATURES.md: exists',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
+      'created .specstone/AGENT.md',
+      'created AGENTS.md',
       _configLine(),
     ]);
     expect(_read(root, _draftPaths[0]), project);
     expect(_read(root, _draftPaths[1]), features);
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files verification: '
+      'init upserts each file, keeps the Owner bytes, and prints them before '
+      'the config', () async {
+    final root = await writeTree({
+      'CLAUDE.md': "Owner's rules\n",
+      'AGENTS.md':
+          'before\n<!-- BEGIN specstone v0.0.1 -->\nold\n'
+          '<!-- END specstone -->\nafter\n',
+      '.cursor/keep': 'x',
+    });
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines.sublist(lines.length - 5), [
+      'created .specstone/AGENT.md',
+      'updated CLAUDE.md',
+      'updated AGENTS.md',
+      'created .cursor/rules/specstone.mdc',
+      _configLine(),
+    ]);
+    expect(_read(root, '.specstone/AGENT.md'), agentMdText);
+    expect(
+      _read(root, 'CLAUDE.md'),
+      "Owner's rules\n"
+      '${importBlock(cliVersion: specstoneVersion, agentMdPath: '.specstone/AGENT.md', projectDocPath: 'docs/prds/PROJECT.md')}',
+    );
+    expect(
+      _read(root, 'AGENTS.md'),
+      'before\n${inlineBlock(cliVersion: specstoneVersion)}after\n',
+    );
+    expect(
+      _read(root, '.cursor/rules/specstone.mdc'),
+      cursorRulesText(cliVersion: specstoneVersion),
+    );
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files E05: a '
+      'malformed file refuses before any write', () async {
+    final root = await writeTree({
+      'CLAUDE.md': '<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+    });
+    final before = _bytesUnder(root);
+
+    expect(
+      () => _run(root),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.agentBlockMalformed)
+            .having((f) => f.exitStatus, 'exitStatus', 65)
+            .having((f) => f.file, 'file', 'CLAUDE.md')
+            .having((f) => f.line, 'line', 1),
+      ),
+    );
+    expect(_bytesUnder(root), before);
+  });
+
+  test(
+    'setup_migration/set_up_new_project/write_agent_files E09: a rerun '
+    'after a stop before the config changes 0 bytes of the agent files',
+    () async {
+      final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
+      _run(root);
+      File.fromUri(root.uri.resolve('.specstone/config.yaml')).deleteSync();
+      final before = _bytesUnder(root)..remove('.specstone/config.yaml');
+
+      final (status, lines) = _run(root);
+
+      expect(status, 0);
+      expect(lines.where((line) => line.contains('AGENT')), isEmpty);
+      expect(lines.last, _configLine());
+      expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
+    },
+  );
+
+  test('setup_migration/set_up_new_project/write_agent_files: a symbolic '
+      'link CLAUDE.md stays a link and its target takes the block', () async {
+    final root = await writeTree({'shared/rules.md': 'shared\n'});
+    try {
+      createRelativeLink('${root.path}/CLAUDE.md', 'shared/rules.md');
+    } on FileSystemException {
+      markTestSkipped('symbolic links are not available');
+      return;
+    }
+
+    final (status, _) = _run(root);
+
+    expect(status, 0);
+    expect(
+      FileSystemEntity.typeSync('${root.path}/CLAUDE.md', followLinks: false),
+      FileSystemEntityType.link,
+    );
+    expect(_read(root, 'shared/rules.md'), startsWith('shared\n'));
+    expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
   });
 
   test('f06/us03/fr02/e02, f06/us03/fr02/e03: init writes no .gitignore and '

@@ -6,14 +6,17 @@ import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 
 /// What one `specstone init` call runs with.
 final class InitRequest {
@@ -106,15 +109,18 @@ Directory? _linkFolderOf(Directory folder, Directory root) {
   return own.path == root.path ? null : own;
 }
 
-/// Writes each singular draft, then the config last (PD16, F6-D23).
+/// Plans the agent files, writes each singular draft, then the agent files,
+/// then the config last (PD16, F6-D23).
 ///
 /// Keeps each draft that already exists and names it `kept`; starts no git
-/// process, so the new files stay untracked (E06).
+/// process, so the new files stay untracked (E06). Throws
+/// `agent_block_malformed` before the first write.
 int _scaffold(Directory root, InitRequest request) {
   final (:set, :pins) = request.templates.resolveCarriedPinned(
     packNames: carriedPacks,
     homeDirectory: request.homeDirectory,
   );
+  final agentPlan = _planAgentFiles(root, set);
   for (final docType in singularDocTypes(set)) {
     final file = File.fromUri(root.uri.resolve('docs/${docType.path}'));
     if (file.existsSync()) {
@@ -128,9 +134,10 @@ int _scaffold(Directory root, InitRequest request) {
     );
     request.out.writeln('created docs/${docType.path} (draft)');
   }
+  _writeAgentFiles(root, agentPlan, request.out);
   _writeNew(
     File.fromUri(root.uri.resolve(projectConfigPath)),
-    configText(pins),
+    configText(pins, agentFileRoots: agentPlan.agentFileRoots),
     shown: projectConfigPath,
   );
   final list = [
@@ -141,14 +148,57 @@ int _scaffold(Directory root, InitRequest request) {
   return 0;
 }
 
+/// Returns the full agent file plan of a new project at [root].
+AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return planAgentWrites(
+    AgentFileInputs(
+      projectRoot: projectRoot,
+      cliVersion: specstoneVersion,
+      codeRootFolders: codeRootFolders(
+        projectRoot,
+        codeRoot: '.',
+        codeEntries: codeEntriesOnDisk(projectRoot, set),
+      ),
+      agentFileRoots: const [],
+    ),
+    full: true,
+  );
+}
+
+/// Writes each file of [plan] and prints `created <path>` or `updated <path>`.
+///
+/// A symbolic-link instruction file is written through to its target, so the
+/// path stays a link.
+void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
+  for (final write in [...plan.rootWrites, ...plan.topWrites]) {
+    _writeNew(
+      File.fromUri(root.uri.resolve(write.path)),
+      write.text,
+      shown: write.path,
+      followLink: true,
+    );
+    out.writeln('${write.isNew ? 'created' : 'updated'} ${write.path}');
+  }
+}
+
 /// Writes [text] to [file], creating its folders.
 ///
-/// Throws [RenderFault] `output_not_writable` naming [shown], the file's
-/// ProjectPath, when the disk refuses.
-void _writeNew(File file, String text, {required String shown}) {
+/// Writes through a symbolic link when [followLink]. Throws [RenderFault]
+/// `output_not_writable` naming [shown], the file's ProjectPath, when the disk
+/// refuses.
+void _writeNew(
+  File file,
+  String text, {
+  required String shown,
+  bool followLink = false,
+}) {
   try {
     file.parent.createSync(recursive: true);
-    writeFileAtomic(file, utf8.encode(text));
+    final target = followLink && _isLink(file)
+        ? File(file.resolveSymbolicLinksSync())
+        : file;
+    writeFileAtomic(target, utf8.encode(text));
   } on FileSystemException catch (error) {
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
@@ -156,3 +206,7 @@ void _writeNew(File file, String text, {required String shown}) {
     );
   }
 }
+
+bool _isLink(File file) =>
+    FileSystemEntity.typeSync(file.path, followLinks: false) ==
+    FileSystemEntityType.link;
