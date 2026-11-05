@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -229,6 +230,26 @@ void main() {
         sectionCounts: facts.sectionCounts,
       );
       expect(back.fileLinks, facts.fileLinks);
+    });
+  });
+
+  group('LineFacts.of counted text', () {
+    test('index_each_doc E18: lineCount and charCount measure countedText '
+        'while every line number stays the file line', () {
+      const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
+      final facts = LineFacts.of(
+        lfText: disk,
+        countedText: 'one\ntwo\n',
+        docPath: 'doc.md',
+        doc: Doc.parse(disk),
+        sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
+        frontmatterErrorLine: null,
+        warnings: [],
+      );
+      expect(facts.sectionLines, [3, 7]);
+      expect(facts.lineCount, 2);
+      expect(facts.charCount, 8);
+      expect(facts.sectionCounts, [(lines: 3, chars: 9), (lines: 2, chars: 4)]);
     });
   });
 }

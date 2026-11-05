@@ -83,7 +83,7 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/$loginFr':
-              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 388}',
+              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 384}',
         },
       ),
     );
@@ -103,7 +103,7 @@ void main() {
               'sections:\n  - id: statement\n    lint:\n      max_lines: 5\n',
           ...fr(
             '$checkPasswordStatement\n',
-            '$checkPasswordStatement\n${'More.\n' * 5}',
+            '$checkPasswordStatement\n${'More.\n' * 4}',
           ),
         },
       ),

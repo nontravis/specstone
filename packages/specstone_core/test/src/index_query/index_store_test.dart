@@ -15,6 +15,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
+import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
@@ -512,6 +513,49 @@ void main() {
         expect(store.search('"crossing"'), isEmpty);
         expect(store.search('"llama"').map((r) => r.docPath), ['a.md']);
         expect(store.search('"zebra"').map((r) => r.docPath), ['b.md']);
+      },
+    );
+    test(
+      'index_each_doc: formatted round-trips as true, false, and null',
+      () async {
+        final doc = (await resolveSoftwareTech()).lookup('feature')!;
+        final store = IndexStore.open(await root());
+        addTearDown(store.close);
+        ParsedDoc feature(String path, String text) => parseIndexedDoc(
+          docPath: path,
+          bytes: utf8.encode(text),
+          match: MatchedDocType(doc),
+        );
+        store.write(() {
+          store
+            ..reset(
+              const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+            )
+            ..putDoc(feature('a.md', '# F\n\n## Problem\n\ntext\n'))
+            ..putDoc(feature('b.md', '# F\n\n## Problem\ntext  \n'))
+            ..putDoc(feature('c.md', '# F\n\n## Bogus\ntext\n'));
+        });
+        expect(
+          {for (final d in store.loadDocs()) d.docPath: d.formatted},
+          {'a.md': true, 'b.md': false, 'c.md': null},
+        );
+      },
+    );
+    test(
+      'index_each_doc: an index of layout 8 has no stamp, so it is rebuilt',
+      () async {
+        final r = await root();
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        const stamp = IndexStamp(
+          binaryVersion: specstoneVersion,
+          docTypes: 'x',
+        );
+        store.write(() => store.reset(stamp));
+        final raw = sqlite3.open(file(r, indexFilePath).path);
+        addTearDown(raw.close);
+        raw.execute('UPDATE meta SET layout = 8');
+        expect(store.readStamp(), isNull);
       },
     );
   });

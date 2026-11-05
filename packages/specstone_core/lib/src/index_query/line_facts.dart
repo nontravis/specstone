@@ -64,12 +64,15 @@ final class LineFacts {
   /// Computes the facts of [lfText], its [doc] at [docPath], and the
   /// [sectionCounts] of each section of [doc].
   ///
-  /// [lfText] is the file text with LF line ends, and [frontmatterErrorLine]
-  /// is `FrontmatterYaml.errorLine` of its frontmatter. A body the markdown
+  /// [lfText] is the file text with LF line ends; every line number comes from
+  /// it, while [lineCount] and [charCount] measure [countedText].
+  /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
+  /// frontmatter. A body the markdown
   /// parser fails on has no links, and [markdownUnparsedWarning] joins
   /// [warnings].
   factory of({
     required String lfText,
+    required String countedText,
     required String docPath,
     required Doc doc,
     required List<SectionCounts> sectionCounts,
@@ -80,7 +83,7 @@ final class LineFacts {
         ? ''
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
     final bodyStart = _lineCount(prefix);
-    final whole = scanText(lfText);
+    final whole = scanText(countedText);
     final links = linkPlacesOf(
       doc.afterFrontmatter,
       docPath: docPath,
@@ -93,8 +96,8 @@ final class LineFacts {
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
-      lineCount: _lineCount(lfText, breaks: whole.breaks),
-      charCount: lfText.length - whole.pairs,
+      lineCount: _lineCount(countedText, breaks: whole.breaks),
+      charCount: countedText.length - whole.pairs,
       frontmatterErrorLine: frontmatterErrorLine,
     );
   }

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -87,6 +88,7 @@ final class IndexedDoc {
     this.title,
     required this.frontmatter,
     required this.tokens,
+    this.formatted,
     this.order = 0,
     this.warnings = const [],
   });
@@ -111,6 +113,11 @@ final class IndexedDoc {
 
   /// The size of the whole file in tokens.
   final int tokens;
+
+  /// Whether the LF text equals the text the format command lays out.
+  ///
+  /// Null for an untyped doc and for a doc the format command refuses.
+  final bool? formatted;
 
   /// The position of the doc in tree order.
   final int order;
@@ -232,11 +239,17 @@ ParsedDoc parseIndexedDoc({
   final sections = [
     for (final section in doc.sections) _sectionOf(section, docType),
   ];
+  final laid = docType == null ? null : formatDoc(doc, docType);
+  final laidText = switch (laid) {
+    Formatted(:final text) => text,
+    _ => lfText,
+  };
   final lineFacts = LineFacts.of(
     lfText: lfText,
+    countedText: laidText,
     docPath: docPath,
     doc: doc,
-    sectionCounts: [for (final section in sections) sectionCountsOf(section)],
+    sectionCounts: _countsOf(doc, sections, laid, docType),
     frontmatterErrorLine: yaml?.errorLine,
     warnings: warnings,
   );
@@ -258,6 +271,7 @@ ParsedDoc parseIndexedDoc({
     title: doc.title,
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),
+    formatted: laid is Formatted ? laid.text == lfText : null,
     warnings: warnings,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
@@ -272,6 +286,27 @@ String _decode(List<int> bytes, String docPath, List<String> warnings) {
     );
     return utf8.decode(bytes, allowMalformed: true);
   }
+}
+
+/// Returns the counts of each section of [doc], in its order.
+///
+/// A section takes the counts of the laid-out section with the same header key;
+/// without a layout the counts are those of the text on disk.
+List<SectionCounts> _countsOf(
+  Doc doc,
+  List<IndexedSection> sections,
+  FormatOutcome? laid,
+  MergedDocType? docType,
+) {
+  if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
+  final laidByKey = {
+    for (final section in Doc.parse(laid.text).sections)
+      headerKey(section.headerText): _sectionOf(section, docType),
+  };
+  return [
+    for (final (i, section) in doc.sections.indexed)
+      sectionCountsOf(laidByKey[headerKey(section.headerText)] ?? sections[i]),
+  ];
 }
 
 IndexedSection _sectionOf(Section section, MergedDocType? docType) {

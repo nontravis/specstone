@@ -68,10 +68,14 @@ void main() {
   test('f03/us07/fr03/e03, sf-r4: a 60001-character DOMAIN.md gets '
       'chars_over_limit, limit 60000, actual 60001', () async {
     const loginDomain = 'specs/f01_login/DOMAIN.md';
+    // The index counts the laid-out text: a blank line under the title and a
+    // final line break.
     const title = '# Login domain\n';
     final report = checkOf(
       await writeCheckProject(
-        extra: {'docs/$loginDomain': title + 'x' * (60001 - title.length)},
+        extra: {
+          'docs/$loginDomain': '$title${'x' * (60001 - title.length - 2)}',
+        },
       ),
     );
     final finding = report.findings.singleWhere(
