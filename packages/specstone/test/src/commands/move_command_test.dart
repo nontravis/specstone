@@ -127,16 +127,13 @@ void main() {
     },
   );
 
-  test(
-    'f02/us07/fr01/e11: move writes a rewritten typed doc laid out',
-    () async {
-      final root = await writeNestedProject();
-      final file = docFile(root, shopApi);
-      file.writeAsStringSync('${file.readAsStringSync()}\n\n\n');
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
-      expect(err.toString(), isEmpty);
-      expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
-    },
-  );
+  test('document_writing/move_story/move_story_folder E11: move writes a rewritten typed doc laid out', () async {
+    final root = await writeNestedProject();
+    final file = docFile(root, shopApi);
+    file.writeAsStringSync('${file.readAsStringSync()}\n\n\n');
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
+    expect(err.toString(), isEmpty);
+    expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
+  });
 }

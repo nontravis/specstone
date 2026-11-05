@@ -125,7 +125,7 @@ void main() {
     expect(rewritten, contains(journey));
   });
 
-  test('f02/us05/fr02/e13, f02/us06/fr02/e07: rename writes a rewritten typed doc laid out', () async {
+  test('document_writing/rename_doc/rewrite_name_references E07: rename writes a rewritten typed doc laid out', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',

@@ -157,31 +157,28 @@ void main() {
     },
   );
 
-  test(
-    'f02/us05/fr02/e13: reorder writes a rewritten typed doc laid out',
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'reorder',
-          'user_story:login/reset_password',
-          '--to',
-          '1',
-        ]),
-        0,
-      );
-      final text = readDoc(
-        root,
-        'prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md',
-      );
-      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
-      expect(text, isNot(contains('\n\n\n')));
-      expect(text, contains('draft: true\n'));
-    },
-  );
+  test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: reorder writes a rewritten typed doc laid out', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '1',
+      ]),
+      0,
+    );
+    final text = readDoc(
+      root,
+      'prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md',
+    );
+    expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+    expect(text, isNot(contains('\n\n\n')));
+    expect(text, contains('draft: true\n'));
+  });
 }

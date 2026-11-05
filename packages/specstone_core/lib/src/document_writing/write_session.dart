@@ -245,7 +245,7 @@ final class WriteSession {
   String writeDoc(String docPath, String lfText, LineEnding lineEnding) {
     _requireDocPath(docPath);
     requireWritable(docPath);
-    final laidOut = layOutDoc(lfText, _docTypeOf(docPath));
+    final laidOut = layOutDoc(lfText, docTypeAt(docPath));
     try {
       writeFileAtomic(fileOf(docPath), [
         if (_bomDocs.contains(docPath)) ...utf8Bom,
@@ -261,7 +261,8 @@ final class WriteSession {
     return laidOut;
   }
 
-  MergedDocType? _docTypeOf(String docPath) =>
+  /// Returns the doc type the matcher gives [docPath], or null when untyped.
+  MergedDocType? docTypeAt(String docPath) =>
       switch (project.matcher.match(docPath)) {
         MatchedDocType(:final docType) => docType,
         _ => null,

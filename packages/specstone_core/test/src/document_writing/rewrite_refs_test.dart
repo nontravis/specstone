@@ -671,7 +671,7 @@ void main() {
     String stepText(List<WriteStep> steps, String docPath) =>
         steps.singleWhere((step) => step.path == 'docs/$docPath').text;
 
-    test('f02/us05/fr02/e13: a typed doc whose link changes is written laid out, still draft', () async {
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a typed doc whose link changes is written laid out, still draft', () async {
       final project = await writeWriteProject(extra: {'docs/$fr12': loose});
       final text = stepText(
         writeIn(project, (s) => planRewrites(s, reorderMoves)),
@@ -682,25 +682,22 @@ void main() {
       expect(text, contains('draft: true\n'));
     });
 
-    test(
-      'f02/us05/fr02/e13: an untyped doc keeps every byte the rewrite leaves',
-      () async {
-        final project = await writeWriteProject(
-          extra: {
-            'docs/prds/d01_context.md': '# Context\n\n\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n\n\n',
-          },
-        );
-        final text = stepText(
-          writeIn(project, (s) => planRewrites(s, featureSwap)),
-          'prds/d01_context.md',
-        );
-        expect(text, contains('features/f01_signup/FEATURE.md'));
-        expect(text, contains('\n\n\n\n## Features'));
-        expect(text, endsWith(').\n\n\n'));
-      },
-    );
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: an untyped doc keeps every byte the rewrite leaves', () async {
+      final project = await writeWriteProject(
+        extra: {
+          'docs/prds/d01_context.md': '# Context\n\n\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n\n\n',
+        },
+      );
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, featureSwap)),
+        'prds/d01_context.md',
+      );
+      expect(text, contains('features/f01_signup/FEATURE.md'));
+      expect(text, contains('\n\n\n\n## Features'));
+      expect(text, endsWith(').\n\n\n'));
+    });
 
-    test('f02/us05/fr02/e13: a doc the formatter refuses keeps every byte the rewrite leaves', () async {
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a doc the formatter refuses keeps every byte the rewrite leaves', () async {
       final refused = loose.replaceFirst('## Statement', '## Bogus');
       final project = await writeWriteProject(extra: {'docs/$fr12': refused});
       final text = stepText(
@@ -711,36 +708,86 @@ void main() {
       expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
     });
 
-    test(
-      'f02/us05/fr02/e13: a doc the rewrite does not change gets no step',
-      () async {
-        final project = await writeWriteProject(
-          extra: {
-            'docs/$fr11': '---\nstatus: implemented\n---\n\n# Validate\n\n\n\n## Statement\n\nText.\n',
-          },
-        );
-        final steps = writeIn(project, (s) => planRewrites(s, reorderMoves));
-        expect(steps.where((step) => step.path == 'docs/$fr11'), isEmpty);
-      },
-    );
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a doc the rewrite does not change gets no step', () async {
+      final project = await writeWriteProject(
+        extra: {
+          'docs/$fr11': '---\nstatus: implemented\n---\n\n# Validate\n\n\n\n## Statement\n\nText.\n',
+        },
+      );
+      final steps = writeIn(project, (s) => planRewrites(s, reorderMoves));
+      expect(steps.where((step) => step.path == 'docs/$fr11'), isEmpty);
+    });
 
-    test(
-      'P7: the type of the path a moved doc lands on decides the layout',
-      () async {
-        const to = 'prds/features/f01_login/us01_email_login/fr09_context.md';
-        final project = await writeWriteProject(
-          extra: {
-            'docs/prds/d01_context.md': '# Context\n\n## Statement\n\n\n\nSee [signup](features/f02_signup/FEATURE.md).\n',
-          },
-        );
-        final steps = writeIn(
+    test('document_writing/move_story/move_story_folder E11: the type of the path a moved doc lands on decides the layout', () async {
+      const to = 'prds/features/f01_login/us01_email_login/fr09_context.md';
+      final project = await writeWriteProject(
+        extra: {
+          'docs/prds/d01_context.md': '# Context\n\n## Statement\n\n\n\nSee [signup](features/f02_signup/FEATURE.md).\n',
+        },
+      );
+      final steps = writeIn(
+        project,
+        (s) => planRewrites(s, [(from: 'prds/d01_context.md', to: to)]),
+      );
+      final step = steps.singleWhere((step) => step.path == 'docs/$to');
+      expect(step.text, contains('../../f02_signup/FEATURE.md'));
+      expect(step.text, isNot(contains('\n\n\n')));
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a CRLF doc with a BOM is written laid out with both kept', () async {
+      final project = await writeWriteProject(
+        extra: {'docs/$fr12': '﻿${loose.replaceAll('\n', '\r\n')}'},
+      );
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, startsWith('﻿---\r\n'));
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+      expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
+      expect(text, isNot(contains('\r\n\r\n\r\n')));
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E07: a renamed doc_ref referrer with keys out of field order is written in order', () async {
+      final project = await writeWriteProject(
+        extra: {
+          'docs/$story1': '---\npersona:\n  - buyer\nstatus: planned\ndraft: true\n---\n\n# Sign in with email\n',
+        },
+      );
+      final text = stepText(
+        writeIn(
           project,
-          (s) => planRewrites(s, [(from: 'prds/d01_context.md', to: to)]),
-        );
-        final step = steps.singleWhere((step) => step.path == 'docs/$to');
-        expect(step.text, contains('../../f02_signup/FEATURE.md'));
-        expect(step.text, isNot(contains('\n\n\n')));
-      },
-    );
+          (s) => planRewrites(
+            s,
+            const [],
+            renamed: {('persona', 'buyer'): 'shopper'},
+          ),
+        ),
+        story1,
+      );
+      expect(text, contains('  - shopper\n'));
+      expect(
+        text.indexOf('status: planned'),
+        lessThan(text.indexOf('persona:')),
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_link_labels E14: a rewritten api doc with padded table cells is written compact', () async {
+      final nested = await writeNestedProject();
+      final file = docFile(nested, shopApi);
+      file.writeAsStringSync(
+        file.readAsStringSync().replaceAll(
+          '| FR | Operation |\n|----|-----------|\n| cart/add_item/check_stock | `addItem` |',
+          '| FR                        | Operation |\n|---------------------------|-----------|\n| cart/add_item/check_stock | `addItem` |',
+        ),
+      );
+      writeIn(
+        nested,
+        (s) => answerRename(s, 'feature:shop/cart', slug: 'basket'),
+      );
+      final text = readDoc(nested, shopApi);
+      expect(text, contains('| basket/add_item/check_stock | `addItem` |'));
+      expect(text, isNot(contains('| FR                        |')));
+    });
   });
 }

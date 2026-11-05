@@ -5,7 +5,6 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -240,19 +239,12 @@ WriteStep? _stepFor(
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
   final writtenPath = movedPath(doc.docPath, moves);
-  final laidOut = layOutDoc(text, _docTypeAt(session, writtenPath));
+  final laidOut = layOutDoc(text, session.docTypeAt(writtenPath));
   return WriteStep(
     session.projectPathOf(writtenPath),
     '$bom${LineEnding.of(raw).apply(laidOut)}',
   );
 }
-
-/// Returns the doc type the matcher gives [docPath], or null when untyped.
-MergedDocType? _docTypeAt(WriteSession session, String docPath) =>
-    switch (session.project.matcher.match(docPath)) {
-      MatchedDocType(:final docType) => docType,
-      _ => null,
-    };
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null
 /// when [doc] has no parent.
