@@ -73,6 +73,22 @@ void main() {
     );
     expect(out.toString(), contains('USER_STORY.md · base '));
   });
+  test(
+    'print_doc_or_section E08: get --json prints the laid-out section bases',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run(['get', 'user_story:login/email_login', '--json']),
+        0,
+      );
+      final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
+      final bases = (docs.single as Map)['bases']! as Map;
+      expect(
+        (bases['sections']! as Map)['acceptance_criteria'],
+        '6d6a67fa9a00',
+      );
+    },
+  );
 
   group('journey options', () {
     const journeyDoc = 'docs/prds/journeys/sign_in/JOURNEY.md';
