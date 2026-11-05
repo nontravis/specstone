@@ -124,4 +124,26 @@ void main() {
     final rewritten = (jsonDecode(out.toString()) as Map)['rewritten'] as List;
     expect(rewritten, contains(journey));
   });
+
+  test('f02/us05/fr02/e13, f02/us06/fr02/e07: rename writes a rewritten typed doc laid out', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    final text = readDoc(root, fr12);
+    expect(text, contains('us03_recover_account/USER_STORY.md#use-case'));
+    expect(text, isNot(contains('\n\n\n')));
+    expect(text, contains('draft: true\n'));
+  });
 }

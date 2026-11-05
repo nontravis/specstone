@@ -5,6 +5,7 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -16,6 +17,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
     show RenderFault;
@@ -237,11 +239,20 @@ WriteStep? _stepFor(
   if (text == null) return null;
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
+  final writtenPath = movedPath(doc.docPath, moves);
+  final laidOut = layOutDoc(text, _docTypeAt(session, writtenPath));
   return WriteStep(
-    session.projectPathOf(movedPath(doc.docPath, moves)),
-    '$bom${LineEnding.of(raw).apply(text)}',
+    session.projectPathOf(writtenPath),
+    '$bom${LineEnding.of(raw).apply(laidOut)}',
   );
 }
+
+/// Returns the doc type the matcher gives [docPath], or null when untyped.
+MergedDocType? _docTypeAt(WriteSession session, String docPath) =>
+    switch (session.project.matcher.match(docPath)) {
+      MatchedDocType(:final docType) => docType,
+      _ => null,
+    };
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null
 /// when [doc] has no parent.

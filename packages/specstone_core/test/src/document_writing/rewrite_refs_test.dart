@@ -493,7 +493,7 @@ void main() {
     );
     expect(
       steps.first.text,
-      '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n- [Login](features/f02_login/FEATURE.md)\n- [Signup](features/f01_signup/FEATURE.md)\n',
+      '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n\n- [Login](features/f02_login/FEATURE.md)\n- [Signup](features/f01_signup/FEATURE.md)\n',
     );
     expect(steps.last.text, contains('(features/f01_signup/FEATURE.md)'));
     expect(
@@ -659,6 +659,88 @@ void main() {
     expect(
       readDoc(nested, shopApi),
       contains('  - basket/add_item/check_stock $stock\n'),
+    );
+  });
+
+  group('laid-out rewrites', () {
+    const looseLink =
+        'The system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n';
+    const loose =
+        '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\n$looseLink\n\n';
+
+    String stepText(List<WriteStep> steps, String docPath) =>
+        steps.singleWhere((step) => step.path == 'docs/$docPath').text;
+
+    test('f02/us05/fr02/e13: a typed doc whose link changes is written laid out, still draft', () async {
+      final project = await writeWriteProject(extra: {'docs/$fr12': loose});
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+      expect(text, isNot(contains('\n\n\n')));
+      expect(text, contains('draft: true\n'));
+    });
+
+    test(
+      'f02/us05/fr02/e13: an untyped doc keeps every byte the rewrite leaves',
+      () async {
+        final project = await writeWriteProject(
+          extra: {
+            'docs/prds/d01_context.md': '# Context\n\n\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n\n\n',
+          },
+        );
+        final text = stepText(
+          writeIn(project, (s) => planRewrites(s, featureSwap)),
+          'prds/d01_context.md',
+        );
+        expect(text, contains('features/f01_signup/FEATURE.md'));
+        expect(text, contains('\n\n\n\n## Features'));
+        expect(text, endsWith(').\n\n\n'));
+      },
+    );
+
+    test('f02/us05/fr02/e13: a doc the formatter refuses keeps every byte the rewrite leaves', () async {
+      final refused = loose.replaceFirst('## Statement', '## Bogus');
+      final project = await writeWriteProject(extra: {'docs/$fr12': refused});
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, contains('\n\n\n\nThe system'));
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+    });
+
+    test(
+      'f02/us05/fr02/e13: a doc the rewrite does not change gets no step',
+      () async {
+        final project = await writeWriteProject(
+          extra: {
+            'docs/$fr11': '---\nstatus: implemented\n---\n\n# Validate\n\n\n\n## Statement\n\nText.\n',
+          },
+        );
+        final steps = writeIn(project, (s) => planRewrites(s, reorderMoves));
+        expect(steps.where((step) => step.path == 'docs/$fr11'), isEmpty);
+      },
+    );
+
+    test(
+      'P7: the type of the path a moved doc lands on decides the layout',
+      () async {
+        const to = 'prds/features/f01_login/us01_email_login/fr09_context.md';
+        final project = await writeWriteProject(
+          extra: {
+            'docs/prds/d01_context.md': '# Context\n\n## Statement\n\n\n\nSee [signup](features/f02_signup/FEATURE.md).\n',
+          },
+        );
+        final steps = writeIn(
+          project,
+          (s) => planRewrites(s, [(from: 'prds/d01_context.md', to: to)]),
+        );
+        final step = steps.singleWhere((step) => step.path == 'docs/$to');
+        expect(step.text, contains('../../f02_signup/FEATURE.md'));
+        expect(step.text, isNot(contains('\n\n\n')));
+      },
     );
   });
 }
