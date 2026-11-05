@@ -253,6 +253,29 @@ void main() {
         expect(text, contains('Keep `<!-- kept -->` and drop  here.'));
       });
 
+      test('E03: a comment holding a lone backtick still drops', () async {
+        final text = await featureWith('a <!-- it`s --> b `c`');
+
+        expect(text, contains('## Problem\na  b `c`'));
+        expect(text, isNot(contains('it`s')));
+      });
+
+      test('E03: a comment holding a backtick pair still drops', () async {
+        final text = await featureWith('<!-- a ` --> b ` c');
+
+        expect(text, isNot(contains('-->')));
+        expect(text, contains('## Problem\n b ` c'));
+      });
+
+      test('E03: a comment holding a fenced block still drops', () async {
+        final text = await featureWith(
+          'Before\n<!-- x\n```\ny\n```\n-->\nAfter',
+        );
+
+        expect(text, contains('## Problem\nBefore\n\nAfter'));
+        expect(text, isNot(contains('```')));
+      });
+
       test('E03: a comment block over several lines drops whole', () async {
         final text = await featureWith(
           'Before\n<!-- one\ntwo\nthree -->\nAfter',

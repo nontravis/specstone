@@ -286,38 +286,48 @@ bool _naChecked(String body) {
   return cleaned != 'N/A' && !cleaned.startsWith('N/A —');
 }
 
-/// Returns [text] with every HTML comment removed, except one inside fenced
-/// code or an inline code span.
+/// Returns [text] with every HTML comment removed, except one whose `<!--`
+/// sits in fenced code or an inline code span.
+///
+/// A comment runs to the first `-->` whatever it holds, so a backtick or a
+/// fence line inside a comment never hides it.
 String _removeComments(String text) {
-  final masked = _maskCode(text);
+  final code = _codeRanges(text);
   final kept = StringBuffer();
   var from = 0;
-  for (final comment in _htmlComment.allMatches(masked)) {
+  var search = 0;
+  while (true) {
+    final comment = _htmlComment.allMatches(text, search).firstOrNull;
+    if (comment == null) break;
+    if (code.any((r) => r.start <= comment.start && comment.start < r.end)) {
+      search = comment.start + 1;
+      continue;
+    }
     kept.write(text.substring(from, comment.start));
-    from = comment.end;
+    from = search = comment.end;
   }
   return (kept..write(text.substring(from))).toString();
 }
 
-/// Returns [text] with fenced lines and code spans, backticks included, blanked
-/// to spaces of equal length, so offsets match [text].
-String _maskCode(String text) {
+/// Returns the offsets of each fenced line and each inline code span of [text].
+List<({int start, int end})> _codeRanges(String text) {
   final lines = text.split('\n');
   final fenced = fencedLines([
     for (final line in lines) line.replaceFirst(RegExp(r'\r$'), ''),
   ]);
-  return [
-    for (var i = 0; i < lines.length; i++)
-      if (fenced[i]) ' ' * lines[i].length else _maskSpans(lines[i]),
-  ].join('\n');
-}
-
-String _maskSpans(String line) {
-  var masked = line;
-  for (final (:start, :end, ticks: _) in codeSpansOf(line)) {
-    masked = masked.replaceRange(start, end, ' ' * (end - start));
+  final ranges = <({int start, int end})>[];
+  var offset = 0;
+  for (var i = 0; i < lines.length; i++) {
+    if (fenced[i]) {
+      ranges.add((start: offset, end: offset + lines[i].length));
+    } else {
+      for (final (:start, :end, ticks: _) in codeSpansOf(lines[i])) {
+        ranges.add((start: offset + start, end: offset + end));
+      }
+    }
+    offset += lines[i].length + 1;
   }
-  return masked;
+  return ranges;
 }
 
 /// Returns [text] with HTML comments removed and both ends trimmed.
