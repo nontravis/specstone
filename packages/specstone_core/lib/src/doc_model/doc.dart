@@ -171,8 +171,6 @@ bool isSectionHeaderLine(String line) => _sectionHeader.hasMatch(line);
 /// Whether [line], without its line ending, is a `# ` title line as
 /// [Doc.parse] reads it outside fenced code.
 bool isTitleLine(String line) => line.startsWith('# ');
-final _fenceOpen = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$');
-final _fenceClose = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*$');
 
 /// Splits [text] into lines, each keeping its trailing `\n` when it has one.
 List<String> _splitLines(String text) {
@@ -320,42 +318,354 @@ List<bool> fencedLines(List<String> lines) => fenceScan(lines).fenced;
   return (fenced: fenced, openFence: fence.openingLine);
 }
 
-/// Tracks whether the scan is inside a fenced code block.
+const _tab = 0x09;
+const _space = 0x20;
+const _closeParen = 0x29;
+const _star = 0x2A;
+const _plus = 0x2B;
+const _dash = 0x2D;
+const _dot = 0x2E;
+const _digitZero = 0x30;
+const _digitNine = 0x39;
+const _quoteMarker = 0x3E;
+const _hash = 0x23;
+const _underscore = 0x5F;
+const _backtick = 0x60;
+const _tilde = 0x7E;
+
+const _tabStop = 4;
+
+/// The columns a block may sit past its container's content column (GFM).
+const _maxIndent = 3;
+const _minFenceRun = 3;
+const _minThematicRun = 3;
+const _maxHeadingLevel = 6;
+const _maxOrderedDigits = 9;
+
+/// The most spaces after a list marker that still lead to the item content.
+const _maxMarkerGap = 4;
+
+/// Tracks fenced code blocks the way GitHub Flavored Markdown reads them, a
+/// fence inside a block quote or a list item included.
 ///
-/// A fence opens with three or more backticks or tildes and closes with the
-/// same character, at least as many; an unclosed fence runs to the end.
+/// A fence opens with three or more backticks or tildes at most 3 columns
+/// past its container's content, and closes with the same character, at
+/// least as many, or where its container ends; an unclosed fence runs to the
+/// end. A `##` header line outside a fence ends every container.
 final class _FenceTracker {
-  String? _char;
-  var _length = 0;
-  String? _openingLine;
+  final _containers = <_Container>[];
+  _Fence? _fence;
+  var _inParagraph = false;
 
   /// The delimiter line of the open fence, or null outside a fence.
-  String? get openingLine => _openingLine;
+  String? get openingLine => _fence?.openingLine;
 
   /// Whether the lines fed so far end inside an open fence.
-  bool get isOpen => _char != null;
+  bool get isOpen => _fence != null;
 
   /// Feeds one [line]; returns whether it is fence content or a delimiter.
   bool consume(String line) {
-    if (_char == null) return _open(line);
-    final close = _fenceClose.firstMatch(line);
-    final run = close?.group(1);
-    if (run != null && run[0] == _char && run.length >= _length) {
-      _char = null;
-      _openingLine = null;
+    final text = _expandTabs(line);
+    var column = 0;
+    var matched = 0;
+    for (final container in _containers) {
+      final next = container.continueAt(text, column);
+      if (next == null) break;
+      column = next;
+      matched++;
     }
-    return true;
+    final fence = _fence;
+    if (fence != null) {
+      if (matched == _containers.length) {
+        if (fence.closesOn(text, column)) _fence = null;
+        return true;
+      }
+      // A fence takes no lazy line, so it ends with its container.
+      _fence = null;
+      _closeContainers(matched);
+    }
+    final fenced = _readBlocks(line, text, column, matched);
+    if (!fenced && _containers.isNotEmpty && isSectionHeaderLine(line)) {
+      _closeContainers(0);
+    }
+    return fenced;
   }
 
-  bool _open(String line) {
-    final match = _fenceOpen.firstMatch(line);
-    final run = match?.group(1);
-    if (run == null) return false;
-    final isBacktick = run[0] == '`';
-    if (isBacktick && match!.group(2)!.contains('`')) return false;
-    _char = run[0];
-    _length = run.length;
-    _openingLine = line;
-    return true;
+  /// Reads the containers and the leaf block [text] starts at [column], past
+  /// the first [matched] containers it continues.
+  bool _readBlocks(String line, String text, int column, int matched) {
+    var at = column;
+    var paragraphOpen = _inParagraph && matched == _containers.length;
+    var opened = false;
+    for (;;) {
+      final start = _containerStart(text, at, paragraphOpen: paragraphOpen);
+      if (start == null) break;
+      if (!opened) _closeContainers(matched);
+      opened = true;
+      _containers.add(start.container);
+      _inParagraph = paragraphOpen = false;
+      at = start.column;
+    }
+    if (!opened && matched < _containers.length) {
+      if (_inParagraph && _isLazyLine(text, at)) return false;
+      _closeContainers(matched);
+    }
+    return _readLeaf(line, text, at);
   }
+
+  /// Reads the leaf block [text] starts at [column]; returns whether it opens
+  /// a fence.
+  bool _readLeaf(String line, String text, int column) {
+    final start = _indentEnd(text, column);
+    if (start >= text.length) {
+      _inParagraph = false;
+      return false;
+    }
+    // Indented code, or the next line of the open paragraph.
+    if (start - column > _maxIndent) return false;
+    final run = _fenceRunAt(text, start);
+    if (run > 0) {
+      _fence = _Fence(
+        marker: text.codeUnitAt(start),
+        run: run,
+        openingLine: line,
+      );
+      _inParagraph = false;
+      return true;
+    }
+    _inParagraph =
+        !_isAtxHeading(text, start) && !_isThematicBreak(text, start);
+    return false;
+  }
+
+  void _closeContainers(int kept) {
+    if (kept < _containers.length) {
+      _containers.length = kept;
+      _inParagraph = false;
+    }
+  }
+}
+
+/// An open fenced code block.
+final class _Fence {
+  const new({
+    required this.marker,
+    required this.run,
+    required this.openingLine,
+  });
+
+  final int marker;
+  final int run;
+
+  /// The delimiter line as written.
+  final String openingLine;
+
+  /// Whether [text], past its containers at [column], closes this fence.
+  bool closesOn(String text, int column) {
+    final start = _indentEnd(text, column);
+    if (start - column > _maxIndent || start >= text.length) return false;
+    if (text.codeUnitAt(start) != marker) return false;
+    final end = _runEnd(text, start, marker);
+    return end - start >= run && _indentEnd(text, end) >= text.length;
+  }
+}
+
+/// A block that holds other blocks: a block quote or a list item.
+sealed class _Container {
+  const new();
+
+  /// Returns the column past this container on [text], from [column], or null
+  /// when [text] does not continue it.
+  int? continueAt(String text, int column);
+}
+
+final class _Quote extends _Container {
+  const new();
+
+  @override
+  int? continueAt(String text, int column) => _afterQuoteMarker(text, column);
+}
+
+final class _ListItem extends _Container {
+  const new(this.contentColumn);
+
+  final int contentColumn;
+
+  /// A blank line, or one indented to [contentColumn], continues the item.
+  @override
+  int? continueAt(String text, int column) {
+    final start = _indentEnd(text, column);
+    if (start >= text.length) return column;
+    return start >= contentColumn ? contentColumn : null;
+  }
+}
+
+/// Returns the container [text] starts at [column], with its content column,
+/// or null when none starts there.
+///
+/// With [paragraphOpen], only a bullet or `1.` or `1)` with content starts a
+/// list item, so a paragraph line such as `2. x` stays in its paragraph.
+({_Container container, int column})? _containerStart(
+  String text,
+  int column, {
+  required bool paragraphOpen,
+}) {
+  final quoteColumn = _afterQuoteMarker(text, column);
+  if (quoteColumn != null) {
+    return (container: const _Quote(), column: quoteColumn);
+  }
+  final itemColumn = _listItemColumn(
+    text,
+    column,
+    paragraphOpen: paragraphOpen,
+  );
+  if (itemColumn == null) return null;
+  return (container: _ListItem(itemColumn), column: itemColumn);
+}
+
+/// Returns the column after the `>` marker, and one space after it, that
+/// [text] holds at most 3 columns past [column], or null.
+int? _afterQuoteMarker(String text, int column) {
+  final start = _indentEnd(text, column);
+  if (start - column > _maxIndent || start >= text.length) return null;
+  if (text.codeUnitAt(start) != _quoteMarker) return null;
+  final after = start + 1;
+  final hasSpace = after < text.length && text.codeUnitAt(after) == _space;
+  return hasSpace ? after + 1 : after;
+}
+
+/// Returns the content column of the list item [text] starts past [column],
+/// or null when it starts none.
+int? _listItemColumn(String text, int column, {required bool paragraphOpen}) {
+  final start = _indentEnd(text, column);
+  if (start - column > _maxIndent || start >= text.length) return null;
+  final markerEnd = _listMarkerEnd(text, start);
+  if (markerEnd == null || _isThematicBreak(text, start)) return null;
+  final contentStart = _indentEnd(text, markerEnd);
+  final isEmpty = contentStart >= text.length;
+  if (paragraphOpen && (isEmpty || !_startsAtOne(text, start, markerEnd))) {
+    return null;
+  }
+  final gap = contentStart - markerEnd;
+  return isEmpty || gap > _maxMarkerGap ? markerEnd + 1 : contentStart;
+}
+
+/// Returns the index after the bullet or ordered marker at [start], when a
+/// space or the line end follows it, or null.
+int? _listMarkerEnd(String text, int start) {
+  final first = text.codeUnitAt(start);
+  var end = start + 1;
+  if (first != _dash && first != _plus && first != _star) {
+    end = _digitsEnd(text, start);
+    final digits = end - start;
+    if (digits == 0 || digits > _maxOrderedDigits || end >= text.length) {
+      return null;
+    }
+    final delimiter = text.codeUnitAt(end);
+    if (delimiter != _dot && delimiter != _closeParen) return null;
+    end++;
+  }
+  return end >= text.length || text.codeUnitAt(end) == _space ? end : null;
+}
+
+/// Whether the marker in `[start, markerEnd)` is a bullet or numbers 1.
+bool _startsAtOne(String text, int start, int markerEnd) {
+  final first = text.codeUnitAt(start);
+  if (first == _dash || first == _plus || first == _star) return true;
+  return int.parse(text.substring(start, markerEnd - 1)) == 1;
+}
+
+/// Whether [text] from [column] is the next line of an open paragraph that
+/// sits in containers the line does not continue (a GFM lazy line).
+bool _isLazyLine(String text, int column) {
+  final start = _indentEnd(text, column);
+  if (start >= text.length) return false;
+  if (start - column > _maxIndent) return true;
+  return _fenceRunAt(text, start) == 0 &&
+      !_isAtxHeading(text, start) &&
+      !_isThematicBreak(text, start);
+}
+
+/// Returns the length of the fence opening run at [start], or 0 when none.
+///
+/// A backtick fence whose info string holds a backtick is no fence.
+int _fenceRunAt(String text, int start) {
+  final marker = text.codeUnitAt(start);
+  if (marker != _backtick && marker != _tilde) return 0;
+  final end = _runEnd(text, start, marker);
+  if (end - start < _minFenceRun) return 0;
+  if (marker == _backtick && text.indexOf('`', end) >= 0) return 0;
+  return end - start;
+}
+
+bool _isAtxHeading(String text, int start) {
+  final level = _runEnd(text, start, _hash) - start;
+  final end = start + level;
+  return level >= 1 &&
+      level <= _maxHeadingLevel &&
+      (end >= text.length || text.codeUnitAt(end) == _space);
+}
+
+/// Whether [text] from [start] is three or more `-`, `*`, or `_` of one kind,
+/// with only spaces between and after them.
+bool _isThematicBreak(String text, int start) {
+  final marker = text.codeUnitAt(start);
+  if (marker != _dash && marker != _star && marker != _underscore) {
+    return false;
+  }
+  var count = 0;
+  for (var i = start; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    if (unit == marker) {
+      count++;
+    } else if (unit != _space) {
+      return false;
+    }
+  }
+  return count >= _minThematicRun;
+}
+
+/// Returns the first index at or after [from] that holds no space.
+int _indentEnd(String text, int from) {
+  var i = from;
+  while (i < text.length && text.codeUnitAt(i) == _space) {
+    i++;
+  }
+  return i;
+}
+
+int _runEnd(String text, int start, int unit) {
+  var i = start;
+  while (i < text.length && text.codeUnitAt(i) == unit) {
+    i++;
+  }
+  return i;
+}
+
+int _digitsEnd(String text, int start) {
+  var i = start;
+  while (i < text.length) {
+    final unit = text.codeUnitAt(i);
+    if (unit < _digitZero || unit > _digitNine) break;
+    i++;
+  }
+  return i;
+}
+
+/// Returns [line] with each tab widened to the next 4-column tab stop.
+String _expandTabs(String line) {
+  if (!line.contains('\t')) return line;
+  final out = StringBuffer();
+  var column = 0;
+  for (final unit in line.codeUnits) {
+    if (unit == _tab) {
+      final width = _tabStop - column % _tabStop;
+      out.write(' ' * width);
+      column += width;
+    } else {
+      out.writeCharCode(unit);
+      column++;
+    }
+  }
+  return out.toString();
 }

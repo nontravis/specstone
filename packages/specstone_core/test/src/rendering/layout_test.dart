@@ -164,6 +164,63 @@ void main() {
     );
   });
 
+  group('fences inside containers', () {
+    check(
+      'E06: a fence in a list item, indented 4, is unchanged',
+      '- item\n\n    ```\n    code   \n    | a   | b |\n    |---|---|\n'
+          '    ```\n',
+      '- item\n\n    ```\n    code   \n    | a   | b |\n    |---|---|\n'
+          '    ```\n',
+    );
+    check(
+      'E06: a fence in an ordered item, indented 3, is unchanged',
+      '1. item\n\n   ```\n   code   \n   ```\n',
+      '1. item\n\n   ```\n   code   \n   ```\n',
+    );
+    check(
+      'E06: a fence in a block quote is unchanged',
+      '> ```\n> code   \n> ```\n',
+      '> ```\n> code   \n> ```\n',
+    );
+    check(
+      'E06: a fence in a quote inside a list item is unchanged',
+      '- item\n\n  > ```\n  > code   \n  > ```\n',
+      '- item\n\n  > ```\n  > code   \n  > ```\n',
+    );
+    check(
+      'E06: a fence on the list marker line is unchanged',
+      '- ```\n  code   \n  ```\n',
+      '- ```\n  code   \n  ```\n',
+    );
+    check(
+      'E06: a step with a nested command and a quoted block keeps the code',
+      '1. Run the command:\n\n    ```sh\n    echo "a  b"   \n    ```\n\n'
+          '> ```\n> quoted code   \n> ```\n',
+      '1. Run the command:\n\n    ```sh\n    echo "a  b"   \n    ```\n\n'
+          '> ```\n> quoted code   \n> ```\n',
+    );
+    check(
+      'a fence closed inside its list item ends the code',
+      '- a\n\n    ```\n    x   \n    ```\n  after   \n  more\n',
+      '- a\n\n    ```\n    x   \n    ```\n  after  \n  more\n',
+    );
+    check(
+      'a fence ends where its block quote ends',
+      '> ```\n> code   \nafter   \nnext\n',
+      '> ```\n> code   \nafter  \nnext\n',
+    );
+    check(
+      'a fence ends where its list item ends',
+      '- item\n\n  ```\n  code   \nafter   \nnext\n',
+      '- item\n\n  ```\n  code   \nafter  \nnext\n',
+    );
+    check(
+      'a line indented 4 under a paragraph opens no fence',
+      'text\n    ```\nmore   \nnext\n',
+      'text\n    ```\nmore  \nnext\n',
+    );
+  });
+
   group('only spaces and tabs change', () {
     check('a line ending in NBSP stays', 'a \nb\n', 'a \nb\n');
     check('a line ending in U+3000 stays', 'a　\nb\n', 'a　\nb\n');

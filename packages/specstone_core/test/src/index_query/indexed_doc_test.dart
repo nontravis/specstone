@@ -354,6 +354,15 @@ void main() {
       }
     });
 
+    test('index_query/read_current_docs/index_each_doc: a fence nested in a list item is code to the index and the layout alike', () {
+      const nested =
+          '# F\n\n## Problem\n\n1. Run:\n\n    ```sh\n    echo "a  b"   \n'
+          '    ## not a section\n    ```\n';
+      final parsed = parse(featurePath, nested);
+      expect(parsed.doc.formatted, isTrue);
+      expect([for (final s in parsed.content.sections) s.key], ['problem']);
+    });
+
     test('index_query/read_current_docs/index_each_doc: an untyped doc has no formatted value', () {
       expect(parse('notes/a.md', '# A\n').doc.formatted, isNull);
     });

@@ -222,6 +222,53 @@ void main() {
       expect(_headers(doc), ['A']);
     });
 
+    test('rendering/format_docs/match_section_headers: a ## line inside a '
+        'fence nested in a list item is not a section', () {
+      final doc = Doc.parse(
+        '# T\n\n## A\n\n- item\n\n    ```\n    ## not a section\n'
+        '  ## not one either\n    ```\n## B\n',
+      );
+
+      expect(_headers(doc), ['A', 'B']);
+      expect(doc.hasUnclosedFence, isFalse);
+    });
+
+    test('rendering/format_docs/match_section_headers: a fence nested in a '
+        'list item or a block quote ends where its container ends', () {
+      for (final text in [
+        '## A\n- item\n  ```\n  code\n## B\n',
+        '## A\n> ```\n> code\n## B\n',
+        '## A\n- > ```\n  > code\n## B\n',
+      ]) {
+        final doc = Doc.parse(text);
+
+        expect(_headers(doc), ['A', 'B'], reason: text);
+        expect(doc.hasUnclosedFence, isFalse, reason: text);
+      }
+    });
+
+    test('rendering/format_docs/match_section_headers E04: a fence nested in '
+        'a list item that runs to the end is unclosed', () {
+      expect(
+        Doc.parse('## A\n- item\n\n    ```\n    code\n').hasUnclosedFence,
+        isTrue,
+      );
+    });
+
+    test('rendering/format_docs/match_section_headers: fencedLines marks the '
+        'lines of a fence nested in a container', () {
+      expect(
+        fencedLines(['- a', '', '    ```', '    x', '    ```', '  after']),
+        [false, false, true, true, true, false],
+      );
+      expect(fencedLines(['> ```', '> x', 'after', '```']), [
+        true,
+        true,
+        false,
+        true,
+      ]);
+    });
+
     test('f05/us01/fr04: hasUnclosedFence is true when the text ends inside '
         'a fence', () {
       expect(Doc.parse('## A\n```\n## in\n').hasUnclosedFence, isTrue);
