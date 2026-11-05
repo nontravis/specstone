@@ -57,8 +57,10 @@ void main() {
         ),
       ),
     );
-    expect(spots(spaced, FindingKind.requiredSectionMissing), isEmpty);
-    expect(spots(spaced, FindingKind.sectionUndeclared), isEmpty);
+    expect(
+      spaced.findings.where((f) => f.kind != FindingKind.formatDrift),
+      isEmpty,
+    );
     final report = checkOf(
       await writeCheckProject(
         extra: edit(loginStory, [
@@ -273,5 +275,42 @@ void main() {
     expect(spots(report, FindingKind.formatDrift), [
       '$loginFr:1: format_drift',
     ]);
+  });
+
+  test('consistency_check/find_template_breaks/check_sections_and_limits E09: a section counts the blank lines format adds under its ### headings', () async {
+    final body = '${'### Head\ntext\n' * 3}${'filler\n' * 32}';
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'sections:\n  - id: statement\n    lint:\n      max_lines: 42\n',
+          ...fr('$checkPasswordStatement\n', body),
+        },
+      ),
+    );
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.linesOverLimit,
+    );
+    expect(finding.toJson(), containsPair('limit', 42));
+    expect(finding.toJson(), containsPair('actual', 43));
+  });
+
+  test('consistency_check/find_template_breaks/check_sections_and_limits E09: a doc format refuses counts its text on disk', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml': 'lint:\n  max_chars: 300\n',
+          ...fr(
+            'A wrong password must not sign in.\n',
+            'A wrong password must not sign in.\n\n```\nopen\n${'x' * 300}\n',
+          ),
+        },
+      ),
+    );
+    expect(
+      spots(report, FindingKind.charsOverLimit),
+      contains('$loginFr:1: chars_over_limit'),
+    );
+    expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 }

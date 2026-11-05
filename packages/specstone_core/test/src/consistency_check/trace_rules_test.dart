@@ -100,8 +100,10 @@ void main() {
         ),
       ),
     );
-    expect(spots(report, FindingKind.requiredSectionMissing), isEmpty);
-    expect(spots(report, FindingKind.sectionUndeclared), isEmpty);
+    expect(
+      report.findings.where((f) => f.kind != FindingKind.formatDrift),
+      isEmpty,
+    );
   });
 
   test(

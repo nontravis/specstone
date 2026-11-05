@@ -54,13 +54,10 @@ void main() {
       final report = checkOf(
         await writeCheckProject(extra: {'docs/$loginStory': text}),
       );
-      for (final kind in [
-        FindingKind.suspect,
-        FindingKind.unconfirmed,
-        FindingKind.confirmedEntryStale,
-      ]) {
-        expect(spots(report, kind), isEmpty);
-      }
+      expect(
+        report.findings.where((f) => f.kind != FindingKind.formatDrift),
+        isEmpty,
+      );
     }
   });
 
