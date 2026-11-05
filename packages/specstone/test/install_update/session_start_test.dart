@@ -10,6 +10,9 @@ import 'package:test/test.dart';
 import '../helpers/plugin_content.dart';
 import '../helpers/script_sandbox.dart';
 
+final bool _isRoot =
+    Process.runSync('id', ['-u']).stdout.toString().trim() == '0';
+
 void main() {
   const raw = 'https://raw.githubusercontent.com/nontravis/specstone/main';
   const curlLine = 'curl -fsSL $raw/install.sh | sh';
@@ -344,7 +347,22 @@ void main() {
 
         expect(message(r), offPathMessage);
         expect(env.readAsStringSync(), '# kept\n');
-      });
+      }, skip: _isRoot ? 'root ignores file modes' : null);
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E06: an unreadable env file appends nothing and gets that '
+          'message', () async {
+        installBinary('specstone');
+        final env = envFile('# kept');
+        Process.runSync('chmod', ['200', env.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', env.path]));
+
+        final r = await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+
+        Process.runSync('chmod', ['644', env.path]);
+        expect(message(r), offPathMessage);
+        expect(env.readAsStringSync(), '# kept');
+      }, skip: _isRoot ? 'root ignores file modes' : null);
     });
 
     test(

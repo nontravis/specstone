@@ -73,8 +73,10 @@ append_path_line() {
   local line='export PATH="$HOME/.specstone/bin:$PATH"'
   local lead=''
   [ -n "$file" ] || return 1
-  if [ -s "$file" ] && [ -n "$(tail -c 1 "$file" 2>/dev/null)" ]; then
-    lead=$'\n'
+  if [ -s "$file" ]; then
+    local last
+    last=$(tail -c 1 -- "$file" 2>/dev/null) || return 1
+    [ -z "$last" ] || lead=$'\n'
   fi
   # 2>/dev/null comes first so a failed open prints nothing.
   printf '%s%s\n' "$lead" "$line" 2>/dev/null >>"$file"
