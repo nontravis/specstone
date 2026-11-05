@@ -42,6 +42,29 @@ void main() {
       contains('Inbound\n- none\n'),
     );
   });
+  test(
+    'index_query/follow_references/list_doc_references E01, E05: depends_on is '
+    'outbound to each feature it names and inbound on that feature',
+    () async {
+      final withDeps = await indexWith({
+        'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\n  - payments\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
+      });
+      expect(
+        answerRefs(withDeps, 'feature:signup').text,
+        contains('Outbound\n- depends_on: login (feature)\nInbound\n'),
+      );
+      expect(
+        answerRefs(withDeps, 'feature:login').text,
+        contains('Inbound\n- depends_on: signup (feature)\n'),
+      );
+      final signup =
+          (answerRefs(withDeps, 'feature:signup').json['docs']! as List).single
+              as Map;
+      expect(signup['outbound'], [
+        {'kind': 'depends_on', 'name': 'login', 'docType': 'feature'},
+      ]);
+    },
+  );
   test('f01/us07/s2, f01/us07/fr01/e03, f01/us07/fr01/e10: pointers are outbound only; an empty group prints - none', () async {
     expect(
       answerRefs(index, 'architecture:login').text,

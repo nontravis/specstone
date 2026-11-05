@@ -47,6 +47,13 @@ fields:
     type: string
     description: |-
       Names a row of the Systems table in FEATURES.
+  - id: depends_on
+    type: doc_ref
+    list: true
+    doc_types: [feature]
+    description: |-
+      Names the features this feature needs built first; each name must resolve to a feature.
+      Leave it out when the feature depends on no other feature.
 sections:
   - id: problem
     header: Problem

@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -10,7 +12,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('f03/us06/fr01: prd-core ships at 1.6.0 with no extends', () {
+    test('f03/us06/fr01: prd-core ships at 1.7.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -18,9 +20,33 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.6.0');
+      expect(manifest.version.toString(), '1.7.0');
       expect(manifest.extendsPack, isNull);
     });
+
+    test(
+      'template_packs/write_prd_docs_from_prd_core/ship_prd_core_pack: prd-core '
+      'writes no migrations entry, so a 1.6.0 pin re-pins with no pack step',
+      () {
+        final manifest = PackManifest.parse(
+          utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+          file: 'packs/prd-core/pack.yaml',
+        );
+        expect(manifest.migrations, isEmpty);
+        final upgrades = selectUpgrades(
+          {
+            'prd-core': PackVersion.parse(
+              '1.6.0',
+              file: 'config.yaml',
+              key: 'packs.prd-core',
+            ),
+          },
+          {'prd-core': manifest},
+        );
+        expect(upgrades.single.target.toString(), '1.7.0');
+        expect(upgrades.single.steps, isEmpty);
+      },
+    );
 
     test('f03/us06/fr01: a project pinning the shipped prd-core resolves with '
         'no fault', () async {
@@ -194,6 +220,12 @@ void main() {
               docTypes: ['anti_persona'],
             ),
             FieldSpec('system', FieldType.string),
+            FieldSpec(
+              'depends_on',
+              FieldType.docRef,
+              list: true,
+              docTypes: ['feature'],
+            ),
           ]),
           throwsA(isA<TestFailure>()),
         );

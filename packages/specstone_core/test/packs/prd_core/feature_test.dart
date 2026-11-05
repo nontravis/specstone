@@ -11,6 +11,14 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/prd_core.dart';
 
+const _ownFields = <FieldSpec>[
+  FieldSpec('vision', FieldType.string, list: true),
+  FieldSpec('goals', FieldType.string, list: true),
+  FieldSpec('persona', FieldType.docRef, list: true, docTypes: ['persona']),
+  FieldSpec('system', FieldType.string),
+  FieldSpec('depends_on', FieldType.docRef, list: true, docTypes: ['feature']),
+];
+
 const _templates = {
   'flow':
       '```mermaid\n'
@@ -32,6 +40,15 @@ const _placementLines = [
   "When `check` reports `chars_over_limit` on a feature's spec doc, propose a split by the same three questions; the Owner approves it.",
 ];
 
+const _dependsOnDescription =
+    'Names the features this feature needs built first; each name must resolve to a feature.\n'
+    'Leave it out when the feature depends on no other feature.';
+const _workspaceLayer =
+    'fields:\n  - id: depends_on\n    type: doc_ref\n    list: true\n    doc_types: [feature]\n'
+    '    description: |-\n'
+    '      Names the features this feature needs built first; each name must resolve to a feature.\n'
+    '      Leave it out when the feature depends on no other feature.\n';
+
 void main() {
   late MergedDocType feature;
   setUpAll(() async {
@@ -42,12 +59,7 @@ void main() {
       'with no parent, its fields, and ten sections', () {
     expect(feature.path, 'prds/features/f{nn}_{slug}/FEATURE.md');
     expect(feature.parent, isNull);
-    expectOwnFields(feature, const [
-      FieldSpec('vision', FieldType.string, list: true),
-      FieldSpec('goals', FieldType.string, list: true),
-      FieldSpec('persona', FieldType.docRef, list: true, docTypes: ['persona']),
-      FieldSpec('system', FieldType.string),
-    ]);
+    expectOwnFields(feature, _ownFields);
     expectSections(feature, const [
       SectionSpec('problem', 'Problem', required: true),
       SectionSpec('benefit_hypothesis', 'Benefit hypothesis', required: true),
@@ -129,6 +141,23 @@ void main() {
       ['problem', 'out_of_scope'],
     );
   });
+
+  test('template_packs/write_prd_docs_from_prd_core/ship_prd_core_pack: depends_on '
+      'carries the description the workspace layer gave it', () {
+    expect(fieldOf(feature, 'depends_on').description, _dependsOnDescription);
+  });
+
+  test(
+    'template_packs/customize_shipped_doc_type/merge_layers_by_id E03, E04: a project '
+    'layer that still declares depends_on merges into the one shipped field',
+    () async {
+      final merged = prdCoreDocType(
+        await resolvePrdCore(templates: {'feature.yaml': _workspaceLayer}),
+        'feature',
+      );
+      expectOwnFields(merged, _ownFields);
+    },
+  );
 
   test('f03/us06/fr01, sf-r5: feature carries max_depth 3', () {
     expect(feature.maxDepth, 3);

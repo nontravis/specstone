@@ -81,6 +81,42 @@ void main() {
     expect(spots(withBuyer, FindingKind.docRefUnresolved), isEmpty);
   });
 
+  test(
+    'consistency_check/find_broken_pointers/resolve_doc_links E02: a depends_on value '
+    'no feature carries is doc_ref_unresolved; a feature resolves only',
+    () async {
+      final dependsOn = doc(
+        loginFeature,
+        '  - PG-01\n---',
+        '  - PG-01\ndepends_on:\n  - checkout\n  - login/email_login\n  - login\n---',
+      );
+      final report = checkOf(await writeCheckProject(extra: dependsOn));
+      expect(spots(report), [
+        '$loginFeature:7: doc_ref_unresolved',
+        '$loginFeature:8: doc_ref_unresolved',
+      ]);
+      expect(
+        report.findings.first.message,
+        'depends_on value checkout names no doc',
+      );
+      final withCheckout = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...dependsOn,
+            'docs/prds/features/f02_checkout/FEATURE.md':
+                checkProjectFiles()['docs/$loginFeature']!.replaceFirst(
+                  '# Login',
+                  '# Checkout',
+                ),
+          },
+        ),
+      );
+      expect(spots(withCheckout, FindingKind.docRefUnresolved), [
+        '$loginFeature:8: doc_ref_unresolved',
+      ]);
+    },
+  );
+
   test('f04/us02/fr04/e03, f04/us02/fr04/e04, f04/us02/fr04/e06, f04/us02/fr04/e07, f04/us01/fr06/e04: an anchor, a '
       'URL, a picture, a link outside the checked folders, and prose resolve or are no link', () async {
     final report = checkOf(
