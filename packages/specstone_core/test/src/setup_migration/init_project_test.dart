@@ -183,8 +183,7 @@ void main() {
     expect(_read(root, '.specstone/AGENT.md'), agentMdText);
     expect(
       _read(root, 'CLAUDE.md'),
-      "Owner's rules\n"
-      '${importBlock(cliVersion: specstoneVersion, agentMdPath: '.specstone/AGENT.md', projectDocPath: 'docs/prds/PROJECT.md')}',
+      "Owner's rules\n${importBlock(cliVersion: specstoneVersion, agentMdPath: '.specstone/AGENT.md', projectDocPath: 'docs/prds/PROJECT.md')}",
     );
     expect(
       _read(root, 'AGENTS.md'),
