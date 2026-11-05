@@ -29,7 +29,7 @@ void main() {
     final finding = report.findings.single;
     expect(
       finding.textLine,
-      '$loginFr:9: suspect: S2 changed after it was confirmed: recorded ${fp(loginScenario2)}, current '
+      '$loginFr:7: suspect: S2 changed after it was confirmed: recorded ${fp(loginScenario2)}, current '
       '${fp(edited)}; read Scenario 2 of $loginStory, then record S2 ${fp(edited)}',
     );
     expect(
@@ -51,11 +51,16 @@ void main() {
       '$story\n\n',
       story.replaceAll('\n', '\r\n'),
     ]) {
-      expect(
-        checkOf(await writeCheckProject(extra: {'docs/$loginStory': text}))
-            .findings,
-        isEmpty,
+      final report = checkOf(
+        await writeCheckProject(extra: {'docs/$loginStory': text}),
       );
+      for (final kind in [
+        FindingKind.suspect,
+        FindingKind.unconfirmed,
+        FindingKind.confirmedEntryStale,
+      ]) {
+        expect(spots(report, kind), isEmpty);
+      }
     }
   });
 
@@ -91,12 +96,12 @@ void main() {
         extra: {
           'docs/$lock':
               '---\nstatus: planned\ntraced_from:\n  - self-derived\nverify_method: test\n---\n\n'
-              '# Lock the account\n\n## Statement\n$lockStatement\n\n## Edge cases\n1. E01 — Five failures → locked.\n\n'
-              '## Rationale\nIt stops guessing.\n\n## Verification\nTest: five failures lock it.\n',
+              '# Lock the account\n\n## Statement\n\n$lockStatement\n\n## Edge cases\n\n1. E01 — Five failures → locked.\n\n'
+              '## Rationale\n\nIt stops guessing.\n\n## Verification\n\nTest: five failures lock it.\n',
           ...edit(loginApi, [
             (
               '---\n\n# Login API',
-              '  - email_login/lock_account ${fp(lockStatement)}\n---\n\n# Login API',
+              '  - email_login/lock_account ${fp('\n$lockStatement')}\n---\n\n# Login API',
             ),
             (
               '| `signIn` |\n',
@@ -158,7 +163,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      "$loginFr:10: unconfirmed: S2 ${fp(loginScenario2)} is recorded in a draft; it waits for the Owner's approve",
+      "$loginFr:8: unconfirmed: S2 ${fp(loginScenario2)} is recorded in a draft; it waits for the Owner's approve",
     );
   });
 
@@ -171,7 +176,7 @@ void main() {
         ]),
       ),
     );
-    expect(spots(report), ['$loginFr:10: unconfirmed']);
+    expect(spots(report), ['$loginFr:8: unconfirmed']);
     expect(
       report.findings.single.toJson(),
       allOf(
@@ -213,7 +218,7 @@ void main() {
     expect(nfr.findings.single.toJson(), containsPair('fingerprint', empty));
     final noStatement = checkOf(
       await writeCheckProject(
-        extra: doc(loginFr, '## Statement\n$checkPasswordStatement\n\n', ''),
+        extra: doc(loginFr, '## Statement\n\n$checkPasswordStatement\n\n', ''),
       ),
     );
     expect(spots(noStatement, FindingKind.suspect), ['$loginApi:3: suspect']);
@@ -273,7 +278,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.confirmedEntryMalformed), [
-        '$loginFr:9: confirmed_entry_malformed',
+        '$loginFr:7: confirmed_entry_malformed',
       ]);
       expect(
         report.findings
@@ -297,7 +302,7 @@ void main() {
           ]),
         ),
       );
-      final line = draft.isEmpty ? 10 : 11;
+      final line = draft.isEmpty ? 8 : 9;
       expect(spots(report, FindingKind.confirmedEntryStale), [
         '$loginFr:$line: confirmed_entry_stale',
       ]);
@@ -416,8 +421,8 @@ void main() {
     const journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
     const label1 = 'login/email_login#S1';
     const label2 = 'login/email_login#S2';
-    const stepOne = '### 1. Open\nstep: login/email_login S1';
-    const stepTwo = '### 2. Type\nstep: login/email_login S1';
+    const stepOne = '### 1. Open\n\nstep: login/email_login S1';
+    const stepTwo = '### 2. Type\n\nstep: login/email_login S1';
 
     String journey(
       List<String> steps, {
@@ -426,10 +431,10 @@ void main() {
     }) {
       final entries = confirmed.map((e) => '  - $e\n').join();
       return '---\n'
-          '${confirmed.isEmpty ? '' : 'confirmed:\n$entries'}'
           '${draft ? 'draft: true\n' : ''}'
-          '---\n\n# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n'
-          '## Steps\n${steps.join('\n')}\n';
+          '${confirmed.isEmpty ? '' : 'confirmed:\n$entries'}'
+          '---\n\n# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n'
+          '## Steps\n\n${steps.join('\n')}\n';
     }
 
     Future<CheckReport> check(
@@ -474,7 +479,7 @@ void main() {
       expect(
         missing.findings.single.textLine,
         startsWith(
-          '$journeyPath:13: unconfirmed: $label1 has no confirmed entry: current ${fp(loginScenario1)}',
+          '$journeyPath:16: unconfirmed: $label1 has no confirmed entry: current ${fp(loginScenario1)}',
         ),
       );
 
@@ -523,7 +528,7 @@ void main() {
     test('f04/us04/fr03/e09, f04/us02/fr06/e06: a step whose scenario was deleted keeps its link', () async {
       final report = await check(
         journey(
-          ['### 1. Open\nstep: login/email_login S9'],
+          ['### 1. Open\n\nstep: login/email_login S9'],
           confirmed: ['login/email_login#S9 ${fp(loginScenario1)}'],
         ),
       );

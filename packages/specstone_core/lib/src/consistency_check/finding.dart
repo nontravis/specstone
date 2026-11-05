@@ -60,7 +60,8 @@ enum FindingKind {
   suspect('suspect'),
   unconfirmed('unconfirmed'),
   confirmedEntryMalformed('confirmed_entry_malformed'),
-  confirmedEntryStale('confirmed_entry_stale');
+  confirmedEntryStale('confirmed_entry_stale'),
+  formatDrift('format_drift');
 
   new(this.wire);
 

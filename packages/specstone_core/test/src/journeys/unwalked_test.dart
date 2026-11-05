@@ -13,7 +13,7 @@ const _otherPath =
     'docs/prds/features/f01_login/us02_other_story/USER_STORY.md';
 
 String _scenario(int n) =>
-    '### Scenario $n — [happy] Step $n\n- **Given** a$n\n- **When** b$n\n'
+    '### Scenario $n — [happy] Step $n\n\n- **Given** a$n\n- **When** b$n\n'
     '- **Then** c$n';
 
 // The login story with scenarios 1 to 3; 1 and 2 are the fixture's own.

@@ -23,7 +23,7 @@ const _copy =
 
 final String _fp1 = fingerprintOf(loginScenario1);
 final String _fp2 = fingerprintOf(loginScenario2);
-final String _fpStatement = fingerprintFor(checkPasswordStatement);
+final String _fpStatement = fingerprintFor('\n$checkPasswordStatement');
 final String _fpCheckStock = fingerprintFor(checkStockStatement);
 
 const Set<FindingKind> _storyKinds = {
@@ -63,8 +63,8 @@ Future<Directory> _nestedWithCartApi() => writeNestedProject(
   extra: {
     'docs/$_cartApi':
         '---\nconfirmed:\n  - add_item/check_stock $_fpCheckStock\n---\n\n'
-        '# Cart API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
-        '| add_item/check_stock | `addItem` |\n\n## Operations\nNone.\n',
+        '# Cart API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
+        '| add_item/check_stock | `addItem` |\n\n## Operations\n\nNone.\n',
   },
 );
 

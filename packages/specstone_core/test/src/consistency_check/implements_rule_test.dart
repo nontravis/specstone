@@ -33,7 +33,7 @@ void main() {
     final finding = report.findings.single;
     expect(
       finding.textLine,
-      '$loginFr:7: implements_symbol_unresolved: checkPassword occurs nowhere in app/lib/login.dart',
+      '$loginFr:9: implements_symbol_unresolved: checkPassword occurs nowhere in app/lib/login.dart',
     );
     expect(
       finding.toJson(),
@@ -58,7 +58,7 @@ void main() {
           without: {'app/lib/login.dart'},
         ),
       );
-      expect(spots(report), ['$loginFr:7: implements_path_unresolved']);
+      expect(spots(report), ['$loginFr:9: implements_path_unresolved']);
       expect(
         report.findings.single.toJson(),
         containsPair('entry', 'app/lib/b.dart'),
@@ -88,11 +88,11 @@ void main() {
     final folder = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib')),
     );
-    expect(spots(folder), ['$loginFr:7: implements_path_unresolved']);
+    expect(spots(folder), ['$loginFr:9: implements_path_unresolved']);
     final gone = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib/gone.dart:X')),
     );
-    expect(spots(gone), ['$loginFr:7: implements_path_unresolved']);
+    expect(spots(gone), ['$loginFr:9: implements_path_unresolved']);
   });
 
   test(
@@ -144,7 +144,7 @@ void main() {
         },
       ),
     );
-    expect(spots(part), ['$loginFr:7: implements_symbol_unresolved']);
+    expect(spots(part), ['$loginFr:9: implements_symbol_unresolved']);
     final comment = checkOf(
       await writeCheckProject(
         extra: {

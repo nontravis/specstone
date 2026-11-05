@@ -7,15 +7,21 @@ import '../../helpers/check_fixture.dart';
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
 const _story = 'login/email_login';
 
-// The steps section starts at line 8; its body begins on the next line.
-const _firstStepLine = 9;
+// The first step heading sits on line 11; its step: line two below.
+const _firstStepLine = 11;
 
 // A journey with a scenario 1 step opens with a five-line front matter.
 const _entryLines = 5;
 
 String _journey(List<String> stepLines, {String frontmatter = ''}) =>
-    '$frontmatter# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
-    '${stepLines.join('\n')}\n';
+    '$frontmatter# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n## Steps\n\n'
+    '${_withBlankUnderHeadings(stepLines)}\n';
+
+// Lays out the step lines: a blank line under each step heading.
+String _withBlankUnderHeadings(List<String> stepLines) => stepLines
+    .expand((l) => l.startsWith('### ') ? [l, ''] : [l])
+    .join('\n')
+    .trimRight();
 
 // Records the confirmed entry of scenario 1 when a step names it, so a valid
 // journey yields no finding of any kind.
@@ -60,7 +66,7 @@ void main() {
     final finding = found.single;
     expect(finding.kind, FindingKind.journeyStepUnresolved);
     expect(finding.path, _journeyPath);
-    expect(finding.line, _firstStepLine + 1);
+    expect(finding.line, _firstStepLine + 2);
     expect(finding.message, 'step: $_story S9 names no scenario a story holds');
     expect(finding.toJson(), containsPair('step', '$_story S9'));
   });
@@ -70,7 +76,7 @@ void main() {
     () async {
       final found = await _check(['### 1. Sign in', 'step: nope/none S1']);
       expect(_of(found, FindingKind.journeyStepUnresolved).map((f) => f.line), [
-        _firstStepLine + 1,
+        _firstStepLine + 2,
       ]);
     },
   );
@@ -95,7 +101,7 @@ void main() {
     ]);
     final after = _of(found, FindingKind.journeyAfterUnresolved);
     expect(after, hasLength(1));
-    expect(after.single.line, _firstStepLine + _entryLines + 12);
+    expect(after.single.line, _firstStepLine + _entryLines + 18);
     expect(after.single.message, 'after: 7 names no step written above it');
     expect(after.single.toJson(), containsPair('after', '7'));
     expect(found, hasLength(1));
@@ -123,7 +129,7 @@ void main() {
     ]);
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.journeyStepDuplicate);
-    expect(found.single.line, _firstStepLine + _entryLines + 2);
+    expect(found.single.line, _firstStepLine + _entryLines + 3);
     expect(found.single.message, 'step number 3 is carried by a step above');
     expect(found.single.toJson(), containsPair('number', '3'));
   });
@@ -147,7 +153,7 @@ void main() {
     final found = await _check(['### 1. Sign in', 'step: login']);
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.journeyStepUnresolved);
-    expect(found.single.line, _firstStepLine + 1);
+    expect(found.single.line, _firstStepLine + 2);
     expect(found.single.toJson(), containsPair('step', 'login'));
   });
 

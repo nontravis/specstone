@@ -43,7 +43,7 @@ void main() {
       ),
     );
     expect(found, hasLength(1));
-    expect(found.single.line, 15);
+    expect(found.single.line, 16);
     expect(found.single.message, 'Say the number: fast');
     expect(
       found.single.toJson(),
@@ -161,7 +161,7 @@ void main() {
       edits: fr(checkPasswordStatement, '- **Statement:** zed here\nzed there'),
     );
     expect(found, hasLength(1));
-    expect(found.single.line, 15);
+    expect(found.single.line, 16);
   });
 
   test('f04/us01/fr08/e07: a match naming a doc-tree folder, or a run of them, gives nothing', () async {
@@ -279,7 +279,7 @@ sections:
 
     final absent = await _findings(
       layer,
-      edits: fr('## Statement\n$checkPasswordStatement\n\n', ''),
+      edits: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
       kind: FindingKind.patternMissing,
     );
     expect(absent, isEmpty);

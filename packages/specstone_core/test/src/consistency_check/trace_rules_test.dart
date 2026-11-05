@@ -100,7 +100,8 @@ void main() {
         ),
       ),
     );
-    expect(report.findings, isEmpty);
+    expect(spots(report, FindingKind.requiredSectionMissing), isEmpty);
+    expect(spots(report, FindingKind.sectionUndeclared), isEmpty);
   });
 
   test(
@@ -127,7 +128,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:12: role_unresolved',
+      '$loginStory:13: role_unresolved',
       'prds/personas/buyer/PERSONA.md:2: role_unresolved',
     ]);
     expect(
@@ -146,7 +147,7 @@ void main() {
           ...doc(
             projectDoc,
             'Halve the password resets.\n',
-            'Halve the password resets.\n### PG-03 — More\n**Serves:** PV-01\nMore.\n',
+            'Halve the password resets.\n\n### PG-03 — More\n\n**Serves:** PV-01\nMore.\n',
           ),
         },
       ),
@@ -181,7 +182,7 @@ void main() {
       await writeCheckProject(without: {'docs/$projectDoc'}),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:12: role_unresolved',
+      '$loginStory:13: role_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
       '$loginFeature:2: vision_goal_unresolved',
@@ -232,7 +233,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.goalServesMissing), [
-      '$projectDoc:15: goal_serves_missing',
+      '$projectDoc:19: goal_serves_missing',
     ]);
     expect(
       report.findings
@@ -280,8 +281,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$projectDoc:16: vision_goal_unresolved',
-      '$projectDoc:16: vision_goal_unresolved',
+      '$projectDoc:21: vision_goal_unresolved',
+      '$projectDoc:21: vision_goal_unresolved',
     ]);
     expect(
       report.findings
@@ -301,7 +302,7 @@ void main() {
           ),
         );
         expect(spots(report, FindingKind.goalServesMissing), [
-          '$projectDoc:15: goal_serves_missing',
+          '$projectDoc:19: goal_serves_missing',
         ]);
         expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
       }
@@ -321,7 +322,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.goalServesMissing), [
-        '$projectDoc:15: goal_serves_missing',
+        '$projectDoc:19: goal_serves_missing',
       ]);
     },
   );
@@ -367,7 +368,7 @@ void main() {
       ),
     );
     expect(spots(extra, FindingKind.frTraceUnresolved), [
-      '$loginApi:12: fr_trace_unresolved',
+      '$loginApi:13: fr_trace_unresolved',
     ]);
     expect(
       extra.findings
@@ -385,7 +386,7 @@ void main() {
       ),
     );
     expect(spots(withSlug, FindingKind.frTraceUnresolved), [
-      '$loginApi:11: fr_trace_unresolved',
+      '$loginApi:12: fr_trace_unresolved',
     ]);
   });
 
@@ -464,8 +465,8 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/specs/f03_billing/API.md':
-              '# Billing API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
-              '| pay/charge | `charge` |\n\n## Operations\nNone.\n',
+              '# Billing API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
+              '| pay/charge | `charge` |\n\n## Operations\n\nNone.\n',
         },
       ),
     );
@@ -516,7 +517,7 @@ void main() {
               'sections:\n  - id: roles\n    disabled: true\n',
           ...doc(
             projectDoc,
-            '## Role\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
+            '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
             '',
           ),
           'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Buyer\npriority: primary\nbasis: proto\n---\n\n# Buyer\n',
@@ -589,7 +590,7 @@ void main() {
       ),
     );
     expect(spots(unresolvedReviewer, FindingKind.roleUnresolved), [
-      '$loginStory:12: role_unresolved',
+      '$loginStory:13: role_unresolved',
     ]);
   });
 

@@ -71,48 +71,49 @@ const checkPasswordStatement =
 Map<String, String> checkProjectFiles() => {
   '.specstone/config.yaml': shippedPinsConfig(),
   'docs/$projectDoc':
-      '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\nLogin demo\n\n'
-      '## Project vision\n### PV-01 — One sign-in\n> en: One sign-in for every app.\n\n'
-      '## Project goals\n### PG-01 — Fewer resets\n**Serves:** PV-01\nHalve the password resets.\n\n'
-      '## Role\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n'
-      '## Out-of-scope\n- Billing — not planned\n',
-  'docs/prds/FEATURES.md': '# Features\n\n## System interaction diagram\nOne system.\n\n## Systems\n- Login\n',
+      '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\n\nLogin demo\n\n'
+      '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n\n'
+      '## Project goals\n\n### PG-01 — Fewer resets\n\n**Serves:** PV-01\nHalve the password resets.\n\n'
+      '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n'
+      '## Out-of-scope\n\n- Billing — not planned\n',
+  'docs/prds/FEATURES.md': '# Features\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
   'docs/$gnfrDoc':
-      '# Project-wide requirements\n\n## Performance\n### NFR-P01 — Sign-in time\n'
+      '# Project-wide requirements\n\n## Performance\n\n### NFR-P01 — Sign-in time\n\n'
       '$loginNfrStatement\n- **Rationale:** Users wait.\n\n'
-      '${const ['Security', 'Reliability', 'Maintainability', 'Interface', 'Environment', 'Safety', 'Operability', 'Design standards'].map((h) => '## $h\nN/A — none applies.\n').join('\n')}',
+      '${const ['Security', 'Reliability', 'Maintainability', 'Interface', 'Environment', 'Safety', 'Operability', 'Design standards'].map((h) => '## $h\n\nN/A — none applies.\n').join('\n')}',
   'docs/$loginFeature':
       '---\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n\n# Login\n\n'
-      '## Problem\nUsers forget passwords.\n\n## Benefit hypothesis\nFewer resets.\n\n'
-      '## Success measures\nResets per week.\n\n## Current alternatives\nEmail links.\n\n'
-      '## Feature flow\nSign in, then work.\n\n## Out-of-scope\n- Social sign-in — not planned\n',
+      '## Problem\n\nUsers forget passwords.\n\n## Benefit hypothesis\n\nFewer resets.\n\n'
+      '## Success measures\n\nResets per week.\n\n## Current alternatives\n\nEmail links.\n\n'
+      '## Feature flow\n\nSign in, then work.\n\n## Out-of-scope\n\n- Social sign-in — not planned\n',
   'docs/$loginStory':
       '---\nstatus: implemented\ngoals:\n  - PG-01\nimplements:\n'
-      '  - app/lib/login.dart:SignInPage\n---\n\n# Agent signs in with email\n\n## Use Case\n'
+      '  - app/lib/login.dart:SignInPage\n---\n\n# Agent signs in with email\n\n## Use Case\n\n'
       '- **As a** Agent who signs in\n- **I want to** sign in with an email\n- **so that** I reach my work\n\n'
       '## Acceptance Criteria\n\n$loginScenario1\n\n$loginScenario2\n',
   'docs/$loginFr':
-      '---\nstatus: implemented\ntraced_from:\n  - S2\nverify_method: test\nimplements:\n'
-      '  - app/lib/login.dart:checkPassword\nconfirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n---\n\n'
-      '# Check the password\n\n## Statement\n$checkPasswordStatement\n\n'
-      '## Edge cases\n1. E01 — An empty password → refused.\n\n## Rationale\nA wrong password must not sign in.\n\n'
-      '## Verification\nTest: a wrong password is refused.\n',
+      '---\nstatus: implemented\ntraced_from:\n  - S2\nverify_method: test\n'
+      'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n'
+      'implements:\n  - app/lib/login.dart:checkPassword\n---\n\n'
+      '# Check the password\n\n## Statement\n\n$checkPasswordStatement\n\n'
+      '## Edge cases\n\n1. E01 — An empty password → refused.\n\n## Rationale\n\nA wrong password must not sign in.\n\n'
+      '## Verification\n\nTest: a wrong password is refused.\n',
   'docs/$loginNf':
       '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\nconfirmed:\n'
       '  - NFR-P01 ${fingerprintFor(loginNfrStatement)}\n---\n\n# Sign-in time\n\n'
-      '## Statement\nThe system shall sign in within 1 s.\n\n## Rationale\nUsers wait.\n\n'
-      '## Verification\nTest: a timed sign-in.\n',
+      '## Statement\n\nThe system shall sign in within 1 s.\n\n## Rationale\n\nUsers wait.\n\n'
+      '## Verification\n\nTest: a timed sign-in.\n',
   'docs/$techStack':
-      '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n| Slot | Choice |\n'
-      '|------|--------|\n| Language | Dart |\n\n## Naming\n- snake_case file names\n',
+      '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n| Slot | Choice |\n'
+      '|---|---|\n| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',
   'docs/$loginArchitecture':
       '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
-      '## Component diagram\nOne box.\n\n## Components\n- Sign-in page\n\n'
-      '## Concerns\n- Errors: see Components\n- Rollout: N/A — one release\n',
+      '## Component diagram\n\nOne box.\n\n## Components\n\n- Sign-in page\n\n'
+      '## Concerns\n\n- Errors: see Components\n- Rollout: N/A — one release\n',
   'docs/$loginApi':
-      '---\nconfirmed:\n  - email_login/check_password ${fingerprintFor(checkPasswordStatement)}\n---\n\n'
-      '# Login API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
-      '| email_login/check_password | `signIn` |\n\n## Operations\n### signIn\nSigns the Agent in.\n',
+      '---\nconfirmed:\n  - email_login/check_password ${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n'
+      '# Login API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
+      '| email_login/check_password | `signIn` |\n\n## Operations\n\n### signIn\n\nSigns the Agent in.\n',
   'app/lib/login.dart': 'class SignInPage {}\n\nbool checkPassword(String password) => password.isNotEmpty;\n',
 };
 
