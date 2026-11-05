@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
@@ -13,6 +14,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -104,6 +106,15 @@ void main() {
     for (final path in _draftPaths) {
       expect(_read(root, path), startsWith('---\ndraft: true\n'), reason: path);
     }
+  });
+
+  test('rendering/format_docs/normalize_layout_whitespace: init then check reports no format_drift on the four drafts', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+
+    final (status, _) = _run(root);
+
+    expect(status, 0);
+    expect(spots(checkOf(root), FindingKind.formatDrift), isEmpty);
   });
 
   test(

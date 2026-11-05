@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -13,8 +14,10 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom, utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show projectConfigPath;
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -231,19 +234,22 @@ final class WriteSession {
     );
   }
 
-  /// Writes [lfText] to [docPath] in [lineEnding], replacing the file whole.
+  /// Writes [lfText] to [docPath] in [lineEnding], laid out for its doc type,
+  /// and returns the LF text written.
   ///
-  /// A BOM that the last [readDocBytes] of [docPath] saw is kept.
+  /// An untyped doc, and one the formatter refuses, are written as given. A
+  /// BOM that the last [readDocBytes] of [docPath] saw is kept.
   /// Throws [RenderFault] `output_not_writable` when the file is read-only or
   /// the disk refuses, and [ArgumentError] for a [docPath] that is not a `.md`
   /// path under the docs root.
-  void writeDoc(String docPath, String lfText, LineEnding lineEnding) {
+  String writeDoc(String docPath, String lfText, LineEnding lineEnding) {
     _requireDocPath(docPath);
     requireWritable(docPath);
+    final laidOut = layOutDoc(lfText, _docTypeOf(docPath));
     try {
       writeFileAtomic(fileOf(docPath), [
         if (_bomDocs.contains(docPath)) ...utf8Bom,
-        ...utf8.encode(lineEnding.apply(lfText)),
+        ...utf8.encode(lineEnding.apply(laidOut)),
       ]);
     } on FileSystemException catch (error) {
       final reason = error.osError?.message ?? error.message;
@@ -252,7 +258,14 @@ final class WriteSession {
         'cannot write $docPath: $reason',
       );
     }
+    return laidOut;
   }
+
+  MergedDocType? _docTypeOf(String docPath) =>
+      switch (project.matcher.match(docPath)) {
+        MatchedDocType(:final docType) => docType,
+        _ => null,
+      };
 
   void _requireDocPath(String docPath) {
     final segments = docPath.split('/');

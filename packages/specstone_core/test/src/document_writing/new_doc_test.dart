@@ -1,3 +1,6 @@
+// Test names carry the story, FR, and edge-case IDs on one line.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:io';
 import 'dart:isolate';
 
@@ -60,16 +63,16 @@ void main() {
     expect(
       text,
       '---\ndraft: true\n---\n\n# forgot_email\n\n'
-      '## Use Case\n'
+      '## Use Case\n\n'
       '- **As a** <Role> [who <situation>]\n'
       '- **I want to** <action>\n'
       '- **so that** <benefit>\n\n'
-      '## Acceptance Criteria\n'
-      '### Scenario 1 — [happy] <what differs>\n'
+      '## Acceptance Criteria\n\n'
+      '### Scenario 1 — [happy] <what differs>\n\n'
       '- **Given** <only the state the scenario needs>\n'
       '- **When** <one trigger>\n'
       '- **Then** <observed outcome>\n\n'
-      '### Scenario 2 — [error] <what differs> (BR-01)\n'
+      '### Scenario 2 — [error] <what differs> (BR-01)\n\n'
       '- **Given** <only the state the scenario needs>\n'
       '- **When** <one trigger>\n'
       '- **Then** <what the person sees or what the system refuses>\n',
@@ -710,8 +713,68 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/features/f01_login/us05_b/USER_STORY.md'),
-      '---\ndraft: true\npersona:\n  - owner\n'
-      'vision:\n  - PV-01\n---\n\n# Mine\n',
+      '---\ndraft: true\nvision:\n  - PV-01\n'
+      'persona:\n  - owner\n---\n\n# Mine\n',
+    );
+  });
+
+  test('fill_new_doc E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
+    final root = await writeWriteProject();
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: '---\nzzz: 1\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+      '---\ndraft: true\nvision:\n  - PV-01\nzzz: 1\n---\n\n# Mine\n\n'
+      '## Use Case\n\nSign in.\n',
+    );
+  });
+
+  test('fill_new_doc E08: stdin with text right under a heading is written laid out', () async {
+    final root = await writeWriteProject();
+    final answer = writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
+      ),
+    );
+    const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
+    expect(
+      readDoc(root, path),
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
+      '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
+    );
+    expect(answer.json['path'], path);
+  });
+
+  test('fill_new_doc E08: stdin the format command refuses is written as given, draft aside', () async {
+    final root = await writeWriteProject();
+    const given =
+        '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Not a section\nx\n';
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: given,
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+      given.replaceFirst('---\nvision', '---\ndraft: true\nvision'),
     );
   });
 }

@@ -168,7 +168,9 @@ void main() {
         'a registered email and its password\n',
       ),
     );
-    final written = baseHashOf(body);
+    final written = baseHashOf(
+      '\n### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email and its password\n',
+    );
     expect(
       answer.text,
       '==> login/email_login (user_story) · $story1 · base $written <==\n',
@@ -267,8 +269,8 @@ void main() {
     expect(
       readDoc(root, story1),
       allOf(
-        contains('## Use Case\nSign in with a passkey.\n'),
-        contains('## Acceptance Criteria\n- **Given** a passkey\n'),
+        contains('## Use Case\n\nSign in with a passkey.\n'),
+        contains('## Acceptance Criteria\n\n- **Given** a passkey\n'),
       ),
     );
   });
@@ -279,7 +281,7 @@ void main() {
     final base = sectionBase(root, target);
     writeIn(root, (s) => answerSet(s, req(target, base), 'First writer.\n'));
     final before = readDoc(root, story1);
-    final current = baseHashOf('First writer.\n');
+    final current = sectionBase(root, target);
     expect(
       () => writeIn(
         root,
@@ -298,7 +300,7 @@ void main() {
             .having(
               (f) => f.current?.text,
               'current.text',
-              '## Use Case\nFirst writer.\n',
+              '## Use Case\n\nFirst writer.\n',
             )
             .having((f) => f.current?.base, 'current.base', current)
             .having(
@@ -324,12 +326,12 @@ void main() {
     expect(
       readDoc(root, story1),
       contains(
-        'Sign in with an email.\n\n## Rules\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
+        'Sign in with an email.\n\n## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
       ),
     );
   });
 
-  group('f02/us01/fr01, doc-model/inv5: a section body keeps the leading blank lines stdin gives it,', () {
+  group('f02/us01/fr01, doc-model/inv5: a section body is written laid out, whatever blank lines stdin gives it,', () {
     const target = 'user_story:login/email_login#use_case';
 
     for (final (count, lead) in [(0, ''), (1, '\n'), (2, '\n \n')]) {
@@ -354,13 +356,13 @@ void main() {
             ),
           );
 
-          final written = '${lead}Sign in with an email and a password.\n';
+          const laidOut = '\nSign in with an email and a password.\n';
           expect(
             readDoc(root, story1),
-            contains('## Use Case\n$written\n## Acceptance Criteria\n'),
+            contains('## Use Case\n$laidOut\n## Acceptance Criteria\n'),
           );
-          expect(answer.json['base'], baseHashOf(written));
-          expect(sectionBase(root, target), baseHashOf(written));
+          expect(answer.json['base'], baseHashOf(laidOut));
+          expect(sectionBase(root, target), baseHashOf(laidOut));
           expect(
             runFormat<void>(
               project,
@@ -373,7 +375,7 @@ void main() {
       );
     }
 
-    test('its first text line keeping its indent', () async {
+    test('its first text line keeping its indent, the blank lines above it laid out', () async {
       final root = await writeWriteProject();
 
       writeIn(
@@ -388,7 +390,7 @@ void main() {
       expect(
         readDoc(root, story1),
         contains(
-          '## Use Case\n\n \n\t\n    sign_in(email)\n\n## Acceptance Criteria\n',
+          '## Use Case\n\n    sign_in(email)\n\n## Acceptance Criteria\n',
         ),
       );
     });
@@ -506,7 +508,7 @@ void main() {
       readDoc(root, story2),
       startsWith('---\nstatus: planned\ndraft: true\napproved: true\n---\n'),
     );
-    expect(readDoc(root, story2), contains('## Use Case\nSign out now.\n'));
+    expect(readDoc(root, story2), contains('## Use Case\n\nSign out now.\n'));
 
     const systems = 'features:features#systems';
     writeIn(
@@ -631,7 +633,7 @@ void main() {
     );
     final base = sectionBase(root, target);
     writeIn(root, (s) => answerSet(s, req(target, base), 'Sign in again.\n'));
-    expect(readDoc(root, story1), contains('## Use Case\nSign in again.\n'));
+    expect(readDoc(root, story1), contains('## Use Case\n\nSign in again.\n'));
   });
 
   test('f02/us01/fr01/e17, I1: a body that leaves a fence open is refused and the file stays', () async {
@@ -717,7 +719,7 @@ void main() {
       readDoc(
         root,
         story1,
-      ).replaceFirst('## Use Case\nSign in with an email.\n\n', ''),
+      ).replaceFirst('## Use Case\n\nSign in with an email.\n\n', ''),
     );
     final before = readDoc(root, story1);
     expect(
@@ -773,8 +775,11 @@ void main() {
       ),
     );
     expect(readDoc(root, story1).replaceAll('\r\n', ''), isNot(contains('\n')));
-    expect(readDoc(root, story1), contains('## Use Case\r\nSign in fast.\r\n'));
-    expect(answer.json['base'], baseHashOf('Sign in fast.\n'));
+    expect(
+      readDoc(root, story1),
+      contains('## Use Case\r\n\r\nSign in fast.\r\n'),
+    );
+    expect(answer.json['base'], baseHashOf('\nSign in fast.\n'));
   });
 
   test('review focus 3, dw-s03/inv1: a body with no final newline or with trailing blank lines ends in one newline', () async {
@@ -787,7 +792,7 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        contains('## Use Case\nSign in fast.\n\n## Acceptance Criteria'),
+        contains('## Use Case\n\nSign in fast.\n\n## Acceptance Criteria'),
       );
       expect(answer.json['base'], sectionBase(root, target));
     }
@@ -916,7 +921,7 @@ void main() {
     );
     expect(
       readDoc(root, loginFeature),
-      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\nUsers sign in with an email and a password.\n',
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\n\nUsers sign in with an email and a password.\n',
     );
     expect(
       answer.text,
@@ -1124,7 +1129,7 @@ void main() {
     expect(
       readDoc(root, story1),
       startsWith(
-        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\ngoals:\n  - PG-01\n---\n',
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\ngoals:\n  - PG-01\npersona:\n  - buyer\n---\n',
       ),
     );
   });
@@ -1400,7 +1405,7 @@ void main() {
       );
       expect(
         readDoc(root, signupFeature),
-        '---\ndraft: true\n---\n# Create an account\n\n## Problem\nUsers create an account.\n',
+        '---\ndraft: true\n---\n# Create an account\n\n## Problem\n\nUsers create an account.\n',
       );
       expect(answer.json['base'], baseHashOf('Create an account'));
     },
@@ -1542,7 +1547,7 @@ void main() {
       root,
       (s) => answerSet(s, req(target, emptyBaseHash), 'None yet.\n'),
     );
-    expect(readDoc(root, story1), endsWith('## Open questions\nNone yet.\n'));
+    expect(readDoc(root, story1), endsWith('## Open questions\n\nNone yet.\n'));
   });
   test(
     'f02/us01/fr01/e07: empty stdin on an absent optional section adds nothing',
@@ -1722,9 +1727,9 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        before.replaceFirst('\nOld lead.\n', 'New lead.\n'),
+        before.replaceFirst('\nOld lead.\n', '\nNew lead.\n'),
       );
-      final written = baseHashOf('New lead.\n');
+      final written = baseHashOf('\nNew lead.\n');
       expect(
         answer.text,
         '==> login/email_login (user_story) · $story1 · base $written <==\n',
@@ -1759,7 +1764,7 @@ void main() {
       final root = await project();
       const fenced = 'Run:\n\n```bash\n# install\nmake\n```\n';
       writeIn(root, (s) => answerSet(s, req(target, leadBase(root)), fenced));
-      expect(getDoc(root, target)['text'], fenced);
+      expect(getDoc(root, target)['text'], '\n$fenced');
       final text = getDoc(root, target)['text']! as String;
       writeIn(
         root,
@@ -1769,7 +1774,10 @@ void main() {
           text.replaceFirst('Run', 'Go'),
         ),
       );
-      expect(getDoc(root, target)['text'], fenced.replaceFirst('Run', 'Go'));
+      expect(
+        getDoc(root, target)['text'],
+        '\n${fenced.replaceFirst('Run', 'Go')}',
+      );
     });
 
     test('f02/us01/fr06/e04: a stdin line starting "# " or "## " refuses with argument_invalid', () async {
@@ -1882,12 +1890,255 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        contains('# Sign in with email\r\nNew lead.\r\n'),
+        contains('# Sign in with email\r\n\r\nNew lead.\r\n'),
       );
       expect(
         readDoc(root, story1).replaceAll('\r\n', ''),
         isNot(contains('\n')),
       );
     });
+  });
+
+  group('write one section, field, title, or lead lays the doc out', () {
+    const padded =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n\n## Deployment\nNone yet.\n';
+    const laidOutArch =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n\n'
+        '| Component | Responsibility |\n|---|---|\n'
+        '| Signup form | Collects the email |\n\n## Deployment\n\nNone yet.\n';
+    const refused =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Not a section\nx\n\n'
+        '## Components\n| A   | B |\n|---|---|\n| 1 | 2 |\n';
+    const arch = 'architecture:signup';
+
+    Future<Directory> archProject(String text) =>
+        writeWriteProject(extra: {'docs/$signupArch': text});
+
+    test('write_one_section E01: the base of the laid-out body writes a body stored unlaid-out', () async {
+      final root = await archProject(padded);
+      const target = '$arch#deployment';
+      final base = sectionBase(root, target);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, base), 'None at all.\n'),
+      );
+      expect(
+        readDoc(root, signupArch),
+        contains('## Deployment\n\nNone at all.\n'),
+      );
+      expect(answer.json['base'], baseHashOf('\nNone at all.\n'));
+    });
+
+    test('write_one_section E03: a write to another section leaves this base valid', () async {
+      final root = await writeWriteProject();
+      const useCase = 'user_story:login/email_login#use_case';
+      const criteria = 'user_story:login/email_login#acceptance_criteria';
+      final criteriaBase = sectionBase(root, criteria);
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, req(useCase, sectionBase(root, useCase)), 'Other.\n'),
+      );
+      writeIn(
+        root,
+        (s) => answerSet(s, req(criteria, criteriaBase), '- **Given** x\n'),
+      );
+      expect(
+        readDoc(root, story1),
+        allOf(contains('## Use Case\n\nOther.\n'), contains('- **Given** x\n')),
+      );
+    });
+
+    test('write_one_section E16: a body with none, one, or several leading blank lines lands under one blank line', () async {
+      const target = 'user_story:login/email_login#use_case';
+      for (final lead in ['', '\n', '\n\n\n']) {
+        final root = await writeWriteProject();
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            '${lead}Go.\n',
+          ),
+        );
+        expect(readDoc(root, story1), contains('## Use Case\n\nGo.\n\n## Acc'));
+      }
+    });
+
+    test(
+      'write_one_section E18: an unlaid-out doc is written whole laid out',
+      () async {
+        final root = await archProject(padded);
+        const target = '$arch#deployment';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            'None yet.\n',
+          ),
+        );
+        expect(readDoc(root, signupArch), laidOutArch);
+      },
+    );
+
+    test(
+      'write_one_section E18: a doc format refuses keeps every other byte',
+      () async {
+        final root = await archProject(refused);
+        const target = '$arch#components';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            '| A | B |\n|---|---|\n| 3 | 4 |\n',
+          ),
+        );
+        expect(
+          readDoc(root, signupArch),
+          refused.replaceFirst(
+            '| A   | B |\n|---|---|\n| 1 | 2 |\n',
+            '| A | B |\n|---|---|\n| 3 | 4 |\n',
+          ),
+        );
+      },
+    );
+
+    test(
+      'write_one_field E14: the field is written and the whole doc laid out',
+      () async {
+        final root = await archProject(padded);
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+            '- app/lib/\n',
+          ),
+        );
+        expect(
+          readDoc(root, signupArch),
+          laidOutArch.replaceFirst(
+            'draft: true\n',
+            'draft: true\ncovers:\n  - app/lib/\n',
+          ),
+        );
+      },
+    );
+
+    test('write_one_field E09: an absent field lands at its slot in a laid-out doc', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login';
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, fieldReq(target, 'goals', emptyBaseHash), '- PG-01\n'),
+      );
+      expect(readDoc(root, story1), contains('goals:\n  - PG-01\n'));
+      expect(readDoc(root, story1), contains('## Use Case\n\nSign in'));
+    });
+
+    test(
+      'write_the_title E07: an unlaid-out doc is written whole laid out',
+      () async {
+        final root = await archProject(padded);
+        final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse(arch, title: true, base: base),
+            'Signup architecture\n',
+          ),
+        );
+        expect(readDoc(root, signupArch), laidOutArch);
+      },
+    );
+
+    test(
+      'write_the_title E07: a doc format refuses keeps every other byte',
+      () async {
+        final root = await archProject(refused);
+        final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse(arch, title: true, base: base),
+            'Renamed\n',
+          ),
+        );
+        expect(
+          readDoc(root, signupArch),
+          refused.replaceFirst('# Signup architecture', '# Renamed'),
+        );
+      },
+    );
+
+    test('write_the_lead E09: a lead without a leading blank line keeps one under the title', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Short lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, story1),
+        contains('# Sign in with email\n\nShort lead.\n\n## Use Case\n'),
+      );
+    });
+
+    test(
+      'write_the_lead E10: an unlaid-out doc is written whole laid out',
+      () async {
+        final root = await archProject(padded);
+        const target = '$arch#_lead';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, getDoc(root, target)['base']! as String),
+            'Lead.\n',
+          ),
+        );
+        expect(
+          readDoc(root, signupArch),
+          laidOutArch.replaceFirst(
+            '# Signup architecture\n',
+            '# Signup architecture\n\nLead.\n',
+          ),
+        );
+      },
+    );
+
+    test(
+      'write_the_lead E10: a doc format refuses keeps every other byte',
+      () async {
+        final root = await archProject(refused);
+        const target = '$arch#_lead';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, getDoc(root, target)['base']! as String),
+            'Lead.\n',
+          ),
+        );
+        expect(
+          readDoc(root, signupArch),
+          refused.replaceFirst(
+            '# Signup architecture\n',
+            '# Signup architecture\nLead.\n',
+          ),
+        );
+      },
+    );
   });
 }
