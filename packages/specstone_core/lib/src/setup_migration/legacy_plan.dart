@@ -3,13 +3,15 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
-import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
+import 'package:specstone_core/src/rendering/formatter.dart'
+    show headerKey, layOutDoc;
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
@@ -82,23 +84,24 @@ RunPlan planLegacyRun(
   };
 
   final originals = _originalsOf(docsRoot, docPaths);
-  final rewrites = _rewritesOf(
+  final titled = _titledWorksOf(
     originals,
     legacy: legacy,
     specMap: specMap,
-    features: features,
     carriedGnfr: carriedGnfr,
-    exists: (path) => _existsIn(docsRoot, path),
   );
-  final overrides = _overridesOf(
-    features,
-    rewrites.gnfrSections,
-    carriedGnfrIds,
-  );
+  final overrides = _overridesOf(features, titled.gnfrSections, carriedGnfrIds);
   final (set: projectSet, :pins) = templates.resolveCarriedPinned(
     packNames: carriedPacks,
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides(overrides),
+  );
+  final rewrites = _rewritesOf(
+    titled.works,
+    projectSet: projectSet,
+    legacy: legacy,
+    features: features,
+    exists: (path) => _existsIn(docsRoot, path),
   );
 
   final config = File.fromUri(root.uri.resolve(projectConfigPath));
@@ -114,6 +117,12 @@ RunPlan planLegacyRun(
     moves: legacy.moves,
     prunes: prunesOf(legacy.moves),
     rewrites: [...rewrites.planned, ?configRewrite],
+    rewriteLines: [
+      for (final rewrite in rewrites.planned)
+        if (rewrite.changes.isNotEmpty) _rewriteLineOf(rewrite),
+      ?formatLayoutLine(rewrites.layoutOnly),
+      if (configRewrite != null) _rewriteLineOf(configRewrite),
+    ],
     creates: [
       if (!config.existsSync())
         PlannedCreate(
@@ -159,7 +168,11 @@ List<SpecMapRow> _specMapOf(Directory docsRoot, List<String> docPaths) {
   return text == null ? const [] : readSpecMap(text.lf);
 }
 
-typedef _Rewrites = ({List<PlannedRewrite> planned, List<String> gnfrSections});
+typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
+
+/// The planned rewrites, and the DocPaths of the typed docs whose only change
+/// is their layout.
+typedef _Rewrites = ({List<PlannedRewrite> planned, List<String> layoutOnly});
 
 /// One markdown doc on its way to commit 2.
 final class _Work {
@@ -222,18 +235,17 @@ String _codeRootOf(
   return relative != null && isCodeRootValue(relative) ? relative : '.';
 }
 
-/// Plans the rewrite of every markdown doc the run places or leaves.
+/// Applies the title, key, and covers rewrites to every markdown doc the run
+/// places or leaves.
 ///
-/// Only the [originals] are rewritten. A doc left in place gets the link
-/// rewrite and nothing else. The first fingerprints hash each FR as the run
-/// writes it, so the FR docs are rewritten first.
-_Rewrites _rewritesOf(
+/// Only the [originals] are rewritten. The project set needs the GNFR
+/// sections this returns, so the links, first fingerprints, and layout wait
+/// for [_rewritesOf].
+_Titled _titledWorksOf(
   Map<String, DocText> originals, {
   required LegacyMoves legacy,
   required List<SpecMapRow> specMap,
-  required LegacyFeatures features,
   required Set<String> carriedGnfr,
-  required bool Function(String path) exists,
 }) {
   final carriedKeys = {for (final header in carriedGnfr) headerKey(header)};
   final newOf = {
@@ -281,10 +293,35 @@ _Rewrites _rewritesOf(
     }
   }
 
+  return (works: works, gnfrSections: gnfrSections);
+}
+
+/// Plans the link rewrites, first fingerprints, and layout of [works].
+///
+/// A doc left in place gets the link rewrite and the layout. The first
+/// fingerprints hash each FR as the run writes it, laid out, so the FR docs
+/// are rewritten first.
+_Rewrites _rewritesOf(
+  List<_Work> works, {
+  required MergedSet projectSet,
+  required LegacyMoves legacy,
+  required LegacyFeatures features,
+  required bool Function(String path) exists,
+}) {
+  final matcher = DocTypeMatcher(projectSet);
+  void layOut(_Work work) {
+    final match = matcher.match(work.newPath);
+    work.lf = layOutDoc(
+      work.lf,
+      match is MatchedDocType ? match.docType : null,
+    );
+  }
+
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
     _rewriteRefs(work, legacy.moves, exists);
+    layOut(work);
   }
   for (final work in works.where((work) => work.awaitsFingerprints)) {
     final fingerprints = writeFirstFingerprints(
@@ -295,20 +332,27 @@ _Rewrites _rewritesOf(
     final label = fingerprints.label;
     if (label != null) work.changes.add(label);
     _rewriteRefs(work, legacy.moves, exists);
+    layOut(work);
   }
 
+  final written = [
+    for (final work in works)
+      if (work.changes.isNotEmpty || work.lf != work.original.lf) work,
+  ];
   return (
     planned: [
-      for (final work in works)
-        if (work.changes.isNotEmpty)
-          PlannedRewrite(
-            path: '$_docsFolder${work.newPath}',
-            text: writtenText(work.original, work.lf),
-            changes: work.changes,
-            note: work.note,
-          ),
+      for (final work in written)
+        PlannedRewrite(
+          path: '$_docsFolder${work.newPath}',
+          text: writtenText(work.original, work.lf),
+          changes: work.changes,
+          note: work.note,
+        ),
     ],
-    gnfrSections: gnfrSections,
+    layoutOnly: [
+      for (final work in written)
+        if (work.changes.isEmpty) work.newPath,
+    ],
   );
 }
 
@@ -358,6 +402,15 @@ PlannedRewrite? _configRewriteOf(
   }, codeRoot: existing.codeRoot);
   if (text == config.readAsStringSync()) return null;
   return PlannedRewrite(path: projectConfigPath, text: text, changes: ['pins']);
+}
+
+/// Returns the plan line of [rewrite]: its path from the docs root, or from
+/// the project root for a config file, then its changes.
+String _rewriteLineOf(PlannedRewrite rewrite) {
+  final shown = rewrite.path.startsWith(_docsFolder)
+      ? rewrite.path.substring(_docsFolder.length)
+      : rewrite.path;
+  return '$shown: ${rewrite.changes.join(', ')}${rewrite.note}';
 }
 
 String _folderOf(String docPath) =>

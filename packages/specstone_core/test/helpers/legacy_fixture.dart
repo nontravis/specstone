@@ -174,6 +174,19 @@ name: Session API
 
 # S-02 — Session API
 ''',
+  'docs/specs/f01_login/DOMAIN.md': '''
+---
+name: Login domain
+---
+
+# Login domain
+
+## Entities
+
+| Entity  | Kind           | Identity |
+|---------|----------------|----------|
+| Session | Aggregate root | token    |
+''',
   'docs/specs/shared/s01_architecture.md': '''
 ---
 name: Shared architecture
