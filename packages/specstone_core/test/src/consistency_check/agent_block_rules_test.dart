@@ -1,12 +1,16 @@
 // The test names and expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 const _stale =
     'consistency_check/find_template_breaks/report_stale_agent_blocks';
@@ -27,6 +31,33 @@ Future<List<Finding>> _staleOf(Map<String, String> extra) async => [
   for (final f in checkOf(await writeCheckProject(extra: extra)).findings)
     if (f.kind == FindingKind.agentBlockStale) f,
 ];
+
+/// Returns the `agent_block_stale` findings of a check over the fixture
+/// project at `project/`, beside a repository top at `other/`.
+///
+/// [config] is the text after the pins of `.specstone/config.yaml`.
+Future<List<Finding>> _staleBeside({
+  String config = '',
+  Map<String, String> otherFiles = const {},
+  bool codeEntry = true,
+}) async {
+  final project = {
+    ...checkProjectFiles(),
+    '.specstone/config.yaml': '${shippedPinsConfig()}$config',
+    if (codeEntry)
+      ...edit(techStack, [('  - app/lib/\n', '  - app/lib/\n  - ../other/\n')]),
+  };
+  final base = await writeTree({
+    for (final MapEntry(:key, :value) in project.entries) 'project/$key': value,
+    'other/.git/HEAD': 'ref\n',
+    for (final MapEntry(:key, :value) in otherFiles.entries)
+      'other/$key': value,
+  });
+  return [
+    for (final f in checkOf(Directory('${base.path}/project')).findings)
+      if (f.kind == FindingKind.agentBlockStale) f,
+  ];
+}
 
 void main() {
   test(
@@ -147,4 +178,62 @@ void main() {
       );
     },
   );
+  group('a repository top', () {
+    test(
+      '$_stale E13: a top a code entry reaches and the config does not list is '
+      'one finding on the top folder',
+      () async {
+        final found = await _staleBeside();
+
+        expect(found, hasLength(1));
+        expect(found.single.path, '../other');
+        expect(found.single.line, 1);
+        expect(
+          found.single.message,
+          'the repository top is not in agent_file_roots yet; $_migrate',
+        );
+      },
+    );
+
+    test(
+      '$_stale E13: a top that code_root reaches is also unlisted',
+      () async {
+        final found = await _staleBeside(
+          config: 'code_root: ../other\n',
+          codeEntry: false,
+        );
+
+        expect([for (final f in found) f.path], ['../other']);
+      },
+    );
+
+    test('$_stale E12: a listed top with a hand-edited block is one finding on '
+        'its file', () async {
+      final found = await _staleBeside(
+        config: 'agent_file_roots:\n  - ../other\n',
+        otherFiles: {'AGENTS.md': _inline().replaceFirst('Rules', 'Rule')},
+      );
+
+      expect(found, hasLength(1));
+      expect(found.single.path, '../other/AGENTS.md');
+      expect(found.single.line, 1);
+      expect(
+        found.single.message,
+        'the Specstone block differs from what the running CLI writes; '
+        '$_migrate',
+      );
+    });
+
+    test(
+      '$_stale E12: a listed top whose block is as written has no finding',
+      () async {
+        final found = await _staleBeside(
+          config: 'agent_file_roots:\n  - ../other\n',
+          otherFiles: {'AGENTS.md': _inline()},
+        );
+
+        expect(found, isEmpty);
+      },
+    );
+  });
 }
