@@ -242,14 +242,14 @@ FileResult _formatReadable<R>(
     case Formatted(:final text):
       var finalText = text;
       if (blocks != null && read.docType.listedGenerators.isNotEmpty) {
-        final filled = fillGeneratedBlocks(
+        // The formatted text is laid out, and the inserted pair carries its
+        // own layout whitespace, so no second layout pass runs here.
+        finalText = fillGeneratedBlocks(
           text,
           read.docType,
           blocks.run.registry,
           blocks.resolver,
         );
-        // Current blocks leave the formatted text as it is: no second layout.
-        if (filled != text) finalText = layOutDoc(filled, read.docType);
       }
       if (finalText == toLf(read.text)) {
         return FileResult(path: read.path, status: FileStatus.unchanged);
