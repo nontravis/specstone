@@ -125,7 +125,7 @@ final class SearchLine {
       raw.substring(start + ticks, end - ticks),
   ];
 
-  late final List<_CodeSpan> _spans = _codeSpansOf(raw);
+  late final List<CodeSpan> _spans = codeSpansOf(raw);
 
   String _blankSpans() {
     if (_spans.isEmpty) return raw;
@@ -143,13 +143,13 @@ final class SearchLine {
 
 /// One code span of a line: the offsets of its first and one past its last
 /// backtick, and the length of the backtick run that opens and closes it.
-typedef _CodeSpan = ({int start, int end, int ticks});
+typedef CodeSpan = ({int start, int end, int ticks});
 
 /// Returns each code span of [line], in order.
-List<_CodeSpan> _codeSpansOf(String line) {
+List<CodeSpan> codeSpansOf(String line) {
   // indexOf, not a RegExp: the regex engine tries every offset of a pattern
   // that opens with one character.
-  final spans = <_CodeSpan>[];
+  final spans = <CodeSpan>[];
   var open = line.indexOf('`');
   while (open >= 0) {
     final ticks = _runLengthAt(line, open);

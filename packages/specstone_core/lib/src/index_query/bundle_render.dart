@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -284,8 +286,39 @@ bool _naChecked(String body) {
   return cleaned != 'N/A' && !cleaned.startsWith('N/A —');
 }
 
-/// Returns [text] with every HTML comment removed.
-String _removeComments(String text) => text.replaceAll(_htmlComment, '');
+/// Returns [text] with every HTML comment removed, except one inside fenced
+/// code or an inline code span.
+String _removeComments(String text) {
+  final masked = _maskCode(text);
+  final kept = StringBuffer();
+  var from = 0;
+  for (final comment in _htmlComment.allMatches(masked)) {
+    kept.write(text.substring(from, comment.start));
+    from = comment.end;
+  }
+  return (kept..write(text.substring(from))).toString();
+}
+
+/// Returns [text] with fenced lines and code spans, backticks included, blanked
+/// to spaces of equal length, so offsets match [text].
+String _maskCode(String text) {
+  final lines = text.split('\n');
+  final fenced = fencedLines([
+    for (final line in lines) line.replaceFirst(RegExp(r'\r$'), ''),
+  ]);
+  return [
+    for (var i = 0; i < lines.length; i++)
+      if (fenced[i]) ' ' * lines[i].length else _maskSpans(lines[i]),
+  ].join('\n');
+}
+
+String _maskSpans(String line) {
+  var masked = line;
+  for (final (:start, :end, ticks: _) in codeSpansOf(line)) {
+    masked = masked.replaceRange(start, end, ' ' * (end - start));
+  }
+  return masked;
+}
 
 /// Returns [text] with HTML comments removed and both ends trimmed.
 String _cleaned(String text) => _removeComments(text).trim();
