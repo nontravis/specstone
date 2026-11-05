@@ -191,7 +191,7 @@ int _plannedRun(
       'shown; run specstone migrate again to plan from it',
     );
   }
-  final steps = plan.journalSteps(base: base);
+  final steps = plan.journalSteps(base: base, projectRoot: root);
   MoveJournal(steps).run(_targetOf(root, request));
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
   final closingLine = plan.closingLine;

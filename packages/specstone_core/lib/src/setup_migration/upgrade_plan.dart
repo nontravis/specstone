@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
@@ -17,15 +18,20 @@ import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:yaml/yaml.dart';
 
 const _docsFolder = 'docs/';
 const _commit1Message = 'move docs to their new pack paths';
 const _commit2Message = 'upgrade pack pins';
+const _agentOnlyHeader = 'pack upgrade: pins unchanged, agent files only';
+const _agentOnlyCommit2Message = 'refresh the Specstone agent files';
+const _agentFileRootsKey = 'agent_file_roots';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -35,8 +41,11 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// leave dangling, then plans the moves, the section and field renames in the
 /// docs and the overrides, the link rewrites, and the new pins. Writes
 /// nothing. Throws `MigrateFault` `override_dangling`, `MigrateFault`
-/// `upgrade_collision` listing every move and rename collision at once, and a
-/// `TemplateFault` before it returns, so a refused run prints nothing.
+/// `upgrade_collision` listing every move and rename collision at once,
+/// `agent_block_malformed`, and a `TemplateFault` before it returns, so a
+/// refused run prints nothing. The agent files step comes last: the full upsert
+/// when a pin listed in `agentFilesSince` moves up from below its value,
+/// otherwise a refresh of what exists.
 /// [homeDirectory] is the personal pack home, or null.
 RunPlan planUpgradeRun(
   Directory root, {
@@ -182,7 +191,14 @@ RunPlan planUpgradeRun(
           ],
         ),
   ];
-  final configRewrite = _configRewriteOf(root, upgrades);
+  final agentFiles = _agentFilesOf(root, upgrades, set: finalSet);
+  final configRewrite = _configRewriteOf(
+    root,
+    upgrades,
+    agentFileRoots: agentFiles.addedRoots.isEmpty
+        ? null
+        : agentFiles.agentFileRoots,
+  );
 
   String shownAt(int index) {
     final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
@@ -207,20 +223,25 @@ RunPlan planUpgradeRun(
     for (final upgrade in upgrades) '${upgrade.pack} ${upgrade.target}',
   ];
 
+  final isAgentOnly = upgrades.isEmpty;
   return RunPlan(
-    header: 'pack upgrade: ${upgraded.join(', ')}',
+    header: isAgentOnly
+        ? _agentOnlyHeader
+        : 'pack upgrade: ${upgraded.join(', ')}',
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...docRewrites, ...overrideRewrites, configRewrite],
+    rewrites: [...docRewrites, ...overrideRewrites, ?configRewrite],
     creates: const [],
     left: const [],
     commit1Message: _commit1Message,
-    commit2Message: _commit2Message,
+    commit2Message: isAgentOnly ? _agentOnlyCommit2Message : _commit2Message,
     rewriteLines: [
       ...stepLines,
       ...linkLines,
-      '$projectConfigPath: ${pinned.join(', ')}',
+      if (agentFiles.line.isNotEmpty) agentFiles.line,
+      if (!isAgentOnly) '$projectConfigPath: ${pinned.join(', ')}',
     ],
+    agentFiles: agentFiles,
   );
 }
 
@@ -327,21 +348,76 @@ String _withScalarsReplaced(String lf, List<(YamlScalar, String)> edits) {
   return text;
 }
 
-PlannedRewrite _configRewriteOf(Directory root, List<PackUpgrade> upgrades) {
+/// Plans the agent files step of the upgrade of [root] to [upgrades].
+AgentWritePlan _agentFilesOf(
+  Directory root,
+  List<PackUpgrade> upgrades, {
+  required MergedSet set,
+}) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  final config = ProjectConfig.read(projectRoot);
+  final full = upgrades.any((upgrade) {
+    final since = agentFilesSince[upgrade.pack];
+    return since != null && upgrade.pin.compareTo(since) < 0;
+  });
+  return planAgentWrites(
+    AgentFileInputs(
+      projectRoot: projectRoot,
+      cliVersion: specstoneVersion,
+      codeRootFolders: codeRootFolders(
+        projectRoot,
+        codeRoot: config.codeRoot,
+        codeEntries: codeEntriesOnDisk(projectRoot, set),
+      ),
+      agentFileRoots: config.agentFileRoots,
+    ),
+    full: full,
+  );
+}
+
+/// Returns the rewrite of `config.yaml` that moves the pins of [upgrades] and
+/// sets `agent_file_roots` to [agentFileRoots] when it is not null, every other
+/// byte kept, or null when neither changes.
+PlannedRewrite? _configRewriteOf(
+  Directory root,
+  List<PackUpgrade> upgrades, {
+  required List<String>? agentFileRoots,
+}) {
+  if (upgrades.isEmpty && agentFileRoots == null) return null;
   final original = readDocText(
     File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
   );
   final packs =
       (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;
-  final text = _withScalarsReplaced(original.lf, [
+  var text = _withScalarsReplaced(original.lf, [
     for (final upgrade in upgrades)
       (packs.nodes[upgrade.pack]! as YamlScalar, '${upgrade.target}'),
   ]);
+  if (agentFileRoots != null) text = _withAgentFileRoots(text, agentFileRoots);
   return PlannedRewrite(
     path: projectConfigPath,
     text: writtenText(original, text),
-    changes: ['pins'],
+    changes: [
+      if (upgrades.isNotEmpty) 'pins',
+      if (agentFileRoots != null) _agentFileRootsKey,
+    ],
   );
+}
+
+/// Returns [text] with the `agent_file_roots` entry set to [roots]: replaced
+/// in place when present, else appended.
+String _withAgentFileRoots(String text, List<String> roots) {
+  final block = configText(
+    const {},
+    agentFileRoots: roots,
+  ).substring('packs:\n'.length);
+  final map = loadYamlNode(text) as YamlMap;
+  final value = map.nodes[_agentFileRootsKey];
+  if (value == null) return '${text.endsWith('\n') ? text : '$text\n'}$block';
+  final key = map.nodes.keys.firstWhere(
+    (key) => (key as YamlNode).value == _agentFileRootsKey,
+  ) as YamlNode;
+  return text.replaceRange(key.span.start.offset, value.span.end.offset, block);
 }
 
 /// Returns the final path of each doc of [docPaths], the final paths each

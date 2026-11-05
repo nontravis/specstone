@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/setup_migration/agent_files.dart'
+    show agentMdText;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -633,6 +635,141 @@ void main() {
         expect(resumed.out, isNot(contains('.specstone/trash/stage')));
         expectTraded();
       }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+    });
+
+    group('setup_migration/upgrade_pack_pins agent files', () {
+      const begin = '<!-- BEGIN specstone v$specstoneVersion -->';
+      const staleBlock = '$begin\nold rules\n<!-- END specstone -->\n';
+      const belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
+
+      Future<Directory> agentProject(
+        Map<String, String> files,
+        String config,
+      ) => gitFixture({
+        '.specstone/config.yaml': config,
+        _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+        '.gitignore': 'code/\n',
+        ...files,
+      });
+
+      test('user_story:setup_migration/upgrade_pack_pins S9: a stale block is '
+          'rewritten alone and the pins stay', () async {
+        final root = await agentProject({
+          '.specstone/AGENT.md': agentMdText,
+          'CLAUDE.md': '# Owner rules\n\n$staleBlock',
+        }, shippedPinsConfig());
+        final config = _read(root, '.specstone/config.yaml');
+        final before = _subjects(root);
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0);
+        expect(
+          result.out,
+          startsWith(
+            'pack upgrade: pins unchanged, agent files only\n'
+            'commit 2, rewrites:\n'
+            '  agent files: CLAUDE.md\n'
+            'apply? [y/N] ',
+          ),
+        );
+        expect(
+          result.out,
+          matches(
+            RegExp(r'commit 2 [0-9a-f]+: refresh the Specstone agent files\n$'),
+          ),
+        );
+        expect(_subjects(root), hasLength(before.length + 1));
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+          'CLAUDE.md',
+        );
+        expect(_read(root, '.specstone/config.yaml'), config);
+        expect(
+          _read(root, 'CLAUDE.md'),
+          startsWith('# Owner rules\n\n$begin\n'),
+        );
+        expect(_read(root, 'CLAUDE.md'), isNot(contains('old rules')));
+      });
+
+      test('user_story:setup_migration/upgrade_pack_pins S10: a pin below '
+          'agentFilesSince writes the files once and a deleted block stays '
+          'deleted', () async {
+        final root = await agentProject({
+          'CLAUDE.md': '# Owner rules\n',
+        }, belowSince);
+        final home = await writeTree({});
+
+        final first = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(first.status, 0);
+        expect(
+          first.out,
+          contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
+        );
+        expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
+        expect(_read(root, 'CLAUDE.md'), contains(begin));
+        expect(_read(root, '.specstone/AGENT.md'), agentMdText);
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-only',
+            '--format=',
+            'HEAD',
+          ]).trim().split('\n').toSet(),
+          {'.specstone/AGENT.md', 'CLAUDE.md', '.specstone/config.yaml'},
+        );
+
+        File('${root.path}/CLAUDE.md').writeAsStringSync('# Owner rules\n');
+        commitAll(root, 'owner deletes the block');
+        final second = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(second.out, 'nothing to migrate\n');
+        expect(_read(root, 'CLAUDE.md'), '# Owner rules\n');
+      });
+
+      test('user_story:setup_migration/upgrade_pack_pins S10: a top the config '
+          'does not list takes its files outside both commits', () async {
+        final root = await agentProject(
+          {},
+          '${shippedPinsConfig()}code_root: code\n',
+        );
+        Directory('${root.path}/code/.git').createSync(recursive: true);
+        File('${root.path}/code/.git/HEAD')
+            .writeAsStringSync('ref: refs/heads/main\n');
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0);
+        expect(result.out, contains('  agent files: code/AGENTS.md\n'));
+        expect(File('${root.path}/code/AGENTS.md').existsSync(), isTrue);
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+          '.specstone/config.yaml',
+        );
+        expect(
+          _read(root, '.specstone/config.yaml'),
+          contains('agent_file_roots:\n  - code\n'),
+        );
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
+
+      test('setup_migration/upgrade_pack_pins E16: a malformed file refuses '
+          'before anything prints', () async {
+        final root = await agentProject({
+          'AGENTS.md': '$begin\nbody\n',
+        }, belowSince);
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(result.status, 65);
+        expect(result.out, isEmpty);
+        expect(result.err, contains('AGENTS.md'));
+      });
     });
   }, skip: hasGit ? null : 'git is not available');
 }

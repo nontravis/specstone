@@ -3,10 +3,13 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show MoveStep;
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_files.dart'
+    show agentMdText;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
@@ -89,6 +92,8 @@ PlannedRewrite _rewriteAt(RunPlan plan, String path) =>
     plan.rewrites.singleWhere((rewrite) => rewrite.path == path);
 
 void main() {
+  _agentFilesTests();
+
   test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
       'prints', () async {
     const packYaml = '''
@@ -788,6 +793,151 @@ sections:
       'ops/runbooks/{slug}/RUNBOOK.md: ops/runbooks/deploy/RUNBOOK.md\n'
       '  prds/notes.md: 1 link\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
+    );
+  });
+}
+
+const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
+const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
+const _staleBlock = '$_begin\nold rules\n<!-- END specstone -->\n';
+const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
+
+Directory _canonical(Directory directory) =>
+    Directory(directory.resolveSymbolicLinksSync());
+
+RunPlan _planAt(Directory project) => planUpgradeRun(
+  _canonical(project),
+  templates: TemplateResolver(),
+  homeDirectory: null,
+);
+
+void _agentFilesTests() {
+  group('agent files step', () {
+    test('$_fr E14: a pin below agentFilesSince writes every agent file once, '
+        'the Owner rules kept', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _belowSince,
+        'CLAUDE.md': '# Owner rules\n',
+      });
+
+      final plan = _planAt(project);
+
+      final agents = plan.agentFiles!;
+      expect(agents.rootWrites.map((write) => write.path), [
+        '.specstone/AGENT.md',
+        'CLAUDE.md',
+      ]);
+      expect(agents.rootWrites.last.text, startsWith('# Owner rules\n'));
+      expect(agents.rootWrites.last.text, contains(_begin));
+      expect(
+        plan.toText(),
+        contains('agent files: .specstone/AGENT.md, CLAUDE.md'),
+      );
+    });
+
+    test('$_fr E14: a later upgrade never adds a deleted block or the rules '
+        'file', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _config('1.0.0'),
+        'CLAUDE.md': '# Owner rules\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml': _runbookPackYaml,
+        '.specstone/packs/acme/runbook.yaml': _runbookType,
+      });
+
+      final plan = planUpgradeRun(
+        _canonical(project),
+        templates: TemplateResolver(),
+        homeDirectory: home,
+      );
+
+      expect(plan.agentFiles!.isEmpty, isTrue);
+      expect(plan.toText(), isNot(contains('agent files:')));
+    });
+
+    test('$_fr E12: every pin equal and a stale block gives the agent-only '
+        'plan', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.specstone/AGENT.md': agentMdText,
+        'CLAUDE.md': '# Owner rules\n\n$_staleBlock',
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, agent files only\n'
+        'commit 2, rewrites:\n'
+        '  agent files: CLAUDE.md\n',
+      );
+      expect(plan.commit2Message, 'refresh the Specstone agent files');
+      expect(plan.rewrites, isEmpty);
+      expect(plan.moves, isEmpty);
+    });
+
+    test('$_fr E17: a repository top unlisted in agent_file_roots takes its '
+        'files outside the commits and joins the config', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final plan = _planAt(project);
+
+      final agents = plan.agentFiles!;
+      expect(agents.topWrites.map((write) => write.path), ['code/AGENTS.md']);
+      expect(agents.addedRoots, ['code']);
+      expect(plan.toText(), contains('  agent files: code/AGENTS.md\n'));
+      expect(
+        _rewriteAt(plan, '.specstone/config.yaml').text,
+        '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
+        '  - code\n',
+      );
+      expect(_rewriteAt(plan, '.specstone/config.yaml').changes, [
+        'agent_file_roots',
+      ]);
+    });
+
+    test('$_fr E17: the config rewrite replaces a listed agent_file_roots '
+        'and keeps every other key', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n'
+            'agent_file_roots:\n  - old\ncode_root: code\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+        'old/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final plan = _planAt(project);
+
+      final text = _rewriteAt(plan, '.specstone/config.yaml').text;
+      expect(text, contains('code_root: code\n'));
+      expect(text, contains('  - old\n'));
+      expect(text, contains('  - code\n'));
+      expect(text, isNot(contains('prd-core: 1.0.0')));
+    });
+
+    test(
+      '$_fr E16: a malformed block refuses before the plan returns',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml': _belowSince,
+          'AGENTS.md': '$_begin\nbody\n',
+        });
+
+        expect(
+          () => _planAt(project),
+          throwsA(
+            isA<MigrateFault>().having(
+              (fault) => fault.code,
+              'code',
+              MigrateFaultCode.agentBlockMalformed,
+            ),
+          ),
+        );
+      },
     );
   });
 }
