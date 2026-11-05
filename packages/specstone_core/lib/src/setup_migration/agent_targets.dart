@@ -31,6 +31,7 @@ const _malformedMessage =
     'the file holds one BEGIN line and one END line after it, or neither, '
     'then run the command again';
 const _byteOrderMark = '﻿';
+final _separators = RegExp(r'[/\\]');
 final _beginVersion = RegExp(r'<!-- BEGIN specstone v\d+\.\d+\.\d+ -->');
 
 /// The pack versions from which the agent files are written once.
@@ -609,17 +610,31 @@ File _fileIn(Directory folder, String relative) =>
 /// Returns the canonical [folder], or its absolute normalized path when it
 /// does not exist.
 Directory _canonicalOf(Directory folder) {
-  if (FileSystemEntity.typeSync(folder.path) != FileSystemEntityType.notFound) {
-    return Directory(folder.resolveSymbolicLinksSync());
-  }
-  final path = folder.absolute.uri.normalizePath().toFilePath();
-  final isRoot = path.length <= 1 || path.endsWith(r':\');
-  final separator = Platform.pathSeparator;
-  return Directory(
-    !isRoot && path.endsWith(separator)
-        ? path.substring(0, path.length - separator.length)
-        : path,
+  var existing = _withoutFinalSeparator(
+    folder.absolute.uri.normalizePath().toFilePath(),
   );
+  final missing = <String>[];
+  while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
+    final parent = Directory(existing).parent.path;
+    if (parent == existing) return Directory(existing);
+    missing.add(existing.substring(parent.length).replaceAll(_separators, ''));
+    existing = parent;
+  }
+  final resolved = Directory(existing).resolveSymbolicLinksSync();
+  return Directory(
+    missing.isEmpty
+        ? resolved
+        : _withoutFinalSeparator(
+            [resolved, ...missing.reversed].join(Platform.pathSeparator),
+          ),
+  );
+}
+
+String _withoutFinalSeparator(String path) {
+  final isRoot = path.length <= 1 || path.endsWith(r':\');
+  return !isRoot && path.endsWith(Platform.pathSeparator)
+      ? path.substring(0, path.length - 1)
+      : path;
 }
 
 /// Returns [bytes] as text without a byte order mark, or null when they are

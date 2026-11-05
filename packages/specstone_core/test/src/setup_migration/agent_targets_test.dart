@@ -429,6 +429,69 @@ void main() {
       expect(plan.agentFileRoots, ['../other']);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
+    test('$_write E16: a missing code folder under a link to another '
+        'repository finds that repository top', () async {
+      final base = await _base({'other/.git/HEAD': 'ref\n', 'proj/.keep': ''});
+      Link(_at(base, 'viaLink').path).createSync(_at(base, 'other').path);
+
+      expect(
+        repositoryTopOf(_at(base, 'viaLink/not/there'))?.path,
+        _at(base, 'other').path,
+      );
+      final plan = planAgentWrites(
+        _inputs(base, code: ['viaLink/not/there/']),
+        full: true,
+      );
+
+      expect(plan.agentFileRoots, ['../other']);
+      expect(plan.topWrites.map((w) => w.path), ['../other/AGENTS.md']);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('R48: a listed top that no code root reaches is neither refreshed '
+        'nor checked, and stays listed', () async {
+      final base = await _base({
+        'other/.git/HEAD': 'ref\n',
+        'other/AGENTS.md': 'x\n<!-- END specstone -->\n',
+        'proj/.specstone/AGENT.md': agentMdText,
+        'proj/AGENTS.md': _inline(),
+      });
+      final inputs = _inputs(base, roots: ['../other']);
+
+      final plan = planAgentWrites(inputs, full: false);
+
+      expect(plan.isEmpty, isTrue);
+      expect(plan.agentFileRoots, ['../other']);
+      expect(agentFileDrifts(inputs), isEmpty);
+    });
+
+    test('R48: a repository nested in the project is a top, written at the '
+        'top and listed', () async {
+      final base = await _base({
+        'proj/vendor/.git/HEAD': 'ref\n',
+        'proj/vendor/lib/a': '',
+      });
+
+      final plan = planAgentWrites(
+        _inputs(base, code: ['proj/vendor/lib/']),
+        full: true,
+      );
+
+      expect(plan.topWrites.map((w) => w.path), ['vendor/AGENTS.md']);
+      expect(plan.topWrites.single.isAtTop, isTrue);
+      expect(plan.agentFileRoots, ['vendor']);
+    });
+
+    test('R48: an instruction file that is not UTF-8 is skipped, with no '
+        'write and no drift', () async {
+      final base = await _base({'proj/.specstone/AGENT.md': agentMdText});
+      File.fromUri(_at(base, 'proj/').uri.resolve('CLAUDE.md'))
+          .writeAsBytesSync([0xFF, 0xFE, 0x41, 0x80]);
+      final inputs = _inputs(base);
+
+      expect(planAgentWrites(inputs, full: true).isEmpty, isTrue);
+      expect(agentFileDrifts(inputs), isEmpty);
+    });
+
     test('$_write E16: a .git file at the top qualifies it', () async {
       final base = await _base({'other/.git': _gitFile, 'other/lib/a': ''});
 
