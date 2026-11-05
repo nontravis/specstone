@@ -164,6 +164,57 @@ void main() {
     );
   });
 
+  group('only spaces and tabs change', () {
+    check('a line ending in NBSP stays', 'a \nb\n', 'a \nb\n');
+    check('a line ending in U+3000 stays', 'a　\nb\n', 'a　\nb\n');
+    check(
+      'spaces after a trailing NBSP go, the NBSP stays',
+      'a   \n\nb\n',
+      'a \n\nb\n',
+    );
+    check(
+      'an NBSP-only line is not blank under a heading',
+      '# H\n \n\ntext\n',
+      '# H\n\n \n\ntext\n',
+    );
+    check(
+      'a table cell keeps its edge NBSP',
+      '|  a | b　 |\n|---|---|\n',
+      '|  a | b　 |\n|---|---|\n',
+    );
+    check(
+      'an NBSP gap after a list marker is no list item',
+      'a  \n- b\n',
+      'a  \n- b\n',
+    );
+  });
+
+  group('quote lines', () {
+    check(
+      'a quote after a plain line ends its paragraph',
+      'text  \n> quote\n',
+      'text\n> quote\n',
+    );
+    check(
+      'a plain line before a quote needs no change',
+      'text\n> quote\n',
+      'text\n> quote\n',
+    );
+    check(
+      'a quote line continues a quote paragraph',
+      '> a  \n> b\n',
+      '> a  \n> b\n',
+    );
+  });
+
+  group('lazy table row', () {
+    check(
+      'a pipe-less line after a table is a row: its trailing spaces go',
+      '| a | b |\n|---|---|\nafter  \nnext\n',
+      '| a | b |\n|---|---|\nafter\nnext\n',
+    );
+  });
+
   group('shape', () {
     check(
       'E07: text already laid out is unchanged',

@@ -2,7 +2,11 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 
 final _heading = RegExp(r'^ {0,3}#{1,6}(?: .*)?$');
-final _listItem = RegExp(r'^\s*(?:[-*+]|\d{1,9}[.)])(?:\s|$)');
+final _listItem = RegExp(r'^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)');
+final _spaceTabEnd = RegExp(r'[ \t]+$');
+final _spaceTabStart = RegExp(r'^[ \t]+');
+final _blankLine = RegExp(r'^[ \t]*$');
+final _blankText = RegExp(r'^[ \t\n]*$');
 final _delimiterCell = RegExp(r'^:?-+:?$');
 const _hardBreakSuffix = '  ';
 
@@ -16,7 +20,7 @@ String layOutText(
   bool underHeading = false,
   Set<String> blockKinds = const {},
 }) {
-  if (text.trim().isEmpty) return '';
+  if (_isBlankText(text)) return '';
   final hasFinalBreak = text.endsWith('\n');
   final lines = text.split('\n');
   if (hasFinalBreak) lines.removeLast();
@@ -39,10 +43,10 @@ final class _Layout {
   final List<bool> isTable;
   final List<bool> isDelimiter;
 
-  bool isBlank(int i) => !protected[i] && lines[i].trim().isEmpty;
+  bool isBlank(int i) => !protected[i] && _isBlankLine(lines[i]);
 
   bool isHeading(int i) =>
-      !protected[i] && _heading.hasMatch(lines[i].trimRight());
+      !protected[i] && _heading.hasMatch(_trimEnd(lines[i]));
 
   /// Lines with every rule except heading gaps applied.
   List<String> normalized() => [
@@ -52,12 +56,12 @@ final class _Layout {
   String _normalizeLine(int i) {
     if (protected[i]) return lines[i];
     if (isTable[i]) return _layOutRow(lines[i], isDelimiter: isDelimiter[i]);
-    final trimmed = lines[i].trimRight();
+    final trimmed = _trimEnd(lines[i]);
     return _isHardBreak(i) ? '$trimmed$_hardBreakSuffix' : trimmed;
   }
 
   bool _isHardBreak(int i) =>
-      lines[i].trim().isNotEmpty &&
+      !_isBlankLine(lines[i]) &&
       lines[i].endsWith(_hardBreakSuffix) &&
       !isHeading(i) &&
       i + 1 < lines.length &&
@@ -68,11 +72,12 @@ final class _Layout {
       !isTable[i] &&
       !isBlank(i) &&
       !isHeading(i) &&
-      !_listItem.hasMatch(lines[i]);
+      !_listItem.hasMatch(lines[i]) &&
+      (!_isQuote(lines[i]) || _isQuote(lines[i - 1]));
 
   bool _isDelimiterRow(int i) =>
       _hasPipe(lines[i]) &&
-      _splitCells(lines[i].trim()).every(_delimiterCell.hasMatch);
+      _splitCells(_trim(lines[i])).every(_delimiterCell.hasMatch);
 
   void _markTables() {
     var i = 0;
@@ -94,14 +99,14 @@ final class _Layout {
       _hasPipe(lines[i]) &&
       _isRowLine(i + 1) &&
       _isDelimiterRow(i + 1) &&
-      _splitCells(lines[i].trim()).length ==
-          _splitCells(lines[i + 1].trim()).length;
+      _splitCells(_trim(lines[i])).length ==
+          _splitCells(_trim(lines[i + 1])).length;
 
   bool _isRowLine(int i) =>
       !protected[i] &&
       !isBlank(i) &&
       !isHeading(i) &&
-      !lines[i].trimLeft().startsWith('>') &&
+      !_isQuote(lines[i]) &&
       !_listItem.hasMatch(lines[i]);
 }
 
@@ -148,7 +153,7 @@ bool _hasPipe(String line) => line.contains('|');
 /// Outer pipes stay as the row has them; a delimiter cell becomes `---` with
 /// its `:` marks.
 String _layOutRow(String line, {required bool isDelimiter}) {
-  final content = line.trim();
+  final content = _trim(line);
   final indent = line.substring(0, line.indexOf(content));
   final hasLead = content.startsWith('|');
   final rest = hasLead ? content.substring(1) : content;
@@ -162,7 +167,7 @@ String _layOutRow(String line, {required bool isDelimiter}) {
   final row = isDelimiter
       ? '${hasLead ? '|' : ''}$joined${hasTrail ? '|' : ''}'
       : '${hasLead ? '| ' : ''}$joined${hasTrail ? ' |' : ''}';
-  return '$indent$row'.trimRight();
+  return _trimEnd('$indent$row');
 }
 
 String _delimiter(String cell) =>
@@ -192,11 +197,24 @@ List<String> _splitCells(String content) {
         ..write(char)
         ..write(inner[++i]);
     } else if (char == '|') {
-      cells.add(cell.toString().trim());
+      cells.add(_trim(cell.toString()));
       cell.clear();
     } else {
       cell.write(char);
     }
   }
-  return [...cells, cell.toString().trim()];
+  return [...cells, _trim(cell.toString())];
 }
+
+// Dart's trim also strips NBSP and other Unicode spaces; INV-32 allows only
+// spaces and tabs to change.
+String _trimEnd(String text) => text.replaceFirst(_spaceTabEnd, '');
+
+String _trim(String text) => _trimEnd(text).replaceFirst(_spaceTabStart, '');
+
+bool _isBlankLine(String line) => _blankLine.hasMatch(line);
+
+bool _isBlankText(String text) => _blankText.hasMatch(text);
+
+bool _isQuote(String line) =>
+    line.replaceFirst(_spaceTabStart, '').startsWith('>');
