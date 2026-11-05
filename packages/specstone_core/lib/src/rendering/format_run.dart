@@ -254,7 +254,7 @@ FileResult _formatReadable<R>(
               openBlockKind: kind,
             );
           case BlocksWritten(:final lfText):
-            finalText = lfText;
+            finalText = layOutDoc(lfText, read.docType);
         }
       }
       if (finalText == toLf(read.text)) {

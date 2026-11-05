@@ -681,7 +681,7 @@ void main() {
 
         expect(
           _read(run, _noteA),
-          '# A\n\n## Contents\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+          '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
         );
       },
     );
@@ -874,7 +874,7 @@ void main() {
 
       expect(
         _read(run, _noteA),
-        '# A\n\n## Contents\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n  y\n',
+        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n  y\n',
       );
     });
 
@@ -890,6 +890,58 @@ void main() {
       final again = _runNotes(run, generators);
 
       expect(again.files.single.status, FileStatus.unchanged);
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+        'statement: a missing section-top block lands one blank line under '
+        'the header, and a second check reports unchanged', () async {
+      final run = await _openNotes({
+        _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
+      });
+      final generators = _tocRun(_Calls());
+
+      final first = _runNotes(run, generators);
+
+      expect(first.files.single.status, FileStatus.formatted);
+      expect(
+        _read(run, _noteA),
+        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+      );
+      final again = _runNotes(run, generators, check: true);
+      expect(again.files.single.status, FileStatus.unchanged);
+    });
+
+    test('rendering/format_docs/write_formatted_files E07: an approved doc '
+        'and a draft doc that need a change keep their key block and gain no '
+        'draft: true', () async {
+      const approved = '---\napproved: true\n---\n';
+      const draft = '---\ndraft: true\n---\n';
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale(), front: approved),
+        _noteB: _noteDoc(_stale(), front: draft),
+      });
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      expect(_read(run, _noteA), _noteDoc(_fresh(), front: approved));
+      expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+        'E08: an approved doc whose block changed is written with no '
+        'draft: true', () async {
+      const approved = '---\napproved: true\n---\n';
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale(), front: approved),
+      });
+
+      final report = _runNotes(run, _tocRun(_Calls()));
+
+      expect(report.files.single.status, FileStatus.formatted);
+      final text = _read(run, _noteA);
+      expect(text, contains('approved: true'));
+      expect(text, isNot(contains('draft')));
+      expect(text, contains('toc R1'));
     });
   });
 }

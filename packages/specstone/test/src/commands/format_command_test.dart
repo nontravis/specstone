@@ -87,6 +87,24 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
+    test('rendering/format_docs S10: a layout-only doc gets trimmed table '
+        'cells, a two-space line break, no other trailing space, and a '
+        'blank line under each heading', () async {
+      const disk =
+          '# F-05\n## Feature name\n| a   | b  |\n|-----|----|\n'
+          '| x   | yy |\n## Feature goal\nfirst    \nsecond \t\n';
+      final project = await fixtureProject({_feature: disk});
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format', _feature]), 0);
+
+      expect(
+        read(project, _feature),
+        '# F-05\n\n## Feature name\n\n| a | b |\n|---|---|\n'
+        '| x | yy |\n\n## Feature goal\n\nfirst  \nsecond\n',
+      );
+    });
+
     test('rendering/format_docs/leave_missing_sections S3: adds no section, '
         'leaves draft as written, and check still lists the gap', () async {
       const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
@@ -413,8 +431,22 @@ sections:
         expect(File.fromUri(notes.uri.resolve(index)).existsSync(), isTrue);
         expect(
           read(notes, notePath),
-          '# A\n\n## Contents\n$toc\ntoc\n$end\n\nbody\n',
+          '# A\n\n## Contents\n\n$toc\ntoc\n$end\n\nbody\n',
         );
+      });
+
+      test('rendering/keep_generated_blocks_current S1: a stale block gets '
+          'the generator text now and every line outside it keeps its '
+          'text', () async {
+        const before = '# A\n\n## Contents\n\n';
+        const after = '\nbody line\n\nlast line\n';
+        final project = await fixtureProject({
+          notePath: '$before$toc\nold\n$end$after',
+        });
+
+        expect(await (await noteRunnerIn(project)).run(['format']), 0);
+
+        expect(read(project, notePath), '$before$toc\ntoc\n$end$after');
       });
 
       Future<Directory> damagedNoteProject() async {
