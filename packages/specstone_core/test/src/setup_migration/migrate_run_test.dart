@@ -668,7 +668,10 @@ void main() {
       commit2Message: _commit2Message,
     );
 
-    final steps = plan.journalSteps(base: 'abc');
+    final steps = plan.journalSteps(
+      base: 'abc',
+      projectRoot: Directory.systemTemp,
+    );
 
     expect(steps.whereType<CommitStep>(), hasLength(1));
     expect(steps.whereType<CommitStep>().single.message, _commit2Message);
@@ -1099,7 +1102,7 @@ void _stopAfterCommit1(Directory root) {
     root,
     templates: TemplateResolver(),
     homeDirectory: null,
-  ).journalSteps(base: headOf(root));
+  ).journalSteps(base: headOf(root), projectRoot: root);
   final specstone = Directory('${root.path}/.specstone')
     ..createSync(recursive: true);
   ensureSpecstoneGitignore(specstone);

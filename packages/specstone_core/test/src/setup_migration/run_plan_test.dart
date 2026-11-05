@@ -67,12 +67,20 @@ RunPlan _planWithAgents({List<String>? rewriteLines}) => RunPlan(
   agentFiles: _agentPlan(),
 );
 
+/// The project folder of the running test, empty and deleted afterwards.
+late Directory _root;
+
 List<String> _moveLines(RunPlan plan) => [
-  for (final step in plan.journalSteps(base: 'abc'))
+  for (final step in plan.journalSteps(base: 'abc', projectRoot: _root))
     if (step is MoveStep) step.describe(),
 ];
 
 void main() {
+  setUp(() {
+    _root = Directory.systemTemp.createTempSync('run_plan_root');
+    addTearDown(() => _root.deleteSync(recursive: true));
+  });
+
   test('f06/us02/fr02/e08, F6-D34: a move onto the source of a move not yet '
       'run parks in the stage until every move has run', () {
     expect(_moveLines(_planOf(_cycle)), [
@@ -115,7 +123,7 @@ void main() {
     final plan = _planOf(_cycle);
 
     final commit1 = plan
-        .journalSteps(base: 'abc')
+        .journalSteps(base: 'abc', projectRoot: _root)
         .whereType<CommitStep>()
         .first;
 
@@ -137,7 +145,7 @@ void main() {
   test('f06/us01/fr07, dw-s03/inv6: commit 1 carries each move once as a '
       'ProjectPath pair, the stage hops left out; commit 2 carries none', () {
     final commits = _planOf(_cycle)
-        .journalSteps(base: 'abc')
+        .journalSteps(base: 'abc', projectRoot: _root)
         .whereType<CommitStep>()
         .toList();
 
@@ -154,7 +162,10 @@ void main() {
     () {
       test('E02: one step per agent file follows every other write and create, '
           'a new file created and an existing file written', () {
-        final steps = _planWithAgents().journalSteps(base: 'abc');
+        final steps = _planWithAgents().journalSteps(
+          base: 'abc',
+          projectRoot: _root,
+        );
 
         expect(
           [for (final step in steps) step.describe()],
@@ -173,7 +184,7 @@ void main() {
 
       test('E02: commit 2 carries the root agent files and no top file', () {
         final commit = _planWithAgents()
-            .journalSteps(base: 'abc')
+            .journalSteps(base: 'abc', projectRoot: _root)
             .whereType<CommitStep>()
             .single;
 
@@ -190,7 +201,10 @@ void main() {
       });
 
       test('INV-6: a journal written and read back replays the same steps', () {
-        final steps = _planWithAgents().journalSteps(base: 'abc');
+        final steps = _planWithAgents().journalSteps(
+          base: 'abc',
+          projectRoot: _root,
+        );
 
         final replayed = [
           for (final step in steps)
@@ -211,7 +225,10 @@ void main() {
         File('${code.path}/CLAUDE.md').writeAsStringSync('old\n');
         final target = JournalTarget(projectRoot: project, docsRoot: project);
 
-        final steps = _planWithAgents().journalSteps(base: 'abc');
+        final steps = _planWithAgents().journalSteps(
+          base: 'abc',
+          projectRoot: _root,
+        );
         for (final step in steps) {
           if (step is WriteStep && step.path == 'CLAUDE.md') {
             step.apply(target);
@@ -299,6 +316,130 @@ void main() {
           contains('AGENTS.md'),
         );
       }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+      group('commit 2 paths of agent files', () {
+        const skipLinks = 'symbolic links need a privilege';
+
+        /// Returns the paths of the last commit of a plan that writes
+        /// [rootWrites] and [topWrites] on [project].
+        List<String> commit2Of(
+          Directory project, {
+          List<AgentWrite> rootWrites = const [],
+          List<AgentWrite> topWrites = const [],
+        }) {
+          final plan = RunPlan(
+            header: 'migrate',
+            moves: const [],
+            prunes: const [],
+            rewrites: const [],
+            creates: const [],
+            left: const [],
+            commit1Message: 'move',
+            commit2Message: 'pin',
+            agentFiles: AgentWritePlan(
+              rootWrites: rootWrites,
+              topWrites: topWrites,
+              agentFileRoots: const [],
+              addedRoots: const [],
+            ),
+          );
+          return plan
+              .journalSteps(base: 'abc', projectRoot: project)
+              .whereType<CommitStep>()
+              .last
+              .paths;
+        }
+
+        /// Returns a project folder with a sibling `shared` folder holding
+        /// [shared].
+        Directory projectBeside(Map<String, String> shared) {
+          final base = Directory.systemTemp.createTempSync('run_plan_beside');
+          addTearDown(() => base.deleteSync(recursive: true));
+          for (final MapEntry(:key, :value) in shared.entries) {
+            File('${base.path}/shared/$key')
+              ..createSync(recursive: true)
+              ..writeAsStringSync(value);
+          }
+          return Directory('${base.path}/project')..createSync();
+        }
+
+        test('write_agent_files E22: a link to a file outside the project '
+            'joins no commit', () {
+          final project = projectBeside({'CLAUDE.md': 'x\n'});
+          Link('${project.path}/CLAUDE.md').createSync('../shared/CLAUDE.md');
+
+          final paths = commit2Of(
+            project,
+            rootWrites: [_agentWrite('CLAUDE.md', isNew: false)],
+          );
+
+          expect(paths, [specstoneGitignorePath]);
+        }, skip: Platform.isWindows ? skipLinks : null);
+
+        test('write_agent_files E15: a repository top nested in the project '
+            'joins no commit', () {
+          final project = projectBeside({});
+          final write = _agentWrite(
+            'lib/AGENTS.md',
+            isNew: true,
+            isAtTop: true,
+          );
+
+          final paths = commit2Of(project, topWrites: [write]);
+
+          expect(paths, [specstoneGitignorePath]);
+        });
+
+        test('R49: a linked folder inside the project places the file by its '
+            'real path', () {
+          final project = projectBeside({});
+          Directory('${project.path}/rules').createSync();
+          Link('${project.path}/.github').createSync('rules');
+          File('${project.path}/rules/copilot-instructions.md')
+              .writeAsStringSync('x\n');
+
+          final paths = commit2Of(
+            project,
+            rootWrites: [
+              _agentWrite('.github/copilot-instructions.md', isNew: false),
+            ],
+          );
+
+          expect(paths, [
+            'rules/copilot-instructions.md',
+            specstoneGitignorePath,
+          ]);
+        }, skip: Platform.isWindows ? skipLinks : null);
+
+        test('R49: a linked folder outside the project holds its file out of '
+            'every commit', () {
+          final project = projectBeside({'copilot-instructions.md': 'x\n'});
+          Link('${project.path}/.github').createSync('../shared');
+
+          final paths = commit2Of(
+            project,
+            rootWrites: [
+              _agentWrite('.github/copilot-instructions.md', isNew: false),
+            ],
+          );
+
+          expect(paths, [specstoneGitignorePath]);
+        }, skip: Platform.isWindows ? skipLinks : null);
+
+        test('R49: a new file below a linked folder is placed by the '
+            'folder real path', () {
+          final project = projectBeside({});
+          Directory('${project.path}/rules').createSync();
+          Link('${project.path}/.cursor').createSync('rules');
+
+          final paths = commit2Of(
+            project,
+            rootWrites: [_agentWrite('.cursor/rules/x.mdc', isNew: true)],
+          );
+
+          expect(paths, ['rules/rules/x.mdc', specstoneGitignorePath]);
+        }, skip: Platform.isWindows ? skipLinks : null);
+      });
     },
   );
 }

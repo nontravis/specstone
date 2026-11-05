@@ -134,12 +134,12 @@ final class RunPlan {
   /// once as a ProjectPath pair, its stage hops left out, so a tracked file
   /// moved onto an ignored path still commits as a rename.
   ///
-  /// With [projectRoot], an agent file that is a symbolic link gets its step
-  /// on the link's real file, so the link stays a link; without it, steps keep
-  /// the planned paths.
+  /// An agent file reached through a symbolic link, of the file or of a folder
+  /// above it, gets its step on the real path from [projectRoot], so the link
+  /// stays a link. A real path outside the project joins no commit (R49).
   List<JournalStep> journalSteps({
     required String base,
-    Directory? projectRoot,
+    required Directory projectRoot,
   }) {
     final agentWrites = [
       for (final write in agentFiles?.rootWrites ?? const <AgentWrite>[])
@@ -188,16 +188,27 @@ final class RunPlan {
     ];
   }
 
-  /// Returns [path] with a symbolic link resolved to its real file, as a
-  /// `/`-separated path from [projectRoot]; a missing or unlinked path stays.
-  static String _realPath(String path, Directory? projectRoot) {
-    if (projectRoot == null) return path;
+  /// Returns [path] with every symbolic link on it resolved, as a
+  /// `/`-separated path from [projectRoot].
+  ///
+  /// The part of [path] that does not exist yet stays as written, and a path
+  /// that cannot be resolved stays whole.
+  static String _realPath(String path, Directory projectRoot) {
     final sep = Platform.pathSeparator;
-    final absolute = '${projectRoot.path}$sep${path.replaceAll('/', sep)}';
-    if (!FileSystemEntity.isLinkSync(absolute)) return path;
+    final segments = path.split('/');
+    var existing = segments.length;
+    while (existing > 0 &&
+        FileSystemEntity.typeSync(
+              '${projectRoot.path}$sep${segments.take(existing).join(sep)}',
+            ) ==
+            FileSystemEntityType.notFound) {
+      existing--;
+    }
     try {
-      final real = File(absolute).resolveSymbolicLinksSync().split(sep);
       final root = projectRoot.resolveSymbolicLinksSync().split(sep);
+      final real = Directory(
+        '${projectRoot.path}$sep${segments.take(existing).join(sep)}',
+      ).resolveSymbolicLinksSync().split(sep);
       var shared = 0;
       while (shared < root.length &&
           shared < real.length &&
@@ -207,6 +218,7 @@ final class RunPlan {
       return [
         for (var i = shared; i < root.length; i++) '..',
         ...real.skip(shared),
+        ...segments.skip(existing),
       ].join('/');
     } on FileSystemException {
       return path;

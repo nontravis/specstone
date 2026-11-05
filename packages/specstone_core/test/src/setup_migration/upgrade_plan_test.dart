@@ -437,7 +437,10 @@ sections:
     expect(plan.toText(), isNot(contains('.specstone/trash')));
     expect(
       [
-        for (final step in plan.journalSteps(base: 'abc'))
+        for (final step in plan.journalSteps(
+          base: 'abc',
+          projectRoot: Directory.systemTemp,
+        ))
           if (step is MoveStep) step.describe(),
       ],
       [

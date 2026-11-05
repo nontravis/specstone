@@ -306,7 +306,10 @@ name: Login API
   test('f06/us01/fr07/e08: the run removes no file', () async {
     final plan = await _plan(acmeLegacy);
 
-    final steps = plan.journalSteps(base: 'x');
+    final steps = plan.journalSteps(
+      base: 'x',
+      projectRoot: Directory.systemTemp,
+    );
 
     expect(steps.whereType<MoveStep>(), hasLength(plan.moves.length));
     expect(
@@ -377,7 +380,10 @@ name: Login API
       'creates with .specstone/.gitignore', () async {
     final plan = await _plan(acmeLegacy);
 
-    final steps = plan.journalSteps(base: 'abc');
+    final steps = plan.journalSteps(
+      base: 'abc',
+      projectRoot: Directory.systemTemp,
+    );
     final commits = steps.whereType<CommitStep>().toList();
 
     expect(commits, hasLength(2));
