@@ -112,6 +112,24 @@ void main() {
         },
       );
 
+      for (final bad in ['', '/abs', 'C:/x', r'a\b']) {
+        test(
+          '$source: the entry "$bad" the reader refuses is an ArgumentError',
+          () {
+            expect(
+              () => configText(pins, agentFileRoots: [bad]),
+              throwsA(
+                isA<ArgumentError>().having(
+                  (e) => e.invalidValue,
+                  'value',
+                  bad,
+                ),
+              ),
+            );
+          },
+        );
+      }
+
       test('$source: an entry YAML reads as another value is quoted', () {
         expect(
           configText(pins, agentFileRoots: const ['2024']),

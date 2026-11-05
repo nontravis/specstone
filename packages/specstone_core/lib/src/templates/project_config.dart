@@ -89,8 +89,9 @@ Directory? findProjectRoot(Directory start) => findRootUpward(
       File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
 );
 
-/// The project config: the pack version each pack is pinned to and the folder
-/// code paths are written from.
+/// The project config: the pack version each pack is pinned to, the folder
+/// code paths are written from, and the repository tops already offered agent
+/// files.
 final class ProjectConfig {
   new _({
     required this.pins,
@@ -207,8 +208,8 @@ List<String> _readAgentFileRoots(YamlMap map) {
   return List.unmodifiable(roots);
 }
 
-/// Whether [value] is a `code_root` the config reader accepts: a non-empty
-/// relative path with `/` separators.
+/// Whether [value] is a config path entry the reader accepts (`code_root`, each
+/// `agent_file_roots` entry): a non-empty relative path with `/` separators.
 ///
 /// Omitting the key or writing `.` is the one spelling of the root itself, so
 /// the empty string is refused.

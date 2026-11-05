@@ -5,6 +5,7 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:yaml/yaml.dart';
 
 const _templatesFolder = '.specstone/templates';
@@ -38,12 +39,22 @@ const _yamlWords = {'true', 'false', 'null'};
 /// Writes `packs:`, one pin per line in code point order of the name, then a
 /// `code_root:` line only when [codeRoot] is not `.`, then an
 /// `agent_file_roots:` list only when [agentFileRoots] is not empty; each
-/// scalar is quoted when plain YAML would read it as another value.
+/// scalar is quoted when plain YAML would read it as another value. Throws
+/// [ArgumentError] for an agent file root the reader would refuse.
 String configText(
   Map<String, PackVersion> pins, {
   String codeRoot = '.',
   List<String> agentFileRoots = const [],
 }) {
+  for (final root in agentFileRoots) {
+    if (!isCodeRootValue(root)) {
+      throw ArgumentError.value(
+        root,
+        'agentFileRoots',
+        'must be a non-empty relative path with / separators',
+      );
+    }
+  }
   final names = pins.keys.toList()..sort(compareCodePoints);
   final lines = [for (final name in names) '  $name: ${pins[name]}\n'];
   final codeRootLine = codeRoot == '.'

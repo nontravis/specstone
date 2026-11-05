@@ -169,6 +169,26 @@ void main() {
     }
 
     group('agent_file_roots', () {
+      for (final value in ['', ' ~', ' null']) {
+        test('template_packs/pin_pack_versions/read_project_config: '
+            '`agent_file_roots:$value` reads as an empty list', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\nagent_file_roots:$value\n',
+          );
+
+          expect(ProjectConfig.read(root).agentFileRoots, isEmpty);
+        });
+      }
+
+      test('template_packs/pin_pack_versions/read_project_config: entries read '
+          'back as written, without normalizing or dedup', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\nagent_file_roots: [./a, ./a, a/]\n',
+        );
+
+        expect(ProjectConfig.read(root).agentFileRoots, ['./a', './a', 'a/']);
+      });
+
       test('template_packs/pin_pack_versions/read_project_config E16: no agent_file_roots key reads as an empty list', () async {
         final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
 
