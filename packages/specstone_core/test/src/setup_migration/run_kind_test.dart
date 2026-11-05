@@ -168,6 +168,21 @@ void main() {
       );
     });
 
+    test('$_findRoot E10: a repository top a code entry reaches, found in a '
+        'tech stack doc, is an upgrade', () async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml': shippedPinsConfig(),
+        'proj/docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - ../other/\n---\n# Tech stack\n',
+        'other/.git/HEAD': 'ref\n',
+      });
+
+      expect(
+        _choose(Directory.fromUri(base.uri.resolve('proj/'))),
+        RunKind.upgrade,
+      );
+    });
+
     test('$_findRoot E11: a repository top the config lists is none', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml':
