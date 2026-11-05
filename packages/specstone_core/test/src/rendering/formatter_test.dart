@@ -1,9 +1,11 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/prd_core.dart';
 
 const _owned = '''
 id: owned
@@ -365,6 +367,51 @@ void main() {
       final twice = formatDoc(Doc.parse(once), feature) as Formatted;
 
       expect(twice.text, once);
+    });
+  });
+
+  group('open generated block', () {
+    final open = generatedOpenMarker('journey_flow');
+    final unclosed =
+        '# J\n\n## Goal\n\nGo.\n\n## Flow\n\n$open\n| a     | b |\n'
+        '|---|---|\n';
+    final spacedEnd =
+        '# J\n\n## Goal\n\nGo.\n\n## Flow\n\n$open\nx\n$generatedEndMarker  \n';
+
+    Future<MergedDocType> journey() async =>
+        prdCoreDocType(await resolvePrdCore(), 'journey');
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks E06: '
+        'an opening marker of a listed kind with no end marker is refused, '
+        'naming the marker and its kind', () async {
+      final docType = await journey();
+
+      for (final text in [unclosed, spacedEnd]) {
+        final refused = _refused(text, docType);
+
+        expect(refused.openBlock, open, reason: text);
+        expect(refused.openBlockKind, 'journey_flow', reason: text);
+        expect(refused.unknownHeaders, isEmpty, reason: text);
+        expect(refused.unclosedFence, isFalse, reason: text);
+      }
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks E06: '
+        'a doc with an open generated block is written as given and is not '
+        'laid out', () async {
+      final docType = await journey();
+
+      expect(layOutDoc(unclosed, docType), unclosed);
+      expect(isLaidOut(unclosed, docType), isFalse);
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks E04: '
+        'an open marker of a kind the type does not list is text', () async {
+      final docType = await journey();
+      final other = generatedOpenMarker('note_toc');
+      final text = '# J\n\n## Goal\n\n$other\nGo.\n';
+
+      expect(formatDoc(Doc.parse(text), docType), isA<Formatted>());
     });
   });
 

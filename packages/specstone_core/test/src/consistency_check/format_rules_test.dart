@@ -91,6 +91,22 @@ void main() {
     expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 
+  test('consistency_check/find_template_breaks/report_format_drift E04: a doc with an open generated block, which format refuses, gives no format_drift', () async {
+    const journey = 'prds/journeys/sign_in/JOURNEY.md';
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/$journey':
+              '# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n'
+              '<!-- specstone:generated journey_flow (do not edit) -->\n'
+              '| a     | b |\n|---|---|\n',
+        },
+      ),
+      docPath: journey,
+    );
+    expect(spots(report, FindingKind.formatDrift), isEmpty);
+  });
+
   test('consistency_check/find_template_breaks/report_format_drift E05: an untyped doc gives no format_drift', () async {
     final report = checkOf(
       await writeCheckProject(

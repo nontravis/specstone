@@ -129,6 +129,14 @@ List<bool> generatedBlockLines(List<String> lines, Set<String> kinds) {
   return marked;
 }
 
+/// Returns the first opening marker of one of [kinds] in [doc] that has no
+/// end marker, or null when every such block closes.
+OpenBlock? openBlockOf(Doc doc, Set<String> kinds) {
+  if (kinds.isEmpty) return null;
+  final lines = _Lines.split(doc.afterFrontmatter);
+  return _scan(lines, kinds, bodyStart: 0).openBlock;
+}
+
 /// Runs the generators [docType] lists, in list order, and returns their
 /// blocks.
 List<GeneratedBlock> runGenerators<R>(

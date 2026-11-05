@@ -363,6 +363,16 @@ void main() {
       expect([for (final s in parsed.content.sections) s.key], ['problem']);
     });
 
+    test('index_query/read_current_docs/index_each_doc E19: a doc with an open generated block has no formatted value', () {
+      final open = generatedOpenMarker('journey_flow');
+      for (final end in ['', '$generatedEndMarker  \n']) {
+        final disk = '# J\n\n## Flow\n\n$open\n| a     | b |\n|---|---|\n$end';
+        final parsed = parse('prds/journeys/buy/JOURNEY.md', disk);
+        expect(parsed.doc.formatted, isNull, reason: disk);
+        expect(parsed.content.lineFacts.charCount, disk.length);
+      }
+    });
+
     test('index_query/read_current_docs/index_each_doc: an untyped doc has no formatted value', () {
       expect(parse('notes/a.md', '# A\n').doc.formatted, isNull);
     });
