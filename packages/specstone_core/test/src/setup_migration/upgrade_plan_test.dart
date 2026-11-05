@@ -790,4 +790,79 @@ sections:
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
   });
+
+  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: pins equal '
+      'and two docs off their layout plan the layout pass alone', () async {
+    final plan = _plan(
+      await _fixture(
+        acmePin: '1.2.0',
+        overrides: const {},
+        docs: const {
+          'prds/GNFR.md': '## Reliability\n\nr\n\n## Performance\n\np\n',
+          'prds/PROJECT.md': '## Project vision\n\nv\n\n## Project name\n\nn\n',
+          'prds/features/f01_a/FEATURE.md':
+              '## Problem\n\nn\n\n## Benefit hypothesis\n\ng\n',
+        },
+      ),
+    );
+
+    expect(
+      plan.toText(),
+      'pack upgrade: pins unchanged, layout only\n'
+      'commit 2, rewrites:\n'
+      '  format layout: prds/GNFR.md, prds/PROJECT.md\n',
+    );
+    expect(plan.commit2Message, 'lay docs out as format writes them');
+    expect(plan.moves, isEmpty);
+    expect(plan.rewrites.map((rewrite) => rewrite.path), [
+      'docs/prds/GNFR.md',
+      'docs/prds/PROJECT.md',
+    ]);
+  });
+
+  test('setup_migration/upgrade_pack_pins/chain_migration_steps E07: a doc a '
+      'step renames and a doc no step touches are each laid out once, a '
+      'laid-out doc is not rewritten, a refused doc is left', () async {
+    final plan = _plan(
+      await _fixture(
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md':
+              '---\nowner: sre\n---\n# Deploy\n\n## Steps\n\nRun it.   \n',
+          'prds/features/f01_a/FEATURE.md':
+              '## Benefit hypothesis\n\ng\n\n\n## Problem\n\nn\n',
+          'prds/features/f02_b/FEATURE.md':
+              '## Problem\n\nn\n\n## Benefit hypothesis\n\ng\n',
+          'prds/features/f03_c/FEATURE.md': '## Notes\nx   \n',
+        },
+      ),
+    );
+
+    expect(
+      _rewriteAt(plan, 'docs/prds/runbooks/deploy/RUNBOOK.md').text,
+      '---\non_call: sre\n---\n# Deploy\n\n## Procedure\n\nRun it.\n',
+    );
+    expect(
+      _rewriteAt(plan, 'docs/prds/features/f01_a/FEATURE.md').text,
+      '## Problem\n\nn\n\n## Benefit hypothesis\n\ng\n',
+    );
+    expect(
+      plan.rewrites.map((rewrite) => rewrite.path),
+      isNot(
+        contains(
+          anyOf(
+            'docs/prds/features/f02_b/FEATURE.md',
+            'docs/prds/features/f03_c/FEATURE.md',
+          ),
+        ),
+      ),
+    );
+    expect(
+      plan.toText(),
+      contains(
+        '  format layout: prds/features/f01_a/FEATURE.md, '
+        'prds/runbooks/deploy/RUNBOOK.md\n'
+        '  .specstone/config.yaml: acme 1.2.0\n',
+      ),
+    );
+  });
 }

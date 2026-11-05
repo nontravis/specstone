@@ -72,15 +72,15 @@ name: Acme non-functional requirements
 
 ## Performance
 
-| ID     | Requirement           |
-|--------|-----------------------|
+| ID | Requirement |
+|---|---|
 | NFR-01 | Login answers in 1 s. |
 
 ## Data integrity
 
-| ID     | Requirement                  |
-|--------|------------------------------|
-| NFR-02 | A credential is never lost.  |
+| ID | Requirement |
+|---|---|
+| NFR-02 | A credential is never lost. |
 ''',
   'docs/prds/features/f01_login/FEATURE.md': '''
 ---

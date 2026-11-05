@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
@@ -26,6 +27,8 @@ import 'package:yaml/yaml.dart';
 const _docsFolder = 'docs/';
 const _commit1Message = 'move docs to their new pack paths';
 const _commit2Message = 'upgrade pack pins';
+const _layoutOnlyHeader = 'pack upgrade: pins unchanged, layout only';
+const _layoutOnlyCommit2Message = 'lay docs out as format writes them';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -33,7 +36,9 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 ///
 /// Selects every pinned pack's steps, refuses an override the new versions
 /// leave dangling, then plans the moves, the section and field renames in the
-/// docs and the overrides, the link rewrites, and the new pins. Writes
+/// docs and the overrides, the link rewrites, each typed doc laid out as
+/// `format` lays it out, and the new pins. With every pin equal the plan holds
+/// the layout pass alone. Writes
 /// nothing. Throws `MigrateFault` `override_dangling`, `MigrateFault`
 /// `upgrade_collision` listing every move and rename collision at once, and a
 /// `TemplateFault` before it returns, so a refused run prints nothing.
@@ -90,6 +95,7 @@ RunPlan planUpgradeRun(
   final docRewrites = <PlannedRewrite>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
+  final laidOutPaths = <String>[];
   final renameCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
@@ -160,6 +166,12 @@ RunPlan planUpgradeRun(
         linkLines.add('$plannedPath: $label');
       }
     }
+    final laidOut = layOutDoc(
+      lf,
+      match is MatchedDocType ? match.docType : null,
+    );
+    if (laidOut != lf) laidOutPaths.add(plannedPath);
+    lf = laidOut;
     if (lf == original.lf) continue;
     docRewrites.add(
       PlannedRewrite(
@@ -182,7 +194,9 @@ RunPlan planUpgradeRun(
           ],
         ),
   ];
-  final configRewrite = _configRewriteOf(root, upgrades);
+  final configRewrite = upgrades.isEmpty
+      ? null
+      : _configRewriteOf(root, upgrades);
 
   String shownAt(int index) {
     final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
@@ -208,18 +222,23 @@ RunPlan planUpgradeRun(
   ];
 
   return RunPlan(
-    header: 'pack upgrade: ${upgraded.join(', ')}',
+    header: upgrades.isEmpty
+        ? _layoutOnlyHeader
+        : 'pack upgrade: ${upgraded.join(', ')}',
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...docRewrites, ...overrideRewrites, configRewrite],
+    rewrites: [...docRewrites, ...overrideRewrites, ?configRewrite],
     creates: const [],
     left: const [],
     commit1Message: _commit1Message,
-    commit2Message: _commit2Message,
+    commit2Message: upgrades.isEmpty
+        ? _layoutOnlyCommit2Message
+        : _commit2Message,
     rewriteLines: [
       ...stepLines,
       ...linkLines,
-      '$projectConfigPath: ${pinned.join(', ')}',
+      ?formatLayoutLine(laidOutPaths),
+      if (upgrades.isNotEmpty) '$projectConfigPath: ${pinned.join(', ')}',
     ],
   );
 }

@@ -104,4 +104,13 @@ void main() {
     ]);
     expect(commits.last.moves, isEmpty);
   });
+
+  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: the layout '
+      'line names the docs in code point order, and is null without one', () {
+    expect(
+      formatLayoutLine(['prds/PROJECT.md', 'prds/GNFR.md']),
+      'format layout: prds/GNFR.md, prds/PROJECT.md',
+    );
+    expect(formatLayoutLine(const []), isNull);
+  });
 }

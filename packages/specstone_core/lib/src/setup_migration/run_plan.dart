@@ -1,12 +1,22 @@
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _docsPrefix = 'docs/';
 
 /// The ProjectPath of the index's ignore file; `MoveJournal.run` creates it
 /// before any step.
 const specstoneGitignorePath = '.specstone/.gitignore';
+
+/// Returns the plan line naming the docs the layout pass rewrites, or null
+/// when [docPaths] is empty.
+///
+/// [docPaths] are DocPaths, shown in code point order.
+String? formatLayoutLine(Iterable<String> docPaths) {
+  final sorted = docPaths.toList()..sort(compareCodePoints);
+  return sorted.isEmpty ? null : 'format layout: ${sorted.join(', ')}';
+}
 
 /// A doc commit 2 rewrites in place.
 final class PlannedRewrite {

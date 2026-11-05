@@ -382,7 +382,7 @@ name: Login API
 ## FR trace
 
 | FR id | Method |
-|-------|--------|
+|---|---|
 | `us01/fr01_validate_credentials` | POST /login |
 ''',
     };
