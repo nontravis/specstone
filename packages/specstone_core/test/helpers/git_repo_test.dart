@@ -3,52 +3,55 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import 'git_repo.dart';
-import 'legacy_fixture.dart';
 import 'temp_tree.dart';
 
-const _probeDirKey = 'GIT_REPO_TEST_PROBE_DIR';
-
 void main() {
-  final isProbe = Platform.environment.containsKey(_probeDirKey);
+  test('cleanGitEnvironment drops git location variables only', () {
+    final cleaned = cleanGitEnvironment({
+      'GIT_DIR': '/x/.git',
+      'Git_Dir': '/y/.git',
+      'GIT_WORK_TREE': '/x',
+      'GIT_INDEX_FILE': '/x/.git/index',
+      'PATH': '/bin',
+      'HOME': '/home/t',
+    });
 
-  test(
-    'probe: builds the fixture in the child process',
-    () => commitRepo(Directory(Platform.environment[_probeDirKey]!)),
-    skip: isProbe ? false : 'runs only as the child of the next test',
-  );
+    expect(cleaned, {'PATH': '/bin', 'HOME': '/home/t'});
+  });
 
-  test(
-    'a fixture never writes the repository a GIT_DIR points at',
-    () async {
-      final outer = await writeTree({});
-      expect(git(outer, ['init', '-q']).exitCode, 0);
-      final config = File('${outer.path}/.git/config');
-      final head = File('${outer.path}/.git/HEAD');
-      final configBefore = config.readAsBytesSync();
-      final headBefore = head.readAsBytesSync();
-      final fixture = await writeTree({'a.txt': 'a\n'});
+  test('a fixture never writes the repository a GIT_DIR points at', () async {
+    final outer = await writeTree({});
+    expect(git(outer, ['init', '-q']).exitCode, 0);
+    final config = File('${outer.path}/.git/config');
+    final head = File('${outer.path}/.git/HEAD');
+    final configBefore = config.readAsBytesSync();
+    final headBefore = head.readAsBytesSync();
+    final fixture = await writeTree({'a.txt': 'a\n'});
+    final environment = cleanGitEnvironment({
+      ...Platform.environment,
+      'GIT_DIR': '${outer.path}/.git',
+    });
 
-      final child = await Process.run(
-        Platform.resolvedExecutable,
-        [
-          'test',
-          'test/helpers/git_repo_test.dart',
-          '--plain-name',
-          'probe: builds the fixture',
-        ],
-        environment: {
-          'GIT_DIR': '${outer.path}/.git',
-          _probeDirKey: fixture.path,
-        },
+    // The same sequence commitRepo runs, under the exported GIT_DIR.
+    for (final args in [
+      ['init', '-q'],
+      ['config', 'user.name', 't'],
+      ['config', 'user.email', 't@t'],
+      ['add', '-A'],
+      ['commit', '-q', '-m', 'legacy'],
+    ]) {
+      final result = Process.runSync(
+        'git',
+        args,
+        workingDirectory: fixture.path,
+        environment: environment,
+        includeParentEnvironment: false,
       );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+    }
 
-      expect(child.exitCode, 0, reason: '${child.stdout}${child.stderr}');
-      expect(config.readAsBytesSync(), configBefore);
-      expect(head.readAsBytesSync(), headBefore);
-      expect(Directory('${fixture.path}/.git').existsSync(), isTrue);
-    },
-    skip: isProbe
-        ? 'the child skips the parent'
-        : (hasGit ? false : 'git missing'),
-  );
+    expect(config.readAsBytesSync(), configBefore);
+    expect(head.readAsBytesSync(), headBefore);
+    expect(Directory('${fixture.path}/.git').existsSync(), isTrue);
+  }, skip: hasGit ? false : 'git missing');
 }

@@ -13,12 +13,13 @@ const _gitLocationKeys = {
   'GIT_CEILING_DIRECTORIES',
 };
 
-/// The process environment without git's location variables.
+/// [source] (default: the process environment) without git's location
+/// variables, matched case-insensitively.
 ///
 /// A `git bisect run` or a git hook exports them; a fixture that inherited
 /// them would write the enclosing repository instead of its own.
-Map<String, String> cleanGitEnvironment() => {
-  for (final MapEntry(:key, :value) in Platform.environment.entries)
+Map<String, String> cleanGitEnvironment([Map<String, String>? source]) => {
+  for (final MapEntry(:key, :value) in (source ?? Platform.environment).entries)
     if (!_gitLocationKeys.contains(key.toUpperCase())) key: value,
 };
 
