@@ -15,7 +15,8 @@ import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 
-/// The dry-run example of `s02_api_migrate.md`, up to the `left` block.
+/// The `specstone migrate --dry-run` example of `api:setup_migration`, up to
+/// the `left` block.
 const _acmePlan = '''
 legacy migration: /work/acme (docs/prds/d01_context.md)
 commit 1, moves:
