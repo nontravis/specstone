@@ -25,11 +25,11 @@ const _frPath = '$_featureDir/us01_a/functional_requirements/fr02_y.md';
 const _frDocPath = '$_featureDir/us01_a/functional_requirements/fr02_y.md';
 const _frNoTitlePath = '$_featureDir/us01_a/functional_requirements/fr03_z.md';
 const _feature =
-    '# F-05 — Rendering\n\n## Feature name\n- **Human:** Rendering\n\n'
-    '## Feature goal\n- **why:** share docs\n';
+    '# F-05 — Rendering\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+    '## Feature goal\n\n- **why:** share docs\n';
 const _story =
-    '# Story one\n\n## Summary\nFormat docs.\n\n'
-    '## Acceptance Criteria\nDone.\n';
+    '# Story one\n\n## Summary\n\nFormat docs.\n\n'
+    '## Acceptance Criteria\n\nDone.\n';
 const _statusRow = '<tr><th>status</th><td>planned</td></tr>';
 
 Future<HtmlBuild> _build(
@@ -130,6 +130,28 @@ void main() {
       build.html.indexOf('Feature goal'),
       lessThan(build.html.indexOf('Feature name')),
     );
+    expect(build.warnings, [
+      'docs/$_featurePath does not match its template; run specstone format',
+    ]);
+  });
+
+  test('rendering/format_docs/leave_missing_sections: a doc lacking a section '
+      'raises no template warning', () async {
+    final build = await _build({
+      _featurePath: '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n',
+    });
+
+    expect(build.warnings, isEmpty);
+  });
+
+  test('rendering/format_docs/normalize_layout_whitespace: layout drift '
+      'raises the template warning', () async {
+    final build = await _build({
+      _featurePath:
+          '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
+          '## Feature goal\n\n- **why:** share docs\n',
+    });
+
     expect(build.warnings, [
       'docs/$_featurePath does not match its template; run specstone format',
     ]);

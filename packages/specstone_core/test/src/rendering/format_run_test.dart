@@ -26,15 +26,17 @@ const _notes = 'docs/$_featureDir/notes.md';
 const _story = 'docs/$_featureDir/us01_format_docs/USER_STORY.md';
 
 const _featureFormatted =
-    '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
-    '## Feature goal\n- **why:** share docs\n';
+    '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+    '## Feature goal\n\n- **why:** share docs\n';
 const _featureOutOfOrder =
-    '# F-05\n\n## Feature goal\n- **why:** share docs\n\n'
-    '## Feature name\n- **Human:** Rendering\n';
+    '# F-05\n\n## Feature goal\n\n- **why:** share docs\n\n'
+    '## Feature name\n\n- **Human:** Rendering\n';
 const _storyFormatted =
-    '# US-01\n\n## Summary\nFormat docs.\n\n## Acceptance Criteria\nDone.\n';
+    '# US-01\n\n## Summary\n\nFormat docs.\n\n'
+    '## Acceptance Criteria\n\nDone.\n';
 const _storyOutOfOrder =
-    '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
+    '# US-01\n\n## Acceptance Criteria\n\nDone.\n\n'
+    '## Summary\n\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 const _bom = [0xEF, 0xBB, 0xBF];
@@ -155,7 +157,7 @@ FormatReport _runNotes(
 );
 
 String _noteDoc(String block, {String front = ''}) =>
-    '$front# A\n\n## Contents\n$block\nbody\n\n## Steps\nx\n';
+    '$front# A\n\n## Contents\n\n$block\nbody\n\n## Steps\n\nx\n';
 
 String _fresh() => '$_toc\ntoc R1\n$_end';
 
@@ -199,10 +201,7 @@ void main() {
       final report = _run(run);
 
       expect(report.files.single.status, FileStatus.formatted);
-      expect(
-        _read(run, _feature),
-        '# T\n\n## Feature name\n\n## Feature goal\n- **why:**\n',
-      );
+      expect(_read(run, _feature), '# T\n');
     },
   );
 
@@ -675,12 +674,15 @@ void main() {
       'f05/us03/s2, f05/us03/fr02/e02: format inserts a missing block',
       () async {
         final run = await _openNotes({
-          _noteA: '# A\n\n## Contents\nbody\n\n## Steps\nx\n',
+          _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
         });
 
         _runNotes(run, _tocRun(_Calls()));
 
-        expect(_read(run, _noteA), _noteDoc(_fresh()));
+        expect(
+          _read(run, _noteA),
+          '# A\n\n## Contents\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+        );
       },
     );
 
@@ -865,14 +867,14 @@ void main() {
     test('f05/us01/fr03: sections out of order are reordered and each body '
         'is kept byte for byte outside its block', () async {
       final run = await _openNotes({
-        _noteA: '# A\n\n## Steps\nx\n  y\n\n## Contents\nbody\n',
+        _noteA: '# A\n\n## Steps\n\nx\n  y\n\n## Contents\n\nbody\n',
       });
 
       _runNotes(run, _tocRun(_Calls()));
 
       expect(
         _read(run, _noteA),
-        '# A\n\n## Contents\n${_fresh()}\nbody\n\n## Steps\nx\n  y\n',
+        '# A\n\n## Contents\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n  y\n',
       );
     });
 

@@ -18,15 +18,17 @@ const _storyDir = '$_featureDir/us01_format_docs';
 const _story = '$_storyDir/USER_STORY.md';
 
 const _featureFormatted =
-    '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
-    '## Feature goal\n- **why:** share docs\n';
+    '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+    '## Feature goal\n\n- **why:** share docs\n';
 const _featureOutOfOrder =
-    '# F-05\n\n## Feature goal\n- **why:** share docs\n\n'
-    '## Feature name\n- **Human:** Rendering\n';
+    '# F-05\n\n## Feature goal\n\n- **why:** share docs\n\n'
+    '## Feature name\n\n- **Human:** Rendering\n';
 const _storyFormatted =
-    '# US-01\n\n## Summary\nFormat docs.\n\n## Acceptance Criteria\nDone.\n';
+    '# US-01\n\n## Summary\n\nFormat docs.\n\n'
+    '## Acceptance Criteria\n\nDone.\n';
 const _storyOutOfOrder =
-    '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
+    '# US-01\n\n## Acceptance Criteria\n\nDone.\n\n'
+    '## Summary\n\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 /// Returns why a read-only folder cannot stop a write here, else null.
@@ -85,34 +87,36 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('f05/us01/s3: adds a missing required section with its starter text '
-        'and keeps the frontmatter', () async {
-      final project = await fixtureProject({
-        _feature: '---\ndraft: false\n---\n# F-05\n\n## Feature name\nx\n',
-      });
+    test('rendering/format_docs/leave_missing_sections S3: adds no section, '
+        'leaves draft as written, and check still lists the gap', () async {
+      const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
+      final project = await fixtureProject({_feature: disk});
       final runner = await runnerIn(project);
 
       expect(await runner.run(['format', _feature]), 0);
-      expect(
-        read(project, _feature),
-        '---\ndraft: false\n---\n# F-05\n\n## Feature name\nx\n\n'
-        '## Feature goal\n- **why:**\n',
-      );
+      expect(read(project, _feature), disk);
+      out.clear();
+      expect(await runner.run(['check']), 1);
+      expect(out.toString(), contains('required_section_missing'));
     });
 
-    test('f05/us01/s4: rewrites a header to the form the template writes', () async {
-      final project = await fixtureProject({
-        _feature:
-            '# F-05\n\n## Feature name\nx\n\n## feature   goal\n- **why:** y\n',
-      });
-      final runner = await runnerIn(project);
+    test(
+      'f05/us01/s4: rewrites a header to the form the template writes',
+      () async {
+        final project = await fixtureProject({
+          _feature:
+              '# F-05\n\n## Feature name\n\nx\n\n'
+              '## feature   goal\n\n- **why:** y\n',
+        });
+        final runner = await runnerIn(project);
 
-      expect(await runner.run(['format', _feature]), 0);
-      expect(
-        read(project, _feature),
-        '# F-05\n\n## Feature name\nx\n\n## Feature goal\n- **why:** y\n',
-      );
-    });
+        expect(await runner.run(['format', _feature]), 0);
+        expect(
+          read(project, _feature),
+          '# F-05\n\n## Feature name\n\nx\n\n## Feature goal\n\n- **why:** y\n',
+        );
+      },
+    );
 
     test('f05/us01/s5: --check lists the doc that would change, exits 1, and '
         'writes nothing', () async {
@@ -401,7 +405,7 @@ sections:
         expect(File.fromUri(shipped.uri.resolve(index)).existsSync(), isFalse);
 
         final notes = await fixtureProject({
-          notePath: '# A\n\n## Contents\nbody\n',
+          notePath: '# A\n\n## Contents\n\nbody\n',
         });
         final withNote = await noteRunnerIn(notes);
 
@@ -409,7 +413,7 @@ sections:
         expect(File.fromUri(notes.uri.resolve(index)).existsSync(), isTrue);
         expect(
           read(notes, notePath),
-          '# A\n\n## Contents\n$toc\ntoc\n$end\nbody\n',
+          '# A\n\n## Contents\n$toc\ntoc\n$end\n\nbody\n',
         );
       });
 

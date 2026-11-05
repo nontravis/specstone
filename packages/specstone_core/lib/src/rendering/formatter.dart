@@ -1,6 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart'
-    show sectionBodyOf;
+import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The result of formatting one doc.
@@ -45,8 +44,8 @@ String headerKey(String headerText) =>
 ///
 /// Refuses a doc whose headers are unknown or repeated, or whose text ends
 /// inside a code fence, changing nothing.
-/// Bodies and key blocks are copied as written; only a missing required
-/// section is added.
+/// Adds no section. Key blocks are copied as written; the head and every
+/// section body get their layout whitespace normalized by [layOutText].
 FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
   // An open fence hides the headers after it, so the sections cannot be judged.
   if (doc.hasUnclosedFence) {
@@ -73,20 +72,38 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
       ..writeAll(_orderedBlocks(frontmatter, docType).map((b) => b.text))
       ..write('---\n');
   }
-  if (doc.head.isNotEmpty) out.write(_endWithLineBreak(doc.head));
+  final kinds = docType.listedGenerators.toSet();
+  final head = layOutText(doc.head, blockKinds: kinds);
+  if (head.isNotEmpty) out.write(_endWithLineBreak(head));
   for (final template in docType.sections) {
     final found = sectionByKey[headerKey(template.header)];
-    if (found == null && !template.required) continue;
+    if (found == null) continue;
     if (out.isNotEmpty) out.write('\n');
-    final header = '## ${template.header}\n';
-    out.write(
-      found == null
-          ? header + sectionBodyOf(template.template ?? '')
-          : header + _endWithLineBreak(found.body),
-    );
+    final body = layOutText(found.body, underHeading: true, blockKinds: kinds);
+    out.write('## ${template.header}\n${_endWithLineBreak(body)}');
   }
   return Formatted(out.toString());
 }
+
+/// Returns [lfText] laid out as [formatDoc] lays it out for [docType].
+///
+/// Returns [lfText] unchanged when [docType] is null or [formatDoc] refuses
+/// the doc.
+String layOutDoc(String lfText, MergedDocType? docType) {
+  if (docType == null) return lfText;
+  return switch (formatDoc(Doc.parse(lfText), docType)) {
+    Formatted(:final text) => text,
+    Refused() => lfText,
+  };
+}
+
+/// Whether [formatDoc] accepts [lfText] and [layOutDoc] leaves it unchanged.
+bool isLaidOut(String lfText, MergedDocType? docType) =>
+    docType != null &&
+    switch (formatDoc(Doc.parse(lfText), docType)) {
+      Formatted(:final text) => text == lfText,
+      Refused() => false,
+    };
 
 Refused? _refusal(Doc doc, Map<String, MergedSection> templateByKey) {
   final unknown = <String>[];
