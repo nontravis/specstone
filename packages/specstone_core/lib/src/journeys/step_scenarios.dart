@@ -8,7 +8,6 @@ import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _storyType = 'user_story';
-final _leadingBlankLine = RegExp(r'^\n');
 
 /// Returns the `user_story` doc whose Name is [identity], or null.
 IndexedDoc? storyNamed(DocIndex index, String identity) => index.docs
@@ -33,7 +32,8 @@ String scenarioCopyOf(String block) {
   final newline = block.indexOf('\n');
   if (newline < 0) return '';
   final laidOut = layOutText(block.substring(newline + 1), underHeading: true);
-  return laidOut.replaceFirst(_leadingBlankLine, '').trimRight();
+  final withoutGap = laidOut.startsWith('\n') ? laidOut.substring(1) : laidOut;
+  return withoutGap.trimRight();
 }
 
 /// Reads the steps of the journey [doc], parsed against [docType].

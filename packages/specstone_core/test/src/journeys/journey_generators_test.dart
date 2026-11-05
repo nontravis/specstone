@@ -259,8 +259,13 @@ void main() {
     });
 
     test('journeys/lay_out_journey/paste_step_scenarios E01: '
-        'a first line right under the heading is copied without a gap', () {
-      expect(scenarioCopyOf('### Scenario 1 — x\n- a\n- b'), '- a\n- b');
+        'a table row right under the heading is copied in the layout', () {
+      expect(
+        scenarioCopyOf(
+          '### Scenario 1 — x\n| a   | b  |\n|-----|----|\n| 1 | 2 |',
+        ),
+        '| a | b |\n|---|---|\n| 1 | 2 |',
+      );
     });
 
     test('journeys/lay_out_journey/paste_step_scenarios E02: '
