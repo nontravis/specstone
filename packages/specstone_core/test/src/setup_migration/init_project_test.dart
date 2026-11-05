@@ -256,6 +256,62 @@ void main() {
     expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
   });
 
+  test('setup_migration/set_up_new_project/write_agent_files E18: a repository '
+      'top a code entry reaches is upserted, printed, and listed in the '
+      'config', () async {
+    final base = await writeTree({
+      'project/docs/specs/TECH_STACK.md':
+          '---\ncode:\n  - ../other/\n---\n# Tech stack\n',
+      'other/.git/HEAD': 'ref\n',
+      'other/AGENTS.md': 'Owner\n',
+    });
+    final project = Directory('${base.path}/project');
+
+    final (status, lines) = _run(project);
+
+    expect(status, 0);
+    final topLine = lines.indexOf('updated ../other/AGENTS.md');
+    expect(topLine, isNonNegative);
+    expect(lines.indexOf(_configLine()), greaterThan(topLine));
+    expect(
+      File('${base.path}/other/AGENTS.md').readAsStringSync(),
+      'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+    );
+    expect(
+      _read(project, '.specstone/config.yaml'),
+      contains('agent_file_roots:\n  - ../other\n'),
+    );
+  });
+
+  for (final (:real, :link) in [
+    (real: 'AGENTS.md', link: 'CLAUDE.md'),
+    (real: 'CLAUDE.md', link: 'AGENTS.md'),
+  ]) {
+    test('setup_migration/set_up_new_project/write_agent_files E22: $link '
+        'linked to $real takes the inline block and prints one line', () async {
+      final root = await writeTree({real: 'Owner\n'});
+      try {
+        createRelativeLink('${root.path}/$link', real);
+      } on FileSystemException {
+        markTestSkipped('symbolic links are not available');
+        return;
+      }
+
+      final (status, lines) = _run(root);
+
+      expect(status, 0);
+      expect(
+        _read(root, real),
+        'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+      );
+      expect(FileSystemEntity.isLinkSync('${root.path}/$link'), isTrue);
+      expect(
+        lines.where((l) => l.endsWith('CLAUDE.md') || l.endsWith('AGENTS.md')),
+        hasLength(1),
+      );
+    });
+  }
+
   test('f06/us03/fr02/e02, f06/us03/fr02/e03: init writes no .gitignore and '
       'no templates folder', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
