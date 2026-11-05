@@ -81,6 +81,48 @@ void main() {
     expect(spots(withBuyer, FindingKind.docRefUnresolved), isEmpty);
   });
 
+  test('consistency_check/find_broken_pointers/resolve_doc_links E02: an empty '
+      'depends_on list reports nothing', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          '  - PG-01\n---',
+          '  - PG-01\ndepends_on: []\n---',
+        ),
+      ),
+    );
+    expect(report.findings, isEmpty);
+  });
+
+  test('consistency_check/find_broken_pointers/resolve_doc_links E02: a scalar '
+      'depends_on is field_value_mismatch at the key line', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          '  - PG-01\n---',
+          '  - PG-01\ndepends_on: login\n---',
+        ),
+      ),
+    );
+    expect(spots(report), ['$loginFeature:6: field_value_mismatch']);
+  });
+
+  test('consistency_check/find_broken_pointers/resolve_doc_links E02: an empty '
+      'depends_on item is doc_ref_unresolved at the item line', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          '  - PG-01\n---',
+          '  - PG-01\ndepends_on:\n  - ""\n---',
+        ),
+      ),
+    );
+    expect(spots(report), ['$loginFeature:7: doc_ref_unresolved']);
+  });
+
   test(
     'consistency_check/find_broken_pointers/resolve_doc_links E02: a depends_on value '
     'no feature carries is doc_ref_unresolved; a feature resolves only',

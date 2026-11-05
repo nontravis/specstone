@@ -65,6 +65,20 @@ void main() {
       ]);
     },
   );
+  test('index_query/follow_references/list_doc_references E05: an empty depends_on '
+      'list or an empty item prints - none', () async {
+    for (final value in ['[]', '\n  - ""']) {
+      final withDeps = await indexWith({
+        'docs/prds/features/f02_signup/FEATURE.md':
+            '---\nstatus: planned\ndepends_on: $value\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
+      });
+      expect(
+        answerRefs(withDeps, 'feature:signup').text,
+        contains('Outbound\n- none\n'),
+        reason: value,
+      );
+    }
+  });
   test('f01/us07/s2, f01/us07/fr01/e03, f01/us07/fr01/e10: pointers are outbound only; an empty group prints - none', () async {
     expect(
       answerRefs(index, 'architecture:login').text,

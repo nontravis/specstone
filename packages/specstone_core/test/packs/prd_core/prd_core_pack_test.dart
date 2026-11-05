@@ -33,18 +33,20 @@ void main() {
           file: 'packs/prd-core/pack.yaml',
         );
         expect(manifest.migrations, isEmpty);
-        final upgrades = selectUpgrades(
-          {
-            'prd-core': PackVersion.parse(
-              '1.6.0',
-              file: 'config.yaml',
-              key: 'packs.prd-core',
-            ),
-          },
-          {'prd-core': manifest},
-        );
-        expect(upgrades.single.target.toString(), '1.7.0');
-        expect(upgrades.single.steps, isEmpty);
+        for (final pin in ['1.6.0', '1.0.0']) {
+          final upgrades = selectUpgrades(
+            {
+              'prd-core': PackVersion.parse(
+                pin,
+                file: 'config.yaml',
+                key: 'packs.prd-core',
+              ),
+            },
+            {'prd-core': manifest},
+          );
+          expect(upgrades.single.target.toString(), '1.7.0', reason: pin);
+          expect(upgrades.single.steps, isEmpty, reason: pin);
+        }
       },
     );
 
