@@ -49,12 +49,12 @@ String fingerprintFor(String block) => _fp('$block\n');
 
 /// The text of login scenario 1.
 const loginScenario1 =
-    '### Scenario 1 — [happy] Sign in\n- **Given** an account\n'
+    '### Scenario 1 — [happy] Sign in\n\n- **Given** an account\n'
     '- **When** the Agent signs in\n- **Then** the Agent sees the home page';
 
 /// The text of login scenario 2.
 const loginScenario2 =
-    '### Scenario 2 — [error] Wrong password\n- **Given** an account\n'
+    '### Scenario 2 — [error] Wrong password\n\n- **Given** an account\n'
     '- **When** the Agent types a wrong password\n- **Then** the Agent sees the sign-in refused';
 
 /// The statement of the project-wide sign-in time requirement.

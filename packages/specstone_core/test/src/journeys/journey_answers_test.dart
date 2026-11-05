@@ -17,8 +17,8 @@ String _scenario(int n) =>
     '- **Then** c$n';
 
 String _lines(int n) => switch (n) {
-  1 => loginScenario1.substring(loginScenario1.indexOf('\n') + 1),
-  2 => loginScenario2.substring(loginScenario2.indexOf('\n') + 1),
+  1 => loginScenario1.substring(loginScenario1.indexOf('\n') + 1).trimLeft(),
+  2 => loginScenario2.substring(loginScenario2.indexOf('\n') + 1).trimLeft(),
   _ => _scenario(n).substring(_scenario(n).indexOf('\n') + 1),
 };
 
