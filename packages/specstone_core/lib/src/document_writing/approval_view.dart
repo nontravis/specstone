@@ -1,13 +1,16 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One draft as the approval view shows it.
 final class DraftView {
   const new({
     required this.name,
     required this.docType,
+    this.mergedType,
     this.title,
     this.status,
     required this.projectPath,
@@ -20,6 +23,10 @@ final class DraftView {
 
   /// The doc type the index gives.
   final String docType;
+
+  /// The merged doc type that lays out both copies, or null to compare as
+  /// written.
+  final MergedDocType? mergedType;
 
   /// The title line of the doc, or null when it has none.
   final String? title;
@@ -50,8 +57,9 @@ String withoutApprovalMarks(String lfText) =>
 /// [position] of [count] numbers the draft in the heading. [context] sets the
 /// lines of context per hunk, else every changed unit shows whole. With
 /// [color], diff lines carry ANSI colour and nothing else does. A draft with
-/// no approved copy shows whole. The `hash` row is the base of the draft as LF,
-/// marks included.
+/// no approved copy shows whole. Both copies are laid out first, so a
+/// layout-only change shows as none. The `hash` row is the base of the draft as
+/// LF, marks included.
 String renderApprovalView(
   DraftView draft, {
   required int position,
@@ -60,9 +68,9 @@ String renderApprovalView(
   bool color = false,
 }) {
   final lookup = draft.lookup;
-  final newText = withoutApprovalMarks(toLf(draft.text));
+  final newText = _comparable(draft.text, draft.mergedType);
   final oldText = switch (lookup) {
-    ApprovedCopy(:final text) => withoutApprovalMarks(toLf(text)),
+    ApprovedCopy(:final text) => _comparable(text, draft.mergedType),
     NoApprovedCopy() || UnknownHistory() => null,
   };
   final diff = approvalDiff(oldText ?? '', newText, context: context);
@@ -103,6 +111,10 @@ String renderApprovalView(
   }
   return out.toString();
 }
+
+/// Returns [text] as LF, laid out by [docType], without the approval marks.
+String _comparable(String text, MergedDocType? docType) =>
+    withoutApprovalMarks(layOutDoc(toLf(text), docType));
 
 const _noChange = 'no change since the approved copy';
 

@@ -264,6 +264,7 @@ String _viewOf(
     name: doc.name,
     // `_waitsForApproval` kept only typed drafts, so the type id is set.
     docType: doc.docTypeId!,
+    mergedType: session.index.typeOf(doc),
     title: doc.title,
     status: session.index.statusOf(doc),
     projectPath: projectPath,
@@ -302,8 +303,20 @@ void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
   final undrafted = withKeyBlock(lfText, 'draft', null);
   final approved = holdsApproved(Doc.parse(lfText))
       ? undrafted
-      : withKeyBlock(undrafted, 'approved', 'approved: true\n');
+      : withKeyBlock(
+          undrafted,
+          'approved',
+          'approved: true\n',
+          fieldOrder: _fieldOrderOf(session, doc),
+        );
   session.writeDoc(doc.docPath, approved, LineEnding.of(text));
+}
+
+List<String>? _fieldOrderOf(WriteSession session, IndexedDoc doc) {
+  final docType = session.index.typeOf(doc);
+  return docType == null
+      ? null
+      : [for (final field in docType.fields) field.id];
 }
 
 bool _sameBytes(List<int> a, List<int> b) {

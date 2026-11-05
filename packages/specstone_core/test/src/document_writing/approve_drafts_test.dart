@@ -935,4 +935,28 @@ void main() {
       '| Signup form | Collects the email |\n',
     );
   });
+
+  test('mark_doc_approved E07: y on a draft the formatter refuses puts approved: true at its field-order slot and keeps every other byte', () async {
+    const refused =
+        '---\ncovers:\n  - app/lib/src/signup/\ndraft: true\n---\n\n# Signup architecture\n\n## Bogus\nB.\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n';
+    final root = await writeWriteProject(extra: {'docs/$signupArch': refused});
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        names: ['architecture:signup'],
+        readLine: answers(['y']),
+        out: StringBuffer(),
+      ),
+    );
+    expect(
+      readDoc(root, signupArch),
+      refused.replaceFirst(
+        '---\ncovers:\n  - app/lib/src/signup/\ndraft: true\n',
+        '---\napproved: true\ncovers:\n  - app/lib/src/signup/\n',
+      ),
+    );
+  });
 }

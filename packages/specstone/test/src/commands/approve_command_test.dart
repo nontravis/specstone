@@ -330,6 +330,30 @@ void main() {
       expect(out.toString(), isNot(contains('\x1b[')));
     },
   );
+  test('show_changes_since_approval E17: --dry-run on a layout-only draft shows no change', () async {
+    const compact =
+        '| Component | Responsibility |\n|---|---|\n| Signup form | Collects the email |\n';
+    const padded =
+        '| Component   | Responsibility |\n|-------------|----------------|\n| Signup form | Collects the email |\n';
+    String arch(String mark, String table) =>
+        '---\n$mark---\n\n# Signup architecture\n\n## Components\n\n$table';
+    final root = await writeWriteProject(
+      extra: {'docs/$signupArch': arch('approved: true\n', compact)},
+    );
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(root, 'approved');
+    File('${root.path}/docs/$signupArch')
+        .writeAsStringSync(arch('draft: true\n', padded));
+    commitAll(root, 'padded as a draft');
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['approve', '--dry-run', 'architecture:signup']),
+      0,
+    );
+    expect(out.toString(), contains('| changes | none |'));
+    expect(out.toString(), contains('no change since the approved copy'));
+  });
   group('--context reaches the view', () {
     Future<Directory> editedDraft() async {
       final root = await writeWriteProject(
