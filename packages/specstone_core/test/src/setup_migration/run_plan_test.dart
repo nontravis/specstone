@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:test/test.dart';
 
@@ -22,6 +26,45 @@ RunPlan _planOf(List<PathMove> moves) => RunPlan(
   left: const [],
   commit1Message: 'move',
   commit2Message: 'pin',
+);
+
+AgentWrite _agentWrite(
+  String path, {
+  required bool isNew,
+  bool isAtTop = false,
+}) => AgentWrite(
+  path: path,
+  text: 'text of $path\n',
+  isNew: isNew,
+  isAtTop: isAtTop,
+);
+
+AgentWritePlan _agentPlan() => AgentWritePlan(
+  rootWrites: [
+    _agentWrite('.specstone/AGENT.md', isNew: true),
+    _agentWrite('CLAUDE.md', isNew: false),
+  ],
+  topWrites: [
+    _agentWrite('../code/CLAUDE.md', isNew: false, isAtTop: true),
+    _agentWrite('../code/AGENTS.md', isNew: true, isAtTop: true),
+  ],
+  agentFileRoots: const ['../code'],
+  addedRoots: const ['../code'],
+);
+
+RunPlan _planWithAgents({List<String>? rewriteLines}) => RunPlan(
+  header: 'migrate',
+  moves: const [],
+  prunes: const [],
+  rewrites: const [
+    PlannedRewrite(path: 'docs/a.md', text: 'a', changes: ['x']),
+  ],
+  creates: const [PlannedCreate(path: 'docs/b.md', text: 'b')],
+  left: const [],
+  commit1Message: 'move',
+  commit2Message: 'pin',
+  rewriteLines: rewriteLines,
+  agentFiles: _agentPlan(),
 );
 
 List<String> _moveLines(RunPlan plan) => [
@@ -104,4 +147,117 @@ void main() {
     ]);
     expect(commits.last.moves, isEmpty);
   });
+
+  group(
+    'setup_migration/migrate_legacy_docs/commit_and_resume, '
+    'setup_migration/upgrade_pack_pins/apply_steps_and_pins: agent files',
+    () {
+      test('E02: one step per agent file follows every other write and create, '
+          'a new file created and an existing file written', () {
+        final steps = _planWithAgents().journalSteps(base: 'abc');
+
+        expect(
+          [for (final step in steps) step.describe()],
+          [
+            'write docs/a.md',
+            'create docs/b.md',
+            'create .specstone/AGENT.md',
+            'write CLAUDE.md',
+            'write ../code/CLAUDE.md',
+            'create ../code/AGENTS.md',
+            steps.last.describe(),
+          ],
+        );
+        expect(steps.last, isA<CommitStep>());
+      });
+
+      test('E02: commit 2 carries the root agent files and no top file', () {
+        final commit = _planWithAgents()
+            .journalSteps(base: 'abc')
+            .whereType<CommitStep>()
+            .single;
+
+        expect(
+          commit.paths,
+          containsAll([
+            'docs/a.md',
+            'docs/b.md',
+            '.specstone/AGENT.md',
+            'CLAUDE.md',
+          ]),
+        );
+        expect(commit.paths.where((path) => path.startsWith('..')), isEmpty);
+      });
+
+      test('INV-6: a journal written and read back replays the same steps', () {
+        final steps = _planWithAgents().journalSteps(base: 'abc');
+
+        final replayed = [
+          for (final step in steps)
+            JournalStep.fromJson(jsonDecode(jsonEncode(step.toJson()))),
+        ];
+
+        expect(replayed.map((step) => step.toJson()), [
+          for (final step in steps) step.toJson(),
+        ]);
+      });
+
+      test('E20: a top path applies through the target and a write skips a '
+          'file that is missing', () {
+        final temp = Directory.systemTemp.createTempSync('run_plan_test');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final project = Directory('${temp.path}/project')..createSync();
+        final code = Directory('${temp.path}/code')..createSync();
+        File('${code.path}/CLAUDE.md').writeAsStringSync('old\n');
+        final target = JournalTarget(projectRoot: project, docsRoot: project);
+
+        final steps = _planWithAgents().journalSteps(base: 'abc');
+        for (final step in steps) {
+          if (step is WriteStep && step.path == 'CLAUDE.md') {
+            step.apply(target);
+          }
+          if (step is WriteStep && step.path == '../code/CLAUDE.md') {
+            step.apply(target);
+          }
+          if (step is CreateStep && step.path == '../code/AGENTS.md') {
+            step.apply(target);
+          }
+        }
+
+        expect(
+          File('${code.path}/CLAUDE.md').readAsStringSync(),
+          'text of ../code/CLAUDE.md\n',
+        );
+        expect(
+          File('${code.path}/AGENTS.md').readAsStringSync(),
+          'text of ../code/AGENTS.md\n',
+        );
+        expect(File('${project.path}/CLAUDE.md').existsSync(), isFalse);
+      });
+
+      test('E08: the agent files line prints last under commit 2, creates when '
+          'the plan has no rewrite lines', () {
+        expect(
+          _planWithAgents().toText(),
+          'migrate\n'
+          'commit 2, rewrites:\n'
+          '  a.md: x\n'
+          'commit 2, creates:\n'
+          '  b.md\n'
+          '  ${_agentPlan().line}\n',
+        );
+      });
+
+      test('E08: a planner that sets rewrite lines places the line itself', () {
+        expect(
+          _planWithAgents(rewriteLines: const ['own']).toText(),
+          'migrate\n'
+          'commit 2, rewrites:\n'
+          '  own\n'
+          'commit 2, creates:\n'
+          '  b.md\n',
+        );
+      });
+    },
+  );
 }

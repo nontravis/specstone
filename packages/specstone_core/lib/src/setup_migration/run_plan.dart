@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 
 const _docsPrefix = 'docs/';
 
@@ -58,6 +59,7 @@ final class RunPlan {
     required this.commit2Message,
     this.rewriteLines,
     this.closingLine,
+    this.agentFiles,
   });
 
   /// The first line the plan prints.
@@ -93,6 +95,11 @@ final class RunPlan {
   /// What an applied run prints after its commit lines.
   final String? closingLine;
 
+  /// The agent file writes the run adds after every other write, or null.
+  ///
+  /// Root files join commit 2; top files lie outside both commits.
+  final AgentWritePlan? agentFiles;
+
   /// Returns the plan as the lines `migrate --dry-run` prints.
   String toText() {
     final rewriteBlock = rewriteLines ?? _rewriteLines();
@@ -111,6 +118,8 @@ final class RunPlan {
     block('commit 2, rewrites:', rewriteBlock);
     block('commit 2, creates:', [
       for (final create in creates) '${_shown(create.path)}${create.note}',
+      if (rewriteLines == null && (agentFiles?.line ?? '').isNotEmpty)
+        agentFiles!.line,
     ]);
     block('left in place for specstone check:', left);
     return buffer.toString();
@@ -132,6 +141,8 @@ final class RunPlan {
     final commit2Paths = {
       for (final rewrite in rewrites) rewrite.path,
       for (final create in creates) create.path,
+      for (final write in agentFiles?.rootWrites ?? const <AgentWrite>[])
+        write.path,
       specstoneGitignorePath,
     };
     return [
@@ -149,6 +160,11 @@ final class RunPlan {
         ),
       for (final rewrite in rewrites) WriteStep(rewrite.path, rewrite.text),
       for (final create in creates) CreateStep(create.path, create.text),
+      for (final write in _agentWrites())
+        if (write.isNew)
+          CreateStep(write.path, write.text)
+        else
+          WriteStep(write.path, write.text),
       CommitStep(
         message: commit2Message,
         paths: commit2Paths.toList(),
@@ -156,6 +172,11 @@ final class RunPlan {
       ),
     ];
   }
+
+  Iterable<AgentWrite> _agentWrites() => [
+    ...?agentFiles?.rootWrites,
+    ...?agentFiles?.topWrites,
+  ];
 
   /// Returns one [MoveStep] per move, in order, except that a move onto the
   /// source of a move not yet run parks in a stage slot first and takes its
