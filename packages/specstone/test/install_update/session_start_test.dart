@@ -200,6 +200,153 @@ void main() {
       expect(message(r), offPathMessage);
     });
 
+    group('CLAUDE_ENV_FILE', () {
+      const hookPathLine = 'export PATH="\$HOME/.specstone/bin:\$PATH"\n';
+      const hookPutMessage =
+          'Specstone: the CLI is installed in ~/.specstone/bin, and this '
+          "session's later commands get it from the hook, but the PATH "
+          'Claude Code starts with still lacks it. Start Claude Code from a '
+          'terminal, or add ~/.specstone/bin to the PATH Claude Code gets.';
+      const notInstalledMessage =
+          'Specstone: the CLI is not installed. Install it: $curlLine';
+
+      File envFile([String content = '']) =>
+          File('${sb.root.path}/claude_env.sh')..writeAsStringSync(content);
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E06: off the PATH with the binary present, the line is appended '
+          'to the file', () async {
+        installBinary('specstone');
+        final env = envFile('# kept\n');
+
+        final r = await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+
+        expect(message(r), hookPutMessage);
+        expect(env.readAsStringSync(), '# kept\n$hookPathLine');
+      });
+
+      test(
+        'install_update/warn_at_session_start/register_session_start_hook '
+        'E06: a file without a final line feed keeps its last line whole',
+        () async {
+          installBinary('specstone');
+          final env = envFile('# kept');
+
+          await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+
+          expect(env.readAsStringSync(), '# kept\n$hookPathLine');
+        },
+      );
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E06: a second run appends again and truncates nothing', () async {
+        installBinary('specstone');
+        final env = envFile();
+
+        await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+        await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+
+        expect(env.readAsStringSync(), '$hookPathLine$hookPathLine');
+      });
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E07: specstone on the PATH appends nothing', () async {
+        installBinary('specstone');
+        final env = envFile('# kept\n');
+
+        final r = await runHook(
+          version: '0.2.0',
+          extra: {'CLAUDE_ENV_FILE': env.path},
+        );
+
+        expect(r.exitCode, 0);
+        expect(r.stdout, isEmpty);
+        expect(env.readAsStringSync(), '# kept\n');
+      });
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E08: an unset CLAUDE_ENV_FILE appends nothing and the off-PATH '
+          'message says the CLI is not on the PATH Claude Code sees', () async {
+        installBinary('specstone');
+
+        final r = await runHook();
+
+        expect(message(r), offPathMessage);
+        expect(sb.snapshot().keys, ['.specstone/bin/specstone']);
+      });
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E08: an empty CLAUDE_ENV_FILE appends nothing and gets the same '
+          'message', () async {
+        installBinary('specstone');
+        final cwd = Directory('${sb.root.path}/cwd')..createSync();
+
+        final r = await Process.run(
+          '/bin/bash',
+          [scriptPath()],
+          environment: sb.env(hookEnv({}))..['CLAUDE_ENV_FILE'] = '',
+          includeParentEnvironment: false,
+          workingDirectory: cwd.path,
+        );
+
+        expect(message(r), offPathMessage);
+        expect(cwd.listSync(), isEmpty);
+        expect(sb.snapshot().keys, ['.specstone/bin/specstone']);
+      });
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E09: no binary appends nothing and the not-installed message '
+          'shows', () async {
+        final env = envFile('# kept\n');
+
+        final r = await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+
+        expect(message(r), notInstalledMessage);
+        expect(env.readAsStringSync(), '# kept\n');
+      });
+
+      test('install_update/warn_at_session_start/find_missing_cli E04: with '
+          'CLAUDE_ENV_FILE set the message names the hook; without it the '
+          'message does not', () async {
+        installBinary('specstone');
+
+        final withFile = message(
+          await runHook(extra: {'CLAUDE_ENV_FILE': envFile().path}),
+        );
+        final without = message(await runHook());
+
+        expect(withFile, hookPutMessage);
+        expect(without, offPathMessage);
+        expect(withFile, isNot(without));
+      });
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E06: an env file in a missing folder still exits 0 with a message '
+          'that does not claim the hook put the folder on the PATH', () async {
+        installBinary('specstone');
+        final missing = '${sb.root.path}/no_such_folder/claude_env.sh';
+
+        final r = await runHook(extra: {'CLAUDE_ENV_FILE': missing});
+
+        expect(message(r), offPathMessage);
+        expect(File(missing).existsSync(), isFalse);
+      });
+
+      test('install_update/warn_at_session_start/register_session_start_hook '
+          'E06: a read-only env file still exits 0 with that message and '
+          'stays as it was', () async {
+        installBinary('specstone');
+        final env = envFile('# kept\n');
+        Process.runSync('chmod', ['444', env.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', env.path]));
+
+        final r = await runHook(extra: {'CLAUDE_ENV_FILE': env.path});
+
+        expect(message(r), offPathMessage);
+        expect(env.readAsStringSync(), '# kept\n');
+      });
+    });
+
     test(
       'f09/us05/fr02/e04, INV-9: the script writes nothing, opens no network, '
       'and reads no stdin',
