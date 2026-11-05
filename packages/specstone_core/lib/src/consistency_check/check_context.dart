@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 
 export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show BodyLine;
@@ -40,6 +41,9 @@ final class CheckContext {
 
   /// The folder code paths are written from, `code_root` of the config.
   Directory get codeRoot => _session.project.codeRoot;
+
+  /// The merged doc types of the project.
+  MergedSet get set => _session.project.set;
 
   /// The docs root folder, `<project root>/docs/`.
   Directory get docsRoot => _session.project.docsRoot;

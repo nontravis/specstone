@@ -332,6 +332,30 @@ void main() {
       expect(_bytesUnder(root), before);
     });
 
+    test(
+      'R51: with equal pins, an override that does not merge stops migrate '
+      'and check with override_id_not_found naming the override file',
+      () async {
+        final home = await _home(version: '1.0.0', migrations: '');
+        final root = await _project();
+
+        for (final args in [
+          ['migrate'],
+          ['check'],
+        ]) {
+          final result = await _run(root, home, args, console: _owner());
+
+          expect(result.status, 78, reason: args.join(' '));
+          expect(result.err, contains(_overridePath), reason: args.join(' '));
+          expect(
+            result.err,
+            contains('sections.steps'),
+            reason: args.join(' '),
+          );
+        }
+      },
+    );
+
     test('f06/us02/s7, f06/us02/fr01/e03: a pin newer than Specstone refuses', () async {
       final home = await _home(version: '1.2.0');
       final root = await _project(pin: '9.0.0');

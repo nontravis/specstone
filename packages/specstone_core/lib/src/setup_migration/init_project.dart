@@ -155,11 +155,7 @@ AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeRootFolders(
-        projectRoot,
-        codeRoot: '.',
-        codeEntries: codeEntriesOnDisk(projectRoot, set),
-      ),
+      codeRootFolders: codeFoldersOf(projectRoot, set, codeRoot: '.'),
       agentFileRoots: const [],
     ),
     full: true,

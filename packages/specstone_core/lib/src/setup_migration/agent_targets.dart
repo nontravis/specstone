@@ -85,6 +85,21 @@ List<Directory> codeRootFolders(
   return folders.values.toList();
 }
 
+/// Returns the folders of the code roots for the project at [projectRoot]:
+/// [codeRoot], then every `code:` entry the docs hold under the merged [set].
+///
+/// The one source of code roots for `check`, `chooseRun`, `init`, and the
+/// upgrade plan, so they agree on which repository tops exist.
+List<Directory> codeFoldersOf(
+  Directory projectRoot,
+  MergedSet set, {
+  required String codeRoot,
+}) => codeRootFolders(
+  projectRoot,
+  codeRoot: codeRoot,
+  codeEntries: codeEntriesOnDisk(projectRoot, set),
+);
+
 /// Returns the `code:` entries of every doc under `docs/` whose type holds the
 /// `code` field, each once, in doc path order.
 List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {

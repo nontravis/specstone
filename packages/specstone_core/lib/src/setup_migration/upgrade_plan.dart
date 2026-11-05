@@ -364,10 +364,10 @@ AgentWritePlan _agentFilesOf(
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeRootFolders(
+      codeRootFolders: codeFoldersOf(
         projectRoot,
+        set,
         codeRoot: config.codeRoot,
-        codeEntries: codeEntriesOnDisk(projectRoot, set),
       ),
       agentFileRoots: config.agentFileRoots,
     ),

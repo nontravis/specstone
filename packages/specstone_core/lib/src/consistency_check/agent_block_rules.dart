@@ -6,7 +6,6 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/version.dart';
 
-const _codeField = 'code';
 const _migrateHint = 'run `specstone migrate`';
 
 String _messageOf(AgentDriftKind kind) => switch (kind) {
@@ -28,17 +27,17 @@ String _messageOf(AgentDriftKind kind) => switch (kind) {
 /// Returns one `agent_block_stale` finding per drift `agentFileDrifts` finds.
 ///
 /// Each finding carries the file's path from the project root and no `name`.
-/// The code entries come from the index as `uncoveredCode` reads them.
+/// The code roots come from `codeFoldersOf`, as `migrate` reads them.
 Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
   final config = ProjectConfig.read(context.projectRoot);
   final drifts = agentFileDrifts(
     AgentFileInputs(
       projectRoot: context.projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeRootFolders(
+      codeRootFolders: codeFoldersOf(
         context.projectRoot,
+        context.set,
         codeRoot: _codeRootFromProject(context),
-        codeEntries: _codeEntries(context),
       ),
       agentFileRoots: config.agentFileRoots,
     ),
@@ -50,16 +49,6 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
       line: line,
       message: _messageOf(kind),
     );
-  }
-}
-
-Iterable<String> _codeEntries(CheckContext context) sync* {
-  for (final doc in context.index.docs) {
-    if (!context.typeHoldsField(context.typeOf(doc), _codeField)) continue;
-    for (final (:value, line: _, text: _)
-        in context.linesOf(doc).entriesOf(_codeField)) {
-      if (value is String) yield value;
-    }
   }
 }
 
