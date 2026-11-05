@@ -258,6 +258,47 @@ void main() {
           '  b.md\n',
         );
       });
+
+      test('write_agent_files E22: a symbolic-link CLAUDE.md stays a link and '
+          'its real file takes the write', () {
+        final temp = Directory.systemTemp.createTempSync('run_plan_link');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        File('${temp.path}/AGENTS.md').writeAsStringSync('Owner\n');
+        Link('${temp.path}/CLAUDE.md').createSync('AGENTS.md');
+        final target = JournalTarget(projectRoot: temp, docsRoot: temp);
+        final plan = RunPlan(
+          header: 'migrate',
+          moves: const [],
+          prunes: const [],
+          rewrites: const [],
+          creates: const [],
+          left: const [],
+          commit1Message: 'move',
+          commit2Message: 'pin',
+          agentFiles: AgentWritePlan(
+            rootWrites: [_agentWrite('CLAUDE.md', isNew: false)],
+            topWrites: const [],
+            agentFileRoots: const [],
+            addedRoots: const [],
+          ),
+        );
+
+        final steps = plan.journalSteps(base: 'abc', projectRoot: temp);
+        for (final step in steps.whereType<WriteStep>()) {
+          step.apply(target);
+        }
+
+        expect(FileSystemEntity.isLinkSync('${temp.path}/CLAUDE.md'), isTrue);
+        expect(
+          File('${temp.path}/AGENTS.md').readAsStringSync(),
+          'text of CLAUDE.md\n',
+        );
+        expect(steps.whereType<WriteStep>().single.path, 'AGENTS.md');
+        expect(
+          steps.whereType<CommitStep>().single.paths,
+          contains('AGENTS.md'),
+        );
+      }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
     },
   );
 }

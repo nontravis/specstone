@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
@@ -131,7 +133,20 @@ final class RunPlan {
   /// then commit 2. No step deletes a file (INV-6). Commit 1 carries each move
   /// once as a ProjectPath pair, its stage hops left out, so a tracked file
   /// moved onto an ignored path still commits as a rename.
-  List<JournalStep> journalSteps({required String base}) {
+  ///
+  /// With [projectRoot], an agent file that is a symbolic link gets its step
+  /// on the link's real file, so the link stays a link; without it, steps keep
+  /// the planned paths.
+  List<JournalStep> journalSteps({
+    required String base,
+    Directory? projectRoot,
+  }) {
+    final agentWrites = [
+      for (final write in agentFiles?.rootWrites ?? const <AgentWrite>[])
+        (write: write, path: _realPath(write.path, projectRoot)),
+      for (final write in agentFiles?.topWrites ?? const <AgentWrite>[])
+        (write: write, path: _realPath(write.path, projectRoot)),
+    ];
     final movedPaths = [
       for (final move in moves) ...[
         '$_docsPrefix${move.from}',
@@ -141,8 +156,8 @@ final class RunPlan {
     final commit2Paths = {
       for (final rewrite in rewrites) rewrite.path,
       for (final create in creates) create.path,
-      for (final write in agentFiles?.rootWrites ?? const <AgentWrite>[])
-        write.path,
+      for (final (:write, :path) in agentWrites)
+        if (!write.isAtTop && !path.startsWith('../')) path,
       specstoneGitignorePath,
     };
     return [
@@ -160,11 +175,11 @@ final class RunPlan {
         ),
       for (final rewrite in rewrites) WriteStep(rewrite.path, rewrite.text),
       for (final create in creates) CreateStep(create.path, create.text),
-      for (final write in _agentWrites())
+      for (final (:write, :path) in agentWrites)
         if (write.isNew)
-          CreateStep(write.path, write.text)
+          CreateStep(path, write.text)
         else
-          WriteStep(write.path, write.text),
+          WriteStep(path, write.text),
       CommitStep(
         message: commit2Message,
         paths: commit2Paths.toList(),
@@ -173,10 +188,30 @@ final class RunPlan {
     ];
   }
 
-  Iterable<AgentWrite> _agentWrites() => [
-    ...?agentFiles?.rootWrites,
-    ...?agentFiles?.topWrites,
-  ];
+  /// Returns [path] with a symbolic link resolved to its real file, as a
+  /// `/`-separated path from [projectRoot]; a missing or unlinked path stays.
+  static String _realPath(String path, Directory? projectRoot) {
+    if (projectRoot == null) return path;
+    final sep = Platform.pathSeparator;
+    final absolute = '${projectRoot.path}$sep${path.replaceAll('/', sep)}';
+    if (!FileSystemEntity.isLinkSync(absolute)) return path;
+    try {
+      final real = File(absolute).resolveSymbolicLinksSync().split(sep);
+      final root = projectRoot.resolveSymbolicLinksSync().split(sep);
+      var shared = 0;
+      while (shared < root.length &&
+          shared < real.length &&
+          root[shared] == real[shared]) {
+        shared++;
+      }
+      return [
+        for (var i = shared; i < root.length; i++) '..',
+        ...real.skip(shared),
+      ].join('/');
+    } on FileSystemException {
+      return path;
+    }
+  }
 
   /// Returns one [MoveStep] per move, in order, except that a move onto the
   /// source of a move not yet run parks in a stage slot first and takes its
