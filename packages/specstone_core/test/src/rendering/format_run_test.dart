@@ -789,6 +789,21 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh()));
     });
 
+    test('f05/us03/fr02/e06: an open marker whose line ends in spaces or a '
+        'tab refuses the file and leaves it byte-equal', () async {
+      final openDoc = '# A\n\n## Contents\n$_toc  \nbody\n\n## Steps\nx\n';
+      final run = await _openNotes({_noteA: openDoc});
+
+      final report = _runNotes(run, _tocRun(_Calls()));
+
+      final refused = report.files.firstWhere((f) => f.path == _noteA);
+      expect(refused.status, FileStatus.refused);
+      expect(refused.openBlock, '$_toc  ');
+      expect(refused.openBlockKind, 'note_toc');
+      expect(report.exitStatus, 1);
+      expect(_read(run, _noteA), openDoc);
+    });
+
     test('f05/us03/fr01/e02: a run with no doc type listing generators never '
         'calls open', () async {
       final run = await _openNotes({_feature: _featureOutOfOrder});

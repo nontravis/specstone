@@ -414,6 +414,21 @@ void main() {
       expect(isLaidOut(Doc.parse(unclosed), unclosed, docType), isFalse);
     });
 
+    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+        'E06: a marker whose line ends in spaces or a tab, with no end '
+        'marker, is refused, naming the marker as written', () async {
+      final docType = await journey();
+
+      for (final tail in [' ', '\t', '   ']) {
+        final text = '# J\n\n## Goal\n\nGo.\n\n## Flow\n\n$open$tail\nx\n';
+
+        final refused = _refused(text, docType);
+
+        expect(refused.openBlock, '$open$tail', reason: 'tail ${tail.length}');
+        expect(refused.openBlockKind, 'journey_flow');
+      }
+    });
+
     test('rendering/keep_generated_blocks_current/write_generated_blocks E04: '
         'an open marker of a kind the type does not list is text', () async {
       final docType = await journey();

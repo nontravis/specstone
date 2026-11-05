@@ -276,6 +276,22 @@ int _bodyStart(String lfText, Doc doc) {
   return '\n'.allMatches(prefix).length;
 }
 
+/// The index after the last character of [line] that is not a space or a tab.
+int _contentEnd(String line) {
+  var i = line.length;
+  while (i > 0) {
+    final unit = line.codeUnitAt(i - 1);
+    if (unit != 0x20 && unit != 0x09) break;
+    i--;
+  }
+  return i;
+}
+
+String _trimEnd(String line) {
+  final end = _contentEnd(line);
+  return end == line.length ? line : line.substring(0, end);
+}
+
 _Scan _scan(_Lines lines, Set<String> kinds, {required int bodyStart}) {
   final fenced = fencedLines([
     for (var i = bodyStart; i < lines.length; i++) lines[i],
@@ -290,9 +306,11 @@ _Scan _scan(_Lines lines, Set<String> kinds, {required int bodyStart}) {
   OpenBlock? openBlock;
   var i = bodyStart;
   while (i < lines.length) {
-    final kind = isMarker(i, kindByMarker.containsKey)
-        ? kindByMarker[lines[i]]
-        : null;
+    // Layout trims trailing spaces and tabs, so a marker line that only
+    // differs from an exact one by them is an open block too.
+    final kind = fenced[i - bodyStart]
+        ? null
+        : kindByMarker[_trimEnd(lines[i])];
     if (kind == null) {
       i++;
       continue;
@@ -300,7 +318,7 @@ _Scan _scan(_Lines lines, Set<String> kinds, {required int bodyStart}) {
     var j = i + 1;
     while (j < lines.length &&
         !isMarker(j, (line) => line == generatedEndMarker) &&
-        !isMarker(j, kindByMarker.containsKey)) {
+        !isMarker(j, (line) => kindByMarker.containsKey(_trimEnd(line)))) {
       j++;
     }
     if (j >= lines.length || lines[j] != generatedEndMarker) {
