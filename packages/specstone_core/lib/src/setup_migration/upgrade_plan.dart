@@ -38,10 +38,10 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// leave dangling, then plans the moves, the section and field renames in the
 /// docs and the overrides, the link rewrites, each typed doc laid out as
 /// `format` lays it out, and the new pins. With every pin equal the plan holds
-/// the layout pass alone. Writes
-/// nothing. Throws `MigrateFault` `override_dangling`, `MigrateFault`
-/// `upgrade_collision` listing every move and rename collision at once, and a
-/// `TemplateFault` before it returns, so a refused run prints nothing.
+/// the layout pass alone. Writes nothing. Throws `MigrateFault`
+/// `override_dangling`, `MigrateFault` `upgrade_collision` listing every move
+/// and rename collision at once, and a `TemplateFault` before it returns, so a
+/// refused run prints nothing.
 /// [homeDirectory] is the personal pack home, or null.
 RunPlan planUpgradeRun(
   Directory root, {
@@ -54,6 +54,7 @@ RunPlan planUpgradeRun(
     homeDirectory: homeDirectory,
   );
   final upgrades = selectUpgrades(pins, available);
+  final isLayoutOnly = upgrades.isEmpty;
   final overrides = loadProjectTemplates(root);
   refuseDanglingOverrides(
     overrides,
@@ -194,9 +195,7 @@ RunPlan planUpgradeRun(
           ],
         ),
   ];
-  final configRewrite = upgrades.isEmpty
-      ? null
-      : _configRewriteOf(root, upgrades);
+  final configRewrite = isLayoutOnly ? null : _configRewriteOf(root, upgrades);
 
   String shownAt(int index) {
     final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
@@ -222,7 +221,7 @@ RunPlan planUpgradeRun(
   ];
 
   return RunPlan(
-    header: upgrades.isEmpty
+    header: isLayoutOnly
         ? _layoutOnlyHeader
         : 'pack upgrade: ${upgraded.join(', ')}',
     moves: moves,
@@ -231,14 +230,12 @@ RunPlan planUpgradeRun(
     creates: const [],
     left: const [],
     commit1Message: _commit1Message,
-    commit2Message: upgrades.isEmpty
-        ? _layoutOnlyCommit2Message
-        : _commit2Message,
+    commit2Message: isLayoutOnly ? _layoutOnlyCommit2Message : _commit2Message,
     rewriteLines: [
       ...stepLines,
       ...linkLines,
       ?formatLayoutLine(laidOutPaths),
-      if (upgrades.isNotEmpty) '$projectConfigPath: ${pinned.join(', ')}',
+      if (!isLayoutOnly) '$projectConfigPath: ${pinned.join(', ')}',
     ],
   );
 }

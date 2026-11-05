@@ -865,4 +865,28 @@ sections:
       ),
     );
   });
+
+  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E01: an older '
+      'pin with no selected step lays out an off-layout doc beside the new '
+      'pin', () async {
+    final plan = _plan(
+      await _fixture(
+        packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
+        overrides: const {},
+        docs: const {
+          'prds/features/f01_a/FEATURE.md':
+              '## Benefit hypothesis\n\ng\n\n\n## Problem\n\nn\n',
+        },
+      ),
+    );
+
+    expect(
+      plan.toText(),
+      'pack upgrade: acme 1.0.0 -> 1.2.0\n'
+      'commit 2, rewrites:\n'
+      '  format layout: prds/features/f01_a/FEATURE.md\n'
+      '  .specstone/config.yaml: acme 1.2.0\n',
+    );
+    expect(plan.commit2Message, 'upgrade pack pins');
+  });
 }

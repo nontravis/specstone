@@ -313,9 +313,10 @@ void main() {
       ], contains('section_undeclared'));
     });
 
-    test('setup_migration/upgrade_pack_pins S1, S6: pins equal and one doc off '
-        'its layout makes one layout-only commit, then a rerun has nothing to '
-        'migrate', () async {
+    test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11, '
+        'setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+        'and one doc off its layout makes one layout-only commit, then a rerun '
+        'has nothing to migrate', () async {
       final home = await _home(migrations: '');
       final root = await _project(
         pin: '1.2.0',
