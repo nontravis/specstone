@@ -32,7 +32,7 @@ commit 2, rewrites:
   prds/PROJECT.md: title, name, vision labels
   prds/FEATURES.md: title, name
   prds/GNFR.md: title, name; project-layer section Data integrity
-  prds/features/f01_login/FEATURE.md: title from Feature name, name, index tables removed, 2 links
+  prds/features/f01_login/FEATURE.md: title from Feature name, name, index tables removed, 2 links, 1 mention
   prds/features/f01_login/us01_email_login/USER_STORY.md: title, name
   prds/features/f01_login/us01_email_login/fr01_validate_credentials.md: title, name
   specs/f01_login/ARCHITECTURE.md: title, name, feature_id, Concerns, covers (1 path)
@@ -515,24 +515,34 @@ name: Login API
     }, skip: unreadablePathSkipReason());
   });
 
-  test('f06/us01/fr04/e11: a markdown doc left in place gets the link '
-      'rewrite only', () async {
+  test('f06/us01/fr04/e11, rewrite_titles_keys_and_links E17: a markdown '
+      'doc left in place gets the link rewrite only, its other lines '
+      'byte-equal', () async {
+    const glossary = '''
+# Glossary
+
+See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_validate_credentials.md).
+
+| Term    | Meaning       |
+|---------|---------------|
+| Session | Signed-in use |
+''';
     final plan = await _plan({
       ...acmeLegacy,
-      'docs/prds/d04_glossary.md': [
-        '# Glossary\n\nSee [FR](features/f01_login/us01_email_login/',
-        'functional_requirements/fr01_validate_credentials.md).\n',
-      ].join(),
+      'docs/prds/d04_glossary.md': glossary,
     });
 
     final rewrite = _rewrite(plan, 'prds/d04_glossary.md');
 
     expect(rewrite.changes, ['1 link']);
+    expect(rewrite.text, isNot(contains('functional_requirements')));
     expect(
       rewrite.text,
-      contains('(features/f01_login/us01_email_login/fr01_validate'),
+      glossary.replaceFirst(
+        'functional_requirements/fr01_validate_credentials.md',
+        'fr01_validate_credentials.md',
+      ),
     );
-    expect(rewrite.text, isNot(contains('functional_requirements')));
     expect(plan.left, contains('prds/d04_glossary.md'));
   });
 

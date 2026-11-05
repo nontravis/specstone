@@ -101,7 +101,8 @@ Let a user sign in.
 ## Feature flow
 
 1. Validate the credentials: [FR-01](us01_email_login/functional_requirements/fr01_validate_credentials.md).
-2. Meet the limits in [NFRs](../../d03_non_functional.md).
+2. Meet the limits in [NFRs](../../d03_non_functional.md), last listed in
+   `../../d02_features.md`.
 
 ## User stories index
 
