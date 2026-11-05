@@ -109,6 +109,21 @@ void main() {
       expect(view, isNot(contains('no change since the approved copy')));
       expect(view, contains('| changes |'));
     });
+
+    test('a draft the formatter refuses against a laid-out copy compares each as layOutDoc gives it', () {
+      final view = _render(
+        _draft(
+          text: fr('\n$padded\n## Bogus\nB.\n'),
+          lookup: _copy(fr('\n$compact')),
+          mergedType: frType,
+        ),
+      );
+      expect(view, isNot(contains('no change since the approved copy')));
+      expect(view, contains('+## Bogus'));
+      // The refused draft keeps its padding; the laid-out copy has none.
+      expect(view, contains('+| Name   | Role |'));
+      expect(view, contains('-| Name | Role |'));
+    });
   });
 
   group('renderApprovalView', () {
