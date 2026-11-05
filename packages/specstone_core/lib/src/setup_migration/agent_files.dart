@@ -68,28 +68,48 @@ typedef MarkerScan = ({
 /// Finds the marker lines of [text] outside fenced code.
 ///
 /// A marker is a whole line: BEGIN with a `X.Y.Z` version, or END. The text
-/// is malformed unless it holds no marker, or one BEGIN and then one END.
+/// is malformed unless it holds no marker, or one BEGIN and then one END, and
+/// closes every code fence: a block after an open fence would sit in code.
+/// An open fence makes `firstMarkerLine` the fence's opening line.
 MarkerScan scanMarkers(String text) {
   final lines = _lineStrings(text);
-  final fenced = fencedLines(lines);
+  if (lines.first.startsWith(_byteOrderMark)) {
+    lines[0] = lines.first.substring(1);
+  }
+  final scan = fenceScan(lines);
   final begins = <int>[];
   final ends = <int>[];
   for (var index = 0; index < lines.length; index++) {
-    if (fenced[index]) continue;
-    final line = _markerCandidate(lines[index], isFirst: index == 0);
-    if (_beginMarker.hasMatch(line)) begins.add(index + 1);
-    if (line == _endMarker) ends.add(index + 1);
+    if (scan.fenced[index]) continue;
+    if (_beginMarker.hasMatch(lines[index])) begins.add(index + 1);
+    if (lines[index] == _endMarker) ends.add(index + 1);
   }
+  final openFenceLine = _openFenceLine(lines, scan.openFence);
   final isWellFormed =
-      (begins.isEmpty && ends.isEmpty) ||
-      (begins.length == 1 && ends.length == 1 && begins.first < ends.first);
-  final markers = [...begins, ...ends]..sort();
+      openFenceLine == null &&
+      ((begins.isEmpty && ends.isEmpty) ||
+          (begins.length == 1 &&
+              ends.length == 1 &&
+              begins.first < ends.first));
+  final markers = [?openFenceLine, ...begins, ...ends]..sort();
   return (
     beginLine: begins.firstOrNull,
     endLine: ends.firstOrNull,
     firstMarkerLine: markers.firstOrNull,
     isMalformed: !isWellFormed,
   );
+}
+
+/// Returns the 1-based line of the fence still open at the end, or null.
+int? _openFenceLine(List<String> lines, String? openFence) {
+  if (openFence == null) return null;
+  for (var index = lines.length - 1; index >= 0; index--) {
+    if (lines[index] == openFence &&
+        fenceScan(lines.sublist(0, index)).openFence == null) {
+      return index + 1;
+    }
+  }
+  return null;
 }
 
 /// Returns [fileText] holding [block], or null when it already does.
@@ -103,7 +123,11 @@ MarkerScan scanMarkers(String text) {
 String? upsertBlock(String fileText, String block) {
   final scan = scanMarkers(fileText);
   if (scan.isMalformed) {
-    throw ArgumentError.value(fileText, 'fileText', 'malformed markers');
+    throw ArgumentError.value(
+      scan.firstMarkerLine,
+      'firstMarkerLine',
+      'malformed markers or an unclosed code fence',
+    );
   }
   final eol = LineEnding.of(fileText);
   final beginLine = scan.beginLine;
@@ -162,9 +186,6 @@ List<String> _lineStrings(String text) {
   if (lines.length > 1 && lines.last.isEmpty) lines.removeLast();
   return lines;
 }
-
-String _markerCandidate(String line, {required bool isFirst}) =>
-    isFirst && line.startsWith(_byteOrderMark) ? line.substring(1) : line;
 
 List<String> _bodyOf(List<String> lines, int beginLine, int endLine) =>
     lines.sublist(beginLine, endLine - 1);

@@ -188,6 +188,28 @@ void main() {
       expect(scan.isMalformed, isFalse);
     });
 
+    test('$_fr R47: an unclosed fence is malformed at its opening line', () {
+      final scan = scanMarkers('intro\n```dart\ncode\n');
+
+      expect(scan.isMalformed, isTrue);
+      expect(scan.firstMarkerLine, 2);
+    });
+
+    test('$_fr R47: a BOM then a fence opens the fence on line 1', () {
+      final scan = scanMarkers('\uFEFF```\n$_begin\n$_end\n');
+
+      expect(scan.isMalformed, isTrue);
+      expect(scan.firstMarkerLine, 1);
+      expect(scan.beginLine, isNull);
+    });
+
+    test('$_fr R47: a closed fence earlier does not hide the open one', () {
+      final scan = scanMarkers('```\nx\n```\ntext\n```\nopen\n');
+
+      expect(scan.isMalformed, isTrue);
+      expect(scan.firstMarkerLine, 5);
+    });
+
     test('$_fr: a BOM before the first marker does not hide it', () {
       final scan = scanMarkers('\uFEFF$_begin\nb\n$_end\n');
 
@@ -312,5 +334,26 @@ void main() {
         throwsArgumentError,
       );
     });
+    test('$_fr R47: a stray fence refuses, naming the line not the text', () {
+      expect(
+        () => upsertBlock('Owner secret\n```\ncode\n', _importBlock()),
+        throwsA(
+          isA<ArgumentError>()
+              .having((e) => e.invalidValue, 'invalidValue', 2)
+              .having((e) => e.toString(), 'text', isNot(contains('secret'))),
+        ),
+      );
+    });
+
+    test(
+      '$_fr R47: a closed fence upserts and a second run changes 0 bytes',
+      () {
+        const owner = '```\ncode\n```\n';
+        final first = upsertBlock(owner, _importBlock());
+
+        expect(first, '$owner${_importBlock()}');
+        expect(upsertBlock(first!, _importBlock()), isNull);
+      },
+    );
   });
 }
