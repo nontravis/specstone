@@ -103,6 +103,14 @@ void main() {
         ),
       ),
     );
+    expect(
+      plan.toText(),
+      endsWith(
+        'left in place for specstone check:\n'
+        '  specs/INDEX.md\n'
+        '  specs/f01_login/DOMAIN.md\n',
+      ),
+    );
   });
 
   test(
