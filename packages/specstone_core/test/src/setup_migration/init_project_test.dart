@@ -349,6 +349,31 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('setup_migration/set_up_new_project/write_agent_files E08: init on a '
+      'legacy tree writes the agent files in commit 2', () async {
+    final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+
+    final (status, lines) = _run(
+      root,
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+      runGit: runRealGit,
+    );
+
+    expect(status, 0);
+    final names =
+        (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
+                as String)
+            .trim()
+            .split('\n');
+    expect(names, containsAll(['.specstone/AGENT.md', 'CLAUDE.md']));
+    expect(
+      _read(root, 'CLAUDE.md'),
+      contains('<!-- BEGIN specstone v$specstoneVersion -->'),
+    );
+    expect(lines, contains('  agent files: .specstone/AGENT.md, CLAUDE.md'));
+  }, skip: hasGit ? null : 'git is not available');
+
   test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "
       'applies the migrate run with no prompt', () async {
     final root = await gitFixture(acmeLegacy);

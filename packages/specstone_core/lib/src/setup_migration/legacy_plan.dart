@@ -10,6 +10,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
@@ -23,6 +24,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 
 const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
@@ -102,12 +104,25 @@ RunPlan planLegacyRun(
   );
 
   final config = File.fromUri(root.uri.resolve(projectConfigPath));
-  final configRewrite = config.existsSync()
-      ? _configRewriteOf(root, config, pins)
-      : null;
-  final codeRoot = linkFolder == null || config.existsSync()
-      ? '.'
-      : _codeRootOf(root, linkFolder, originals.values);
+  final existing = config.existsSync() ? ProjectConfig.read(root) : null;
+  final codeRoot =
+      existing?.codeRoot ??
+      (linkFolder == null
+          ? '.'
+          : _codeRootOf(root, linkFolder, originals.values));
+  final agentFiles = _agentFilesOf(
+    root,
+    codeRoot: codeRoot,
+    agentFileRoots: existing?.agentFileRoots ?? const [],
+  );
+  final configRewrite = existing == null
+      ? null
+      : _configRewriteOf(
+          config,
+          existing,
+          pins,
+          agentFileRoots: agentFiles.agentFileRoots,
+        );
 
   return RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
@@ -115,10 +130,14 @@ RunPlan planLegacyRun(
     prunes: prunesOf(legacy.moves),
     rewrites: [...rewrites.planned, ?configRewrite],
     creates: [
-      if (!config.existsSync())
+      if (existing == null)
         PlannedCreate(
           path: projectConfigPath,
-          text: configText(pins, codeRoot: codeRoot),
+          text: configText(
+            pins,
+            codeRoot: codeRoot,
+            agentFileRoots: agentFiles.agentFileRoots,
+          ),
           note:
               ': ${_pinList(pins)}'
               '${codeRoot == '.' ? '' : '; code_root $codeRoot'}',
@@ -133,6 +152,33 @@ RunPlan planLegacyRun(
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
     closingLine: legacyClosingLine,
+    agentFiles: agentFiles,
+  );
+}
+
+/// Plans the agent files of the legacy run: the full upsert at the root and at
+/// each unlisted repository top.
+///
+/// The legacy tree holds no `code:` entry, so the code roots are the config's
+/// `code_root` alone.
+AgentWritePlan _agentFilesOf(
+  Directory root, {
+  required String codeRoot,
+  required List<String> agentFileRoots,
+}) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return planAgentWrites(
+    AgentFileInputs(
+      projectRoot: projectRoot,
+      cliVersion: specstoneVersion,
+      codeRootFolders: codeRootFolders(
+        projectRoot,
+        codeRoot: codeRoot,
+        codeEntries: const [],
+      ),
+      agentFileRoots: agentFileRoots,
+    ),
+    full: true,
   );
 }
 
@@ -344,18 +390,21 @@ bool _existsIn(Directory docsRoot, String path) =>
     FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and keeps every
-/// other pin and the code root of the existing [config], or null when the
+/// other pin and the code root of the [existing] config, or null when the
 /// text stays.
+///
+/// [agentFileRoots] is the full list the run leaves in the config.
 PlannedRewrite? _configRewriteOf(
-  Directory root,
   File config,
-  Map<String, PackVersion> pins,
-) {
-  final existing = ProjectConfig.read(root);
-  final text = configText({
-    ...existing.pins,
-    ...pins,
-  }, codeRoot: existing.codeRoot);
+  ProjectConfig existing,
+  Map<String, PackVersion> pins, {
+  required List<String> agentFileRoots,
+}) {
+  final text = configText(
+    {...existing.pins, ...pins},
+    codeRoot: existing.codeRoot,
+    agentFileRoots: agentFileRoots,
+  );
   if (text == config.readAsStringSync()) return null;
   return PlannedRewrite(path: projectConfigPath, text: text, changes: ['pins']);
 }

@@ -12,6 +12,7 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
@@ -149,6 +150,8 @@ void main() {
               .trim()
               .split('\n');
       expect(names.toSet(), {
+        '.specstone/AGENT.md',
+        'AGENTS.md',
         '.specstone/config.yaml',
         '.specstone/.gitignore',
         '.specstone/templates/gnfr.yaml',
@@ -407,6 +410,33 @@ void main() {
       expect(MoveJournal.pending(project), isFalse);
     }, skip: skipGit);
   });
+
+  test('setup_migration/migrate_legacy_docs/commit_and_resume E02: commit 2 '
+      'holds the agent files, a CLAUDE.md block appended', () async {
+    final root = await _spacedFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+    final out = StringBuffer();
+
+    expect(_run(root, out, answers: ['y']), 0);
+
+    final names =
+        (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
+                as String)
+            .trim()
+            .split('\n');
+    expect(names, containsAll(['.specstone/AGENT.md', 'CLAUDE.md']));
+    expect(names, isNot(contains('AGENTS.md')));
+    final claude = File.fromUri(root.uri.resolve('CLAUDE.md'));
+    expect(claude.readAsStringSync(), startsWith('# Acme\n'));
+    expect(
+      claude.readAsStringSync(),
+      contains('<!-- BEGIN specstone v$specstoneVersion -->'),
+    );
+    expect(
+      out.toString(),
+      contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
+    );
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
 
   test('a dry run from the folder holding the docs link plans code_root '
       'when the legacy paths resolve from there', () async {

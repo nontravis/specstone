@@ -9,6 +9,7 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
@@ -95,6 +96,7 @@ void main() {
           r'  \.specstone/\.gitignore\n'
           r'  \.specstone/templates/gnfr\.yaml\n'
           r'  specs/TECH_STACK\.md \(draft\)\n'
+          r'  agent files: \.specstone/AGENT\.md, AGENTS\.md\n'
           r'left in place for specstone check:\n'
           r'  specs/INDEX\.md\n$',
         ),
@@ -661,6 +663,104 @@ name: NFR
     );
     expect(_createdPaths(plan), isNot(contains('.specstone/config.yaml')));
     expect(plan.toText(), contains('  .specstone/config.yaml: pins\n'));
+  });
+
+  group('agent files', () {
+    test('setup_migration/migrate_legacy_docs/write_project_files E13: a '
+        'CLAUDE.md with no block gets the import block', () async {
+      final plan = await _plan({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+
+      final agents = plan.agentFiles!;
+      expect(agents.rootWrites.map((w) => w.path), [
+        '.specstone/AGENT.md',
+        'CLAUDE.md',
+      ]);
+      expect(agents.rootWrites.last.text, startsWith('# Acme\n'));
+      expect(
+        agents.rootWrites.last.text,
+        contains('<!-- BEGIN specstone v$specstoneVersion -->'),
+      );
+      expect(
+        plan.toText(),
+        contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
+      );
+    });
+
+    test('setup_migration/migrate_legacy_docs/write_project_files E13: a '
+        'root with no instruction file gets AGENTS.md', () async {
+      final plan = await _plan(acmeLegacy);
+
+      expect(plan.agentFiles!.rootWrites.map((w) => w.path), [
+        '.specstone/AGENT.md',
+        'AGENTS.md',
+      ]);
+      expect(plan.agentFiles!.topWrites, isEmpty);
+      expect(
+        plan.toText(),
+        contains('  agent files: .specstone/AGENT.md, AGENTS.md\n'),
+      );
+    });
+
+    test('setup_migration/set_up_new_project/write_agent_files E08: a '
+        'malformed block refuses before the plan returns', () async {
+      final root = await writeTree({
+        ...acmeLegacy,
+        'AGENTS.md': '<!-- BEGIN specstone v1.2.0 -->\nbody\n',
+      });
+
+      expect(
+        () => planLegacyRun(
+          Directory(root.resolveSymbolicLinksSync()),
+          templates: TemplateResolver(),
+          homeDirectory: null,
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (e) => e.code,
+            'code',
+            MigrateFaultCode.agentBlockMalformed,
+          ),
+        ),
+      );
+    });
+
+    test('setup_migration/migrate_legacy_docs/write_project_files E11, E13: '
+        'a code root in another repository takes its files outside the '
+        'commits', () async {
+      final plan = await _linkedPlan({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        'code/lib/a.dart': 'class A {}\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final agents = plan.agentFiles!;
+      expect(agents.topWrites.map((w) => w.path), ['code/AGENTS.md']);
+      expect(agents.agentFileRoots, ['code']);
+      final config = _configCreate(plan).text;
+      expect(config, contains('code_root: code\n'));
+      expect(config, contains('agent_file_roots:\n  - code\n'));
+      expect(
+        plan.toText(),
+        contains(
+          '  agent files: .specstone/AGENT.md, AGENTS.md, code/AGENTS.md\n',
+        ),
+      );
+    });
+
+    test('an existing config keeps its keys and lists the new top', () async {
+      final plan = await _linkedPlan({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\ncode_root: code\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final rewrite = plan.rewrites.singleWhere(
+        (r) => r.path == '.specstone/config.yaml',
+      );
+      expect(rewrite.text, contains('code_root: code\n'));
+      expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
+      expect(plan.agentFiles!.topWrites.map((w) => w.path), ['code/AGENTS.md']);
+    });
   });
 
   group('code_root', () {
