@@ -31,9 +31,9 @@ enum RunKind {
 /// when [legacyContextPath] exists; else the pins are compared, in code point
 /// order, with the available pack versions: the first newer pin throws
 /// `pack_pin_newer`, any older pin gives [RunKind.upgrade]. With every pin
-/// equal, a doc that `format --check` would rewrite gives [RunKind.upgrade],
-/// otherwise [RunKind.none]. [homeDirectory] is the personal pack home, or
-/// null.
+/// equal, a doc off its layout, generated blocks aside, gives
+/// [RunKind.upgrade], otherwise [RunKind.none]. [homeDirectory] is the
+/// personal pack home, or null.
 RunKind chooseRun(
   Directory root, {
   required TemplateResolver templates,
