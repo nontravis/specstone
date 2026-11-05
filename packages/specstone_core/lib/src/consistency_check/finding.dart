@@ -60,7 +60,8 @@ enum FindingKind {
   suspect('suspect'),
   unconfirmed('unconfirmed'),
   confirmedEntryMalformed('confirmed_entry_malformed'),
-  confirmedEntryStale('confirmed_entry_stale');
+  confirmedEntryStale('confirmed_entry_stale'),
+  agentBlockStale('agent_block_stale');
 
   new(this.wire);
 
@@ -69,7 +70,9 @@ enum FindingKind {
 
   /// Whether the kind is reported against the project, not one doc (INV-12).
   bool get isProjectLevel =>
-      this == codeUncovered || this == referenceDocUnresolved;
+      this == codeUncovered ||
+      this == referenceDocUnresolved ||
+      this == agentBlockStale;
 }
 
 /// One rule violation at a line of a file.
@@ -86,7 +89,8 @@ final class Finding {
   /// The violated rule.
   final FindingKind kind;
 
-  /// A DocPath, or a project template file's path from the project root.
+  /// A DocPath, or a project template or agent file's path from the project
+  /// root.
   final String path;
 
   /// The doc's name; null for an untyped doc and for a template file.

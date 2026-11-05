@@ -382,4 +382,27 @@ void main() {
       isEmpty,
     );
   });
+  test('consistency_check/find_template_breaks/report_stale_agent_blocks E08: a check with a target holds no agent_block_stale', () async {
+    final project = await writeCheckProject(
+      extra: {'.specstone/AGENT.md': 'hand edit\n'},
+    );
+
+    expect(spots(checkOf(project), FindingKind.agentBlockStale), [
+      '.specstone/AGENT.md:1: agent_block_stale',
+    ]);
+    expect(
+      spots(checkOf(project, target: 'login'), FindingKind.agentBlockStale),
+      isEmpty,
+    );
+  });
+
+  test('consistency_check/find_template_breaks/print_findings INV-14: an agent file finding sorts by path with the doc findings', () async {
+    final project = await writeCheckProject(
+      extra: {'.specstone/AGENT.md': 'hand edit\n'},
+    );
+    final paths = [for (final f in checkOf(project).findings) f.path];
+
+    expect(paths, contains('.specstone/AGENT.md'));
+    expect(paths, [...paths]..sort());
+  });
 }

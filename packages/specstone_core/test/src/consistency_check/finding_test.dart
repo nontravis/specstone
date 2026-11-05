@@ -65,6 +65,7 @@ void main() {
       'unconfirmed',
       'confirmed_entry_malformed',
       'confirmed_entry_stale',
+      'agent_block_stale',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
     const writeCodes = {
@@ -95,7 +96,11 @@ void main() {
         for (final k in FindingKind.values)
           if (k.isProjectLevel) k,
       ],
-      [FindingKind.codeUncovered, FindingKind.referenceDocUnresolved],
+      [
+        FindingKind.codeUncovered,
+        FindingKind.referenceDocUnresolved,
+        FindingKind.agentBlockStale,
+      ],
     );
   });
 

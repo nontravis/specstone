@@ -4,17 +4,26 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/setup_migration/agent_files.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 Map<String, String> frWith(String line) => fr('verify_method: test', line);
 
 void main() {
+  late String binary;
+
+  setUpAll(() async {
+    binary = await buildSpecstone();
+  });
+
   test('f04/us01/s1, f04/us01/fr02/e01: a clean project prints 0 findings and exits 0', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
     expect(await runner.run(['check']), 0);
@@ -178,5 +187,41 @@ void main() {
       containsPair('code', 'index_busy'),
     );
     expect(out.toString(), isEmpty);
+  });
+  test('user_story:consistency_check/find_template_breaks S13: check names a stale agent block and its fix, and --json holds no name', () async {
+    final project = await writeCheckProject(
+      extra: {
+        'AGENTS.md':
+            'top\n${inlineBlock(cliVersion: specstoneVersion).replaceFirst('Rules', 'Rule')}',
+        '.specstone/AGENT.md': agentMdText,
+      },
+    );
+    const message =
+        'the Specstone block differs from what the running CLI writes; run `specstone migrate`';
+
+    final text = await Process.run(binary, [
+      'check',
+    ], workingDirectory: project.path);
+    final json = await Process.run(binary, [
+      'check',
+      '--json',
+    ], workingDirectory: project.path);
+
+    expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+    expect(
+      text.stdout,
+      'AGENTS.md:2: agent_block_stale: $message\n1 finding\n',
+    );
+    expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
+    final findings =
+        (jsonDecode(json.stdout as String) as Map)['findings']! as List;
+    expect(findings, [
+      {
+        'kind': 'agent_block_stale',
+        'docPath': 'AGENTS.md',
+        'line': 2,
+        'message': message,
+      },
+    ]);
   });
 }

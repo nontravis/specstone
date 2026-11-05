@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/consistency_check/agent_block_rules.dart';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -76,7 +77,8 @@ CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
   if (scope.isProject) {
     findings
       ..addAll(uncoveredCode(context))
-      ..addAll(unresolvedTemplateReferences(context));
+      ..addAll(unresolvedTemplateReferences(context))
+      ..addAll(staleAgentBlocks(context));
   }
   findings.addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
