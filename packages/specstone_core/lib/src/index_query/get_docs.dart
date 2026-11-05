@@ -96,8 +96,9 @@ ReadAnswer answerGet(DocIndex index, String address) {
 /// each field.
 ///
 /// A base is the [baseHashOf] of the target's text: the whole text with LF
-/// line ends, the title with no `# ` (see [titleBaseOf]), a section's or the
-/// lead's text as laid out (see [sectionBaseOf]), a field's whole key block.
+/// line ends, the title with no `# ` (see [titleBaseOf]), a section's body as
+/// laid out (see [sectionBaseOf]), the lead as laid out (see [leadBaseOf]), a
+/// field's whole key block.
 /// The result holds `doc`, `title`, `sections` keyed by section key, and
 /// `fields` keyed by field id. `approve --yes` checks `doc`. `sections`
 /// lists [leadKey] first when the lead holds non-blank text. [docType],
@@ -141,26 +142,34 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
 }
 
 /// Returns the base of a section [body]: the hash of its laid-out text.
-String sectionBaseOf(String body, MergedDocType? docType) => baseHashOf(
-  layOutText(body, underHeading: true, blockKinds: _blockKindsOf(docType)),
-);
+///
+/// A non-empty laid-out body ends in a line break, as `format` writes it.
+String sectionBaseOf(String body, MergedDocType? docType) =>
+    _laidOutBase(body, underHeading: true, docType: docType);
 
 /// Returns the base of [doc]'s lead: the hash of its laid-out text.
-String leadBaseOf(Doc doc, MergedDocType? docType) => baseHashOf(
-  layOutText(
-    doc.lead,
-    underHeading: doc.title != null,
-    blockKinds: _blockKindsOf(docType),
-  ),
-);
+///
+/// A non-empty laid-out lead ends in a line break, as `format` writes it.
+String leadBaseOf(Doc doc, MergedDocType? docType) =>
+    _laidOutBase(doc.lead, underHeading: doc.title != null, docType: docType);
+
+String _laidOutBase(
+  String text, {
+  required bool underHeading,
+  required MergedDocType? docType,
+}) {
+  final laid = layOutText(
+    text,
+    underHeading: underHeading,
+    blockKinds: docType?.listedGenerators.toSet() ?? const {},
+  );
+  return baseHashOf(laid.isEmpty || laid.endsWith('\n') ? laid : '$laid\n');
+}
 
 /// Returns the base of a title: the hash of [title] without the spaces and
 /// tabs at its end; the hash of empty text for null.
 String titleBaseOf(String? title) =>
     baseHashOf((title ?? '').replaceFirst(_spaceTabEnd, ''));
-
-Set<String> _blockKindsOf(MergedDocType? docType) =>
-    docType?.listedGenerators.toSet() ?? const {};
 
 /// One doc `answerGet` prints: its [text] and the base or bases it names.
 final class _GetBlock {

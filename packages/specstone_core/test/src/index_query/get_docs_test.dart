@@ -3,6 +3,7 @@ import 'dart:convert';
 // The expected values are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -251,6 +252,39 @@ void main() {
         expect(titleBaseOf(null), emptyBaseHash);
       },
     );
+    test(
+      'a last section with no final newline shares the base of its twin',
+      () {
+        expect(sectionBaseOf('x', null), sectionBaseOf('x\n', null));
+        expect(sectionBaseOf('', null), emptyBaseHash);
+      },
+    );
+    test('a lead with no final newline shares the base of its twin', () {
+      expect(
+        leadBaseOf(Doc.parse('# T\nlead'), null),
+        leadBaseOf(Doc.parse('# T\nlead\n'), null),
+      );
+    });
+    test('bases.title ignores trailing spaces of the title line', () async {
+      final i = await indexWith({'docs/notes.md': '# Notes  \n\n## One\nx\n'});
+      final doc =
+          (answerGet(i, 'notes.md').json['docs']! as List).single as Map;
+      expect((doc['bases']! as Map)['title'], baseHashOf('Notes'));
+    });
+    test('#_lead names the laid-out lead base', () async {
+      final tight = await indexWith({
+        'docs/notes.md': '# Notes\nlead text\n\n## One\nx\n',
+      });
+      final spaced = await indexWith({
+        'docs/notes.md': '# Notes\n\nlead text\n\n## One\nx\n',
+      });
+      String lead(DocIndex i) =>
+          ((answerGet(i, 'notes.md#_lead').json['docs']! as List).single
+                  as Map)['base']!
+              as String;
+      expect(lead(tight), lead(spaced));
+      expect(lead(tight), baseHashOf('\nlead text\n'));
+    });
     test(
       'field bases and bases.doc stay the hash of the text as written',
       () async {
