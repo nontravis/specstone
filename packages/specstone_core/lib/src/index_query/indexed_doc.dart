@@ -236,8 +236,9 @@ ParsedDoc parseIndexedDoc({
     null => null,
   };
   final frontmatter = _frontmatterValues(yaml, docPath, warnings);
+  final templates = _templatesByKey(docType);
   final sections = [
-    for (final section in doc.sections) _sectionOf(section, docType),
+    for (final section in doc.sections) _sectionOf(section, templates),
   ];
   final laid = docType == null ? null : formatDoc(doc, docType);
   final laidText = switch (laid) {
@@ -249,7 +250,7 @@ ParsedDoc parseIndexedDoc({
     countedText: laidText,
     docPath: docPath,
     doc: doc,
-    sectionCounts: _countsOf(doc, sections, laid, docType),
+    sectionCounts: _countsOf(doc, sections, laid, templates),
     frontmatterErrorLine: yaml?.errorLine,
     warnings: warnings,
   );
@@ -296,12 +297,12 @@ List<SectionCounts> _countsOf(
   Doc doc,
   List<IndexedSection> sections,
   FormatOutcome? laid,
-  MergedDocType? docType,
+  Map<String, MergedSection> templates,
 ) {
   if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
   final laidByKey = {
     for (final section in Doc.parse(laid.text).sections)
-      headerKey(section.headerText): _sectionOf(section, docType),
+      headerKey(section.headerText): _sectionOf(section, templates),
   };
   return [
     for (final section in doc.sections)
@@ -309,11 +310,19 @@ List<SectionCounts> _countsOf(
   ];
 }
 
-IndexedSection _sectionOf(Section section, MergedDocType? docType) {
+/// Returns the sections of [docType] by the [headerKey] of their header.
+Map<String, MergedSection> _templatesByKey(MergedDocType? docType) => {
+  for (final section in docType?.sections ?? const <MergedSection>[])
+    headerKey(section.header): section,
+};
+
+/// Keys [section] by the template section its header names (rendering INV-5).
+IndexedSection _sectionOf(
+  Section section,
+  Map<String, MergedSection> templates,
+) {
   final headerText = section.headerText;
-  final template = docType?.sections
-      .where((s) => s.header == headerText)
-      .firstOrNull;
+  final template = templates[headerKey(headerText)];
   return IndexedSection(
     key: template?.id ?? sectionKeyOf(headerText),
     headerLine: section.headerLine,

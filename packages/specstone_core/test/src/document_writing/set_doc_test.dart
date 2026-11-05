@@ -1931,6 +1931,28 @@ void main() {
       expect(answer.json['base'], baseHashOf('\nNone at all.\n'));
     });
 
+    test('document_writing/edit_one_section_or_field/write_one_section: a header that differs from the template header in case or spacing is that section, and set prints the base the next get reads', () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$persona':
+              '---\ndraft: true\n---\n\n# Buyer\n\n## Snapshot\nBuys.\n\n'
+              '## jobs  to be done\nOld job.\n',
+        },
+      );
+      const target = 'persona:buyer#jobs';
+      final base = sectionBase(root, target);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, base), 'New job.\n'),
+      );
+      expect(
+        readDoc(root, persona),
+        endsWith('## Jobs to be done\n\nNew job.\n'),
+      );
+      expect(answer.json['base'], baseHashOf('\nNew job.\n'));
+      expect(answer.json['base'], sectionBase(root, target));
+    });
+
     test('document_writing/edit_one_section_or_field/write_one_section E03: a write to another section leaves this base valid', () async {
       final root = await writeWriteProject();
       const useCase = 'user_story:login/email_login#use_case';
