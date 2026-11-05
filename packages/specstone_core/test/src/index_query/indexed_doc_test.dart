@@ -373,6 +373,19 @@ void main() {
       }
     });
 
+    test('index_query/read_current_docs/index_each_doc: a doc that is not UTF-8, which format skips, has no formatted value and counts its text as read', () {
+      const invalidByte = 0xFF;
+      final bytes = [...utf8.encode(padded), invalidByte, ...utf8.encode('\n')];
+      final parsed = parseIndexedDoc(
+        docPath: featurePath,
+        bytes: bytes,
+        match: matcher.match(featurePath),
+      );
+      final read = utf8.decode(bytes, allowMalformed: true);
+      expect(parsed.doc.formatted, isNull);
+      expect(parsed.content.lineFacts.charCount, read.length);
+    });
+
     test('index_query/read_current_docs/index_each_doc: an untyped doc has no formatted value', () {
       expect(parse('notes/a.md', '# A\n').doc.formatted, isNull);
     });

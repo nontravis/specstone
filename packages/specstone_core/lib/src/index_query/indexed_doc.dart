@@ -211,14 +211,15 @@ final class ParsedDoc {
 /// Parses the file [bytes] at [docPath] into its index entry and content.
 ///
 /// Invalid UTF-8 decodes with replacement characters, and invalid frontmatter
-/// YAML leaves no values; each adds a warning instead of failing.
+/// YAML leaves no values; each adds a warning instead of failing. A doc that is
+/// not UTF-8, which format skips, is not laid out and has no `formatted` value.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
 }) {
   final warnings = <String>[];
-  final text = _decode(bytes, docPath, warnings);
+  final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
   final docType = switch (match) {
@@ -240,7 +241,7 @@ ParsedDoc parseIndexedDoc({
   final sections = [
     for (final section in doc.sections) _sectionOf(section, templates),
   ];
-  final laid = docType == null ? null : formatDoc(doc, docType);
+  final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
   final laidText = switch (laid) {
     Formatted(:final text) => text,
     _ => lfText,
@@ -278,14 +279,18 @@ ParsedDoc parseIndexedDoc({
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }
 
-String _decode(List<int> bytes, String docPath, List<String> warnings) {
+({String text, bool isUtf8}) _decode(
+  List<int> bytes,
+  String docPath,
+  List<String> warnings,
+) {
   try {
-    return utf8.decode(bytes);
+    return (text: utf8.decode(bytes), isUtf8: true);
   } on FormatException {
     warnings.add(
       '$docPath: not UTF-8 text; indexed with replacement characters',
     );
-    return utf8.decode(bytes, allowMalformed: true);
+    return (text: utf8.decode(bytes, allowMalformed: true), isUtf8: false);
   }
 }
 
