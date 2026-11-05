@@ -181,10 +181,12 @@ void main() {
       _configLine(),
     ]);
     expect(_read(root, '.specstone/AGENT.md'), agentMdText);
-    expect(
-      _read(root, 'CLAUDE.md'),
-      "Owner's rules\n${importBlock(cliVersion: specstoneVersion, agentMdPath: '.specstone/AGENT.md', projectDocPath: 'docs/prds/PROJECT.md')}",
+    final imports = importBlock(
+      cliVersion: specstoneVersion,
+      agentMdPath: '.specstone/AGENT.md',
+      projectDocPath: 'docs/prds/PROJECT.md',
     );
+    expect(_read(root, 'CLAUDE.md'), "Owner's rules\n$imports");
     expect(
       _read(root, 'AGENTS.md'),
       'before\n${inlineBlock(cliVersion: specstoneVersion)}after\n',
