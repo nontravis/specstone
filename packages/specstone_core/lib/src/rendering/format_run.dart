@@ -248,7 +248,8 @@ FileResult _formatReadable<R>(
           blocks.run.registry,
           blocks.resolver,
         );
-        finalText = layOutDoc(filled, read.docType);
+        // Current blocks leave the formatted text as it is: no second layout.
+        if (filled != text) finalText = layOutDoc(filled, read.docType);
       }
       if (finalText == toLf(read.text)) {
         return FileResult(path: read.path, status: FileStatus.unchanged);

@@ -20,11 +20,20 @@ fields:
 Future<MergedDocType> _feature() async =>
     (await fixtureDocTypes()).lookup('feature')!;
 
-/// Formats [disk] and returns the text, checking a second pass changes nothing.
+/// Formats [disk] and returns the text, checking a second pass changes nothing
+/// and the laid-out sections are those the text parses into.
 String _format(String disk, MergedDocType docType) {
   final outcome = formatDoc(Doc.parse(disk), docType);
   expect(outcome, isA<Formatted>());
   final text = (outcome as Formatted).text;
+  List<(String, String)> shapeOf(List<Section> sections) => [
+    for (final s in sections) (s.headerLine, s.body),
+  ];
+  expect(
+    shapeOf(outcome.sections),
+    shapeOf(Doc.parse(text).sections),
+    reason: 'laid-out sections',
+  );
   final again = formatDoc(Doc.parse(text), docType);
   expect(again, isA<Formatted>());
   expect((again as Formatted).text, text, reason: 'idempotence');
@@ -402,7 +411,7 @@ void main() {
       final docType = await journey();
 
       expect(layOutDoc(unclosed, docType), unclosed);
-      expect(isLaidOut(unclosed, docType), isFalse);
+      expect(isLaidOut(Doc.parse(unclosed), unclosed, docType), isFalse);
     });
 
     test('rendering/keep_generated_blocks_current/write_generated_blocks E04: '
@@ -421,7 +430,7 @@ void main() {
       const text = '## A\n\n\n\nx   \n';
 
       expect(layOutDoc(text, null), text);
-      expect(isLaidOut(text, null), isFalse);
+      expect(isLaidOut(Doc.parse(text), text, null), isFalse);
     });
 
     test('rendering/format_docs/match_section_headers: each refusal returns '
@@ -434,7 +443,7 @@ void main() {
         '## Feature name\n\n```\nx   \n',
       ]) {
         expect(layOutDoc(text, feature), text);
-        expect(isLaidOut(text, feature), isFalse);
+        expect(isLaidOut(Doc.parse(text), text, feature), isFalse);
       }
     });
 
@@ -445,8 +454,8 @@ void main() {
       const laid = '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
 
       expect(layOutDoc(text, feature), laid);
-      expect(isLaidOut(text, feature), isFalse);
-      expect(isLaidOut(laid, feature), isTrue);
+      expect(isLaidOut(Doc.parse(text), text, feature), isFalse);
+      expect(isLaidOut(Doc.parse(laid), laid, feature), isTrue);
     });
   });
 }

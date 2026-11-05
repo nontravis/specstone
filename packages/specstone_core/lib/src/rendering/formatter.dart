@@ -10,10 +10,13 @@ sealed class FormatOutcome {
 
 /// A doc formatted to its template.
 final class Formatted extends FormatOutcome {
-  const new(this.text);
+  const new(this.text, this.sections);
 
   /// The formatted text, LF line endings.
   final String text;
+
+  /// The laid-out sections in [text] order, as [Doc.parse] reads them there.
+  final List<Section> sections;
 }
 
 /// A doc the formatter will not touch: its headers break the template, its
@@ -84,14 +87,17 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
   }
   final head = layOutText(doc.head, blockKinds: kinds);
   if (head.isNotEmpty) out.write(_endWithLineBreak(head));
+  final sections = <Section>[];
   for (final template in docType.sections) {
     final found = sectionByKey[headerKey(template.header)];
     if (found == null) continue;
     if (out.isNotEmpty) out.write('\n');
     final body = layOutText(found.body, underHeading: true, blockKinds: kinds);
-    out.write('## ${template.header}\n${_endWithLineBreak(body)}');
+    final section = Section('## ${template.header}', _endWithLineBreak(body));
+    out.write('${section.headerLine}\n${section.body}');
+    sections.add(section);
   }
-  return Formatted(out.toString());
+  return Formatted(out.toString(), sections);
 }
 
 /// Returns [lfText] laid out as [formatDoc] lays it out for [docType].
@@ -107,9 +113,12 @@ String layOutDoc(String lfText, MergedDocType? docType) {
 }
 
 /// Whether [formatDoc] accepts [lfText] and [layOutDoc] leaves it unchanged.
-bool isLaidOut(String lfText, MergedDocType? docType) =>
+///
+/// [doc] is [lfText] as [Doc.parse] reads it, so a caller that holds the
+/// parse does not parse again.
+bool isLaidOut(Doc doc, String lfText, MergedDocType? docType) =>
     docType != null &&
-    switch (formatDoc(Doc.parse(lfText), docType)) {
+    switch (formatDoc(doc, docType)) {
       Formatted(:final text) => text == lfText,
       Refused() => false,
     };

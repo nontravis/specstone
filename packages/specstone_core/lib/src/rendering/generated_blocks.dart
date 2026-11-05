@@ -163,11 +163,11 @@ BlockWrite writeGeneratedBlocks(
 ) {
   final kinds = docType.listedGenerators.toSet();
   final lines = _Lines.split(lfText);
-  final scan = _scan(lines, kinds, bodyStart: _bodyStart(lfText));
+  final doc = Doc.parse(lfText);
+  final scan = _scan(lines, kinds, bodyStart: _bodyStart(lfText, doc));
   final open = scan.openBlock;
   if (open != null) return open;
 
-  final doc = Doc.parse(lfText);
   final edits = <_Edit>[];
   final seen = <String>{};
   for (final block in blocks) {
@@ -268,27 +268,27 @@ List<String> _innerLines(String text) {
   return trimmed.split('\n');
 }
 
-/// The index of the first line after the frontmatter.
-int _bodyStart(String lfText) {
-  final after = Doc.parse(lfText).afterFrontmatter;
+/// The index of the first line after the frontmatter of [doc], parsed from
+/// [lfText].
+int _bodyStart(String lfText, Doc doc) {
+  final after = doc.afterFrontmatter;
   final prefix = lfText.substring(0, lfText.length - after.length);
   return '\n'.allMatches(prefix).length;
 }
 
-_Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
-  final start = bodyStart ?? _bodyStart(lines.join());
+_Scan _scan(_Lines lines, Set<String> kinds, {required int bodyStart}) {
   final fenced = fencedLines([
-    for (var i = start; i < lines.length; i++) lines[i],
+    for (var i = bodyStart; i < lines.length; i++) lines[i],
   ]);
   final kindByMarker = {
     for (final kind in kinds) generatedOpenMarker(kind): kind,
   };
   bool isMarker(int i, bool Function(String) test) =>
-      !fenced[i - start] && test(lines[i]);
+      !fenced[i - bodyStart] && test(lines[i]);
 
   final pairs = <_Pair>[];
   OpenBlock? openBlock;
-  var i = start;
+  var i = bodyStart;
   while (i < lines.length) {
     final kind = isMarker(i, kindByMarker.containsKey)
         ? kindByMarker[lines[i]]
@@ -311,7 +311,7 @@ _Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
     pairs.add(_Pair(kind: kind, open: i, end: j));
     i = j + 1;
   }
-  return _Scan(bodyStart: start, pairs: pairs, openBlock: openBlock);
+  return _Scan(bodyStart: bodyStart, pairs: pairs, openBlock: openBlock);
 }
 
 final class _Pair {

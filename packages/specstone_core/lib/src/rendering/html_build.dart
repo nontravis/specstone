@@ -86,4 +86,4 @@ HtmlBuild buildHtml(
 String _anchorOf(int index) => 'doc-${index + 1}';
 
 bool _matchesTemplate(ReadableDoc read) =>
-    isLaidOut(toLf(read.text), read.docType);
+    isLaidOut(read.doc, toLf(read.text), read.docType);

@@ -306,7 +306,7 @@ List<SectionCounts> _countsOf(
 ) {
   if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
   final laidByKey = {
-    for (final section in Doc.parse(laid.text).sections)
+    for (final section in laid.sections)
       headerKey(section.headerText): _sectionOf(section, templates),
   };
   return [

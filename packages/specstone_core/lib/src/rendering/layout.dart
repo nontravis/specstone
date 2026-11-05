@@ -1,14 +1,26 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 
-final _heading = RegExp(r'^ {0,3}#{1,6}(?: .*)?$');
-final _listItem = RegExp(r'^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)');
-final _spaceTabEnd = RegExp(r'[ \t]+$');
-final _spaceTabStart = RegExp(r'^[ \t]+');
-final _blankLine = RegExp(r'^[ \t]*$');
-final _blankText = RegExp(r'^[ \t\n]*$');
-final _delimiterCell = RegExp(r'^:?-+:?$');
 const _hardBreakSuffix = '  ';
+
+const _tab = 0x09;
+const _lineFeed = 0x0A;
+const _space = 0x20;
+const _hash = 0x23;
+const _closeParen = 0x29;
+const _star = 0x2A;
+const _plus = 0x2B;
+const _dash = 0x2D;
+const _dot = 0x2E;
+const _digitZero = 0x30;
+const _digitNine = 0x39;
+const _colon = 0x3A;
+const _quoteMarker = 0x3E;
+
+/// The most spaces before a heading's `#` run.
+const _maxHeadingIndent = 3;
+const _maxHeadingLevel = 6;
+const _maxOrderedDigits = 9;
 
 /// Returns [text] with its layout whitespace normalized (rendering INV-32).
 ///
@@ -58,8 +70,7 @@ final class _Layout {
 
   bool isBlank(int i) => !protected[i] && _isBlankLine(lines[i]);
 
-  bool isHeading(int i) =>
-      !protected[i] && _heading.hasMatch(_trimEnd(lines[i]));
+  bool isHeading(int i) => !protected[i] && _isHeadingLine(lines[i]);
 
   /// Lines with every rule except heading gaps applied.
   List<String> normalized() => [
@@ -85,7 +96,7 @@ final class _Layout {
 
   bool _isDelimiterRow(int i) =>
       _hasPipe(lines[i]) &&
-      _splitCells(_trim(lines[i])).every(_delimiterCell.hasMatch);
+      _splitCells(_trim(lines[i])).every(_isDelimiterCell);
 
   void _markTables() {
     var i = 0;
@@ -115,7 +126,7 @@ final class _Layout {
       !isBlank(i) &&
       !isHeading(i) &&
       !_isQuote(lines[i]) &&
-      !_listItem.hasMatch(lines[i]);
+      !_isListItemLine(lines[i]);
 }
 
 List<bool> _protectedLines(
@@ -219,13 +230,105 @@ List<String> _splitCells(String content) {
 
 // Dart's trim also strips NBSP and other Unicode spaces; INV-32 allows only
 // spaces and tabs to change.
-String _trimEnd(String text) => text.replaceFirst(_spaceTabEnd, '');
+String _trimEnd(String text) {
+  final end = _contentEnd(text);
+  return end == text.length ? text : text.substring(0, end);
+}
 
-String _trim(String text) => _trimEnd(text).replaceFirst(_spaceTabStart, '');
+String _trim(String text) {
+  final start = _contentStart(text);
+  final end = _contentEnd(text);
+  if (start == 0 && end == text.length) return text;
+  return start >= end ? '' : text.substring(start, end);
+}
 
-bool _isBlankLine(String line) => _blankLine.hasMatch(line);
+/// The index after the last character that is not a space or a tab.
+int _contentEnd(String text) {
+  var end = text.length;
+  while (end > 0 && _isSpaceOrTab(text.codeUnitAt(end - 1))) {
+    end--;
+  }
+  return end;
+}
 
-bool _isBlankText(String text) => _blankText.hasMatch(text);
+/// The index of the first character that is not a space or a tab.
+int _contentStart(String text) {
+  var start = 0;
+  while (start < text.length && _isSpaceOrTab(text.codeUnitAt(start))) {
+    start++;
+  }
+  return start;
+}
 
-bool _isQuote(String line) =>
-    line.replaceFirst(_spaceTabStart, '').startsWith('>');
+bool _isSpaceOrTab(int unit) => unit == _space || unit == _tab;
+
+bool _isBlankLine(String line) => _contentStart(line) == line.length;
+
+bool _isBlankText(String text) {
+  for (var i = 0; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    if (!_isSpaceOrTab(unit) && unit != _lineFeed) return false;
+  }
+  return true;
+}
+
+bool _isQuote(String line) {
+  final start = _contentStart(line);
+  return start < line.length && line.codeUnitAt(start) == _quoteMarker;
+}
+
+/// Whether [line], its trailing spaces and tabs aside, is up to 3 spaces, 1 to
+/// 6 `#`, then the end or a space.
+bool _isHeadingLine(String line) {
+  final end = _contentEnd(line);
+  var i = 0;
+  while (i < end && i < _maxHeadingIndent && line.codeUnitAt(i) == _space) {
+    i++;
+  }
+  final hashes = i;
+  while (i < end && line.codeUnitAt(i) == _hash) {
+    i++;
+  }
+  final level = i - hashes;
+  if (level < 1 || level > _maxHeadingLevel) return false;
+  return i == end || line.codeUnitAt(i) == _space;
+}
+
+/// Whether [line] starts, after any spaces and tabs, with a bullet or a 1 to 9
+/// digit ordered marker, then a space, a tab, or the end.
+bool _isListItemLine(String line) {
+  var i = _contentStart(line);
+  if (i >= line.length) return false;
+  final first = line.codeUnitAt(i);
+  if (first == _dash || first == _star || first == _plus) {
+    i++;
+  } else {
+    final digits = i;
+    while (i < line.length && _isDigit(line.codeUnitAt(i))) {
+      i++;
+    }
+    final count = i - digits;
+    if (count < 1 || count > _maxOrderedDigits || i >= line.length) {
+      return false;
+    }
+    final delimiter = line.codeUnitAt(i);
+    if (delimiter != _dot && delimiter != _closeParen) return false;
+    i++;
+  }
+  return i == line.length || _isSpaceOrTab(line.codeUnitAt(i));
+}
+
+bool _isDigit(int unit) => unit >= _digitZero && unit <= _digitNine;
+
+/// Whether [cell] is `-` runs with an optional `:` at either end.
+bool _isDelimiterCell(String cell) {
+  var start = 0;
+  var end = cell.length;
+  if (start < end && cell.codeUnitAt(start) == _colon) start++;
+  if (end > start && cell.codeUnitAt(end - 1) == _colon) end--;
+  if (start >= end) return false;
+  for (var i = start; i < end; i++) {
+    if (cell.codeUnitAt(i) != _dash) return false;
+  }
+  return true;
+}
