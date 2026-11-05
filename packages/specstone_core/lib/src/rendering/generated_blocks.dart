@@ -152,10 +152,11 @@ List<GeneratedBlock> runGenerators<R>(
 /// Writes [blocks] into [lfText].
 ///
 /// A block rewrites the pair of its kind at its place, or inserts one when
-/// none is there. Every other byte, a pair outside every block's place and a
-/// pair of a kind [docType] does not list included, stays as written.
-/// Returns [OpenBlock] when an opening marker of a listed kind has no end
-/// marker.
+/// none is there; an inserted pair also writes the layout whitespace around
+/// itself as INV-32 does. Every other byte, a pair outside every block's
+/// place and a pair of a kind [docType] does not list included, stays as
+/// written. Returns [OpenBlock] when an opening marker of a listed kind has
+/// no end marker.
 BlockWrite writeGeneratedBlocks(
   String lfText,
   MergedDocType docType,
