@@ -234,7 +234,7 @@ void main() {
   });
 
   group('LineFacts.of counted text', () {
-    test('index_each_doc E18: lineCount and charCount measure countedText '
+    test('index_query/read_current_docs/index_each_doc E18: lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
       const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
       final facts = LineFacts.of(

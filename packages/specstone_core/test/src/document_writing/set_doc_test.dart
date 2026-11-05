@@ -1916,7 +1916,7 @@ void main() {
     Future<Directory> archProject(String text) =>
         writeWriteProject(extra: {'docs/$signupArch': text});
 
-    test('write_one_section E01: the base of the laid-out body writes a body stored unlaid-out', () async {
+    test('document_writing/edit_one_section_or_field/write_one_section E01: the base of the laid-out body writes a body stored unlaid-out', () async {
       final root = await archProject(padded);
       const target = '$arch#deployment';
       final base = sectionBase(root, target);
@@ -1931,7 +1931,7 @@ void main() {
       expect(answer.json['base'], baseHashOf('\nNone at all.\n'));
     });
 
-    test('write_one_section E03: a write to another section leaves this base valid', () async {
+    test('document_writing/edit_one_section_or_field/write_one_section E03: a write to another section leaves this base valid', () async {
       final root = await writeWriteProject();
       const useCase = 'user_story:login/email_login#use_case';
       const criteria = 'user_story:login/email_login#acceptance_criteria';
@@ -1951,7 +1951,7 @@ void main() {
       );
     });
 
-    test('write_one_section E16: a body with none, one, or several leading blank lines lands under one blank line', () async {
+    test('document_writing/edit_one_section_or_field/write_one_section E16: a body with none, one, or several leading blank lines lands under one blank line', () async {
       const target = 'user_story:login/email_login#use_case';
       for (final lead in ['', '\n', '\n\n\n']) {
         final root = await writeWriteProject();
@@ -1967,47 +1967,38 @@ void main() {
       }
     });
 
-    test(
-      'write_one_section E18: an unlaid-out doc is written whole laid out',
-      () async {
-        final root = await archProject(padded);
-        const target = '$arch#deployment';
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            'None yet.\n',
-          ),
-        );
-        expect(readDoc(root, signupArch), laidOutArch);
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_one_section E18: an unlaid-out doc is written whole laid out', () async {
+      final root = await archProject(padded);
+      const target = '$arch#deployment';
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, req(target, sectionBase(root, target)), 'None yet.\n'),
+      );
+      expect(readDoc(root, signupArch), laidOutArch);
+    });
 
-    test(
-      'write_one_section E18: a doc format refuses keeps every other byte',
-      () async {
-        final root = await archProject(refused);
-        const target = '$arch#components';
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            '| A | B |\n|---|---|\n| 3 | 4 |\n',
-          ),
-        );
-        expect(
-          readDoc(root, signupArch),
-          refused.replaceFirst(
-            '| A   | B |\n|---|---|\n| 1 | 2 |\n',
-            '| A | B |\n|---|---|\n| 3 | 4 |\n',
-          ),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_one_section E18: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      const target = '$arch#components';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '| A | B |\n|---|---|\n| 3 | 4 |\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst(
+          '| A   | B |\n|---|---|\n| 1 | 2 |\n',
+          '| A | B |\n|---|---|\n| 3 | 4 |\n',
+        ),
+      );
+    });
 
-    test('write_one_field E14: an output_ref write on an approved doc lays it out and adds no draft', () async {
+    test('document_writing/edit_one_section_or_field/write_one_field E14: an output_ref write on an approved doc lays it out and adds no draft', () async {
       final approved = padded.replaceFirst('draft: true', 'approved: true');
       final root = await archProject(approved);
       writeIn(
@@ -2029,56 +2020,50 @@ void main() {
       expect(written, isNot(contains('draft:')));
     });
 
-    test(
-      'write_one_field E14: a doc format refuses keeps every other byte',
-      () async {
-        final root = await archProject(refused);
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
-            '- app/lib/\n',
-          ),
-        );
-        expect(
-          readDoc(root, signupArch),
-          refused.replaceFirst(
-            'draft: true\n',
-            'draft: true\ncovers:\n  - app/lib/\n',
-          ),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_one_field E14: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+          '- app/lib/\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst(
+          'draft: true\n',
+          'draft: true\ncovers:\n  - app/lib/\n',
+        ),
+      );
+    });
 
-    test(
-      'write_the_lead E03: text before the title line stays as on disk',
-      () async {
-        const given =
-            'before\n# T\nold\n\n## Use Case\n\nSign in.\n\n'
-            '## Acceptance Criteria\n\n- **Given** x\n';
-        final root = await writeWriteProject(
-          extra: {
-            'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
-              '# Sign in with email\n\n## Use Case\n\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email\n',
-              given,
-            ),
-          },
-        );
-        const target = 'user_story:login/email_login#_lead';
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, getDoc(root, target)['base']! as String),
-            'New.\n',
+    test('document_writing/edit_one_section_or_field/write_the_lead E03: text before the title line stays as on disk', () async {
+      const given =
+          'before\n# T\nold\n\n## Use Case\n\nSign in.\n\n'
+          '## Acceptance Criteria\n\n- **Given** x\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+            '# Sign in with email\n\n## Use Case\n\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email\n',
+            given,
           ),
-        );
-        expect(readDoc(root, story1), contains('before\n# T\n'));
-      },
-    );
+        },
+      );
+      const target = 'user_story:login/email_login#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'New.\n',
+        ),
+      );
+      expect(readDoc(root, story1), contains('before\n# T\n'));
+    });
 
-    test('write_one_field E09: an absent field lands at its slot in a laid-out doc', () async {
+    test('document_writing/edit_one_section_or_field/write_one_field E09: an absent field lands at its slot in a laid-out doc', () async {
       final root = await writeWriteProject();
       const target = 'user_story:login/email_login';
       writeIn(
@@ -2090,44 +2075,38 @@ void main() {
       expect(readDoc(root, story1), contains('## Use Case\n\nSign in'));
     });
 
-    test(
-      'write_the_title E07: an unlaid-out doc is written whole laid out',
-      () async {
-        final root = await archProject(padded);
-        final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            SetRequest.parse(arch, title: true, base: base),
-            'Signup architecture\n',
-          ),
-        );
-        expect(readDoc(root, signupArch), laidOutArch);
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_the_title E07: an unlaid-out doc is written whole laid out', () async {
+      final root = await archProject(padded);
+      final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(arch, title: true, base: base),
+          'Signup architecture\n',
+        ),
+      );
+      expect(readDoc(root, signupArch), laidOutArch);
+    });
 
-    test(
-      'write_the_title E07: a doc format refuses keeps every other byte',
-      () async {
-        final root = await archProject(refused);
-        final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            SetRequest.parse(arch, title: true, base: base),
-            'Renamed\n',
-          ),
-        );
-        expect(
-          readDoc(root, signupArch),
-          refused.replaceFirst('# Signup architecture', '# Renamed'),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_the_title E07: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(arch, title: true, base: base),
+          'Renamed\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst('# Signup architecture', '# Renamed'),
+      );
+    });
 
-    test('write_the_lead E09: a lead without a leading blank line keeps one under the title', () async {
+    test('document_writing/edit_one_section_or_field/write_the_lead E09: a lead without a leading blank line keeps one under the title', () async {
       final root = await writeWriteProject();
       const target = 'user_story:login/email_login#_lead';
       writeIn(
@@ -2144,50 +2123,44 @@ void main() {
       );
     });
 
-    test(
-      'write_the_lead E10: an unlaid-out doc is written whole laid out',
-      () async {
-        final root = await archProject(padded);
-        const target = '$arch#_lead';
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, getDoc(root, target)['base']! as String),
-            'Lead.\n',
-          ),
-        );
-        expect(
-          readDoc(root, signupArch),
-          laidOutArch.replaceFirst(
-            '# Signup architecture\n',
-            '# Signup architecture\n\nLead.\n',
-          ),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_the_lead E10: an unlaid-out doc is written whole laid out', () async {
+      final root = await archProject(padded);
+      const target = '$arch#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        laidOutArch.replaceFirst(
+          '# Signup architecture\n',
+          '# Signup architecture\n\nLead.\n',
+        ),
+      );
+    });
 
-    test(
-      'write_the_lead E10: a doc format refuses keeps every other byte',
-      () async {
-        final root = await archProject(refused);
-        const target = '$arch#_lead';
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, getDoc(root, target)['base']! as String),
-            'Lead.\n',
-          ),
-        );
-        expect(
-          readDoc(root, signupArch),
-          refused.replaceFirst(
-            '# Signup architecture\n',
-            '# Signup architecture\nLead.\n',
-          ),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_the_lead E10: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      const target = '$arch#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst(
+          '# Signup architecture\n',
+          '# Signup architecture\nLead.\n',
+        ),
+      );
+    });
   });
 }

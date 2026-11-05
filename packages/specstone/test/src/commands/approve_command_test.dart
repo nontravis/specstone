@@ -330,7 +330,7 @@ void main() {
       expect(out.toString(), isNot(contains('\x1b[')));
     },
   );
-  test('show_changes_since_approval E17: --dry-run on a layout-only draft shows no change', () async {
+  test('document_writing/approve_drafts/show_changes_since_approval E17: --dry-run on a layout-only draft shows no change', () async {
     const compact =
         '| Component | Responsibility |\n|---|---|\n| Signup form | Collects the email |\n';
     const padded =

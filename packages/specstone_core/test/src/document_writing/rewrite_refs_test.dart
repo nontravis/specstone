@@ -736,13 +736,13 @@ void main() {
 
     test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a CRLF doc with a BOM is written laid out with both kept', () async {
       final project = await writeWriteProject(
-        extra: {'docs/$fr12': '﻿${loose.replaceAll('\n', '\r\n')}'},
+        extra: {'docs/$fr12': '\uFEFF${loose.replaceAll('\n', '\r\n')}'},
       );
       final text = stepText(
         writeIn(project, (s) => planRewrites(s, reorderMoves)),
         fr12,
       );
-      expect(text, startsWith('﻿---\r\n'));
+      expect(text, startsWith('\uFEFF---\r\n'));
       expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
       expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
       expect(text, isNot(contains('\r\n\r\n\r\n')));

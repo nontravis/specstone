@@ -913,7 +913,7 @@ void main() {
     },
   );
 
-  test('mark_doc_approved E07: y on a draft with padded table cells writes approved: true and lays the doc out', () async {
+  test('document_writing/approve_drafts/mark_doc_approved E07: y on a draft with padded table cells writes approved: true and lays the doc out', () async {
     const padded =
         '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
         '| Component   | Responsibility |\n|-------------|----------------|\n'
@@ -936,7 +936,7 @@ void main() {
     );
   });
 
-  test('mark_doc_approved E07: y on a draft the formatter refuses puts approved: true at its field-order slot and keeps every other byte', () async {
+  test('document_writing/approve_drafts/mark_doc_approved E07: y on a draft the formatter refuses puts approved: true at its field-order slot and keeps every other byte', () async {
     const refused =
         '---\ncovers:\n  - app/lib/src/signup/\ndraft: true\n---\n\n# Signup architecture\n\n## Bogus\nB.\n\n## Components\n'
         '| Component   | Responsibility |\n|-------------|----------------|\n'

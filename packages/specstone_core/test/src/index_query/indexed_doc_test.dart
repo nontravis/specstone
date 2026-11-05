@@ -341,7 +341,7 @@ void main() {
       expect(after.content.lineFacts.sectionCounts, counts.sectionCounts);
     });
 
-    test('index_each_doc E19: a refused doc has no formatted value and counts '
+    test('index_query/read_current_docs/index_each_doc E19: a refused doc has no formatted value and counts '
         'its text on disk', () {
       for (final text in [
         '# F\n\n## Bogus\nx  y\n',
@@ -354,16 +354,16 @@ void main() {
       }
     });
 
-    test('index_each_doc: an untyped doc has no formatted value', () {
+    test('index_query/read_current_docs/index_each_doc: an untyped doc has no formatted value', () {
       expect(parse('notes/a.md', '# A\n').doc.formatted, isNull);
     });
 
-    test('index_each_doc: CRLF line ends alone leave a doc formatted', () {
+    test('index_query/read_current_docs/index_each_doc: CRLF line ends alone leave a doc formatted', () {
       final parsed = parse(featurePath, laidOut.replaceAll('\n', '\r\n'));
       expect(parsed.doc.formatted, isTrue);
     });
 
-    test('index_each_doc R31: a generated block counts as on disk while '
+    test('index_query/read_current_docs/index_each_doc R31: a generated block counts as on disk while '
         'padding outside it is laid out', () {
       final open = generatedOpenMarker('journey_flow');
       const block = '| a   | b |\n|-----|---|';

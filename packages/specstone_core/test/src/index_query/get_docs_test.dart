@@ -188,7 +188,7 @@ void main() {
       isNot(contains('· base')),
     );
   });
-  group('print_doc_or_section E08, layout-blind bases', () {
+  group('index_query/read_doc_section/print_doc_or_section E08, layout-blind bases', () {
     const storyPath =
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
     const bareBody =

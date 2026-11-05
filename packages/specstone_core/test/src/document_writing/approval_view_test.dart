@@ -50,7 +50,7 @@ String _render(DraftView draft, {int? context, bool color = false}) =>
     );
 
 void main() {
-  group('show_changes_since_approval E17', () {
+  group('document_writing/approve_drafts/show_changes_since_approval E17', () {
     const body = '## Statement\n';
     String fr(String statement) =>
         '---\nverify_method: test\n---\n\n# FR-01 — T\n\n$body$statement';

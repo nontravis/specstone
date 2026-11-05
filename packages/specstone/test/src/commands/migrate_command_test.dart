@@ -236,7 +236,8 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('rewrite_titles_keys_and_links E17, write_first_fingerprints: the first '
+  test('setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links E17, '
+      'setup_migration/migrate_legacy_docs/write_first_fingerprints: the first '
       'check after a legacy run reports no format_drift and no '
       'confirmed_entry_stale', () async {
     final root = await gitFixture(acmeLegacy);

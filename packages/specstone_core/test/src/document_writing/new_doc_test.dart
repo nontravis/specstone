@@ -685,7 +685,7 @@ void main() {
     }
   });
 
-  test('f02/us02/fr02, f02/us02/fr02/e03: given text stays verbatim and draft lands at its field slot', () async {
+  test('document_writing/create_doc_from_template/fill_new_doc E08: keys reordered, text laid out, draft at its field slot', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -718,7 +718,7 @@ void main() {
     );
   });
 
-  test('fill_new_doc E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
+  test('document_writing/create_doc_from_template/fill_new_doc E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -737,7 +737,7 @@ void main() {
     );
   });
 
-  test('fill_new_doc E08: stdin with text right under a heading is written laid out', () async {
+  test('document_writing/create_doc_from_template/fill_new_doc E08: stdin with text right under a heading is written laid out', () async {
     final root = await writeWriteProject();
     final answer = writeIn(
       root,
@@ -758,7 +758,7 @@ void main() {
     expect(answer.json['path'], path);
   });
 
-  test('fill_new_doc E08: stdin the format command refuses is written as given, draft aside', () async {
+  test('document_writing/create_doc_from_template/fill_new_doc E08: stdin the format command refuses is written as given, draft aside', () async {
     final root = await writeWriteProject();
     const given =
         '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Not a section\nx\n';
