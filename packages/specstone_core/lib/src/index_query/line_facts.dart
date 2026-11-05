@@ -144,10 +144,12 @@ final class LineFacts {
   /// The runs of fenced code lines, fence lines included, in file order.
   final List<LineRange> fenced;
 
-  /// The lines of the LF text.
+  /// The lines of the text `format` lays out for a typed doc, else of the LF
+  /// text.
   final int lineCount;
 
-  /// The code points of the LF text.
+  /// The code points of the text `format` lays out for a typed doc, else of
+  /// the LF text.
   final int charCount;
 
   /// The line the YAML parser names, 1 when the frontmatter is no mapping.

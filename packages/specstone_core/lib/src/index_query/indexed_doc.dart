@@ -304,8 +304,8 @@ List<SectionCounts> _countsOf(
       headerKey(section.headerText): _sectionOf(section, docType),
   };
   return [
-    for (final (i, section) in doc.sections.indexed)
-      sectionCountsOf(laidByKey[headerKey(section.headerText)] ?? sections[i]),
+    for (final section in doc.sections)
+      sectionCountsOf(laidByKey[headerKey(section.headerText)]!),
   ];
 }
 

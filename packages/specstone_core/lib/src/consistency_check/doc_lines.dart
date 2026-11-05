@@ -44,7 +44,8 @@ final class DocLines {
   /// The number of LF lines.
   int get lineCount => _facts.lineCount;
 
-  /// The code points of the LF text.
+  /// The code points of the text `format` lays out for a typed doc, else of
+  /// the LF text.
   int get charCount => _facts.charCount;
 
   /// The doc links that resolve to another `.md` doc, in source order.
