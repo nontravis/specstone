@@ -224,7 +224,7 @@ void main() {
     'stdin is otherwise kept',
     () async {
       final root = await _project();
-      // Laid out already, as `new` writes every doc, so only the keys differ.
+      // As `new` writes it, less the generated blocks the regex strips.
       const stdin =
           '---\npersona:\n  - owner\n---\n\n# Sign in\n\n## Goal\n\n'
           'Reach the home page.\n\n## Flow\n\n\n## Steps\n\n'

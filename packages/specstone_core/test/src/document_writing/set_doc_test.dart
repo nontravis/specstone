@@ -2007,10 +2007,32 @@ void main() {
       },
     );
 
+    test('write_one_field E14: an output_ref write on an approved doc lays it out and adds no draft', () async {
+      final approved = padded.replaceFirst('draft: true', 'approved: true');
+      final root = await archProject(approved);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+          '- app/lib/\n',
+        ),
+      );
+      final written = readDoc(root, signupArch);
+      expect(
+        written,
+        laidOutArch.replaceFirst(
+          'draft: true\n',
+          'approved: true\ncovers:\n  - app/lib/\n',
+        ),
+      );
+      expect(written, isNot(contains('draft:')));
+    });
+
     test(
-      'write_one_field E14: the field is written and the whole doc laid out',
+      'write_one_field E14: a doc format refuses keeps every other byte',
       () async {
-        final root = await archProject(padded);
+        final root = await archProject(refused);
         writeIn(
           root,
           (s) => answerSet(
@@ -2021,11 +2043,38 @@ void main() {
         );
         expect(
           readDoc(root, signupArch),
-          laidOutArch.replaceFirst(
+          refused.replaceFirst(
             'draft: true\n',
             'draft: true\ncovers:\n  - app/lib/\n',
           ),
         );
+      },
+    );
+
+    test(
+      'write_the_lead E03: text before the title line stays as on disk',
+      () async {
+        const given =
+            'before\n# T\nold\n\n## Use Case\n\nSign in.\n\n'
+            '## Acceptance Criteria\n\n- **Given** x\n';
+        final root = await writeWriteProject(
+          extra: {
+            'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+              '# Sign in with email\n\n## Use Case\n\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email\n',
+              given,
+            ),
+          },
+        );
+        const target = 'user_story:login/email_login#_lead';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, getDoc(root, target)['base']! as String),
+            'New.\n',
+          ),
+        );
+        expect(readDoc(root, story1), contains('before\n# T\n'));
       },
     );
 
