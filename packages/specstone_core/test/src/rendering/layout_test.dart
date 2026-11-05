@@ -95,6 +95,55 @@ void main() {
     check('a blank line of spaces is emptied', 'a\n   \nb\n', 'a\n\nb\n');
   });
 
+  group('lines that end a paragraph', () {
+    for (final next in ['---', '===', '-', '***', '___', '- - -']) {
+      check(
+        'E04: spaces before the setext underline or thematic break "$next" '
+            'are dropped',
+        'Title  \n$next\n',
+        'Title\n$next\n',
+      );
+    }
+    for (final next in ['<div>x</div>', '<!-- note -->', '<details>']) {
+      check(
+        'E04: spaces before the HTML block start "$next" are dropped',
+        'Title  \n$next\n',
+        'Title\n$next\n',
+      );
+    }
+    for (final next in ['- x', '* x', '+ x', '1. x', '1) x', '01. x']) {
+      check(
+        'E04: spaces before the list item "$next", which interrupts a '
+            'paragraph, are dropped',
+        'first  \n$next\n',
+        'first\n$next\n',
+      );
+    }
+    for (final next in ['2. x', '*', '1.', '    - x', '<span>x</span>']) {
+      check(
+        'E04: a hard break before "$next", a line of the same paragraph, '
+            'stays',
+        'first  \n$next\n',
+        'first  \n$next\n',
+      );
+    }
+    check(
+      'E04: spaces before a nested list item are dropped',
+      '- a  \n  - b\n',
+      '- a\n  - b\n',
+    );
+    check(
+      'E04: a hard break inside a list item stays',
+      '- a  \n  b\n',
+      '- a  \n  b\n',
+    );
+    check(
+      'E04: spaces after a thematic break are dropped',
+      '***  \ntext\n',
+      '***\ntext\n',
+    );
+  });
+
   group('heading gap', () {
     check(
       'E05: text under a title gets one blank line',
@@ -156,10 +205,11 @@ void main() {
       blockKinds: {'scenario_copy'},
     );
     check(
-      'a block kind not passed is not protected',
+      'a block kind not passed is not protected: the end marker, an HTML '
+          'comment, ends the paragraph above it',
       '${generatedOpenMarker('scenario_copy')}\ntrail   \n'
           '$generatedEndMarker\n',
-      '${generatedOpenMarker('scenario_copy')}\ntrail  \n'
+      '${generatedOpenMarker('scenario_copy')}\ntrail\n'
           '$generatedEndMarker\n',
     );
   });

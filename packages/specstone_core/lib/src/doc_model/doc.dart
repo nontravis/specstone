@@ -248,7 +248,7 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
   bool unclosedFence,
 })
 _scan(List<String> lines) {
-  final fence = _FenceTracker();
+  final fence = _BlockTracker();
   final headLines = <String>[];
   final sections = <Section>[];
   final sectionLineIndexes = <int>[];
@@ -304,18 +304,29 @@ String _joinWithoutTrailingBlank(List<String> lines) {
 
 /// Returns, per line of [lines] (each without its line end), whether it is
 /// fenced code content or a fence delimiter.
-List<bool> fencedLines(List<String> lines) => fenceScan(lines).fenced;
+List<bool> fencedLines(List<String> lines) => blockScan(lines).fenced;
 
 /// Reads [lines] (each without its line end) the way [Doc.parse] does,
 /// starting outside any fence.
 ///
-/// `fenced` holds, per line, whether it is fenced code content or a fence
-/// delimiter. `openFence` is the delimiter line of a fence still open after
-/// the last line, or null when every fence closed.
-({List<bool> fenced, String? openFence}) fenceScan(List<String> lines) {
-  final fence = _FenceTracker();
-  final fenced = [for (final line in lines) fence.consume(line)];
-  return (fenced: fenced, openFence: fence.openingLine);
+/// Per line, `fenced` is whether it is fenced code content or a fence
+/// delimiter, and `continuesParagraph` whether it is the next line of the
+/// paragraph above it (GFM). `openFence` is the delimiter line of a fence
+/// still open after the last line, or null when every fence closed.
+({List<bool> fenced, List<bool> continuesParagraph, String? openFence})
+blockScan(List<String> lines) {
+  final tracker = _BlockTracker();
+  final fenced = List.filled(lines.length, false);
+  final continues = List.filled(lines.length, false);
+  for (var i = 0; i < lines.length; i++) {
+    fenced[i] = tracker.consume(lines[i]);
+    continues[i] = tracker.continuesParagraph;
+  }
+  return (
+    fenced: fenced,
+    continuesParagraph: continues,
+    openFence: tracker.openingLine,
+  );
 }
 
 const _tab = 0x09;
@@ -327,6 +338,8 @@ const _dash = 0x2D;
 const _dot = 0x2E;
 const _digitZero = 0x30;
 const _digitNine = 0x39;
+const _lessThan = 0x3C;
+const _equals = 0x3D;
 const _quoteMarker = 0x3E;
 const _hash = 0x23;
 const _underscore = 0x5F;
@@ -345,17 +358,30 @@ const _maxOrderedDigits = 9;
 /// The most spaces after a list marker that still lead to the item content.
 const _maxMarkerGap = 4;
 
-/// Tracks fenced code blocks the way GitHub Flavored Markdown reads them, a
-/// fence inside a block quote or a list item included.
+/// The start of a GFM HTML block that can interrupt a paragraph (kinds 1-6).
+final _htmlBlockStart = RegExp(
+  r'<(?:(?:pre|script|style|textarea)(?:\s|>|$)|!--|\?|![a-z]|!\[CDATA\[|'
+  '/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|'
+  'col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|'
+  'footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|'
+  'legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|'
+  'section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)'
+  r'(?:\s|>|/>|$))',
+  caseSensitive: false,
+);
+
+/// Tracks fenced code blocks and paragraphs the way GitHub Flavored Markdown
+/// reads them, inside block quotes and list items included.
 ///
 /// A fence opens with three or more backticks or tildes at most 3 columns
 /// past its container's content, and closes with the same character, at
 /// least as many, or where its container ends; an unclosed fence runs to the
 /// end. A `##` header line outside a fence ends every container.
-final class _FenceTracker {
+final class _BlockTracker {
   final _containers = <_Container>[];
   _Fence? _fence;
   var _inParagraph = false;
+  var _continues = false;
 
   /// The delimiter line of the open fence, or null outside a fence.
   String? get openingLine => _fence?.openingLine;
@@ -363,8 +389,12 @@ final class _FenceTracker {
   /// Whether the lines fed so far end inside an open fence.
   bool get isOpen => _fence != null;
 
+  /// Whether the line fed last is the next line of the paragraph above it.
+  bool get continuesParagraph => _continues;
+
   /// Feeds one [line]; returns whether it is fence content or a delimiter.
   bool consume(String line) {
+    _continues = false;
     final text = _expandTabs(line);
     var column = 0;
     var matched = 0;
@@ -407,7 +437,10 @@ final class _FenceTracker {
       at = start.column;
     }
     if (!opened && matched < _containers.length) {
-      if (_inParagraph && _isLazyLine(text, at)) return false;
+      if (_inParagraph && _isLazyLine(text, at)) {
+        _continues = true;
+        return false;
+      }
       _closeContainers(matched);
     }
     return _readLeaf(line, text, at);
@@ -422,7 +455,10 @@ final class _FenceTracker {
       return false;
     }
     // Indented code, or the next line of the open paragraph.
-    if (start - column > _maxIndent) return false;
+    if (start - column > _maxIndent) {
+      _continues = _inParagraph;
+      return false;
+    }
     final run = _fenceRunAt(text, start);
     if (run > 0) {
       _fence = _Fence(
@@ -433,8 +469,11 @@ final class _FenceTracker {
       _inParagraph = false;
       return true;
     }
-    _inParagraph =
-        !_isAtxHeading(text, start) && !_isThematicBreak(text, start);
+    final endsParagraph =
+        _interruptsParagraph(text, start) ||
+        (_inParagraph && _isSetextUnderline(text, start));
+    _continues = _inParagraph && !endsParagraph;
+    _inParagraph = !endsParagraph;
     return false;
   }
 
@@ -581,9 +620,23 @@ bool _isLazyLine(String text, int column) {
   final start = _indentEnd(text, column);
   if (start >= text.length) return false;
   if (start - column > _maxIndent) return true;
-  return _fenceRunAt(text, start) == 0 &&
-      !_isAtxHeading(text, start) &&
-      !_isThematicBreak(text, start);
+  return _fenceRunAt(text, start) == 0 && !_interruptsParagraph(text, start);
+}
+
+/// Whether the leaf at [start] ends an open paragraph, or opens no paragraph:
+/// an ATX heading, a thematic break, or an HTML block start.
+bool _interruptsParagraph(String text, int start) =>
+    _isAtxHeading(text, start) ||
+    _isThematicBreak(text, start) ||
+    (text.codeUnitAt(start) == _lessThan &&
+        _htmlBlockStart.matchAsPrefix(text, start) != null);
+
+/// Whether [text] from [start] is a run of `=` or of `-` with only spaces
+/// after it, which turns the paragraph above it into a heading.
+bool _isSetextUnderline(String text, int start) {
+  final marker = text.codeUnitAt(start);
+  if (marker != _equals && marker != _dash) return false;
+  return _indentEnd(text, _runEnd(text, start, marker)) >= text.length;
 }
 
 /// Returns the length of the fence opening run at [start], or 0 when none.

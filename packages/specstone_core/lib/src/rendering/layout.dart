@@ -24,21 +24,34 @@ String layOutText(
   final hasFinalBreak = text.endsWith('\n');
   final lines = text.split('\n');
   if (hasFinalBreak) lines.removeLast();
-  final laid = _Layout(lines, blockKinds);
+  final scan = blockScan(lines);
+  final laid = _Layout(
+    lines,
+    fenced: scan.fenced,
+    continues: scan.continuesParagraph,
+    blockKinds: blockKinds,
+  );
   final out = _insertHeadingGaps(laid.normalized(), laid, underHeading);
   return out.join('\n') + (hasFinalBreak ? '\n' : '');
 }
 
 /// Per-line facts of a text that the layout rules read.
 final class _Layout {
-  new(this.lines, Set<String> blockKinds)
-    : protected = _protectedLines(lines, blockKinds),
-      isTable = List.filled(lines.length, false),
-      isDelimiter = List.filled(lines.length, false) {
+  new(
+    this.lines, {
+    required List<bool> fenced,
+    required this.continues,
+    required Set<String> blockKinds,
+  }) : protected = _protectedLines(lines, fenced, blockKinds),
+       isTable = List.filled(lines.length, false),
+       isDelimiter = List.filled(lines.length, false) {
     _markTables();
   }
 
   final List<String> lines;
+
+  /// Per line, whether it is the next line of the paragraph above it (GFM).
+  final List<bool> continues;
   final List<bool> protected;
   final List<bool> isTable;
   final List<bool> isDelimiter;
@@ -61,19 +74,14 @@ final class _Layout {
   }
 
   bool _isHardBreak(int i) =>
-      !_isBlankLine(lines[i]) &&
       lines[i].endsWith(_hardBreakSuffix) &&
-      !isHeading(i) &&
       i + 1 < lines.length &&
       _continuesParagraph(i + 1);
 
+  /// Whether line [i] is the next line of the paragraph above it, neither a
+  /// table row nor a generated block line.
   bool _continuesParagraph(int i) =>
-      !protected[i] &&
-      !isTable[i] &&
-      !isBlank(i) &&
-      !isHeading(i) &&
-      !_listItem.hasMatch(lines[i]) &&
-      (!_isQuote(lines[i]) || _isQuote(lines[i - 1]));
+      continues[i] && !protected[i] && !isTable[i];
 
   bool _isDelimiterRow(int i) =>
       _hasPipe(lines[i]) &&
@@ -110,8 +118,11 @@ final class _Layout {
       !_listItem.hasMatch(lines[i]);
 }
 
-List<bool> _protectedLines(List<String> lines, Set<String> blockKinds) {
-  final fenced = fenceScan(lines).fenced;
+List<bool> _protectedLines(
+  List<String> lines,
+  List<bool> fenced,
+  Set<String> blockKinds,
+) {
   final blocks = generatedBlockLines(lines, blockKinds);
   return [for (var i = 0; i < lines.length; i++) fenced[i] || blocks[i]];
 }

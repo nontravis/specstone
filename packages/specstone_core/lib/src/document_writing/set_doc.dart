@@ -403,7 +403,7 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   bool Function(String line) isRefused,
 ) {
   final lines = lf.split('\n');
-  final scan = fenceScan(lines);
+  final scan = blockScan(lines);
   String? refused;
   for (var i = 0; i < lines.length; i++) {
     if (!scan.fenced[i] && isRefused(lines[i])) {
