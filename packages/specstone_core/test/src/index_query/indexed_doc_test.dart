@@ -324,7 +324,7 @@ void main() {
     const problemText =
         '## Problem\n\n### Sub\n\ntext\n\n| a | b |\n|---|---|\n| 1 | 22 |';
 
-    test('rendering/format_docs E18, index_each_doc E18: a doc that differs '
+    test('index_query/read_current_docs/index_each_doc E18: a doc that differs '
         'from its layout is not formatted and counts the laid-out text', () {
       final facts = parse(featurePath, padded);
       expect(facts.doc.formatted, isFalse);
