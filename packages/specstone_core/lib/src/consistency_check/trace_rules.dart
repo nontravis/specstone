@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _frType = 'fr';
@@ -30,7 +31,7 @@ const _statusKey = 'status';
 const _implemented = 'implemented';
 const _goalsSection = 'goals';
 const _visionIdPrefix = 'PV-';
-final _goalHeading = RegExp(r'^### (PG-\S+)');
+const _goalIdPrefix = 'PG-';
 final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
 final _servedId = RegExp(r'\b[A-Z][A-Za-z]*-\d+\b');
 
@@ -229,14 +230,19 @@ Iterable<Finding> _unresolvedId(
   );
 }
 
+String? _goalKeyOf(String heading) {
+  final text = itemHeadingTextOf(heading);
+  if (text == null) return null;
+  return switch (readItemId(text, _goalIdPrefix)) {
+    ItemId(:final written) => written,
+    _ => null,
+  };
+}
+
 Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
   final section = context.heldIndexOf(doc, _goalsSection);
   if (section == null) return;
-  final blocks = headingBlocksOf(
-    context.bodyLinesOf(doc, section),
-    _goalHeading,
-    (match) => match.group(1)!,
-  );
+  final blocks = headingBlocksOf(context.bodyLinesOf(doc, section), _goalKeyOf);
   for (final (:key, :lines) in blocks) {
     final serves = lines
         .where((line) => !line.fenced)

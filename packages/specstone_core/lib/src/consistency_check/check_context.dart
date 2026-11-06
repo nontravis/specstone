@@ -233,9 +233,7 @@ final class CheckContext {
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
       for (final (i, line) in linesOf(doc).lines.indexed)
-        if (!linesOf(doc).isFenced(i + 1))
-          if (_nfrHeading.firstMatch(line) case final heading?)
-            heading.group(1)!,
+        if (!linesOf(doc).isFenced(i + 1)) ?_nfrKeyOf(line),
   };
 
   /// Returns the ID of each `###` heading with a ` — ` of every `project` doc.
@@ -260,8 +258,7 @@ final class CheckContext {
       for (var i = 0; i < contentOf(doc).sections.length; i++) {
         for (final (:key, :lines) in headingBlocksOf(
           bodyLinesOf(doc, i),
-          _nfrHeading,
-          (match) => match.group(1)!,
+          _nfrKeyOf,
         )) {
           final statement = lines
               .where((line) => !line.fenced)
@@ -334,4 +331,14 @@ const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
-final _nfrHeading = RegExp(r'^### (\S+) — ');
+const _headingIdSeparator = ' — ';
+
+/// Returns the ID a `### <id> — <title>` heading [line] opens with, or null.
+String? _nfrKeyOf(String line) {
+  final text = itemHeadingTextOf(line);
+  if (text == null) return null;
+  final end = text.indexOf(_headingIdSeparator);
+  if (end <= 0) return null;
+  final id = text.substring(0, end);
+  return id.contains(' ') ? null : id;
+}

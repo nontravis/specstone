@@ -50,13 +50,25 @@ void main() {
     });
   });
 
+  group('scenarioBlocksIn lettered', () {
+    test('f04/us01/fr09/e06: Scenario 6 ends at Scenario 6a, which keys no '
+        'block', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 6 — a\n- x\n### Scenario 6a — b\n- y'),
+      );
+
+      expect(blocks, {'S6': '### Scenario 6 — a\n- x'});
+    });
+  });
+
   group('headingBlocksOf', () {
     test('f04/us04/fr01: a ### block whose heading does not match closes the '
         'block above and opens none', () {
       final blocks = headingBlocksOf(
         _body('### A — a\n- 1\n### other\n- 2\n### B — b\n- 3'),
-        RegExp(r'^### (\S+) — '),
-        (match) => match.group(1)!,
+        (heading) => heading.startsWith('### A') || heading.startsWith('### B')
+            ? heading.substring(4, 5)
+            : null,
       );
 
       expect([for (final b in blocks) b.key], ['A', 'B']);

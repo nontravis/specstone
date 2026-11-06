@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -6,7 +7,8 @@ import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 
 const _storyType = 'user_story';
-final _headingPrefix = RegExp(r'^### Scenario [0-9]+(?![0-9])\s*(?:—\s*)?');
+const _headingOpen = '### ';
+const _titleDash = '—';
 
 /// Keeps each story of [listed] that holds a scenario no journey walks.
 ///
@@ -71,5 +73,12 @@ Set<(String, String)> _walkedScenarios(DocIndex index) {
 
 String _headingText(String block) {
   final heading = block.split('\n').first;
-  return heading.replaceFirst(_headingPrefix, '');
+  final id = readScenarioHeading(heading);
+  if (id == null) return heading;
+  var title = heading.substring(_headingOpen.length + id.written.length);
+  title = title.trimLeft();
+  if (title.startsWith(_titleDash)) {
+    title = title.substring(_titleDash.length).trimLeft();
+  }
+  return title;
 }
