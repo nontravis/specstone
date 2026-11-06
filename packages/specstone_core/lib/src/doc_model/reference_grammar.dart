@@ -137,10 +137,7 @@ IdRead? _readIdAt(String text, String prefix, int start) {
   }
   if (end == start) return null;
   final digits = text.substring(start, end);
-  var letterEnd = end;
-  while (letterEnd < text.length && _letters.hasMatch(text[letterEnd])) {
-    letterEnd++;
-  }
+  final letterEnd = _lettersEnd(text, end);
   if (letterEnd == end) return ItemId(prefix: prefix, digits: digits);
   return LetteredId(
     prefix: prefix,
@@ -148,6 +145,25 @@ IdRead? _readIdAt(String text, String prefix, int start) {
     letters: text.substring(end, letterEnd),
   );
 }
+
+/// The index past a letter run starting at [start], astral letters
+/// included (P9: the test is the code point, not the UTF-16 unit).
+int _lettersEnd(String text, int start) {
+  var end = start;
+  var offset = 0;
+  for (final rune in text.runes) {
+    if (offset < end) {
+      offset += _runeWidth(rune);
+      continue;
+    }
+    if (!_letters.hasMatch(String.fromCharCode(rune))) break;
+    end += _runeWidth(rune);
+    offset = end;
+  }
+  return end;
+}
+
+int _runeWidth(int rune) => rune > 0xFFFF ? 2 : 1;
 
 /// Returns, keyed by its index in [ids], the next free ID of each
 /// [LetteredId], counted per prefix in list order (RULE-12, R61): the
@@ -202,6 +218,7 @@ ScenarioRef? readScenarioRef(String text) {
   final hash = text.indexOf('#');
   final storyPart = hash < 0 ? null : text.substring(0, hash);
   if (storyPart != null && storyPart.isEmpty) return null;
+  if (storyPart != null && storyPart.contains(' ')) return null;
   final number = _readNumberPart(hash < 0 ? text : text.substring(hash + 1));
   if (number == null) return null;
   return ScenarioRef(number, storyName: storyPart);
@@ -219,8 +236,12 @@ ScenarioRef? readStepTargetValue(String value) {
   return ScenarioRef(number, storyName: storyName);
 }
 
-IdRead? _readNumberPart(String text) =>
-    text.startsWith('S') ? _readIdAt(text, 'S', 1) : null;
+/// Reads `S<N>` [text], whole; any text past the ID reads as null.
+IdRead? _readNumberPart(String text) {
+  if (!text.startsWith('S')) return null;
+  final id = _readIdAt(text, 'S', 1);
+  return id != null && id.written.length == text.length ? id : null;
+}
 
 /// The first word of a `confirmed` entry (domain:consistency_check
 /// LinkLabel).

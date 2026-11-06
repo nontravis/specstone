@@ -61,7 +61,10 @@ void main() {
         readDocAddress('feature:index_query').isReferenceWithoutLookup,
         isTrue,
       );
-      expect(readDocAddress('affiliate_module/profile').isName, isTrue);
+      expect(
+        readDocAddress('affiliate_module/profile').isReferenceWithoutLookup,
+        isTrue,
+      );
       expect(
         readDocAddress('fr:index_query/read_doc_section/resolve_doc_name')
             .isReferenceWithoutLookup,
@@ -237,6 +240,23 @@ void main() {
 
     test('#S3 reads as null; no empty story name', () {
       expect(readScenarioRef('#S3'), isNull);
+    });
+
+    test('text after the ID reads as null; the ref is the whole text', () {
+      expect(readScenarioRef('S1 x'), isNull);
+      expect(readScenarioRef('login#S3 tail'), isNull);
+    });
+
+    test('a story name holding a space reads as null', () {
+      expect(readScenarioRef('login x#S3'), isNull);
+    });
+
+    test('an astral-plane letter after the digits reads as a LetteredId', () {
+      // U+104B0 DESERET CAPITAL LETTER LONG I: outside the BMP.
+      final id = readItemId('FR-9\u{104B0}', 'FR-');
+      expect(id, isA<LetteredId>());
+      expect((id! as LetteredId).letters, '\u{104B0}');
+      expect(readScenarioRef('S9\u{104B0}')!.number, isA<LetteredId>());
     });
   });
 
