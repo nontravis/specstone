@@ -5,7 +5,12 @@ import 'package:specstone_core/specstone_core.dart';
 class MoveCommand extends WriteCommand {
   new() {
     argParser
-      ..addOption('under', help: 'The feature that takes the story.')
+      ..addOption(
+        'under',
+        help:
+            'The feature that takes the story: <doc type>:<name>, a bare name, '
+            'or a path.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 

@@ -270,6 +270,74 @@ void main() {
     },
   );
 
+  test('f02/us02/fr01/e09: a --parent that names no doc of the parent doc type is doc_not_found naming the value, and no file is created', () async {
+    final root = await writeWriteProject();
+    for (final parent in ['architecture:login', 'user_story:login']) {
+      expect(
+        () => writeIn(
+          root,
+          (s) =>
+              answerNew(s, docTypeId: 'user_story', parent: parent, slug: 'x'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having((f) => f.message, 'message', contains(parent)),
+        ),
+        reason: parent,
+      );
+    }
+    expect(
+      hasDoc(root, 'prds/features/f01_login/us04_x/USER_STORY.md'),
+      isFalse,
+    );
+  });
+
+  test('f02/us02/fr01/e20: --parent feature:login and a path name the parent as a bare name does', () async {
+    final root = await writeWriteProject();
+    for (final (parent, slug) in [
+      ('feature:login', 'by_type'),
+      ('prds/features/f01_login/FEATURE.md', 'by_path'),
+      ('login', 'by_name'),
+    ]) {
+      final answer = writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: parent, slug: slug),
+      );
+      expect(answer.json['name'], 'login/$slug', reason: parent);
+    }
+  });
+
+  test('f02/us02/fr01/e21: a --parent that names 2 or more docs of the parent doc type is argument_invalid listing each as <doc type>:<name>, and no file is created', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login\n'},
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              allOf(
+                contains(loginFeature),
+                contains('prds/features/f03_login/FEATURE.md'),
+              ),
+            ),
+      ),
+    );
+    expect(
+      hasDoc(root, 'prds/features/f01_login/us04_x/USER_STORY.md'),
+      isFalse,
+    );
+  });
+
   test('f02/us02/fr01/e10: a missing --slug, a --parent or --slug the type takes no value for, or a bad slug is refused', () async {
     final root = await writeWriteProject();
     void refuses(

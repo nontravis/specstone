@@ -5,7 +5,10 @@ import 'package:specstone_core/specstone_core.dart';
 class NewCommand extends WriteCommand {
   new() {
     argParser
-      ..addOption('parent', help: 'The name or path of the parent doc.')
+      ..addOption(
+        'parent',
+        help: 'The parent doc: <doc type>:<name>, a bare name, or a path.',
+      )
       ..addOption('slug', help: 'The slug of the new doc.')
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
@@ -18,7 +21,7 @@ class NewCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone new <doc type> [--parent <name | path>] [--slug <slug>] '
+      'specstone new <doc type> [--parent <doc address>] [--slug <slug>] '
       '[--json]';
 
   @override

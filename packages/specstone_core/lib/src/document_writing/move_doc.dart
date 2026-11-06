@@ -162,7 +162,7 @@ ReadAnswer answerMove(
   }
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
-  final newParent = session.target('$parentTypeId:$under');
+  final newParent = session.parentTarget(under, parentTypeId);
   if (session.index.parentOf(target)?.docPath == newParent.docPath) {
     return _answerFor(session, const [], const []);
   }

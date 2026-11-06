@@ -84,7 +84,7 @@ ReadAnswer answerNew(
 
   final parentDoc = parent == null
       ? null
-      : session.target('$parentTypeId:$parent');
+      : session.parentTarget(parent, parentTypeId!);
   final (parentShape, parentValues) = parentDoc == null
       ? (null, const <String>[])
       : _shapeOfParent(set, parentTypeId!, parentDoc);

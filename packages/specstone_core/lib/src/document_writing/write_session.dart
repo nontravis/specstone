@@ -161,6 +161,44 @@ final class WriteSession {
     return typed.single;
   }
 
+  /// Returns the one doc of [parentTypeId] among the docs [value] names.
+  ///
+  /// [value] is read as any target, as [target] reads it, and only the docs of
+  /// [parentTypeId] count.
+  /// Throws [IndexFault] `doc_not_found` naming [value] when none counts and
+  /// `argument_invalid` listing each as `<doc type>:<name>` or, when that names
+  /// 2 docs, its DocPath, when 2 or more count.
+  IndexedDoc parentTarget(String value, String parentTypeId) {
+    final List<IndexedDoc> named;
+    try {
+      named = index.resolve(value);
+    } on IndexFault catch (fault) {
+      if (fault.code != IndexFaultCode.docNotFound) rethrow;
+      throw IndexFault(
+        IndexFaultCode.docNotFound,
+        'no $parentTypeId doc carries the name $value',
+      );
+    }
+    final parents = [
+      for (final doc in named)
+        if (doc.docTypeId == parentTypeId) doc,
+    ];
+    if (parents.isEmpty) {
+      throw IndexFault(
+        IndexFaultCode.docNotFound,
+        'no $parentTypeId doc carries the name $value',
+      );
+    }
+    if (parents.length > 1) {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        '$value names ${parents.length} $parentTypeId docs: '
+        '${parents.map(index.addressOf).join(', ')}',
+      );
+    }
+    return parents.single;
+  }
+
   /// Runs [act] inside the index write lock and returns its result.
   ///
   /// The first call ends the read snapshot. A fault from [act] rolls back and

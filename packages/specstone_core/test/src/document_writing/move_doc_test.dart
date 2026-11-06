@@ -1159,6 +1159,76 @@ void main() {
       expect(hasDoc(root, cartAdd), isTrue);
     });
 
+    test('f02/us07/fr01/e08: an --under that names no feature doc is doc_not_found naming the value, and nothing moves', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(
+          root,
+          'user_story:shop/cart/add_item',
+          'architecture:shop/pay',
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('architecture:shop/pay'),
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('f02/us07/fr01/e12: --under feature:shop/pay and a path name the feature as a bare name does', () async {
+      for (final under in [
+        'feature:shop/pay',
+        'prds/features/f02_shop/f02_pay/FEATURE.md',
+      ]) {
+        final root = await writeNestedProject();
+        final answer = move(root, 'user_story:shop/cart/add_item', under);
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ], reason: under);
+      }
+    });
+
+    test('f02/us07/fr01/e13: an --under that names 2 or more feature docs is argument_invalid listing each, and nothing moves', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n'},
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(
+                  contains(payFeature),
+                  contains('prds/features/f02_shop/f03_pay/FEATURE.md'),
+                ),
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('f02/us07/fr01/e14: a target that names a feature and its spec docs is argument_invalid, never doc_type_not_movable', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'shop', 'shop/pay'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+    });
+
     test(
       'f02/us07/fr01/e10, sf-r1: a move out of a mixed parent is allowed',
       () async {

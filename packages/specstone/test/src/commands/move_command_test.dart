@@ -117,6 +117,56 @@ void main() {
     },
   );
 
+  test('f02/us07/fr01/e12: --under feature:shop/pay and a path move the story as a bare name does', () async {
+    for (final under in [
+      'feature:shop/pay',
+      'prds/features/f02_shop/f02_pay/FEATURE.md',
+    ]) {
+      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+      expect(
+        await runner.run(['move', addItem, '--under', under]),
+        0,
+        reason: under,
+      );
+      expect(err.toString(), isEmpty, reason: under);
+      expect(
+        out.toString(),
+        startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+        reason: under,
+      );
+    }
+  });
+
+  test(
+    'f02/us07/fr01/e12: move --help names the three forms of --under',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+      expect(await runner.run(['move', '--help']), 0);
+      expect(
+        out.toString(),
+        contains(
+          'The feature that takes the story: <doc type>:<name>, a bare name, '
+          'or a path.',
+        ),
+      );
+    },
+  );
+
+  test('f02/us07/fr01/e13: an --under that names 2 or more features is argument_invalid, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(
+      await writeNestedProject(
+        extra: {'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n'},
+      ),
+    );
+    expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString().trimRight().split('\n').last,
+      'shop/pay names 2 feature docs: $payFeature, '
+      'prds/features/f02_shop/f03_pay/FEATURE.md',
+    );
+  });
+
   test('f02/us07/fr01/e09: no target is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(await runner.run(['move', '--under', 'shop/pay']), 64);

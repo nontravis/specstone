@@ -143,6 +143,75 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(err.toString(), 'no feature doc carries the name nobody\n');
   });
+  test('f02/us02/fr01/e20: --parent feature:login and a path create the story E01 creates', () async {
+    for (final parent in [
+      'feature:login',
+      'prds/features/f01_login/FEATURE.md',
+    ]) {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(
+        await runner.run([
+          'new',
+          'user_story',
+          '--parent',
+          parent,
+          '--slug',
+          'reset_it',
+        ]),
+        0,
+        reason: parent,
+      );
+      expect(err.toString(), isEmpty, reason: parent);
+      expect(
+        File(
+          '${root.path}/docs/prds/features/f01_login/us04_reset_it/USER_STORY.md',
+        ).existsSync(),
+        isTrue,
+        reason: parent,
+      );
+    }
+  });
+  test(
+    'f02/us02/fr01/e20: new --help names the three forms of --parent',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['new', '--help']), 0);
+      expect(
+        out.toString(),
+        contains('The parent doc: <doc type>:<name>, a bare name, or a path.'),
+      );
+    },
+  );
+  test('f02/us02/fr01/e21: a --parent that names 2 or more features exits 64 listing each', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login\n'},
+    );
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(stdinIsTerminal: true),
+    );
+    expect(
+      await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'login',
+        '--slug',
+        'x',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString().trimRight().split('\n').last,
+      'login names 2 feature docs: prds/features/f01_login/FEATURE.md, '
+      'prds/features/f03_login/FEATURE.md',
+    );
+  });
   test(
     'f02/us02/fr01/e10: no --parent --json carries the sidecar message',
     () async {
@@ -186,11 +255,14 @@ void main() {
       err.toString(),
       contains(
         'Expected one doc type, got 2.\n\n'
-        'Usage: specstone new <doc type> [--parent <name | path>] '
+        'Usage: specstone new <doc type> [--parent <doc address>] '
         '[--slug <slug>] [--json]\n',
       ),
     );
-    expect(err.toString(), contains('The name or path of the parent doc.'));
+    expect(
+      err.toString(),
+      contains('The parent doc: <doc type>:<name>, a bare name, or a path.'),
+    );
   });
   test('f02/us02/fr02: non-UTF-8 stdin is argument_invalid, stdin is not UTF-8 text, exit 64', () async {
     final out = StringBuffer();
