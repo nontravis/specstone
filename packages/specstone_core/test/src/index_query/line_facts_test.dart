@@ -55,6 +55,7 @@ void main() {
           target: 'prds/f01_a/us01_x/USER_STORY.md',
           line: 6,
           shown: 'us01_x/USER_STORY.md',
+          anchor: null,
         ),
       ];
       expect(_factsOf(linked, docPath: docPath).links, expected);
@@ -73,7 +74,12 @@ void main() {
         'prds/f01_a/us01_x/USER_STORY.md',
       ]);
       expect(facts.fileLinks, [
-        (target: 'prds/f01_a/flow.png', line: 6, shown: 'flow.png'),
+        (
+          target: 'prds/f01_a/flow.png',
+          line: 6,
+          shown: 'flow.png',
+          anchor: null,
+        ),
       ]);
     });
 
@@ -231,6 +237,49 @@ void main() {
       );
       expect(back.fileLinks, facts.fileLinks);
     });
+
+    test('f04/us02/fr04, PS-R3, P11: the JSON round-trips the self links, the '
+        'unreadable links, and the anchor set', () {
+      final facts = _factsOf(
+        '# T\n\n[a](b.md#x) [s](#rules) [u](http://h:abc/x.md)\n'
+        '## Rules\n',
+        docPath: 'doc.md',
+      );
+      expect(facts.selfLinks, [
+        (target: 'doc.md', line: 3, shown: '#rules', anchor: 'rules'),
+      ]);
+      expect(facts.unreadableLinks, [
+        (
+          target: 'http://h:abc/x.md',
+          line: 3,
+          shown: 'http://h:abc/x.md',
+          anchor: null,
+        ),
+      ]);
+      expect(facts.anchors, isNotNull);
+      expect(facts.anchors!.holds('t'), isTrue);
+      expect(facts.anchors!.holds('rules'), isTrue);
+      final back = LineFacts.fromJson(
+        jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+        sectionCounts: facts.sectionCounts,
+      );
+      expect(back.selfLinks, facts.selfLinks);
+      expect(back.unreadableLinks, facts.unreadableLinks);
+      expect(back.anchors!.toJson(), facts.anchors!.toJson());
+    });
+
+    test(
+      's03/inv24, LP2, P11: a body the markdown parser fails on has no links '
+      'and an unknown anchor set, stored as null',
+      () {
+        final facts = _factsOf('# T\n\n[a](b.md)\n\n[a]:<b\\');
+        expect(facts.links, isEmpty);
+        expect(facts.fileLinks, isEmpty);
+        expect(facts.selfLinks, isEmpty);
+        expect(facts.unreadableLinks, isEmpty);
+        expect(facts.anchors, isNull);
+      },
+    );
   });
 
   group('LineFacts.of counted text', () {

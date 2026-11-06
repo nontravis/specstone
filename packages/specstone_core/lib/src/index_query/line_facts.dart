@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
@@ -53,6 +55,9 @@ final class LineFacts {
   const new({
     required this.links,
     required this.fileLinks,
+    required this.selfLinks,
+    required this.unreadableLinks,
+    required this.anchors,
     required this.sectionLines,
     required this.sectionCounts,
     required this.fenced,
@@ -68,8 +73,8 @@ final class LineFacts {
   /// it, while [lineCount] and [charCount] measure [countedText].
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
   /// frontmatter. A body the markdown
-  /// parser fails on has no links, and [markdownUnparsedWarning] joins
-  /// [warnings].
+  /// parser fails on has no links and an unknown anchor set, and
+  /// [markdownUnparsedWarning] joins [warnings].
   factory of({
     required String lfText,
     required String countedText,
@@ -84,15 +89,20 @@ final class LineFacts {
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
     final bodyStart = _lineCount(prefix);
     final whole = scanText(countedText);
+    final bodyNodes = parseMarkdown(doc.afterFrontmatter);
     final links = linkPlacesOf(
       doc.afterFrontmatter,
       docPath: docPath,
       firstLine: bodyStart + 1,
+      bodyNodes: bodyNodes,
     );
     if (links == null) warnings.add(markdownUnparsedWarning(docPath));
     return LineFacts(
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],
+      selfLinks: links?.selfLinks ?? const [],
+      unreadableLinks: links?.unreadableLinks ?? const [],
+      anchors: bodyNodes == null ? null : anchorsOf(bodyNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
@@ -109,9 +119,21 @@ final class LineFacts {
     required List<SectionCounts> sectionCounts,
   }) {
     final fenced = json['fenced']! as List<Object?>;
+    final anchors = json['anchors'] as Map<String, Object?>?;
     return LineFacts(
       links: _placesOfJson(json['links']!),
       fileLinks: _placesOfJson(json['file_links']!),
+      selfLinks: _placesOfJson(json['self_links']!),
+      unreadableLinks: _placesOfJson(json['unreadable_links']!),
+      anchors: anchors == null
+          ? null
+          : DocAnchors(
+              headingSlugs: (anchors['headings']! as List<Object?>)
+                  .cast<String>(),
+              htmlIds: (anchors['ids']! as List<Object?>)
+                  .cast<String>()
+                  .toSet(),
+            ),
       sectionLines: (json['sections']! as List<Object?>).cast<int>(),
       sectionCounts: sectionCounts,
       fenced: [
@@ -131,6 +153,18 @@ final class LineFacts {
   /// the path under the docs root, with leading `../` segments when it leaves
   /// the root.
   final List<LinkPlace> fileLinks;
+
+  /// The links that name the doc itself, a bare `#anchor` included, in source
+  /// order.
+  final List<LinkPlace> selfLinks;
+
+  /// The links whose target the grammar cannot read, in source order; each
+  /// target is the href as written.
+  final List<LinkPlace> unreadableLinks;
+
+  /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
+  /// be computed, never a stand-in for an empty one.
+  final DocAnchors? anchors;
 
   /// The header line of each section, in the order of `Doc.sections`.
   final List<int> sectionLines;
@@ -181,6 +215,9 @@ final class LineFacts {
   Map<String, Object?> toJson() => {
     'links': _placesToJson(links),
     'file_links': _placesToJson(fileLinks),
+    'self_links': _placesToJson(selfLinks),
+    'unreadable_links': _placesToJson(unreadableLinks),
+    'anchors': anchors?.toJson(),
     'sections': sectionLines,
     'fenced': [
       for (final range in fenced) [range.first, range.last],
@@ -198,12 +235,14 @@ List<LinkPlace> _placesOfJson(Object json) => [
       target: place[0]! as String,
       line: place[1]! as int,
       shown: place[2]! as String,
+      anchor: place[3] as String?,
     ),
 ];
 
 /// Returns [places] as JSON values.
-List<List<Object>> _placesToJson(List<LinkPlace> places) => [
-  for (final place in places) [place.target, place.line, place.shown],
+List<List<Object?>> _placesToJson(List<LinkPlace> places) => [
+  for (final place in places)
+    [place.target, place.line, place.shown, place.anchor],
 ];
 
 /// Returns the lines of [text], using [breaks] as its `\n` count when known.

@@ -4,15 +4,23 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
 /// A link of a doc: the path it resolves to, the file line it is written on,
-/// and its destination as written.
+/// its destination as written, and its decoded `#anchor`, null with no `#`.
 ///
-/// The target is a docPath for a doc link, and the path under the docs root
-/// for a file link.
-typedef LinkPlace = ({String target, int line, String shown});
+/// The target is a docPath for a doc link and a self link, and the path under
+/// the docs root for a file link; an unreadable link's target is its href as
+/// written.
+typedef LinkPlace = ({String target, int line, String shown, String? anchor});
 
 /// The links of a doc: the doc links, which resolve to a `.md` doc other than
-/// the doc itself, and the file links, every other relative link.
-typedef LinkPlaces = ({List<LinkPlace> docLinks, List<LinkPlace> fileLinks});
+/// the doc itself, the file links, every other relative link, the self links,
+/// which name the doc itself, a bare `#anchor` included, and the unreadable
+/// links, whose target the grammar cannot read.
+typedef LinkPlaces = ({
+  List<LinkPlace> docLinks,
+  List<LinkPlace> fileLinks,
+  List<LinkPlace> selfLinks,
+  List<LinkPlace> unreadableLinks,
+});
 
 /// Returns the links of [lfBody], doc links and file links, each in source
 /// order.
@@ -33,34 +41,49 @@ LinkPlaces? linkPlacesOf(
   String lfBody, {
   required String docPath,
   required int firstLine,
+  List<Node>? bodyNodes,
 }) {
   // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
   // is absolute, so it never resolves to a doc.
   if (!lfBody.contains('](') && !lfBody.contains(']:')) {
-    return (docLinks: const [], fileLinks: const []);
+    return (
+      docLinks: const [],
+      fileLinks: const [],
+      selfLinks: const [],
+      unreadableLinks: const [],
+    );
   }
-  final hrefs = _hrefsOf(lfBody);
+  final hrefs = _hrefsOf(lfBody, bodyNodes: bodyNodes);
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);
   final sources = linkSourcesOf(lfBody, firstLine: firstLine);
   final places = readersAgree(sources, hrefs)
       ? [
-          for (final (:index, :href, :target, isFile: _) in placed)
+          for (final (:index, :href, :target, kind: _, :anchor) in placed)
             (
               target: target,
               line: sources[index].line,
               shown: sources[index].shown ?? href,
+              anchor: anchor,
             ),
         ]
       : _placedByUse(placed, sources);
   return (
     docLinks: [
       for (final (i, place) in places.indexed)
-        if (!placed[i].isFile) place,
+        if (placed[i].kind == _LinkKind.doc) place,
     ],
     fileLinks: [
       for (final (i, place) in places.indexed)
-        if (placed[i].isFile) place,
+        if (placed[i].kind == _LinkKind.file) place,
+    ],
+    selfLinks: [
+      for (final (i, place) in places.indexed)
+        if (placed[i].kind == _LinkKind.self) place,
+    ],
+    unreadableLinks: [
+      for (final (i, place) in places.indexed)
+        if (placed[i].kind == _LinkKind.unreadable) place,
     ],
   );
 }
@@ -80,7 +103,7 @@ List<LinkPlace> _placedByUse(
   }
   final places = <LinkPlace>[];
   final taken = <String, int>{};
-  for (final (:href, :target, index: _, isFile: _) in placed) {
+  for (final (:href, :target, :anchor, index: _, kind: _) in placed) {
     final sameHref = usesOf[href] ?? const <LinkSource>[];
     final nth = taken[href] ?? 0;
     taken[href] = nth + 1;
@@ -89,6 +112,7 @@ List<LinkPlace> _placedByUse(
       target: target,
       line: use?.line ?? 1,
       shown: use?.shown ?? href,
+      anchor: anchor,
     ));
   }
   return places;
@@ -107,16 +131,27 @@ bool readersAgree(List<LinkSource> sources, List<String> hrefs) {
   return true;
 }
 
+/// The class a placed href falls into.
+enum _LinkKind { doc, file, self, unreadable }
+
 /// A placed href together with its index among the hrefs, the path it
-/// resolved to, and whether that path is a file link, not a doc link.
-typedef _PlacedHref = ({int index, String href, String target, bool isFile});
+/// resolved to, its class, and its decoded anchor.
+typedef _PlacedHref = ({
+  int index,
+  String href,
+  String target,
+  _LinkKind kind,
+  String? anchor,
+});
 
 /// Returns the hrefs [linkPlacesOf] places, each with its index in [hrefs],
 /// the path it resolved to, and its class.
 ///
 /// A link to a `.md` doc other than [docPath] is a doc link; a link to
-/// [docPath] itself, an empty path, a web address, another scheme, and a
-/// rooted path are left out; every other relative link is a file link.
+/// [docPath] itself is a self link, a bare `#anchor` included; a link whose
+/// target the grammar cannot read is an unreadable link, its target the href
+/// as written; an empty path with no anchor, a web address, another scheme,
+/// and a rooted path are left out; every other relative link is a file link.
 ///
 /// Each href resolves exactly once: the caller reads the path from here
 /// instead of resolving again.
@@ -125,19 +160,36 @@ List<_PlacedHref> _placedHrefs(String docPath, List<String> hrefs) {
   for (var index = 0; index < hrefs.length; index++) {
     final href = hrefs[index];
     final target = resolveDocLink(href, docPath);
+    if (target is UnreadableTarget) {
+      placed.add((
+        index: index,
+        href: href,
+        target: href,
+        kind: _LinkKind.unreadable,
+        anchor: null,
+      ));
+      continue;
+    }
     if (target is DocTarget && target.docPath.endsWith('.md')) {
-      if (target.docPath == docPath) continue;
+      final kind = target.docPath == docPath ? _LinkKind.self : _LinkKind.doc;
       placed.add((
         index: index,
         href: href,
         target: target.docPath,
-        isFile: false,
+        kind: kind,
+        anchor: target.anchor,
       ));
       continue;
     }
     final filePath = relativeFilePathOf(href, docPath);
     if (filePath == null) continue;
-    placed.add((index: index, href: href, target: filePath, isFile: true));
+    placed.add((
+      index: index,
+      href: href,
+      target: filePath,
+      kind: _LinkKind.file,
+      anchor: null,
+    ));
   }
   return placed;
 }
@@ -151,9 +203,10 @@ String _normalize(String dest) => dest.splitMapJoin(
 );
 
 /// Returns the hrefs of the links and images in [body], in order, or null when
-/// `markdown` fails on it.
-List<String>? _hrefsOf(String body) {
-  final nodes = parseMarkdown(body);
+/// `markdown` fails on it; [bodyNodes], when given, are `parseMarkdown(body)`'s
+/// nodes, so they are parsed once.
+List<String>? _hrefsOf(String body, {List<Node>? bodyNodes}) {
+  final nodes = bodyNodes ?? parseMarkdown(body);
   if (nodes == null) return null;
   final hrefs = <String>[];
   void visit(List<Node> nodes) {

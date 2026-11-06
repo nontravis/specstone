@@ -16,6 +16,12 @@ final class DocAnchors {
   /// Whether [anchor] names a heading slug or an html id of this doc.
   bool holds(String anchor) =>
       headingSlugs.contains(anchor) || htmlIds.contains(anchor);
+
+  /// Returns the anchors as JSON values, as `LineFacts.toJson` stores them.
+  Map<String, Object> toJson() => {
+    'headings': headingSlugs,
+    'ids': htmlIds.toList(),
+  };
 }
 
 /// Returns the anchors of [body], the nodes `parseMarkdown` gave.
