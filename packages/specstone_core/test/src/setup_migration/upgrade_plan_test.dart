@@ -5,9 +5,13 @@ import 'package:specstone_core/src/document_writing/move_journal.dart'
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart'
+    show agentFilesSince;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
@@ -93,6 +97,13 @@ PlannedRewrite _rewriteAt(RunPlan plan, String path) =>
 
 void main() {
   _agentFilesTests();
+
+  test('agentFilesSince matches the shipped versions of its packs', () {
+    final shipped = shippedPackVersions();
+    for (final entry in agentFilesSince.entries) {
+      expect(shipped[entry.key], entry.value.toString());
+    }
+  });
 
   test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
       'prints', () async {
