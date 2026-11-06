@@ -32,7 +32,9 @@ jobs:
           git diff --exit-code -- lib/src/templates/shipped_packs.g.dart
           dart run tool/generate_mermaid_script.dart
           git diff --exit-code -- lib/src/rendering/mermaid_script.g.dart
-          test -z "$(git status --porcelain -- lib/src/templates/ lib/src/rendering/)"
+          dart run tool/generate_agent_text.dart
+          git diff --exit-code -- lib/src/setup_migration/agent_text.g.dart
+          test -z "$(git status --porcelain -- lib/src/templates/ lib/src/rendering/ lib/src/setup_migration/)"
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
 

@@ -1,29 +1,13 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 
-/// The AGENT.md text, ending in one line feed
+/// The AGENT.md text, ending in one line feed, embedded from
+/// `assets/agent/AGENT.md` by `tool/generate_agent_text.dart`
 /// (`setup_migration/set_up_new_project/write_agent_files`).
-const String agentMdText =
-    '# Specstone\n'
-    '\n'
-    'This project keeps its PRD and spec as Specstone docs.\n'
-    '\n'
-    '## Rules\n'
-    '- code ⊆ spec ⊆ PRD: build only what a spec states, and specify only what '
-    'the PRD asks for. When code needs\n'
-    '  something no spec states, stop and ask the Owner.\n'
-    '- Read docs with `specstone context <target> --for <mode>` or '
-    '`specstone get <name>`; never open doc files directly.\n'
-    '- Change docs only with `specstone set`, `new`, `move`, or `rename`. What '
-    'an agent writes stays a draft until the\n'
-    '  Owner runs `specstone approve`.\n'
-    '- Before writing any plan, ground it with '
-    '`specstone context <story> --for implement`.\n'
-    '- Cite a doc by its name (`<feature>/<story>`), never by a number label '
-    '(`F-02 US-01`).\n'
-    '- Before reporting work done, run `specstone check <doc>` on each doc you '
-    'changed until every finding it reports says it waits for the Owner.\n'
-    '- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.\n';
+final String agentMdText = utf8.decode(base64Decode(agentMdTextBase64));
 
 const _projectRule = '- Run `specstone get project` before any task.\n';
 const _endMarker = '<!-- END specstone -->';
