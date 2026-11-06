@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -13,6 +14,23 @@ const _storyType = 'user_story';
 IndexedDoc? storyNamed(DocIndex index, String identity) => index.docs
     .where((doc) => doc.docTypeId == _storyType && doc.name == identity)
     .firstOrNull;
+
+/// Returns the story an `fr` under [ownStory] traces through [ref].
+///
+/// [ownStory] for an own-story ref; else the story Named by [ref] when it
+/// shares the feature of [ownStory]; null for a story of another feature or
+/// of no doc.
+IndexedDoc? tracedStoryOf(
+  DocIndex index,
+  IndexedDoc ownStory,
+  ScenarioRef ref,
+) {
+  final name = ref.storyName;
+  if (name == null) return ownStory;
+  final story = storyNamed(index, name);
+  if (story == null) return null;
+  return story.parentPath == ownStory.parentPath ? story : null;
+}
 
 /// Returns the scenario block [target] names, heading line included.
 ///

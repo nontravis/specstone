@@ -724,4 +724,50 @@ void main() {
       },
     );
   });
+
+  group('sibling-story traces', () {
+    Future<List<String>> unresolvedWith(String entry) async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            'docs/$cartAddFr': nestedFiles()['docs/$cartAddFr']!.replaceFirst(
+              'traced_from:\n  - S1\n',
+              'traced_from:\n  - S1\n  - $entry\n',
+            ),
+          },
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.scenarioTraceUnresolved)
+            '${f.path}:${f.line} ${f.toJson()['entry']}',
+      ];
+    }
+
+    test('f04/us03/fr01/e08: a scenario of a sibling story resolves', () async {
+      expect(await unresolvedWith('shop/cart/drop_item#S1'), isEmpty);
+    });
+
+    test('f04/us03/fr01/e09: a story of another feature is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('shop/pay/card#S1'), [
+        '$cartAddFr:3 shop/pay/card#S1',
+      ]);
+    });
+
+    test('f04/us03/fr01/e10: a sibling story with no such scenario is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('shop/cart/drop_item#S9'), [
+        '$cartAddFr:3 shop/cart/drop_item#S9',
+      ]);
+    });
+
+    test('f04/us03/fr01/e04: a story that no doc carries is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('shop/cart/nothing#S1'), [
+        '$cartAddFr:3 shop/cart/nothing#S1',
+      ]);
+    });
+
+    test('f04/us03/fr01/e04: a lettered scenario number is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('S6a'), ['$cartAddFr:3 S6a']);
+    });
+  });
 }

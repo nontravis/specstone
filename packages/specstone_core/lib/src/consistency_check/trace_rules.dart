@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/journeys/step_scenarios.dart';
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -59,19 +60,31 @@ Iterable<Finding> _unresolvedScenarioTraces(
       !context.typeHoldsSection(storyType, _acceptanceSection)) {
     return;
   }
-  final scenarios = context.scenarioBlocksOf(story);
   final line = context.linesOf(doc).keyLine(_tracedFromKey);
   if (line == null) return;
   for (final entry in doc.valuesOf(_tracedFromKey)) {
-    if (entry == _selfDerived || scenarios.containsKey(entry)) continue;
+    if (entry == _selfDerived || _tracesScenario(context, story, entry)) {
+      continue;
+    }
     yield context.finding(
       doc,
       FindingKind.scenarioTraceUnresolved,
       line: line,
-      message: '$entry is no scenario of the story and not $_selfDerived',
+      message:
+          '$entry is no scenario the story may trace and not $_selfDerived',
       keys: {'entry': entry},
     );
   }
+}
+
+// Whether [entry] reads as a scenario ref naming a scenario [story] or a
+// sibling story holds.
+bool _tracesScenario(CheckContext context, IndexedDoc story, String entry) {
+  final ref = readScenarioRef(entry);
+  if (ref == null) return false;
+  final traced = tracedStoryOf(context.index, story, ref);
+  return traced != null &&
+      context.scenarioBlocksOf(traced).containsKey(ref.number.written);
 }
 
 Iterable<Finding> _overrideProblems(

@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 
 // MARK: - Constants
@@ -19,7 +20,6 @@ const journeyFlowKind = 'journey_flow';
 const scenarioCopyKind = 'scenario_copy';
 
 final _stepHeading = RegExp(r'^### ([0-9]+[a-z]*)\. (.+)$');
-final _stepTarget = RegExp(r'^([a-z0-9_]+(?:/[a-z0-9_]+)*) S([0-9]+)$');
 const _stepPrefix = 'step:';
 const _afterPrefix = 'after:';
 
@@ -39,12 +39,16 @@ final class StepTarget {
   String get scenarioLabel => 'S$scenario';
 }
 
-/// Reads [value] as `<story identity> S<N>`; returns null when it does not.
+/// Reads [value] as `<story identity> S<N>` through the doc model reference
+/// grammar; null when it does not, and for a lettered or oversized number.
 StepTarget? readStepTarget(String value) {
-  final match = _stepTarget.firstMatch(value);
-  final scenario = int.tryParse(match?.group(2) ?? '');
-  if (match == null || scenario == null) return null;
-  return StepTarget(match.group(1)!, scenario);
+  final ref = readStepTargetValue(value);
+  final identity = ref?.storyName;
+  final scenario = ref?.scenario;
+  if (identity == null || scenario == null || !scenario.isValidInt) {
+    return null;
+  }
+  return StepTarget(identity, scenario.toInt());
 }
 
 // MARK: - JourneyStep

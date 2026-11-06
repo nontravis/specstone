@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
@@ -17,11 +18,7 @@ const _statementSection = 'statement';
 const _statementBlock = 'Statement';
 const _tighten = 'tighten';
 const _relax = 'relax';
-final _scenarioLabel = RegExp(r'^S[0-9]+$');
-final _wellFormedEntry = RegExp(
-  '^(S[0-9]+|NFR-[A-Za-z]+[0-9]+|[a-z0-9_]+(?:/[a-z0-9_]+)+'
-  r'|[a-z0-9_]+(?:/[a-z0-9_]+)*#S[0-9]+) ([0-9a-f]{12})$',
-);
+final _fingerprintShape = RegExp(r'^[0-9a-f]{12}$');
 
 /// Whether a tracked link is current, changed, or without a matching entry.
 enum LinkState { clean, suspect, unconfirmed }
@@ -41,7 +38,7 @@ final class TrackedLink {
   });
 
   /// The LinkLabel: `S<N>`, an NFR id, `<story slug>/<fr slug>`, or
-  /// `<story identity>#S<N>`.
+  /// `<story Name>#S<N>`.
   final String label;
 
   /// The file line of the key or table row that traces the link.
@@ -84,17 +81,19 @@ Iterable<TrackedLink> _scenarioLinks(
   final story = context.index.parentOf(fr);
   final line = context.linesOf(fr).keyLine(_tracedFromKey);
   if (story == null || line == null) return;
-  final scenarios = context.scenarioBlocksOf(story);
   for (final entry in fr.valuesOf(_tracedFromKey)) {
-    if (!_scenarioLabel.hasMatch(entry)) continue;
-    final text = scenarios[entry];
+    final ref = readScenarioRef(entry);
+    if (ref == null) continue;
+    final traced = tracedStoryOf(context.index, story, ref);
+    if (traced == null) continue;
+    final text = context.scenarioBlocksOf(traced)[ref.number.written];
     yield text == null
-        ? TrackedLink(label: entry, traceLine: line)
+        ? TrackedLink(label: ref.label, traceLine: line)
         : TrackedLink(
-            label: entry,
+            label: ref.label,
             traceLine: line,
-            upstream: story.docPath,
-            block: 'Scenario ${entry.substring(1)}',
+            upstream: traced.docPath,
+            block: 'Scenario ${ref.number.digits}',
             fingerprint: fingerprintOf(text),
           );
   }
@@ -173,13 +172,26 @@ Iterable<TrackedLink> _stepLinks(
 
 typedef _Entry = ({String fingerprint, int line});
 
+// Reads [value] as `<LinkLabel> <12 lowercase hex characters>`, one space
+// between; the label goes through the doc model reference grammar, where a
+// lettered scenario number names no scenario.
+({String label, String fingerprint})? _readEntry(Object? value) {
+  if (value is! String) return null;
+  final space = value.indexOf(' ');
+  if (space < 0) return null;
+  final fingerprint = value.substring(space + 1);
+  final label = readLinkLabel(value.substring(0, space));
+  if (label == null || !_fingerprintShape.hasMatch(fingerprint)) return null;
+  if (label is ScenarioLabel && label.ref.scenario == null) return null;
+  return (label: label.written, fingerprint: fingerprint);
+}
+
 // The first well-formed entry naming [label] is its entry (PD19).
 _Entry? _entryOf(DocLines lines, String label) {
   for (final item in lines.entriesOf(_confirmedKey)) {
-    final value = item.value;
-    final match = value is String ? _wellFormedEntry.firstMatch(value) : null;
-    if (match != null && match.group(1) == label) {
-      return (fingerprint: match.group(2)!, line: item.line);
+    final entry = _readEntry(item.value);
+    if (entry != null && entry.label == label) {
+      return (fingerprint: entry.fingerprint, line: item.line);
     }
   }
   return null;
@@ -263,11 +275,10 @@ Iterable<Finding> checkConfirmedEntries(
   if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return;
   final tracked = {for (final link in trackedLinksOf(context, doc)) link.label};
   for (final item in context.linesOf(doc).entriesOf(_confirmedKey)) {
-    final value = item.value;
     // A block map item's span ends with its line break.
     final text = item.text.trim();
-    final match = value is String ? _wellFormedEntry.firstMatch(value) : null;
-    if (match == null) {
+    final entry = _readEntry(item.value);
+    if (entry == null) {
       yield context.finding(
         doc,
         FindingKind.confirmedEntryMalformed,
@@ -279,7 +290,7 @@ Iterable<Finding> checkConfirmedEntries(
       );
       continue;
     }
-    final label = match.group(1)!;
+    final label = entry.label;
     if (tracked.contains(label)) continue;
     yield context.finding(
       doc,

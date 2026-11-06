@@ -81,6 +81,14 @@ void main() {
     },
   );
 
+  test('f04/us02/fr06, f04/us02/fr06/e10: a lettered scenario number is '
+      'journey_step_unresolved, never Scenario 1', () async {
+    final found = await _check(['### 1. Sign in', 'step: $_story S1a']);
+    final unresolved = _of(found, FindingKind.journeyStepUnresolved);
+    expect(unresolved, hasLength(1));
+    expect(unresolved.single.toJson(), containsPair('step', '$_story S1a'));
+  });
+
   test('f04/us02/fr06/e03: a step heading with no step: line is '
       'journey_step_unresolved at the heading, step empty', () async {
     final found = await _check(['### 1. Sign in']);

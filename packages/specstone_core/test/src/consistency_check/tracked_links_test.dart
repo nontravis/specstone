@@ -541,4 +541,123 @@ void main() {
       expect(spots(report, FindingKind.confirmedEntryMalformed), hasLength(1));
     });
   });
+
+  group('sibling-story links', () {
+    const sibling = 'shop/cart/drop_item#S1';
+    const foreign = 'shop/pay/card#S1';
+
+    String frWith(String entry, {String? recorded}) =>
+        nestedFiles()['docs/$cartAddFr']!
+            .replaceFirst('  - S1\n', '  - S1\n  - $entry\n')
+            .replaceFirst(
+              'confirmed:\n',
+              'confirmed:\n${recorded == null ? '' : '  - $entry $recorded\n'}',
+            );
+
+    Future<({List<TrackedLink> links, String block})> linksOf(
+      String entry,
+    ) async {
+      final session = openSession(
+        await writeNestedProject(extra: {'docs/$cartAddFr': frWith(entry)}),
+      );
+      addTearDown(session.close);
+      final context = CheckContext(session);
+      return (
+        links: trackedLinksOf(context, session.index.at(cartAddFr)!),
+        block: context.scenarioBlocksOf(session.index.at(cartDrop)!)['S1']!,
+      );
+    }
+
+    Future<CheckReport> checkWith(
+      String entry, {
+      required String recorded,
+      Map<String, String> extra = const {},
+    }) async => checkOf(
+      await writeNestedProject(
+        extra: {
+          'docs/$cartAddFr': frWith(entry, recorded: recorded),
+          ...extra,
+        },
+      ),
+      docPath: cartAddFr,
+    );
+
+    test('f04/us04/fr01: a scenario of a sibling story is tracked against that story', () async {
+      final (:links, :block) = await linksOf(sibling);
+      final link = links.singleWhere((l) => l.label == sibling);
+
+      expect(link.upstream, cartDrop);
+      expect(link.block, 'Scenario 1');
+      expect(link.fingerprint, fp(block));
+    });
+
+    test(
+      'f04/us03/fr01/e09: a story of another feature tracks no link',
+      () async {
+        final (:links, block: _) = await linksOf(foreign);
+
+        expect(links.map((l) => l.label), ['S1']);
+      },
+    );
+
+    test('f04/us04/fr02/e11: an edit to the sibling story makes the sibling link suspect, an edit to the own story leaves it clean', () async {
+      final (links: _, :block) = await linksOf(sibling);
+      final edited = nestedFiles()['docs/$cartDrop']!.replaceFirst(
+        'the shopper acts',
+        'the shopper acts twice',
+      );
+      final suspect = await checkWith(
+        sibling,
+        recorded: fp(block),
+        extra: {'docs/$cartDrop': edited},
+      );
+      expect(
+        suspect.findings
+            .singleWhere((f) => f.kind == FindingKind.suspect)
+            .toJson(),
+        allOf(
+          containsPair('link', sibling),
+          containsPair('upstream', cartDrop),
+          containsPair('block', 'Scenario 1'),
+        ),
+      );
+
+      final ownEdited = nestedFiles()['docs/$cartAdd']!.replaceFirst(
+        'the shopper acts',
+        'the shopper acts twice',
+      );
+      final own = await checkWith(
+        sibling,
+        recorded: fp(block),
+        extra: {'docs/$cartAdd': ownEdited},
+      );
+      expect(
+        own.findings
+            .where((f) => f.kind == FindingKind.suspect)
+            .map((f) => f.toJson()['link']),
+        ['S1'],
+      );
+    });
+
+    test('f04/us04/fr03: a sibling entry the FR traces is neither malformed nor stale', () async {
+      final (links: _, :block) = await linksOf(sibling);
+      final report = await checkWith(sibling, recorded: fp(block));
+
+      expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
+      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+    });
+
+    test('f04/us04/fr03: a confirmed entry with a lettered scenario number is confirmed_entry_malformed', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr('  - S2 ${fp(loginScenario2)}', '  - S6a 0123456789ab'),
+        ),
+      );
+
+      expect(spots(report, FindingKind.confirmedEntryMalformed), [
+        '$loginFr:7: confirmed_entry_malformed',
+      ]);
+    });
+  });
 }
