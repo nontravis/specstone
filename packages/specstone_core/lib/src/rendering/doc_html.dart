@@ -1,5 +1,6 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/html_attributes.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 import 'package:specstone_core/src/rendering/link_rewrite.dart';
@@ -48,23 +49,10 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 
 // A doc with no anchor is not on the page, so its ids have nothing to scope to.
 String _bodyHtml(List<Node> body, String? anchor, Map<String, String> anchors) {
-  final html = _withTagFilter(renderToHtml(_withMermaidPre(body)));
+  final html = withTagFilter(renderToHtml(_withMermaidPre(body)));
   if (anchor == null) return html;
   return scopeIds(html, anchor: anchor, pageAnchors: anchors.values.toSet());
 }
-
-/// Tags the GFM "disallowed raw HTML" rule writes as text, plus `noscript` and
-/// `template`, whose unclosed start tag also swallows the docs after it.
-///
-/// The `markdown` package's own filter only matches a start tag without
-/// attributes, so `<title lang=x>` and `</title>` get through it.
-final _disallowedTag = RegExp(
-  '<(?=/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext'
-  r'|noscript|template)[\s/>])',
-  caseSensitive: false,
-);
-
-String _withTagFilter(String html) => html.replaceAll(_disallowedTag, '&lt;');
 
 /// Returns the title [doc] shows, or null when it has none or it is blank.
 String? shownTitle(Doc doc) {
