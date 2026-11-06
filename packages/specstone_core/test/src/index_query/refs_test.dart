@@ -65,6 +65,91 @@ void main() {
       ]);
     },
   );
+  const emailFr =
+      'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+  String frTracing(List<String> entries) =>
+      '---\ntraced_from:\n${[for (final e in entries) '  - $e'].join('\n')}\n---\n\n'
+      '# Validate credentials\n\n## Statement\nThe system shall check.\n';
+  Future<DocIndex> withFrTracing(List<String> entries) =>
+      indexWith({emailFr: frTracing(entries)});
+  const frName = 'login/email_login/validate_credentials';
+
+  test('index_query/follow_references/list_doc_references E22: a traced_from '
+      'entry is outbound once per story and inbound on it; S<N> is no reference', () async {
+    final traced = await withFrTracing([
+      'S1',
+      'login/reset_password#S2',
+      'login/reset_password#S3',
+    ]);
+    expect(
+      answerRefs(traced, frName).text,
+      contains(
+        'Outbound\n- traced_from: login/reset_password (user_story)\nInbound\n',
+      ),
+    );
+    expect(
+      answerRefs(traced, 'login/reset_password').text,
+      contains('Inbound\n- traced_from: $frName (fr)\n'),
+    );
+  });
+  test(
+    'index_query/follow_references/list_doc_references E22: a story of '
+    'another feature is listed, one that resolves to no story is not',
+    () async {
+      final traced = await withFrTracing([
+        'signup/create_account#S1',
+        'nowhere/story#S1',
+      ]);
+      final text = answerRefs(traced, frName).text;
+      expect(
+        text,
+        contains('- traced_from: signup/create_account (user_story)\n'),
+      );
+      expect(text, isNot(contains('nowhere')));
+      expect(
+        answerRefs(traced, 'signup/create_account').text,
+        contains('- traced_from: $frName (fr)\n'),
+      );
+    },
+  );
+  test('index_query/follow_references/list_doc_references E19: a repeated '
+      'depends_on value prints one outbound and one inbound line', () async {
+    final repeated = await indexWith({
+      'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
+    });
+    expect(
+      answerRefs(repeated, 'feature:signup').text,
+      contains('Outbound\n- depends_on: login (feature)\nInbound\n'),
+    );
+    expect(
+      answerRefs(repeated, 'feature:login').text,
+      contains('Inbound\n- depends_on: signup (feature)\nMentions\n'),
+    );
+  });
+  test(
+    'index_query/follow_references/list_doc_references E20: a depends_on '
+    'value naming the doc itself is no reference, outbound or inbound',
+    () async {
+      final self = await indexWith({
+        featureKey:
+            '---\nvision:\n  - PV-01\nslug:\n  - sign-in\ndepends_on:\n  - login\n---\n\n# Login\n\n'
+            '## Problem\nUsers sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n',
+      });
+      expect(
+        answerRefs(self, 'feature:login').text,
+        isNot(contains('depends_on')),
+      );
+    },
+  );
+  test('index_query/follow_references/list_doc_references E21: one doc in '
+      'depends_on and reference prints one line per field', () async {
+    final both = await indexWith({
+      'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\nreference:\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
+    });
+    final text = answerRefs(both, 'feature:signup').text;
+    expect(text, contains('- depends_on: login (feature)\n'));
+    expect(text, contains('- reference: login (feature)\n'));
+  });
   test('index_query/follow_references/list_doc_references E05: an empty depends_on '
       'list or an empty item prints - none', () async {
     for (final value in ['[]', '\n  - ""']) {

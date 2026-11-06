@@ -1130,6 +1130,28 @@ void main() {
     });
   });
 
+  test('document_writing/delete_doc_subtree/delete_doc_subtree E06: delete of a story an FR of another feature traces is doc_referenced listing that FR', () async {
+    const tracer =
+        'prds/features/f02_signup/us01_create_account/fr09_trace_reset.md';
+    final root = await writeWriteProject(
+      extra: {
+        ...withoutLink,
+        ...freeStory3,
+        'docs/$tracer': '---\ndraft: true\ntraced_from:\n  - login/reset_password#S1\n---\n\n# Trace reset\n\n## Statement\nThe system shall trace.\n',
+      },
+    );
+    expect(
+      () => del(root, ['user_story:login/reset_password']),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
+            .having((f) => f.file, 'file', story3)
+            .having((f) => f.relatedFiles, 'relatedFiles', [tracer]),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
   group('journeys as referrers', () {
     Matcher refusedForJourney(String file) => throwsA(
       isA<WriteFault>()

@@ -42,6 +42,28 @@ void main() {
     );
     expect(await readRunner(pinned).runner.run(['refs', 'login']), 78);
   });
+  test('f01/us07/fr01/e22: refs prints a traced_from line on the FR and on the story it traces', () async {
+    const base = 'docs/prds/features/f01_login';
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(
+        extra: {
+          '$base/us02_reset_password/USER_STORY.md':
+              '# Reset\n\n## Use Case\nReset.\n',
+          '$base/us01_email_login/fr01_validate_credentials.md':
+              '---\ntraced_from:\n  - S1\n  - login/reset_password#S2\n---\n\n'
+              '# Validate credentials\n\n## Statement\n'
+              'The system shall check.\n',
+        },
+      ),
+    );
+    expect(await runner.run(['refs', 'login/reset_password']), 0);
+    expect(
+      out.toString(),
+      contains(
+        'Inbound\n- traced_from: login/email_login/validate_credentials (fr)\n',
+      ),
+    );
+  });
   test('f01/us07/fr02: refs --json gives the step reference kind, name, and docType', () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(

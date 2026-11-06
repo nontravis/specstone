@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -125,6 +126,43 @@ String _offPathWarning(IndexedDoc journey, JourneySteps steps, int i) {
 
 // MARK: - Code
 
+/// Returns the `fr` docs whose `traced_from` names [target] of [story]: the
+/// story's own first, then those of any other story in tree order.
+///
+/// Entries compare by resolved story and scenario number, never by label
+/// (P10); a story of another feature counts, as only `check` limits to
+/// siblings.
+List<IndexedDoc> _frsTracing(
+  DocIndex index,
+  IndexedDoc story,
+  StepTarget target,
+) {
+  final tracing = [
+    for (final fr in index.docs)
+      if (fr.docTypeId == _frType && _traces(index, fr, story, target)) fr,
+  ];
+  bool isOwn(IndexedDoc fr) => fr.parentPath == story.docPath;
+  return [...tracing.where(isOwn), ...tracing.where((fr) => !isOwn(fr))];
+}
+
+bool _traces(
+  DocIndex index,
+  IndexedDoc fr,
+  IndexedDoc story,
+  StepTarget target,
+) {
+  for (final entry in fr.valuesOf(_tracedFromKey)) {
+    final ref = readScenarioRef(entry);
+    if (ref?.scenario != BigInt.from(target.scenario)) continue;
+    final name = ref!.storyName;
+    final tracedStory = name == null
+        ? index.parentOf(fr)
+        : storyNamed(index, name);
+    if (tracedStory?.docPath == story.docPath) return true;
+  }
+  return false;
+}
+
 _JourneyPart _codeOf(DocIndex index, IndexedDoc journey, JourneySteps steps) {
   final lines = <String>[];
   final stepsJson = <Object>[];
@@ -139,12 +177,7 @@ _JourneyPart _codeOf(DocIndex index, IndexedDoc journey, JourneySteps steps) {
       stepsJson.add({...resolved.baseJson, 'frs': <Object>[]});
       continue;
     }
-    final frs = [
-      for (final child in index.childrenOf(story))
-        if (child.docTypeId == _frType &&
-            child.valuesOf(_tracedFromKey).contains(target!.scenarioLabel))
-          child,
-    ];
+    final frs = _frsTracing(index, story, target!);
     for (final doc in [story, ...frs]) {
       lines.addAll(_codeLines(doc));
     }
