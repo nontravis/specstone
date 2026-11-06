@@ -292,13 +292,10 @@ LinkLabel? readLinkLabel(String text) {
 bool _isNfrId(String text) {
   const open = 'NFR-';
   if (!text.startsWith(open)) return false;
-  var i = open.length;
-  final lettersStart = i;
-  while (i < text.length && _letters.hasMatch(text[i])) {
-    i++;
-  }
-  if (i == lettersStart) return false;
-  final digitsStart = i;
+  final lettersEnd = _lettersEnd(text, open.length);
+  if (lettersEnd == open.length) return false;
+  final digitsStart = lettersEnd;
+  var i = digitsStart;
   while (i < text.length && _isDigit(text.codeUnitAt(i))) {
     i++;
   }

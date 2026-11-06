@@ -310,6 +310,11 @@ void main() {
       expect((readLinkLabel('NFR-P01')! as NfrLabel).id, 'NFR-P01');
     });
 
+    test('an astral-plane letter in an NFR id reads as an NfrLabel', () {
+      // U+10428 DESERET SMALL LETTER LONG I: outside the BMP.
+      expect(readLinkLabel('NFR-\u{10428}01'), isA<NfrLabel>());
+    });
+
     test('reads <story Name>#S<N>', () {
       final label = readLinkLabel('login/reset_password#S3');
       expect(label, isA<ScenarioLabel>());
