@@ -7,6 +7,24 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
+  test(
+    'f01/us04/fr01/e14: reorder takes a bare name one doc carries',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run(['reorder', 'login/reset_password', '--to', '1']),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith(
+          'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
+        ),
+      );
+    },
+  );
+
   test('f02/us05/s1: reorder prints moved and rewrote lines', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(

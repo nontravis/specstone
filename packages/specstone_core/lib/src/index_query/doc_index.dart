@@ -89,8 +89,14 @@ final class DocIndex {
     }
   }
 
-  /// Whether some doc carries [name] as its name.
-  bool carriesName(String name) => _byName.containsKey(name);
+  /// Returns the shortest address that picks only [doc]: `<doc type>:<name>`
+  /// when that names one doc, else its DocPath.
+  String addressOf(IndexedDoc doc) {
+    final typed = '${doc.docTypeId}:${doc.name}';
+    return doc.docTypeId != null && _byTypeAndName[typed]!.length == 1
+        ? typed
+        : doc.docPath;
+  }
 
   List<IndexedDoc> _named(String address) {
     final read = readDocAddress(address);

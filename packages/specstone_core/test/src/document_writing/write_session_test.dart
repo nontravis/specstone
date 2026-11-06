@@ -123,7 +123,7 @@ void main() {
         isA<IndexFault>().having(
           (f) => f.message,
           'message',
-          'feature:login names 2 docs: feature:login, feature:login',
+          'feature:login names 2 docs: prds/features/f01_login/FEATURE.md, prds/features/f03_login/FEATURE.md',
         ),
       ),
     );

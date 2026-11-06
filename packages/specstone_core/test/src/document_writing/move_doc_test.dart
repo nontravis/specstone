@@ -828,8 +828,8 @@ void main() {
         isTrue,
       );
       expect(
-        writeIn(root, (s) => s.index.carriesName('market/cart/add_item')),
-        isTrue,
+        writeIn(root, (s) => s.index.resolve('market/cart/add_item')),
+        hasLength(1),
       );
       expect(hasDoc(root, 'specs/f02_market/f01_cart/DOMAIN.md'), isTrue);
       expect(hasDoc(root, 'specs/f02_market/DOMAIN.md'), isTrue);

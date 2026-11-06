@@ -135,9 +135,9 @@ final class WriteSession {
   /// [DocIndex.resolve] reads it.
   /// Throws [IndexFault] `untyped_target` for a doc with no doc type, before
   /// any doc-type test, `argument_invalid` for an address that names 2 or
-  /// more docs, listing each as `<doc type>:<name>`, and `doc_not_found` when
-  /// it names none; a `TemplateFault` for an unknown doc type id passes
-  /// through.
+  /// more docs, listing each as `<doc type>:<name>` or, when that names 2
+  /// docs, its DocPath, and `doc_not_found` when it names none; a
+  /// `TemplateFault` for an unknown doc type id passes through.
   IndexedDoc target(String address) {
     final found = index.resolve(address);
     final typed = [
@@ -155,7 +155,7 @@ final class WriteSession {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
         '$address names ${typed.length} docs: '
-        '${typed.map((doc) => '${doc.docTypeId}:${doc.name}').join(', ')}',
+        '${typed.map(index.addressOf).join(', ')}',
       );
     }
     return typed.single;

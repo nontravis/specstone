@@ -97,11 +97,7 @@ final class SetRequest {
       );
     }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
-    return SetRequest(
-      address: read.docPart,
-      target: chosen,
-      base: base,
-    );
+    return SetRequest(address: read.docPart, target: chosen, base: base);
   }
 
   /// The doc as `<type>:<name>`.

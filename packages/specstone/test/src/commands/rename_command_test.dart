@@ -8,6 +8,26 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
+  test('f01/us04/fr01/e14: rename takes a bare name one doc carries', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(
+      await runner.run([
+        'rename',
+        'login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith(
+        'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us03_recover_account/\n',
+      ),
+    );
+  });
+
   test('f02/us06/s1: rename prints moved and rewrote lines', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(

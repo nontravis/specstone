@@ -12,6 +12,19 @@ void main() {
   const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
   const addItem = 'user_story:shop/cart/add_item';
 
+  test('f01/us04/fr01/e14: move takes a bare name one doc carries', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(
+      await runner.run(['move', 'shop/cart/add_item', '--under', 'shop/pay']),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+    );
+  });
+
   test(
     'f02/us07/s1, sf-r3: move prints the moved line and the rewrote lines',
     () async {
