@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
-import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart'
+    show holdsLinkSyntax, parseMarkdown;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
@@ -89,9 +90,12 @@ final class LineFacts {
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
     final bodyStart = _lineCount(prefix);
     final whole = scanText(countedText);
-    final bodyNodes = parseMarkdown(doc.afterFrontmatter);
+    final body = doc.afterFrontmatter;
+    // One parse per doc: a link-syntax body shares its full parse between
+    // the links and the anchors; any other body never parses its prose.
+    final bodyNodes = holdsLinkSyntax(body) ? parseMarkdown(body) : null;
     final links = linkPlacesOf(
-      doc.afterFrontmatter,
+      body,
       docPath: docPath,
       firstLine: bodyStart + 1,
       bodyNodes: bodyNodes,
@@ -102,7 +106,7 @@ final class LineFacts {
       fileLinks: links?.fileLinks ?? const [],
       selfLinks: links?.selfLinks ?? const [],
       unreadableLinks: links?.unreadableLinks ?? const [],
-      anchors: bodyNodes == null ? null : anchorsOf(bodyNodes),
+      anchors: bodyNodes == null ? anchorsOfBody(body) : anchorsOf(bodyNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),

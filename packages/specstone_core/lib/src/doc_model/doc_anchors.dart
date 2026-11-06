@@ -1,5 +1,6 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/html_attributes.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart';
 
 /// The anchors of one doc body (doc_model RULE-13).
 final class DocAnchors {
@@ -35,6 +36,13 @@ DocAnchors anchorsOf(List<Node> body) {
     ]),
     htmlIds: htmlIds,
   );
+}
+
+/// Returns the anchors of the body text [body], or null when the anchor parse
+/// fails (P11).
+DocAnchors? anchorsOfBody(String body) {
+  final nodes = parseBodyForAnchors(body);
+  return nodes == null ? null : anchorsOf(nodes);
 }
 
 /// Returns the GitHub slug of a heading's rendered text, before any suffix.
@@ -195,6 +203,8 @@ bool _isHeading(String tag) =>
     tag.codeUnitAt(1) <= 0x36;
 
 void _collectHtmlIds(String rawHtml, Set<String> htmlIds) {
+  // A start tag needs a `<`; text without one holds none.
+  if (!rawHtml.contains('<')) return;
   final filtered = withTagFilter(rawHtml.replaceAll(_rawTextElement, ''));
   for (final attribute in scanStartTagAttributes(filtered)) {
     if (attribute.name == 'id' ||

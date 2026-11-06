@@ -45,7 +45,7 @@ LinkPlaces? linkPlacesOf(
 }) {
   // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
   // is absolute, so it never resolves to a doc.
-  if (!lfBody.contains('](') && !lfBody.contains(']:')) {
+  if (!holdsLinkSyntax(lfBody)) {
     return (
       docLinks: const [],
       fileLinks: const [],

@@ -167,6 +167,37 @@ void main() {
       expect(headingSlugOf('Résumé²'), 'résumé');
     });
   });
+
+  group('anchorsOfBody (P17 scoped parse)', () {
+    // Each body has no link syntax, so it takes the scoped parse; its anchors
+    // must equal the full parse's.
+    void pinsToFullParse(String name, String body) {
+      test(name, () {
+        final full = anchorsOf(_parse(body));
+        final scoped = anchorsOfBody(body);
+        expect(scoped, isNotNull);
+        expect(scoped!.toJson(), full.toJson());
+      });
+    }
+
+    pinsToFullParse(
+      'a heading with inline markup, an html id, an <a name>, and a heading '
+          'equal to the title',
+      '# Title\n\n## `code` and *stress*\n\n'
+          '<span id="raw-id">x</span>\n\n<a name="named">y</a>\n\n'
+          'plain prose with no link syntax\n\n## Title\n',
+    );
+
+    pinsToFullParse(
+      'an entity-escaped id never becomes a literal tag',
+      'prose with &lt;a id="escaped"&gt; in it\n\n## Real\n',
+    );
+
+    pinsToFullParse(
+      'a heading inside a blockquote and a setext heading',
+      '> ## Quoted\n\ntext\nsetext\n=====\n',
+    );
+  });
 }
 
 final _zwj = String.fromCharCode(0x200D);

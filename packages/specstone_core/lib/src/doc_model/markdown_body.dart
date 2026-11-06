@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:markdown/markdown.dart';
 
 /// The deepest tree [parseMarkdown] returns, counted in element levels from a
@@ -33,6 +35,72 @@ List<Node>? parseMarkdown(String text) {
   }
   return _depthOf(nodes) > maxMarkdownDepth ? null : nodes;
 }
+
+/// Whether [body] holds the least syntax a markdown link needs: an inline
+/// opener (`](`) or a definition opener (`]:`).
+///
+/// An autolink is absolute, so it never resolves to a doc. This is the one
+/// gate both the link scan and the anchor parse use (P17): a body that fails
+/// it needs no full inline parse.
+bool holdsLinkSyntax(String body) => body.contains('](') || body.contains(']:');
+
+/// Returns the nodes of [body] parsed for anchors, or null when the parse
+/// fails.
+///
+/// A body that [holdsLinkSyntax] gets the same full parse [parseMarkdown]
+/// gives. Any other body gets one block pass plus an inline pass only where
+/// the anchor set reads the result: h1-h6 content and blocks whose text holds
+/// `<` (an inline tag may carry an `id`). The heading subtrees are the nodes
+/// the full parse builds, so the anchor set is the same either way; only
+/// prose the index never reads is left unparsed.
+List<Node>? parseBodyForAnchors(String body) {
+  if (holdsLinkSyntax(body)) return parseMarkdown(body);
+  final List<Node> nodes;
+  try {
+    final document = Document(extensionSet: ExtensionSet.gitHubFlavored);
+    nodes = BlockParser(
+      LineSplitter.split(body).map(Line.new).toList(),
+      document,
+    ).parseLines();
+    _inlineForAnchors(document, nodes, inHeading: false);
+  } on Object {
+    return null;
+  }
+  return _depthOf(nodes) > maxMarkdownDepth ? null : nodes;
+}
+
+/// Runs [document]'s inline pass on [nodes] the anchor set reads: content in
+/// a heading, and text holding `<` anywhere else.
+void _inlineForAnchors(
+  Document document,
+  List<Node> nodes, {
+  required bool inHeading,
+}) {
+  for (var i = 0; i < nodes.length; i++) {
+    final node = nodes[i];
+    if (node is UnparsedContent) {
+      if (!inHeading && !node.textContent.contains('<')) continue;
+      final inline = document.parseInline(node.textContent);
+      nodes
+        ..removeAt(i)
+        ..insertAll(i, inline);
+      i += inline.length - 1;
+    } else if (node is Element && node.children != null) {
+      _inlineForAnchors(
+        document,
+        node.children!,
+        inHeading: inHeading || _isHeadingTag(node.tag),
+      );
+    }
+  }
+}
+
+/// Whether [tag] is `h1` through `h6`.
+bool _isHeadingTag(String tag) =>
+    tag.length == 2 &&
+    tag.codeUnitAt(0) == 0x68 &&
+    tag.codeUnitAt(1) >= 0x31 &&
+    tag.codeUnitAt(1) <= 0x36;
 
 /// The number of element levels in [nodes], measured without recursion.
 int _depthOf(List<Node> nodes) {
