@@ -406,6 +406,10 @@ PlannedRewrite? _configRewriteOf(
 
 /// Returns [text] with the `agent_file_roots` entry set to [roots]: replaced
 /// in place when present, else appended.
+///
+/// The replacement covers through the end of the value's last line, so a null
+/// value (the bare key) and an end-of-line comment on the value both leave a
+/// valid list; the comment is dropped.
 String _withAgentFileRoots(String text, List<String> roots) {
   final block = configText(
     const {},
@@ -417,7 +421,17 @@ String _withAgentFileRoots(String text, List<String> roots) {
   final key = map.nodes.keys.firstWhere(
     (key) => (key as YamlNode).value == _agentFileRootsKey,
   ) as YamlNode;
-  return text.replaceRange(key.span.start.offset, value.span.end.offset, block);
+  var valueEnd = value.span.end.offset;
+  if (valueEnd > 0 && text[valueEnd - 1] == '\n') {
+    // A block-style list's span ends past its last newline.
+    valueEnd -= 1;
+  }
+  final newline = text.indexOf('\n', valueEnd);
+  return text.replaceRange(
+    key.span.start.offset,
+    newline == -1 ? text.length : newline + 1,
+    block,
+  );
 }
 
 /// Returns the final path of each doc of [docPaths], the final paths each

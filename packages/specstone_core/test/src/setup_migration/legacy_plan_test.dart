@@ -767,6 +767,39 @@ name: NFR
       expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
       expect(plan.agentFiles!.topWrites.map((w) => w.path), ['code/AGENTS.md']);
     });
+
+    test(
+      'an existing config that already lists the top lists it once',
+      () async {
+        final plan = await _linkedPlan({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 0.0.1\n'
+              'code_root: code\nagent_file_roots:\n  - code\n',
+          'code/AGENTS.md':
+              '# Stale\n\n<!-- BEGIN specstone v1.2.0 -->\nold\n'
+              '<!-- END specstone -->\n',
+          'code/.git/HEAD': 'ref: refs/heads/main\n',
+        });
+
+        expect(plan.agentFiles!.topWrites.map((w) => w.path), [
+          'code/AGENTS.md',
+        ]);
+        expect(plan.agentFiles!.addedRoots, isEmpty);
+        final rewrite = plan.rewrites.singleWhere(
+          (r) => r.path == '.specstone/config.yaml',
+        );
+        expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
+        expect('agent_file_roots'.allMatches(rewrite.text), hasLength(1));
+        expect('- code\n'.allMatches(rewrite.text), hasLength(1));
+        expect(
+          plan.toText(),
+          contains(
+            '  agent files: .specstone/AGENT.md, AGENTS.md, '
+            'code/AGENTS.md\n',
+          ),
+        );
+      },
+    );
   });
 
   group('code_root', () {

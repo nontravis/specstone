@@ -903,6 +903,45 @@ void _agentFilesTests() {
       ]);
     });
 
+    test(
+      '$_fr E17: a bare agent_file_roots key rewrites to a valid list',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n',
+          'code/.git/HEAD': 'ref: refs/heads/main\n',
+        });
+
+        final plan = _planAt(project);
+
+        expect(
+          _rewriteAt(plan, '.specstone/config.yaml').text,
+          '${shippedPinsConfig()}code_root: code\n'
+          'agent_file_roots:\n  - code\n',
+        );
+      },
+    );
+
+    test(
+      '$_fr E17: a replaced agent_file_roots drops an end-of-line comment',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}code_root: code\n'
+              'agent_file_roots: [other] # keep\n',
+          'code/.git/HEAD': 'ref: refs/heads/main\n',
+        });
+
+        final plan = _planAt(project);
+
+        expect(
+          _rewriteAt(plan, '.specstone/config.yaml').text,
+          '${shippedPinsConfig()}code_root: code\n'
+          'agent_file_roots:\n  - other\n  - code\n',
+        );
+      },
+    );
+
     test('$_fr E17: the config rewrite replaces a listed agent_file_roots '
         'and keeps every other key', () async {
       final project = await writeTree({
