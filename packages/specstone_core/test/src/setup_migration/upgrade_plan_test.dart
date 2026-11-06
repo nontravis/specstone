@@ -838,6 +838,21 @@ void _agentFilesTests() {
       );
     });
 
+    test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
+        'one-time write', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'AGENTS.md': '# Owner rules\n',
+      });
+
+      final plan = _planAt(project);
+
+      // Refresh-only: no rules file gains a block and no file is created.
+      expect(plan.agentFiles!.rootWrites, isEmpty);
+      expect(plan.agentFiles!.topWrites, isEmpty);
+      expect(plan.agentFiles!.addedRoots, isEmpty);
+    });
+
     test('$_fr E14: a later upgrade never adds a deleted block or the rules '
         'file', () async {
       final project = await writeTree({
@@ -857,6 +872,25 @@ void _agentFilesTests() {
 
       expect(plan.agentFiles!.isEmpty, isTrue);
       expect(plan.toText(), isNot(contains('agent files:')));
+    });
+
+    test('$_fr E12, E14: the agent files line prints after the steps and '
+        'before the pins', () async {
+      final fixture = await _fixture(docs: const {}, overrides: const {});
+      final projectPath = fixture.project.path;
+      Directory('$projectPath/code/.git').createSync(recursive: true);
+      File('$projectPath/.specstone/config.yaml')
+          .writeAsStringSync('${_config('1.0.0')}code_root: code\n');
+
+      final plan = _plan(fixture);
+
+      final text = plan.toText();
+      final stepAt = text.indexOf('from 1.1.0: rename_field');
+      final agentsAt = text.indexOf('agent files: code/AGENTS.md');
+      final pinAt = text.indexOf('.specstone/config.yaml: acme 1.2.0');
+      expect(stepAt, greaterThan(0), reason: 'the steps print');
+      expect(agentsAt, greaterThan(stepAt), reason: 'agent files after steps');
+      expect(pinAt, greaterThan(agentsAt), reason: 'pins after agent files');
     });
 
     test('$_fr E12: every pin equal and a stale block gives the agent-only '

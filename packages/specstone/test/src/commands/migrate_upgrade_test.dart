@@ -721,6 +721,27 @@ void main() {
         expect(_read(root, 'CLAUDE.md'), isNot(contains('old rules')));
       });
 
+      test(
+        'user_story:setup_migration/upgrade_pack_pins S10: a mixed pair '
+        'with one pin below agentFilesSince triggers the one-time write',
+        () async {
+          final root = await agentProject({
+            'CLAUDE.md': '# Owner rules\n',
+          }, 'packs:\n  prd-core: 1.6.9\n  software-tech: 1.3.0\n');
+          final home = await writeTree({});
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(
+            result.out,
+            contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
+          );
+          expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
+          expect(_read(root, 'CLAUDE.md'), contains(begin));
+        },
+      );
+
       test('user_story:setup_migration/upgrade_pack_pins S10: a pin below '
           'agentFilesSince writes the files once and a deleted block stays '
           'deleted', () async {
