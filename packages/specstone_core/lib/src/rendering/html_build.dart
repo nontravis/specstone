@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
@@ -56,9 +57,22 @@ HtmlBuild buildHtml(
     for (final (index, (docPath, _)) in readable.indexed)
       docPath: _anchorOf(index),
   };
+  // Every doc's anchors exist before any doc renders, so a link reaches the
+  // anchors of a doc later in the page.
+  final docAnchors = {
+    for (final (docPath, read) in readable)
+      docPath:
+          anchorsOfBody(read.doc.afterFrontmatter) ??
+          const DocAnchors(headingSlugs: [], htmlIds: {}),
+  };
   final rendered = <RenderedDoc>[];
   for (final (index, (docPath, read)) in readable.indexed) {
-    final body = renderDocBody(read.doc, docPath: docPath, anchors: anchors);
+    final body = renderDocBody(
+      read.doc,
+      docPath: docPath,
+      anchors: anchors,
+      docAnchors: docAnchors,
+    );
     if (!body.bodyParsed) {
       parseWarnings.add(
         '${read.path}: the markdown parser failed; its body is shown as plain '

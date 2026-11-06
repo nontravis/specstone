@@ -111,7 +111,7 @@ void main() {
       expect(
         build.html,
         contains(
-          '<h1>F-05 — Rendering</h1>\n'
+          '<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>\n'
           '<table class="frontmatter">$_statusRow</table>',
         ),
       );
@@ -161,7 +161,7 @@ void main() {
       'rendered, with the same warning', () async {
     final build = await _build({_storyPath: '$_story\n## Notes\nx\n'});
 
-    expect(build.html, contains('<h2>Notes</h2>'));
+    expect(build.html, contains('<h2 id="doc-1-notes">Notes</h2>'));
     expect(build.warnings, [
       'docs/$_storyPath does not match its template; run specstone format',
     ]);
@@ -174,7 +174,10 @@ void main() {
     });
 
     expect(build.warnings, isEmpty);
-    expect(build.html, contains('<h1>F-05 — Rendering</h1>'));
+    expect(
+      build.html,
+      contains('<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>'),
+    );
   });
 
   test('f05/us02/fr02/e02: a draft shows its label after the frontmatter '
@@ -190,7 +193,7 @@ void main() {
     );
     expect(
       html.indexOf('<p class="draft">Draft</p>'),
-      lessThan(html.indexOf('<h2>Feature name</h2>')),
+      lessThan(html.indexOf('<h2 id="doc-1-feature-name">Feature name</h2>')),
     );
   });
 
@@ -350,7 +353,7 @@ void main() {
       hasLength(1),
     );
     expect(html, contains('<section class="doc" id="doc-2">'));
-    expect(html, contains('<h1>Story one</h1>'));
+    expect(html, contains('<h1 id="doc-2-story-one">Story one</h1>'));
   });
 
   test('f05/us02/fr02: an unclosed <title lang=x> or <STYLE media=print> in '
@@ -372,7 +375,7 @@ void main() {
     expect(RegExp('<style').allMatches(page), hasLength(1));
     expect(RegExp('<textarea').allMatches(page), isEmpty);
     expect(html, contains('<section class="doc" id="doc-3">'));
-    expect(html, contains('<h1>Req</h1>'));
+    expect(html, contains('<h1 id="doc-3-req">Req</h1>'));
   });
 
   test('f05/us02/fr02: an unclosed <noscript> or <TEMPLATE id=x> and their end '
