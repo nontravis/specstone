@@ -120,7 +120,7 @@ void main() {
         err.toString(),
         contains(
           'Expected one target, got 2.\n\n'
-          'Usage: specstone move (<type>:<name> | <path>) --under <feature> '
+          'Usage: specstone move <doc address> --under <doc address> '
           '[--json]\n',
         ),
       );

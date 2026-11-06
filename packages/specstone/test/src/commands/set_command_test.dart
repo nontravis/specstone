@@ -310,8 +310,8 @@ void main() {
       err.toString(),
       contains(
         'Expected one target, got 2.\n\n'
-        'Usage: specstone set (<type>:<name> | <path>)[#<section key>] '
-        '[--field <id> | --title] --base <hash> [--json]\n',
+        'Usage: specstone set <doc address>(#<section key> | '
+        '--field <field id> | --title) --base <hash> [--json]\n',
       ),
     );
   });

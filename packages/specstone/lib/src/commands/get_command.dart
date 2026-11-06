@@ -68,7 +68,8 @@ class GetCommand extends SpecstoneCommand {
   String? _journeyConflict({required bool paths, required bool code}) {
     if (paths && code) return '--code and --paths cannot be given together';
     final option = paths ? '--paths' : (code ? '--code' : null);
-    if (option != null && argResults!.rest.first.contains('#')) {
+    if (option == null) return null;
+    if (readDocAddress(argResults!.rest.first).sectionKey != null) {
       return '$option takes no #<section key>';
     }
     return null;

@@ -2,7 +2,7 @@ import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Walks the drafts and approves each one at the Owner's `y`, or approves the
-/// drafts named `<type>:<name>@<hash>` under `--yes`.
+/// drafts named `<name>@<hash>` under `--yes`.
 class ApproveCommand extends WriteCommand {
   new() {
     argParser
@@ -40,7 +40,7 @@ class ApproveCommand extends WriteCommand {
   @override
   String get invocation =>
       'specstone approve [<name> …] [--dry-run] [--context <n>] '
-      '| <type>:<name>@<hash> … --yes';
+      '| <name>@<hash> … --yes';
 
   @override
   Future<int> run() async {
@@ -113,16 +113,15 @@ class ApproveCommand extends WriteCommand {
     return value;
   }
 
-  /// Returns the draft and hash of an `--yes` [arg], `<type>:<name>@<hash>`.
+  /// Returns the draft and hash of an `--yes` [arg], `<name>@<hash>`.
   ///
   /// Throws a usage error for an [arg] with no 12-hex `@<hash>`.
   SeenDraft _seenDraftOf(String arg) {
     final match = _seenDraft.firstMatch(arg);
     if (match == null) {
       usageException(
-        '--yes needs each draft as <type>:<name>@<hash>, the hash row of '
-        'specstone approve --dry-run (bases.doc of specstone get --json); '
-        'got $arg.',
+        '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
+        'specstone get --json; got $arg.',
       );
     }
     return (name: match[1]!, hash: match[2]!);

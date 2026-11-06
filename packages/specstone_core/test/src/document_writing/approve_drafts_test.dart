@@ -626,7 +626,7 @@ void main() {
     );
 
     test(
-      'ms-r10: a bare name is argument_invalid, as every write target is',
+      'f02/us03/fr04/e06: a bare name 2 docs carry is argument_invalid',
       () async {
         final root = await writeWriteProject();
         expect(
@@ -642,6 +642,19 @@ void main() {
             ),
           ),
         );
+      },
+    );
+
+    test(
+      'f02/us03/fr04/e06: a bare name one typed draft carries approves it',
+      () async {
+        final root = await writeWriteProject();
+        final hash = seen(root, 'user_story:login/email_login').hash;
+        writeIn(
+          root,
+          (s) => approveNamed(s, [(name: 'login/email_login', hash: hash)]),
+        );
+        expect(readDoc(root, story1), contains('approved: true'));
       },
     );
   });

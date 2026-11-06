@@ -195,22 +195,64 @@ void main() {
       );
     });
 
-    test(
-      'dw-s03/inv2: a bare name stays argument_invalid for a write',
-      () async {
-        final root = await writeWriteProject();
-        final run = await _run(root, [
-          'set',
-          'login/email_login#use_case',
-          '--base',
-          '7e11fc4a24d2',
-        ], console: FakeConsole(input: 'x\n'));
-        expect(run.status, 64);
-        expect(
-          run.err,
-          contains('name the doc as <doc type>:<name> or by its path'),
-        );
-      },
-    );
+    test('f01/us04/fr01/e14, dw-s03/inv2: set takes a bare name one typed doc carries', () async {
+      final root = await writeWriteProject();
+      final run = await _run(root, [
+        'set',
+        'login/email_login#use_case',
+        '--base',
+        '7e11fc4a24d2',
+      ], console: FakeConsole(input: 'Sign in with a passkey.\n'));
+      expect(run.status, 0);
+      expect(readDoc(root, story1), contains('Sign in with a passkey.'));
+    });
+
+    test('f01/us04/fr01/e06: set refuses a bare name no doc carries with doc_not_found', () async {
+      final root = await writeWriteProject();
+      final before = _docsText(root);
+      final run = await _run(root, [
+        'set',
+        'nobody_here#use_case',
+        '--base',
+        '7e11fc4a24d2',
+      ], console: FakeConsole(input: 'x\n'));
+      expect(run.status, 64);
+      expect(run.err, 'no doc carries the name nobody_here\n');
+      expect(_docsText(root), before);
+    });
+
+    group('f01/us04/fr01/e15: a bare name 2 docs carry refuses, exit 64, nothing written', () {
+      const listed = 'login names 2 docs: feature:login, architecture:login\n';
+      for (final (command, args) in [
+        ('set', ['set', 'login#problem', '--base', '7e11fc4a24d2']),
+        ('delete', ['delete', 'login']),
+        ('reorder', ['reorder', 'login', '--to', '1']),
+        ('rename', ['rename', 'login', '--to', 'signin']),
+        ('move', ['move', 'login', '--under', 'feature:signup']),
+        ('approve --yes', ['approve', 'login@7e11fc4a24d2', '--yes']),
+      ]) {
+        test(command, () async {
+          final root = await writeWriteProject();
+          final before = _docsText(root);
+          final run = await _run(
+            root,
+            args,
+            console: FakeConsole(input: 'x\n'),
+          );
+          expect(run.status, 64);
+          expect(run.out, isEmpty);
+          expect(run.err, contains(listed));
+          expect(_docsText(root), before);
+        });
+      }
+    });
   });
 }
+
+/// Returns every `.md` file under the docs root, keyed by its path.
+Map<String, String> _docsText(Directory root) => {
+  for (final file in Directory(
+    '${root.path}/docs',
+  ).listSync(recursive: true).whereType<File>())
+    file.path: file.readAsStringSync(),
+};

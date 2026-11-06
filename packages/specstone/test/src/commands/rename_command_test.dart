@@ -79,7 +79,7 @@ void main() {
         err.toString(),
         contains(
           'Expected one target, got 2.\n\n'
-          'Usage: specstone rename (<type>:<name> | <path>) --to <slug> '
+          'Usage: specstone rename <doc address> --to <slug> '
           '[--json]\n',
         ),
       );

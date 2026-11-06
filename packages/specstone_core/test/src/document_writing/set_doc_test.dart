@@ -35,6 +35,15 @@ String fieldBase(Directory root, String target, String id) =>
     ((getDoc(root, target)['bases']! as Map)['fields']! as Map)[id]! as String;
 
 void main() {
+  test('f01/us04/fr01/e14: set reads the address through the reference grammar and keeps gnfr# as no section key', () {
+    final request = fieldReq('gnfr#', 'status', 'abc');
+    expect(request.address, 'gnfr');
+    expect(request.target, isA<FieldTarget>());
+    final typed = req('feature:login#problem', 'abc');
+    expect(typed.address, 'feature:login');
+    expect(typed.target, isA<SectionTarget>());
+  });
+
   test(
     'f02/us01/fr01/e12, f02/us01/fr04/e06: set names one target and a base',
     () {

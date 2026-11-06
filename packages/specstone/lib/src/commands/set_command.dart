@@ -32,8 +32,8 @@ class SetCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone set (<type>:<name> | <path>)[#<section key>] '
-      '[--field <id> | --title] --base <hash> [--json]';
+      'specstone set <doc address>(#<section key> | '
+      '--field <field id> | --title) --base <hash> [--json]';
 
   @override
   Future<int> run() async {

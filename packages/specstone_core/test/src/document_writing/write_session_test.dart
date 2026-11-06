@@ -24,16 +24,24 @@ TypeMatcher<IndexFault> _faultCode(IndexFaultCode code) =>
     isA<IndexFault>().having((f) => f.code, 'code', code);
 
 void main() {
-  test(
-    'dw-s03/inv2, f02/us01/fr01/e09: a bare name is argument_invalid',
-    () async {
-      final root = await writeWriteProject();
-      expect(
-        () => writeIn(root, (s) => s.target('login/email_login')),
-        throwsA(_faultCode(IndexFaultCode.argumentInvalid)),
-      );
-    },
-  );
+  test('dw-s03/inv2, f01/us04/fr01/e14: a bare name one typed doc carries resolves to it', () async {
+    final root = await writeWriteProject();
+    expect(writeIn(root, (s) => s.target('login/email_login').docPath), story1);
+  });
+
+  test('dw-s03/inv2, f01/us04/fr01/e15: a bare name 2 docs carry is argument_invalid listing each <type>:<name> in tree order', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => writeIn(root, (s) => s.target('login')),
+      throwsA(
+        _faultCode(IndexFaultCode.argumentInvalid).having(
+          (f) => f.message,
+          'message',
+          'login names 2 docs: feature:login, architecture:login',
+        ),
+      ),
+    );
+  });
 
   test(
     'dw-s03/inv2, f02/us01/fr01/e10: an untyped doc is untyped_target',
@@ -52,19 +60,16 @@ void main() {
     },
   );
 
-  test('f02/us01/fr01/e09: a bare name no doc carries is argument_invalid with the name prompt', () async {
-    final root = await writeWriteProject();
-    expect(
-      () => writeIn(root, (s) => s.target('nobody_here')),
-      throwsA(
-        _faultCode(IndexFaultCode.argumentInvalid).having(
-          (f) => f.message,
-          'message',
-          'name the doc as <doc type>:<name> or by its path, such as user_story:login/email_login',
-        ),
-      ),
-    );
-  });
+  test(
+    'f01/us04/fr01/e06: a bare name no doc carries is doc_not_found',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(root, (s) => s.target('nobody_here')),
+        throwsA(_faultCode(IndexFaultCode.docNotFound)),
+      );
+    },
+  );
 
   test('f02/us01/fr01/e11: a name no doc carries is doc_not_found', () async {
     final root = await writeWriteProject();
@@ -118,7 +123,7 @@ void main() {
         isA<IndexFault>().having(
           (f) => f.message,
           'message',
-          'feature:login names 2 docs: prds/features/f01_login/FEATURE.md, prds/features/f03_login/FEATURE.md',
+          'feature:login names 2 docs: feature:login, feature:login',
         ),
       ),
     );

@@ -129,30 +129,17 @@ final class WriteSession {
   String docPathOf(String projectPath) =>
       projectPath.substring(_docsPrefix.length);
 
-  static const _namePrompt =
-      'name the doc as <doc type>:<name> or by its path, '
-      'such as user_story:login/email_login';
-
   /// Returns the one typed doc [address] names.
   ///
-  /// [address] is `<doc type>:<name>` or a path to the doc, as
-  /// [DocIndex.resolve] reads it; a bare name is ambiguous across doc types
-  /// and refuses.
-  /// Throws [IndexFault] `argument_invalid` for a bare name, found or
-  /// not, or a name two docs carry, `untyped_target` for a doc with no doc
-  /// type, and `doc_not_found` when a typed name matches
-  /// none; a `TemplateFault` for an unknown doc type id passes through.
+  /// [address] is `<doc type>:<name>`, a bare name, or a path to the doc, as
+  /// [DocIndex.resolve] reads it.
+  /// Throws [IndexFault] `untyped_target` for a doc with no doc type, before
+  /// any doc-type test, `argument_invalid` for an address that names 2 or
+  /// more docs, listing each as `<doc type>:<name>`, and `doc_not_found` when
+  /// it names none; a `TemplateFault` for an unknown doc type id passes
+  /// through.
   IndexedDoc target(String address) {
-    final bare = !address.contains(':');
-    final List<IndexedDoc> found;
-    try {
-      found = index.resolve(address);
-    } on IndexFault catch (fault) {
-      if (bare && fault.code == IndexFaultCode.docNotFound) {
-        throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
-      }
-      rethrow;
-    }
+    final found = index.resolve(address);
     final typed = [
       for (final doc in found)
         if (doc.docTypeId != null) doc,
@@ -164,15 +151,11 @@ final class WriteSession {
         'migrate it to one before a write',
       );
     }
-    // A path names one doc; only a name may span doc types.
-    if (bare && index.carriesName(address)) {
-      throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
-    }
     if (typed.length > 1) {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
         '$address names ${typed.length} docs: '
-        '${typed.map((doc) => doc.docPath).join(', ')}',
+        '${typed.map((doc) => '${doc.docTypeId}:${doc.name}').join(', ')}',
       );
     }
     return typed.single;

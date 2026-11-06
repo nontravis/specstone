@@ -123,9 +123,8 @@ void main() {
     expect(
       err.toString(),
       startsWith(
-        '--yes needs each draft as <type>:<name>@<hash>, the hash row of '
-        'specstone approve --dry-run (bases.doc of specstone get --json); '
-        'got architecture:signup.\n',
+        '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
+        'specstone get --json; got architecture:signup.\n',
       ),
     );
     expect(File('${root.path}/docs/$signupFeature').readAsStringSync(), before);
@@ -212,7 +211,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone approve [<name> …] [--dry-run] [--context <n>] | <type>:<name>@<hash> … --yes',
+        'Usage: specstone approve [<name> …] [--dry-run] [--context <n>] | <name>@<hash> … --yes',
       ),
     );
   });

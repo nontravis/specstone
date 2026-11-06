@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -91,29 +92,32 @@ final class DocIndex {
   /// Whether some doc carries [name] as its name.
   bool carriesName(String name) => _byName.containsKey(name);
 
-  List<IndexedDoc> _named(String name) {
-    final colon = name.indexOf(':');
-    if (colon < 0) {
-      return _byName[name] ?? _notFound('no doc carries the name $name');
+  List<IndexedDoc> _named(String address) {
+    final read = readDocAddress(address);
+    final typeId = read.typeId;
+    if (typeId == null) {
+      return _byName[read.body] ??
+          _notFound('no doc carries the name ${read.body}');
     }
-    final typeId = name.substring(0, colon);
-    final bare = name.substring(colon + 1);
     if (set.lookup(typeId) == null) {
       throw TemplateFault(
         FaultCode.docTypeUnknown,
         'Could not find a doc type named "$typeId".',
       );
     }
-    return _byTypeAndName['$typeId:$bare'] ??
-        _notFound('no $typeId doc carries the name $bare');
+    return _byTypeAndName['$typeId:${read.body}'] ??
+        _notFound('no $typeId doc carries the name ${read.body}');
   }
 
   /// Returns the doc [address] names as a path, or null when none.
+  ///
+  /// The whole text is tried as a path too: `C:/docs/x.md` reads as the doc
+  /// type id `C`.
   IndexedDoc? _atPath(String address) {
-    final colon = address.indexOf(':');
-    if (colon > 0) {
-      final typeId = address.substring(0, colon);
-      final typed = _docAtPath(address.substring(colon + 1));
+    final read = readDocAddress(address);
+    final typeId = read.typeId;
+    if (typeId != null) {
+      final typed = _docAtPath(read.body);
       if (typed != null && typed.docTypeId == typeId) return typed;
     }
     return _docAtPath(address);

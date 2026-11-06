@@ -401,7 +401,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone delete <target> [<target> …] '
+        'Usage: specstone delete <target> … '
         '[--dry-run | --yes --plan <hash>] [--json]',
       ),
     );

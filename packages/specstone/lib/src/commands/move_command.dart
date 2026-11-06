@@ -18,7 +18,7 @@ class MoveCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone move (<type>:<name> | <path>) --under <feature> [--json]';
+      'specstone move <doc address> --under <doc address> [--json]';
 
   @override
   Future<int> run() {

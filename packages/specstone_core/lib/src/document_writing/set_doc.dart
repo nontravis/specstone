@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
@@ -69,8 +70,8 @@ final class SetRequest {
     if (target == null) {
       throw missingArgument('set', 'a target', _targetExample);
     }
-    final hash = target.indexOf('#');
-    final key = hash < 0 ? null : target.substring(hash + 1);
+    final read = readDocAddress(target);
+    final key = read.sectionKey;
     final sectionKey = key == null || key.isEmpty ? null : key;
     final targets = [?sectionKey, ?field, if (title) ''];
     if (targets.length > 1) {
@@ -97,7 +98,7 @@ final class SetRequest {
     }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
     return SetRequest(
-      address: hash < 0 ? target : target.substring(0, hash),
+      address: read.docPart,
       target: chosen,
       base: base,
     );

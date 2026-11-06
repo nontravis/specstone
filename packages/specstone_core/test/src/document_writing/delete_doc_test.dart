@@ -987,10 +987,10 @@ void main() {
       expect(hasDoc(root, scratch), isTrue);
     });
 
-    test('f02/us04/fr01/e10: a bare typed name among several targets stays argument_invalid', () async {
+    test('f02/us04/fr01/e10: a bare name 2 docs carry among several targets is argument_invalid', () async {
       final root = await writeWriteProject(extra: untyped);
       expect(
-        () => del(root, [scratch, 'email_login']),
+        () => del(root, [scratch, 'login']),
         throwsA(
           isA<IndexFault>().having(
             (f) => f.code,

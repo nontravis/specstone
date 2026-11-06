@@ -35,7 +35,7 @@ class DeleteCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone delete <target> [<target> …] '
+      'specstone delete <target> … '
       '[--dry-run | --yes --plan <hash>] [--json]';
 
   @override
