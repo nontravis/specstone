@@ -91,8 +91,6 @@ void _collect(
     }
     if (node.tag == 'code' || node.tag == 'pre') continue;
     if (_isHeading(node.tag)) headings.add(_renderedText(node));
-    final name = node.tag == 'a' ? node.attributes['name'] : null;
-    if (name != null) htmlIds.add(name);
     final children = node.children;
     if (children != null) {
       _collect(children, headings: headings, htmlIds: htmlIds);
@@ -118,10 +116,36 @@ String _rawText(List<Node>? nodes) {
   return parts.join();
 }
 
-final _tag = RegExp('<[^>]*>?');
-
 // Drops raw tags from heading text: markdown keeps them inside Text nodes.
-String _stripTags(String text) => text.replaceAll(_tag, '');
+// A quoted attribute value may hold `>`, so quotes are skipped, as the
+// scanner in html_attributes.dart reads them.
+String _stripTags(String text) {
+  final out = StringBuffer();
+  var i = 0;
+  while (i < text.length) {
+    final open = text.indexOf('<', i);
+    if (open < 0) {
+      out.write(text.substring(i));
+      break;
+    }
+    out.write(text.substring(i, open));
+    var end = open + 1;
+    var quoted = 0;
+    while (end < text.length) {
+      final unit = text.codeUnitAt(end);
+      if (quoted != 0) {
+        if (unit == quoted) quoted = 0;
+      } else if (unit == 0x22 || unit == 0x27) {
+        quoted = unit;
+      } else if (unit == 0x3E) {
+        break;
+      }
+      end += 1;
+    }
+    i = end < text.length ? end + 1 : text.length;
+  }
+  return out.toString();
+}
 
 final _entity = RegExp(
   '&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});',

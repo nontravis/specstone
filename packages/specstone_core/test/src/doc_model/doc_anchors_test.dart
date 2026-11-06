@@ -57,6 +57,11 @@ void main() {
       expect(anchors.headingSlugs, ['a-link-and-stress-raw']);
     });
 
+    test('a quoted > inside a raw tag is not the tag end', () {
+      final anchors = anchorsOf(_parse('## <span title="a>b">x</span>\n'));
+      expect(anchors.headingSlugs, ['x']);
+    });
+
     test('Notes, Notes, Notes-1 gives notes, notes-1, notes-1-1', () {
       final anchors = anchorsOf(_parse('## Notes\n\n## Notes\n\n## Notes-1\n'));
       expect(anchors.headingSlugs, ['notes', 'notes-1', 'notes-1-1']);
