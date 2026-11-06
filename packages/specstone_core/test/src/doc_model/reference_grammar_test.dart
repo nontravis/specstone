@@ -394,5 +394,15 @@ void main() {
     test('a WHATWG failure is unreadable (RULE-11, E21)', () {
       expect(readLinkTarget('http://h:abc/x.md'), isA<UnreadableLink>());
     });
+
+    test('R65: a missing host, an out-of-range port, and a forbidden host '
+        'code point are unreadable', () {
+      expect(readLinkTarget('http://'), isA<UnreadableLink>());
+      expect(readLinkTarget('http://h:99999/'), isA<UnreadableLink>());
+      expect(
+        readLinkTarget('https://exa mple.com/x.md'),
+        isA<UnreadableLink>(),
+      );
+    });
   });
 }
