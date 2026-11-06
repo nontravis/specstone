@@ -220,6 +220,20 @@ void main() {
     });
   });
 
+  test('f04/us01/fr09/e06: a 25-digit ID counts without a throw', () async {
+    final found = await _itemIdFindings(
+      _topicRules(
+        '- **RULE-1234567890123456789012345** — a\n'
+        '- **RULE-7a** — b\n- **RULE-8b** — c',
+      ),
+      kind: FindingKind.itemIdLettered,
+    );
+    expect(_keysOf(found), [
+      containsPair('next', 'RULE-1234567890123456789012346'),
+      containsPair('next', 'RULE-1234567890123456789012347'),
+    ]);
+  });
+
   group('idsInDoc', () {
     test('f04/us01/fr09: lists items and scenario headings with their line '
         'spans, a null id for an item with no ID', () async {

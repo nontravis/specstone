@@ -92,7 +92,7 @@ void main() {
       expect(id!.prefix, 'RULE-');
       expect(id.digits, '7');
       expect(id.written, 'RULE-7');
-      expect((id as ItemId).number, 7);
+      expect((id as ItemId).number, BigInt.from(7));
     });
 
     test('reads past one optional **', () {
@@ -137,7 +137,7 @@ void main() {
       expect(id, isA<ItemId>());
       expect(id!.prefix, 'Scenario ');
       expect(id.digits, '6');
-      expect((id as ItemId).number, 6);
+      expect((id as ItemId).number, BigInt.from(6));
     });
 
     test('a lettered scenario number reads as a LetteredId', () {
@@ -162,6 +162,19 @@ void main() {
   });
 
   group('nextFreeIds', () {
+    test('RULE-12: digits past 64 bits read and count without a throw', () {
+      final ids = [
+        readItemId('RULE-1234567890123456789012345', 'RULE-')!,
+        readItemId('RULE-3a', 'RULE-')!,
+        readItemId('RULE-4b', 'RULE-')!,
+      ];
+
+      expect(nextFreeIds(ids), {
+        1: 'RULE-1234567890123456789012346',
+        2: 'RULE-1234567890123456789012347',
+      });
+    });
+
     test('RULE-12 example: highest S7, then S6a and S6b give S8 and S9', () {
       final ids = [
         readScenarioHeading('### Scenario 6')!,
@@ -213,7 +226,7 @@ void main() {
       expect(ref!.number.digits, '1');
       expect(ref.number.prefix, 'S');
       expect(ref.storyName, isNull);
-      expect(ref.scenario, 1);
+      expect(ref.scenario, BigInt.from(1));
       expect(ref.label, 'S1');
     });
 
@@ -229,7 +242,7 @@ void main() {
       final ref = readScenarioRef('login/reset_password#S3');
       expect(ref, isNotNull);
       expect(ref!.storyName, 'login/reset_password');
-      expect(ref.scenario, 3);
+      expect(ref.scenario, BigInt.from(3));
       expect(ref.label, 'login/reset_password#S3');
     });
 
@@ -268,7 +281,7 @@ void main() {
       final ref = readStepTargetValue('login/reset_password S3');
       expect(ref, isNotNull);
       expect(ref!.storyName, 'login/reset_password');
-      expect(ref.scenario, 3);
+      expect(ref.scenario, BigInt.from(3));
       expect(ref.label, 'login/reset_password#S3');
     });
 
@@ -288,7 +301,7 @@ void main() {
     test('reads S<N>', () {
       final label = readLinkLabel('S1');
       expect(label, isA<ScenarioLabel>());
-      expect((label! as ScenarioLabel).ref.scenario, 1);
+      expect((label! as ScenarioLabel).ref.scenario, BigInt.from(1));
       expect(label.written, 'S1');
     });
 

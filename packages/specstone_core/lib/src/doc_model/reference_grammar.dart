@@ -90,7 +90,7 @@ sealed class IdRead {
 final class ItemId extends IdRead {
   const new({required super.prefix, required super.digits});
 
-  int get number => int.parse(digits);
+  BigInt get number => BigInt.parse(digits);
 
   @override
   String get written => '$prefix$digits';
@@ -255,7 +255,7 @@ bool _isAsciiLetter(int code) =>
 /// [LetteredId] of that prefix, zero-padded to the digit count of that
 /// highest [ItemId] (1 when none).
 Map<int, String> nextFreeIds(List<IdRead> ids) {
-  final highest = <String, int>{};
+  final highest = <String, BigInt>{};
   final digitWidth = <String, int>{};
   for (final id in ids) {
     if (id is! ItemId) continue;
@@ -271,7 +271,7 @@ Map<int, String> nextFreeIds(List<IdRead> ids) {
     if (id is! LetteredId) continue;
     final taken = takenPerPrefix[id.prefix] ?? 0;
     takenPerPrefix[id.prefix] = taken + 1;
-    final base = (highest[id.prefix] ?? 0) + taken + 1;
+    final base = (highest[id.prefix] ?? BigInt.zero) + BigInt.from(taken + 1);
     final width = digitWidth[id.prefix] ?? 1;
     nextOf[i] = '${id.prefix}${base.toString().padLeft(width, '0')}';
   }
@@ -289,7 +289,7 @@ final class ScenarioRef {
   final String? storyName;
 
   /// The scenario number; null for a LetteredId.
-  int? get scenario => number is ItemId ? (number as ItemId).number : null;
+  BigInt? get scenario => number is ItemId ? (number as ItemId).number : null;
 
   /// `S<N>` or `<story Name>#S<N>`, as written (P10).
   String get label =>

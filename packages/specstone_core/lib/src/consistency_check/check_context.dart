@@ -333,6 +333,9 @@ const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
 const _headingIdSeparator = ' — ';
 
+bool _isWhitespaceUnit(int unit) =>
+    unit == 0x20 || (unit >= 0x09 && unit <= 0x0D);
+
 /// Returns the ID a `### <id> — <title>` heading [line] opens with, or null.
 String? _nfrKeyOf(String line) {
   final text = itemHeadingTextOf(line);
@@ -340,5 +343,5 @@ String? _nfrKeyOf(String line) {
   final end = text.indexOf(_headingIdSeparator);
   if (end <= 0) return null;
   final id = text.substring(0, end);
-  return id.contains(' ') ? null : id;
+  return id.codeUnits.any(_isWhitespaceUnit) ? null : id;
 }

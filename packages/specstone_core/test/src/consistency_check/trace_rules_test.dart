@@ -78,6 +78,24 @@ void main() {
   });
 
   test(
+    'f04/us03/fr01/e06: a tab inside an NFR heading key is no key',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            gnfrDoc,
+            '### NFR-P01 — Sign-in time',
+            '### NFR-P01\tx — Sign-in time',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.overrideUnresolved), [
+        '$loginNf:3: override_unresolved',
+      ]);
+    },
+  );
+
+  test(
     'f04/us03/fr01/e07: a requirement whose story is gone gets no trace rule',
     () async {
       final report = checkOf(
