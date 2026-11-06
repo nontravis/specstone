@@ -95,6 +95,22 @@ void main() {
     },
   );
 
+  test('f04/us03/fr01/e06: a no-break space inside an NFR heading key is no '
+      'key', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          gnfrDoc,
+          '### NFR-P01 — Sign-in time',
+          '### NFR-P01\u00A0x — Sign-in time',
+        ),
+      ),
+    );
+    expect(spots(report, FindingKind.overrideUnresolved), [
+      '$loginNf:3: override_unresolved',
+    ]);
+  });
+
   test(
     'f04/us03/fr01/e07: a requirement whose story is gone gets no trace rule',
     () async {

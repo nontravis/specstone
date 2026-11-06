@@ -333,8 +333,7 @@ const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
 const _headingIdSeparator = ' — ';
 
-bool _isWhitespaceUnit(int unit) =>
-    unit == 0x20 || (unit >= 0x09 && unit <= 0x0D);
+bool _isWhitespaceRune(int rune) => String.fromCharCode(rune).trim().isEmpty;
 
 /// Returns the ID a `### <id> — <title>` heading [line] opens with, or null.
 String? _nfrKeyOf(String line) {
@@ -343,5 +342,5 @@ String? _nfrKeyOf(String line) {
   final end = text.indexOf(_headingIdSeparator);
   if (end <= 0) return null;
   final id = text.substring(0, end);
-  return id.codeUnits.any(_isWhitespaceUnit) ? null : id;
+  return id.runes.any(_isWhitespaceRune) ? null : id;
 }
