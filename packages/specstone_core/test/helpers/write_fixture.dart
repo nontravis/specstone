@@ -44,42 +44,42 @@ const antiPersona = 'prds/personas/buyer/ANTI_PERSONA.md';
 /// `persona: buyer`, [persona]'s `reference: login/email_login`.
 final writeProject = <String, String>{
   '.specstone/config.yaml': shippedPinsConfig(),
-  'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Login](features/f01_login/FEATURE.md)\n- [Signup](features/f02_signup/FEATURE.md)\n',
+  'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n\n- [Login](features/f01_login/FEATURE.md)\n- [Signup](features/f02_signup/FEATURE.md)\n',
   'docs/prds/d01_context.md': '# Context\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n',
   'docs/prds/personas/buyer/PERSONA.md': '---\ndraft: true\nreference:\n  - login/email_login\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
   'docs/prds/personas/buyer/ANTI_PERSONA.md':
       '---\ndraft: true\n---\n\n# Not a buyer\n',
-  'docs/prds/features/f01_login/FEATURE.md': '---\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
+  'docs/prds/features/f01_login/FEATURE.md': '---\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\n\nUsers sign in with an email and a password.\n',
   'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
       '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\n---\n\n# Sign in with email\n\n'
-      '## Use Case\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n'
+      '## Use Case\n\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n\n'
       '- **Given** a registered email\n',
   'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
       '---\nstatus: implemented\ntraced_from: US-01\nverify_method: test\nimplements:\n'
       '  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n# Validate credentials\n\n'
-      '## Statement\nThe system shall check the email and the password.\n',
+      '## Statement\n\nThe system shall check the email and the password.\n',
   'docs/prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md':
       '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n'
-      '## Statement\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n',
+      '## Statement\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n',
   'docs/prds/features/f01_login/us02_sign_out/USER_STORY.md':
-      '---\nstatus: planned\napproved: true\n---\n\n# Sign out\n\n## Use Case\nSign out.\n\n'
-      '## Acceptance Criteria\n- **Given** a signed-in user\n',
+      '---\nstatus: planned\napproved: true\n---\n\n# Sign out\n\n## Use Case\n\nSign out.\n\n'
+      '## Acceptance Criteria\n\n- **Given** a signed-in user\n',
   'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md':
-      '---\nstatus: planned\ndraft: true\n---\n\n# Reset password\n\n## Use Case\nReset a password. See '
-      '[sign out](../us02_sign_out/USER_STORY.md).\n\n## Acceptance Criteria\n- **Given** a forgotten password\n',
+      '---\nstatus: planned\ndraft: true\n---\n\n# Reset password\n\n## Use Case\n\nReset a password. See '
+      '[sign out](../us02_sign_out/USER_STORY.md).\n\n## Acceptance Criteria\n\n- **Given** a forgotten password\n',
   'docs/prds/features/f01_login/us03_reset_password/fr01_send_reset_link.md':
       '---\ndraft: true\ntraced_from: US-03\nverify_method: test\n---\n\n# Send reset link\n\n'
-      '## Statement\nThe system shall send a link.\n',
+      '## Statement\n\nThe system shall send a link.\n',
   'docs/prds/features/f01_login/us03_reset_password/fr02_expire_reset_link.md':
       '---\ndraft: true\ntraced_from: US-03\nverify_method: test\n---\n\n# Expire reset link\n\n'
-      '## Statement\nThe system shall expire the link. See [send](fr01_send_reset_link.md).\n',
-  'docs/prds/features/f02_signup/FEATURE.md': '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+      '## Statement\n\nThe system shall expire the link. See [send](fr01_send_reset_link.md).\n',
+  'docs/prds/features/f02_signup/FEATURE.md': '---\ndraft: true\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n',
   'docs/specs/f01_login/ARCHITECTURE.md':
-      '---\ncovers:\n  - app/lib/src/login/\n---\n\n# Login architecture\n\n## Components\n'
-      '| Component | Responsibility |\n|-----------|----------------|\n| Login form | Collects the email and the password |\n',
+      '---\ncovers:\n  - app/lib/src/login/\n---\n\n# Login architecture\n\n## Components\n\n'
+      '| Component | Responsibility |\n|---|---|\n| Login form | Collects the email and the password |\n',
   'docs/specs/f02_signup/ARCHITECTURE.md':
-      '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n| Component | Responsibility |\n'
-      '|-----------|----------------|\n| Signup form | Collects the email |\n',
+      '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n\n| Component | Responsibility |\n'
+      '|---|---|\n| Signup form | Collects the email |\n',
 };
 
 /// Writes [writeProject] to a new temp folder and returns it.

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -87,6 +88,7 @@ final class IndexedDoc {
     this.title,
     required this.frontmatter,
     required this.tokens,
+    this.formatted,
     this.order = 0,
     this.warnings = const [],
   });
@@ -111,6 +113,11 @@ final class IndexedDoc {
 
   /// The size of the whole file in tokens.
   final int tokens;
+
+  /// Whether the LF text equals the text the format command lays out.
+  ///
+  /// Null for an untyped doc and for a doc the format command refuses.
+  final bool? formatted;
 
   /// The position of the doc in tree order.
   final int order;
@@ -204,14 +211,15 @@ final class ParsedDoc {
 /// Parses the file [bytes] at [docPath] into its index entry and content.
 ///
 /// Invalid UTF-8 decodes with replacement characters, and invalid frontmatter
-/// YAML leaves no values; each adds a warning instead of failing.
+/// YAML leaves no values; each adds a warning instead of failing. A doc that is
+/// not UTF-8, which format skips, is not laid out and has no `formatted` value.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
 }) {
   final warnings = <String>[];
-  final text = _decode(bytes, docPath, warnings);
+  final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
   final docType = switch (match) {
@@ -229,14 +237,21 @@ ParsedDoc parseIndexedDoc({
     null => null,
   };
   final frontmatter = _frontmatterValues(yaml, docPath, warnings);
+  final templates = _templatesByKey(docType);
   final sections = [
-    for (final section in doc.sections) _sectionOf(section, docType),
+    for (final section in doc.sections) _sectionOf(section, templates),
   ];
+  final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
+  final laidText = switch (laid) {
+    Formatted(:final text) => text,
+    _ => lfText,
+  };
   final lineFacts = LineFacts.of(
     lfText: lfText,
+    countedText: laidText,
     docPath: docPath,
     doc: doc,
-    sectionCounts: [for (final section in sections) sectionCountsOf(section)],
+    sectionCounts: _countsOf(doc, sections, laid, templates),
     frontmatterErrorLine: yaml?.errorLine,
     warnings: warnings,
   );
@@ -258,27 +273,61 @@ ParsedDoc parseIndexedDoc({
     title: doc.title,
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),
+    formatted: laid is Formatted ? laid.text == lfText : null,
     warnings: warnings,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }
 
-String _decode(List<int> bytes, String docPath, List<String> warnings) {
+({String text, bool isUtf8}) _decode(
+  List<int> bytes,
+  String docPath,
+  List<String> warnings,
+) {
   try {
-    return utf8.decode(bytes);
+    return (text: utf8.decode(bytes), isUtf8: true);
   } on FormatException {
     warnings.add(
       '$docPath: not UTF-8 text; indexed with replacement characters',
     );
-    return utf8.decode(bytes, allowMalformed: true);
+    return (text: utf8.decode(bytes, allowMalformed: true), isUtf8: false);
   }
 }
 
-IndexedSection _sectionOf(Section section, MergedDocType? docType) {
+/// Returns the counts of each section of [doc], in its order.
+///
+/// A section takes the counts of the laid-out section with the same header key;
+/// without a layout the counts are those of the text on disk.
+List<SectionCounts> _countsOf(
+  Doc doc,
+  List<IndexedSection> sections,
+  FormatOutcome? laid,
+  Map<String, MergedSection> templates,
+) {
+  if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
+  final laidByKey = {
+    for (final section in laid.sections)
+      headerKey(section.headerText): _sectionOf(section, templates),
+  };
+  return [
+    for (final section in doc.sections)
+      sectionCountsOf(laidByKey[headerKey(section.headerText)]!),
+  ];
+}
+
+/// Returns the sections of [docType] by the [headerKey] of their header.
+Map<String, MergedSection> _templatesByKey(MergedDocType? docType) => {
+  for (final section in docType?.sections ?? const <MergedSection>[])
+    headerKey(section.header): section,
+};
+
+/// Keys [section] by the template section its header names (rendering INV-5).
+IndexedSection _sectionOf(
+  Section section,
+  Map<String, MergedSection> templates,
+) {
   final headerText = section.headerText;
-  final template = docType?.sections
-      .where((s) => s.header == headerText)
-      .firstOrNull;
+  final template = templates[headerKey(headerText)];
   return IndexedSection(
     key: template?.id ?? sectionKeyOf(headerText),
     headerLine: section.headerLine,

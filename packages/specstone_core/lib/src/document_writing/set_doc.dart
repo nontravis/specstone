@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -229,11 +230,15 @@ ReadAnswer _setField(
     if (field?.type != FieldType.outputRef) {
       spliced = markDraft(spliced, docType);
     }
-    session.writeDoc(doc.docPath, spliced, LineEnding.of(read.content.text));
+    final written = session.writeDoc(
+      doc.docPath,
+      spliced,
+      LineEnding.of(read.content.text),
+    );
 
     final after = parseIndexedDoc(
       docPath: doc.docPath,
-      bytes: utf8.encode(spliced),
+      bytes: utf8.encode(written),
       match: match,
     );
     final afterBlock =
@@ -352,7 +357,7 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
     final lfText = toLf(read.content.text);
     final currentTitle = Doc.parse(lfText).title ?? '';
     final currentText = currentTitle.isEmpty ? '' : '# $currentTitle\n';
-    final currentBase = baseHashOf(currentTitle);
+    final currentBase = titleBaseOf(currentTitle);
     if (currentBase != request.base) {
       throw _staleBase(
         doc,
@@ -364,15 +369,18 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
       );
     }
 
-    final written = markDraft(withTitle(lfText, title), docType);
-    session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
+    final written = session.writeDoc(
+      doc.docPath,
+      markDraft(withTitle(lfText, title), docType),
+      LineEnding.of(read.content.text),
+    );
 
     final after = parseIndexedDoc(
       docPath: doc.docPath,
       bytes: utf8.encode(written),
       match: match,
     );
-    final base = baseHashOf(title);
+    final base = titleBaseOf(Doc.parse(written).title);
     return ReadAnswer(
       text: '${namingLine(doc, base: base)}\n',
       json: {
@@ -395,7 +403,7 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   bool Function(String line) isRefused,
 ) {
   final lines = lf.split('\n');
-  final scan = fenceScan(lines);
+  final scan = blockScan(lines);
   String? refused;
   for (var i = 0; i < lines.length; i++) {
     if (!scan.fenced[i] && isRefused(lines[i])) {
@@ -435,8 +443,9 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
   return session.locked(() {
     final read = _readLocked(session, doc, match);
     final lfText = toLf(read.content.text);
-    final currentLead = Doc.parse(lfText).lead;
-    final currentBase = baseHashOf(currentLead);
+    final currentDoc = Doc.parse(lfText);
+    final currentLead = currentDoc.lead;
+    final currentBase = leadBaseOf(currentDoc, docType);
     if (currentBase != request.base) {
       throw _staleBase(
         doc,
@@ -448,15 +457,18 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
       );
     }
 
-    final written = markDraft(withLead(lfText, body), docType);
-    session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
+    final written = session.writeDoc(
+      doc.docPath,
+      markDraft(withLead(lfText, body), docType),
+      LineEnding.of(read.content.text),
+    );
 
     final after = parseIndexedDoc(
       docPath: doc.docPath,
       bytes: utf8.encode(written),
       match: match,
     );
-    final base = baseHashOf(Doc.parse(written).lead);
+    final base = leadBaseOf(Doc.parse(written), docType);
     return ReadAnswer(
       text: '${namingLine(doc, base: base)}\n',
       json: {
@@ -513,7 +525,7 @@ ReadAnswer _setSection(
     final currentText = held < 0 ? '' : '${sections[held].text}\n';
     final currentBase = held < 0
         ? emptyBaseHash
-        : baseHashOf(sections[held].body);
+        : sectionBaseOf(sections[held].body, docType);
     if (currentBase != request.base) {
       throw _staleBase(
         doc,
@@ -542,8 +554,11 @@ ReadAnswer _setSection(
     } else {
       spliced = _withTemplateSection(lfText, docType, key, sections, body);
     }
-    final written = markDraft(spliced, docType);
-    session.writeDoc(doc.docPath, written, LineEnding.of(read.content.text));
+    final written = session.writeDoc(
+      doc.docPath,
+      markDraft(spliced, docType),
+      LineEnding.of(read.content.text),
+    );
 
     final after = parseIndexedDoc(
       docPath: doc.docPath,
@@ -552,7 +567,7 @@ ReadAnswer _setSection(
     );
     final newBase = after.content.sections
         .where((section) => section.key == key)
-        .map((section) => baseHashOf(section.body))
+        .map((section) => sectionBaseOf(section.body, docType))
         .firstOrNull;
     final base = newBase ?? emptyBaseHash;
     return ReadAnswer(

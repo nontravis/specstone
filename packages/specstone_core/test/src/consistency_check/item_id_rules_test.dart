@@ -19,7 +19,7 @@ Future<List<Finding>> _itemIdFindings(
 Map<String, String> _storyRules(String body) => doc(
   loginStory,
   '## Acceptance Criteria',
-  '## Rules\n$body\n\n## Acceptance Criteria',
+  '## Rules\n\n$body\n\n## Acceptance Criteria',
 );
 
 void main() {
@@ -32,7 +32,7 @@ void main() {
       found.single.path,
       'prds/features/f01_login/us01_email_login/USER_STORY.md',
     );
-    expect(found.single.line, 19);
+    expect(found.single.line, 21);
     expect(found.single.message, 'the item opens with no BR- ID');
     expect(
       found.single.toJson(),
@@ -44,8 +44,8 @@ void main() {
     final found = await _itemIdFindings(
       doc(
         projectDoc,
-        '### PV-01 — One sign-in\n> en: One sign-in for every app.',
-        '### One sign-in\n> en: One sign-in for every app.\n**Serves:** x',
+        '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
+        '### One sign-in\n\n> en: One sign-in for every app.\n**Serves:** x',
       ),
     );
     expect(found, hasLength(1));
@@ -59,8 +59,8 @@ void main() {
       final found = await _itemIdFindings({
         ...doc(
           gnfrDoc,
-          '## Security\nN/A — none applies.',
-          '## Security\n- N/A — no target applies',
+          '## Security\n\nN/A — none applies.',
+          '## Security\n\n- N/A — no target applies',
         ),
         ..._storyRules('- **BR-01** — a\n  - detail of the rule'),
       });
@@ -78,8 +78,8 @@ void main() {
       kind: FindingKind.itemIdDuplicate,
     );
     expect(found, hasLength(1));
-    expect(found.single.line, 14);
-    expect(found.single.message, 'PV-01 is already held at line 11');
+    expect(found.single.line, 17);
+    expect(found.single.message, 'PV-01 is already held at line 13');
     expect(
       found.single.toJson(),
       allOf(containsPair('id', 'PV-01'), containsPair('section', 'vision')),

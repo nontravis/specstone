@@ -72,15 +72,15 @@ name: Acme non-functional requirements
 
 ## Performance
 
-| ID     | Requirement           |
-|--------|-----------------------|
+| ID | Requirement |
+|---|---|
 | NFR-01 | Login answers in 1 s. |
 
 ## Data integrity
 
-| ID     | Requirement                  |
-|--------|------------------------------|
-| NFR-02 | A credential is never lost.  |
+| ID | Requirement |
+|---|---|
+| NFR-02 | A credential is never lost. |
 ''',
   'docs/prds/features/f01_login/FEATURE.md': '''
 ---
@@ -101,7 +101,8 @@ Let a user sign in.
 ## Feature flow
 
 1. Validate the credentials: [FR-01](us01_email_login/functional_requirements/fr01_validate_credentials.md).
-2. Meet the limits in [NFRs](../../d03_non_functional.md).
+2. Meet the limits in [NFRs](../../d03_non_functional.md), last listed in
+   `../../d02_features.md`.
 
 ## User stories index
 
@@ -173,6 +174,19 @@ name: Session API
 ---
 
 # S-02 — Session API
+''',
+  'docs/specs/f01_login/DOMAIN.md': '''
+---
+name: Login domain
+---
+
+# Login domain
+
+## Entities
+
+| Entity  | Kind           | Identity |
+|---------|----------------|----------|
+| Session | Aggregate root | token    |
 ''',
   'docs/specs/shared/s01_architecture.md': '''
 ---

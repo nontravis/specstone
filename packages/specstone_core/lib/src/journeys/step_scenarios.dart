@@ -4,6 +4,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _storyType = 'user_story';
@@ -23,10 +24,16 @@ String? scenarioBlockOf(DocIndex index, StepTarget target) {
   return storyScenarioBlocks(index, story)[target.scenarioLabel];
 }
 
-/// Returns the lines of [block] after its heading line.
+/// Returns the lines of [block] after its heading line, in the format layout.
+///
+/// Leaves out the blank line under the heading and the whitespace at the end,
+/// as the fingerprint reads the block.
 String scenarioCopyOf(String block) {
   final newline = block.indexOf('\n');
-  return newline < 0 ? '' : block.substring(newline + 1);
+  if (newline < 0) return '';
+  final laidOut = layOutText(block.substring(newline + 1), underHeading: true);
+  final withoutGap = laidOut.startsWith('\n') ? laidOut.substring(1) : laidOut;
+  return withoutGap.trimRight();
 }
 
 /// Reads the steps of the journey [doc], parsed against [docType].

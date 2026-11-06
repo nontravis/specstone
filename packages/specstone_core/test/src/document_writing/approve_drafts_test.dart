@@ -46,7 +46,7 @@ void main() {
     expect(out.toString(), contains(_prompt));
     expect(
       readDoc(root, signupFeature),
-      '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+      '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n',
     );
     expect(readDoc(root, signupArch), startsWith('---\napproved: true\n---\n'));
   });
@@ -208,7 +208,7 @@ void main() {
       expect(out.toString(), contains('| old     | none: never approved |\n'));
       expect(
         out.toString(),
-        contains('+## Problem\n+Users create an account.\n```\n$_prompt'),
+        contains('+## Problem\n+\n+Users create an account.\n```\n$_prompt'),
       );
     },
     skip: skipGit,
@@ -488,7 +488,7 @@ void main() {
       });
       expect(
         readDoc(root, signupFeature),
-        '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+        '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n',
       );
       expect(readDoc(root, story1), contains('\napproved: true\n'));
       expect(readDoc(root, story1), isNot(contains('draft: true')));
@@ -912,4 +912,51 @@ void main() {
       );
     },
   );
+
+  test('document_writing/approve_drafts/mark_doc_approved E07: y on a draft with padded table cells writes approved: true and lays the doc out', () async {
+    const padded =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n';
+    final root = await writeWriteProject(extra: {'docs/$signupArch': padded});
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        names: ['architecture:signup'],
+        readLine: answers(['y']),
+        out: StringBuffer(),
+      ),
+    );
+    expect(
+      readDoc(root, signupArch),
+      '---\napproved: true\n---\n\n# Signup architecture\n\n## Components\n\n'
+      '| Component | Responsibility |\n|---|---|\n'
+      '| Signup form | Collects the email |\n',
+    );
+  });
+
+  test('document_writing/approve_drafts/mark_doc_approved E07: y on a draft the formatter refuses puts approved: true at its field-order slot and keeps every other byte', () async {
+    const refused =
+        '---\ncovers:\n  - app/lib/src/signup/\ndraft: true\n---\n\n# Signup architecture\n\n## Bogus\nB.\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n';
+    final root = await writeWriteProject(extra: {'docs/$signupArch': refused});
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        names: ['architecture:signup'],
+        readLine: answers(['y']),
+        out: StringBuffer(),
+      ),
+    );
+    expect(
+      readDoc(root, signupArch),
+      refused.replaceFirst(
+        '---\ncovers:\n  - app/lib/src/signup/\ndraft: true\n',
+        '---\napproved: true\ncovers:\n  - app/lib/src/signup/\n',
+      ),
+    );
+  });
 }

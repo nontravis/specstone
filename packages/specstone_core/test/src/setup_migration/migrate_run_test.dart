@@ -163,6 +163,7 @@ void main() {
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
         'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
         'docs/specs/f01_login/ARCHITECTURE.md',
+        'docs/specs/f01_login/DOMAIN.md',
       });
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
       expect(
@@ -614,7 +615,7 @@ void main() {
       ),
     );
     expect(out.toString(), startsWith('legacy migration: '));
-    expect(out.toString(), endsWith('specs/INDEX.md\n'));
+    expect(out.toString(), endsWith('specs/f01_login/DOMAIN.md\n'));
     expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 

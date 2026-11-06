@@ -4,10 +4,12 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _sectionSeparator = '#';
+final _spaceTabEnd = RegExp(r'[ \t]+$');
 
 /// Returns the text of each doc [address] names, or of one of its sections.
 ///
@@ -32,12 +34,12 @@ ReadAnswer answerGet(DocIndex index, String address) {
       continue;
     }
     if (key == leadKey) {
-      final lead = Doc.parse(toLf(content.text)).lead;
+      final parsed = Doc.parse(toLf(content.text));
       blocks.add(
         _GetBlock(
           doc,
-          lead,
-          base: baseHashOf(lead),
+          parsed.lead,
+          base: leadBaseOf(parsed, docType),
           printsEmptyAsNothing: true,
         ),
       );
@@ -52,7 +54,7 @@ ReadAnswer answerGet(DocIndex index, String address) {
         _GetBlock(
           doc,
           held.map((section) => '${section.text}\n').join(),
-          base: baseHashOf(held.first.body),
+          base: sectionBaseOf(held.first.body, docType),
         ),
       );
       continue;
@@ -94,9 +96,11 @@ ReadAnswer answerGet(DocIndex index, String address) {
 /// each field.
 ///
 /// A base is the [baseHashOf] of the target's text: the whole text with LF
-/// line ends, the title with no `# `, a section's body, a field's whole key
-/// block. The result holds `doc`, `title`, `sections` keyed by section key,
-/// and `fields` keyed by field id. `approve --yes` checks `doc`. `sections`
+/// line ends, the title with no `# ` (see [titleBaseOf]), a section's body as
+/// laid out (see [sectionBaseOf]), the lead as laid out (see [leadBaseOf]), a
+/// field's whole key block.
+/// The result holds `doc`, `title`, `sections` keyed by section key, and
+/// `fields` keyed by field id. `approve --yes` checks `doc`. `sections`
 /// lists [leadKey] first when the lead holds non-blank text. [docType],
 /// when given, lists its sections and fields first, in its order, an absent
 /// one with [emptyBaseHash]; held ones its template lacks follow in file order.
@@ -107,13 +111,15 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
   final doc = Doc.parse(lfText);
 
   final sections = <String, String>{
-    if (doc.lead.isNotEmpty) leadKey: baseHashOf(doc.lead),
+    if (doc.lead.isNotEmpty) leadKey: leadBaseOf(doc, docType),
     for (final section in docType?.sections ?? const <MergedSection>[])
       section.id: emptyBaseHash,
   };
   final seen = <String>{};
   for (final section in content.sections) {
-    if (seen.add(section.key)) sections[section.key] = baseHashOf(section.body);
+    if (seen.add(section.key)) {
+      sections[section.key] = sectionBaseOf(section.body, docType);
+    }
   }
 
   final fields = <String, String>{
@@ -129,11 +135,41 @@ Map<String, Object> basesOf(DocContent content, MergedDocType? docType) {
 
   return {
     'doc': baseHashOf(lfText),
-    'title': baseHashOf(doc.title ?? ''),
+    'title': titleBaseOf(doc.title),
     'sections': sections,
     'fields': fields,
   };
 }
+
+/// Returns the base of a section [body]: the hash of its laid-out text.
+///
+/// A non-empty laid-out body ends in a line break, as `format` writes it.
+String sectionBaseOf(String body, MergedDocType? docType) =>
+    _laidOutBase(body, underHeading: true, docType: docType);
+
+/// Returns the base of [doc]'s lead: the hash of its laid-out text.
+///
+/// A non-empty laid-out lead ends in a line break, as `format` writes it.
+String leadBaseOf(Doc doc, MergedDocType? docType) =>
+    _laidOutBase(doc.lead, underHeading: doc.title != null, docType: docType);
+
+String _laidOutBase(
+  String text, {
+  required bool underHeading,
+  required MergedDocType? docType,
+}) {
+  final laid = layOutText(
+    text,
+    underHeading: underHeading,
+    blockKinds: docType?.listedGenerators.toSet() ?? const {},
+  );
+  return baseHashOf(laid.isEmpty || laid.endsWith('\n') ? laid : '$laid\n');
+}
+
+/// Returns the base of a title: the hash of [title] without the spaces and
+/// tabs at its end; the hash of empty text for null.
+String titleBaseOf(String? title) =>
+    baseHashOf((title ?? '').replaceFirst(_spaceTabEnd, ''));
 
 /// One doc `answerGet` prints: its [text] and the base or bases it names.
 final class _GetBlock {

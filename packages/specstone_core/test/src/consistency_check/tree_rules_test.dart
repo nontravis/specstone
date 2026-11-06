@@ -154,8 +154,8 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/specs/f03_billing/API.md':
-              '# Billing API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n\n'
-              '## Operations\nNone.\n',
+              '# Billing API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n\n'
+              '## Operations\n\nNone.\n',
         },
       ),
     );

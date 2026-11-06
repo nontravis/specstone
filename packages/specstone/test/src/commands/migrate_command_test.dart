@@ -236,6 +236,33 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links E17, '
+      'setup_migration/migrate_legacy_docs/write_first_fingerprints: the first '
+      'check after a legacy run reports no format_drift and no '
+      'confirmed_entry_stale', () async {
+    final root = await gitFixture(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+      ),
+    );
+    expect(await runner.run(['migrate']), 0);
+
+    final (runner: checkRunner, out: checkOut, err: _) = writeRunner(root);
+    await checkRunner.run(['check']);
+
+    expect(checkOut.toString(), isNotEmpty, reason: 'check ran');
+    expect(checkOut.toString(), isNot(contains('format_drift')));
+    expect(checkOut.toString(), isNot(contains('confirmed_entry_stale')));
+    expect(
+      File('${root.path}/docs/specs/f01_login/DOMAIN.md').readAsStringSync(),
+      contains('| Entity | Kind | Identity |\n'),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
   test(
     'f06/us01/s9, f06/us01/fr07/e09, f06/us01/fr07/e03: a refused commit '
     'exits 75, and '

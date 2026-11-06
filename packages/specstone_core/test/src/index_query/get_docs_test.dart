@@ -3,6 +3,7 @@ import 'dart:convert';
 // The expected values are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -35,7 +36,7 @@ void main() {
   test('f01/us04/s2, f01/us04/fr02/e01: one section from each doc that holds it, nothing else', () async {
     expect(
       answerGet(index, 'login#components').text,
-      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md · base 047e817f9707 <==\n'
+      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md · base cf930e1810b0 <==\n'
       '## Components\n| Component | Responsibility |\n|-----------|----------------|\n'
       '| Login form | Collects the email and the password |\n',
     );
@@ -52,7 +53,7 @@ void main() {
   test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its snake_case key', () async {
     expect(
       answerGet(index, 'prds/d01_context.md#project_vision').text,
-      '==> prds/d01_context.md · prds/d01_context.md · base 49851a1d1229 <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
+      '==> prds/d01_context.md · prds/d01_context.md · base 6f3e9bae7bdc <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
     );
   });
   test('f01/us04/fr01/e09, f01/us04/fr02/e01: a path takes a section key as the name does', () async {
@@ -103,7 +104,7 @@ void main() {
     });
     expect(
       answerGet(notes, 'notes.md#notes').text,
-      '==> notes.md · notes.md · base b640e840b19d <==\n## Notes\nfirst\n## Notes\nsecond\n',
+      '==> notes.md · notes.md · base 47471c97c516 <==\n## Notes\nfirst\n## Notes\nsecond\n',
     );
   });
   test('f01/us01/fr03/e13, f01/us04/fr02: headers Root schema and Root-schema key alike and both print', () async {
@@ -124,7 +125,7 @@ void main() {
     ).content;
     expect(content.sections.map((s) => s.key), ['root_schema', 'root_schema']);
     expect(basesOf(content, null)['sections'], {
-      'root_schema': baseHashOf(content.sections.first.body),
+      'root_schema': sectionBaseOf(content.sections.first.body, null),
     });
   });
   test('f01/us04/fr02: --json gives name, path, section, and text; no docType on an untyped doc', () async {
@@ -133,7 +134,7 @@ void main() {
         'name': 'prds/d01_context.md',
         'path': 'prds/d01_context.md',
         'section': 'project_name',
-        'base': '908c3a4a7ade',
+        'base': '26018c0105bb',
         'text': '## Project name\n- **Human:** Specstone\n- **Code:** `specstone`\n',
       },
     ]);
@@ -179,12 +180,123 @@ void main() {
     expect(
       answerGet(index, 'user_story:login/email_login#acceptance_criteria').text,
       startsWith(
-        '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md · base f704efb17833 <==\n## Acceptance Criteria\n',
+        '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md · base 6d6a67fa9a00 <==\n## Acceptance Criteria\n',
       ),
     );
     expect(
       answerGet(index, 'user_story:login/email_login').text,
       isNot(contains('· base')),
+    );
+  });
+  group('index_query/read_doc_section/print_doc_or_section E08, layout-blind bases', () {
+    const storyPath =
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const bareBody =
+        '\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email\n';
+    Future<DocIndex> withStory(String sections) =>
+        indexWith({storyPath: '# Agent signs in with email\n\n$sections'});
+    Map<String, Object?> story(DocIndex i) =>
+        (answerGet(i, 'user_story:login/email_login').json['docs']! as List)
+                .single
+            as Map<String, Object?>;
+
+    test('the section prints as on disk and names the laid-out base', () async {
+      final tight = await withStory(
+        '## Acceptance Criteria\n### Scenario 1 — [happy] Sign in\n'
+        '- **Given** a registered email\n',
+      );
+      final text = answerGet(
+        tight,
+        'user_story:login/email_login#acceptance_criteria',
+      ).text;
+      expect(text, contains('base 19db7e6aacbd <=='));
+      expect(
+        text,
+        endsWith(
+          '## Acceptance Criteria\n### Scenario 1 — [happy] Sign in\n'
+          '- **Given** a registered email\n',
+        ),
+      );
+      expect(sectionBaseOf(bareBody, null), '19db7e6aacbd');
+    });
+    test('a padded table and its compact twin share one base', () {
+      expect(
+        sectionBaseOf('| A | B |\n|---|---|\n| 1 | 2 |\n', null),
+        sectionBaseOf('| A   | B   |\n|-----|-----|\n| 1   | 2   |\n', null),
+      );
+    });
+    test(
+      'a lead with and without a blank line under the title share a base',
+      () async {
+        final tight = await indexWith({
+          'docs/notes.md': '# Notes\nlead text\n\n## One\nx\n',
+        });
+        final spaced = await indexWith({
+          'docs/notes.md': '# Notes\n\nlead text\n\n## One\nx\n',
+        });
+        Object? leadBase(DocIndex i) =>
+            (((answerGet(i, 'notes.md').json['docs']! as List).single
+                    as Map)['bases']!
+                as Map)['sections'];
+        expect(
+          (leadBase(tight)! as Map)[leadKey],
+          (leadBase(spaced)! as Map)[leadKey],
+        );
+      },
+    );
+    test(
+      'a title with trailing spaces gets the base of the title without them',
+      () {
+        expect(titleBaseOf('Notes  \t'), titleBaseOf('Notes'));
+        expect(titleBaseOf('Notes'), baseHashOf('Notes'));
+        expect(titleBaseOf(null), emptyBaseHash);
+      },
+    );
+    test(
+      'a last section with no final newline shares the base of its twin',
+      () {
+        expect(sectionBaseOf('x', null), sectionBaseOf('x\n', null));
+        expect(sectionBaseOf('', null), emptyBaseHash);
+      },
+    );
+    test('a lead with no final newline shares the base of its twin', () {
+      expect(
+        leadBaseOf(Doc.parse('# T\nlead'), null),
+        leadBaseOf(Doc.parse('# T\nlead\n'), null),
+      );
+    });
+    test('bases.title ignores trailing spaces of the title line', () async {
+      final i = await indexWith({'docs/notes.md': '# Notes  \n\n## One\nx\n'});
+      final doc =
+          (answerGet(i, 'notes.md').json['docs']! as List).single as Map;
+      expect((doc['bases']! as Map)['title'], baseHashOf('Notes'));
+    });
+    test('#_lead names the laid-out lead base', () async {
+      final tight = await indexWith({
+        'docs/notes.md': '# Notes\nlead text\n\n## One\nx\n',
+      });
+      final spaced = await indexWith({
+        'docs/notes.md': '# Notes\n\nlead text\n\n## One\nx\n',
+      });
+      String lead(DocIndex i) =>
+          ((answerGet(i, 'notes.md#_lead').json['docs']! as List).single
+                  as Map)['base']!
+              as String;
+      expect(lead(tight), lead(spaced));
+      expect(lead(tight), baseHashOf('\nlead text\n'));
+    });
+    test(
+      'field bases and bases.doc stay the hash of the text as written',
+      () async {
+        final i = await withStory('## Acceptance Criteria\n- one\n');
+        final bases = story(i)['bases']! as Map;
+        expect(
+          bases['doc'],
+          baseHashOf(
+            '# Agent signs in with email\n\n## Acceptance Criteria\n- one\n',
+          ),
+        );
+      },
     );
   });
   test('f01/us04/s9, f01/us04/fr02/e09: a template section the doc lacks prints empty with the base of empty text', () async {
@@ -206,7 +318,7 @@ void main() {
             as Map;
     final bases = story['bases']! as Map;
     expect(bases['title'], 'ff5b5994d060');
-    expect((bases['sections']! as Map)['acceptance_criteria'], 'f704efb17833');
+    expect((bases['sections']! as Map)['acceptance_criteria'], '6d6a67fa9a00');
     expect((bases['sections']! as Map)['rules'], emptyBaseHash);
     expect((bases['fields']! as Map)['status'], 'e721f319d794');
     expect((bases['fields']! as Map)['approved'], emptyBaseHash);

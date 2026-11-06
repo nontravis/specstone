@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -131,7 +132,7 @@ ReadAnswer answerNew(
       if (firstConfirmations != null) {
         lfText = firstConfirmations(lfText, docType, session.index);
       }
-      session.writeDoc(docPath, lfText, lineEnding);
+      lfText = session.writeDoc(docPath, lfText, lineEnding);
     } on Object {
       _remove(claimed, created);
       rethrow;
@@ -355,9 +356,12 @@ void _remove(File? file, List<Directory> created) {
   }
 }
 
-/// Returns the template skeleton of [docType]: a draft frontmatter with each
-/// required field empty, the [title], and each required section.
-String skeletonOf(MergedDocType docType, String title) {
+/// Returns the laid-out template skeleton of [docType]: a draft frontmatter
+/// with each required field empty, the [title], and each required section.
+String skeletonOf(MergedDocType docType, String title) =>
+    layOutDoc(_rawSkeletonOf(docType, title), docType);
+
+String _rawSkeletonOf(MergedDocType docType, String title) {
   final buffer = StringBuffer('---\ndraft: true\n');
   for (final field in docType.fields) {
     if (field.required) buffer.write('${field.id}:\n');

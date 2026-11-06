@@ -1,7 +1,10 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
+
+import '../../helpers/fixture_doc_types.dart';
 
 const _old =
     '---\nverify_method: test\n---\n\n# FR-01 — T\n\n'
@@ -25,9 +28,11 @@ DraftView _draft({
   String? status = 'planned',
   String name = 'fr01_t',
   String projectPath = _path,
+  MergedDocType? mergedType,
 }) => DraftView(
   name: name,
   docType: 'fr',
+  mergedType: mergedType,
   title: title,
   status: status,
   projectPath: projectPath,
@@ -45,6 +50,85 @@ String _render(DraftView draft, {int? context, bool color = false}) =>
     );
 
 void main() {
+  group('document_writing/approve_drafts/show_changes_since_approval E17', () {
+    const body = '## Statement\n';
+    String fr(String statement) =>
+        '---\nverify_method: test\n---\n\n# FR-01 — T\n\n$body$statement';
+    const padded = '| Name   | Role |\n|--------|------|\n| Signup | Form |\n';
+    const compact = '| Name | Role |\n|---|---|\n| Signup | Form |\n';
+    late MergedDocType frType;
+
+    setUp(() async {
+      frType = (await fixtureDocTypes()).lookup('functional_requirement')!;
+    });
+
+    test('a layout-only change shows the no-change line and the none row', () {
+      final view = _render(
+        _draft(
+          text: fr('\n$padded'),
+          lookup: _copy(fr('\n$compact')),
+          mergedType: frType,
+        ),
+      );
+      expect(
+        view,
+        endsWith('| changes | none |\n\nno change since the approved copy\n'),
+      );
+    });
+
+    test('a hard break added or removed shows as a change', () {
+      final added = _render(
+        _draft(
+          text: fr('One  \nTwo\n'),
+          lookup: _copy(fr('One\nTwo\n')),
+          mergedType: frType,
+        ),
+      );
+      final removed = _render(
+        _draft(
+          text: fr('One\nTwo\n'),
+          lookup: _copy(fr('One  \nTwo\n')),
+          mergedType: frType,
+        ),
+      );
+      for (final view in [added, removed]) {
+        expect(view, contains('| changes | `## Statement` |'));
+        expect(view, contains('```diff\n'));
+      }
+    });
+
+    test('a copy the formatter refuses compares as written', () {
+      const refused = '## Bogus\nB.\n\n$body';
+      final view = _render(
+        _draft(
+          text: fr('\n$padded${refused}X.\n'),
+          lookup: _copy(fr('\n$compact${refused}X.\n')),
+          mergedType: frType,
+        ),
+      );
+      expect(view, isNot(contains('no change since the approved copy')));
+      expect(view, contains('| changes |'));
+    });
+
+    test(
+      'a refused draft against a laid-out copy compares each as laid out',
+      () {
+        final view = _render(
+          _draft(
+            text: fr('\n$padded\n## Bogus\nB.\n'),
+            lookup: _copy(fr('\n$compact')),
+            mergedType: frType,
+          ),
+        );
+        expect(view, isNot(contains('no change since the approved copy')));
+        expect(view, contains('+## Bogus'));
+        // The refused draft keeps its padding; the laid-out copy has none.
+        expect(view, contains('+| Name   | Role |'));
+        expect(view, contains('-| Name | Role |'));
+      },
+    );
+  });
+
   group('renderApprovalView', () {
     test('f02/us03/fr02: the view prints heading, path, table, and diff', () {
       final hash = baseHashOf(_neuDraft);

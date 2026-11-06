@@ -172,8 +172,8 @@ void main() {
     final scenario2 = fingerprintOf(loginScenario2);
 
     String front(List<String> entries, {bool draft = false}) =>
-        '---\nconfirmed:\n${entries.map((e) => '  - $e\n').join()}'
-        '${draft ? 'draft: true\n' : ''}---\n\n';
+        '---\n${draft ? 'draft: true\n' : ''}confirmed:\n'
+        '${entries.map((e) => '  - $e\n').join()}---\n\n';
 
     List<Finding> check(Directory root) =>
         checkOf(root, docPath: journeyDocPath).findings;

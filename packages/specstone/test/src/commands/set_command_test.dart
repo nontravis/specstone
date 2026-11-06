@@ -32,7 +32,7 @@ void main() {
         'set',
         'user_story:login/email_login#use_case',
         '--base',
-        '9042269552ff',
+        '7e11fc4a24d2',
       ]),
       75,
     );
@@ -75,6 +75,7 @@ void main() {
   });
 
   test('f02/us01/s1: set prints the naming line with the new base, exit 0', () async {
+    final passkeyBase = baseHashOf('\nSign in with a passkey.\n');
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -85,14 +86,14 @@ void main() {
         'set',
         'user_story:login/email_login#use_case',
         '--base',
-        '9042269552ff',
+        '7e11fc4a24d2',
       ]),
       0,
     );
     expect(err.toString(), isEmpty);
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base 10c653d235c1 <==\n',
+      '==> login/email_login (user_story) · $story1 · base $passkeyBase <==\n',
     );
     final written = writeRunner(root);
     expect(
@@ -102,7 +103,7 @@ void main() {
       ]),
       0,
     );
-    expect(written.out.toString(), contains('base 10c653d235c1'));
+    expect(written.out.toString(), contains('base $passkeyBase'));
     expect(written.out.toString(), contains('Sign in with a passkey.'));
   });
   test('f02/us01/s8, f02/us01/fr02/e06: a stale base prints the fault on stderr and only the current section on stdout, exit 75', () async {
@@ -126,8 +127,8 @@ void main() {
     );
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base 9042269552ff <==\n'
-      '## Use Case\nSign in with an email.\n',
+      '==> login/email_login (user_story) · $story1 · base 7e11fc4a24d2 <==\n'
+      '## Use Case\n\nSign in with an email.\n',
     );
   });
   test(
@@ -150,8 +151,8 @@ void main() {
       );
       expect(out.toString(), isEmpty);
       expect(((jsonDecode(err.toString()) as Map)['error'] as Map)['current'], {
-        'text': '## Use Case\nSign in with an email.\n',
-        'base': '9042269552ff',
+        'text': '## Use Case\n\nSign in with an email.\n',
+        'base': '7e11fc4a24d2',
       });
     },
   );
@@ -239,7 +240,7 @@ void main() {
         'set',
         'user_story:login/email_login#use_case',
         '--base',
-        '9042269552ff',
+        '7e11fc4a24d2',
         '--json',
       ]),
       64,
@@ -253,7 +254,7 @@ void main() {
     });
     final read = writeRunner(root);
     await read.runner.run(['get', 'user_story:login/email_login#use_case']);
-    expect(read.out.toString(), contains('base 9042269552ff'));
+    expect(read.out.toString(), contains('base 7e11fc4a24d2'));
   });
   test(
     'f02/us01/fr03: set --help says --field reads stdin as a YAML value',
@@ -335,11 +336,11 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base ${baseHashOf('New lead.\n')} <==\n',
+      '==> login/email_login (user_story) · $story1 · base ${baseHashOf('\nNew lead.\n')} <==\n',
     );
     expect(
       readDoc(root, story1),
-      contains('# Sign in with email\nNew lead.\n\n## Use Case\n'),
+      contains('# Sign in with email\n\nNew lead.\n\n## Use Case\n'),
     );
     expect(readDoc(root, story1), contains('draft: true'));
   });

@@ -267,12 +267,26 @@ void main() {
 
       test('E08: a planner that sets rewrite lines places the line itself', () {
         expect(
+          _planWithAgents(rewriteLines: ['own', _agentPlan().line]).toText(),
+          'migrate\n'
+          'commit 2, rewrites:\n'
+          '  own\n'
+          '  ${_agentPlan().line}\n'
+          'commit 2, creates:\n'
+          '  b.md\n',
+        );
+      });
+
+      test('E08: rewrite lines that leave out the agent files line keep it '
+          'last under commit 2, creates', () {
+        expect(
           _planWithAgents(rewriteLines: const ['own']).toText(),
           'migrate\n'
           'commit 2, rewrites:\n'
           '  own\n'
           'commit 2, creates:\n'
-          '  b.md\n',
+          '  b.md\n'
+          '  ${_agentPlan().line}\n',
         );
       });
 
@@ -442,4 +456,13 @@ void main() {
       });
     },
   );
+
+  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: the layout '
+      'line names the docs in code point order, and is null without one', () {
+    expect(
+      formatLayoutLine(['prds/PROJECT.md', 'prds/GNFR.md']),
+      'format layout: prds/GNFR.md, prds/PROJECT.md',
+    );
+    expect(formatLayoutLine(const []), isNull);
+  });
 }

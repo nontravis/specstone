@@ -111,8 +111,10 @@ final class DocRewrite {
 
 /// Rewrites the title, keys, and sections of one legacy doc of [kind].
 ///
-/// A doc line the legacy mapping does not name stays byte-equal. [gnfrHeaders]
-/// are the section headers of the `gnfr` doc type.
+/// A doc line the edge cases of
+/// `fr:setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links` do
+/// not name stays byte-equal. [gnfrHeaders] are the section headers of the
+/// `gnfr` doc type.
 DocRewrite rewriteLegacyDoc(
   String lf,
   LegacyKind kind, {

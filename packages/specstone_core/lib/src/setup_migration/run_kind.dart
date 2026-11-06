@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -16,11 +18,13 @@ enum RunKind {
   /// A legacy SDD tree is converted.
   legacy,
 
-  /// At least one pin is older than its available pack version, or an agent
+  /// At least one pin is older than its available pack version, or every pin
+  /// is equal and a typed doc is off the layout `format` writes or an agent
   /// file drifts from what the CLI writes.
   upgrade,
 
-  /// Every pin equals its available pack version and no agent file drifts.
+  /// Every pin equals its available pack version, every typed doc is laid
+  /// out, and no agent file drifts.
   none,
 }
 
@@ -30,9 +34,10 @@ enum RunKind {
 /// when [legacyContextPath] exists; else the pins are compared, in code point
 /// order, with the available pack versions: the first newer pin throws
 /// `pack_pin_newer`, any older pin gives [RunKind.upgrade]. With every pin
-/// equal, any agent file drift (`agentFileDrifts`, the predicate `check` uses,
-/// a malformed marker included) gives [RunKind.upgrade], otherwise
-/// [RunKind.none]. [homeDirectory] is the personal pack home, or null.
+/// equal, a doc off its layout, generated blocks aside, then any agent file
+/// drift (`agentFileDrifts`, the predicate `check` uses, a malformed marker
+/// included) gives [RunKind.upgrade], otherwise [RunKind.none].
+/// [homeDirectory] is the personal pack home, or null.
 RunKind chooseRun(
   Directory root, {
   required TemplateResolver templates,
@@ -56,9 +61,28 @@ RunKind chooseRun(
     if (compare < 0) older = true;
   }
   if (older) return RunKind.upgrade;
+  if (_hasDocOffLayout(root, templates, homeDirectory)) return RunKind.upgrade;
   return _hasAgentFileDrift(root, templates, homeDirectory)
       ? RunKind.upgrade
       : RunKind.none;
+}
+
+bool _hasDocOffLayout(
+  Directory root,
+  TemplateResolver templates,
+  Directory? homeDirectory,
+) {
+  final project = DocsProject.open(
+    templates: templates,
+    workingDirectory: root,
+    homeDirectory: homeDirectory,
+  );
+  final report = runFormat<void>(
+    project,
+    Target(project.docsRoot, ''),
+    check: true,
+  );
+  return report.files.any((file) => file.status == FileStatus.formatted);
 }
 
 bool _hasAgentFileDrift(

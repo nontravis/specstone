@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
@@ -311,4 +312,104 @@ void main() {
       expect(nameOf(domainPath), 'shop/cart');
     },
   );
+
+  group('formatted and laid-out counts', () {
+    const featurePath = 'prds/features/f01_login/FEATURE.md';
+    const padded =
+        '# F\n\n## Problem\n### Sub\ntext\n\n'
+        '| a   | b    |\n|-----|------|\n| 1   | 22   |\n';
+    const laidOut =
+        '# F\n\n## Problem\n\n### Sub\n\ntext\n\n'
+        '| a | b |\n|---|---|\n| 1 | 22 |\n';
+    const problemText =
+        '## Problem\n\n### Sub\n\ntext\n\n| a | b |\n|---|---|\n| 1 | 22 |';
+
+    test('index_query/read_current_docs/index_each_doc E18: a doc that differs '
+        'from its layout is not formatted and counts the laid-out text', () {
+      final facts = parse(featurePath, padded);
+      expect(facts.doc.formatted, isFalse);
+      final counts = facts.content.lineFacts;
+      expect(counts.lineCount, laidOut.split('\n').length - 1);
+      expect(counts.charCount, laidOut.length);
+      expect(counts.sectionCounts, [
+        (lines: problemText.split('\n').length, chars: problemText.length),
+      ]);
+      expect(counts.sectionLines, [3]);
+      final after = parse(featurePath, laidOut);
+      expect(after.doc.formatted, isTrue);
+      expect(after.content.lineFacts.charCount, laidOut.length);
+      expect(after.content.lineFacts.sectionCounts, counts.sectionCounts);
+    });
+
+    test('index_query/read_current_docs/index_each_doc E19: a refused doc has no formatted value and counts '
+        'its text on disk', () {
+      for (final text in [
+        '# F\n\n## Bogus\nx  y\n',
+        '# F\n\n## Problem\n```\nopen  \n',
+      ]) {
+        final parsed = parse(featurePath, text);
+        expect(parsed.doc.formatted, isNull, reason: text);
+        expect(parsed.content.lineFacts.charCount, text.length);
+        expect(parsed.content.lineFacts.lineCount, text.split('\n').length - 1);
+      }
+    });
+
+    test('index_query/read_current_docs/index_each_doc: a fence nested in a list item is code to the index and the layout alike', () {
+      const nested =
+          '# F\n\n## Problem\n\n1. Run:\n\n    ```sh\n    echo "a  b"   \n'
+          '    ## not a section\n    ```\n';
+      final parsed = parse(featurePath, nested);
+      expect(parsed.doc.formatted, isTrue);
+      expect([for (final s in parsed.content.sections) s.key], ['problem']);
+    });
+
+    test('index_query/read_current_docs/index_each_doc E19: a doc with an open generated block has no formatted value', () {
+      final open = generatedOpenMarker('journey_flow');
+      for (final end in ['', '$generatedEndMarker  \n']) {
+        final disk = '# J\n\n## Flow\n\n$open\n| a     | b |\n|---|---|\n$end';
+        final parsed = parse('prds/journeys/buy/JOURNEY.md', disk);
+        expect(parsed.doc.formatted, isNull, reason: disk);
+        expect(parsed.content.lineFacts.charCount, disk.length);
+      }
+    });
+
+    test('index_query/read_current_docs/index_each_doc: a doc that is not UTF-8, which format skips, has no formatted value and counts its text as read', () {
+      const invalidByte = 0xFF;
+      final bytes = [...utf8.encode(padded), invalidByte, ...utf8.encode('\n')];
+      final parsed = parseIndexedDoc(
+        docPath: featurePath,
+        bytes: bytes,
+        match: matcher.match(featurePath),
+      );
+      final read = utf8.decode(bytes, allowMalformed: true);
+      expect(parsed.doc.formatted, isNull);
+      expect(parsed.content.lineFacts.charCount, read.length);
+    });
+
+    test('index_query/read_current_docs/index_each_doc: an untyped doc has no formatted value', () {
+      expect(parse('notes/a.md', '# A\n').doc.formatted, isNull);
+    });
+
+    test('index_query/read_current_docs/index_each_doc: CRLF line ends alone leave a doc formatted', () {
+      final parsed = parse(featurePath, laidOut.replaceAll('\n', '\r\n'));
+      expect(parsed.doc.formatted, isTrue);
+    });
+
+    test('index_query/read_current_docs/index_each_doc R31: a generated block counts as on disk while '
+        'padding outside it is laid out', () {
+      final open = generatedOpenMarker('journey_flow');
+      const block = '| a   | b |\n|-----|---|';
+      final disk =
+          '# J\n\n## Goal\n\n| x   | y |\n|-----|---|\n\n'
+          '## Flow\n\n$open\n$block\n$generatedEndMarker\n';
+      final parsed = parse('prds/journeys/buy/JOURNEY.md', disk);
+      expect(parsed.doc.formatted, isFalse);
+      const goal = '## Goal\n\n| x | y |\n|---|---|';
+      final flow = '## Flow\n\n$open\n$block\n$generatedEndMarker';
+      expect(parsed.content.lineFacts.sectionCounts, [
+        (lines: goal.split('\n').length, chars: goal.length),
+        (lines: flow.split('\n').length, chars: flow.length),
+      ]);
+    });
+  });
 }

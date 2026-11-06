@@ -19,6 +19,9 @@ final String _journal = jsonEncode(
   ]).toJson(),
 );
 
+const _laidOutFeature = '## Problem\n\nn\n\n## Benefit hypothesis\n\ng\n';
+const _offLayoutFeature = '## Benefit hypothesis\n\ng\n\n\n## Problem\n\nn\n';
+
 RunKind _choose(Directory root, {Directory? home}) =>
     chooseRun(root, templates: TemplateResolver(), homeDirectory: home);
 
@@ -64,6 +67,37 @@ void main() {
       'are none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
+    });
+
+    expect(_choose(root), RunKind.none);
+  });
+
+  test('setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+      'and every typed doc laid out is none', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_a/FEATURE.md': _laidOutFeature,
+    });
+
+    expect(_choose(root), RunKind.none);
+  });
+
+  test('setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+      'and one typed doc off its layout is upgrade', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_a/FEATURE.md': _laidOutFeature,
+      'docs/prds/features/f02_b/FEATURE.md': _offLayoutFeature,
+    });
+
+    expect(_choose(root), RunKind.upgrade);
+  });
+
+  test('setup_migration/migrate_legacy_docs/find_project_root E04: a doc '
+      'format refuses alone is none', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_a/FEATURE.md': '## Notes\nx   \n',
     });
 
     expect(_choose(root), RunKind.none);

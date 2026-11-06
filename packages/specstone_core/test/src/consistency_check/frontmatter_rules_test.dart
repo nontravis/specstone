@@ -54,22 +54,16 @@ void main() {
     () async {
       final report = checkOf(
         await writeCheckProject(
-          extra: fr(
-            'verify_method: test\n',
-            'verify_method: test\npriority: high\n',
-          ),
+          extra: fr('checkPassword\n---', 'checkPassword\npriority: high\n---'),
         ),
       );
-      expect(spots(report), ['$loginFr:6: field_undeclared']);
+      expect(spots(report), ['$loginFr:10: field_undeclared']);
     },
   );
 
   test('f04/us01/fr03/e05, cc-s03/inv2, review focus 4: approved follows the merged set, with no F-04 change', () async {
     final project = await writeCheckProject(
-      extra: fr(
-        'verify_method: test\n',
-        'verify_method: test\napproved: true\n',
-      ),
+      extra: fr('checkPassword\n---', 'checkPassword\napproved: true\n---'),
     );
     final session = openSession(project);
     addTearDown(session.close);
@@ -79,7 +73,7 @@ void main() {
         .any((f) => f.id == 'approved');
     expect(
       spots(runCheck(session), FindingKind.fieldUndeclared),
-      builtIn ? isEmpty : ['$loginFr:6: field_undeclared'],
+      builtIn ? isEmpty : ['$loginFr:10: field_undeclared'],
     );
   });
 
@@ -88,11 +82,14 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
-              .replaceFirst('---\n\n', 'status: implemented\n---\n\n'),
+              .replaceFirst(
+                '---\nvision:',
+                '---\nstatus: implemented\nvision:',
+              ),
         },
       ),
     );
-    expect(spots(report), ['$loginFeature:6: feature_status_written']);
+    expect(spots(report), ['$loginFeature:2: feature_status_written']);
     expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
@@ -131,10 +128,10 @@ void main() {
   test('f04/us01/fr03/e04: an undeclared key with an empty value is still field_undeclared', () async {
     final report = checkOf(
       await writeCheckProject(
-        extra: fr('verify_method: test\n', 'verify_method: test\npriority:\n'),
+        extra: fr('checkPassword\n---', 'checkPassword\npriority:\n---'),
       ),
     );
-    expect(spots(report), ['$loginFr:6: field_undeclared']);
+    expect(spots(report), ['$loginFr:10: field_undeclared']);
   });
 
   group('f04/us01/fr03/e09: a required field group', () {

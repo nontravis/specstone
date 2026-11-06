@@ -1,9 +1,11 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/prd_core.dart';
 
 const _owned = '''
 id: owned
@@ -18,11 +20,20 @@ fields:
 Future<MergedDocType> _feature() async =>
     (await fixtureDocTypes()).lookup('feature')!;
 
-/// Formats [disk] and returns the text, checking a second pass changes nothing.
+/// Formats [disk] and returns the text, checking a second pass changes nothing
+/// and the laid-out sections are those the text parses into.
 String _format(String disk, MergedDocType docType) {
   final outcome = formatDoc(Doc.parse(disk), docType);
   expect(outcome, isA<Formatted>());
   final text = (outcome as Formatted).text;
+  List<(String, String)> shapeOf(List<Section> sections) => [
+    for (final s in sections) (s.headerLine, s.body),
+  ];
+  expect(
+    shapeOf(outcome.sections),
+    shapeOf(Doc.parse(text).sections),
+    reason: 'laid-out sections',
+  );
   final again = formatDoc(Doc.parse(text), docType);
   expect(again, isA<Formatted>());
   expect((again as Formatted).text, text, reason: 'idempotence');
@@ -54,28 +65,28 @@ void main() {
       const disk =
           '---\nvision:\n  - PV-01\nstatus: planned\n---\n\n'
           '# F-05 — Rendering\n\n'
-          '## Feature goal\n- **why:** share docs  \n\n'
-          '## Feature name\n- **Human:** Rendering\n';
+          '## Feature goal\n\n- **why:** share docs\n\n'
+          '## Feature name\n\n- **Human:** Rendering\n';
 
       expect(
         _format(disk, feature),
         '---\nstatus: planned\nvision:\n  - PV-01\n---\n\n'
         '# F-05 — Rendering\n\n'
-        '## Feature name\n- **Human:** Rendering\n\n'
-        '## Feature goal\n- **why:** share docs  \n',
+        '## Feature name\n\n- **Human:** Rendering\n\n'
+        '## Feature goal\n\n- **why:** share docs\n',
       );
     });
 
     test('f05/us01/fr03/e01: a subsection moves with its section', () async {
       final feature = await _feature();
       const disk =
-          '## Feature goal\n- **why:** x\n### Detail\nd1\nd2\n\n'
-          '## Feature name\nn\n';
+          '## Feature goal\n\n- **why:** x\n### Detail\n\nd1\nd2\n\n'
+          '## Feature name\n\nn\n';
 
       expect(
         _format(disk, feature),
-        '## Feature name\nn\n\n'
-        '## Feature goal\n- **why:** x\n### Detail\nd1\nd2\n',
+        '## Feature name\n\nn\n\n'
+        '## Feature goal\n\n- **why:** x\n### Detail\n\nd1\nd2\n',
       );
     });
 
@@ -84,12 +95,12 @@ void main() {
       final feature = await _feature();
       const disk =
           '---\nzeta: 1\nstatus: planned\nalpha: 2\n---\n\n'
-          '## Feature name\nn\n\n## Feature goal\ng\n';
+          '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
 
       expect(
         _format(disk, feature),
         '---\nstatus: planned\nzeta: 1\nalpha: 2\n---\n\n'
-        '## Feature name\nn\n\n## Feature goal\ng\n',
+        '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
       );
     });
 
@@ -98,12 +109,12 @@ void main() {
       final feature = await _feature();
       const disk =
           '---\n# note\nvision:\n  - PV-01  # c\nstatus: planned\n---\n\n'
-          '## Feature name\nn\n\n## Feature goal\ng\n';
+          '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
 
       expect(
         _format(disk, feature),
         '---\nstatus: planned\n# note\nvision:\n  - PV-01  # c\n---\n\n'
-        '## Feature name\nn\n\n## Feature goal\ng\n',
+        '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
       );
     });
 
@@ -111,12 +122,12 @@ void main() {
       final feature = await _feature();
 
       final text = _format(
-        '## Feature goal\ng\n\n## Feature name\nn\n',
+        '## Feature goal\n\ng\n\n## Feature name\n\nn\n',
         feature,
       );
 
       expect(text, isNot(contains('---')));
-      expect(text, '## Feature name\nn\n\n## Feature goal\ng\n');
+      expect(text, '## Feature name\n\nn\n\n## Feature goal\n\ng\n');
     });
 
     test('f05/us01/fr03/e05, s03/inv2: a missing required key is not '
@@ -135,11 +146,11 @@ void main() {
       final feature = await _feature();
 
       final text = _format(
-        '## Feature name\nn\n\n\n\n## Feature goal\ng',
+        '## Feature name\n\nn\n\n\n\n## Feature goal\n\ng',
         feature,
       );
 
-      expect(text, '## Feature name\nn\n\n## Feature goal\ng\n');
+      expect(text, '## Feature name\n\nn\n\n## Feature goal\n\ng\n');
       expect(text.endsWith('\n\n'), isFalse);
     });
 
@@ -148,8 +159,8 @@ void main() {
       final feature = await _feature();
 
       expect(
-        _format('## feature   goal\ng\n\n## FEATURE NAME\nn\n', feature),
-        '## Feature name\nn\n\n## Feature goal\ng\n',
+        _format('## feature   goal\n\ng\n\n## FEATURE NAME\n\nn\n', feature),
+        '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
       );
     });
 
@@ -225,52 +236,79 @@ void main() {
       expect(refused.duplicateHeaders, ['## Feature name']);
     });
 
-    test('f05/us01/fr05, s03/inv3: a missing required section is added from '
-        'its template after the section before it', () async {
+    test('rendering/format_docs/leave_missing_sections E01: a missing required '
+        'section stays absent', () async {
       final feature = await _feature();
 
       expect(
-        _format('## Feature name\nn\n', feature),
-        '## Feature name\nn\n\n## Feature goal\n- **why:**\n',
+        _format('## Feature name\n\nn\n', feature),
+        '## Feature name\n\nn\n',
       );
-    });
-
-    test('f05/us01/fr05, s03/inv3: a required section without a template is '
-        'added as its header alone', () async {
-      final feature = await _feature();
-
       expect(
-        _format('## Feature goal\ng\n', feature),
-        '## Feature name\n\n## Feature goal\ng\n',
+        _format('## Feature goal\n\ng\n', feature),
+        '## Feature goal\n\ng\n',
       );
     });
 
-    test('f05/us01/fr05/e01, s03/inv3: a missing optional section stays '
-        'absent', () async {
+    test('rendering/format_docs/leave_missing_sections E02: a missing optional '
+        'section stays absent', () async {
       final feature = await _feature();
 
       final text = _format(
-        '## Feature name\nn\n\n## Feature goal\ng\n',
+        '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
         feature,
       );
 
       expect(text, isNot(contains('Feature flow')));
     });
 
-    test('f05/us01/fr05/e02, s03/inv4: an added section leaves every key '
-        'block as written', () async {
+    test('rendering/format_docs/leave_missing_sections E03: draft stays as '
+        'written when a section is missing', () async {
       final feature = await _feature();
 
       final text = _format(
-        '---\ndraft: false\n---\n\n## Feature name\nn\n',
+        '---\ndraft: false\n---\n\n## Feature name\n\nn\n',
+        feature,
+      );
+
+      expect(text, '---\ndraft: false\n---\n\n## Feature name\n\nn\n');
+    });
+
+    test('rendering/format_docs/order_sections_and_keys: orders and renames '
+        'headers, keeps text, lays out a table and a heading gap', () async {
+      final feature = await _feature();
+
+      final text = _format(
+        '## feature  goal\ng\n\n## Feature name\n\n'
+        '### Sub\ntext\n\n| a   | b    |\n|-----|------|\n| 1   | 22   |\n',
         feature,
       );
 
       expect(
         text,
-        '---\ndraft: false\n---\n\n## Feature name\nn\n\n'
-        '## Feature goal\n- **why:**\n',
+        '## Feature name\n\n'
+        '### Sub\n\ntext\n\n| a | b |\n|---|---|\n| 1 | 22 |\n\n'
+        '## Feature goal\n\ng\n',
       );
+    });
+
+    test('rendering/format_docs/normalize_layout_whitespace E07: a laid-out '
+        'doc comes back byte-equal', () async {
+      final feature = await _feature();
+      const disk = '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
+
+      expect(_format(disk, feature), disk);
+    });
+
+    test('rendering/format_docs/normalize_layout_whitespace E09: a '
+        'frontmatter line starting "# " and a key block line ending in '
+        'spaces stay verbatim', () async {
+      final feature = await _feature();
+      const disk =
+          '---\n# comment  \nstatus: planned  \n---\n\n'
+          '## Feature name\n\nn\n';
+
+      expect(_format(disk, feature), disk);
     });
 
     test('doc_model/s03/inv6, s03/inv2: a keyless frontmatter block is '
@@ -278,14 +316,14 @@ void main() {
       final feature = await _feature();
       const above =
           '---\n  orphan: line\nvision:\n  - PV-01\nstatus: planned\n---\n\n'
-          '## Feature name\nn\n\n## Feature goal\ng\n';
+          '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
 
       final keyless = Doc.parse(above).frontmatter!.first;
       expect(keyless.key, isEmpty);
       expect(
         _format(above, feature),
         '---\n  orphan: line\nstatus: planned\nvision:\n  - PV-01\n---\n\n'
-        '## Feature name\nn\n\n## Feature goal\ng\n',
+        '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
       );
     });
 
@@ -294,7 +332,7 @@ void main() {
       final feature = await _feature();
       const disk =
           '---\n  orphan: line\nstatus: planned\n---\n\n'
-          '## Feature name\nn\n\n## Feature goal\ng\n';
+          '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
 
       expect(_format(disk, feature), disk);
     });
@@ -304,8 +342,8 @@ void main() {
       final feature = await _feature();
 
       expect(
-        _format('## Feature name\nx\n\n## Feature goal\ng\n', feature),
-        '## Feature name\nx\n\n## Feature goal\ng\n',
+        _format('## Feature name\n\nx\n\n## Feature goal\n\ng\n', feature),
+        '## Feature name\n\nx\n\n## Feature goal\n\ng\n',
       );
     });
 
@@ -316,12 +354,12 @@ void main() {
       for (final gap in ['', '\n', '\n\n\n']) {
         expect(
           _format(
-            '---\nstatus: planned\n---\n$gap## Feature name\nx\n\n'
-            '## Feature goal\ng\n',
+            '---\nstatus: planned\n---\n$gap## Feature name\n\nx\n\n'
+            '## Feature goal\n\ng\n',
             feature,
           ),
-          '---\nstatus: planned\n---\n\n## Feature name\nx\n\n'
-          '## Feature goal\ng\n',
+          '---\nstatus: planned\n---\n\n## Feature name\n\nx\n\n'
+          '## Feature goal\n\ng\n',
           reason: 'gap ${gap.length}',
         );
       }
@@ -332,12 +370,107 @@ void main() {
       final feature = await _feature();
       const disk =
           '---\nzeta: 1\nstatus: planned\n---\n\n# T\n\nlead\n\n\n'
-          '## Feature goal\ng\n```\n## not a header\n```\n\n\n';
+          '## Feature goal\n\ng\n```\n## not a header\n```\n\n\n';
 
       final once = _format(disk, feature);
       final twice = formatDoc(Doc.parse(once), feature) as Formatted;
 
       expect(twice.text, once);
+    });
+  });
+
+  group('open generated block', () {
+    final open = generatedOpenMarker('journey_flow');
+    final unclosed =
+        '# J\n\n## Goal\n\nGo.\n\n## Flow\n\n$open\n| a     | b |\n'
+        '|---|---|\n';
+    final spacedEnd =
+        '# J\n\n## Goal\n\nGo.\n\n## Flow\n\n$open\nx\n$generatedEndMarker  \n';
+
+    Future<MergedDocType> journey() async =>
+        prdCoreDocType(await resolvePrdCore(), 'journey');
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks E06: '
+        'an opening marker of a listed kind with no end marker is refused, '
+        'naming the marker and its kind', () async {
+      final docType = await journey();
+
+      for (final text in [unclosed, spacedEnd]) {
+        final refused = _refused(text, docType);
+
+        expect(refused.openBlock, open, reason: text);
+        expect(refused.openBlockKind, 'journey_flow', reason: text);
+        expect(refused.unknownHeaders, isEmpty, reason: text);
+        expect(refused.unclosedFence, isFalse, reason: text);
+      }
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks E06: '
+        'a doc with an open generated block is written as given and is not '
+        'laid out', () async {
+      final docType = await journey();
+
+      expect(layOutDoc(unclosed, docType), unclosed);
+      expect(isLaidOut(Doc.parse(unclosed), unclosed, docType), isFalse);
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+        'E06: a marker whose line ends in spaces or a tab, with no end '
+        'marker, is refused, naming the marker as written', () async {
+      final docType = await journey();
+
+      for (final tail in [' ', '\t', '   ']) {
+        final text = '# J\n\n## Goal\n\nGo.\n\n## Flow\n\n$open$tail\nx\n';
+
+        final refused = _refused(text, docType);
+
+        expect(refused.openBlock, '$open$tail', reason: 'tail ${tail.length}');
+        expect(refused.openBlockKind, 'journey_flow');
+      }
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks E04: '
+        'an open marker of a kind the type does not list is text', () async {
+      final docType = await journey();
+      final other = generatedOpenMarker('note_toc');
+      final text = '# J\n\n## Goal\n\n$other\nGo.\n';
+
+      expect(formatDoc(Doc.parse(text), docType), isA<Formatted>());
+    });
+  });
+
+  group('layOutDoc', () {
+    test('rendering/format_docs/normalize_layout_whitespace: a null doc type '
+        'returns the text unchanged', () {
+      const text = '## A\n\n\n\nx   \n';
+
+      expect(layOutDoc(text, null), text);
+      expect(isLaidOut(Doc.parse(text), text, null), isFalse);
+    });
+
+    test('rendering/format_docs/match_section_headers: each refusal returns '
+        'the text byte-equal', () async {
+      final feature = await _feature();
+
+      for (final text in [
+        '## Notes\nx   \n',
+        '## Feature name\n\nn\n\n\n\n## Feature name\n\nn\n',
+        '## Feature name\n\n```\nx   \n',
+      ]) {
+        expect(layOutDoc(text, feature), text);
+        expect(isLaidOut(Doc.parse(text), text, feature), isFalse);
+      }
+    });
+
+    test('rendering/format_docs/order_sections_and_keys: lays out as '
+        'formatDoc does', () async {
+      final feature = await _feature();
+      const text = '## Feature goal\n\ng\n\n\n## Feature name\n\nn\n';
+      const laid = '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
+
+      expect(layOutDoc(text, feature), laid);
+      expect(isLaidOut(Doc.parse(text), text, feature), isFalse);
+      expect(isLaidOut(Doc.parse(laid), laid, feature), isTrue);
     });
   });
 }

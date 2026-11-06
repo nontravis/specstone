@@ -61,7 +61,7 @@ void main() {
 
       expect(
         _write('## Contents\n', type, [_block('A\n')]),
-        '## Contents\n$_toc\nA\n$_end\n',
+        '## Contents\n\n$_toc\nA\n$_end\n',
       );
     });
 
@@ -110,7 +110,7 @@ void main() {
 
       expect(
         _write(disk, type, [_block('A')]),
-        '## Contents\n$_toc\nA\n$_end\n$other\nold\n$_end\n',
+        '## Contents\n\n$_toc\nA\n$_end\n$other\nold\n$_end\n',
       );
     });
 
@@ -164,7 +164,7 @@ void main() {
 
         expect(
           _write('$head## Contents\n', type, [_block('A')]),
-          '$head## Contents\n$_toc\nA\n$_end\n',
+          '$head## Contents\n\n$_toc\nA\n$_end\n',
         );
       }
     });
@@ -283,7 +283,7 @@ void main() {
 
       final once = _write('## Contents\n', type, blocks);
 
-      expect(once, '## Contents\n$_toc\nA\n$_end\n');
+      expect(once, '## Contents\n\n$_toc\nA\n$_end\n');
       expect(_write(once, type, blocks), once);
     });
 

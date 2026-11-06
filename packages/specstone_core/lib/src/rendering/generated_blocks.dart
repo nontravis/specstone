@@ -129,6 +129,14 @@ List<bool> generatedBlockLines(List<String> lines, Set<String> kinds) {
   return marked;
 }
 
+/// Returns the first opening marker of one of [kinds] in [doc] that has no
+/// end marker, or null when every such block closes.
+OpenBlock? openBlockOf(Doc doc, Set<String> kinds) {
+  if (kinds.isEmpty) return null;
+  final lines = _Lines.split(doc.afterFrontmatter);
+  return _scan(lines, kinds, bodyStart: 0).openBlock;
+}
+
 /// Runs the generators [docType] lists, in list order, and returns their
 /// blocks.
 List<GeneratedBlock> runGenerators<R>(
@@ -144,32 +152,16 @@ List<GeneratedBlock> runGenerators<R>(
 /// Writes [blocks] into [lfText].
 ///
 /// A block rewrites the pair of its kind at its place, or inserts one when
-/// none is there. Every other byte, a pair outside every block's place and a
-/// pair of a kind [docType] does not list included, stays as written.
-/// Returns [OpenBlock] when an opening marker of a listed kind has no end
-/// marker.
+/// none is there; an inserted pair also writes the layout whitespace around
+/// itself as INV-32 does. Every other byte, a pair outside every block's
+/// place and a pair of a kind [docType] does not list included, stays as
+/// written. Returns [OpenBlock] when an opening marker of a listed kind has
+/// no end marker.
 BlockWrite writeGeneratedBlocks(
   String lfText,
   MergedDocType docType,
   List<GeneratedBlock> blocks,
-) {
-  final kinds = docType.listedGenerators.toSet();
-  final lines = _Lines.split(lfText);
-  final scan = _scan(lines, kinds, bodyStart: _bodyStart(lfText));
-  final open = scan.openBlock;
-  if (open != null) return open;
-
-  final doc = Doc.parse(lfText);
-  final edits = <_Edit>[];
-  final seen = <String>{};
-  for (final block in blocks) {
-    if (!kinds.contains(block.kind)) continue;
-    if (!seen.add(_slotKey(block))) continue;
-    final edit = _editFor(block, doc, docType, lines, scan);
-    if (edit != null) edits.add(edit);
-  }
-  return BlocksWritten(lines.apply(edits) ?? lfText);
-}
+) => _writeBlocks(lfText, Doc.parse(lfText), docType, blocks);
 
 /// Returns [lfText] with the blocks of [docType]'s listed generators written.
 ///
@@ -182,11 +174,35 @@ String fillGeneratedBlocks<R>(
   R resolver,
 ) {
   if (docType.listedGenerators.isEmpty) return lfText;
-  final blocks = runGenerators(Doc.parse(lfText), docType, registry, resolver);
-  return switch (writeGeneratedBlocks(lfText, docType, blocks)) {
+  final doc = Doc.parse(lfText);
+  final blocks = runGenerators(doc, docType, registry, resolver);
+  return switch (_writeBlocks(lfText, doc, docType, blocks)) {
     BlocksWritten(lfText: final written) => written,
     OpenBlock() => lfText,
   };
+}
+
+/// Writes [blocks] into [lfText] parsed as [doc], sharing that one parse.
+BlockWrite _writeBlocks(
+  String lfText,
+  Doc doc,
+  MergedDocType docType,
+  List<GeneratedBlock> blocks,
+) {
+  final kinds = docType.listedGenerators.toSet();
+  final lines = _Lines.split(lfText);
+  final scan = _scan(lines, kinds, bodyStart: _bodyStart(lfText, doc));
+  final open = scan.openBlock;
+  if (open != null) return open;
+
+  final edits = <_Edit>[];
+  final seen = <String>{};
+  for (final block in blocks) {
+    if (!kinds.contains(block.kind)) continue;
+    if (!seen.add(_slotKey(block))) continue;
+    edits.addAll(_editFor(block, doc, docType, lines, scan));
+  }
+  return BlocksWritten(lines.apply(edits) ?? lfText);
 }
 
 String _slotKey(GeneratedBlock block) => switch (block.place) {
@@ -195,7 +211,7 @@ String _slotKey(GeneratedBlock block) => switch (block.place) {
     '${block.kind}\u0000${block.sectionId}\u0000$index',
 };
 
-_Edit? _editFor(
+List<_Edit> _editFor(
   GeneratedBlock block,
   Doc doc,
   MergedDocType docType,
@@ -203,7 +219,7 @@ _Edit? _editFor(
   _Scan scan,
 ) {
   final sectionIndex = sectionIndexOf(doc, docType, block.sectionId);
-  if (sectionIndex == null) return null;
+  if (sectionIndex == null) return const [];
   final header = scan.bodyStart + doc.sectionLineIndexes[sectionIndex];
   final sectionEnd = sectionIndex + 1 < doc.sections.length
       ? scan.bodyStart + doc.sectionLineIndexes[sectionIndex + 1]
@@ -212,22 +228,63 @@ _Edit? _editFor(
     SectionTop() => header,
     BelowBodyLine(:final index) => header + 1 + index,
   };
-  if (anchor < header || anchor >= sectionEnd) return null;
+  if (anchor < header || anchor >= sectionEnd) return const [];
 
   final inner = _innerLines(block.text);
   final pair = _pairAt(lines, scan, anchor + 1, block.kind);
   if (pair == null) {
-    return _Edit(
-      from: anchor + 1,
-      to: anchor + 1,
-      replacement: [
-        generatedOpenMarker(block.kind),
-        ...inner,
-        generatedEndMarker,
-      ],
-    );
+    // The inserted pair carries the layout whitespace around itself
+    // (INV-32), so no later layout pass over the doc is needed: exactly one
+    // blank under a heading anchor, and a hard break the insert severs
+    // trimmed. A fenced or in-pair anchor keeps its bytes as written.
+    final anchorLine = lines[anchor];
+    final isProtected =
+        scan.fenced[anchor - scan.bodyStart] || _inPair(scan, anchor);
+    final trimmedAnchor = _trimEnd(anchorLine);
+    return [
+      if (!isProtected && trimmedAnchor != anchorLine)
+        _Edit(from: anchor, to: anchor + 1, replacement: [trimmedAnchor]),
+      _Edit(
+        from: anchor + 1,
+        to: anchor + 1,
+        replacement: [
+          if (!isProtected && _isHeadingLine(anchorLine)) '',
+          generatedOpenMarker(block.kind),
+          ...inner,
+          generatedEndMarker,
+        ],
+      ),
+    ];
   }
-  return _Edit(from: pair.open + 1, to: pair.end, replacement: inner);
+  return [_Edit(from: pair.open + 1, to: pair.end, replacement: inner)];
+}
+
+bool _inPair(_Scan scan, int line) =>
+    scan.pairs.any((pair) => line >= pair.open && line <= pair.end);
+
+const _space = 0x20;
+const _tab = 0x09;
+const _hash = 0x23;
+
+/// The most spaces before a heading's `#` run.
+const _maxHeadingIndent = 3;
+const _maxHeadingLevel = 6;
+
+/// Whether [line], its trailing spaces and tabs aside, is up to 3 spaces,
+/// 1 to 6 `#`, then the end or a space.
+bool _isHeadingLine(String line) {
+  final end = _contentEnd(line);
+  var i = 0;
+  while (i < end && i < _maxHeadingIndent && line.codeUnitAt(i) == _space) {
+    i++;
+  }
+  final hashes = i;
+  while (i < end && line.codeUnitAt(i) == _hash) {
+    i++;
+  }
+  final level = i - hashes;
+  if (level < 1 || level > _maxHeadingLevel) return false;
+  return i == end || line.codeUnitAt(i) == _space;
 }
 
 /// Returns the first pair of [kind] in the run of pairs that starts at the
@@ -260,31 +317,49 @@ List<String> _innerLines(String text) {
   return trimmed.split('\n');
 }
 
-/// The index of the first line after the frontmatter.
-int _bodyStart(String lfText) {
-  final after = Doc.parse(lfText).afterFrontmatter;
+/// The index of the first line after the frontmatter of [doc], parsed from
+/// [lfText].
+int _bodyStart(String lfText, Doc doc) {
+  final after = doc.afterFrontmatter;
   final prefix = lfText.substring(0, lfText.length - after.length);
   return '\n'.allMatches(prefix).length;
 }
 
-_Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
-  final start = bodyStart ?? _bodyStart(lines.join());
+/// The index after the last character of [line] that is not a space or a tab.
+int _contentEnd(String line) {
+  var i = line.length;
+  while (i > 0) {
+    final unit = line.codeUnitAt(i - 1);
+    if (unit != _space && unit != _tab) break;
+    i--;
+  }
+  return i;
+}
+
+String _trimEnd(String line) {
+  final end = _contentEnd(line);
+  return end == line.length ? line : line.substring(0, end);
+}
+
+_Scan _scan(_Lines lines, Set<String> kinds, {required int bodyStart}) {
   final fenced = fencedLines([
-    for (var i = start; i < lines.length; i++) lines[i],
+    for (var i = bodyStart; i < lines.length; i++) lines[i],
   ]);
   final kindByMarker = {
     for (final kind in kinds) generatedOpenMarker(kind): kind,
   };
   bool isMarker(int i, bool Function(String) test) =>
-      !fenced[i - start] && test(lines[i]);
+      !fenced[i - bodyStart] && test(lines[i]);
 
   final pairs = <_Pair>[];
   OpenBlock? openBlock;
-  var i = start;
+  var i = bodyStart;
   while (i < lines.length) {
-    final kind = isMarker(i, kindByMarker.containsKey)
-        ? kindByMarker[lines[i]]
-        : null;
+    // Layout trims trailing spaces and tabs, so a marker line that only
+    // differs from an exact one by them is an open block too.
+    final kind = fenced[i - bodyStart]
+        ? null
+        : kindByMarker[_trimEnd(lines[i])];
     if (kind == null) {
       i++;
       continue;
@@ -292,7 +367,7 @@ _Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
     var j = i + 1;
     while (j < lines.length &&
         !isMarker(j, (line) => line == generatedEndMarker) &&
-        !isMarker(j, kindByMarker.containsKey)) {
+        !isMarker(j, (line) => kindByMarker.containsKey(_trimEnd(line)))) {
       j++;
     }
     if (j >= lines.length || lines[j] != generatedEndMarker) {
@@ -303,7 +378,12 @@ _Scan _scan(_Lines lines, Set<String> kinds, {int? bodyStart}) {
     pairs.add(_Pair(kind: kind, open: i, end: j));
     i = j + 1;
   }
-  return _Scan(bodyStart: start, pairs: pairs, openBlock: openBlock);
+  return _Scan(
+    bodyStart: bodyStart,
+    pairs: pairs,
+    openBlock: openBlock,
+    fenced: fenced,
+  );
 }
 
 final class _Pair {
@@ -315,11 +395,19 @@ final class _Pair {
 }
 
 final class _Scan {
-  const new({required this.bodyStart, required this.pairs, this.openBlock});
+  const new({
+    required this.bodyStart,
+    required this.pairs,
+    required this.fenced,
+    this.openBlock,
+  });
 
   final int bodyStart;
   final List<_Pair> pairs;
   final OpenBlock? openBlock;
+
+  /// Per line from [bodyStart], whether it sits inside a code fence.
+  final List<bool> fenced;
 }
 
 /// Replaces lines `[from, to)` with [replacement].

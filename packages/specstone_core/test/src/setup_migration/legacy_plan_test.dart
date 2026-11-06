@@ -16,7 +16,8 @@ import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 
-/// The dry-run example of `s02_api_migrate.md`, up to the `left` block.
+/// The `specstone migrate --dry-run` example of `api:setup_migration`, up to
+/// the `left` block.
 const _acmePlan = '''
 legacy migration: /work/acme (docs/prds/d01_context.md)
 commit 1, moves:
@@ -32,10 +33,11 @@ commit 2, rewrites:
   prds/PROJECT.md: title, name, vision labels
   prds/FEATURES.md: title, name
   prds/GNFR.md: title, name; project-layer section Data integrity
-  prds/features/f01_login/FEATURE.md: title from Feature name, name, index tables removed, 2 links
+  prds/features/f01_login/FEATURE.md: title from Feature name, name, index tables removed, 2 links, 1 mention
   prds/features/f01_login/us01_email_login/USER_STORY.md: title, name
   prds/features/f01_login/us01_email_login/fr01_validate_credentials.md: title, name
   specs/f01_login/ARCHITECTURE.md: title, name, feature_id, Concerns, covers (1 path)
+  format layout: specs/f01_login/DOMAIN.md
 commit 2, creates:
 ''';
 
@@ -98,8 +100,17 @@ void main() {
           r'  specs/TECH_STACK\.md \(draft\)\n'
           r'  agent files: \.specstone/AGENT\.md, AGENTS\.md\n'
           r'left in place for specstone check:\n'
-          r'  specs/INDEX\.md\n$',
+          r'  specs/INDEX\.md\n'
+          r'  specs/f01_login/DOMAIN\.md\n$',
         ),
+      ),
+    );
+    expect(
+      plan.toText(),
+      endsWith(
+        'left in place for specstone check:\n'
+        '  specs/INDEX.md\n'
+        '  specs/f01_login/DOMAIN.md\n',
       ),
     );
   });
@@ -512,24 +523,34 @@ name: Login API
     }, skip: unreadablePathSkipReason());
   });
 
-  test('f06/us01/fr04/e11: a markdown doc left in place gets the link '
-      'rewrite only', () async {
+  test('f06/us01/fr04/e11, rewrite_titles_keys_and_links E17: a markdown '
+      'doc left in place gets the link rewrite only, its other lines '
+      'byte-equal', () async {
+    const glossary = '''
+# Glossary
+
+See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_validate_credentials.md).
+
+| Term    | Meaning       |
+|---------|---------------|
+| Session | Signed-in use |
+''';
     final plan = await _plan({
       ...acmeLegacy,
-      'docs/prds/d04_glossary.md': [
-        '# Glossary\n\nSee [FR](features/f01_login/us01_email_login/',
-        'functional_requirements/fr01_validate_credentials.md).\n',
-      ].join(),
+      'docs/prds/d04_glossary.md': glossary,
     });
 
     final rewrite = _rewrite(plan, 'prds/d04_glossary.md');
 
     expect(rewrite.changes, ['1 link']);
+    expect(rewrite.text, isNot(contains('functional_requirements')));
     expect(
       rewrite.text,
-      contains('(features/f01_login/us01_email_login/fr01_validate'),
+      glossary.replaceFirst(
+        'functional_requirements/fr01_validate_credentials.md',
+        'fr01_validate_credentials.md',
+      ),
     );
-    expect(rewrite.text, isNot(contains('functional_requirements')));
     expect(plan.left, contains('prds/d04_glossary.md'));
   });
 
@@ -614,6 +635,131 @@ name: Login API
         .singleWhere((s) => s.headerText == 'Statement')
         .body;
     expect(statement, contains('(../../../GNFR.md)'));
+    expect(
+      api.text,
+      contains(
+        'email_login/validate_credentials ${fingerprintOf(statement)}\n',
+      ),
+    );
+  });
+
+  test('f06/us01/fr04/e17, rewrite_titles_keys_and_links E17: a moved doc '
+      'that becomes typed is written laid out, its text kept', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/prds/d03_non_functional.md': '''
+---
+name: Acme non-functional requirements
+---
+
+# D-03 — Project-wide non-functional requirements
+
+## Performance
+
+| ID     | Requirement           |
+|--------|-----------------------|
+| NFR-01 | Login answers in 1 s. |
+''',
+    });
+
+    final rewrite = _rewrite(plan, 'prds/GNFR.md');
+
+    expect(rewrite.changes.take(2), ['title', 'name']);
+    expect(rewrite.text, contains('| ID | Requirement |\n|---|---|\n'));
+    expect(rewrite.text, contains('| NFR-01 | Login answers in 1 s. |\n'));
+  });
+
+  test('f06/us01/fr04/e17, rewrite_titles_keys_and_links E17: a typed doc '
+      'whose only change is its layout joins the shared line, a doc with '
+      'rewrites keeps its own line', () async {
+    final plan = await _plan(acmeLegacy);
+
+    final domain = _rewrite(plan, 'specs/f01_login/DOMAIN.md');
+
+    expect(domain.changes, isEmpty);
+    expect(domain.text, contains('| Entity | Kind | Identity |\n'));
+    final lines = plan.toText().split('\n');
+    expect(lines, contains('  format layout: specs/f01_login/DOMAIN.md'));
+    expect(lines.where((line) => line.contains('DOMAIN.md:')), isEmpty);
+    expect(lines, contains('  prds/PROJECT.md: title, name, vision labels'));
+  });
+
+  test('f06/us01/fr04/e17, rewrite_titles_keys_and_links E17: a doc the '
+      'format command refuses is not rewritten', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/specs/f01_login/DOMAIN.md': '''
+---
+name: Login domain
+---
+
+# Login domain
+
+## Entities
+
+| Entity  | Kind           | Identity |
+|---------|----------------|----------|
+| Session | Aggregate root | token    |
+
+## Not in the template
+
+Text.
+''',
+    });
+
+    expect(
+      plan.rewrites.where((r) => r.path == 'docs/specs/f01_login/DOMAIN.md'),
+      isEmpty,
+    );
+    expect(plan.toText(), isNot(contains('format layout:')));
+  });
+
+  test('f06/us01/fr06/e01, write_first_fingerprints: the fingerprint hashes '
+      'the Statement as laid out', () async {
+    final plan = await _plan(
+      {
+        ...acmeLegacy,
+        'docs/prds/features/f01_login/us01_email_login/functional_requirements/'
+            'fr01_validate_credentials.md': '''
+---
+name: Validate credentials
+status: planned
+---
+
+# FR-01 — Validate credentials
+
+## Statement
+
+| Input       | Rule      |
+|-------------|-----------|
+| Credentials | Must hold |
+''',
+        'docs/specs/api/auth/s02_api_login.md': '''
+---
+name: Login API
+---
+
+# S-02 — Login API
+
+## FR trace
+
+| FR id | Method |
+|-------|--------|
+| `us01_email_login/fr01_validate_credentials` | CLI |
+''',
+      }..remove('docs/specs/api/auth/s02_api_session.md'),
+    );
+
+    final fr = _rewrite(
+      plan,
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+    );
+    final api = _rewrite(plan, 'specs/f01_login/API.md');
+
+    final statement = Doc.parse(fr.text).sections
+        .singleWhere((s) => s.headerText == 'Statement')
+        .body;
+    expect(statement, contains('| Input | Rule |'));
     expect(
       api.text,
       contains(

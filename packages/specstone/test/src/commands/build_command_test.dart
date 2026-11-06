@@ -20,13 +20,13 @@ const _frX = '$_featureDir/us01_a/functional_requirements/fr01_x.md';
 const _storyB = '$_featureDir/us02_b/USER_STORY.md';
 
 const _featureText =
-    '# F-03 Template packs\n\n## Feature name\n- **Human:** Packs\n\n'
-    '## Feature goal\n- **why:** share templates\n';
+    '# F-03 Template packs\n\n## Feature name\n\n- **Human:** Packs\n\n'
+    '## Feature goal\n\n- **why:** share templates\n';
 const _storyAText =
-    '# Story A\n\n## Summary\nFirst.\n\n## Acceptance Criteria\nDone.\n';
-const _frXText = '# Requirement X\n\n## Statement\nShall.\n';
+    '# Story A\n\n## Summary\n\nFirst.\n\n## Acceptance Criteria\n\nDone.\n';
+const _frXText = '# Requirement X\n\n## Statement\n\nShall.\n';
 const _storyBText =
-    '# Story B\n\n## Summary\nSecond.\n\n## Acceptance Criteria\nDone.\n';
+    '# Story B\n\n## Summary\n\nSecond.\n\n## Acceptance Criteria\n\nDone.\n';
 
 const Map<String, String> _fixture = {
   _feature: _featureText,

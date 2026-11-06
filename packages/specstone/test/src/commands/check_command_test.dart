@@ -224,4 +224,27 @@ void main() {
       },
     ]);
   });
+
+  test('consistency_check/find_template_breaks/report_format_drift S12: check names the drifted file and its fix, and format clears it', () async {
+    final project = await writeCheckProject(
+      extra: fr(
+        'A wrong password must not sign in.\n',
+        'A wrong password must not sign in.\n\n| Case       | Result  |\n|------------|---------|\n| wrong      | refused |\n',
+      ),
+    );
+    final drifted = readRunner(project);
+    expect(await drifted.runner.run(['check']), 1);
+    expect(
+      drifted.out.toString(),
+      '$loginFr:1: format_drift: the file differs from what `specstone format` writes; run '
+      '`specstone format docs/$loginFr`\n1 finding\n',
+    );
+
+    final formatted = readRunner(project);
+    expect(await formatted.runner.run(['format', 'docs/$loginFr']), 0);
+
+    final clean = readRunner(project);
+    expect(await clean.runner.run(['check']), 0);
+    expect(clean.out.toString(), '0 findings\n');
+  });
 }

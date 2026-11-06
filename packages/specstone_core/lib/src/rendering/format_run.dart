@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -228,6 +227,8 @@ FileResult _formatReadable<R>(
       :final unknownHeaders,
       :final duplicateHeaders,
       :final unclosedFence,
+      :final openBlock,
+      :final openBlockKind,
     ):
       return FileResult(
         path: read.path,
@@ -235,27 +236,20 @@ FileResult _formatReadable<R>(
         unknownHeaders: unknownHeaders,
         duplicateHeaders: duplicateHeaders,
         unclosedFence: unclosedFence,
+        openBlock: openBlock,
+        openBlockKind: openBlockKind,
       );
     case Formatted(:final text):
       var finalText = text;
       if (blocks != null && read.docType.listedGenerators.isNotEmpty) {
-        final generated = runGenerators(
-          Doc.parse(text),
+        // The formatted text is laid out, and the inserted pair carries its
+        // own layout whitespace, so no second layout pass runs here.
+        finalText = fillGeneratedBlocks(
+          text,
           read.docType,
           blocks.run.registry,
           blocks.resolver,
         );
-        switch (writeGeneratedBlocks(text, read.docType, generated)) {
-          case OpenBlock(:final kind, :final marker):
-            return FileResult(
-              path: read.path,
-              status: FileStatus.refused,
-              openBlock: marker,
-              openBlockKind: kind,
-            );
-          case BlocksWritten(:final lfText):
-            finalText = lfText;
-        }
       }
       if (finalText == toLf(read.text)) {
         return FileResult(path: read.path, status: FileStatus.unchanged);

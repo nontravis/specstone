@@ -11,7 +11,7 @@ void main() {
   const rules = 'prds/references/login_rules/REFERENCE.md';
   const ruleDoc =
       '---\nsource: Team wiki\nfiles:\n  - spec.pdf\n  - notes.md\n---\n\n# Login rules\n\n'
-      '## Summary\nThe rules.\n';
+      '## Summary\n\nThe rules.\n';
   const template =
       'reference:\n  add:\n    - title: Login rules\n      doc: login_rules\n';
 
@@ -52,7 +52,7 @@ void main() {
     );
     expect(spots(report), [
       '$rules:5: listed_file_missing',
-      '$loginArchitecture:16: concerns_target_unresolved',
+      '$loginArchitecture:19: concerns_target_unresolved',
     ]);
     expect(report.findings.last.toJson()['target'], 'AUTH.md');
   });

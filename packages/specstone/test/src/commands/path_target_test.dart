@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -97,12 +98,12 @@ void main() {
           'set',
           '$story1#use_case',
           '--base',
-          '9042269552ff',
+          '7e11fc4a24d2',
         ], console: FakeConsole(input: 'Sign in with a passkey.\n')),
         (
           status: 0,
           out:
-              '==> login/email_login (user_story) · $story1 · base 10c653d235c1 <==\n',
+              '==> login/email_login (user_story) · $story1 · base ${baseHashOf('\nSign in with a passkey.\n')} <==\n',
           err: '',
         ),
       );
@@ -116,12 +117,12 @@ void main() {
           'set',
           'us01_email_login/USER_STORY.md#use_case',
           '--base',
-          '9042269552ff',
+          '7e11fc4a24d2',
         ], console: FakeConsole(input: 'Sign in with a passkey.\n')),
         (
           status: 0,
           out:
-              '==> login/email_login (user_story) · $story1 · base 10c653d235c1 <==\n',
+              '==> login/email_login (user_story) · $story1 · base ${baseHashOf('\nSign in with a passkey.\n')} <==\n',
           err: '',
         ),
       );
@@ -202,7 +203,7 @@ void main() {
           'set',
           'login/email_login#use_case',
           '--base',
-          '9042269552ff',
+          '7e11fc4a24d2',
         ], console: FakeConsole(input: 'x\n'));
         expect(run.status, 64);
         expect(

@@ -1,3 +1,6 @@
+// Test names carry the story, FR, and edge-case IDs on one line.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -230,6 +233,70 @@ void main() {
       expect(readDoc(root, story2), 'a\r\nb\r\n');
     },
   );
+
+  group('rendering/format_docs/normalize_layout_whitespace: writeDoc lays out', () {
+    const padded =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n';
+    const laidOut =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n\n'
+        '| Component | Responsibility |\n|---|---|\n'
+        '| Signup form | Collects the email |\n';
+
+    test('a typed doc is written laid out, and the returned text is the file LF text', () async {
+      final root = await writeWriteProject();
+      final written = writeIn(
+        root,
+        (s) => s.writeDoc(signupArch, padded, LineEnding.lf),
+      );
+      expect(written, laidOut);
+      expect(readDoc(root, signupArch), laidOut);
+    });
+
+    test('an untyped doc is written as given', () async {
+      final root = await writeWriteProject();
+      const text = '# Context   \n\n\n## Features\nSee.\n';
+      const path = 'prds/d01_context.md';
+      final written = writeIn(
+        root,
+        (s) => s.writeDoc(path, text, LineEnding.lf),
+      );
+      expect(written, text);
+      expect(readDoc(root, path), text);
+    });
+
+    test('a doc formatDoc refuses is written as given', () async {
+      final root = await writeWriteProject();
+      const text =
+          '---\ndraft: true\n---\n\n# Signup architecture\n\n## Not a section\nx\n';
+      final written = writeIn(
+        root,
+        (s) => s.writeDoc(signupArch, text, LineEnding.lf),
+      );
+      expect(written, text);
+      expect(readDoc(root, signupArch), text);
+    });
+
+    test('CRLF and a BOM are kept on a laid-out write, and the returned text is LF', () async {
+      final root = await writeWriteProject();
+      docFile(
+        root,
+        signupArch,
+      ).writeAsBytesSync([0xEF, 0xBB, 0xBF, ...padded.codeUnits]);
+      final written = writeIn(root, (s) {
+        s.readDocBytes(signupArch);
+        return s.writeDoc(signupArch, padded, LineEnding.crlf);
+      });
+      final bytes = docFile(root, signupArch).readAsBytesSync();
+      expect(bytes.take(3), [0xEF, 0xBB, 0xBF]);
+      expect(written, laidOut);
+      expect(
+        String.fromCharCodes(bytes.skip(3)),
+        written.replaceAll('\n', '\r\n'),
+      );
+    });
+  });
 
   test('D4, f02/us01/fr05/e07: writeDoc maps a refused write to output_not_writable naming the DocPath', () async {
     final root = await writeWriteProject();

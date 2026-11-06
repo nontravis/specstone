@@ -23,7 +23,7 @@ const _copy =
 
 final String _fp1 = fingerprintOf(loginScenario1);
 final String _fp2 = fingerprintOf(loginScenario2);
-final String _fpStatement = fingerprintFor(checkPasswordStatement);
+final String _fpStatement = fingerprintFor('\n$checkPasswordStatement');
 final String _fpCheckStock = fingerprintFor(checkStockStatement);
 
 const Set<FindingKind> _storyKinds = {
@@ -63,8 +63,8 @@ Future<Directory> _nestedWithCartApi() => writeNestedProject(
   extra: {
     'docs/$_cartApi':
         '---\nconfirmed:\n  - add_item/check_stock $_fpCheckStock\n---\n\n'
-        '# Cart API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
-        '| add_item/check_stock | `addItem` |\n\n## Operations\nNone.\n',
+        '# Cart API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
+        '| add_item/check_stock | `addItem` |\n\n## Operations\n\nNone.\n',
   },
 );
 
@@ -111,7 +111,7 @@ void main() {
     );
     expect(answer.json['rewritten'], contains(_journeyPath));
     final text = readDoc(root, _journeyPath);
-    expect(text, contains('### 1. Sign in\nstep: login/password_login S1\n'));
+    expect(text, contains('### 1. Sign in\n\nstep: login/password_login S1\n'));
     expect(text, contains('  - login/password_login#S1 $_fp1\n'));
     expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
     expect(_unresolvedSteps(root), 1);
@@ -297,9 +297,9 @@ void main() {
       _rename(root, 'user_story:login/email_login', 'password_login');
       expect(
         readDoc(root, _journeyPath),
-        '$lead# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
-        '### 1. Sign in\nstep: login/password_login S1\n\n'
-        '### 2. Next\nstep: login/password_login S2\nafter: 1\n',
+        '$lead# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n## Steps\n\n'
+        '### 1. Sign in\n\nstep: login/password_login S1\n\n'
+        '### 2. Next\n\nstep: login/password_login S2\nafter: 1\n',
       );
     }
   });

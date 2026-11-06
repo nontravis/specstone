@@ -65,7 +65,7 @@ MarkerScan scanMarkers(String text) {
   if (lines.first.startsWith(_byteOrderMark)) {
     lines[0] = lines.first.substring(1);
   }
-  final scan = fenceScan(lines);
+  final scan = blockScan(lines);
   final begins = <int>[];
   final ends = <int>[];
   for (var index = 0; index < lines.length; index++) {
@@ -99,7 +99,7 @@ int? _openFenceLine(List<String> lines, String? openFence) {
   if (openFence == null) return null;
   for (var index = lines.length - 1; index >= 0; index--) {
     if (lines[index] == openFence &&
-        fenceScan(lines.sublist(0, index)).openFence == null) {
+        blockScan(lines.sublist(0, index)).openFence == null) {
       return index + 1;
     }
   }

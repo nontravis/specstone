@@ -315,6 +315,49 @@ void main() {
       ], contains('section_undeclared'));
     });
 
+    test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11, '
+        'setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+        'and one doc off its layout makes one layout-only commit, then a rerun '
+        'has nothing to migrate', () async {
+      final home = await _home(migrations: '');
+      final root = await _project(
+        pin: '1.2.0',
+        files: {_runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  ')},
+      );
+      final before = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        startsWith(
+          'pack upgrade: pins unchanged, layout only\n'
+          'commit 2, rewrites:\n'
+          '  format layout: prds/runbooks/deploy/RUNBOOK.md\n',
+        ),
+      );
+      expect(
+        result.out,
+        endsWith(
+          'commit 2 ${_head(root).substring(0, 7)}: '
+          'lay docs out as format writes them\n',
+        ),
+      );
+      expect(_subjects(root), hasLength(before.length + 1));
+      expect(
+        _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+        _runbookPath,
+      );
+      expect(_read(root, _runbookPath), _runbookDoc);
+      expect(_read(root, '.specstone/config.yaml'), _config('1.2.0'));
+
+      final again = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(again.status, 0, reason: again.err);
+      expect(again.out, 'nothing to migrate\n');
+    });
+
     test('f06/us02/s6: nothing to upgrade prints nothing to migrate and writes '
         'nothing', () async {
       final home = await _home(
@@ -322,12 +365,12 @@ void main() {
         migrations: '',
         type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
       );
-      final root = await _project();
+      final root = await _project(files: {_runbookPath: _runbookDoc});
       final before = _bytesUnder(root);
 
       final result = await _run(root, home, ['migrate'], console: _owner());
 
-      expect(result.status, 0);
+      expect(result.status, 0, reason: result.err);
       expect(result.out, 'nothing to migrate\n');
       expect(_bytesUnder(root), before);
     });

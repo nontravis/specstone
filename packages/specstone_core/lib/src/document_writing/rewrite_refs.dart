@@ -16,6 +16,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
     show RenderFault;
@@ -237,9 +238,11 @@ WriteStep? _stepFor(
   if (text == null) return null;
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
+  final writtenPath = movedPath(doc.docPath, moves);
+  final laidOut = layOutDoc(text, session.docTypeAt(writtenPath));
   return WriteStep(
-    session.projectPathOf(movedPath(doc.docPath, moves)),
-    '$bom${LineEnding.of(raw).apply(text)}',
+    session.projectPathOf(writtenPath),
+    '$bom${LineEnding.of(raw).apply(laidOut)}',
   );
 }
 

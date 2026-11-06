@@ -37,7 +37,7 @@ void main() {
     final report = checkOf(project);
     expect(
       report.findings.single.textLine,
-      '$loginFeature:11: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
+      '$loginFeature:12: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
     );
   });
 
@@ -53,18 +53,18 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:11: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
+      '$loginFeature:12: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
     );
   });
 
   test('f04/us02/fr04/e02: a persona value no persona carries is doc_ref_unresolved', () async {
     final story = doc(
       loginStory,
-      '  - app/lib/login.dart:SignInPage\n',
-      '  - app/lib/login.dart:SignInPage\npersona:\n  - buyer\n',
+      'goals:\n  - PG-01\n',
+      'goals:\n  - PG-01\npersona:\n  - buyer\n',
     );
     final report = checkOf(await writeCheckProject(extra: story));
-    expect(spots(report), ['$loginStory:8: doc_ref_unresolved']);
+    expect(spots(report), ['$loginStory:6: doc_ref_unresolved']);
     expect(
       report.findings.single.toJson(),
       allOf(containsPair('field', 'persona'), containsPair('value', 'buyer')),
@@ -201,10 +201,10 @@ void main() {
         ),
       );
       expect(spots(checkOf(project), FindingKind.linkTargetMissing), [
-        'prds/GNFR.md:9: link_target_missing',
+        'prds/GNFR.md:12: link_target_missing',
       ]);
       expect(missingOf(project), [
-        'prds/GNFR.md:9: link_target_missing: link target ../../../docs/prds/d03_non_functional.md is missing at ../docs/prds/d03_non_functional.md',
+        'prds/GNFR.md:12: link_target_missing: link target ../../../docs/prds/d03_non_functional.md is missing at ../docs/prds/d03_non_functional.md',
       ]);
       final finding = checkOf(project).findings
           .firstWhere((f) => f.kind == FindingKind.linkTargetMissing);
@@ -223,7 +223,7 @@ void main() {
         extra: linking('![flow](flow.png)'),
       );
       expect(missingOf(project), [
-        '$loginFeature:11: link_target_missing: link target flow.png is missing at docs/prds/features/f01_login/flow.png',
+        '$loginFeature:12: link_target_missing: link target flow.png is missing at docs/prds/features/f01_login/flow.png',
       ]);
     });
 
@@ -245,7 +245,7 @@ void main() {
         extra: linking('![flow](flow%20chart.png#top)'),
       );
       expect(missingOf(missing), [
-        '$loginFeature:11: link_target_missing: link target flow%20chart.png#top is missing at docs/prds/features/f01_login/flow chart.png',
+        '$loginFeature:12: link_target_missing: link target flow%20chart.png#top is missing at docs/prds/features/f01_login/flow chart.png',
       ]);
       final present = await writeCheckProject(
         extra: {...linking('![flow](flow%20chart.png#top)'), picture: 'png'},
@@ -258,7 +258,7 @@ void main() {
         extra: linking('![a](a.png?raw=1)'),
       );
       expect(missingOf(missing), [
-        '$loginFeature:11: link_target_missing: link target a.png?raw=1 is missing at docs/prds/features/f01_login/a.png',
+        '$loginFeature:12: link_target_missing: link target a.png?raw=1 is missing at docs/prds/features/f01_login/a.png',
       ]);
       final present = await writeCheckProject(
         extra: {
@@ -304,7 +304,7 @@ void main() {
       final project = await writeCheckProject(extra: linking('[g](gone.md)'));
       expect(missingOf(project), isEmpty);
       expect(spots(checkOf(project), FindingKind.linkUnresolved), [
-        '$loginFeature:11: link_unresolved',
+        '$loginFeature:12: link_unresolved',
       ]);
     });
   });
@@ -335,8 +335,8 @@ void main() {
         ),
       );
       expect(spots(report), [
-        '$loginFeature:11: link_unresolved',
         '$loginFeature:12: link_unresolved',
+        '$loginFeature:13: link_unresolved',
       ]);
     },
   );
@@ -353,7 +353,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:11: link_unresolved: link target ../../../notes/gone.md is no doc',
+      '$loginFeature:12: link_unresolved: link target ../../../notes/gone.md is no doc',
     );
   });
 
@@ -369,7 +369,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:11: link_unresolved: link target gone one.md is no doc',
+      '$loginFeature:12: link_unresolved: link target gone one.md is no doc',
     );
   });
 
@@ -385,7 +385,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:12: link_unresolved: link target ไทย.md is no doc',
+      '$loginFeature:13: link_unresolved: link target ไทย.md is no doc',
     );
   });
 
@@ -402,8 +402,8 @@ void main() {
     expect(
       [for (final f in report.findings) f.textLine],
       [
-        '$loginFeature:11: link_unresolved: link target y.md is no doc',
-        '$loginFeature:12: link_unresolved: link target x.md is no doc',
+        '$loginFeature:12: link_unresolved: link target y.md is no doc',
+        '$loginFeature:13: link_unresolved: link target x.md is no doc',
       ],
     );
   });
@@ -423,8 +423,8 @@ void main() {
       expect(
         [for (final f in report.findings) f.textLine],
         [
-          '$loginFeature:11: link_unresolved: link target gone-a.md is no doc',
-          '$loginFeature:14: link_unresolved: link target gone-b.md is no doc',
+          '$loginFeature:12: link_unresolved: link target gone-a.md is no doc',
+          '$loginFeature:15: link_unresolved: link target gone-b.md is no doc',
         ],
       );
     },
@@ -443,8 +443,8 @@ void main() {
     expect(
       [for (final f in report.findings) f.textLine],
       [
-        '$loginFeature:11: link_unresolved: link target x(1).md is no doc',
-        '$loginFeature:12: link_unresolved: link target gone.md is no doc',
+        '$loginFeature:12: link_unresolved: link target x(1).md is no doc',
+        '$loginFeature:13: link_unresolved: link target gone.md is no doc',
       ],
     );
   });
