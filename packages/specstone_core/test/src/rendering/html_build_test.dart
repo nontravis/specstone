@@ -523,4 +523,18 @@ void main() {
       ]);
     }, skip: unreadablePathSkipReason() ?? false);
   });
+
+  test('resolve_links E08: a link to another doc reaches the prefixed id of '
+      'its heading, end to end', () async {
+    final build = await _build({
+      _storyPath: _story.replaceFirst(
+        '\n\n',
+        '\n\n[x](../us02_b/USER_STORY.md#summary)\n\n',
+      ),
+      '$_featureDir/us02_b/USER_STORY.md': _story,
+    }, target: 'docs/$_featureDir');
+
+    expect(build.html, contains('href="#doc-2-summary"'));
+    expect(build.html, contains('id="doc-2-summary"'));
+  });
 }

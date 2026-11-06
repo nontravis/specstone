@@ -340,6 +340,23 @@ void main() {
       expect(html, isNot(contains('<a href=')));
     });
 
+    test('resolve_links E11, P2: a title line inside a raw html block makes no '
+        'heading, so the body keeps every heading and its slug', () {
+      final html = body('<div>\n# T\n</div>\n\n# Later\n\n[x](#later)');
+
+      expect(html, contains('<h1 id="doc-1-later">Later</h1>'));
+      expect(html, contains('<a href="#doc-1-later">x</a>'));
+    });
+
+    test('resolve_links E11, P2: headings before the title line keep their '
+        'own slugs', () {
+      final html = body('## Pre\n\n# T\n\n## Post\n\n[x](#post)');
+
+      expect(html, startsWith('<h2 id="doc-1-pre">Pre</h2>'));
+      expect(html, contains('<h2 id="doc-1-post">Post</h2>'));
+      expect(html, contains('<a href="#doc-1-post">x</a>'));
+    });
+
     test('resolve_links E13: an empty fragment reaches the doc top', () {
       final html = body('[top](#) [x](../d.md#)');
 

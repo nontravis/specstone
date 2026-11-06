@@ -8,8 +8,8 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 
 /// Renders [doc] as html: its title, frontmatter table, draft label, body.
 ///
-/// The body is the text after the frontmatter, read as GitHub-flavored
-/// markdown, minus its title heading. A `mermaid` fence becomes
+/// The body is the text after the frontmatter minus the title line, read as
+/// GitHub-flavored markdown. A `mermaid` fence becomes
 /// `<pre class="mermaid">` holding its escaped source. A blank title line shows
 /// no title. Every heading, the title included, takes the id of its slug in
 /// [docAnchors] (doc_model RULE-13). Links are rewritten by `rewriteLinks`. The
@@ -35,16 +35,16 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
   final title = shownTitle(doc);
   final anchor = anchors[docPath];
   final frontmatter = doc.frontmatter;
-  final parsed = parseMarkdown(doc.afterFrontmatter);
-  final headed = parsed == null
-      ? null
-      : _withHeadingIds(
-          parsed,
-          slugs: docAnchors[docPath]?.headingSlugs ?? const [],
-          hasTitle: doc.titleLineIndex != null,
-        );
-  final body = headed?.body;
+  final body = parseMarkdown(_withoutTitleLine(doc));
+  String? titleSlug;
   if (body != null) {
+    final split = _splitTitleSlug(
+      doc,
+      slugs: docAnchors[docPath]?.headingSlugs ?? const [],
+      body: body,
+    );
+    titleSlug = split.titleSlug;
+    _setHeadingIds(body, split.bodySlugs);
     rewriteLinks(
       body,
       docPath: docPath,
@@ -53,7 +53,7 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
     );
   }
   final html = [
-    if (title != null) _titleHtml(title, anchor, headed?.titleSlug),
+    if (title != null) _titleHtml(title, anchor, titleSlug),
     if (frontmatter != null && frontmatter.isNotEmpty)
       _frontmatterTable(frontmatter),
     if (doc.isDraft) '<p class="draft">Draft</p>',
@@ -76,33 +76,43 @@ String _bodyHtml(List<Node> body, String? anchor) {
   return anchor == null ? html : scopeIds(html, anchor: anchor);
 }
 
-// Gives each heading, in document order, the slug `anchorsOf` gave it, so
-// check and build agree (P2), and takes the title heading out of the body: the
-// first `h1`, which the title line makes. Code subtrees hold no heading.
-({List<Node> body, String? titleSlug}) _withHeadingIds(
-  List<Node> nodes, {
+// Splits the doc's slugs, in `anchorsOf` order (P2), into the title line's
+// slug and the body headings' slugs. The title line made a heading only when
+// the doc's slugs outnumber the body's headings by one; its slug then sits
+// after the slugs of the headings that precede the title line in the source.
+({String? titleSlug, List<String> bodySlugs}) _splitTitleSlug(
+  Doc doc, {
   required List<String> slugs,
-  required bool hasTitle,
+  required List<Node> body,
 }) {
-  var next = 0;
-  void walk(List<Node> level) {
-    for (final node in level) {
-      if (node is! Element || node.tag == 'code' || node.tag == 'pre') continue;
-      if (_isHeading(node.tag) && next < slugs.length) {
-        node.attributes['id'] = slugs[next];
-      }
-      if (_isHeading(node.tag)) next++;
-      walk(node.children ?? const []);
-    }
+  final at = doc.titleLineIndex;
+  if (at == null || slugs.length != _headings(body).length + 1) {
+    return (titleSlug: null, bodySlugs: slugs);
   }
-
-  walk(nodes);
-  if (!hasTitle) return (body: nodes, titleSlug: null);
-  final at = nodes.indexWhere((n) => n is Element && n.tag == 'h1');
-  if (at < 0) return (body: nodes, titleSlug: null);
-  final titleSlug = (nodes[at] as Element).attributes['id'];
-  return (body: [...nodes]..removeAt(at), titleSlug: titleSlug);
+  final head = doc.afterFrontmatter.split('\n').take(at).join('\n');
+  final before = parseMarkdown(head);
+  if (before == null) return (titleSlug: null, bodySlugs: slugs);
+  final index = _headings(before).length;
+  return (titleSlug: slugs[index], bodySlugs: [...slugs]..removeAt(index));
 }
+
+// Gives each heading of [body], in document order, its slug, so check and
+// build agree.
+void _setHeadingIds(List<Node> body, List<String> slugs) {
+  final headings = _headings(body);
+  for (var i = 0; i < headings.length && i < slugs.length; i++) {
+    headings[i].attributes['id'] = slugs[i];
+  }
+}
+
+// The h1-h6 elements under [nodes] in document order; code holds none.
+List<Element> _headings(List<Node> nodes) => [
+  for (final node in nodes)
+    if (node is Element && node.tag != 'code' && node.tag != 'pre') ...[
+      if (_isHeading(node.tag)) node,
+      ..._headings(node.children ?? const []),
+    ],
+];
 
 bool _isHeading(String tag) =>
     const {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'}.contains(tag);
