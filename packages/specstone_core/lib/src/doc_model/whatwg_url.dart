@@ -6,8 +6,9 @@ import 'dart:convert';
 /// [input] with a `file:` URL as its base.
 ///
 /// UTS46 domain-to-ASCII does not run, since no IDNA mapping table ships
-/// (doc_model RULE-11): a host holding a non-ASCII code point or an `xn--`
-/// label fails only on the parser's other checks.
+/// (doc_model RULE-11): a domain holding a non-ASCII code point or an
+/// `xn--` label once percent-decoded reads, and only steps outside its host
+/// can fail it.
 bool whatwgParseFails(String input) {
   final url = _withoutStrayUnits(input);
   final scheme = _schemePattern.matchAsPrefix(url);
@@ -42,6 +43,7 @@ const _escapeLength = 3;
 const _space = 0x20;
 const _percentSign = 0x25;
 const _delete = 0x7F;
+const _maxAscii = 0x7F;
 
 final _schemePattern = RegExp(r'[A-Za-z][A-Za-z0-9+.\-]*:');
 final _tabOrNewline = RegExp('[\t\n\r]');
@@ -159,11 +161,18 @@ bool _hostFails(String input, {required bool isOpaque}) {
 
 /// Runs the domain parser's checks after ToASCII, then the IPv4 parser.
 bool _domainFails(String domain) {
-  // ToASCII never runs: it only lowercases an ASCII domain, and no IDNA
-  // table ships for any other (doc_model RULE-11).
+  // ToASCII only lowercases an ASCII domain. Any other needs UTS46, whose
+  // table does not ship, so its content reads (doc_model RULE-11).
+  if (_needsUts46(domain)) return false;
   if (domain.codeUnits.any(_isForbiddenDomainUnit)) return true;
   return _endsInANumber(domain) && _ipv4Fails(domain);
 }
+
+/// Whether [domain] holds a code point above U+007F or a label opening
+/// with `xn--`, ASCII case-insensitive.
+bool _needsUts46(String domain) =>
+    domain.codeUnits.any((unit) => unit > _maxAscii) ||
+    domain.split('.').any((label) => label.toLowerCase().startsWith('xn--'));
 
 bool _isForbiddenDomainUnit(int unit) =>
     _forbiddenHostUnits.contains(unit) ||

@@ -77,9 +77,24 @@ void main() {
       });
     }
 
-    test('http://ex ämple.com/ fails: a space is a forbidden host code '
-        'point', () {
-      expect(whatwgParseFails('http://ex ämple.com/'), isTrue);
+    test('http://ex ämple.com/ reads: a non-ASCII host skips the forbidden '
+        'code point check', () {
+      expect(whatwgParseFails('http://ex ämple.com/'), isFalse);
+    });
+
+    test('a soft hyphen before 1.2.3.4 reads: a non-ASCII host skips the '
+        'IPv4 parser', () {
+      expect(whatwgParseFails('http://${_softHyphen}1.2.3.4/'), isFalse);
+    });
+
+    test('http://%C2%AD1.2.3.4/ reads: the host is non-ASCII once '
+        'percent-decoded', () {
+      expect(whatwgParseFails('http://%C2%AD1.2.3.4/'), isFalse);
+    });
+
+    test('a < before a combining overlay reads: a non-ASCII host skips the '
+        'forbidden code point check', () {
+      expect(whatwgParseFails('http://a<$_combiningOverlay.com/'), isFalse);
     });
 
     test('http://exämple.com:99999/ fails: the port is over 65535', () {
@@ -87,6 +102,9 @@ void main() {
     });
   });
 }
+
+final _softHyphen = String.fromCharCode(0xAD);
+final _combiningOverlay = String.fromCharCode(0x338);
 
 typedef _Entry = ({String input, bool failure});
 
