@@ -1,6 +1,9 @@
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:test/test.dart';
 
+/// A default no test asserts on: lets `anchor: null` differ from "unchecked".
+const _sentinel = Object();
+
 void main() {
   group('readDocAddress', () {
     void check(
@@ -331,6 +334,65 @@ void main() {
 
     test('plain digits read as null', () {
       expect(readLinkLabel('01'), isNull);
+    });
+  });
+
+  group('readLinkTarget', () {
+    void check(
+      String href, {
+      required Matcher form,
+      String? scheme,
+      List<String>? segments,
+      Object? anchor = _sentinel,
+    }) {
+      test('reads $href', () {
+        final target = readLinkTarget(href);
+        expect(target, form);
+        if (target case SchemeLink()) expect(target.scheme, scheme);
+        if (target case RelativeLink()) {
+          if (segments != null) expect(target.segments, segments);
+          if (!identical(anchor, _sentinel)) expect(target.anchor, anchor);
+        }
+      });
+    }
+
+    // R65: a scheme needs a letter first, so these are relative.
+    check('1:x.md', form: isA<RelativeLink>(), segments: ['1:x.md']);
+    check(':x.md', form: isA<RelativeLink>(), segments: [':x.md']);
+    check('HTTP://x/', form: isA<SchemeLink>(), scheme: 'http');
+    check('mailto:a@b', form: isA<SchemeLink>(), scheme: 'mailto');
+    check('//h/x.md', form: isA<AuthorityLink>());
+    check('/x.md', form: isA<RootedLink>());
+    check('#a%20b', form: isA<RelativeLink>(), segments: [], anchor: 'a b');
+    check(
+      'a.md?x=1#sec',
+      form: isA<RelativeLink>(),
+      segments: ['a.md'],
+      anchor: 'sec',
+    );
+    // RULE-7: a `%` two hex digits do not follow stays as written.
+    check('a%zz.md', form: isA<RelativeLink>(), segments: ['a%zz.md']);
+    // An escape that is not UTF-8 reads as U+FFFD.
+    check('%DB.md', form: isA<RelativeLink>(), segments: ['\u{FFFD}.md']);
+    // RULE-7: an encoded slash stays inside its segment, decoded, so one
+    // segment `a/b.md`, which `_resolveSegments` then rejects.
+    check('a%2Fb.md', form: isA<RelativeLink>(), segments: ['a/b.md']);
+
+    test('a query with no fragment keeps null anchor', () {
+      expect(readLinkTarget('a.md?x=1'), isA<RelativeLink>());
+      final target = readLinkTarget('a.md?x=1') as RelativeLink;
+      expect(target.segments, ['a.md']);
+      expect(target.anchor, isNull);
+    });
+
+    test('an empty fragment names the doc top (RULE-13)', () {
+      final target = readLinkTarget('#') as RelativeLink;
+      expect(target.segments, const <String>[]);
+      expect(target.anchor, '');
+    });
+
+    test('a WHATWG failure is unreadable (RULE-11, E21)', () {
+      expect(readLinkTarget('http://h:abc/x.md'), isA<UnreadableLink>());
     });
   });
 }

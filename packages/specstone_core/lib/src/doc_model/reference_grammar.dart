@@ -1,3 +1,6 @@
+import 'package:specstone_core/src/doc_model/percent_decode.dart';
+import 'package:specstone_core/src/doc_model/whatwg_url.dart';
+
 /// A doc reference split into its parts (doc_model RULE-11); DocIndex
 /// resolves it.
 final class DocAddress {
@@ -164,6 +167,87 @@ int _lettersEnd(String text, int start) {
 }
 
 int _runeWidth(int rune) => rune > 0xFFFF ? 2 : 1;
+
+// MARK: - Link targets
+
+/// A markdown link target read through the grammar (RULE-11).
+sealed class LinkTargetForm;
+
+/// A target the WHATWG URL parser fails on, the linking doc's file URL as
+/// its base (RULE-11): the only unreadable class.
+final class UnreadableLink extends LinkTargetForm;
+
+/// A target opening with a scheme, any scheme.
+final class SchemeLink extends LinkTargetForm {
+  new(this.scheme);
+
+  /// The scheme, lower case.
+  final String scheme;
+}
+
+/// A target whose `//` opens the path: a protocol-relative authority.
+final class AuthorityLink extends LinkTargetForm;
+
+/// A target whose path opens with `/`.
+final class RootedLink extends LinkTargetForm;
+
+/// A target relative to the linking doc.
+final class RelativeLink extends LinkTargetForm {
+  new({required this.segments, required this.anchor});
+
+  /// The path split on `/`, each segment percent-decoded (RULE-7); empty
+  /// for `#x`, `?q`.
+  final List<String> segments;
+
+  /// The fragment decoded as a segment is; null with no `#`; `''` for `#`
+  /// alone (the doc's top, RULE-13).
+  final String? anchor;
+}
+
+/// Reads [href] as a link target form (RULE-11): only a target the WHATWG
+/// URL parser fails on with a `file:` base is unreadable.
+LinkTargetForm readLinkTarget(String href) {
+  if (whatwgParseFails(href)) return UnreadableLink();
+  final fragmentAt = href.indexOf('#');
+  final beforeFragment = fragmentAt < 0 ? href : href.substring(0, fragmentAt);
+  final anchor = fragmentAt < 0
+      ? null
+      : percentDecoded(href.substring(fragmentAt + 1));
+  final schemeEnd = _schemeEndOf(beforeFragment);
+  if (schemeEnd > 0) {
+    return SchemeLink(beforeFragment.substring(0, schemeEnd - 1).toLowerCase());
+  }
+  if (beforeFragment.startsWith('//')) return AuthorityLink();
+  if (beforeFragment.startsWith('/')) return RootedLink();
+  final queryAt = beforeFragment.indexOf('?');
+  final path = queryAt < 0
+      ? beforeFragment
+      : beforeFragment.substring(0, queryAt);
+  return RelativeLink(
+    segments: path.isEmpty
+        ? const <String>[]
+        : [for (final segment in path.split('/')) percentDecoded(segment)],
+    anchor: anchor,
+  );
+}
+
+/// Returns the index past the `:` of a scheme at the start of [text], or -1
+/// when [text] opens with none: an ASCII letter, then letters, digits, `+`,
+/// `-`, `.`, then `:`.
+int _schemeEndOf(String text) {
+  if (text.isEmpty || !_isAsciiLetter(text.codeUnitAt(0))) return -1;
+  var i = 1;
+  for (; i < text.length; i++) {
+    final code = text.codeUnitAt(i);
+    if (_isAsciiLetter(code) || _isDigit(code)) continue;
+    if (code == 0x2B || code == 0x2D || code == 0x2E) continue; // + - .
+    break;
+  }
+  return i < text.length && text.codeUnitAt(i) == 0x3A ? i + 1 : -1;
+}
+
+bool _isAsciiLetter(int code) =>
+    (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
 
 /// Returns, keyed by its index in [ids], the next free ID of each
 /// [LetteredId], counted per prefix in list order (RULE-12, R61): the

@@ -1,5 +1,6 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 
 /// Rewrites every `a` element under [nodes] in place for the single-file html.
@@ -47,6 +48,9 @@ Node _rewriteLink(
       link.attributes['href'] = '#$anchor';
       return link;
     case OutsideTarget(:final shown):
+      return _outsideSpan(link, shown);
+    case UnreadableTarget(:final shown):
+      // Task 7 gives the unreadable target its own outcome.
       return _outsideSpan(link, shown);
   }
 }

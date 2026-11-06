@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
