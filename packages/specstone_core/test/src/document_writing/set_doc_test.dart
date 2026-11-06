@@ -692,6 +692,108 @@ void main() {
     },
   );
 
+  test('f02/us01/fr01/e15, D12: a body opening with the held section header drops it after blank lines', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '\n\n## Use Case\n\nSign in again.\n',
+      ),
+    );
+    final text = readDoc(root, story1);
+    expect(text, contains('## Use Case\n\nSign in again.\n'));
+    expect(text, isNot(contains('## Use Case\n\n\n## Use Case')));
+    expect('## Use Case'.allMatches(text), hasLength(1));
+  });
+
+  test('f02/us01/fr01/e15, D12: a body opening with the template header drops it for a section the doc lacks', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#open_questions';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, emptyBaseHash),
+        '## Open questions\n\nNone yet.\n',
+      ),
+    );
+    final text = readDoc(root, story1);
+    expect(text, endsWith('## Open questions\n\nNone yet.\n'));
+    expect('## Open questions'.allMatches(text), hasLength(1));
+  });
+
+  test('f02/us01/fr01/e15, D12: another section header is refused naming the line and the file stays', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '## Use Case\n\nx\n\n## Sub\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'the body holds the header line "## Sub"; send the body only',
+            ),
+      ),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '## Acceptance Criteria\n\nx\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.message,
+          'message',
+          contains('"## Acceptance Criteria"'),
+        ),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('f02/us01/fr01/e15, D12: the header line inside a fence is written back unchanged', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    const fenced = '```md\n## Use Case\n```\n';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), fenced),
+    );
+    expect(
+      readDoc(root, story1),
+      contains('## Use Case\n\n```md\n## Use Case\n```\n'),
+    );
+  });
+
+  test('f02/us01/fr01/e15, D12: get then set of a whole section leaves the file byte-equal', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    final text = '${getDoc(root, target)['text']! as String}\n';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), text),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
   test(
     'f02/us01/fr01/e15: a body line starting ## is argument_invalid',
     () async {

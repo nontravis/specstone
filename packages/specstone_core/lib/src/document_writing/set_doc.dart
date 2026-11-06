@@ -479,6 +479,15 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
   });
 }
 
+/// Returns [lf] less its first line after leading blank lines when that line
+/// is [headerLine], the section's own header.
+String _withoutOwnHeader(String lf, String headerLine) {
+  final lines = lf.split('\n');
+  final first = lines.indexWhere((line) => line.trim().isNotEmpty);
+  if (first < 0 || lines[first] != headerLine) return lf;
+  return (lines..removeAt(first)).join('\n');
+}
+
 ReadAnswer _setSection(
   WriteSession session,
   SetRequest request,
@@ -486,20 +495,12 @@ ReadAnswer _setSection(
   String stdin,
 ) {
   final lf = toLf(stdin);
-  final scan = _scanStdin(lf, isSectionHeaderLine);
-  if (scan.refused case final header?) {
-    throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      'the body holds the header line "$header"; send the body only',
-    );
-  }
-  if (scan.openFence case final fence?) {
+  if (_scanStdin(lf, (_) => false).openFence case final fence?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'the body leaves the fence "$fence" open; close it',
     );
   }
-  final body = _pipedBodyOf(lf);
 
   final doc = session.target(request.address);
   final docType =
@@ -517,6 +518,18 @@ ReadAnswer _setSection(
         IndexFaultCode.sectionNotFound,
         '${request.address} holds no section with the key $key, '
         'and its template defines none',
+      );
+    }
+    final body = _pipedBodyOf(
+      _withoutOwnHeader(
+        lf,
+        held < 0 ? '## ${template!.header}' : sections[held].headerLine,
+      ),
+    );
+    if (_scanStdin(body, isSectionHeaderLine).refused case final header?) {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        'the body holds the header line "$header"; send the body only',
       );
     }
     final currentText = held < 0 ? '' : '${sections[held].text}\n';
