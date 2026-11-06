@@ -152,6 +152,27 @@ void main() {
     },
   );
 
+  test('f02/us07/fr01/e12, P20: an --under with a #section suffix is argument_invalid, exit 64, and moves nothing', () async {
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'move',
+        addItem,
+        '--under',
+        'feature:shop/pay#x',
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_invalid',
+    );
+    expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
+  });
+
   test('f02/us07/fr01/e13: an --under that names 2 or more features is argument_invalid, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(
       await writeNestedProject(

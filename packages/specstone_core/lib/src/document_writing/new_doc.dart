@@ -51,7 +51,8 @@ typedef NewDocFill = String Function(
 /// below `max_depth`; [slug] fills `{slug}`; a non-empty [text] is the doc,
 /// forced to `draft: true`. Under the session lock, [generators] and
 /// [firstConfirmations] fill it, then an exclusive create writes it.
-/// Throws [TemplateFault] `doc_type_unknown`, [IndexFault] `argument_missing`
+/// Throws [TemplateFault] `doc_type_unknown` for [docTypeId] or a [parent]
+/// that names another doc type id, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
 /// not take, or a [parent] already at `max_depth`, [WriteFault] `doc_exists`
 /// when the doc is there and `field_not_writable` when [text] holds an
@@ -178,7 +179,8 @@ void _checkArguments(
   if (declaredParent != null && parent == null) {
     throw IndexFault(
       IndexFaultCode.argumentMissing,
-      '${docType.id} needs --parent, the name of a $declaredParent',
+      '${docType.id} needs --parent: a $declaredParent named by '
+      '<doc type>:<name>, a bare name, or a path',
     );
   }
   if (shape.slugged && slug == null) {

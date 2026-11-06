@@ -234,7 +234,9 @@ void main() {
       expect(jsonDecode(err.toString()), {
         'error': {
           'code': 'argument_missing',
-          'message': 'user_story needs --parent, the name of a feature',
+          'message':
+              'user_story needs --parent: a feature named by '
+              '<doc type>:<name>, a bare name, or a path',
         },
       });
     },
@@ -262,6 +264,35 @@ void main() {
     expect(
       err.toString(),
       contains('The parent doc: <doc type>:<name>, a bare name, or a path.'),
+    );
+  });
+  test('f02/us02/fr01/e20, P20: a --parent with a #section suffix is argument_invalid, exit 64, and writes nothing', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(stdinIsTerminal: true),
+    );
+    expect(
+      await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'feature:login#problem',
+        '--slug',
+        'x',
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_invalid',
+    );
+    expect(
+      Directory('${root.path}/docs/prds/features/f01_login/us04_x')
+          .existsSync(),
+      isFalse,
     );
   });
   test('f02/us02/fr02: non-UTF-8 stdin is argument_invalid, stdin is not UTF-8 text, exit 64', () async {

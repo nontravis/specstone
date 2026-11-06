@@ -119,7 +119,7 @@ void main() {
       throwsA(
         indexFault(
           IndexFaultCode.argumentMissing,
-          'user_story needs --parent, the name of a feature',
+          'user_story needs --parent: a feature named by <doc type>:<name>, a bare name, or a path',
         ),
       ),
     );

@@ -137,7 +137,8 @@ const _storyType = 'user_story';
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
 /// `doc_exists` for a clash; an `IndexFault` for a missing or unknown
-/// [under] or a feature that holds sub-features.
+/// [under] or a feature that holds sub-features; a `TemplateFault`
+/// `doc_type_unknown` when [under] names a doc type id the set lacks.
 ReadAnswer answerMove(
   WriteSession session,
   String address, {
