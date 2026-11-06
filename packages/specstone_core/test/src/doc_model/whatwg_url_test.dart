@@ -92,6 +92,11 @@ void main() {
       expect(whatwgParseFails('http://%C2%AD1.2.3.4/'), isFalse);
     });
 
+    test('http://%EF%BB%BF%3C/ reads: a decoded leading U+FEFF makes the '
+        'host non-ASCII', () {
+      expect(whatwgParseFails('http://%EF%BB%BF%3C/'), isFalse);
+    });
+
     test('a < before a combining overlay reads: a non-ASCII host skips the '
         'forbidden code point check', () {
       expect(whatwgParseFails('http://a<$_combiningOverlay.com/'), isFalse);

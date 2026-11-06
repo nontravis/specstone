@@ -5,10 +5,8 @@ import 'dart:convert';
 /// Whether the WHATWG URL Standard's basic URL parser returns failure on
 /// [input] with a `file:` URL as its base.
 ///
-/// UTS46 domain-to-ASCII does not run, since no IDNA mapping table ships
-/// (doc_model RULE-11): a domain holding a non-ASCII code point or an
-/// `xn--` label once percent-decoded reads, and only steps outside its host
-/// can fail it.
+/// UTS46 does not run (doc_model RULE-11): a non-ASCII or `xn--` domain
+/// reads; only steps outside the host fail it.
 bool whatwgParseFails(String input) {
   final url = _withoutStrayUnits(input);
   final scheme = _schemePattern.matchAsPrefix(url);
@@ -156,23 +154,27 @@ bool _hostFails(String input, {required bool isOpaque}) {
         _Ipv6Parser(input.substring(1, input.length - 1)).fails();
   }
   if (isOpaque) return input.codeUnits.any(_forbiddenHostUnits.contains);
-  return _domainFails(_utf8Decoded(_percentDecoded(input)));
+  final bytes = _percentDecoded(input);
+  // A domain that needs UTS46 reads whatever it holds: WHATWG maps it before
+  // the checks below, and no IDNA table ships (doc_model RULE-11).
+  if (_needsUts46(bytes)) return false;
+  return _domainFails(String.fromCharCodes(bytes));
 }
 
-/// Runs the domain parser's checks after ToASCII, then the IPv4 parser.
+/// Whether a domain's percent-decoded [bytes] hold a byte above 0x7F or a
+/// label opening with `xn--`, ASCII case-insensitive.
+bool _needsUts46(List<int> bytes) =>
+    bytes.any((byte) => byte > _maxAscii) ||
+    String.fromCharCodes(bytes)
+        .split('.')
+        .any((label) => label.toLowerCase().startsWith('xn--'));
+
+/// Runs the domain parser's checks on an ASCII [domain], which ToASCII only
+/// lowercases, then the IPv4 parser.
 bool _domainFails(String domain) {
-  // ToASCII only lowercases an ASCII domain. Any other needs UTS46, whose
-  // table does not ship, so its content reads (doc_model RULE-11).
-  if (_needsUts46(domain)) return false;
   if (domain.codeUnits.any(_isForbiddenDomainUnit)) return true;
   return _endsInANumber(domain) && _ipv4Fails(domain);
 }
-
-/// Whether [domain] holds a code point above U+007F or a label opening
-/// with `xn--`, ASCII case-insensitive.
-bool _needsUts46(String domain) =>
-    domain.codeUnits.any((unit) => unit > _maxAscii) ||
-    domain.split('.').any((label) => label.toLowerCase().startsWith('xn--'));
 
 bool _isForbiddenDomainUnit(int unit) =>
     _forbiddenHostUnits.contains(unit) ||
@@ -203,11 +205,6 @@ int? _hexByte(List<int> bytes, int start) {
   final pair = String.fromCharCodes(bytes, start, start + 2);
   return _hexDigits.hasMatch(pair) ? int.parse(pair, radix: 16) : null;
 }
-
-String _utf8Decoded(List<int> bytes) =>
-    // Dart drops a leading BOM, which the standard keeps; UTS46 ignores
-    // U+FEFF, so the parser's result is the same.
-    utf8.decode(bytes, allowMalformed: true);
 
 // MARK: - IPv4 parser
 
