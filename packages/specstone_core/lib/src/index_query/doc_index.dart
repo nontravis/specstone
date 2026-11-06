@@ -13,6 +13,9 @@ const _planned = 'planned';
 const _implemented = 'implemented';
 const _deprecated = 'deprecated';
 
+/// A `@<hash>` suffix: 12 lowercase hex characters.
+final _hashSuffix = RegExp(r'@[0-9a-f]{12}$');
+
 /// The docs root as a path from the project root begins.
 const _docsPrefix = 'docs/';
 
@@ -78,9 +81,15 @@ final class DocIndex {
   ///   from the working directory inside the docs root. `<doc type>:<path>`
   ///   keeps the doc only when it has that doc type.
   ///
-  /// Throws, when no path names a doc either, a [TemplateFault] for a doc type
-  /// id the set lacks and an [IndexFault] when no doc carries the name.
+  /// A command that reads a `#<section key>` or an `@<hash>` splits it off
+  /// before it calls; one left on [address] is refused, so a whole-doc command
+  /// never acts on a doc the caller meant to narrow.
+  ///
+  /// Throws an [IndexFault] `argument_invalid` for such a suffix, when no path
+  /// names a doc either, a [TemplateFault] for a doc type id the set lacks and
+  /// an [IndexFault] when no doc carries the name.
   List<IndexedDoc> resolve(String address) {
+    _refuseSuffix(address);
     try {
       return _named(address);
     } on SpecstoneFault {
@@ -96,6 +105,16 @@ final class DocIndex {
     return doc.docTypeId != null && _byTypeAndName[typed]!.length == 1
         ? typed
         : doc.docPath;
+  }
+
+  void _refuseSuffix(String address) {
+    final hasSection = readDocAddress(address).sectionKey != null;
+    if (hasSection || _hashSuffix.hasMatch(address)) {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        '$address: this command takes no #<section key> or @<hash>',
+      );
+    }
   }
 
   List<IndexedDoc> _named(String address) {

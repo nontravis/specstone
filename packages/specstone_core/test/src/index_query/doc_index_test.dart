@@ -19,6 +19,23 @@ void main() {
     for (final d in docs) d.docPath,
   ];
 
+  test('f01/us04/fr01: an address with a #<section key> or an @<hash> is argument_invalid naming it', () async {
+    for (final address in [
+      'feature:login#problem',
+      'login#problem',
+      'feature:login@7e11fc4a24d2',
+    ]) {
+      expect(
+        () => index.resolve(address),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.message, 'message', contains(address)),
+        ),
+        reason: address,
+      );
+    }
+  });
   test('f01/us04/fr01, f01/us04/fr01/e01, s03/inv6: a bare name gives every doc carrying it, in tree order', () async {
     expect(paths(index.resolve('login')), [
       'prds/features/f01_login/FEATURE.md',

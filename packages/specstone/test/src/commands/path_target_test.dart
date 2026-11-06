@@ -221,6 +221,37 @@ void main() {
       expect(_docsText(root), before);
     });
 
+    group('f01/us04/fr01: a #<section key> on a whole-doc target refuses, exit 64, nothing written', () {
+      for (final (command, args) in [
+        ('delete', ['delete', 'feature:login#problem']),
+        ('rename', ['rename', 'feature:login#problem', '--to', 'signin']),
+        ('reorder', ['reorder', 'feature:login#problem', '--to', '1']),
+        (
+          'move',
+          [
+            'move',
+            'user_story:login/email_login#use_case',
+            '--under',
+            'feature:signup',
+          ],
+        ),
+      ]) {
+        test(command, () async {
+          final root = await writeWriteProject();
+          final before = _docsText(root);
+          final run = await _run(
+            root,
+            args,
+            console: FakeConsole(input: 'x\n'),
+          );
+          expect(run.status, 64);
+          expect(run.out, isEmpty);
+          expect(run.err, contains('takes no #<section key>'));
+          expect(_docsText(root), before);
+        });
+      }
+    });
+
     group('f01/us04/fr01/e15: a bare name 2 docs carry refuses, exit 64, nothing written', () {
       const listed = 'login names 2 docs: feature:login, architecture:login\n';
       for (final (command, args) in [
