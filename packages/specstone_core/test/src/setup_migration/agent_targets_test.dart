@@ -405,6 +405,28 @@ void main() {
       },
     );
 
+    test('$_write R56: an unclosed fence after a well-formed block still wins '
+        'the line', () async {
+      final base = await _base({
+        'proj/CLAUDE.md': '${_imports('')}x\n```\ncode\n',
+      });
+
+      expect(
+        () => planAgentWrites(_inputs(base), full: true),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.file, 'file', 'CLAUDE.md')
+              .having((f) => f.line, 'line', 6)
+              .having(
+                (f) => f.message,
+                'message',
+                'close the code fence that opens on this line, then run the '
+                    'command again',
+              ),
+        ),
+      );
+    });
+
     test('$_write E05: a malformed file at a listed top refuses too', () async {
       final base = await _base({
         'other/.git/HEAD': 'ref\n',

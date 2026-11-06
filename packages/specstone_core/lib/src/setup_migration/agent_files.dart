@@ -58,7 +58,8 @@ typedef MarkerScan = ({
 /// A marker is a whole line: BEGIN with a `X.Y.Z` version, or END. The text
 /// is malformed unless it holds no marker, or one BEGIN and then one END, and
 /// closes every code fence: a block after an open fence would sit in code.
-/// An open fence makes `firstMarkerLine` the fence's opening line.
+/// An open fence makes `firstMarkerLine` the fence's opening line, whatever
+/// the markers hold.
 MarkerScan scanMarkers(String text) {
   final lines = _lineStrings(text);
   if (lines.first.startsWith(_byteOrderMark)) {
@@ -79,7 +80,11 @@ MarkerScan scanMarkers(String text) {
           (begins.length == 1 &&
               ends.length == 1 &&
               begins.first < ends.first));
-  final markers = [?openFenceLine, ...begins, ...ends]..sort();
+  final markers = [
+    ?openFenceLine,
+    if (openFenceLine == null) ...begins,
+    if (openFenceLine == null) ...ends,
+  ]..sort();
   return (
     beginLine: begins.firstOrNull,
     endLine: ends.firstOrNull,

@@ -179,6 +179,25 @@ void main() {
   });
 
   test(
+    '$_stale R56: an unclosed fence after a well-formed block still wins the '
+    'line',
+    () async {
+      final found = await _staleOf({
+        'CLAUDE.md': '${_imports()}x\n```\ncode\n',
+        _agentMd: agentMdText,
+      });
+
+      expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:6']);
+      expect(
+        found.single.message,
+        'the code fence that opens on this line is unclosed and '
+        '`specstone migrate` refuses the file; close the code fence that '
+        'opens on this line',
+      );
+    },
+  );
+
+  test(
     '$_stale E11: a hand-edited rules frontmatter is one finding on line 1',
     () async {
       final found = await _staleOf({
