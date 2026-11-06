@@ -41,11 +41,15 @@ String cursorRulesText({required String cliVersion}) =>
 
 /// The Specstone marker lines of a text, numbered from 1.
 ///
-/// `firstMarkerLine` is the first BEGIN or END line, null without a marker.
+/// `firstMarkerLine` is the first BEGIN or END line, or the opening line of
+/// the code fence still open at the end, null without either.
+/// `openFenceLine` is that fence's opening line alone, null when every fence
+/// closes.
 typedef MarkerScan = ({
   int? beginLine,
   int? endLine,
   int? firstMarkerLine,
+  int? openFenceLine,
   bool isMalformed,
 });
 
@@ -80,6 +84,7 @@ MarkerScan scanMarkers(String text) {
     beginLine: begins.firstOrNull,
     endLine: ends.firstOrNull,
     firstMarkerLine: markers.firstOrNull,
+    openFenceLine: openFenceLine,
     isMalformed: !isWellFormed,
   );
 }

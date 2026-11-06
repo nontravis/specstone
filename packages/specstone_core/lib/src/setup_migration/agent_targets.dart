@@ -30,6 +30,9 @@ const _malformedMessage =
     'the Specstone marker lines are malformed; repair the block by hand so '
     'the file holds one BEGIN line and one END line after it, or neither, '
     'then run the command again';
+const _fenceMessage =
+    'close the code fence that opens on this line, then run the command '
+    'again';
 const _byteOrderMark = '﻿';
 final _separators = RegExp(r'[/\\]');
 final _beginVersion = RegExp(r'<!-- BEGIN specstone v\d+\.\d+\.\d+ -->');
@@ -166,6 +169,9 @@ enum AgentDriftKind {
 
   /// The Specstone marker lines of a file are malformed.
   markersMalformed,
+
+  /// A code fence of a file is still open at its end.
+  codeFenceOpen,
 }
 
 /// One drift: its path from the project root, `/`-separated, its 1-based
@@ -384,7 +390,9 @@ final class _AgentFile {
       yield (
         path: path,
         line: marker.firstMarkerLine!,
-        kind: AgentDriftKind.markersMalformed,
+        kind: marker.openFenceLine == null
+            ? AgentDriftKind.markersMalformed
+            : AgentDriftKind.codeFenceOpen,
       );
       return;
     }
@@ -486,7 +494,9 @@ final class _Survey {
           if (file.isMalformed)
             MigrateFault(
               MigrateFaultCode.agentBlockMalformed,
-              _malformedMessage,
+              file.scan!.openFenceLine == null
+                  ? _malformedMessage
+                  : _fenceMessage,
               file: file.path,
               line: file.scan!.firstMarkerLine,
             ),

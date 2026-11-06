@@ -22,6 +22,10 @@ String _messageOf(AgentDriftKind kind) => switch (kind) {
   AgentDriftKind.markersMalformed =>
     'the Specstone marker lines are malformed and `specstone migrate` '
         'refuses the file; repair the block by hand',
+  AgentDriftKind.codeFenceOpen =>
+    'the code fence that opens on this line is unclosed and `specstone '
+        'migrate` refuses the file; close the code fence that opens on this '
+        'line',
 };
 
 /// Returns one `agent_block_stale` finding per drift `agentFileDrifts` finds.
