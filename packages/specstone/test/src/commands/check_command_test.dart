@@ -11,9 +11,11 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
 import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_runner.dart';
 
 Map<String, String> frWith(String line) => fr('verify_method: test', line);
 
@@ -246,5 +248,93 @@ void main() {
     final clean = readRunner(project);
     expect(await clean.runner.run(['check']), 0);
     expect(clean.out.toString(), '0 findings\n');
+  });
+
+  test('consistency_check/find_broken_pointers S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
+      'prints the anchor, self, malformed, and doc_ref findings with their keys', () async {
+    final project = await writeCheckProject(
+      extra: edit(loginFeature, [
+        ('  - PG-01\n---', '  - PG-01\ndepends_on:\n  - login\n  - login\n---'),
+        (
+          'Users forget passwords.',
+          'Users forget passwords; [a](../../GNFR.md#speed), [b](FEATURE.md), and [c](http://h:abc/x.md).',
+        ),
+      ]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      '$loginFeature:7: doc_ref_self: depends_on value login names the doc that holds it\n'
+      '$loginFeature:8: doc_ref_duplicate: depends_on holds login a second time\n'
+      '$loginFeature:8: doc_ref_self: depends_on value login names the doc that holds it\n'
+      '$loginFeature:15: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
+      '$gnfrDoc does not hold\n'
+      '$loginFeature:15: link_self: link target FEATURE.md names the doc that holds it\n'
+      '$loginFeature:15: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
+      'parser fails on it\n'
+      '6 findings\n',
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final findings =
+        ((jsonDecode(json.out.toString()) as Map)['findings']! as List)
+            .cast<Map<String, Object?>>();
+    const shared = {'docPath', 'name', 'line', 'message'};
+    expect(
+      [
+        for (final finding in findings)
+          {
+            for (final MapEntry(:key, :value) in finding.entries)
+              if (!shared.contains(key)) key: value,
+          },
+      ],
+      [
+        {'kind': 'doc_ref_self', 'field': 'depends_on', 'value': 'login'},
+        {'kind': 'doc_ref_duplicate', 'field': 'depends_on', 'value': 'login'},
+        {'kind': 'doc_ref_self', 'field': 'depends_on', 'value': 'login'},
+        {
+          'kind': 'link_anchor_missing',
+          'target': '../../GNFR.md#speed',
+          'anchor': 'speed',
+        },
+        {'kind': 'link_self', 'target': 'FEATURE.md'},
+        {
+          'kind': 'reference_malformed',
+          'form': 'link_target',
+          'text': 'http://h:abc/x.md',
+        },
+      ],
+    );
+  });
+
+  test('document_writing INV-16: set --field and format keep a repeated doc_ref value and one naming its own doc', () async {
+    final project = await writeCheckProject();
+    final bases = getDoc(project, 'feature:login')['bases']! as Map;
+    final base = (bases['fields']! as Map)['depends_on']! as String;
+    final (:runner, :out, :err) = writeRunner(
+      project,
+      console: FakeConsole(input: '[login, login]\n'),
+    );
+    expect(
+      await runner.run([
+        'set',
+        'feature:login',
+        '--field',
+        'depends_on',
+        '--base',
+        base,
+      ]),
+      0,
+      reason: err.toString(),
+    );
+    const kept = 'depends_on: [login, login]\n';
+    final file = File('${project.path}/docs/$loginFeature');
+    expect(file.readAsStringSync(), contains(kept));
+
+    final formatted = readRunner(project);
+    expect(await formatted.runner.run(['format', 'docs/$loginFeature']), 0);
+    expect(file.readAsStringSync(), contains(kept));
   });
 }

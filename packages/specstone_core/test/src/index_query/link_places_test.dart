@@ -40,6 +40,25 @@ void main() {
       ]);
     });
 
+    test('consistency_check/find_broken_pointers/resolve_doc_links E16: the '
+        'links markdown makes for a footnote are no link the author wrote', () {
+      final footnoteOnly = linkPlacesOf(
+        'A claim.[^1]\n\n[^1]: The source.\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+      expect(footnoteOnly.selfLinks, isEmpty);
+
+      final written = linkPlacesOf(
+        'A claim.[^1] See [x](#fn-1).\n\n[^1]: The source.\n',
+        docPath: 'x.md',
+        firstLine: 3,
+      )!;
+      expect(written.selfLinks, [
+        (target: 'x.md', line: 3, shown: '#fn-1', anchor: 'fn-1'),
+      ]);
+    });
+
     test(
       'f04/us02/fr04/e10-e14, PS-R3: every relative link that is no doc link '
       'is a file link, placed at its line with the path it reaches',

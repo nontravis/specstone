@@ -106,7 +106,10 @@ void main() {
         ),
       ),
     );
-    expect(spots(report), ['$loginFeature:6: field_value_mismatch']);
+    expect(spots(report), [
+      '$loginFeature:6: doc_ref_self',
+      '$loginFeature:6: field_value_mismatch',
+    ]);
   });
 
   test('consistency_check/find_broken_pointers/resolve_doc_links E02: an empty '
@@ -136,6 +139,7 @@ void main() {
       expect(spots(report), [
         '$loginFeature:7: doc_ref_unresolved',
         '$loginFeature:8: doc_ref_unresolved',
+        '$loginFeature:9: doc_ref_self',
       ]);
       expect(
         report.findings.first.message,
@@ -466,5 +470,250 @@ void main() {
       ],
     );
     expect(report.warnings, isEmpty);
+  });
+
+  group('resolve_doc_links anchors, self links, malformed links, and doc_ref values', () {
+    const pointerKinds = {
+      FindingKind.docRefUnresolved,
+      FindingKind.docRefDuplicate,
+      FindingKind.docRefSelf,
+      FindingKind.linkUnresolved,
+      FindingKind.linkAnchorMissing,
+      FindingKind.linkSelf,
+      FindingKind.referenceMalformed,
+      FindingKind.linkTargetMissing,
+    };
+    const d03 = 'prds/d03_non_functional.md';
+
+    List<Finding> pointersOf(Directory project) => [
+      for (final f in checkOf(project).findings)
+        if (pointerKinds.contains(f.kind)) f,
+    ];
+
+    List<String> textOf(List<Finding> findings) => [
+      for (final f in findings) f.textLine,
+    ];
+
+    List<Map<String, Object>> keysOf(List<Finding> findings) => [
+      for (final f in findings) f.keys,
+    ];
+
+    Map<String, String> featureLinking(String text) => doc(
+      loginFeature,
+      'Users forget passwords.',
+      'Users forget passwords; $text',
+    );
+
+    Map<String, String> gnfrLinking(String text) =>
+        doc(gnfrDoc, 'N/A — none applies.', text);
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E03: an anchor that is the slug of a heading of '
+        'its target resolves', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: {
+            ...featureLinking(
+              '[d03](../../d03_non_functional.md#performance).',
+            ),
+            'docs/$d03': '# Non-functional\n\n## Performance\n\nFast.\n',
+          },
+        ),
+      );
+      expect(findings, isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E15: an anchor no heading, id, or name of its '
+        'target carries is link_anchor_missing; a link to no doc is link_unresolved only', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: {
+            ...featureLinking(
+              '[d03](../../d03_non_functional.md#performance) and [g](gone.md#performance).',
+            ),
+            'docs/$d03': '# Non-functional\n\n## Speed\n\nFast.\n',
+          },
+        ),
+      );
+      expect(textOf(findings), [
+        '$loginFeature:12: link_anchor_missing: link target ../../d03_non_functional.md#performance names anchor performance, which $d03 does not hold',
+        '$loginFeature:12: link_unresolved: link target gone.md#performance is no doc',
+      ]);
+      expect(keysOf(findings), [
+        {
+          'target': '../../d03_non_functional.md#performance',
+          'anchor': 'performance',
+        },
+        {'target': 'gone.md#performance'},
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E16: a bare #anchor resolves against the linking '
+        "doc's own headings, ids, and names; one it lacks, a footnote's id included, is link_anchor_missing", () async {
+      const rules = 'prds/d02_rules.md';
+      const notes = 'prds/d04_notes.md';
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: {
+            'docs/$rules':
+                '# Rules doc\n\n## Rules\n\n'
+                '[rules](#rules), [a](#my-a), [s](#my-span), [n](#my-name), and [x](#nothing).\n\n'
+                '<a id="my-a"></a> <span id="my-span"></span> <a name="my-name"></a>\n',
+            'docs/$notes': '# Notes\n\nA claim.[^1] See [x](#fn-1).\n\n[^1]: The source.\n',
+          },
+        ),
+      );
+      expect(textOf(findings), [
+        '$rules:5: link_anchor_missing: link target #nothing names anchor nothing, which $rules does not hold',
+        '$notes:3: link_anchor_missing: link target #fn-1 names anchor fn-1, which $notes does not hold',
+      ]);
+      expect(keysOf(findings), [
+        {'target': '#nothing', 'anchor': 'nothing'},
+        {'target': '#fn-1', 'anchor': 'fn-1'},
+      ]);
+    });
+
+    test("consistency_check/find_broken_pointers/resolve_doc_links E17: a heading's anchor is its rendered text's "
+        'slug, a repeat suffixed', () async {
+      const moves = 'prds/d05_moves.md';
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: {
+            'docs/$moves':
+                '# Moves\n\n### `move` — FR-01\n\n## Notes\n\n## Notes\n\n'
+                '[m](#move--fr-01), [n](#notes-1), and [o](#notes-2).\n',
+          },
+        ),
+      );
+      expect(textOf(findings), [
+        '$moves:9: link_anchor_missing: link target #notes-2 names anchor notes-2, which $moves does not hold',
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E18: a link to its own doc with no anchor is '
+        'link_self; with a heading anchor it resolves', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: gnfrLinking(
+            '[self](../../docs/prds/GNFR.md) and [perf](../../docs/prds/GNFR.md#performance).',
+          ),
+        ),
+      );
+      expect(textOf(findings), [
+        '$gnfrDoc:12: link_self: link target ../../docs/prds/GNFR.md names the doc that holds it',
+      ]);
+      expect(keysOf(findings), [
+        {'target': '../../docs/prds/GNFR.md'},
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E19: a doc_ref value one list field holds a '
+        'second time is doc_ref_duplicate at the second value; another field is its own list', () async {
+      const checkout = 'prds/features/f02_checkout/FEATURE.md';
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            'docs/$checkout': checkProjectFiles()['docs/$loginFeature']!
+                .replaceFirst('# Login', '# Checkout')
+                .replaceFirst(
+                  '  - PG-01\n---',
+                  '  - PG-01\ndepends_on:\n  - login\n  - login\npersona:\n  - login\n---',
+                ),
+          },
+        ),
+      );
+      final repeats = [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.docRefDuplicate) f,
+      ];
+      expect(textOf(repeats), [
+        '$checkout:8: doc_ref_duplicate: depends_on holds login a second time',
+      ]);
+      expect(keysOf(repeats), [
+        {'field': 'depends_on', 'value': 'login'},
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E20: a doc_ref value naming the doc that holds '
+        'it is doc_ref_self; a value naming a doc of another type is not', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: {
+            ...doc(
+              loginFeature,
+              '  - PG-01\n---',
+              '  - PG-01\ndepends_on:\n  - login\npersona:\n  - login\n---',
+            ),
+            'docs/prds/personas/login/PERSONA.md': '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n# Login\n',
+          },
+        ),
+      );
+      expect(textOf(findings), [
+        '$loginFeature:7: doc_ref_self: depends_on value login names the doc that holds it',
+      ]);
+      expect(keysOf(findings), [
+        {'field': 'depends_on', 'value': 'login'},
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E21: a link target the URL parser fails on is '
+        'reference_malformed; a lone % stays in the path', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: featureLinking('[x](http://h:abc/x.md) and [y](a%zz.md).'),
+        ),
+      );
+      expect(textOf(findings), [
+        '$loginFeature:12: link_unresolved: link target a%zz.md is no doc',
+        '$loginFeature:12: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL parser fails on it',
+      ]);
+      expect(keysOf(findings), [
+        {'target': 'a%zz.md'},
+        {'form': 'link_target', 'text': 'http://h:abc/x.md'},
+      ]);
+    });
+
+    test("consistency_check/find_broken_pointers/resolve_doc_links E22: an empty fragment names its doc's top, so "
+        'it is neither link_self nor link_anchor_missing; a self link with no # is link_self', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: gnfrLinking(
+            '[top](#), [top](GNFR.md#), [up](../../docs/prds/GNFR.md#), [x](PROJECT.md#), and [self](GNFR.md).',
+          ),
+        ),
+      );
+      expect(textOf(findings), [
+        '$gnfrDoc:12: link_self: link target GNFR.md names the doc that holds it',
+      ]);
+    });
+
+    test("consistency_check/find_broken_pointers/resolve_doc_links: a web link's fragment is never read; a doc "
+        "link's anchor is read past its query", () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: gnfrLinking(
+            '[w](https://example.com/x#nothing) and [q](PROJECT.md?x=1#missing).',
+          ),
+        ),
+      );
+      expect(textOf(findings), [
+        '$gnfrDoc:12: link_anchor_missing: link target PROJECT.md?x=1#missing names anchor missing, which $projectDoc does not hold',
+      ]);
+      expect(keysOf(findings), [
+        {'target': 'PROJECT.md?x=1#missing', 'anchor': 'missing'},
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links: an anchor of a doc whose anchor set is unknown '
+        'is no link_anchor_missing', () async {
+      final findings = pointersOf(
+        await writeCheckProject(
+          extra: {
+            ...featureLinking('[x](../../d09_broken.md#gone).'),
+            'docs/prds/d09_broken.md': '# Broken\n\n[a]:<b\\',
+          },
+        ),
+      );
+      expect(findings, isEmpty);
+    });
   });
 }

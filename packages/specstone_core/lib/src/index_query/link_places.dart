@@ -205,13 +205,16 @@ String _normalize(String dest) => dest.splitMapJoin(
 /// Returns the hrefs of the links and images in [body], in order, or null when
 /// `markdown` fails on it; [bodyNodes], when given, are `parseMarkdown(body)`'s
 /// nodes, so they are parsed once.
+///
+/// The links `markdown` makes for a footnote are left out: the author wrote
+/// neither the reference's link nor the back link.
 List<String>? _hrefsOf(String body, {List<Node>? bodyNodes}) {
   final nodes = bodyNodes ?? parseMarkdown(body);
   if (nodes == null) return null;
   final hrefs = <String>[];
   void visit(List<Node> nodes) {
     for (final node in nodes) {
-      if (node is! Element) continue;
+      if (node is! Element || _isFootnoteMade(node)) continue;
       final href = switch (node.tag) {
         'a' => node.attributes['href'],
         'img' => node.attributes['src'],
@@ -226,3 +229,11 @@ List<String>? _hrefsOf(String body, {List<Node>? bodyNodes}) {
   visit(nodes);
   return hrefs;
 }
+
+/// Whether `markdown` made [element] for a footnote: the `sup` that holds a
+/// footnote reference's link, or a footnote's back link.
+bool _isFootnoteMade(Element element) =>
+    switch ((element.tag, element.attributes['class'])) {
+      ('sup', 'footnote-ref') || ('a', 'footnote-backref') => true,
+      _ => false,
+    };
