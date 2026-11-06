@@ -18,7 +18,8 @@ IndexedDoc? storyNamed(DocIndex index, String identity) => index.docs
 /// Returns the story an `fr` under [ownStory] traces through [ref].
 ///
 /// [ownStory] for an own-story ref; else the story Named by [ref] when it
-/// shares the feature of [ownStory]; null for a story of another feature or
+/// shares the feature of [ownStory] (a story with no feature doc has no
+/// siblings); null for a story of another feature or
 /// of no doc.
 IndexedDoc? tracedStoryOf(
   DocIndex index,
@@ -29,7 +30,8 @@ IndexedDoc? tracedStoryOf(
   if (name == null) return ownStory;
   final story = storyNamed(index, name);
   if (story == null) return null;
-  return story.parentPath == ownStory.parentPath ? story : null;
+  final feature = ownStory.parentPath;
+  return feature != null && story.parentPath == feature ? story : null;
 }
 
 /// Returns the scenario block [target] names, heading line included.

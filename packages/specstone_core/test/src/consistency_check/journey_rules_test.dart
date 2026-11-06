@@ -89,6 +89,14 @@ void main() {
     expect(unresolved.single.toJson(), containsPair('step', '$_story S1a'));
   });
 
+  test('f04/us02/fr06: a readable story part that names no story is '
+      'journey_step_unresolved', () async {
+    final found = await _check(['### 1. Sign in', 'step: Login/email S1']);
+    final unresolved = _of(found, FindingKind.journeyStepUnresolved);
+    expect(unresolved, hasLength(1));
+    expect(unresolved.single.toJson(), containsPair('step', 'Login/email S1'));
+  });
+
   test('f04/us02/fr06/e03: a step heading with no step: line is '
       'journey_step_unresolved at the heading, step empty', () async {
     final found = await _check(['### 1. Sign in']);

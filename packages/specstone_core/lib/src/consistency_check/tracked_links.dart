@@ -56,9 +56,10 @@ final class TrackedLink {
 
 /// Returns the links [doc] tracks, one per label, in trace order (INV-5).
 ///
-/// An `fr` tracks its `S<N>` trace entries, an `nf` of kind `tighten` or
-/// `relax` its overridden NFR, an `api` doc each FR of its trace table, and a
-/// `journey` the story scenario each step names.
+/// An `fr` tracks its `S<N>` and sibling `<story Name>#S<N>` trace
+/// entries (a lettered number yields a link with no upstream), an `nf` of
+/// kind `tighten` or `relax` its overridden NFR, an `api` doc each FR of its
+/// trace table, and a `journey` the story scenario each step names.
 List<TrackedLink> trackedLinksOf(CheckContext context, IndexedDoc doc) {
   final links = switch (doc.docTypeId) {
     _frType => _scenarioLinks(context, doc),

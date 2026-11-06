@@ -769,5 +769,22 @@ void main() {
     test('f04/us03/fr01/e04: a lettered scenario number is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('S6a'), ['$cartAddFr:3 S6a']);
     });
+
+    test('f04/us03/fr01/e09: two stories whose feature doc is gone are no siblings', () async {
+      const other = 'prds/features/f01_login/us02_reset/USER_STORY.md';
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...fr('  - S2\n', '  - S2\n  - login/reset#S1\n'),
+            'docs/$other': checkProjectFiles()['docs/$loginStory']!,
+          },
+          without: {'docs/$loginFeature'},
+        ),
+        docPath: loginFr,
+      );
+      expect(spots(report, FindingKind.scenarioTraceUnresolved), [
+        '$loginFr:3: scenario_trace_unresolved',
+      ]);
+    });
   });
 }
