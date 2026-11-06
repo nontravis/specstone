@@ -1137,6 +1137,7 @@ void main() {
       extra: {
         ...withoutLink,
         ...freeStory3,
+        'docs/prds/features/f02_signup/us01_create_account/USER_STORY.md': '---\ndraft: true\n---\n\n# Create account\n\n## Use Case\nCreate an account.\n',
         'docs/$tracer': '---\ndraft: true\ntraced_from:\n  - login/reset_password#S1\n---\n\n# Trace reset\n\n## Statement\nThe system shall trace.\n',
       },
     );
