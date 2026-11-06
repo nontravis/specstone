@@ -705,7 +705,6 @@ void main() {
     );
     final text = readDoc(root, story1);
     expect(text, contains('## Use Case\n\nSign in again.\n'));
-    expect(text, isNot(contains('## Use Case\n\n\n## Use Case')));
     expect('## Use Case'.allMatches(text), hasLength(1));
   });
 
@@ -780,6 +779,59 @@ void main() {
       readDoc(root, story1),
       contains('## Use Case\n\n```md\n## Use Case\n```\n'),
     );
+  });
+
+  for (final (label, key, header) in [
+    ('required', 'use_case', '## Use Case'),
+    ('optional', 'open_questions', '## Open questions'),
+  ]) {
+    test(
+      'f02/us01/fr01/e15, P21: header-only stdin on an empty $label section keeps it, empty and byte-equal',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            'docs/$story1':
+                '---\nstatus: planned\ndraft: true\npersona:\n  - buyer\n---\n\n'
+                '# Sign in with email\n\n## Use Case\n\n## Acceptance Criteria\n\n'
+                '### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email\n\n'
+                '## Open questions\n',
+          },
+        );
+        final target = 'user_story:login/email_login#$key';
+        final before = readDoc(root, story1);
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            '\n$header\n',
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+  }
+
+  test('f02/us01/fr01/e15, D12: a header with trailing spaces is not the own header and refuses', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '## Use Case  \n\nx\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having((f) => f.message, 'message', contains('"## Use Case  "')),
+      ),
+    );
+    expect(readDoc(root, story1), before);
   });
 
   test('f02/us01/fr01/e15, D12: get then set of a whole section leaves the file byte-equal', () async {

@@ -481,11 +481,16 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
 
 /// Returns [lf] less its first line after leading blank lines when that line
 /// is [headerLine], the section's own header.
-String _withoutOwnHeader(String lf, String headerLine) {
+///
+/// `dropped` tells whether that line was there, so a header-only stdin is told
+/// from empty stdin.
+({String text, bool dropped}) _withoutOwnHeader(String lf, String headerLine) {
   final lines = lf.split('\n');
   final first = lines.indexWhere((line) => line.trim().isNotEmpty);
-  if (first < 0 || lines[first] != headerLine) return lf;
-  return (lines..removeAt(first)).join('\n');
+  if (first < 0 || lines[first] != headerLine) {
+    return (text: lf, dropped: false);
+  }
+  return (text: (lines..removeAt(first)).join('\n'), dropped: true);
 }
 
 ReadAnswer _setSection(
@@ -495,7 +500,7 @@ ReadAnswer _setSection(
   String stdin,
 ) {
   final lf = toLf(stdin);
-  if (_scanStdin(lf, (_) => false).openFence case final fence?) {
+  if (blockScan(lf.split('\n')).openFence case final fence?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'the body leaves the fence "$fence" open; close it',
@@ -520,12 +525,12 @@ ReadAnswer _setSection(
         'and its template defines none',
       );
     }
-    final body = _pipedBodyOf(
-      _withoutOwnHeader(
-        lf,
-        held < 0 ? '## ${template!.header}' : sections[held].headerLine,
-      ),
+    final unwrapped = _withoutOwnHeader(
+      lf,
+      held < 0 ? '## ${template!.header}' : sections[held].headerLine,
     );
+    final body = _pipedBodyOf(unwrapped.text);
+    final removesSection = body.isEmpty && !unwrapped.dropped;
     if (_scanStdin(body, isSectionHeaderLine).refused case final header?) {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
@@ -546,7 +551,7 @@ ReadAnswer _setSection(
         currentBase: currentBase,
       );
     }
-    if (body.isEmpty && (template?.required ?? false)) {
+    if (removesSection && (template?.required ?? false)) {
       throw WriteFault(
         WriteFaultCode.requiredTarget,
         '${doc.docTypeId} requires the section $key',
@@ -557,7 +562,7 @@ ReadAnswer _setSection(
 
     final lfText = toLf(read.content.text);
     final String spliced;
-    if (body.isEmpty) {
+    if (removesSection) {
       spliced = held < 0 ? lfText : withoutSection(lfText, held);
     } else if (held >= 0) {
       spliced = withSectionBody(lfText, held, body);
