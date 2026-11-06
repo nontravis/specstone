@@ -73,9 +73,10 @@ final class LineFacts {
   /// [lfText] is the file text with LF line ends; every line number comes from
   /// it, while [lineCount] and [charCount] measure [countedText].
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
-  /// frontmatter. A body the markdown
-  /// parser fails on has no links and an unknown anchor set, and
-  /// [markdownUnparsedWarning] joins [warnings].
+  /// frontmatter. A body whose parse fails has no links and an unknown anchor
+  /// set; [markdownUnparsedWarning] joins [warnings] only when the body holds
+  /// link syntax, as at base — a body with no link syntax is never parsed for
+  /// links, so it never warns.
   factory of({
     required String lfText,
     required String countedText,
@@ -91,22 +92,28 @@ final class LineFacts {
     final bodyStart = _lineCount(prefix);
     final whole = scanText(countedText);
     final body = doc.afterFrontmatter;
-    // One parse per doc: a link-syntax body shares its full parse between
-    // the links and the anchors; any other body never parses its prose.
-    final bodyNodes = holdsLinkSyntax(body) ? parseMarkdown(body) : null;
-    final links = linkPlacesOf(
-      body,
-      docPath: docPath,
-      firstLine: bodyStart + 1,
-      bodyNodes: bodyNodes,
-    );
+    // One parse per doc, failed or not: a link-syntax body shares its full
+    // parse between the links and the anchors, so a failed parse is the
+    // links and the anchors both; any other body never parses its prose.
+    final hasLinks = holdsLinkSyntax(body);
+    final bodyNodes = hasLinks ? parseMarkdown(body) : null;
+    final links = hasLinks && bodyNodes == null
+        ? null
+        : linkPlacesOf(
+            body,
+            docPath: docPath,
+            firstLine: bodyStart + 1,
+            bodyNodes: bodyNodes,
+          );
     if (links == null) warnings.add(markdownUnparsedWarning(docPath));
     return LineFacts(
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],
       selfLinks: links?.selfLinks ?? const [],
       unreadableLinks: links?.unreadableLinks ?? const [],
-      anchors: bodyNodes == null ? anchorsOfBody(body) : anchorsOf(bodyNodes),
+      anchors: hasLinks
+          ? (bodyNodes == null ? null : anchorsOf(bodyNodes))
+          : anchorsOfBody(body),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
