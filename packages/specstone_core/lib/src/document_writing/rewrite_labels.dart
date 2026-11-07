@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -14,8 +15,8 @@ const _storyType = 'user_story';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _confirmedKey = 'confirmed';
+const _tracedFromKey = 'traced_from';
 const _stepPrefix = 'step:';
-final _journeyLabel = RegExp(r'^(.+)#(S[0-9]+)$');
 final _entryLine = RegExp(
   r'''^(?<head>\s*-\s+(?<q>["']?))(?<label>[^\s"']+)'''
   r'''(?<tail> [0-9a-f]{12}\k<q>.*)$''',
@@ -23,13 +24,16 @@ final _entryLine = RegExp(
 
 // MARK: - rewriteLinkLabels
 
-/// Whether a doc of [docTypeId] holds step identities, FR cells, or
-/// `confirmed` labels that a rename can change.
+/// Whether a doc of [docTypeId] holds step identities, FR cells,
+/// `traced_from` entries, or `confirmed` labels that a rename can change.
 bool carriesLinkLabels(String? docTypeId) =>
-    docTypeId == journeyTypeId || docTypeId == apiTypeId;
+    docTypeId == journeyTypeId ||
+    docTypeId == apiTypeId ||
+    docTypeId == _frType;
 
-/// Returns [lfText] with each step: identity, FR trace cell, and confirmed
-/// label naming a renamed doc set to its new name; null when nothing changes.
+/// Returns [lfText] with each step: identity, FR trace cell, `traced_from`
+/// entry, and confirmed label naming a renamed doc set to its new name; null
+/// when nothing changes.
 ///
 /// [renamed] maps `(doc type id, old name)` to the new name. An FR cell is the
 /// FR's Name less `<feature>/`: it resolves under [featureName] and becomes
@@ -43,7 +47,8 @@ String? rewriteLinkLabels(
 }) {
   if (docType == null || renamed.isEmpty) return null;
   final newLabel = switch (docType.id) {
-    journeyTypeId => (String label) => _journeyEntryLabel(label, renamed),
+    journeyTypeId ||
+    _frType => (String label) => _scenarioEntryLabel(label, renamed),
     apiTypeId => (String label) => _frCell(
       label,
       featureName,
@@ -57,18 +62,41 @@ String? rewriteLinkLabels(
   final lines = lfText.split('\n');
   final prefixLength = lfText.length - doc.afterFrontmatter.length;
   final firstLine = '\n'.allMatches(lfText.substring(0, prefixLength)).length;
-  _rewriteBody(lines, doc, firstLine, docType, newLabel, renamed);
-  var result = lines.join('\n');
-  final confirmed = doc.frontmatter
-      ?.where((block) => block.name == _confirmedKey)
-      .firstOrNull;
-  if (confirmed != null) {
-    final text = _renameEntries(confirmed.text, newLabel);
-    if (text != confirmed.text) {
-      result = withKeyBlock(result, _confirmedKey, text);
-    }
+  if (docType.id != _frType) {
+    _rewriteBody(lines, doc, firstLine, docType, newLabel, renamed);
   }
+  var result = lines.join('\n');
+  if (docType.id == _frType) {
+    result = _withRenamedBlock(
+      result,
+      doc,
+      _tracedFromKey,
+      (block) => _renameTraced(block, newLabel),
+    );
+  }
+  result = _withRenamedBlock(
+    result,
+    doc,
+    _confirmedKey,
+    (block) => _renameEntries(block.text, newLabel),
+  );
   return result == lfText ? null : result;
+}
+
+/// Returns [text] with the frontmatter block [name] of [doc] rewritten by
+/// [rewrite], or [text] itself when the block is absent or unchanged.
+String _withRenamedBlock(
+  String text,
+  Doc doc,
+  String name,
+  String Function(KeyBlock block) rewrite,
+) {
+  final block = doc.frontmatter
+      ?.where((candidate) => candidate.name == name)
+      .firstOrNull;
+  if (block == null) return text;
+  final renamed = rewrite(block);
+  return renamed == block.text ? text : withKeyBlock(text, name, renamed);
 }
 
 // MARK: - Body
@@ -173,15 +201,82 @@ String? _frCell(
   return renamedCell == cell ? null : renamedCell;
 }
 
-/// Returns the `<identity>#S<N>` label [label] becomes when its story is
+/// Returns the `<story Name>#S<N>` label [label] becomes when its story is
 /// renamed, or null.
-String? _journeyEntryLabel(
+String? _scenarioEntryLabel(
   String label,
   Map<(String, String), String> renamed,
 ) {
-  final match = _journeyLabel.firstMatch(label);
-  final name = match == null ? null : renamed[(_storyType, match.group(1)!)];
-  return name == null ? null : '$name#${match!.group(2)}';
+  if (readLinkLabel(label) case ScenarioLabel(:final ref)) {
+    final story = ref.storyName;
+    final name = story == null ? null : renamed[(_storyType, story)];
+    return name == null ? null : '$name#${ref.number.written}';
+  }
+  return null;
+}
+
+/// Returns the `traced_from` key block [block] with each entry label set to
+/// [newLabel]; a flow list and a block list both rewrite.
+String _renameTraced(KeyBlock block, String? Function(String) newLabel) {
+  final lines = block.text.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    final start = i == 0
+        ? _afterKey(lines[i], block.key)
+        : _afterDash(lines[i]);
+    if (start < 0) continue;
+    lines[i] =
+        lines[i].substring(0, start) +
+        _renameRegion(lines[i].substring(start), newLabel);
+  }
+  return lines.join('\n');
+}
+
+/// Returns the index in [line] past `<key>:` and its spaces, or -1.
+int _afterKey(String line, String key) {
+  if (!line.startsWith(key)) return -1;
+  final colon = line.indexOf(':', key.length);
+  return colon < 0 ? -1 : colon + 1 + _spaces(line, colon + 1);
+}
+
+/// Returns the index in [line] past a `- ` list marker, or -1.
+int _afterDash(String line) {
+  final dash = line.length - line.trimLeft().length;
+  if (!line.startsWith('- ', dash)) return -1;
+  return dash + 1 + _spaces(line, dash + 1);
+}
+
+int _spaces(String line, int from) {
+  var end = from;
+  while (end < line.length && line[end] == ' ') {
+    end++;
+  }
+  return end - from;
+}
+
+/// Returns [region], the value text of a `traced_from` line, with each entry
+/// label set to [newLabel]; the brackets, commas, quotes, and comment stay.
+String _renameRegion(String region, String? Function(String) newLabel) {
+  if (!region.startsWith('[')) return _renameItem(region, newLabel);
+  final close = region.indexOf(']');
+  if (close < 0) return region;
+  final items = region.substring(1, close).split(',');
+  final joined = items.map((item) => _renameItem(item, newLabel)).join(',');
+  return '[$joined${region.substring(close)}';
+}
+
+/// Returns [item] with its leading entry, quoted or bare, set to [newLabel].
+String _renameItem(String item, String? Function(String) newLabel) {
+  final start = item.length - item.trimLeft().length;
+  final quote = start < item.length && '"\''.contains(item[start])
+      ? item[start]
+      : '';
+  final labelStart = start + quote.length;
+  var end = labelStart;
+  while (end < item.length && !' ,]"\''.contains(item[end])) {
+    end++;
+  }
+  final renamed = newLabel(item.substring(labelStart, end));
+  return renamed == null ? item : item.replaceRange(labelStart, end, renamed);
 }
 
 /// Returns the `confirmed` key block [text] with each entry label set to

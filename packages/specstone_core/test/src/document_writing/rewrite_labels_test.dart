@@ -351,4 +351,123 @@ void main() {
     expect(api, contains('| password_login/check_password | `signIn` |'));
     expect(api, contains('  - password_login/check_password $_fpStatement\n'));
   });
+
+  test('document_writing/rename_doc/rewrite_link_labels E15: rename of a story rewrites the traced_from entry and confirmed label of an fr', () async {
+    final root = await _frTraceProject();
+    _rename(root, 'user_story:login/reset_password', 'recover_password');
+    final fr = readDoc(root, loginFr);
+    expect(fr, contains('traced_from: [S1, login/recover_password#S3]\n'));
+    expect(fr, contains('  - login/recover_password#S3 $_fp3\n'));
+    expect(fr, isNot(contains('reset_password')));
+    expect(fr, isNot(contains('draft')));
+    expect(_frKinds(root), isEmpty);
+  });
+
+  test('document_writing/rename_doc/rewrite_link_labels E15: a block-list traced_from rewrites and the other entries keep their text', () async {
+    final root = await _frTraceProject(
+      tracedFrom: 'traced_from:\n  - S1\n  - "login/reset_password#S3" # why\n',
+    );
+    _rename(root, 'user_story:login/reset_password', 'recover_password');
+    final fr = readDoc(root, loginFr);
+    expect(
+      fr,
+      contains('traced_from:\n  - S1\n  - "login/recover_password#S3" # why\n'),
+    );
+    expect(_frKinds(root), isEmpty);
+  });
+
+  test('document_writing/rename_doc/rewrite_link_labels E15: an own-story label S<N> and an unrenamed story label keep their text', () async {
+    final root = await _frTraceProject();
+    final before = readDoc(root, loginFr);
+    _rename(root, 'user_story:login/email_login', 'password_login');
+    final renamedFr = loginFr.replaceFirst('email_login', 'password_login');
+    expect(readDoc(root, renamedFr), before);
+  });
+
+  test('document_writing/move_story/rewrite_moved_story_references E04: move of a story rewrites the traced_from entry and confirmed label of an fr', () async {
+    final root = await _frTraceProject();
+    writeIn(
+      root,
+      (s) => answerMove(s, 'user_story:login/reset_password', under: 'account'),
+    );
+    final fr = readDoc(root, loginFr);
+    expect(fr, contains('traced_from: [S1, account/reset_password#S3]\n'));
+    expect(fr, contains('  - account/reset_password#S3 $_fp3\n'));
+    expect(fr, isNot(contains('draft')));
+    expect(_frKinds(root), contains(FindingKind.scenarioTraceUnresolved));
+  });
+
+  test('document_writing/move_story/rewrite_moved_story_references E05: an fr under the moved story keeps the entry naming a story that stays', () async {
+    final root = await _frTraceProject();
+    final before = readDoc(root, _resetFr);
+    writeIn(
+      root,
+      (s) => answerMove(s, 'user_story:login/reset_password', under: 'account'),
+    );
+    final moved = _resetFr
+        .replaceFirst('f01_login', 'f02_account')
+        .replaceFirst('us02', 'us01');
+    expect(readDoc(root, moved), before);
+    expect(
+      _frKinds(root, docPath: moved),
+      contains(FindingKind.scenarioTraceUnresolved),
+    );
+  });
 }
+
+const _resetStory = 'prds/features/f01_login/us02_reset_password/USER_STORY.md';
+const _resetFr =
+    'prds/features/f01_login/us02_reset_password/fr01_send_link.md';
+const _accountFeature = 'prds/features/f02_account/FEATURE.md';
+const _scenario3 =
+    '### Scenario 3 — [happy] Reset the password\n\n- **Given** an account\n'
+    '- **When** the Agent asks for a reset\n- **Then** the Agent gets a link';
+
+final String _fp3 = fingerprintOf(_scenario3);
+
+// Login's FR traces its own S1 and the sibling story's S3; the sibling story
+// holds an FR that traces the login story's S1.
+Future<Directory> _frTraceProject({
+  String tracedFrom = 'traced_from: [S1, login/reset_password#S3]\n',
+}) {
+  final files = checkProjectFiles();
+  final loginFeatureText = files['docs/$loginFeature']!;
+  return writeCheckProject(
+    extra: {
+      'docs/$_accountFeature': loginFeatureText.replaceFirst(
+        '# Login',
+        '# Account',
+      ),
+      'docs/$_resetStory': files['docs/$loginStory']!
+          .replaceFirst('# Agent signs in with email', '# Agent resets')
+          .replaceFirst('implements:\n  - app/lib/login.dart:SignInPage\n', '')
+          .replaceFirst(loginScenario2, _scenario3)
+          .replaceFirst(loginScenario1, _scenario3.replaceFirst('3', '1')),
+      'docs/$loginFr': files['docs/$loginFr']!
+          .replaceFirst('traced_from:\n  - S2\n', tracedFrom)
+          .replaceFirst(
+            'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n',
+            'confirmed:\n  - S1 $_fp1\n  - login/reset_password#S3 $_fp3\n',
+          ),
+      'docs/$_resetFr': files['docs/$loginFr']!
+          .replaceFirst(
+            'traced_from:\n  - S2\n',
+            'traced_from: [login/email_login#S1]\n',
+          )
+          .replaceFirst(
+            'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n',
+            'confirmed:\n  - login/email_login#S1 $_fp1\n',
+          ),
+    },
+  );
+}
+
+const Set<FindingKind> _frKindSet = {
+  ..._storyKinds,
+  FindingKind.scenarioTraceUnresolved,
+};
+
+Set<FindingKind> _frKinds(Directory root, {String docPath = loginFr}) => {
+  for (final f in checkOf(root, docPath: docPath).findings)
+    if (_frKindSet.contains(f.kind)) f.kind,
+};

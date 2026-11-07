@@ -278,6 +278,18 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02: a query and a fragment stay as written; a scheme href and a bare fragment are left alone', () {
+    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    expect(
+      rewriteDocLinks(
+        '[a](a/f01_x/F.md?v=1#top) [b](a/f01_x/F.md#a?b) [c](mailto:a/f01_x/F.md#x) [d](#a/f01_x/F.md)\n',
+        docPath: 'I.md',
+        moves: moves,
+      ),
+      '[a](a/f02_x/F.md?v=1#top) [b](a/f02_x/F.md#a?b) [c](mailto:a/f01_x/F.md#x) [d](#a/f01_x/F.md)\n',
+    );
+  });
+
   test('f02/us06/fr02, f02/us06/fr02/e01, f02/us06/fr02/e03, f02/us06/fr02/e06: doc_ref values follow a rename, prose and other values stay', () {
     const persona = MergedField(
       id: 'persona',

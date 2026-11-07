@@ -220,4 +220,26 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
   });
+
+  test('document_writing/move_story/rewrite_moved_story_references E04: move rewrites an fr traced_from entry and confirmed label', () async {
+    final root = await writeNestedProject(
+      extra: {
+        'docs/$cartAddFr': '---\ntraced_from: [S1, shop/pay/card#S1]\nverify_method: test\nconfirmed:\n  - shop/pay/card#S1 0123456789ab\n---\n\n# Check stock\n\n## Statement\nThe system shall check.\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'move',
+        'user_story:shop/pay/card',
+        '--under',
+        'shop/cart',
+      ]),
+      0,
+    );
+    final text = readDoc(root, cartAddFr);
+    expect(text, contains('traced_from: [S1, shop/cart/card#S1]\n'));
+    expect(text, contains('  - shop/cart/card#S1 0123456789ab\n'));
+    expect(out.toString(), contains('rewrote $cartAddFr\n'));
+  });
 }

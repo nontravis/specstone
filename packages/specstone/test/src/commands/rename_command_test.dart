@@ -166,4 +166,26 @@ void main() {
     expect(text, isNot(contains('\n\n\n')));
     expect(text, contains('draft: true\n'));
   });
+
+  test('document_writing/rename_doc/rewrite_link_labels E15: rename rewrites an fr traced_from entry and confirmed label', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr11': '---\ntraced_from: [S1, login/reset_password#S3]\nverify_method: test\nconfirmed:\n  - login/reset_password#S3 0123456789ab\n---\n\n# Validate credentials\n\n## Statement\nThe system shall validate.\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    final text = readDoc(root, fr11);
+    expect(text, contains('traced_from: [S1, login/recover_account#S3]\n'));
+    expect(text, contains('  - login/recover_account#S3 0123456789ab\n'));
+    expect(out.toString(), contains('rewrote $fr11\n'));
+  });
 }

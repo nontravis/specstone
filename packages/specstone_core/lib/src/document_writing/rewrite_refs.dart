@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -371,8 +372,9 @@ bool _yieldsLinkAt(String lfText, int start, int end) {
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
 String? _movedHref(String href, String docPath, List<PathMove> moves) {
-  final cut = href.indexOf(RegExp('[?#]'));
-  final path = cut < 0 ? href : href.substring(0, cut);
+  if (readLinkTarget(href) is! RelativeLink) return null;
+  final cut = _pathEnd(href);
+  final path = href.substring(0, cut);
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
   if (!percentDecodesCleanly(path)) return null;
@@ -380,7 +382,17 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
   if (after == null) return null;
   final slash = path.endsWith('/') ? '/' : '';
   final encoded = after.split('/').map(Uri.encodeComponent).join('/');
-  return cut < 0 ? '$encoded$slash' : '$encoded$slash${href.substring(cut)}';
+  return '$encoded$slash${href.substring(cut)}';
+}
+
+/// Returns the index in [href] where its query or fragment opens, else its
+/// length: a `?` ends the path unless a `#` came first (RULE-11).
+int _pathEnd(String href) {
+  final fragmentAt = href.indexOf('#');
+  final beforeFragment = fragmentAt < 0 ? href : href.substring(0, fragmentAt);
+  final queryAt = beforeFragment.indexOf('?');
+  if (queryAt >= 0) return queryAt;
+  return fragmentAt < 0 ? href.length : fragmentAt;
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.
