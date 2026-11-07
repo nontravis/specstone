@@ -12,6 +12,7 @@ import 'package:markdown/markdown.dart'
         LinkReferenceDefinitionSyntax,
         SetextHeaderSyntax,
         UnorderedListSyntax;
+import 'package:specstone_core/src/index_query/case_folding.g.dart';
 
 /// The inline text of a body and the definitions its links resolve against.
 ///
@@ -165,10 +166,20 @@ bool _isBlankLine(String line) {
   return true;
 }
 
-/// Returns [text] as a definition label: trimmed, each run of blanks one
-/// space, lowercased.
-String linkLabel(String text) =>
-    text.trim().replaceAll(_blankRun, ' ').toLowerCase();
+/// Returns [text] as a definition label, as `markdown`'s `normalizeLinkLabel`
+/// makes it: trimmed, each run of blanks one space, and each UTF-16 unit
+/// folded by [markdownCaseFolding].
+///
+/// The fold goes unit by unit, so a character outside the BMP, written as two
+/// units, never folds, and `ẞ` folds to `ss`.
+String linkLabel(String text) {
+  var label = text.trim().replaceAll(_blankRun, ' ');
+  for (var i = 0; i < label.length; i++) {
+    final folded = markdownCaseFolding[label[i]];
+    if (folded != null) label = label.replaceRange(i, i + 1, folded);
+  }
+  return label;
+}
 
 /// What ends the paragraph a line meets.
 enum _Stop {

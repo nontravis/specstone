@@ -157,6 +157,18 @@ void main() {
         'd.md',
       ]);
     });
+
+    test('R73: reads a reference link where markdown folds its label to a '
+        'definition label, and only there', () {
+      String body(String reference, String definition) =>
+          'See [a](t.md) and [q][$reference].\n\n[$definition]: u.md\n';
+
+      expect(hrefsOf(body('Œuvre', 'œuvre')), ['t.md']);
+      expect(hrefsOf(body('ẞ', 'ss')), ['t.md', 'u.md']);
+      expect(hrefsOf(body('Ĳ', 'ĳ')), ['t.md']);
+      expect(hrefsOf(body('𐐨', '𐐀')), ['t.md']);
+      expect(hrefsOf(body('ÄRGER', 'ärger')), ['t.md', 'u.md']);
+    });
   });
 
   group('hrefDestinationsOf', () {

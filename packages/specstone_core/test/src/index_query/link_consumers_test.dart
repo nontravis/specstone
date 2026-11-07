@@ -137,6 +137,20 @@ const _readForms = <_Form>[
     topicAnchor: null,
   ),
   (
+    name: 'a reference label markdown folds in full',
+    links:
+        '[a]($_topicLink) RULE-7a\n[b][ẞ]\n\n'
+        '[ss]: $_storyLink#$_oldSlug\n',
+    topicAnchor: null,
+  ),
+  (
+    name: 'a reference label markdown does not fold',
+    links:
+        '[a]($_topicLink) RULE-7a\n[b]($_storyLink#$_oldSlug) [q][Œuvre]\n\n'
+        '[œuvre]: pic.png\n',
+    topicAnchor: null,
+  ),
+  (
     name: 'a footnote that runs on over the links',
     links:
         '[^1]: n [c](pic.png)\nx[^1] [a]($_topicLink) RULE-7a\n'
