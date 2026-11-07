@@ -179,12 +179,14 @@ void main() {
     () {
       final result = rewrite(
         '[../us02_sign_out/USER_STORY.md](../us02_sign_out/USER_STORY.md) and [x](<../us02_sign_out/USER_STORY.md>) and ![i](../us02_sign_out/flow.png)\n'
+        '\n'
         '[ref]: ../us02_sign_out/USER_STORY.md\n',
       );
 
       expect(
         result?.lfText,
         '[../us03_sign_out/USER_STORY.md](../us02_sign_out/USER_STORY.md) and [x](<../us02_sign_out/USER_STORY.md>) and ![i](../us02_sign_out/flow.png)\n'
+        '\n'
         '[ref]: ../us02_sign_out/USER_STORY.md\n',
       );
       expect(result?.count, 1);

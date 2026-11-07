@@ -1,9 +1,9 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
-import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
 
 /// A closing `.`, `,`, `;`, or `:` that prose adds after a path.
 final _closingMark = RegExp(r'[.,;:]$');
@@ -74,11 +74,13 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
   );
 }
 
-/// Returns, per character of [body], whether a link destination covers it.
+/// Returns, per character of [body], whether a link destination the link
+/// scan reads, inline or in a definition, covers it, as the mention scan
+/// reads them.
 List<bool> _destinationMask(String body) {
   final mask = List.filled(body.length, false);
-  for (final span in destinationsIn(body)) {
-    mask.fillRange(span.start, span.end, true);
+  for (final (:start, :end) in linkScanOf(body, firstLine: 1).destinations) {
+    mask.fillRange(start, end, true);
   }
   return mask;
 }

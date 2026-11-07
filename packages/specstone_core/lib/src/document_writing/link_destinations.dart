@@ -5,7 +5,7 @@ typedef LinkDestination = ({int start, int end, bool angle});
 /// spelled, in text order.
 ///
 /// A destination is only read, not proven a link's; the link rewrite proves
-/// each, and a mention scan skips every one.
+/// each. The mention scans read the link scan's destinations instead.
 Iterable<LinkDestination> destinationsIn(String text) sync* {
   for (final match in RegExp(r'\](?:\(|:)\s*').allMatches(text)) {
     if (_destinationAt(text, match.end) case final span?) yield span;

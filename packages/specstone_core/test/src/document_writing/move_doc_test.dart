@@ -9,6 +9,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
@@ -301,6 +302,46 @@ void main() {
       contains(
         '  - app/lib/src/login/credential_validator.dart:CredentialValidator\n',
       ),
+    );
+  });
+
+  test('f02/us05/fr02/e10, f01/us07/fr01: refs and the reorder rewrite read the same mention lines, a link form in a code span and a stray ]( included', () async {
+    const domain = 'specs/f01_login/DOMAIN.md';
+    const story = '../../$f/us02_sign_out/USER_STORY.md';
+    const before =
+        '# Login domain\n\n## Entities\n\n'
+        '| Entity | Kind | Identity | Owns | Notes |\n'
+        '|---|---|---|---|---|\n'
+        '| Session | Aggregate root | id | none | none |\n\n'
+        '## Invariants\n\n'
+        '- **INV-1** A session follows `$story`.\n'
+        '- **INV-2** It ends as `[x]($story)` says.\n'
+        '- **INV-3** A stray ]($story stays prose.\n';
+    final root = await writeWriteProject(extra: {'docs/$domain': before});
+    final refs =
+        (writeIn(
+                      root,
+                      (s) => answerRefs(s.index, 'user_story:login/sign_out'),
+                    ).json['docs']!
+                    as List)
+                .single
+            as Map;
+    final mentioned = [
+      for (final key in ['mentions', 'untypedMentions'])
+        for (final mention in refs[key]! as List)
+          if ((mention as Map)['path'] == domain) mention['line'],
+    ];
+    final naming = [
+      for (final (i, line) in before.split('\n').indexed)
+        if (line.contains('us02_sign_out/')) i + 1,
+    ];
+    expect(mentioned, naming);
+    expect(naming, hasLength(3));
+
+    reorder(root, 'user_story:login/sign_out', '3');
+    expect(
+      readDoc(root, domain),
+      before.replaceAll('/us02_sign_out/', '/us03_sign_out/'),
     );
   });
 
