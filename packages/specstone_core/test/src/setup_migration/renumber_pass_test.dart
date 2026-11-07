@@ -486,6 +486,39 @@ confirmed:
     expect(pass.apply(_nfPath, nf), nf.replaceFirst('PG-2a', 'PG-02'));
     expect(pass.planLine, endsWith('; references: $_nfPath'));
   });
+
+  test('$_fr E18: a gnfr Statement the pass rewrites keeps a matched nf link '
+      'current', () {
+    const statement =
+        '- **Statement:** The tool shall keep `doc_model` RULE-7a.';
+    const gnfr =
+        '# GNFR\n\n## Performance\n\n### NFR-P01 — First\n$statement\n';
+    String nf(String fingerprint) =>
+        '---\nkind: tighten\noverrides: NFR-P01\nconfirmed:\n'
+        '  - NFR-P01 $fingerprint\n---\n# D\n';
+
+    final applied = _applied({
+      _topicPath: _topic,
+      _gnfrPath: gnfr,
+      _nfPath: nf(fingerprintOf(statement)),
+    });
+
+    expect(applied[_gnfrPath], contains('`doc_model` RULE-31.\n'));
+    expect(
+      applied[_nfPath],
+      nf(fingerprintOf(statement.replaceFirst('RULE-7a', 'RULE-31'))),
+    );
+  });
+
+  test('$_fr E18: applying the pass to a text other than the one it was '
+      'planned over refuses', () {
+    final pass = _planOf({_topicPath: _topic});
+
+    expect(
+      () => pass.apply(_topicPath, '$_topic\nmore\n'),
+      throwsArgumentError,
+    );
+  });
 }
 
 /// The body of the `## Statement` section of [lf], as `check` fingerprints an
