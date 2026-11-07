@@ -77,6 +77,49 @@ void main() {
     ]);
   });
 
+  test(
+    'f04/us03/fr01/e06, RULE-12: a lettered NFR heading keys no block, so an '
+    'override of its written form is override_unresolved',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...doc(
+              gnfrDoc,
+              '### NFR-P01 — Sign-in time',
+              '### NFR-P01a — Sign-in time',
+            ),
+            ...doc(loginNf, 'overrides: NFR-P01', 'overrides: NFR-P01a'),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.overrideUnresolved), [
+        '$loginNf:3: override_unresolved',
+      ]);
+    },
+  );
+
+  test('f04/us03/fr02/e05, RULE-12: a lettered project heading keys no block, '
+      'so a goal or Serves entry of its written form is unresolved', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(projectDoc, '### PG-01 — ', '### PG-01a — '),
+          ...doc(loginFeature, 'PG-01', 'PG-01a'),
+        },
+      ),
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved &&
+              f.path == loginFeature)
+            f.toJson()['id'],
+      ],
+      ['PG-01a'],
+    );
+  });
+
   test('f04/us03/fr01/e06: an NFR heading key is the ID the grammar reads, '
       'as item IDs read it: a tab or no-break space ends it, an unreadable '
       'one keys nothing', () async {

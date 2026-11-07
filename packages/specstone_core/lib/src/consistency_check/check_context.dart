@@ -242,7 +242,7 @@ final class CheckContext {
 
   /// Returns the `###` blocks of each held section of [doc] whose template
   /// sets `prefix_id`, keyed by the ID the grammar reads at the heading
-  /// (RULE-12); an unreadable ID keys no block.
+  /// (RULE-12); a lettered or unreadable ID keys no block.
   Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
     IndexedDoc doc,
   ) sync* {
@@ -344,10 +344,10 @@ const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
 
-/// Returns the ID of [prefix] a `###` [heading] opens with, plain or
-/// lettered; null for any other heading and an unreadable ID.
+/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
+/// other heading, a lettered ID, and an unreadable ID (RULE-12).
 String? _itemKeyOf(String heading, String prefix) {
   final text = itemHeadingTextOf(heading);
   final id = text == null ? null : readItemId(text, prefix);
-  return id is UnreadableId ? null : id?.written;
+  return id is ItemId ? id.written : null;
 }
