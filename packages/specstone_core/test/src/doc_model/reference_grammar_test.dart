@@ -369,6 +369,20 @@ void main() {
       });
     }
 
+    test('pathEnd is where ? or # begins in the href as written', () {
+      int? endOf(String href) => switch (readLinkTarget(href)) {
+        RelativeLink(:final pathEnd) => pathEnd,
+        _ => null,
+      };
+      expect(endOf('a/b.md?q#x'), 6);
+      expect(endOf('a/b.md#x'), 6);
+      expect(endOf('a/b.md#a?b'), 6);
+      expect(endOf('a/b.md'), 6);
+      expect(endOf('#x'), 0);
+      expect(endOf('?q'), 0);
+      expect(endOf('a%23b.md#x'), 8);
+    });
+
     // R65: a scheme needs a letter first, so these are relative.
     check('1:x.md', form: isA<RelativeLink>(), segments: ['1:x.md']);
     check(':x.md', form: isA<RelativeLink>(), segments: [':x.md']);

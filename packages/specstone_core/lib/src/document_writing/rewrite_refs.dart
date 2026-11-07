@@ -372,8 +372,18 @@ bool _yieldsLinkAt(String lfText, int start, int end) {
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
 String? _movedHref(String href, String docPath, List<PathMove> moves) {
-  if (readLinkTarget(href) is! RelativeLink) return null;
-  final cut = _pathEnd(href);
+  if (readLinkTarget(href) case RelativeLink(:final pathEnd)) {
+    return _movedRelativeHref(href, pathEnd, docPath, moves);
+  }
+  return null;
+}
+
+String? _movedRelativeHref(
+  String href,
+  int cut,
+  String docPath,
+  List<PathMove> moves,
+) {
   final path = href.substring(0, cut);
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
@@ -383,16 +393,6 @@ String? _movedHref(String href, String docPath, List<PathMove> moves) {
   final slash = path.endsWith('/') ? '/' : '';
   final encoded = after.split('/').map(Uri.encodeComponent).join('/');
   return '$encoded$slash${href.substring(cut)}';
-}
-
-/// Returns the index in [href] where its query or fragment opens, else its
-/// length: a `?` ends the path unless a `#` came first (RULE-11).
-int _pathEnd(String href) {
-  final fragmentAt = href.indexOf('#');
-  final beforeFragment = fragmentAt < 0 ? href : href.substring(0, fragmentAt);
-  final queryAt = beforeFragment.indexOf('?');
-  if (queryAt >= 0) return queryAt;
-  return fragmentAt < 0 ? href.length : fragmentAt;
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.

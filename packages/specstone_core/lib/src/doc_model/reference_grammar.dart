@@ -193,7 +193,7 @@ final class RootedLink extends LinkTargetForm;
 
 /// A target relative to the linking doc.
 final class RelativeLink extends LinkTargetForm {
-  new({required this.segments, required this.anchor});
+  new({required this.segments, required this.anchor, required this.pathEnd});
 
   /// The path split on `/`, each segment percent-decoded (RULE-7); empty
   /// for `#x`, `?q`.
@@ -202,6 +202,10 @@ final class RelativeLink extends LinkTargetForm {
   /// The fragment decoded as a segment is; null with no `#`; `''` for `#`
   /// alone (the doc's top, RULE-13).
   final String? anchor;
+
+  /// The index in the href as written where the path ends: where `?` or `#`
+  /// begins, else the href's length.
+  final int pathEnd;
 }
 
 /// Reads [href] as a link target form (RULE-11): only a target the WHATWG
@@ -228,6 +232,7 @@ LinkTargetForm readLinkTarget(String href) {
         ? const <String>[]
         : [for (final segment in path.split('/')) percentDecoded(segment)],
     anchor: anchor,
+    pathEnd: path.length,
   );
 }
 
