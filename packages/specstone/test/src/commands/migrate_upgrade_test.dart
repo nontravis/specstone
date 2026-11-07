@@ -5,6 +5,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart'
     show fingerprintOf;
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
 import 'package:test/test.dart';
@@ -872,14 +873,22 @@ void main() {
       const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
       const tracingPath = 'docs/prds/features/f01_a/us01_b/fr01_c.md';
       const suspectPath = 'docs/prds/features/f01_a/us01_b/fr02_g.md';
+      const proseTracingPath = 'docs/prds/features/f01_a/us01_b/fr03_h.md';
+      const apiPath = 'docs/specs/f01_a/API.md';
       const lettered = '### Scenario 6a — [edge] lettered\n\n- **Given** g';
+      const eight =
+          '### Scenario 8 — [error] eight, unlike Scenario 6a\n\n- **Given** g';
       const topic =
           '# Doc model\n\n## Rules\n\n- **RULE-1** — One.\n'
           '- **RULE-7a** — Lettered.\n- **RULE-30** — Thirty.\n';
 
-      String tracing(String fingerprint, {String body = ''}) =>
-          '---\ntraced_from:\n  - S6a\nconfirmed:\n  - S6a $fingerprint\n'
-          '---\n# C\n$body';
+      String tracing(
+        String fingerprint, {
+        String scenario = 'S6a',
+        String body = '',
+      }) =>
+          '---\ntraced_from:\n  - $scenario\nconfirmed:\n'
+          '  - $scenario $fingerprint\n---\n# C\n$body';
 
       /// The `docPath` of each finding of [kind] a `check --json` run reports.
       Future<List<Object?>> findingsOf(
@@ -902,20 +911,27 @@ void main() {
           'and no suspect link the pass made, a later upgrade renumbers '
           'nothing, and a lettered ID written after it gets the '
           'finding', () async {
+        final citing = tracing(
+          fingerprintOf(lettered),
+          body: '\n## Statement\n\n`doc_model` RULE-7a\n',
+        );
+        final statement = Doc.parse(citing).sections.single.body;
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
           _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
           topicPath: topic,
+          'docs/prds/features/f01_a/FEATURE.md': '# A\n',
           storyPath:
               '# B\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] one'
-              '\n\n- **Given** g\n\n### Scenario 8 — [error] eight\n\n'
-              '- **Given** g\n\n$lettered\n',
-          tracingPath: tracing(
-            fingerprintOf(lettered),
-            body: '\n## Statement\n\n`doc_model` RULE-7a\n',
-          ),
+              '\n\n- **Given** g\n\n$eight\n\n$lettered\n',
+          tracingPath: citing,
           suspectPath: tracing('000000000000'),
+          proseTracingPath: tracing(fingerprintOf(eight), scenario: 'S8'),
+          apiPath:
+              '---\nconfirmed:\n  - b/c ${fingerprintOf(statement)}\n---\n'
+              '# A\n\n## FR trace\n\n| FR | Operation |\n|----|-----------|\n'
+              '| b/c | get |\n',
         });
         final home = await writeTree({});
 
@@ -928,10 +944,12 @@ void main() {
             '  renumber ids: prds/features/f01_a/us01_b/USER_STORY.md '
             'Scenario 6a -> Scenario 9, specs/topics/doc_model.md RULE-7a -> '
             'RULE-31; references: prds/features/f01_a/us01_b/fr01_c.md, '
-            'prds/features/f01_a/us01_b/fr02_g.md\n',
+            'prds/features/f01_a/us01_b/fr02_g.md, '
+            'prds/features/f01_a/us01_b/fr03_h.md, specs/f01_a/API.md\n',
           ),
         );
         expect(_read(root, tracingPath), contains('`doc_model` RULE-31\n'));
+        expect(_read(root, storyPath), contains('unlike Scenario 9\n'));
         expect(await findingsOf(root, home, 'item_id_lettered'), isEmpty);
         expect(await findingsOf(root, home, 'suspect'), [
           suspectPath.substring(5),
@@ -940,12 +958,28 @@ void main() {
         final rerun = await _run(root, home, ['migrate'], console: _owner());
         expect(rerun.out, 'nothing to migrate\n');
 
-        File(
-          '${root.path}/$topicPath',
-        ).writeAsStringSync('${_read(root, topicPath)}- **RULE-40b** — New.\n');
+        void edit(String path, String from, String to) =>
+            File('${root.path}/$path')
+                .writeAsStringSync(_read(root, path).replaceFirst(from, to));
+        edit(
+          topicPath,
+          '- **RULE-30**',
+          '- **RULE-40b** — New.\n- **RULE-30**',
+        );
+        // The two re-stamped links are live: an edit upstream makes each
+        // suspect.
+        edit(storyPath, 'unlike Scenario 9', 'unlike Scenario 1');
+        edit(tracingPath, '`doc_model` RULE-31', '`doc_model` RULE-1');
         expect(await findingsOf(root, home, 'item_id_lettered'), [
           topicPath.substring(5),
         ]);
+        expect(
+          await findingsOf(root, home, 'suspect'),
+          unorderedEquals([
+            for (final path in [suspectPath, proseTracingPath, apiPath])
+              path.substring(5),
+          ]),
+        );
       });
     });
   }, skip: hasGit ? null : 'git is not available');

@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -424,4 +425,72 @@ confirmed:
       '  - "S9 ${fingerprintOf(_renumbered)}"\n---\n# C\n',
     );
   });
+
+  test('$_fr E18: a scenario whose prose the pass rewrites keeps a current '
+      'link; an entry already suspect stays suspect', () {
+    const eight = '### Scenario 8 — [error] eight\n\n- **Given** g';
+    const mentioning = '$eight, unlike Scenario 6a';
+    final story = _story.replaceFirst(eight, mentioning);
+    String tracing(String fingerprint) =>
+        '---\ntraced_from: [S8]\nconfirmed:\n  - S8 $fingerprint\n---\n# C\n';
+
+    final applied = _applied({
+      _storyPath: story,
+      _frPath: tracing(fingerprintOf(mentioning)),
+      _siblingFrPath: tracing('000000000000'),
+    });
+
+    expect(
+      applied[_frPath],
+      tracing(fingerprintOf('$eight, unlike Scenario 9')),
+    );
+    expect(applied[_siblingFrPath], tracing('000000000000'));
+  });
+
+  test('$_fr E18: an FR Statement the pass rewrites keeps the api FR trace '
+      'link current', () {
+    final fr = _frDoc('000000000000');
+    String api(String fingerprint) =>
+        '---\nconfirmed:\n  - b/c $fingerprint\n---\n# A\n\n## FR trace\n\n'
+        '| FR | Operation |\n|----|-----------|\n| b/c | get |\n';
+    final docs = {
+      _topicPath: _topic,
+      'prds/features/f01_a/FEATURE.md': '# A\n',
+      _frPath: fr,
+      'specs/f01_a/API.md': api(fingerprintOf(_statementOf(fr))),
+    };
+
+    final applied = _applied(docs);
+
+    expect(
+      applied['specs/f01_a/API.md'],
+      api(fingerprintOf(_statementOf(applied[_frPath]!))),
+    );
+    expect(_statementOf(applied[_frPath]!), isNot(_statementOf(fr)));
+  });
+
+  test('$_fr E18: a lettered project goal cited in an nf traced_from takes '
+      'the new number', () {
+    const project = '''
+# P
+
+## Project goals
+
+- **PG-01** — One.
+- **PG-2a** — Lettered.
+''';
+    const nf = '---\nkind: add\ntraced_from:\n  - PG-2a\n---\n# D\n';
+
+    final pass = _planOf({'prds/PROJECT.md': project, _nfPath: nf});
+
+    expect(pass.apply(_nfPath, nf), nf.replaceFirst('PG-2a', 'PG-02'));
+    expect(pass.planLine, endsWith('; references: $_nfPath'));
+  });
 }
+
+/// The body of the `## Statement` section of [lf], as `check` fingerprints an
+/// FR's statement.
+String _statementOf(String lf) =>
+    Doc.parse(lf).sections
+        .firstWhere((section) => section.headerText == 'Statement')
+        .body;

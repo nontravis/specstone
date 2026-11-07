@@ -22,6 +22,10 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 // MARK: - Constants
 
 const _gnfrType = 'gnfr';
+const _frType = 'fr';
+const _apiType = 'api';
+const _projectType = 'project';
+const _statementSection = 'statement';
 const _tracedFromKey = 'traced_from';
 const _overridesKey = 'overrides';
 const _confirmedKey = 'confirmed';
@@ -32,6 +36,7 @@ const _planLabel = 'renumber ids: ';
 const _referencesLabel = '; references: ';
 const _lineFeed = 0x0A;
 final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
+final _slugPlaceholder = RegExp(r'\{slug\}');
 
 // MARK: - Types
 
@@ -45,8 +50,25 @@ typedef _Named = ({String docPath, String from, String to});
 /// entry records.
 typedef _Stamp = ({String before, String after});
 
-/// The stamps of the run, keyed by the renumbered doc and its old ID.
+/// The stamps of the run, keyed by the upstream doc and the block's key
+/// before the pass.
 typedef _Stamps = Map<(String, String), _Stamp>;
+
+/// The kinds of block a `confirmed` entry tracks.
+enum _Block { scenario, nfrStatement, frStatement }
+
+/// A block a link tracks: its key before and after the pass, and its text
+/// before.
+typedef _TrackedBlock = ({
+  _Block kind,
+  String key,
+  String newKey,
+  String before,
+});
+
+/// The block a `confirmed` label tracks, as a stamp key, and the label after
+/// the pass.
+typedef _Target = ({String label, (String, String) block});
 
 /// A link or code span opening at column `at` of a line, and the DocPaths
 /// it cites: empty for a doc address that names no doc of the run.
@@ -116,60 +138,95 @@ final class RenumberPass {
 
   // MARK: - Stamps
 
-  /// The fingerprints of each renumbered block a `confirmed` entry tracks.
+  /// The fingerprints of each tracked block whose ID tokens the pass
+  /// rewrites, the renumbered blocks included (R60, P25).
   ///
   /// The new fingerprint reads the doc's final text, laid out as `format`
-  /// lays it out, so the first `check` after the run matches it (R60).
+  /// lays it out, so the first `check` after the run matches it (P5).
   _Stamps _stampsOf() {
     final stamps = <(String, String), _Stamp>{};
     for (final doc in _docs.values) {
-      final tracked = [
-        for (final lettered in doc.lettered)
-          if (_isTracked(doc, lettered)) lettered,
-      ];
-      if (tracked.isEmpty) continue;
-      final finalText = layOutDoc(_rewriteOf(doc, const {}).lf, doc.type);
-      final finalDoc = _RunDoc(doc.docPath, finalText, doc.type);
-      for (final lettered in tracked) {
-        stamps[(doc.docPath, lettered.from)] = (
-          before: fingerprintOf(_letteredBlock(doc, lettered.item)),
-          after: fingerprintOf(_renumberedBlock(finalDoc, lettered)),
+      final rewritten = _rewriteOf(doc, const {}).lf;
+      if (rewritten == doc.lf) continue;
+      final blocks = _trackedBlocksOf(doc);
+      if (blocks.isEmpty) continue;
+      final passed = _RunDoc(doc.docPath, rewritten, doc.type);
+      final laidOut = layOutDoc(rewritten, doc.type);
+      final finalDoc = _RunDoc(doc.docPath, laidOut, doc.type);
+      for (final (:kind, :key, :newKey, :before) in blocks) {
+        final beforeFingerprint = fingerprintOf(before);
+        final passedText = passed.trackedText(kind, newKey);
+        if (fingerprintOf(passedText) == beforeFingerprint) continue;
+        stamps[(doc.docPath, key)] = (
+          before: beforeFingerprint,
+          after: fingerprintOf(finalDoc.trackedText(kind, newKey)),
         );
       }
     }
     return stamps;
   }
 
-  /// Whether a link tracks [lettered]: a scenario, or a `gnfr` NFR.
-  static bool _isTracked(_RunDoc doc, _Lettered lettered) =>
-      lettered.item.prefix == scenarioIdPrefix || doc.type.id == _gnfrType;
+  /// The blocks of [doc] a link tracks, each with its key before and after
+  /// the pass: scenario blocks, `gnfr` NFR Statements, an FR's Statement.
+  static List<_TrackedBlock> _trackedBlocksOf(_RunDoc doc) => [
+    if (doc.holdsScenarios) ..._scenarioBlocksOf(doc),
+    if (doc.type.id == _gnfrType) ..._nfrStatementsOf(doc),
+    if (doc.type.id == _frType)
+      if (doc.statementBody case final body?)
+        (
+          kind: _Block.frStatement,
+          key: _statementSection,
+          newKey: _statementSection,
+          before: body,
+        ),
+  ];
 
-  /// The text a link fingerprints of the lettered [item], read from its line
-  /// span (P5): a scenario's block, an NFR's Statement line.
-  static String _letteredBlock(_RunDoc doc, IdAt item) {
-    if (item.prefix != scenarioIdPrefix) return doc.statementOf(item);
-    return doc.lines.sublist(item.line - 1, item.endLine).join('\n');
-  }
+  /// The scenario blocks of [doc]; a lettered one is read from its line
+  /// span (P5), since `check` keys no block for it.
+  static List<_TrackedBlock> _scenarioBlocksOf(_RunDoc doc) => [
+    for (final MapEntry(key: ref, value: text) in doc.scenarioBlocks.entries)
+      (kind: _Block.scenario, key: ref, newKey: ref, before: text),
+    for (final (:item, :from, :to, docPath: _) in doc.lettered)
+      if (item.prefix == scenarioIdPrefix)
+        (
+          kind: _Block.scenario,
+          key: _scenarioRefOf(from),
+          newKey: _scenarioRefOf(to),
+          before: doc.lines.sublist(item.line - 1, item.endLine).join('\n'),
+        ),
+  ];
 
-  static String _renumberedBlock(_RunDoc finalDoc, _Lettered lettered) {
-    if (lettered.item.prefix == scenarioIdPrefix) {
-      return finalDoc.scenarioBlocks[_scenarioRefOf(lettered.to)] ?? '';
-    }
-    final item = finalDoc.items
-        .where((item) => item.id?.written == lettered.to)
-        .firstOrNull;
-    return item == null ? '' : finalDoc.statementOf(item);
+  static List<_TrackedBlock> _nfrStatementsOf(_RunDoc doc) {
+    final toAt = {
+      for (final lettered in doc.lettered) lettered.item.line: lettered.to,
+    };
+    return [
+      for (final item in doc.items)
+        if (item.id case final id?)
+          (
+            kind: _Block.nfrStatement,
+            key: id.written,
+            newKey: toAt[item.line] ?? id.written,
+            before: doc.statementOf(item),
+          ),
+    ];
   }
 
   // MARK: - Rewrite
 
   _Rewrite _rewriteOf(_RunDoc doc, _Stamps stamps) {
-    if (!_index.mayName(doc.lf)) return (lf: doc.lf, citesOthers: false);
-    final lines = [...doc.lines];
-    final body = _BodyRewrite(doc, _index, lines);
-    final citesInBody = body.rewriteTokens();
-    final rewritesSteps = body.rewriteSteps();
-    final bodyText = lines.join('\n');
+    final namesIds = _index.mayName(doc.lf);
+    if (!namesIds && stamps.isEmpty) return (lf: doc.lf, citesOthers: false);
+    var citesInBody = false;
+    var rewritesSteps = false;
+    var bodyText = doc.lf;
+    if (namesIds) {
+      final lines = [...doc.lines];
+      final body = _BodyRewrite(doc, _index, lines);
+      citesInBody = body.rewriteTokens();
+      rewritesSteps = body.rewriteSteps();
+      bodyText = lines.join('\n');
+    }
     final lf = _withEntriesRewritten(bodyText, doc, stamps);
     return (
       lf: lf,
@@ -178,17 +235,20 @@ final class RenumberPass {
   }
 
   /// Returns [lf] with each `traced_from`, `overrides`, and `confirmed` value
-  /// naming a renumbered scenario or NFR set to its new number.
+  /// naming a renumbered ID set to its new number, and each matched
+  /// `confirmed` fingerprint of a block the pass rewrote set to the new one.
   String _withEntriesRewritten(String lf, _RunDoc doc, _Stamps stamps) {
-    final ownStory = _index.parentStoryOf[doc.docPath];
-    String? renamed(String label) =>
-        _index.renamedLabel(label, ownStory: ownStory)?.label;
-    var text = _withBlockValues(lf, _tracedFromKey, renamed);
-    text = _withBlockValues(text, _overridesKey, renamed);
+    final docPath = doc.docPath;
+    var text = _withBlockValues(
+      lf,
+      _tracedFromKey,
+      (value) => _index.tracedFromLabel(value, docPath),
+    );
+    text = _withBlockValues(text, _overridesKey, _index.overridesLabel);
     final confirmed = _ConfirmedRenamer((label) {
-      final named = _index.renamedLabel(label, ownStory: ownStory);
-      if (named == null) return null;
-      return (label: named.label, stamp: stamps[(named.docPath, named.from)]);
+      final target = _index.confirmedTarget(label, docPath);
+      if (target == null) return null;
+      return (label: target.label, stamp: stamps[target.block]);
     });
     return _withBlockValues(text, _confirmedKey, confirmed.call);
   }
@@ -259,6 +319,26 @@ final class _RunDoc {
     return '';
   }
 
+  /// The body of the held `statement` section, as `check` fingerprints an
+  /// FR; null without one.
+  String? get statementBody {
+    final index = heldSectionIndex(content, type, _statementSection);
+    return index == null ? null : content.sections[index].body;
+  }
+
+  /// The text a link fingerprints of the block [key] of [kind]; empty when
+  /// the doc holds none.
+  String trackedText(_Block kind, String key) => switch (kind) {
+    _Block.scenario => scenarioBlocks[key] ?? '',
+    _Block.nfrStatement => _nfrStatementOf(key),
+    _Block.frStatement => statementBody ?? '',
+  };
+
+  String _nfrStatementOf(String id) {
+    final item = items.where((item) => item.id?.written == id).firstOrNull;
+    return item == null ? '' : statementOf(item);
+  }
+
   List<_Lettered> _letteredOf() {
     final read = [
       for (final item in items)
@@ -290,6 +370,7 @@ final class _IdIndex {
     : _lettered = [for (final doc in docs) ...doc.lettered] {
     for (final doc in docs) {
       _docPaths.add(doc.docPath);
+      _typeIds[doc.docPath] = doc.type.id;
       (_byName[doc.name] ??= []).add(doc.docPath);
       (_byTypedName['${doc.type.id}:${doc.name}'] ??= []).add(doc.docPath);
       if (doc.holdsScenarios) {
@@ -300,51 +381,75 @@ final class _IdIndex {
       (_toByDoc[docPath] ??= {}).putIfAbsent(from, () => to);
       prefixes.add(item.prefix);
     }
-    _indexNfrs(docs);
-    _indexParentStories(docs);
+    _indexIdsOfType(docs, _gnfrType, _nfrPaths, letteredOnly: false);
+    _indexIdsOfType(docs, _projectType, _projectPaths, letteredOnly: true);
+    _indexParents(docs);
   }
 
   final List<_Lettered> _lettered;
   final _docPaths = <String>{};
+  final _typeIds = <String, String>{};
   final _byName = <String, List<String>>{};
   final _byTypedName = <String, List<String>>{};
   final _storyPaths = <String, String>{};
   final _toByDoc = <String, Map<String, String>>{};
+
+  /// The `gnfr` doc holding each NFR ID.
   final _nfrPaths = <String, String>{};
+
+  /// The `project` doc holding each lettered project ID.
+  final _projectPaths = <String, String>{};
+
+  /// The Name of each doc's parent, by DocPath.
+  final _parentNames = <String, String>{};
 
   /// The prefixes of the renumbered IDs.
   final prefixes = <String>{};
-
-  /// The Name of the story each doc under a story sits under, by DocPath.
-  final parentStoryOf = <String, String>{};
 
   List<({String docPath, String from, String to})> get renumberings => [
     for (final (:docPath, item: _, :from, :to) in _lettered)
       (docPath: docPath, from: from, to: to),
   ];
 
-  void _indexNfrs(List<_RunDoc> docs) {
+  /// Maps each item ID of the docs of [typeId], or each lettered one, to its
+  /// doc; the first doc in tree order wins.
+  static void _indexIdsOfType(
+    List<_RunDoc> docs,
+    String typeId,
+    Map<String, String> paths, {
+    required bool letteredOnly,
+  }) {
     for (final doc in docs) {
-      if (doc.type.id != _gnfrType) continue;
-      for (final lettered in doc.lettered) {
-        _nfrPaths.putIfAbsent(lettered.from, () => doc.docPath);
+      if (doc.type.id != typeId) continue;
+      final ids = letteredOnly
+          ? [for (final lettered in doc.lettered) lettered.from]
+          : [for (final item in doc.items) ?item.id?.written];
+      for (final id in ids) {
+        paths.putIfAbsent(id, () => doc.docPath);
       }
     }
   }
 
-  /// Gives each doc whose type has a parent the story with the longest Name
-  /// that opens the doc's Name.
-  void _indexParentStories(List<_RunDoc> docs) {
+  /// Names each doc's parent as `check`'s parent resolution does: its Name
+  /// less the `{slug}`s its type adds to the parent type's, when exactly one
+  /// doc of the parent type carries that Name.
+  void _indexParents(List<_RunDoc> docs) {
+    final types = {for (final doc in docs) doc.type.id: doc.type};
     for (final doc in docs) {
-      if (doc.type.parent == null) continue;
-      String? parent;
-      for (final name in _storyPaths.keys) {
-        final isLonger = name.length > (parent?.length ?? -1);
-        if (isLonger && doc.name.startsWith('$name/')) parent = name;
-      }
-      if (parent != null) parentStoryOf[doc.docPath] = parent;
+      final parentType = types[doc.type.parent];
+      if (parentType == null || parentType.id == doc.type.id) continue;
+      final parentSlugs = _slugCountOf(parentType);
+      final segments = doc.name.split('/');
+      final length = segments.length - _slugCountOf(doc.type) + parentSlugs;
+      if (parentSlugs == 0 || length < parentSlugs) continue;
+      final name = segments.take(length).join('/');
+      final parents = _byTypedName['${parentType.id}:$name'];
+      if (parents?.length == 1) _parentNames[doc.docPath] = name;
     }
   }
+
+  static int _slugCountOf(MergedDocType type) =>
+      _slugPlaceholder.allMatches(type.path ?? '').length;
 
   /// Whether [lf] holds the text of any renumbered ID or scenario ref.
   bool mayName(String lf) => _lettered.any(
@@ -356,28 +461,60 @@ final class _IdIndex {
   /// The new ID of [from] in the doc at [docPath], or null.
   String? toOf(String docPath, String from) => _toByDoc[docPath]?[from];
 
-  /// Returns [label], a scenario ref or an NFR ID, with its new number; null
-  /// when it names no renumbered item. An `S<N>` ref names a scenario of
-  /// [ownStory].
-  ({String label, String docPath, String from})? renamedLabel(
-    String label, {
-    required String? ownStory,
-  }) {
-    if (readScenarioRef(label) case final ref?) {
-      final storyName = ref.storyName;
-      final named = scenarioOf(storyName ?? ownStory, ref.number);
-      if (named == null) return null;
-      final number = _scenarioRefOf(named.to);
-      return (
-        label: storyName == null ? number : '$storyName#$number',
-        docPath: named.docPath,
-        from: named.from,
-      );
-    }
+  /// The new `traced_from` value of [value] in the doc at [docPath]: a
+  /// renumbered scenario ref or project ID; null to keep it.
+  String? tracedFromLabel(String value, String docPath) {
+    final scenario = scenarioTarget(value, docPath)?.label;
+    if (scenario != null) return scenario == value ? null : scenario;
+    final projectPath = _projectPaths[value];
+    return projectPath == null ? null : toOf(projectPath, value);
+  }
+
+  /// The new `overrides` value of [value], a renumbered NFR ID; null to keep
+  /// it.
+  String? overridesLabel(String value) {
+    final docPath = _nfrPaths[value];
+    return docPath == null ? null : toOf(docPath, value);
+  }
+
+  /// The block a `confirmed` [label] of the doc at [docPath] tracks, as
+  /// `check` resolves it: a scenario ref, an NFR ID, or an api's FR ref.
+  _Target? confirmedTarget(String label, String docPath) =>
+      scenarioTarget(label, docPath) ??
+      _nfrTarget(label) ??
+      _frTarget(label, docPath);
+
+  /// The scenario block the ref [label] in the doc at [docPath] names, an
+  /// `S<N>` ref one of the doc's parent story.
+  _Target? scenarioTarget(String label, String docPath) {
+    final ref = readScenarioRef(label);
+    if (ref == null) return null;
+    final storyName = ref.storyName;
+    final named = storyName ?? _parentNames[docPath];
+    final storyPath = named == null ? null : _storyPaths[named];
+    if (storyPath == null) return null;
+    final written = ref.number.written;
+    final to = scenarioOf(named, ref.number)?.to;
+    final number = to == null ? written : _scenarioRefOf(to);
+    return (
+      label: storyName == null ? number : '$storyName#$number',
+      block: (storyPath, written),
+    );
+  }
+
+  _Target? _nfrTarget(String label) {
     final docPath = _nfrPaths[label];
-    final to = docPath == null ? null : toOf(docPath, label);
-    if (docPath == null || to == null) return null;
-    return (label: to, docPath: docPath, from: label);
+    if (docPath == null) return null;
+    return (label: toOf(docPath, label) ?? label, block: (docPath, label));
+  }
+
+  /// The FR an api's FR ref [label] names: `<feature Name>/<label>`.
+  _Target? _frTarget(String label, String docPath) {
+    final feature = _parentNames[docPath];
+    if (_typeIds[docPath] != _apiType || feature == null) return null;
+    final frPath = _byTypedName['$_frType:$feature/$label']?.firstOrNull;
+    if (frPath == null) return null;
+    return (label: label, block: (frPath, _statementSection));
   }
 
   /// The renumbering of scenario [number] of the story named [storyName].
@@ -639,7 +776,8 @@ final class _ConfirmedRenamer {
     }
     final renamed = _rename(value);
     _pending = renamed?.stamp;
-    return renamed?.label;
+    final label = renamed?.label;
+    return label == value ? null : label;
   }
 
   String? _entry(String label, String fingerprint) {
@@ -647,6 +785,7 @@ final class _ConfirmedRenamer {
     if (renamed == null) return null;
     final stamp = renamed.stamp;
     final matched = stamp != null && fingerprint == stamp.before;
-    return '${renamed.label} ${matched ? stamp.after : fingerprint}';
+    final entry = '${renamed.label} ${matched ? stamp.after : fingerprint}';
+    return entry == '$label $fingerprint' ? null : entry;
   }
 }
