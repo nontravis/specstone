@@ -6,8 +6,8 @@ import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/link_places.dart'
-    show wholeLinkHrefOf;
+import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_places.dart' show LinkPlace;
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:yaml/yaml.dart';
@@ -24,6 +24,7 @@ const _separator = '/';
 const _seeMarker = ' see ';
 const _notApplicable = 'N/A — ';
 const _backtick = '`';
+const _linkOpen = '[';
 const _trailingPunctuation = '.,;:!?';
 const _templatesFolder = '.specstone/templates';
 const _referenceKey = 'reference';
@@ -106,7 +107,7 @@ Iterable<Finding> _unresolvedConcerns(
     for (final section in held)
       headerKey(section.headerLine.trimLeft().substring(2)),
   };
-  final anchors = context.contentOf(doc).lineFacts.anchors;
+  final facts = context.contentOf(doc).lineFacts;
   for (var i = 0; i < held.length; i++) {
     if (context.templateSectionAt(doc, i)?.id != concernsSectionId) {
       continue;
@@ -114,10 +115,10 @@ Iterable<Finding> _unresolvedConcerns(
     for (final line in context.bodyLinesOf(doc, i)) {
       final target = line.fenced ? null : seeTargetIn(line.text)?.text;
       if (target == null) continue;
-      if (headers.contains(headerKey(target)) ||
-          _seeResolves(context, doc, target, anchors)) {
-        continue;
-      }
+      final resolves = target.startsWith(_linkOpen)
+          ? _linkSeeResolves(context, facts, line.line)
+          : _pathSeeResolves(context, doc, target, facts.anchors);
+      if (headers.contains(headerKey(target)) || resolves) continue;
       yield context.finding(
         doc,
         FindingKind.concernsTargetUnresolved,
@@ -159,31 +160,67 @@ String _withoutTrailingPunctuation(String text) {
 /// Whether [target], a `see` target that is no section header, names a file
 /// beside [doc] or an anchor of the doc or of that file (R63).
 ///
-/// The target is a markdown link `[text](href)` or a bare path or `#anchor`.
-/// An anchor set that is unknown (null) or a file no doc indexes raises
-/// nothing; [anchors] is the set of [doc] itself.
-bool _seeResolves(
+/// The target is a bare path or `#anchor`; a target written with link syntax
+/// goes to [_linkSeeResolves]. An anchor set that is unknown (null) or a file
+/// no doc indexes raises nothing; [anchors] is the set of [doc] itself.
+bool _pathSeeResolves(
   CheckContext context,
   IndexedDoc doc,
   String target,
   DocAnchors? anchors,
 ) {
-  final href = wholeLinkHrefOf(target) ?? target;
-  if (readLinkTarget(href) case RelativeLink(:final segments, :final anchor)) {
-    final named = anchor == null || anchor.isEmpty ? null : anchor;
+  if (readLinkTarget(target) case RelativeLink(
+    :final segments,
+    :final anchor,
+  )) {
+    final named = _namedAnchor(anchor);
     if (segments.isEmpty) {
-      return anchor != null && (named == null || _holds(anchors, named));
+      return anchor != null && _anchorHeld(anchors, named);
     }
-    final path = relativeFilePathOf(href, doc.docPath);
-    if (path == null || !File('${context.docsRoot.path}/$path').existsSync()) {
-      return false;
-    }
-    final file = context.index.at(path);
-    return named == null ||
-        file == null ||
-        _holds(context.contentOf(file).lineFacts.anchors, named);
+    final path = relativeFilePathOf(target, doc.docPath);
+    return path != null && _fileHolds(context, path, named);
   }
   return false;
+}
+
+/// Whether every link the link rule reads on [line] of a doc, reference
+/// definitions known, names a file beside the doc or an anchor of the doc or
+/// of that file (R63).
+///
+/// A line with no link place (a web address) resolves nothing; a doc whose
+/// markdown did not parse (null anchors) raises nothing.
+bool _linkSeeResolves(CheckContext context, LineFacts facts, int line) {
+  if (facts.anchors == null) return true;
+  bool onLine(LinkPlace place) => place.line == line;
+  final fileLinks = [...facts.links, ...facts.fileLinks].where(onLine);
+  final selfLinks = facts.selfLinks.where(onLine);
+  if (facts.unreadableLinks.any(onLine)) return false;
+  if (fileLinks.isEmpty && selfLinks.isEmpty) return false;
+  return fileLinks.every(
+        (place) =>
+            _fileHolds(context, place.target, _namedAnchor(place.anchor)),
+      ) &&
+      selfLinks.every(
+        (place) =>
+            place.anchor != null &&
+            _anchorHeld(facts.anchors, _namedAnchor(place.anchor)),
+      );
+}
+
+String? _namedAnchor(String? anchor) =>
+    anchor == null || anchor.isEmpty ? null : anchor;
+
+bool _anchorHeld(DocAnchors? anchors, String? named) =>
+    named == null || _holds(anchors, named);
+
+/// Whether the file at [path] under the docs root exists and, when it is an
+/// indexed doc, holds the anchor [named].
+bool _fileHolds(CheckContext context, String path, String? named) {
+  if (!File('${context.docsRoot.path}/$path').existsSync()) return false;
+  final file = context.index.at(path);
+  return named == null ||
+      file == null ||
+      _holds(context.contentOf(file).lineFacts.anchors, named);
 }
 
 bool _holds(DocAnchors? anchors, String anchor) =>

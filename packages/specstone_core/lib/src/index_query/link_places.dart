@@ -88,23 +88,6 @@ LinkPlaces? linkPlacesOf(
   );
 }
 
-/// Returns the href `markdown` gives [text] when [text] is one link and
-/// nothing else, or null for any other text.
-///
-/// Reads the href as [linkPlacesOf] reads every link, so a caller that holds
-/// one link agrees with the link rule on each CommonMark form.
-String? wholeLinkHrefOf(String text) {
-  final nodes = parseMarkdown(text);
-  if (nodes == null || nodes.length != 1) return null;
-  final paragraph = nodes.single;
-  if (paragraph is! Element || paragraph.tag != 'p') return null;
-  final children = paragraph.children;
-  if (children == null || children.length != 1) return null;
-  final link = children.single;
-  if (link is! Element || link.tag != 'a') return null;
-  return link.attributes['href'];
-}
-
 /// Returns the places of [placed], each href taking its nth use among the
 /// destinations of [sources], or line 1 when it has no nth use.
 List<LinkPlace> _placedByUse(

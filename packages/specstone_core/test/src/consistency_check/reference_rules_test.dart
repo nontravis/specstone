@@ -176,6 +176,44 @@ void main() {
     ]);
   });
 
+  test('f04/us02/fr05: a bare see path stays a path and a reference-style link reads the doc definitions', () async {
+    Future<List<String>> targetsOf(
+      String concerns,
+      Map<String, String> files,
+    ) async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
+            ...files,
+          },
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.concernsTargetUnresolved)
+            f.toJson()['target']! as String,
+      ];
+    }
+
+    expect(
+      await targetsOf('- A: see notes@v2.md\n- B: see www.x.md\n', {
+        'docs/specs/f01_login/notes@v2.md': '# N\n',
+        'docs/specs/f01_login/www.x.md': '# W\n',
+      }),
+      isEmpty,
+    );
+    expect(
+      await targetsOf('- A: see [x][r]\n\n[r]: API.md\n', {
+        'docs/specs/f01_login/API.md': '# Api\n',
+      }),
+      isEmpty,
+    );
+    expect(await targetsOf('- A: see [x][r]\n\n[r]: GONE.md\n', {}), [
+      '[x][r]',
+    ]);
+  });
+
   test('f04/us02/fr05/e07, cc-s03/inv2: a merged set with no architecture doc type runs no Concerns rule', () async {
     final report = checkOf(
       await writeCheckProject(
