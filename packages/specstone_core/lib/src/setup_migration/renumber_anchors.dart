@@ -8,6 +8,8 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show parseLinkFreeBody;
 import 'package:specstone_core/src/index_query/held_sections.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show docStructureOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 
@@ -135,7 +137,7 @@ AnchorRewrite? withConcernsAnchorsMoved(
   SlugMoves moves,
 ) {
   if (doc.type.id != architectureTypeId || !moves.mayName(lf)) return null;
-  final content = doc.content;
+  final content = docStructureOf(lf, doc.type);
   final section = heldSectionIndex(content, doc.type, concernsSectionId);
   if (section == null) return null;
   final lines = lf.split('\n');

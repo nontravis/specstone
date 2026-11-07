@@ -683,6 +683,31 @@ confirmed:
     );
   });
 
+  test('$_fr E18 (W3, R63): a Concerns line whose text the token rewrite or '
+      'the link anchor move already changed still moves its see anchor', () {
+    const anchor = 'scenario-6a--edge-lettered';
+    const moved = 'scenario-9--edge-lettered';
+    const story = '$_story\n';
+    const target = '../../prds/features/f01_a/us01_b/USER_STORY.md';
+    const architecture =
+        '# A\n\n## Concerns\n\n'
+        '- Errors — `doc_model` RULE-7a, see $target#$anchor\n'
+        '- Auth — [it]($target#$anchor), see $target#$anchor\n';
+
+    final applied = _applied({
+      _storyPath: story,
+      _topicPath: _topic,
+      'specs/f01_a/ARCHITECTURE.md': architecture,
+    })['specs/f01_a/ARCHITECTURE.md']!;
+
+    expect(
+      applied,
+      '# A\n\n## Concerns\n\n'
+      '- Errors — `doc_model` RULE-31, see $target#$moved\n'
+      '- Auth — [it]($target#$moved), see $target#$moved\n',
+    );
+  });
+
   test('$_fr E18 (W3): an untyped doc takes only the moved anchors of its '
       'links, and refuses a text other than the one planned', () {
     const notesPath = 'prds/notes.md';
