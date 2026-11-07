@@ -161,6 +161,25 @@ void main() {
     expect(read(back), ['specs/f02_b/img(1).png']);
   });
 
+  test('rewrite_links_to_moved_docs E15: a destination inside an unreferenced footnote stays as written on a move, and one inside a referenced footnote moves', () {
+    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const doc = 'specs/f01_a/DOMAIN.md';
+
+    final unreferenced = rewriteDocLinks(
+      'Text.\n\n[^1]: Also [x](../t_doc.md).\n',
+      docPath: doc,
+      moves: moves,
+    );
+    final referenced = rewriteDocLinks(
+      'Text[^1].\n\n[^1]: Also [x](../t_doc.md).\n',
+      docPath: doc,
+      moves: moves,
+    );
+
+    expect(unreferenced, isNull);
+    expect(referenced, 'Text[^1].\n\n[^1]: Also [x](../m/t_doc.md).\n');
+  });
+
   test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
     const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
 
