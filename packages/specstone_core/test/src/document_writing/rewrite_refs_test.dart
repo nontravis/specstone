@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -105,6 +106,33 @@ void main() {
       '[a](../m/t_doc.md#a\\)b) [b](../m/t_doc.md#f\\(x) [c](../m/t_doc.md#a&amp;copy;)\n'
       '[d](../m/t_doc.md&#35;s) [e](<../m/t_doc.md?q=a b#x>) [f](../m/t_doc.md\\#y)\n',
     );
+  });
+
+  test('f02/us05/fr02, R74: a move to or from a path with a paren keeps a bare inline link one link to the same file, its fragment kept', () {
+    const into = <PathMove>[(from: 'specs/t.md', to: 'specs/x(y/t.md')];
+    const back = <PathMove>[(from: 'specs/x(y/t.md', to: 'specs/t.md')];
+    String? moved(String text, List<PathMove> moves) =>
+        rewriteDocLinks(text, docPath: 'specs/d.md', moves: moves);
+    List<(String, String?)>? read(String? text) => linkPlacesOf(
+      text!,
+      docPath: 'specs/d.md',
+      firstLine: 1,
+    )?.docLinks.map((link) => (link.target, link.anchor)).toList();
+
+    final there = moved(
+      'See [a](t.md#z) end. [b](<t.md#z>) [c][r]\n\n[r]: t.md#z\n',
+      into,
+    );
+    final home = moved('See [a](x(y/t.md#z)) end.\n', back);
+
+    expect(
+      there,
+      'See [a](x%28y/t.md#z) end. [b](<x(y/t.md#z>) [c][r]\n\n'
+      '[r]: x(y/t.md#z\n',
+    );
+    expect(read(there), [for (var i = 0; i < 3; i++) ('specs/x(y/t.md', 'z')]);
+    expect(home, 'See [a](t.md#z\\)) end.\n');
+    expect(read(home), [('specs/t.md', 'z)')]);
   });
 
   test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {

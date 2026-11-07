@@ -31,6 +31,12 @@ export 'package:specstone_core/src/document_writing/moved_paths.dart'
 /// The byte-order mark as the one character a journal step's text carries.
 const _bom = '\uFEFF';
 
+const _backslash = 0x5C;
+const _openParen = 0x28;
+const _closeParen = 0x29;
+const _encodedOpenParen = '%28';
+const _encodedCloseParen = '%29';
+
 /// Returns [lfText] with each doc link set to the path [moves] leave its
 /// target at, or null when no link changes.
 ///
@@ -72,10 +78,8 @@ String? rewriteDocLinks(
       if (_movedPath(href, docPath, moves) case final newPath?)
         (
           start: start,
-          end:
-              start +
-              destinationPartsOf(body.substring(start, end), kind).pathEnd,
-          text: newPath,
+          end: end,
+          text: _withPath(body.substring(start, end), kind, newPath),
         ),
   ];
   if (edits.isEmpty) return null;
@@ -88,6 +92,70 @@ String? rewriteDocLinks(
     lfText: lfText.substring(0, lfText.length - body.length) + result,
     count: edits.length,
   );
+}
+
+/// Returns [written], a [kind] destination as written, with [path] in place
+/// of the path it is written with, its `?` or `#` part kept (see
+/// [destinationPartsOf]).
+///
+/// A bare inline destination ends at the first `)` no `(` before it opened.
+/// There the path's parens are written `%28` and `%29`, which decode the same,
+/// and each `)` of the kept part that a `(` of the old path opened takes a
+/// `\`, so the link and its href stay.
+String _withPath(String written, DestinationKind kind, String path) {
+  final pathEnd = destinationPartsOf(written, kind).pathEnd;
+  final kept = written.substring(pathEnd);
+  if (kind != DestinationKind.inline) return '$path$kept';
+  final balanced = path
+      .replaceAll('(', _encodedOpenParen)
+      .replaceAll(')', _encodedCloseParen);
+  final opened = _parensOpenedIn(written.substring(0, pathEnd));
+  return '$balanced${_closersEscaped(kept, opened)}';
+}
+
+/// Returns how many parens [text], part of a bare destination, leaves open;
+/// a backslash takes the unit after it out of the count, as `markdown` reads.
+int _parensOpenedIn(String text) {
+  var open = 0;
+  for (var i = 0; i < text.length; i++) {
+    switch (text.codeUnitAt(i)) {
+      case _backslash:
+        i++;
+      case _openParen:
+        open++;
+      case _closeParen:
+        open--;
+    }
+  }
+  return open;
+}
+
+/// Returns [text] with a `\` before each `)` that closes one of [opened]
+/// parens opened before it.
+String _closersEscaped(String text, int opened) {
+  if (opened == 0) return text;
+  final out = StringBuffer();
+  var open = 0;
+  var unclosed = opened;
+  for (var i = 0; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    if (unit == _backslash && i + 1 < text.length) {
+      out.write(text.substring(i, i + 2));
+      i++;
+      continue;
+    }
+    if (unit == _openParen) open++;
+    if (unit == _closeParen) {
+      if (open > 0) {
+        open--;
+      } else if (unclosed > 0) {
+        unclosed--;
+        out.writeCharCode(_backslash);
+      }
+    }
+    out.writeCharCode(unit);
+  }
+  return out.toString();
 }
 
 /// Returns [lfText] with each `doc_ref` value in [renamed] set to its new
