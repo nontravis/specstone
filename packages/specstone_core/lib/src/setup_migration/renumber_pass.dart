@@ -13,11 +13,16 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _planLabel = 'renumber ids: ';
 const _referencesLabel = '; references: ';
+const _unreadLabel = '; not fully rewritten: ';
 
 // MARK: - Types
 
 /// A rewritten doc and whether it rewrote a reference to another doc's ID.
 typedef _Rewrite = ({String lf, bool citesOthers});
+
+/// The body rewrite of each doc it changes, and each doc whose links it
+/// needs but `markdown` does not read.
+typedef _BodyPass = ({Map<String, _Rewrite> bodies, Set<String> linksUnread});
 
 // MARK: - RenumberPass
 
@@ -61,9 +66,11 @@ final class RenumberPass {
   /// Each renumbering, in tree then document order.
   final List<({String docPath, String from, String to})> renumberings;
 
+  late final _BodyPass _bodyPass = _bodyPassOf();
+
   /// The text after the body rewrite of each doc it changes: ID tokens,
   /// journey steps, then the anchors of links to a moved heading slug.
-  late final Map<String, _Rewrite> _bodies = _bodiesOf();
+  late final Map<String, _Rewrite> _bodies = _bodyPass.bodies;
 
   late final Stamps _stamps = stampsOf(_docs.values, {
     for (final MapEntry(:key, :value) in _bodies.entries) key: value.lf,
@@ -98,6 +105,10 @@ final class RenumberPass {
   }
 
   /// The `renumber ids:` plan line, or null when nothing renumbers.
+  ///
+  /// After the renumberings come the other docs the pass rewrites for them,
+  /// then each doc whose links it needs but `markdown` does not read, whose
+  /// link citations and link anchors stay as written (LP2, R74).
   String? get planLine {
     if (renumberings.isEmpty) return null;
     final ids = [
@@ -108,24 +119,45 @@ final class RenumberPass {
       for (final MapEntry(key: docPath, value: rewrite) in _rewrites.entries)
         if (rewrite.citesOthers) docPath,
     ];
-    if (references.isEmpty) return '$_planLabel$ids';
-    return '$_planLabel$ids$_referencesLabel${references.join(', ')}';
+    final unread = [
+      for (final docPath in _texts.keys)
+        if (_bodyPass.linksUnread.contains(docPath)) docPath,
+    ];
+    return [
+      '$_planLabel$ids',
+      if (references.isNotEmpty) '$_referencesLabel${references.join(', ')}',
+      if (unread.isNotEmpty) '$_unreadLabel${unread.join(', ')}',
+    ].join();
   }
 
-  Map<String, _Rewrite> _bodiesOf() {
+  _BodyPass _bodyPassOf() {
     final bodies = <String, _Rewrite>{};
+    final linksUnread = <String>{};
     for (final doc in _docs.values) {
-      final rewrite = _tokenRewriteOf(doc);
+      final (:rewrite, :linksRead) = _tokenRewriteOf(doc);
       if (rewrite != null) bodies[doc.docPath] = rewrite;
+      if (!linksRead) linksUnread.add(doc.docPath);
     }
     final moves = slugMovesOf(_docs.values, {
       for (final MapEntry(:key, :value) in bodies.entries) key: value.lf,
     });
-    if (moves.isEmpty) return bodies;
+    if (!moves.isEmpty) _moveAnchors(bodies, linksUnread, moves);
+    return (bodies: bodies, linksUnread: linksUnread);
+  }
+
+  /// Sets in [bodies] each doc whose link anchors or bare `see` anchors
+  /// [moves] change, and adds to [linksUnread] each doc whose links
+  /// `markdown` does not read.
+  void _moveAnchors(
+    Map<String, _Rewrite> bodies,
+    Set<String> linksUnread,
+    SlugMoves moves,
+  ) {
     for (final MapEntry(key: docPath, value: lf) in _texts.entries) {
       var current = bodies[docPath] ?? (lf: lf, citesOthers: false);
-      final links = withAnchorsMoved(current.lf, docPath, moves);
-      if (links != null) current = _merged(current, links);
+      final (:moved, :linksRead) = withAnchorsMoved(current.lf, docPath, moves);
+      if (!linksRead) linksUnread.add(docPath);
+      if (moved != null) current = _merged(current, moved);
       final doc = _docs[docPath];
       final concerns = doc == null
           ? null
@@ -133,26 +165,31 @@ final class RenumberPass {
       if (concerns != null) current = _merged(current, concerns);
       if (current.lf != lf) bodies[docPath] = current;
     }
-    return bodies;
   }
 
   _Rewrite _merged(_Rewrite before, AnchorRewrite moved) =>
       (lf: moved.lf, citesOthers: before.citesOthers || moved.citesOthers);
 
-  /// The doc's ID tokens and journey steps rewritten; null when none
-  /// changes.
-  _Rewrite? _tokenRewriteOf(RenumberDoc doc) {
+  /// The doc's ID tokens and journey steps rewritten, null when none
+  /// changes, and whether `markdown` read the links a token's citation may
+  /// come from.
+  ({_Rewrite? rewrite, bool linksRead}) _tokenRewriteOf(RenumberDoc doc) {
     final stepsMayChange =
         doc.type.id == journeyTypeId && _index.renumbersScenarios;
     final body = doc.lf.substring(doc.frontmatterText.length);
-    if (!stepsMayChange && !_index.mayName(body)) return null;
+    final namesToken = _index.mayName(body);
+    if (!stepsMayChange && !namesToken) return (rewrite: null, linksRead: true);
     final lines = [...doc.lines];
     final rewrite = RenumberBodyRewrite(doc, _index, lines);
     final citesInBody = rewrite.rewriteTokens();
     final rewritesSteps = rewrite.rewriteSteps();
     final lf = lines.join('\n');
-    if (lf == doc.lf) return null;
-    return (lf: lf, citesOthers: citesInBody || rewritesSteps);
+    return (
+      rewrite: lf == doc.lf
+          ? null
+          : (lf: lf, citesOthers: citesInBody || rewritesSteps),
+      linksRead: !namesToken || rewrite.linksRead,
+    );
   }
 
   _Rewrite? _rewriteOf(RenumberDoc doc) {

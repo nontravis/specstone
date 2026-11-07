@@ -120,18 +120,20 @@ Iterable<Finding> _unresolvedConcerns(
       final see = line.fenced ? null : seeTargetIn(line.text);
       if (see == null) continue;
       final target = see.text;
-      final href = sources.destinationSpanning(
+      final link = sources.linkSpanning(
         line.line,
         start: see.start,
         end: see.start + target.length,
       );
+      // The doc's markdown_unparsed already says its links go unchecked (E14).
+      if (link case (href: null)) continue;
       final resolves = _seeResolves(
         context,
         doc,
-        href ?? target,
+        link?.href ?? target,
         headers,
         anchors,
-        isLink: href != null,
+        isLink: link != null,
       );
       if (resolves) continue;
       yield context.finding(
@@ -225,18 +227,18 @@ final class _LinkSources {
   /// known (see [sourceHrefsOf]).
   late final List<String>? _hrefs = sourceHrefsOf(_body, _all);
 
-  /// Returns the href `markdown` gives the one link that spans column
-  /// [start] to column [end] of file line [line], as the link rule reads it,
-  /// or null when no link spans them, it has no destination, or its href is
-  /// unknown.
-  String? destinationSpanning(
+  /// Returns the one link that spans column [start] to column [end] of file
+  /// line [line], as the link rule reads it, with the href `markdown` gives
+  /// it, null when that is unknown; null when no link with a destination
+  /// spans them.
+  ({String? href})? linkSpanning(
     int line, {
     required int start,
     required int end,
   }) {
     for (final (index, source) in _all.indexed) {
       if (source.line != line || !_spans(source, start, end)) continue;
-      return source.shown == null ? null : _hrefs?[index];
+      return source.shown == null ? null : (href: _hrefs?[index]);
     }
     return null;
   }

@@ -106,11 +106,10 @@ void main() {
   });
 
   group('hrefDestinationsOf', () {
+    HrefDestinations readOf(String body) =>
+        hrefDestinationsOf(body, linkScanOf(body, firstLine: 1));
     List<(String, String)> placedOf(String body) => [
-      for (final (:start, :end, :href) in hrefDestinationsOf(
-        body,
-        linkScanOf(body, firstLine: 1),
-      ))
+      for (final (:start, :end, :href) in readOf(body).destinations)
         (body.substring(start, end), href),
     ];
 
@@ -131,6 +130,12 @@ void main() {
       expect(placedOf('![i [b](b.md)](c.png)\n'), [('c.png', 'c.png')]);
       expect(placedOf('No links.\n'), isEmpty);
       expect(placedOf('[x](a.md)\n\n[a]:<b\\'), isEmpty);
+    });
+
+    test('R74: the links read unless markdown fails on the body', () {
+      expect(readOf('[x](a.md)\n').linksRead, isTrue);
+      expect(readOf('No links.\n').linksRead, isTrue);
+      expect(readOf('[x](a.md)\n\n[a]:<b\\').linksRead, isFalse);
     });
   });
 

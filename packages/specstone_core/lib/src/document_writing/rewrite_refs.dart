@@ -62,7 +62,10 @@ String? rewriteDocLinks(
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
   if (!body.contains('](') && !body.contains(']:')) return null;
-  final destinations = hrefDestinationsOf(body, linkScanOf(body, firstLine: 1));
+  final (:destinations, linksRead: _) = hrefDestinationsOf(
+    body,
+    linkScanOf(body, firstLine: 1),
+  );
   final edits = [
     for (final (:start, :end, :href) in destinations)
       if (_movedHref(href, docPath, moves) case final newHref?)

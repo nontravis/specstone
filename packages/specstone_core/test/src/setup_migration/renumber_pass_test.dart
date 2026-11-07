@@ -702,6 +702,44 @@ confirmed:
     expect(pass.apply(_domainPath, domain), domain.replaceAll(anchor, moved));
   });
 
+  test('$_fr E18 (LP2, R74): a doc markdown fails on keeps its link '
+      'citations and link anchors, and the plan line names it as not fully '
+      'rewritten', () {
+    const unparsed = '\n[a]:<b\\';
+    const domain =
+        '# A\n\n## Invariants\n\n[rules](../topics/doc_model.md) RULE-7a\n'
+        '$unparsed';
+    const fr =
+        '---\ntraced_from: [S1]\n---\n# C\n\n## Statement\n\n'
+        'See [it](USER_STORY.md#scenario-6a--edge-lettered).\n$unparsed';
+
+    final pass = _planOf({
+      _topicPath: _topic,
+      _storyPath: _story,
+      _domainPath: domain,
+      _frPath: fr,
+    });
+
+    expect(pass.apply(_domainPath, domain), domain);
+    expect(pass.apply(_frPath, fr), fr);
+    expect(
+      pass.planLine,
+      'renumber ids: $_storyPath Scenario 6a -> Scenario 9, '
+      '$_topicPath RULE-7a -> RULE-31; '
+      'not fully rewritten: $_frPath, $_domainPath',
+    );
+  });
+
+  test('$_fr E18 (LP2, R74): a doc markdown fails on whose links the pass '
+      'needs for no token and no moved heading stays off the plan line', () {
+    final pass = _planOf({
+      _topicPath: _topic,
+      _otherTopicPath: '$_otherTopic\n[x](doc_model.md)\n\n[a]:<b\\',
+    });
+
+    expect(pass.planLine, 'renumber ids: $_topicPath RULE-7a -> RULE-31');
+  });
+
   test('$_fr E18 (W3, R63): a Concerns see target, bare or in backticks, '
       'takes the new slug of a renumbered heading; a see of another file or '
       'of an unmoved heading stays', () {

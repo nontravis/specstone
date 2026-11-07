@@ -149,16 +149,25 @@ List<String>? sourceHrefsOf(String lfBody, List<LinkSource> sources) {
 /// gives it.
 typedef HrefDestination = ({int start, int end, String href});
 
+/// The destinations of a link scan that have an href, and whether `markdown`
+/// read the links: false when it fails on the body, which leaves every
+/// destination without one, or the readers disagree (see [readersAgree]),
+/// which leaves each inline link's without one.
+typedef HrefDestinations = ({
+  List<HrefDestination> destinations,
+  bool linksRead,
+});
+
 /// Returns each destination of [scan], the link scan of [lfBody], that has an
 /// href, with that href, in [scan]'s order.
 ///
 /// An inline link's destination takes the href of its link (see
 /// [sourceHrefsOf]). A destination of no link takes the href `markdown` gives
 /// a link to a definition whose destination is written so.
-List<HrefDestination> hrefDestinationsOf(String lfBody, LinkScan scan) {
-  if (scan.destinations.isEmpty) return const [];
+HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
+  if (scan.destinations.isEmpty) return (destinations: [], linksRead: true);
   final tree = parseMarkdownTree(lfBody);
-  if (tree == null) return const [];
+  if (tree == null) return (destinations: [], linksRead: false);
   final hrefs = _hrefsIn(tree.nodes);
   final linkHrefs = readersAgree(scan.sources, hrefs) ? hrefs : null;
   final definitionHrefs = {
@@ -168,11 +177,14 @@ List<HrefDestination> hrefDestinationsOf(String lfBody, LinkScan scan) {
   String? hrefOf(int start, int end, int? link) => link == null
       ? definitionHrefs[lfBody.substring(start, end)]
       : linkHrefs?[link];
-  return [
-    for (final (:start, :end, :link) in scan.destinations)
-      if (hrefOf(start, end, link) case final href?)
-        (start: start, end: end, href: href),
-  ];
+  return (
+    destinations: [
+      for (final (:start, :end, :link) in scan.destinations)
+        if (hrefOf(start, end, link) case final href?)
+          (start: start, end: end, href: href),
+    ],
+    linksRead: linkHrefs != null,
+  );
 }
 
 /// Returns the href `markdown` gives a link whose destination it read as

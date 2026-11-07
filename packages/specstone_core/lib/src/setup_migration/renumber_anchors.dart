@@ -38,7 +38,8 @@ final class SlugMoves {
 
   final Map<String, Map<String, String>> byDoc;
 
-  /// Each old slug, as written and escaped, the one gate of every doc.
+  /// Each old slug, as written and escaped, the gate of the bare `see`
+  /// targets.
   late final Set<String> _oldSlugs = {
     for (final moved in byDoc.values)
       for (final slug in moved.keys) ...[slug, Uri.encodeComponent(slug)],
@@ -53,6 +54,10 @@ final class SlugMoves {
 /// A doc's text after the anchors of its links moved, and whether one of
 /// them names another doc.
 typedef AnchorRewrite = ({String lf, bool citesOthers});
+
+/// The anchor rewrite of a doc's links, null when none changes, and whether
+/// `markdown` read those links, without which none of them moves (LP2).
+typedef LinkAnchorRewrite = ({AnchorRewrite? moved, bool linksRead});
 
 // MARK: - Slug moves
 
@@ -119,19 +124,18 @@ List<String>? _headingSlugsOf(String body) {
 
 /// Returns [lf], the text of the doc at [docPath], typed or not, with the
 /// `#anchor` of each link and definition destination whose href names an old
-/// slug of [moves] set to its new slug, self links included; null when none
-/// changes (W3).
+/// slug of [moves] set to its new slug, self links included (W3).
 ///
 /// The href is the one `markdown` gives the destination (see
 /// [hrefDestinationsOf]); the anchor as written, after the destination's
 /// first `#` that opens no character reference, takes the new slug.
-AnchorRewrite? withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
-  if (!moves.mayName(lf)) return null;
+LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
+  if (!moves.mayName(lf)) return (moved: null, linksRead: true);
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = lf.length - body.length;
   final scan = linkScanOf(body, firstLine: 1);
-  final destinations = [...hrefDestinationsOf(body, scan)]
-    ..sort((a, b) => b.start - a.start);
+  final (destinations: found, :linksRead) = hrefDestinationsOf(body, scan);
+  final destinations = [...found]..sort((a, b) => b.start - a.start);
   var text = body;
   var citesOthers = false;
   for (final (:start, :end, :href) in destinations) {
@@ -147,8 +151,11 @@ AnchorRewrite? withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
     );
     citesOthers = citesOthers || move.citesOther;
   }
-  if (text == body) return null;
-  return (lf: lf.substring(0, bodyStart) + text, citesOthers: citesOthers);
+  if (text == body) return (moved: null, linksRead: linksRead);
+  return (
+    moved: (lf: lf.substring(0, bodyStart) + text, citesOthers: citesOthers),
+    linksRead: linksRead,
+  );
 }
 
 /// Returns [lf] with the `#anchor` of each bare `see` target of the Concerns

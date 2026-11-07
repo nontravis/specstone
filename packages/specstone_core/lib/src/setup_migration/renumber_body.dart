@@ -52,6 +52,10 @@ final class RenumberBodyRewrite {
   /// The one link scan of the body: its prose and its link sources (W4).
   late final LinkScan _scan = linkScanOf(_body, firstLine: _firstLine + 1);
 
+  /// The href `markdown` gives each link source of the body, null when that
+  /// is unknown (see [sourceHrefsOf]).
+  late final List<String>? _hrefs = sourceHrefsOf(_body, _scan.sources);
+
   late final List<int> _lineStarts = _lineStartsOf(_body);
 
   late final Map<int, List<_Citation>> _linkCitations = _linkCitationsOf();
@@ -68,6 +72,10 @@ final class RenumberBodyRewrite {
       if (readScenarioRef(value) case final ref?)
         ?_index.storyOfRef(ref, _doc.docPath),
   }..removeWhere((story) => !_index.renumbersAScenarioOf(story));
+
+  /// Whether `markdown` read the body's links, without which no link cites a
+  /// doc (LP2).
+  bool get linksRead => _hrefs != null;
 
   /// Rewrites each item ID token of the prose that its doc renumbers: the
   /// doc of the nearest citation before it on its line, else this doc
@@ -253,11 +261,10 @@ final class RenumberBodyRewrite {
   /// resolves the href `markdown` gives it, none when that is unknown.
   Map<int, List<_Citation>> _linkCitationsOf() {
     final citations = <int, List<_Citation>>{};
-    final sources = _scan.sources;
-    final hrefs = sourceHrefsOf(_body, sources);
+    final hrefs = _hrefs;
     if (hrefs == null) return citations;
     for (final (index, (:offset, :line, shown: _, end: _, angle: _))
-        in sources.indexed) {
+        in _scan.sources.indexed) {
       final docPath = _index.docAtPath(hrefs[index], _doc.docPath);
       if (docPath == null) continue;
       final at = offset - _lineStarts[line - 1 - _firstLine];

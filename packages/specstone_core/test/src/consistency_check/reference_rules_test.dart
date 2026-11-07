@@ -314,13 +314,14 @@ void main() {
     );
 
     final unparsed = await reportOf(
-      '- A: see MISSING.md\n- B: see [x](MISSING.md)\n',
+      '- A: see MISSING.md\n- B: see [x](MISSING.md)\n- C: see [x](API.md)\n'
+      '- D: see [x](<API.md>)\n- E: see [x](A\\_B.md)\n- F: see [x](#components)\n',
       unparsed: true,
     );
     expect(spots(unparsed, FindingKind.markdownUnparsed), [
       '$loginArchitecture:1: markdown_unparsed',
     ]);
-    expect(targetsIn(unparsed), ['MISSING.md', '[x](MISSING.md)']);
+    expect(targetsIn(unparsed), ['MISSING.md']);
 
     expect(
       targetsIn(
