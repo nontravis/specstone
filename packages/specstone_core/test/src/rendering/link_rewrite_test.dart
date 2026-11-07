@@ -69,7 +69,7 @@ String _rewritten(
     nodes,
     docPath: docPath,
     anchors: anchors,
-    docAnchors: docAnchors ?? _docAnchorsOf(markdown),
+    anchorsAt: (path) => (docAnchors ?? _docAnchorsOf(markdown))[path],
   );
   return renderToHtml(nodes).trim();
 }
@@ -238,7 +238,8 @@ void main() {
           Doc.parse(markdown),
           docPath: 'a/b/c.md',
           anchors: anchors ?? const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
-          docAnchors: _docAnchorsOf(Doc.parse(markdown).afterFrontmatter),
+          anchorsAt: (path) =>
+              _docAnchorsOf(Doc.parse(markdown).afterFrontmatter)[path],
         ).html;
 
     test('resolve_links E04: a bare fragment reaches a span id and an a name '
@@ -278,13 +279,9 @@ void main() {
         Doc.parse(markdown),
         docPath: 'a/b/c.md',
         anchors: const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
-        docAnchors: {
-          'a/b/c.md': _noAnchors,
-          'a/d.md': const DocAnchors(
-            headingSlugs: ['target'],
-            htmlIds: {'box'},
-          ),
-        },
+        anchorsAt: (path) => path == 'a/d.md'
+            ? const DocAnchors(headingSlugs: ['target'], htmlIds: {'box'})
+            : null,
       ).html;
 
       expect(html, contains('<a href="#doc-2-target">a</a>'));
@@ -310,6 +307,29 @@ void main() {
       expect(html, startsWith('<h1 id="doc-1-notes">Notes</h1>'));
       expect(html, contains('<h2 id="doc-1-notes-1">Notes</h2>'));
       expect(html, contains('<a href="#doc-1-notes-1">x</a>'));
+    });
+
+    test('resolve_links E11, R60: a doc renders from its one body parse, and '
+        'the anchor set it returns is the set check reads, so a later doc '
+        'link needs no second parse', () {
+      for (final markdown in [
+        '# Title\n\n## A & B\n\n## A & B\n\n<a id="box"></a>\n',
+        '\n# Notes\n\n## Notes\n\n[x](#notes-1)\n',
+        '## No title\n\n[x](../d.md)\n',
+        'Intro.\n# Late title\n\n## After\n',
+      ]) {
+        final rendered = renderDocBody(
+          Doc.parse(markdown),
+          docPath: 'a/b/c.md',
+          anchors: const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
+          anchorsAt: (_) => _noAnchors,
+        );
+        expect(
+          rendered.anchors.toJson(),
+          anchorsOfBody(markdown)!.toJson(),
+          reason: markdown,
+        );
+      }
     });
 
     test('resolve_links E11: every heading id equals the doc anchor and the '

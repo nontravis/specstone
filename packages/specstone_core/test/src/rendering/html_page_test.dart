@@ -1,5 +1,4 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/html_page.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
@@ -31,11 +30,7 @@ String _body(Doc doc) => renderDocBody(
   doc,
   docPath: 'doc.md',
   anchors: const {'doc.md': 'doc-1'},
-  docAnchors: {
-    'doc.md':
-        anchorsOfBody(doc.afterFrontmatter) ??
-        const DocAnchors(headingSlugs: [], htmlIds: {}),
-  },
+  anchorsAt: (_) => null,
 ).html;
 
 void main() {

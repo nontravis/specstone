@@ -8,7 +8,7 @@ import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 ///
 /// An `http` or `https` link (any letter case) stays. A link to a doc in
 /// [anchors] jumps to the prefixed id of the anchor its fragment names in that
-/// doc's [docAnchors], else to the doc's anchor (an empty fragment included). A
+/// doc's anchor set, else to the doc's anchor (an empty fragment included). A
 /// bare `#fragment` is the same link to the doc itself, except that a page
 /// anchor stays. The renderer's own footnote reference and back link point at
 /// the prefixed footnote ids. Any other link, and a target the grammar cannot
@@ -18,12 +18,13 @@ import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 /// - [docPath]: the path of the doc holding [nodes], relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath. A bare
 ///   `#fragment` in a doc with no entry becomes an `outside-link` span.
-/// - [docAnchors]: the anchor set of each doc in the build, by docPath.
+/// - [anchorsAt]: the anchor set of a doc in the build, by docPath, read only
+///   for a link whose fragment names an anchor.
 void rewriteLinks(
   List<Node> nodes, {
   required String docPath,
   required Map<String, String> anchors,
-  required Map<String, DocAnchors> docAnchors,
+  required DocAnchors? Function(String docPath) anchorsAt,
 }) {
   for (var i = 0; i < nodes.length; i++) {
     final node = nodes[i];
@@ -34,7 +35,7 @@ void rewriteLinks(
         children,
         docPath: docPath,
         anchors: anchors,
-        docAnchors: docAnchors,
+        anchorsAt: anchorsAt,
       );
     }
     if (node.tag == 'a') {
@@ -42,7 +43,7 @@ void rewriteLinks(
         node,
         docPath: docPath,
         anchors: anchors,
-        docAnchors: docAnchors,
+        anchorsAt: anchorsAt,
       );
     }
   }
@@ -52,7 +53,7 @@ Node _rewriteLink(
   Element link, {
   required String docPath,
   required Map<String, String> anchors,
-  required Map<String, DocAnchors> docAnchors,
+  required DocAnchors? Function(String docPath) anchorsAt,
 }) {
   final href = link.attributes['href'] ?? '';
   if (_isFootnoteLink(link)) return _scopedFootnote(link, anchors[docPath]);
@@ -69,7 +70,7 @@ Node _rewriteLink(
       final named =
           anchor != null &&
           anchor.isNotEmpty &&
-          (docAnchors[resolved]?.holds(anchor) ?? false);
+          (anchorsAt(resolved)?.holds(anchor) ?? false);
       link.attributes['href'] = named
           ? '#$sectionAnchor-$rawAnchor'
           : '#$sectionAnchor';
