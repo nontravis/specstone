@@ -15,10 +15,12 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -39,6 +41,7 @@ const _layoutAndAgentHeader =
 const _layoutAndAgentCommit2Message =
     'lay docs out and refresh the Specstone agent files';
 const _agentFileRootsKey = 'agent_file_roots';
+const _renumberChange = 'renumber ids';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -46,15 +49,15 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 ///
 /// Selects every pinned pack's steps, refuses an override the new versions
 /// leave dangling, then plans the moves, the section and field renames in the
-/// docs and the overrides, the link rewrites, each typed doc laid out as
-/// `format` lays it out, the agent files step, and the new pins. With every
-/// pin equal the plan holds the layout pass and the agent files step alone.
-/// Writes nothing. Throws `MigrateFault` `override_dangling`, `MigrateFault`
-/// `upgrade_collision` listing every move and rename collision at once,
-/// `agent_block_malformed`, and a `TemplateFault` before it returns, so a
-/// refused run prints nothing. The agent files step is the full upsert when a
-/// pin listed in `agentFilesSince` moves up from below its value, otherwise a
-/// refresh of what exists.
+/// docs and the overrides, the link rewrites, the renumber pass, each typed
+/// doc laid out as `format` lays it out, the agent files step, and the new
+/// pins. With every pin equal the plan holds the layout pass and the agent
+/// files step alone. Writes nothing. Throws `MigrateFault`
+/// `override_dangling`, `MigrateFault` `upgrade_collision` listing every move
+/// and rename collision at once, `agent_block_malformed`, and a
+/// `TemplateFault` before it returns, so a refused run prints nothing. When
+/// [runsOneTimePasses] holds, the renumber pass runs and the agent files step
+/// is the full upsert; otherwise the step refreshes what exists.
 /// [homeDirectory] is the personal pack home, or null.
 RunPlan planUpgradeRun(
   Directory root, {
@@ -105,10 +108,9 @@ RunPlan planUpgradeRun(
   ]);
 
   final matcher = DocTypeMatcher(finalSet);
-  final docRewrites = <PlannedRewrite>[];
+  final works = <_DocWork>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
-  final laidOutPaths = <String>[];
   final renameCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
@@ -179,22 +181,41 @@ RunPlan planUpgradeRun(
         linkLines.add('$plannedPath: $label');
       }
     }
-    final laidOut = layOutDoc(
-      lf,
-      match is MatchedDocType ? match.docType : null,
-    );
-    if (laidOut != lf) laidOutPaths.add(plannedPath);
-    lf = laidOut;
-    if (lf == original.lf) continue;
-    docRewrites.add(
-      PlannedRewrite(
-        path: '$_docsFolder$plannedPath',
-        text: writtenText(original, lf),
-        changes: changes,
+    works.add(
+      _DocWork(
+        plannedPath,
+        original,
+        match is MatchedDocType ? match.docType : null,
+        lf,
+        changes,
       ),
     );
   }
   _throwCollisions([...moveCollisions, ...renameCollisions]);
+
+  // The pass reads every doc's text after the steps and link rewrites (P5).
+  final renumber = runsOneTimePasses(upgrades) ? _renumberPassOf(works) : null;
+  final docRewrites = <PlannedRewrite>[];
+  final laidOutPaths = <String>[];
+  for (final work in works) {
+    var lf = work.lf;
+    if (renumber != null) {
+      final renumbered = renumber.apply(work.plannedPath, lf);
+      if (renumbered != lf) work.changes.add(_renumberChange);
+      lf = renumbered;
+    }
+    final laidOut = layOutDoc(lf, work.docType);
+    if (laidOut != lf) laidOutPaths.add(work.plannedPath);
+    lf = laidOut;
+    if (lf == work.original.lf) continue;
+    docRewrites.add(
+      PlannedRewrite(
+        path: '$_docsFolder${work.plannedPath}',
+        text: writtenText(work.original, lf),
+        changes: work.changes,
+      ),
+    );
+  }
 
   final overrideRewrites = [
     for (final file in overrideFiles)
@@ -261,6 +282,7 @@ RunPlan planUpgradeRun(
     rewriteLines: [
       ...stepLines,
       ...linkLines,
+      ?renumber?.planLine,
       ?formatLayoutLine(laidOutPaths),
       if (agentFiles.line.isNotEmpty) agentFiles.line,
       if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
@@ -402,10 +424,6 @@ AgentWritePlan _agentFilesOf(
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
   final config = ProjectConfig.read(projectRoot);
-  final full = upgrades.any((upgrade) {
-    final since = agentFilesSince[upgrade.pack];
-    return since != null && upgrade.pin.compareTo(since) < 0;
-  });
   return planAgentWrites(
     AgentFileInputs(
       projectRoot: projectRoot,
@@ -417,8 +435,42 @@ AgentWritePlan _agentFilesOf(
       ),
       agentFileRoots: config.agentFileRoots,
     ),
-    full: full,
+    full: runsOneTimePasses(upgrades),
   );
+}
+
+/// Whether [upgrades] move a prd-core or software-tech pin up from below the
+/// version this binary carries: the one trigger of every one-time pass
+/// (apply_steps_and_pins E14, E18); group 3's D18 pass reads it too (R54).
+bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
+  final since = agentFilesSince[upgrade.pack];
+  return since != null && upgrade.pin.compareTo(since) < 0;
+});
+
+/// Plans the renumber pass over the typed docs of [works].
+RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([
+  for (final work in works)
+    if (work.docType case final type?)
+      (docPath: work.plannedPath, lf: work.lf, type: type),
+]);
+
+/// One doc of the run, with its text after the steps and link rewrites.
+final class _DocWork {
+  new(this.plannedPath, this.original, this.docType, this.lf, this.changes);
+
+  /// The DocPath after the moves.
+  final String plannedPath;
+
+  /// The file as read.
+  final DocText original;
+
+  final MergedDocType? docType;
+
+  /// The LF text after the steps and link rewrites.
+  final String lf;
+
+  /// The labels of the changes made so far, in the order they apply.
+  final List<String> changes;
 }
 
 /// Returns the rewrite of `config.yaml` that moves the pins of [upgrades] and

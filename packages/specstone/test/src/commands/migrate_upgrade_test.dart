@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/consistency_check/fingerprint.dart'
+    show fingerprintOf;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
 import 'package:test/test.dart';
@@ -861,6 +863,89 @@ void main() {
         expect(result.status, 65);
         expect(result.out, isEmpty);
         expect(result.err, contains('AGENTS.md'));
+      });
+    });
+
+    group('setup_migration/upgrade_pack_pins renumber pass', () {
+      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
+      const topicPath = 'docs/specs/topics/doc_model.md';
+      const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
+      const tracingPath = 'docs/prds/features/f01_a/us01_b/fr01_c.md';
+      const suspectPath = 'docs/prds/features/f01_a/us01_b/fr02_g.md';
+      const lettered = '### Scenario 6a — [edge] lettered\n\n- **Given** g';
+      const topic =
+          '# Doc model\n\n## Rules\n\n- **RULE-1** — One.\n'
+          '- **RULE-7a** — Lettered.\n- **RULE-30** — Thirty.\n';
+
+      String tracing(String fingerprint, {String body = ''}) =>
+          '---\ntraced_from:\n  - S6a\nconfirmed:\n  - S6a $fingerprint\n'
+          '---\n# C\n$body';
+
+      /// The `docPath` of each finding of [kind] a `check --json` run reports.
+      Future<List<Object?>> findingsOf(
+        Directory root,
+        Directory home,
+        String kind,
+      ) async {
+        final check = await _run(root, home, ['check', '--json']);
+        expect(check.out, isNotEmpty, reason: check.err);
+        final report = jsonDecode(check.out) as Map<String, Object?>;
+        return [
+          for (final finding in report['findings']! as List<Object?>)
+            if (finding case {'kind': final String found, 'docPath': final path}
+                when found == kind)
+              path,
+        ];
+      }
+
+      test('$fr E18: the first check after the run raises no item_id_lettered '
+          'and no suspect link the pass made, a later upgrade renumbers '
+          'nothing, and a lettered ID written after it gets the '
+          'finding', () async {
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          topicPath: topic,
+          storyPath:
+              '# B\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] one'
+              '\n\n- **Given** g\n\n### Scenario 8 — [error] eight\n\n'
+              '- **Given** g\n\n$lettered\n',
+          tracingPath: tracing(
+            fingerprintOf(lettered),
+            body: '\n## Statement\n\n`doc_model` RULE-7a\n',
+          ),
+          suspectPath: tracing('000000000000'),
+        });
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains(
+            '  renumber ids: prds/features/f01_a/us01_b/USER_STORY.md '
+            'Scenario 6a -> Scenario 9, specs/topics/doc_model.md RULE-7a -> '
+            'RULE-31; references: prds/features/f01_a/us01_b/fr01_c.md, '
+            'prds/features/f01_a/us01_b/fr02_g.md\n',
+          ),
+        );
+        expect(_read(root, tracingPath), contains('`doc_model` RULE-31\n'));
+        expect(await findingsOf(root, home, 'item_id_lettered'), isEmpty);
+        expect(await findingsOf(root, home, 'suspect'), [
+          suspectPath.substring(5),
+        ]);
+
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+
+        File(
+          '${root.path}/$topicPath',
+        ).writeAsStringSync('${_read(root, topicPath)}- **RULE-40b** — New.\n');
+        expect(await findingsOf(root, home, 'item_id_lettered'), [
+          topicPath.substring(5),
+        ]);
       });
     });
   }, skip: hasGit ? null : 'git is not available');

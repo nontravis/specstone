@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show MoveStep;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
@@ -97,6 +99,7 @@ PlannedRewrite _rewriteAt(RunPlan plan, String path) =>
 
 void main() {
   _agentFilesTests();
+  _renumberTests();
 
   test('agentFilesSince matches the shipped versions of its packs', () {
     final shipped = shippedPackVersions();
@@ -1149,6 +1152,286 @@ void _agentFilesTests() {
               MigrateFaultCode.agentBlockMalformed,
             ),
           ),
+        );
+      },
+    );
+  });
+}
+
+const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
+const _topicPath = 'specs/topics/doc_model.md';
+const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
+const _renumbered = '### Scenario 9 — [edge] lettered\n\n- **Given** g';
+
+const _topic = '''
+# Doc model
+
+## Rules
+
+- **RULE-1** — One.
+- **RULE-7a** — Lettered.
+- **RULE-30** — Thirty.
+''';
+
+const _story = '''
+# B
+
+## Acceptance Criteria
+
+### Scenario 1 — [happy] one
+
+- **Given** g
+
+### Scenario 8 — [error] eight
+
+- **Given** g
+
+$_lettered''';
+
+String _tracingFr(String fingerprint, {String body = ''}) =>
+    '---\ntraced_from:\n  - S6a\nconfirmed:\n  - S6a $fingerprint\n---\n'
+    '# C\n$body';
+
+/// The E18 tree under `docs/`: the topic and story with lettered IDs, two FRs
+/// tracing Scenario 6a, one matched and one suspect, and a domain doc citing
+/// the topic by path.
+Map<String, String> _e18Docs({String topic = _topic}) => {
+  _topicPath: topic,
+  'specs/topics/other_topic.md':
+      '# Other topic\n\n## Rules\n\n- **RULE-1** — One.\n',
+  _storyPath: _story,
+  'prds/features/f01_a/us01_b/fr01_c.md': _tracingFr(
+    fingerprintOf(_lettered),
+    body: '\n## Statement\n\n`doc_model` RULE-7a\n`other_topic` RULE-7a\n',
+  ),
+  'prds/features/f01_a/us01_b/fr02_g.md': _tracingFr('000000000000'),
+  'specs/f01_a/DOMAIN.md':
+      '# A\n\n## Invariants\n\n[rules](../topics/doc_model.md) RULE-7a\n'
+      '`../topics/doc_model.md` RULE-7a\n',
+};
+
+Future<Directory> _belowSinceTree(Map<String, String> docs) => writeTree({
+  '.specstone/config.yaml': _belowSince,
+  for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+});
+
+String _docText(RunPlan plan, String docPath) =>
+    _rewriteAt(plan, 'docs/$docPath').text;
+
+ProcessResult _missingGit(
+  List<String> arguments, {
+  required String workingDirectory,
+}) => throw const ProcessException('git', []);
+
+void _renumberTests() {
+  group('renumber pass', () {
+    test('$_fr E18: the upgrade renumbers each lettered ID once and rewrites '
+        'every reference, listed on one renumber ids line', () async {
+      final plan = _planAt(await _belowSinceTree(_e18Docs()));
+
+      final text = plan.toText();
+      const line =
+          '  renumber ids: $_storyPath Scenario 6a -> Scenario 9, '
+          '$_topicPath RULE-7a -> RULE-31; references: '
+          'prds/features/f01_a/us01_b/fr01_c.md, '
+          'prds/features/f01_a/us01_b/fr02_g.md, specs/f01_a/DOMAIN.md\n';
+      expect(text, contains(line));
+      expect(text.indexOf(line), lessThan(text.indexOf('  format layout: ')));
+      expect(text.indexOf(line), lessThan(text.indexOf('  agent files: ')));
+      expect(
+        _docText(plan, _topicPath),
+        contains('- **RULE-31** — Lettered.\n'),
+      );
+      expect(_docText(plan, _storyPath), contains('$_renumbered\n'));
+      expect(
+        _docText(plan, 'prds/features/f01_a/us01_b/fr01_c.md'),
+        allOf(
+          startsWith(
+            '---\ntraced_from:\n  - S9\nconfirmed:\n'
+            '  - S9 ${fingerprintOf(_renumbered)}\n---\n',
+          ),
+          contains('`doc_model` RULE-31\n`other_topic` RULE-7a\n'),
+        ),
+      );
+      expect(
+        _docText(plan, 'specs/f01_a/DOMAIN.md'),
+        contains(
+          '[rules](../topics/doc_model.md) RULE-31\n'
+          '`../topics/doc_model.md` RULE-31\n',
+        ),
+      );
+    });
+
+    test('$_fr E18: a confirmed entry already suspect keeps its fingerprint '
+        'and takes the new label', () async {
+      final plan = _planAt(await _belowSinceTree(_e18Docs()));
+
+      expect(
+        _docText(plan, 'prds/features/f01_a/us01_b/fr02_g.md'),
+        startsWith(
+          '---\ntraced_from:\n  - S9\nconfirmed:\n  - S9 000000000000\n',
+        ),
+      );
+    });
+
+    test('$_fr E18: the plan hash changes with the renumbered set', () async {
+      final both = await _belowSinceTree(_e18Docs());
+      final storyOnly = await _belowSinceTree(
+        _e18Docs(topic: _topic.replaceFirst('RULE-7a', 'RULE-7')),
+      );
+
+      final bothText = _planAt(both).toText();
+      final storyOnlyText = _planAt(storyOnly).toText();
+
+      expect(storyOnlyText, isNot(contains('RULE-7a -> RULE-31')));
+      expect(
+        planHashOf(bothText, both, _missingGit),
+        isNot(planHashOf(storyOnlyText, storyOnly, _missingGit)),
+      );
+    });
+
+    test('$_fr E19: two lettered scenarios renumber in document order to the '
+        'numbers check names', () async {
+      const story = '''
+# B
+
+## Acceptance Criteria
+
+### Scenario 7 — [happy] seven
+
+- **Given** g
+
+### Scenario 6a — [edge] a
+
+- **Given** g
+
+### Scenario 6b — [error] b
+
+- **Given** g
+''';
+
+      final plan = _planAt(await _belowSinceTree({_storyPath: story}));
+
+      expect(
+        plan.toText(),
+        contains(
+          '  renumber ids: $_storyPath Scenario 6a -> Scenario 8, '
+          '$_storyPath Scenario 6b -> Scenario 9\n',
+        ),
+      );
+      expect(
+        _docText(plan, _storyPath),
+        allOf(
+          contains('### Scenario 8 — [edge] a\n'),
+          contains('### Scenario 9 — [error] b\n'),
+        ),
+      );
+    });
+
+    test('$_fr E14: an upgrade that moves no pin from below agentFilesSince '
+        'renumbers nothing', () async {
+      final plan = _plan(await _fixture(docs: const {_topicPath: _topic}));
+
+      expect(plan.toText(), isNot(contains('renumber ids')));
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.text),
+        everyElement(isNot(contains('RULE-31'))),
+      );
+    });
+
+    test('$_fr E18: the pass reads each doc after the selected steps, so a '
+        'section a step renames is read under its template', () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: user_story, from: {id: scenarios, header: Scenarios}, to: {id: acceptance_criteria, header: Acceptance Criteria}}
+''';
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml': packYaml,
+        '.specstone/packs/acme/runbook.yaml': _runbookType,
+      });
+      final project = await writeTree({
+        '.specstone/config.yaml': '$_belowSince  acme: 1.0.0\n',
+        'docs/$_storyPath':
+            '# B\n\n## Scenarios\n\n### Scenario 1 — [happy] one\n\n'
+            '- **Given** g\n\n### Scenario 1a — [edge] a\n\n- **Given** g\n',
+      });
+
+      final plan = planUpgradeRun(
+        _canonical(project),
+        templates: TemplateResolver(),
+        homeDirectory: home,
+      );
+
+      expect(
+        plan.toText(),
+        contains('  renumber ids: $_storyPath Scenario 1a -> Scenario 2\n'),
+      );
+      expect(
+        _docText(plan, _storyPath),
+        contains(
+          '## Acceptance Criteria\n\n### Scenario 1 — [happy] one\n\n'
+          '- **Given** g\n\n### Scenario 2 — [edge] a\n',
+        ),
+      );
+    });
+
+    test(
+      '$_fr E18: a CRLF story with a byte order mark keeps both, its FR and '
+      'journey step follow it, and a second upgrade changes nothing',
+      () async {
+        final bom = String.fromCharCode(0xFEFF);
+        const lettered = '### Scenario 6a — [edge] x\n\n- **Given** g';
+        final story =
+            '$bom# B\r\n\r\n## Acceptance Criteria\r\n\r\n'
+            '### Scenario 1 — [happy] one\r\n\r\n- **Given** g\r\n\r\n'
+            '${lettered.replaceAll('\n', '\r\n')}\r\n';
+        final fingerprint = fingerprintOf(lettered);
+        final project = await _belowSinceTree({
+          _storyPath: story,
+          'prds/features/f01_a/us01_b/fr01_c.md': _tracingFr(fingerprint),
+          'prds/journeys/go/JOURNEY.md':
+              '---\nconfirmed:\n  - a/b#S6a $fingerprint\n---\n# Go\n\n'
+              '## Steps\n\n### 1. Start\n\nstep: a/b S6a\n',
+        });
+
+        final plan = _planAt(project);
+
+        const renumbered = '### Scenario 2 — [edge] x\n\n- **Given** g';
+        expect(
+          _docText(plan, _storyPath),
+          allOf(
+            startsWith('$bom# B\r\n'),
+            contains('${renumbered.replaceAll('\n', '\r\n')}\r\n'),
+            isNot(matches(RegExp('[^\r]\n'))),
+          ),
+        );
+        expect(
+          _docText(plan, 'prds/features/f01_a/us01_b/fr01_c.md'),
+          contains('  - S2\nconfirmed:\n  - S2 ${fingerprintOf(renumbered)}\n'),
+        );
+        expect(
+          _docText(plan, 'prds/journeys/go/JOURNEY.md'),
+          allOf(
+            contains('  - a/b#S2 ${fingerprintOf(renumbered)}\n'),
+            contains('step: a/b S2\n'),
+          ),
+        );
+
+        for (final rewrite in plan.rewrites) {
+          File.fromUri(project.uri.resolve(rewrite.path))
+              .writeAsStringSync(rewrite.text);
+        }
+        final second = _planAt(project);
+
+        expect(second.toText(), isNot(contains('renumber ids')));
+        expect(
+          second.rewrites.map((rewrite) => rewrite.path),
+          everyElement(isNot(startsWith('docs/'))),
         );
       },
     );
