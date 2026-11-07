@@ -111,6 +111,11 @@ final _allowed = <_Allowed>[
   ),
   _core(
     'index_query/doc_mentions.dart',
+    r"""RegExp(r'\]\(\s*(?:<[^>]*>|[^\s)]*)'""",
+    'Blanks an inline link destination from prose; the link rule reads the link.',
+  ),
+  _core(
+    'index_query/doc_mentions.dart',
     r"""RegExp(r'^ {0,3}\[[^\]]+\]:\s*(?:<[^>]*>|\S+)'""",
     'Markdown link reference definition line; the grammar reads its target.',
   ),
@@ -184,9 +189,11 @@ final _regExpCall = RegExp(
   r'''(?:\s*(?:r?'(?:[^'\\]|\\.)*'|r?"(?:[^"\\]|\\.)*"))*''',
 );
 
-/// A pattern text that reads `#`, `:`, a step number, `Scenario`, or an ID's
-/// digits after its prefix's `-`.
-final _referenceShaped = RegExp(r'#|:|S\[0-9\]|S\\d|Scenario|-\\d|-\[0-9\]');
+/// A pattern text that reads `#`, `:`, a step number, `Scenario`, an ID's
+/// digits after its prefix's `-`, or a link's `](`.
+final _referenceShaped = RegExp(
+  r'#|:|S\[0-9\]|S\\d|Scenario|-\\d|-\[0-9\]|\]\\?\(',
+);
 
 /// Regex group syntax `(?:`, `(?=`, `(?!`, `(?<` holds a `:` and reads nothing.
 final _groupSyntax = RegExp(r'\(\?[:=!<]');
