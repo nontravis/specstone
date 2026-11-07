@@ -135,6 +135,27 @@ void main() {
     expect(read(home), [('specs/t.md', 'z)')]);
   });
 
+  test('f02/us05/fr02, R74: a move to or from a path with a paren keeps the parens of an angle-bracketed definition as written', () {
+    const into = <PathMove>[(from: 'specs/t.md', to: 'specs/x(y/t.md')];
+    const back = <PathMove>[(from: 'specs/x(y/t.md', to: 'specs/t.md')];
+    List<(String, String?)>? read(String? text) => linkPlacesOf(
+      text!,
+      docPath: 'specs/d.md',
+      firstLine: 1,
+    )?.docLinks.map((link) => (link.target, link.anchor)).toList();
+
+    final there = rewriteDocLinks(
+      '[c][r]\n\n[r]: <t.md#z>\n',
+      docPath: 'specs/d.md',
+      moves: into,
+    );
+    final home = rewriteDocLinks(there!, docPath: 'specs/d.md', moves: back);
+
+    expect(there, '[c][r]\n\n[r]: <x(y/t.md#z>\n');
+    expect(read(there), [('specs/x(y/t.md', 'z')]);
+    expect(home, '[c][r]\n\n[r]: <t.md#z>\n');
+  });
+
   test('f02/us05/fr02, R74: a folder move to or from a name with parens keeps a bare definition a definition to the same file', () {
     const doc = 'specs/f01_a/DOMAIN.md';
     List<String>? read(String? text) => linkPlacesOf(

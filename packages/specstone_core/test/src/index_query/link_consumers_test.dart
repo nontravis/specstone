@@ -92,6 +92,13 @@ const _readForms = <_Form>[
     topicAnchor: null,
   ),
   (
+    name: 'angle-bracketed definitions',
+    links:
+        '[a][t] RULE-7a\n[b][s]\n\n'
+        '[t]: <$_topicLink>\n[s]: <$_storyLink#$_oldSlug>\n',
+    topicAnchor: null,
+  ),
+  (
     name: 'a # written as a character reference',
     links: '[a]($_topicLink) RULE-7a\n[b]($_storyLink&#35;$_oldSlug)\n',
     topicAnchor: null,

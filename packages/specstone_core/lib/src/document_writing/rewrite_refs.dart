@@ -34,6 +34,7 @@ const _bom = '\uFEFF';
 const _backslash = 0x5C;
 const _openParen = 0x28;
 const _closeParen = 0x29;
+const _lessThan = 0x3C;
 const _encodedOpenParen = '%28';
 const _encodedCloseParen = '%29';
 
@@ -80,7 +81,12 @@ String? rewriteDocLinks(
         (
           start: start,
           end: end,
-          text: _withPath(body.substring(start, end), kind, newPath),
+          text: _withPath(
+            body.substring(start, end),
+            kind,
+            newPath,
+            isAngle: _isAngleBracketed(body, start, kind),
+          ),
         ),
   ];
   if (edits.isEmpty) return null;
@@ -99,20 +105,37 @@ String? rewriteDocLinks(
 /// of the path it is written with, its `?` or `#` part kept (see
 /// [destinationPartsOf]).
 ///
-/// A bare destination, inline or of a definition, ends at the first `)` no
+/// A destination inside angle brackets, [isAngle], keeps the path's parens as
+/// written. A bare one, inline or of a definition, ends at the first `)` no
 /// `(` before it opened. There the path's parens are written `%28` and `%29`,
 /// which decode the same, and each `)` of the kept part that a `(` of the old
 /// path opened takes a `\`, so the link and its href stay.
-String _withPath(String written, DestinationKind kind, String path) {
+String _withPath(
+  String written,
+  DestinationKind kind,
+  String path, {
+  required bool isAngle,
+}) {
   final pathEnd = destinationPartsOf(written, kind).pathEnd;
   final kept = written.substring(pathEnd);
-  if (kind == DestinationKind.angleInline) return '$path$kept';
+  if (isAngle) return '$path$kept';
   final balanced = path
       .replaceAll('(', _encodedOpenParen)
       .replaceAll(')', _encodedCloseParen);
   final opened = _parensOpenedIn(written.substring(0, pathEnd));
   return '$balanced${_closersEscaped(kept, opened)}';
 }
+
+/// Returns whether the [kind] destination of [body] that starts at [start]
+/// is inside angle brackets; a definition's range leaves them out, and a bare
+/// destination never follows a `<`.
+bool _isAngleBracketed(String body, int start, DestinationKind kind) =>
+    switch (kind) {
+      DestinationKind.angleInline => true,
+      DestinationKind.inline => false,
+      DestinationKind.definition =>
+        start > 0 && body.codeUnitAt(start - 1) == _lessThan,
+    };
 
 /// Returns how many parens [text], part of a bare destination, leaves open;
 /// a backslash takes the unit after it out of the count, as `markdown` reads.
