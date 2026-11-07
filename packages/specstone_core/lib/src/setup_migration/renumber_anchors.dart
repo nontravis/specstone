@@ -7,9 +7,13 @@ import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show parseLinkFreeBody;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show writtenAnchorStart;
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docStructureOf;
+import 'package:specstone_core/src/index_query/link_places.dart'
+    show hrefDestinationsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 
@@ -18,6 +22,15 @@ import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 final _setextUnderline = RegExp(r'^ {0,3}(?:=+|-+)[ \t]*$');
 
 // MARK: - Types
+
+/// The move of a link's anchor: its old slug, decoded, the slug after it, the
+/// anchor as the href writes it, and whether the link names another doc.
+typedef _AnchorMove = ({
+  String old,
+  String slug,
+  String rawAnchor,
+  bool citesOther,
+});
 
 /// Per DocPath, each heading slug the pass changes and the slug after it.
 final class SlugMoves {
@@ -105,22 +118,34 @@ List<String>? _headingSlugsOf(String body) {
 // MARK: - Link anchors
 
 /// Returns [lf], the text of the doc at [docPath], typed or not, with the
-/// `#anchor` of each link and definition destination that names an old slug
-/// of [moves] set to its new slug, self links included; null when none
+/// `#anchor` of each link and definition destination whose href names an old
+/// slug of [moves] set to its new slug, self links included; null when none
 /// changes (W3).
+///
+/// The href is the one `markdown` gives the destination (see
+/// [hrefDestinationsOf]); the anchor as written, after the destination's
+/// first `#` that opens no character reference, takes the new slug.
 AnchorRewrite? withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   if (!moves.mayName(lf)) return null;
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = lf.length - body.length;
-  final destinations = [...linkScanOf(body, firstLine: 1).destinations]
+  final scan = linkScanOf(body, firstLine: 1);
+  final destinations = [...hrefDestinationsOf(body, scan)]
     ..sort((a, b) => b.start - a.start);
   var text = body;
   var citesOthers = false;
-  for (final (:start, :end) in destinations) {
-    final moved = _movedAnchorOf(body.substring(start, end), docPath, moves);
-    if (moved == null) continue;
-    text = text.replaceRange(end - moved.oldLength, end, moved.written);
-    citesOthers = citesOthers || moved.citesOther;
+  for (final (:start, :end, :href) in destinations) {
+    final move = _anchorMoveOf(href, docPath, moves);
+    if (move == null) continue;
+    final at = writtenAnchorStart(body.substring(start, end));
+    if (at == null) continue;
+    final from = start + at;
+    text = text.replaceRange(
+      from,
+      end,
+      _movedOver(body.substring(from, end), move),
+    );
+    citesOthers = citesOthers || move.citesOther;
   }
   if (text == body) return null;
   return (lf: lf.substring(0, bodyStart) + text, citesOthers: citesOthers);
@@ -149,36 +174,38 @@ AnchorRewrite? withConcernsAnchorsMoved(
   )) {
     final see = fenced ? null : seeTargetIn(text);
     if (see == null || see.text.startsWith('[')) continue;
-    final moved = _movedAnchorOf(see.text, doc.docPath, moves);
-    if (moved == null) continue;
+    final move = _anchorMoveOf(see.text, doc.docPath, moves);
+    if (move == null) continue;
     final end = see.start + see.text.length;
     lines[line - 1] = lines[line - 1].replaceRange(
-      end - moved.oldLength,
+      end - move.rawAnchor.length,
       end,
-      moved.written,
+      _movedOver(move.rawAnchor, move),
     );
-    citesOthers = citesOthers || moved.citesOther;
+    citesOthers = citesOthers || move.citesOther;
   }
   final moved = lines.join('\n');
   return moved == lf ? null : (lf: moved, citesOthers: citesOthers);
 }
 
-/// The anchor [href] names when it is an old slug of [moves]: the length of
-/// the anchor as written, the anchor to write, and whether the target is
-/// another doc than [docPath].
-({int oldLength, String written, bool citesOther})? _movedAnchorOf(
-  String href,
-  String docPath,
-  SlugMoves moves,
-) {
+/// Returns the move of the anchor [href] names, a link of the doc at
+/// [docPath], when that anchor is an old slug of [moves]; null otherwise.
+_AnchorMove? _anchorMoveOf(String href, String docPath, SlugMoves moves) {
   final target = resolveDocLink(href, docPath);
   if (target is! DocTarget) return null;
   final (anchor, rawAnchor) = (target.anchor, target.rawAnchor);
   final slug = anchor == null ? null : moves.byDoc[target.docPath]?[anchor];
-  if (slug == null || rawAnchor == null) return null;
+  if (anchor == null || slug == null || rawAnchor == null) return null;
   return (
-    oldLength: rawAnchor.length,
-    written: rawAnchor == anchor ? slug : Uri.encodeComponent(slug),
+    old: anchor,
+    slug: slug,
+    rawAnchor: rawAnchor,
     citesOther: target.docPath != docPath,
   );
 }
+
+/// Returns the anchor to write over [written], an anchor as written that
+/// reads as [move]'s old slug: the new slug, percent-encoded unless
+/// [written] is the old slug itself.
+String _movedOver(String written, _AnchorMove move) =>
+    written == move.old ? move.slug : Uri.encodeComponent(move.slug);

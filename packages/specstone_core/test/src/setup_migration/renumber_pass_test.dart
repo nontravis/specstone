@@ -265,6 +265,34 @@ RULE-7a on a line that cites no doc
     );
   });
 
+  test('$_fr E18: a link cites the doc its href names as markdown decodes '
+      'it, an escape or an entity in its destination included', () {
+    const domain = r'''
+# A
+
+## Invariants
+
+[rules](../topics/doc_model.md) RULE-7a
+[rules](../topics/doc\_model.md) RULE-7a
+[rules](../topics/doc&#95;model.md) RULE-7a
+[rules][topic] RULE-7a
+
+[topic]: ../topics/doc\_model.md
+''';
+
+    final applied = _applied({
+      _topicPath: _topic,
+      _domainPath: domain,
+    })[_domainPath]!;
+
+    expect(
+      applied,
+      domain
+          .replaceAll(') RULE-7a', ') RULE-31')
+          .replaceFirst('] RULE-7a', '] RULE-31'),
+    );
+  });
+
   test('$_fr E18: the plan line lists each renumbering in tree order, then '
       'each other doc it rewrites for them after ; references:', () {
     final pass = _planOf({
@@ -654,6 +682,24 @@ confirmed:
       'renumber ids: $_storyPath Scenario 6a -> Scenario 9; '
       'references: $_frPath, $_domainPath',
     );
+  });
+
+  test('$_fr E18 (W3): a link whose destination escapes or encodes a path '
+      'character takes the new slug of the heading its href names', () {
+    const anchor = 'scenario-6a--edge-lettered';
+    const moved = 'scenario-9--edge-lettered';
+    const story = '$_story\n';
+    const domain =
+        '# A\n\n## Invariants\n\n'
+        '[x](../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor)\n'
+        '[y](../../prds/features/f01\\_a/us01_b/USER_STORY.md#$anchor)\n'
+        '[z](../../prds/features/f01&#95;a/us01_b/USER_STORY.md#$anchor)\n'
+        '[w](<../../prds/features/f01\\_a/us01_b/USER_STORY.md#$anchor>)\n\n'
+        '[ref]: ../../prds/features/f01\\_a/us01_b/USER_STORY.md#$anchor\n';
+
+    final pass = _planOf({_storyPath: story, _domainPath: domain});
+
+    expect(pass.apply(_domainPath, domain), domain.replaceAll(anchor, moved));
   });
 
   test('$_fr E18 (W3, R63): a Concerns see target, bare or in backticks, '

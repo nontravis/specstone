@@ -8,7 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
-    show hrefOfSpelling;
+    show sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show LinkSource, linkSourcesOf;
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -221,18 +221,22 @@ final class _LinkSources {
         1,
   );
 
-  /// Returns the href `markdown` makes of the destination of the one link
-  /// that spans column [start] to column [end] of file line [line], as the
-  /// link rule reads it, or null when no link spans them or it has none.
+  /// The href `markdown` gives each of [_all], by index; null when none is
+  /// known (see [sourceHrefsOf]).
+  late final List<String>? _hrefs = sourceHrefsOf(_body, _all);
+
+  /// Returns the href `markdown` gives the one link that spans column
+  /// [start] to column [end] of file line [line], as the link rule reads it,
+  /// or null when no link spans them, it has no destination, or its href is
+  /// unknown.
   String? destinationSpanning(
     int line, {
     required int start,
     required int end,
   }) {
-    for (final source in _all) {
+    for (final (index, source) in _all.indexed) {
       if (source.line != line || !_spans(source, start, end)) continue;
-      final shown = source.shown;
-      return shown == null ? null : hrefOfSpelling(shown, angle: source.angle);
+      return source.shown == null ? null : _hrefs?[index];
     }
     return null;
   }

@@ -5,6 +5,8 @@ import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart'
     show codeSpansOf;
 import 'package:specstone_core/src/index_query/held_sections.dart';
+import 'package:specstone_core/src/index_query/link_places.dart'
+    show sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -247,13 +249,16 @@ final class RenumberBodyRewrite {
         (at: start, docPaths: docPaths),
   ];
 
-  /// The links to a doc of the run, by file line, each at its column.
+  /// The links to a doc of the run, by file line, each at its column: each
+  /// resolves the href `markdown` gives it, none when that is unknown.
   Map<int, List<_Citation>> _linkCitationsOf() {
     final citations = <int, List<_Citation>>{};
-    for (final (:offset, :line, :shown, end: _, angle: _) in _scan.sources) {
-      final docPath = shown == null
-          ? null
-          : _index.docAtPath(shown, _doc.docPath);
+    final sources = _scan.sources;
+    final hrefs = sourceHrefsOf(_body, sources);
+    if (hrefs == null) return citations;
+    for (final (index, (:offset, :line, shown: _, end: _, angle: _))
+        in sources.indexed) {
+      final docPath = _index.docAtPath(hrefs[index], _doc.docPath);
       if (docPath == null) continue;
       final at = offset - _lineStarts[line - 1 - _firstLine];
       (citations[line] ??= []).add((at: at, docPaths: [docPath]));

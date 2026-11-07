@@ -28,14 +28,28 @@ const maxMarkdownDepth = 1000;
 /// as a failed parse, so no consumer gets a tree it cannot walk. A caller that
 /// gets null treats the doc as one it can read no links from and goes on, as
 /// LP2 decides.
-List<Node>? parseMarkdown(String text) {
+List<Node>? parseMarkdown(String text) => parseMarkdownTree(text)?.nodes;
+
+/// The nodes `markdown` parses a text into and the link reference
+/// definitions it reads there, keyed by normalized label.
+typedef MarkdownTree = ({
+  List<Node> nodes,
+  Map<String, LinkReference> definitions,
+});
+
+/// Returns [parseMarkdown]'s nodes of [text] with the definitions the same
+/// parse reads, or null when that parse fails.
+MarkdownTree? parseMarkdownTree(String text) {
+  final Document document;
   final List<Node> nodes;
   try {
-    nodes = Document(extensionSet: ExtensionSet.gitHubFlavored).parse(text);
+    document = Document(extensionSet: ExtensionSet.gitHubFlavored);
+    nodes = document.parse(text);
   } on Object {
     return null;
   }
-  return _depthOf(nodes) > maxMarkdownDepth ? null : nodes;
+  if (_depthOf(nodes) > maxMarkdownDepth) return null;
+  return (nodes: nodes, definitions: document.linkReferences);
 }
 
 /// Whether [body] holds the least syntax a markdown link needs: an inline

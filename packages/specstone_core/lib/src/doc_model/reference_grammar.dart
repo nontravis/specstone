@@ -278,6 +278,22 @@ LinkTargetForm readLinkTarget(String href) {
   );
 }
 
+const _ampersand = 0x26;
+
+/// Returns the index past the `#` that opens the anchor of [destination], a
+/// link destination as written, escapes and character references kept, or
+/// null when it has none.
+///
+/// A `#` right after `&` opens a character reference, not the anchor.
+int? writtenAnchorStart(String destination) {
+  var at = destination.indexOf('#');
+  while (at >= 0) {
+    if (at == 0 || destination.codeUnitAt(at - 1) != _ampersand) return at + 1;
+    at = destination.indexOf('#', at + 1);
+  }
+  return null;
+}
+
 /// Returns the index past the `:` of a scheme at [start] of [text], or -1
 /// when none opens there: an ASCII letter, then letters, digits, `+`, `-`,
 /// `.`, then `:` (RULE-11).

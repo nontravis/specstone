@@ -3,6 +3,9 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
+/// The syntax that makes `markdown`'s link elements, whose href it decodes.
+final _linkSyntax = LinkSyntax();
+
 /// A link of a doc: the path it resolves to, the file line it is written on,
 /// its destination as written, and its decoded `#anchor`, null with no `#`.
 ///
@@ -131,6 +134,58 @@ bool readersAgree(List<LinkSource> sources, List<String> hrefs) {
   return true;
 }
 
+/// Returns the href `markdown` gives the link of each of [sources], the link
+/// sources of [lfBody], by index: the nth href for the nth source.
+///
+/// Null when `markdown` fails on [lfBody] or the readers disagree (see
+/// [readersAgree]), so no href is known for any source.
+List<String>? sourceHrefsOf(String lfBody, List<LinkSource> sources) {
+  if (sources.isEmpty) return const [];
+  final hrefs = _hrefsOf(lfBody);
+  return hrefs != null && readersAgree(sources, hrefs) ? hrefs : null;
+}
+
+/// A link destination as written, by its body range, and the href `markdown`
+/// gives it.
+typedef HrefDestination = ({int start, int end, String href});
+
+/// Returns each destination of [scan], the link scan of [lfBody], that has an
+/// href, with that href, in [scan]'s order.
+///
+/// An inline link's destination takes the href of its link (see
+/// [sourceHrefsOf]). A destination of no link takes the href `markdown` gives
+/// a link to a definition whose destination is written so.
+List<HrefDestination> hrefDestinationsOf(String lfBody, LinkScan scan) {
+  if (scan.destinations.isEmpty) return const [];
+  final tree = parseMarkdownTree(lfBody);
+  if (tree == null) return const [];
+  final hrefs = _hrefsIn(tree.nodes);
+  final linkHrefs = readersAgree(scan.sources, hrefs) ? hrefs : null;
+  final definitionHrefs = {
+    for (final LinkReference(:destination) in tree.definitions.values)
+      destination: _hrefOfLink(destination),
+  };
+  String? hrefOf(int start, int end, int? link) => link == null
+      ? definitionHrefs[lfBody.substring(start, end)]
+      : linkHrefs?[link];
+  return [
+    for (final (:start, :end, :link) in scan.destinations)
+      if (hrefOf(start, end, link) case final href?)
+        (start: start, end: end, href: href),
+  ];
+}
+
+/// Returns the href `markdown` gives a link whose destination it read as
+/// [destination], escapes kept.
+String? _hrefOfLink(String destination) {
+  final node = _linkSyntax.createNode(
+    destination,
+    null,
+    getChildren: () => const [],
+  );
+  return node is Element ? node.attributes['href'] : null;
+}
+
 /// Returns the href `markdown` makes of a link destination written as
 /// [shown], inside angle brackets when [angle], or null when that makes no
 /// one link.
@@ -222,7 +277,12 @@ String _normalize(String dest) => dest.splitMapJoin(
 /// neither the reference's link nor the back link.
 List<String>? _hrefsOf(String body, {List<Node>? bodyNodes}) {
   final nodes = bodyNodes ?? parseMarkdown(body);
-  if (nodes == null) return null;
+  return nodes == null ? null : _hrefsIn(nodes);
+}
+
+/// Returns the hrefs of the links and images of [nodes], in order, those
+/// `markdown` makes for a footnote left out (see [_hrefsOf]).
+List<String> _hrefsIn(List<Node> nodes) {
   final hrefs = <String>[];
   void visit(List<Node> nodes) {
     for (final node in nodes) {

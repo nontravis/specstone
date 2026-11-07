@@ -248,6 +248,7 @@ void main() {
               'docs/specs/f01_login/API.md':
                   '# Api\n\n## Lifecycle\n\nSteps.\n',
               'docs/specs/f01_login/A_B.md': '# A b\n',
+              'docs/specs/f01_login/a(b.md': '# A paren b\n',
             }..update(
               'docs/$loginArchitecture',
               (text) => unparsed ? '$text\n[a]:<b\\' : text,
@@ -278,11 +279,17 @@ void main() {
       '[x](API.md) .': true,
       'Components': true,
       '[x](Components)': false,
+      '[x][paren]': false,
+      '[x][open]': true,
+      '[x](a( "t")b.md)': true,
     };
     expect(
       targetsIn(
         await reportOf(
-          [for (final form in resolves.keys) '- C: see $form\n'].join(),
+          [
+            for (final form in resolves.keys) '- C: see $form\n',
+            '\n[paren]: API.md)\n[open]: a(b.md\n',
+          ].join(),
         ),
       ),
       [

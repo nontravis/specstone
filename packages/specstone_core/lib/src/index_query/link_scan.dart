@@ -60,6 +60,11 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
 /// A body range, start included, end excluded.
 typedef BodyRange = ({int start, int end});
 
+/// A link destination as written: its body range, angle brackets left out,
+/// and the index in the scan's sources of the link written with it, null for
+/// a definition's and for one in an image description, which drops its link.
+typedef ScannedDestination = ({int start, int end, int? link});
+
 /// What one link scan of a body reads: its link sources, its prose, and the
 /// range of each link destination as written.
 ///
@@ -69,11 +74,11 @@ typedef BodyRange = ({int start, int end});
 /// GFM bare URL or email, raw HTML run, and inline link's parenthesized
 /// destination and title. Link text, a full reference's label, and a
 /// definition's label stay. `destinations` hold each inline link's
-/// destination and each definition's, angle brackets left out.
+/// destination and each definition's.
 typedef LinkScan = ({
   List<LinkSource> sources,
   String prose,
-  List<BodyRange> destinations,
+  List<ScannedDestination> destinations,
 });
 
 /// Returns the link scan of [lfBody] as [linkSourcesOf] reads it, with the
@@ -93,19 +98,31 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
       prose[i] = lfBody.codeUnitAt(i);
     }
   }
+  final sources = _sourcesOf(lfBody, reader, firstLine);
+  // Sorted by _sourcesOf, the found links share the sources' indexes.
+  final linkAt = {
+    for (final (index, found) in reader.found.indexed)
+      if (found.destination case final destination?) destination.start: index,
+  };
   return (
-    sources: _sourcesOf(lfBody, reader, firstLine),
+    sources: sources,
     prose: String.fromCharCodes(prose),
-    destinations: [...reader.destinations, ...leaf.definitionDestinations],
+    destinations: [
+      for (final (:start, :end) in reader.destinations)
+        (start: start, end: end, link: linkAt[start]),
+      for (final (:start, :end) in leaf.definitionDestinations)
+        (start: start, end: end, link: null),
+    ],
   );
 }
 
+/// Returns the sources of [reader]'s links, which it sorts into source order.
 List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
   final found = reader.found..sort((a, b) => a.offset - b.offset);
   final sources = <LinkSource>[];
   var line = firstLine;
   var counted = 0;
-  for (final (:offset, :end, :shown, :angle) in found) {
+  for (final (:offset, :end, :shown, :angle, destination: _) in found) {
     for (; counted < offset; counted++) {
       if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
@@ -121,8 +138,15 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
 }
 
 /// A link or image the reader found: the offsets of its first character and
-/// after its last, its destination, and whether angle brackets enclose it.
-typedef _Found = ({int offset, int end, String? shown, bool angle});
+/// after its last, its destination, whether angle brackets enclose it, and
+/// the range of its destination as written when that is one run of the text.
+typedef _Found = ({
+  int offset,
+  int end,
+  String? shown,
+  bool angle,
+  BodyRange? destination,
+});
 
 /// Where a `]` ends the link it closes, and the link's destination: whether
 /// angle brackets enclose it, whether it is an inline link, whose parens
@@ -209,7 +233,13 @@ final class _Reader {
   /// Adds the source with no destination that runs from [at] to [end], an
   /// autolink or a GFM bare URL or email, as an atom, and returns [end].
   int _destinationless(int at, int end) {
-    found.add((offset: at, end: end, shown: null, angle: false));
+    found.add((
+      offset: at,
+      end: end,
+      shown: null,
+      angle: false,
+      destination: null,
+    ));
     return _atom(at, end);
   }
 
@@ -264,14 +294,15 @@ final class _Reader {
           continue;
         }
         if (opener.image) found.length = opener.found;
+        final destination = close.destination;
         found.add((
           offset: opener.offset,
           end: close.end,
           shown: close.shown,
           angle: close.angle,
+          destination: destination,
         ));
         if (close.inline) _atom(i + 1, close.end);
-        final destination = close.destination;
         if (recordsAtoms && destination != null) destinations.add(destination);
         if (!opener.image) linksClosed++;
         i = close.end;

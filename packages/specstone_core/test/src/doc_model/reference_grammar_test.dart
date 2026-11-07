@@ -479,4 +479,22 @@ void main() {
       );
     });
   });
+
+  group('writtenAnchorStart', () {
+    test('returns the index past the first # of a written destination', () {
+      expect(writtenAnchorStart('a.md#x'), 5);
+      expect(writtenAnchorStart('#x'), 1);
+      expect(writtenAnchorStart(r'f01\_a/A.md#x#y'), 12);
+    });
+
+    test('skips a # that opens a character reference', () {
+      expect(writtenAnchorStart('doc&#95;model.md#rule-1'), 17);
+      expect(writtenAnchorStart('a&#35;x'), isNull);
+    });
+
+    test('returns null for a destination with no #', () {
+      expect(writtenAnchorStart('a.md'), isNull);
+      expect(writtenAnchorStart(''), isNull);
+    });
+  });
 }

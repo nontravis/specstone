@@ -25,7 +25,10 @@ String _withoutDestinations(String lf) {
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = lf.length - body.length;
   final units = lf.codeUnits.toList();
-  for (final (:start, :end) in linkScanOf(body, firstLine: 1).destinations) {
+  for (final (:start, :end, link: _) in linkScanOf(
+    body,
+    firstLine: 1,
+  ).destinations) {
     for (var i = bodyStart + start; i < bodyStart + end; i++) {
       if (units[i] != _lineFeed) units[i] = _space;
     }

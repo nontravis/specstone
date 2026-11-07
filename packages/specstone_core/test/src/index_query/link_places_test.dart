@@ -42,7 +42,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end) in scan.destinations)
+          for (final (:start, :end, link: _) in scan.destinations)
             body.substring(start, end),
         ]..sort(),
         [
@@ -60,12 +60,77 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end) in scan.destinations)
+          for (final (:start, :end, link: _) in scan.destinations)
             angled.substring(start, end),
         ],
         ['b c.md#x'],
       );
       expect(scan.prose.trimRight(), '[a]');
+    });
+
+    test('R73: each inline destination names the index of its link, and a '
+        'definition destination or one in an image description names none', () {
+      const linked = '[a](a.md) ![i [b](b.md)](c.png) [d][r]\n\n[r]: d.md\n';
+      final scan = linkScanOf(linked, firstLine: 1);
+
+      expect(
+        {
+          for (final (:start, :end, :link) in scan.destinations)
+            linked.substring(start, end): link,
+        },
+        {'a.md': 0, 'b.md': null, 'c.png': 1, 'd.md': null},
+      );
+    });
+  });
+
+  group('sourceHrefsOf', () {
+    List<String>? hrefsOf(String body) =>
+        sourceHrefsOf(body, linkSourcesOf(body, firstLine: 1));
+
+    test('R73: gives each source the href markdown decodes for its link, a '
+        'definition destination read in its own grammar', () {
+      expect(
+        hrefsOf(
+          '[a](A\\_B.md) [b](API&#46;md) [c][m] [d](a( "t")b.md)\n\n'
+          '[m]: API.md)\n',
+        ),
+        ['A_B.md', 'API.md', 'API.md)', 'a(b.md'],
+      );
+    });
+
+    test('R73: gives none for a body with no links, and null when markdown '
+        'fails on it', () {
+      expect(hrefsOf('No links.\n'), isEmpty);
+      expect(hrefsOf('[x](a.md)\n\n[a]:<b\\'), isNull);
+    });
+  });
+
+  group('hrefDestinationsOf', () {
+    List<(String, String)> placedOf(String body) => [
+      for (final (:start, :end, :href) in hrefDestinationsOf(
+        body,
+        linkScanOf(body, firstLine: 1),
+      ))
+        (body.substring(start, end), href),
+    ];
+
+    test('R73: an inline destination takes its link href and a definition '
+        'its own, used or not', () {
+      expect(
+        placedOf('[a](f01\\_a/A.md#x)\n\n[r]: f01&#95;a/B.md\n[u]: a(b.md\n'),
+        [
+          (r'f01\_a/A.md#x', 'f01_a/A.md#x'),
+          ('f01&#95;a/B.md', 'f01_a/B.md'),
+          ('a(b.md', 'a(b.md'),
+        ],
+      );
+    });
+
+    test('R73: a destination of no link and no definition, or a body '
+        'markdown fails on, places none', () {
+      expect(placedOf('![i [b](b.md)](c.png)\n'), [('c.png', 'c.png')]);
+      expect(placedOf('No links.\n'), isEmpty);
+      expect(placedOf('[x](a.md)\n\n[a]:<b\\'), isEmpty);
     });
   });
 
