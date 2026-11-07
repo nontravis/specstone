@@ -981,6 +981,98 @@ void main() {
           ]),
         );
       });
+
+      test('$fr E18 (W15): an upgrade over every renumber case raises no '
+          'finding of any kind the tree lacked before, and a second upgrade '
+          'changes nothing', () async {
+        const anchor = 'scenario-6a--edge-lettered';
+        const story =
+            '---\ngoals: [PG-2a]\n---\n# B\n\n## Acceptance Criteria\n\n'
+            '### Scenario 1 — [happy] one\n\n- **Given** g\n\n'
+            '### Scenario 8 — [error] eight\n\n- **Given** g\n\n'
+            '$lettered\n\nSee [it](#$anchor), S6a.\n';
+        final blockFingerprint = fingerprintOf(
+          '$lettered\n\nSee [it](#$anchor), S6a.',
+        );
+        final docs = {
+          'docs/prds/PROJECT.md':
+              '# P\n\n## Project vision\n\n### PV-01 — One\n\n'
+              '### PV-1a — Lettered\n\n## Project goals\n\n'
+              '### PG-01 — One\n\n**Serves:** PV-01\n\n'
+              '### PG-2a — Two\n\n**Serves:** PV-1a\n',
+          'docs/prds/GNFR.md':
+              '# G\n\n## Performance\n\n### NFR-P07 — Seven\n\n'
+              '- **Statement:** s7\n\n### NFR-P06a — Latency\n\n'
+              '- **Statement:** s6a\n',
+          'docs/prds/features/f01_a/FEATURE.md':
+              '---\nvision: [PV-1a]\ngoals: [PG-2a]\n---\n# A\n',
+          storyPath: story,
+          tracingPath:
+              '---\ntraced_from:\n  - S6a\nconfirmed:\n'
+              '  - S6a $blockFingerprint\n---\n# C\n\n## Statement\n\n'
+              'See [the lockout](USER_STORY.md#$anchor) and S6a.\n',
+          suspectPath:
+              '---\ntraced_from: [S6]\nconfirmed:\n  - S6 $blockFingerprint\n'
+              '---\n# G\n',
+          'docs/prds/features/f01_a/us01_b/nf01_d.md':
+              '---\nkind: tighten\noverrides: NFR-P06a\n---\n# D\n',
+          'docs/prds/journeys/onboard/JOURNEY.md':
+              '---\nconfirmed:\n  - a/b#S6a $blockFingerprint\n---\n'
+              '# Onboard\n\n## Steps\n\n### 1. Start\nstep: a/b S6a\n',
+          topicPath:
+              '# Doc model\n\n## Purpose\n\n'
+              '[RULE-7a](https://example.com/RULE-7a.md) and '
+              '<https://example.com/RULE-7a>, `RULE-7a`.\n\n'
+              '## Rules\n\n- **RULE-1** — One.\n- **RULE-7a** — Lettered.\n'
+              '- **RULE-9a2** — Odd.\n- **RULE-30** — Thirty.\n',
+          'docs/specs/f01_a/DOMAIN.md':
+              '# A\n\n## Invariants\n\n'
+              '[rules](../topics/doc_model.md) RULE-7a, '
+              '[latency](../../prds/GNFR.md#nfr-p06a--latency).\n',
+        };
+        Future<Set<String>> findings(Directory root, Directory home) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return {
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': final kind, 'docPath': final path})
+                '$kind $path',
+          };
+        }
+
+        final home = await writeTree({});
+        final before = await findings(
+          await gitFixture({
+            '.specstone/config.yaml': shippedPinsConfig(),
+            _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+            ...docs,
+          }),
+          home,
+        );
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          ...docs,
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(before, contains('item_id_lettered specs/topics/doc_model.md'));
+        expect(
+          before,
+          contains('reference_malformed specs/topics/doc_model.md'),
+        );
+        final after = await findings(root, home);
+        expect(after.difference(before), isEmpty);
+        expect(
+          after.where((finding) => finding.startsWith('item_id_lettered')),
+          isEmpty,
+        );
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
     });
   }, skip: hasGit ? null : 'git is not available');
 }
