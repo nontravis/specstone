@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _headingMarker = '### ';
 const _notApplicable = 'N/A';
+const _itemIdForm = 'item_id';
 final _listMarker = RegExp(r'^(?:[-*+]|\d+[.)])\s+');
 
 /// One item of a doc, or one story scenario heading, in document order.
@@ -66,7 +67,9 @@ Iterable<Finding> checkItemIds(CheckContext context, IndexedDoc doc) sync* {
       continue;
     }
     final index = readIndex++;
-    if (id is LetteredId) {
+    if (id is UnreadableId) {
+      yield _unreadable(context, doc, item, id);
+    } else if (id is LetteredId) {
       yield _lettered(context, doc, item, id, next[index]!);
     } else if (item.prefix != scenarioIdPrefix) {
       final first = seen[id.written];
@@ -114,6 +117,21 @@ Finding _lettered(
   line: item.line,
   message: '${id.written} has a letter after its number; use $next',
   keys: {'id': id.written, 'section': item.sectionKey, 'next': next},
+);
+
+Finding _unreadable(
+  CheckContext context,
+  IndexedDoc doc,
+  IdAt item,
+  UnreadableId id,
+) => context.finding(
+  doc,
+  FindingKind.referenceMalformed,
+  line: item.line,
+  message:
+      '${id.written} cannot be read: a digit follows the letter after its '
+      'number',
+  keys: {'form': _itemIdForm, 'text': id.written},
 );
 
 List<IdAt> _idsOfSection(MergedSection template, List<BodyLine> body) => [

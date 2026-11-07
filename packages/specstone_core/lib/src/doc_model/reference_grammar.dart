@@ -111,6 +111,18 @@ final class LetteredId extends IdRead {
   String get written => '$prefix$digits$letters';
 }
 
+/// Digits, a letter run, then a digit (`RULE-7a1`, `Scenario 6a2`): a form
+/// the grammar cannot read, neither an ID nor a lettered one.
+final class UnreadableId extends IdRead {
+  const new({required super.prefix, required super.digits, required this.rest});
+
+  /// The letter and digit run after [digits], as written.
+  final String rest;
+
+  @override
+  String get written => '$prefix$digits$rest';
+}
+
 /// The prefix a `### Scenario <N>` heading's number carries in IDs:
 /// `Scenario `.
 const scenarioIdPrefix = 'Scenario ';
@@ -132,21 +144,44 @@ IdRead? readScenarioHeading(String line) {
   return _readIdAt(line, scenarioIdPrefix, open.length);
 }
 
-/// Reads the digits at [start] and any letter run that follows (RULE-12).
+/// Reads the digits at [start] and any letter run that follows (RULE-12); a
+/// digit after that run makes the form unreadable.
 IdRead? _readIdAt(String text, String prefix, int start) {
-  var end = start;
-  while (end < text.length && _isDigit(text.codeUnitAt(end))) {
-    end++;
-  }
+  final end = _digitsEnd(text, start);
   if (end == start) return null;
   final digits = text.substring(start, end);
   final letterEnd = _lettersEnd(text, end);
   if (letterEnd == end) return ItemId(prefix: prefix, digits: digits);
+  if (letterEnd < text.length && _isDigit(text.codeUnitAt(letterEnd))) {
+    return UnreadableId(
+      prefix: prefix,
+      digits: digits,
+      rest: text.substring(end, _alphanumericEnd(text, letterEnd)),
+    );
+  }
   return LetteredId(
     prefix: prefix,
     digits: digits,
     letters: text.substring(end, letterEnd),
   );
+}
+
+int _digitsEnd(String text, int start) {
+  var end = start;
+  while (end < text.length && _isDigit(text.codeUnitAt(end))) {
+    end++;
+  }
+  return end;
+}
+
+/// The index past the run of letters and ASCII digits starting at [start].
+int _alphanumericEnd(String text, int start) {
+  var end = start;
+  while (true) {
+    final past = _lettersEnd(text, _digitsEnd(text, end));
+    if (past == end) return end;
+    end = past;
+  }
 }
 
 /// The index past a letter run starting at [start], astral letters

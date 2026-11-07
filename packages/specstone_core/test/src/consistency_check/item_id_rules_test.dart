@@ -185,6 +185,40 @@ void main() {
       },
     );
 
+    test('f04/us01/fr09: a digit after an item or scenario letter run is '
+        'reference_malformed with no next, and takes no next number', () async {
+      final extra = {
+        ..._topicRules(
+          '- **RULE-30** — a\n- **RULE-7a1** — b\n- **RULE-7a** — c',
+        ),
+        ..._scenarios('### Scenario 6a2 — [edge] Odd\n\n- a'),
+      };
+      final malformed = await _itemIdFindings(
+        extra,
+        kind: FindingKind.referenceMalformed,
+      );
+      expect(_keysOf(malformed), [
+        allOf(
+          containsPair('form', 'item_id'),
+          containsPair('text', 'Scenario 6a2'),
+          isNot(contains('next')),
+        ),
+        allOf(
+          containsPair('form', 'item_id'),
+          containsPair('text', 'RULE-7a1'),
+          isNot(contains('next')),
+        ),
+      ]);
+      final lettered = await _itemIdFindings(
+        extra,
+        kind: FindingKind.itemIdLettered,
+      );
+      expect(_keysOf(lettered), [
+        allOf(containsPair('id', 'RULE-7a'), containsPair('next', 'RULE-31')),
+      ]);
+      expect(await _itemIdFindings(extra), isEmpty);
+    });
+
     test('f04/us01/fr09/e04: RULE-12 beside RULE-1 is no duplicate', () async {
       final found = await _itemIdFindings(
         _topicRules('- **RULE-1** — a\n- **RULE-12** — b'),

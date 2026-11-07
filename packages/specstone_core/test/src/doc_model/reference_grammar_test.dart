@@ -125,6 +125,20 @@ void main() {
       expect(readItemId('RULE- x', 'RULE-'), isNull);
     });
 
+    test('RULE-12: a digit after the letter run reads as an UnreadableId '
+        'spanning the whole letter and digit run', () {
+      for (final (text, written) in const [
+        ('RULE-7a1 x', 'RULE-7a1'),
+        ('RULE-7a1b2, y', 'RULE-7a1b2'),
+        ('**RULE-7ab12** — z', 'RULE-7ab12'),
+      ]) {
+        final id = readItemId(text, 'RULE-');
+        expect(id, isA<UnreadableId>(), reason: text);
+        expect(id!.written, written, reason: text);
+        expect(id.digits, '7', reason: text);
+      }
+    });
+
     test('a letter in the prefix position reads as null', () {
       // NFR-P03 with prefix NFR- holds a letter P before the digits.
       expect(readItemId('NFR-P03', 'NFR-'), isNull);
@@ -144,6 +158,13 @@ void main() {
       final id = readScenarioHeading('### Scenario 6a — x');
       expect(id, isA<LetteredId>());
       expect(id!.written, 'Scenario 6a');
+    });
+
+    test('a digit after the letter of a scenario number reads as an '
+        'UnreadableId', () {
+      final id = readScenarioHeading('### Scenario 6a2 — x');
+      expect(id, isA<UnreadableId>());
+      expect(id!.written, 'Scenario 6a2');
     });
 
     test('a heading with no text still reads', () {

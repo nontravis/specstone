@@ -134,7 +134,6 @@ final class RenumberBodyRewrite {
         if (_isWordCharBefore(prose, at)) continue;
         final id = readItemId(prose.substring(at), prefix);
         if (id is! LetteredId) continue;
-        if (_isWordCharAt(prose, at + id.written.length)) continue;
         found.add((at: at, written: id.written));
       }
     }
@@ -207,14 +206,6 @@ bool _isWordCharBefore(String text, int at) {
   if (at == 0) return false;
   final isPair = at >= 2 && _isLowSurrogate(text.codeUnitAt(at - 1));
   return _wordChar.hasMatch(text.substring(at - (isPair ? 2 : 1), at));
-}
-
-/// Whether the code point at [at] in [text] is a letter or digit.
-bool _isWordCharAt(String text, int at) {
-  if (at >= text.length) return false;
-  final isPair =
-      at + 1 < text.length && _isLowSurrogate(text.codeUnitAt(at + 1));
-  return _wordChar.hasMatch(text.substring(at, at + (isPair ? 2 : 1)));
 }
 
 bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;

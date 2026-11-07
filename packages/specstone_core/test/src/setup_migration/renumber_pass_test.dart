@@ -169,6 +169,34 @@ void main() {
     );
   });
 
+  test('$_fr E18: a digit after the letter run is unreadable, so the pass '
+      'neither plans nor rewrites it, and a lettered token beside it still '
+      'changes', () {
+    final topic = _topic.replaceFirst(
+      '- **RULE-12** — Twelve.',
+      '- **RULE-12** — Twelve, not RULE-7a1.\n- **RULE-9a2** — Odd.',
+    );
+    final story = _story.replaceFirst(
+      _lettered,
+      '$_lettered\n### Scenario 6a2 — [edge] odd\n\n- **Given** g\n',
+    );
+
+    final pass = _planOf({_topicPath: topic, _storyPath: story});
+
+    expect(pass.renumberings, [
+      (docPath: _storyPath, from: 'Scenario 6a', to: 'Scenario 9'),
+      (docPath: _topicPath, from: 'RULE-7a', to: 'RULE-31'),
+    ]);
+    expect(
+      pass.apply(_topicPath, topic),
+      topic.replaceFirst(
+        '- **RULE-7a** — Lettered, as RULE-7a says;',
+        '- **RULE-31** — Lettered, as RULE-31 says;',
+      ),
+    );
+    expect(pass.apply(_storyPath, story), contains('### Scenario 6a2 — '));
+  });
+
   test('$_fr E18: the renumbered doc rewrites its own item and prose mention, '
       'and keeps its code span, fence, and frontmatter byte-equal', () {
     final applied = _applied({_topicPath: _topic})[_topicPath]!;
