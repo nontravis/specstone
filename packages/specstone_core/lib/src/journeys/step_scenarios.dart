@@ -10,10 +10,10 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _storyType = 'user_story';
 
-/// Returns the `user_story` doc whose Name is [identity], or null.
-IndexedDoc? storyNamed(DocIndex index, String identity) => index.docs
-    .where((doc) => doc.docTypeId == _storyType && doc.name == identity)
-    .firstOrNull;
+/// Returns the first `user_story` doc in tree order whose Name is [identity],
+/// or null.
+IndexedDoc? storyNamed(DocIndex index, String identity) =>
+    index.ofTypeNamed(_storyType, identity).firstOrNull;
 
 /// Returns the story an `fr` under [ownStory] traces through [ref].
 ///

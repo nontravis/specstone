@@ -48,6 +48,10 @@ final class DocIndex {
   /// Returns the doc at [docPath], or null when none is indexed there.
   IndexedDoc? at(String docPath) => _byPath[docPath];
 
+  /// Returns the docs of the doc type [typeId] named [name], in tree order.
+  List<IndexedDoc> ofTypeNamed(String typeId, String name) =>
+      _byTypeAndName['$typeId:$name'] ?? const [];
+
   /// Returns the doc [doc] nests under, or null for a root doc.
   IndexedDoc? parentOf(IndexedDoc doc) {
     final parentPath = doc.parentPath;

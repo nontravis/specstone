@@ -12,6 +12,11 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _frType = 'fr';
 const _tracedFromKey = 'traced_from';
 
+/// The inbound story maps of each index, built on first use: an index is
+/// one read snapshot, so a delete unit's [referrersOf] calls share them.
+final _journeysByStoryOf = Expando<Map<String, List<IndexedDoc>>>();
+final _tracedByStoryOf = Expando<Map<String, List<IndexedDoc>>>();
+
 /// One reference as printed: its text line and its JSON object.
 final class _Ref {
   const new({required this.text, required this.json});
@@ -179,7 +184,10 @@ List<IndexedDoc> _stepTargets(DocIndex index, IndexedDoc doc) {
 
 /// Returns, per story DocPath, the journeys with a step naming the story, in
 /// tree order.
-Map<String, List<IndexedDoc>> _journeysByStory(DocIndex index) {
+Map<String, List<IndexedDoc>> _journeysByStory(DocIndex index) =>
+    _journeysByStoryOf[index] ??= _journeysByStoryBuilt(index);
+
+Map<String, List<IndexedDoc>> _journeysByStoryBuilt(DocIndex index) {
   final byStory = <String, List<IndexedDoc>>{};
   for (final journey in index.docs) {
     for (final story in _stepTargets(index, journey)) {
@@ -205,7 +213,10 @@ List<IndexedDoc> _tracedStories(DocIndex index, IndexedDoc doc) {
 }
 
 /// Returns, per story DocPath, the `fr` docs tracing it, in tree order.
-Map<String, List<IndexedDoc>> _tracedByStory(DocIndex index) {
+Map<String, List<IndexedDoc>> _tracedByStory(DocIndex index) =>
+    _tracedByStoryOf[index] ??= _tracedByStoryBuilt(index);
+
+Map<String, List<IndexedDoc>> _tracedByStoryBuilt(DocIndex index) {
   final byStory = <String, List<IndexedDoc>>{};
   for (final fr in index.docs) {
     for (final story in _tracedStories(index, fr)) {

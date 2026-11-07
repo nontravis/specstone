@@ -70,6 +70,13 @@ void main() {
       );
     }
   });
+  test('f01/us04/fr01: ofTypeNamed reads the docs of one type and Name from the index map, in tree order', () async {
+    expect(paths(index.ofTypeNamed('feature', 'login')), [
+      'prds/features/f01_login/FEATURE.md',
+    ]);
+    expect(index.ofTypeNamed('user_story', 'login'), isEmpty);
+    expect(index.ofTypeNamed('nosuch', 'login'), isEmpty);
+  });
   test('f01/us04/fr01, f01/us04/fr01/e01, s03/inv6: a bare name gives every doc carrying it, in tree order', () async {
     expect(paths(index.resolve('login')), [
       'prds/features/f01_login/FEATURE.md',
