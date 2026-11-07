@@ -185,8 +185,10 @@ typedef HrefDestinations = ({
 /// written so.
 ///
 /// The body is parsed only when some destination, read from its own text,
-/// has an href [canMove] holds for: a link takes that href or none, since
-/// context only takes a link away, so the read never misses a move.
+/// has an href [canMove] holds for: context takes a link away, so the read
+/// never misses a move. Only in a GFM table cell can context change an href
+/// (`p\\\|q.md`); the gate holds there, since a moved segment matches
+/// `[a-z0-9_]+` and a slug holds no `|`.
 HrefDestinations hrefDestinationsOf(
   String lfBody,
   LinkScan scan, {
