@@ -20,6 +20,38 @@ void main() {
     expect(checkOf(await writeCheckProject()).findings, isEmpty);
   });
 
+  test('f04/us04/fr01: a scenario is named by the value of its number, so S02 '
+      'and Scenario 02 name Scenario 2 alike, in traces and in confirmed '
+      'entries', () async {
+    final padded = loginScenario2.replaceFirst('Scenario 2', 'Scenario 02');
+    for (final extra in [
+      edit(loginFr, [('  - S2\n', '  - S02\n'), ('  - S2 ', '  - S02 ')]),
+      {
+        ...doc(loginStory, loginScenario2, padded),
+        ...edit(loginFr, [
+          ('  - S2 ${fp(loginScenario2)}', '  - S2 ${fp(padded)}'),
+        ]),
+      },
+    ]) {
+      expect(checkOf(await writeCheckProject(extra: extra)).findings, isEmpty);
+    }
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(loginStory, loginScenario2, edited),
+          ...edit(loginFr, [
+            ('  - S2\n', '  - S02\n'),
+            ('  - S2 ', '  - S02 '),
+          ]),
+        },
+      ),
+    );
+    expect(
+      report.findings.single.toJson(),
+      allOf(containsPair('link', 'S02'), containsPair('block', 'Scenario 2')),
+    );
+  });
+
   test('f04/us04/s2, f04/us04/fr01/e02, f04/us01/fr02/e06: an edited scenario makes the FR suspect, naming both '
       'fingerprints and the block, at the one finding level', () async {
     final report = checkOf(

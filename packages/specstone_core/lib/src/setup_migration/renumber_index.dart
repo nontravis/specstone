@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show scenarioKeyOf;
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -165,7 +167,7 @@ final class RenumberIndex {
     final number = to == null ? written : scenarioRefOf(to);
     return (
       label: storyName == null ? number : '$storyName#$number',
-      block: (storyPath, written),
+      block: (storyPath, scenarioKeyOf(ref) ?? written),
     );
   }
 

@@ -71,9 +71,17 @@ List<({String key, List<BodyLine> lines})> headingBlocksOf(
   return blocks;
 }
 
-/// Returns the `### Scenario <N>` blocks of [body], keyed `S<N>`.
+/// The key of the scenario block [ref] names: `S` and its number's value, so
+/// `S06` names `Scenario 6`; null for a lettered or unreadable number.
+String? scenarioKeyOf(ScenarioRef ref) => switch (ref.scenario) {
+  final number? => 'S$number',
+  null => null,
+};
+
+/// Returns the `### Scenario <N>` blocks of [body], each keyed `S` and its
+/// number's value, as [scenarioKeyOf] names them.
 ///
-/// The first block of a repeated number wins. A heading whose number a
+/// The first block of a repeated value wins. A heading whose number a
 /// letter follows keys no block and ends the one above.
 Map<String, String> scenarioBlocksIn(List<BodyLine> body) {
   final blocks = <String, String>{};
@@ -101,7 +109,7 @@ Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) {
 
 String? _scenarioKeyOf(String heading) =>
     switch (readScenarioHeading(heading)) {
-      ItemId(:final digits) => 'S$digits',
+      ItemId(:final number) => 'S$number',
       _ => null,
     };
 

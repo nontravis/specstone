@@ -87,7 +87,7 @@ bool _tracesScenario(CheckContext context, IndexedDoc story, String entry) {
   if (ref == null) return false;
   final traced = tracedStoryOf(context.index, story, ref);
   return traced != null &&
-      context.scenarioBlocksOf(traced).containsKey(ref.number.written);
+      context.scenarioBlocksOf(traced).containsKey(scenarioKeyOf(ref));
 }
 
 Iterable<Finding> _overrideProblems(

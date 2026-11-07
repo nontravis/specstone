@@ -40,6 +40,15 @@ void main() {
       expect(blocks['S2'], '### Scenario 2 — two\n- b');
     });
 
+    test('f04/us04/fr01: a block is keyed by the value of its number, so '
+        'Scenario 01 keys S1 and a later Scenario 1 is its repeat', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 01 — one\n- a\n### Scenario 1 — again\n- b'),
+      );
+
+      expect(blocks, {'S1': '### Scenario 01 — one\n- a'});
+    });
+
     test('f04/us04/fr01: Scenario 1 does not match Scenario 10', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 10 — ten\n- a\n### Scenario 1 — one\n- b'),

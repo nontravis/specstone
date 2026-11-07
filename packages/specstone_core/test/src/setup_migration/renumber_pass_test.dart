@@ -475,6 +475,34 @@ confirmed:
     expect(applied[_siblingFrPath], tracing('000000000000'));
   });
 
+  test('$_fr E18: a zero-padded story names a scenario by its value, so a '
+      'padded entry whose block the pass rewrites keeps a current link', () {
+    const eight = '### Scenario 08 — [error] eight\n\n- **Given** g';
+    const mentioning = '$eight, unlike Scenario 6a';
+    final story = _story
+        .replaceFirst('Scenario 1 —', 'Scenario 01 —')
+        .replaceFirst(
+          '### Scenario 8 — [error] eight\n\n- **Given** g',
+          mentioning,
+        );
+    String tracing(String label, String fingerprint) =>
+        '---\ntraced_from: [$label]\nconfirmed:\n  - $label $fingerprint\n'
+        '---\n# C\n';
+
+    const paddedFrPath = 'prds/features/f01_a/us01_b/fr02_g.md';
+
+    final applied = _applied({
+      _storyPath: story,
+      _frPath: tracing('S8', fingerprintOf(mentioning)),
+      paddedFrPath: tracing('S08', fingerprintOf(mentioning)),
+    });
+
+    final current = fingerprintOf('$eight, unlike Scenario 09');
+    expect(applied[_storyPath], contains('### Scenario 09 — [edge] lettered'));
+    expect(applied[_frPath], tracing('S8', current));
+    expect(applied[paddedFrPath], tracing('S08', current));
+  });
+
   test('$_fr E18: an FR Statement the pass rewrites keeps the api FR trace '
       'link current', () {
     final fr = _frDoc('000000000000');

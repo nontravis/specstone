@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -87,14 +88,14 @@ Iterable<TrackedLink> _scenarioLinks(
     if (ref == null) continue;
     final traced = tracedStoryOf(context.index, story, ref);
     if (traced == null) continue;
-    final text = context.scenarioBlocksOf(traced)[ref.number.written];
+    final text = context.scenarioBlocksOf(traced)[scenarioKeyOf(ref)];
     yield text == null
         ? TrackedLink(label: ref.label, traceLine: line)
         : TrackedLink(
             label: ref.label,
             traceLine: line,
             upstream: traced.docPath,
-            block: 'Scenario ${ref.number.digits}',
+            block: 'Scenario ${ref.scenario}',
             fingerprint: fingerprintOf(text),
           );
   }
