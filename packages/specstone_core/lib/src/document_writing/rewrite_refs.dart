@@ -16,6 +16,8 @@ import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/link_places.dart'
+    show hrefOfSpelling;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -66,9 +68,9 @@ String? rewriteDocLinks(
   if (!body.contains('](') && !body.contains(']:')) return null;
   final edits = <({int start, int end, String text})>[];
   for (final span in destinationsIn(body)) {
-    final href = _hrefOfSpelling(
+    final href = hrefOfSpelling(
       body.substring(span.start, span.end),
-      span.angle,
+      angle: span.angle,
     );
     final newHref = href == null ? null : _movedHref(href, docPath, moves);
     if (newHref != null && _yieldsLinkAt(body, span.start, span.end)) {
@@ -349,13 +351,6 @@ Set<String> _hrefsOf(String lfText) {
 
   visit(nodes);
   return hrefs;
-}
-
-/// Returns the href the markdown parser makes of [raw] alone, or null when it
-/// does not make exactly one link of it.
-String? _hrefOfSpelling(String raw, bool angle) {
-  final hrefs = _hrefsOf(angle ? '[x](<$raw>)' : '[x]($raw)');
-  return hrefs.length == 1 ? hrefs.single : null;
 }
 
 /// Whether swapping `[start, end)` of [lfText] for a unique name yields a

@@ -11,8 +11,15 @@ import 'package:specstone_core/src/index_query/link_blocks.dart';
 /// A source of an `a` or `img` element markdown makes: the body offsets of its
 /// first character and after its last, its file line, and, for an inline or
 /// reference link or image, its destination as written (null for an autolink,
-/// an email autolink, or a GFM bare URL or email).
-typedef LinkSource = ({int offset, int end, int line, String? shown});
+/// an email autolink, or a GFM bare URL or email), angle brackets dropped, and
+/// whether angle brackets enclose it.
+typedef LinkSource = ({
+  int offset,
+  int end,
+  int line,
+  String? shown,
+  bool angle,
+});
 
 /// Returns the sources of the links in [lfBody], in source order.
 ///
@@ -98,25 +105,33 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
   final sources = <LinkSource>[];
   var line = firstLine;
   var counted = 0;
-  for (final (:offset, :end, :shown) in found) {
+  for (final (:offset, :end, :shown, :angle) in found) {
     for (; counted < offset; counted++) {
       if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
-    sources.add((offset: offset, end: end, line: line, shown: shown));
+    sources.add((
+      offset: offset,
+      end: end,
+      line: line,
+      shown: shown,
+      angle: angle,
+    ));
   }
   return sources;
 }
 
 /// A link or image the reader found: the offsets of its first character and
-/// after its last, and its destination.
-typedef _Found = ({int offset, int end, String? shown});
+/// after its last, its destination, and whether angle brackets enclose it.
+typedef _Found = ({int offset, int end, String? shown, bool angle});
 
 /// Where a `]` ends the link it closes, and the link's destination: whether
-/// it is an inline link, whose parens follow the `]`, and the range of its
-/// destination as written when that is one run of the text.
+/// angle brackets enclose it, whether it is an inline link, whose parens
+/// follow the `]`, and the range of its destination as written when that is
+/// one run of the text.
 typedef _Close = ({
   int end,
   String? shown,
+  bool angle,
   bool inline,
   BodyRange? destination,
 });
@@ -150,7 +165,7 @@ final class _Reader {
   new(this.text, this.definitions, {this.recordsAtoms = false});
 
   final String text;
-  final Map<String, String> definitions;
+  final Map<String, WrittenDestination> definitions;
   final found = <_Found>[];
 
   /// Whether [read] keeps the ranges of [atoms] and [destinations].
@@ -194,7 +209,7 @@ final class _Reader {
   /// Adds the source with no destination that runs from [at] to [end], an
   /// autolink or a GFM bare URL or email, as an atom, and returns [end].
   int _destinationless(int at, int end) {
-    found.add((offset: at, end: end, shown: null));
+    found.add((offset: at, end: end, shown: null, angle: false));
     return _atom(at, end);
   }
 
@@ -249,7 +264,12 @@ final class _Reader {
           continue;
         }
         if (opener.image) found.length = opener.found;
-        found.add((offset: opener.offset, end: close.end, shown: close.shown));
+        found.add((
+          offset: opener.offset,
+          end: close.end,
+          shown: close.shown,
+          angle: close.angle,
+        ));
         if (close.inline) _atom(i + 1, close.end);
         final destination = close.destination;
         if (recordsAtoms && destination != null) destinations.add(destination);
@@ -447,6 +467,7 @@ final class _Reader {
             : (
                 end: next + 2,
                 shown: collapsed.shown,
+                angle: collapsed.angle,
                 inline: false,
                 destination: null,
               );
@@ -465,7 +486,13 @@ final class _Reader {
     final dest = definitions[linkLabel(text.substring(from, close))];
     return dest == null
         ? null
-        : (end: close + 1, shown: dest, inline: false, destination: null);
+        : (
+            end: close + 1,
+            shown: dest.shown,
+            angle: dest.angle,
+            inline: false,
+            destination: null,
+          );
   }
 
   /// Returns the full reference whose label opens at [open], or null when it
@@ -499,7 +526,13 @@ final class _Reader {
     final dest = definitions[linkLabel(name)];
     return dest == null
         ? null
-        : (end: pos + 1, shown: dest, inline: false, destination: null);
+        : (
+            end: pos + 1,
+            shown: dest.shown,
+            angle: dest.angle,
+            inline: false,
+            destination: null,
+          );
   }
 
   /// Returns the inline link whose `(` is at [open], or null when the parens
@@ -532,6 +565,7 @@ final class _Reader {
     return (
       end: paren + 1,
       shown: text.substring(open + 1, close),
+      angle: true,
       inline: true,
       destination: (start: open + 1, end: close),
     );
@@ -552,6 +586,7 @@ final class _Reader {
       return (
         end: match + 1,
         shown: text.substring(start, match),
+        angle: false,
         inline: true,
         destination: (start: start, end: match),
       );
@@ -570,6 +605,7 @@ final class _Reader {
         return (
           end: paren + 1,
           shown: shown.toString(),
+          angle: false,
           inline: true,
           destination: pieceStart == start ? (start: start, end: pos) : null,
         );
@@ -588,6 +624,7 @@ final class _Reader {
               return (
                 end: pos + 1,
                 shown: shown.toString(),
+                angle: false,
                 inline: true,
                 destination: null,
               );

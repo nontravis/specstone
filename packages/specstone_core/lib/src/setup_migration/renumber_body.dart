@@ -250,7 +250,7 @@ final class RenumberBodyRewrite {
   /// The links to a doc of the run, by file line, each at its column.
   Map<int, List<_Citation>> _linkCitationsOf() {
     final citations = <int, List<_Citation>>{};
-    for (final (:offset, :line, :shown, end: _) in _scan.sources) {
+    for (final (:offset, :line, :shown, end: _, angle: _) in _scan.sources) {
       final docPath = shown == null
           ? null
           : _index.docAtPath(shown, _doc.docPath);

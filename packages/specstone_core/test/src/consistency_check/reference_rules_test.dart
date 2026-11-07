@@ -154,6 +154,7 @@ void main() {
             ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
             'docs/specs/f01_login/a(b).md': '# B\n',
             'docs/specs/f01_login/API.md': '# Api\n',
+            'docs/specs/f01_login/My File.md': '# Mine\n',
           },
         ),
       );
@@ -168,7 +169,9 @@ void main() {
       await targetsOf(
         '- A: see [x](a(b).md)\n'
         '- B: see [x](<API.md>)\n'
-        '- C: see [x](API.md "t")\n',
+        '- C: see [x](API.md "t")\n'
+        '- D: see [x](<My File.md>)\n'
+        '- E: see [x][mine]\n\n[mine]: <My File.md>\n',
       ),
       isEmpty,
     );
@@ -244,6 +247,7 @@ void main() {
               ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
               'docs/specs/f01_login/API.md':
                   '# Api\n\n## Lifecycle\n\nSteps.\n',
+              'docs/specs/f01_login/A_B.md': '# A b\n',
             }..update(
               'docs/$loginArchitecture',
               (text) => unparsed ? '$text\n[a]:<b\\' : text,
@@ -258,21 +262,28 @@ void main() {
 
     const resolves = {
       'API.md': true,
+      '[x](API.md)': true,
       'API.md ## Lifecycle': false,
+      '[x](API.md ## Lifecycle)': false,
       'ARCHITECTURE.md': true,
+      '[x](ARCHITECTURE.md)': true,
       'MISSING.md': false,
+      '[x](MISSING.md)': false,
       'API.md#missing-anchor': false,
+      '[x](API.md#missing-anchor)': false,
+      'A_B.md': true,
+      r'[x](A\_B.md)': true,
+      '[x](API&#46;md)': true,
     };
-    final forms = [
-      for (final target in resolves.keys) ...[target, '[x]($target)'],
-    ];
     expect(
       targetsIn(
-        await reportOf([for (final form in forms) '- C: see $form\n'].join()),
+        await reportOf(
+          [for (final form in resolves.keys) '- C: see $form\n'].join(),
+        ),
       ),
       [
-        for (final MapEntry(key: target, value: resolved) in resolves.entries)
-          if (!resolved) ...[target, '[x]($target)'],
+        for (final MapEntry(key: form, value: resolved) in resolves.entries)
+          if (!resolved) form,
       ],
     );
 

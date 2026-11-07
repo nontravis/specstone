@@ -18,15 +18,18 @@ import 'package:markdown/markdown.dart'
 /// `text` is the body with every code unit markdown never reads as inline text
 /// blanked to a space, line ends and length kept; `leaves` are the inline text
 /// ranges in source order; `definitions` maps `linkLabel(label)` to the
-/// destination as written, angle brackets dropped, the first definition of a
-/// label winning.
+/// destination as written, the first definition of a label winning.
 typedef LeafText = ({
   String text,
   List<({int start, int end})> leaves,
-  Map<String, String> definitions,
+  Map<String, WrittenDestination> definitions,
   List<({int start, int end})> definitionLabels,
   List<({int start, int end})> definitionDestinations,
 });
+
+/// A link destination as written, angle brackets dropped, and whether angle
+/// brackets enclose it.
+typedef WrittenDestination = ({String shown, bool angle});
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
 // upgrade that changes one changes the scan with it.
@@ -182,7 +185,7 @@ enum _Stop {
 /// What the block passes of one body produce together.
 final class _Sink {
   final leaves = <({int start, int end})>[];
-  final definitions = <String, String>{};
+  final definitions = <String, WrittenDestination>{};
 
   /// The body ranges of each definition's label, brackets left out, and of
   /// its destination as written, angle brackets left out.
@@ -235,7 +238,7 @@ final class _BlockPass {
   final List<bool?> _endsBlock;
 
   final List<({int start, int end})> leaves;
-  final Map<String, String> definitions;
+  final Map<String, WrittenDestination> definitions;
 
   /// The first line of the open paragraph, or -1.
   var _paragraph = -1;
@@ -840,7 +843,8 @@ final class _BlockPass {
     final String destination;
     final (int, int) destinationStart;
     final (int, int) destinationEnd;
-    if (cursor.unit == _lessThan) {
+    final angle = cursor.unit == _lessThan;
+    if (angle) {
       cursor.advance();
       final start = destinationStart = cursor.mark;
       while (true) {
@@ -905,7 +909,10 @@ final class _BlockPass {
     }
     final next = cursor.isRestBlank ? cursor.line + 1 : cursor.line;
     if (next <= first) return null;
-    definitions.putIfAbsent(linkLabel(label), () => destination);
+    definitions.putIfAbsent(
+      linkLabel(label),
+      () => (shown: destination, angle: angle),
+    );
     _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
     _sink.definitionDestinations.add(
       _rangeOf(destinationStart, destinationEnd),

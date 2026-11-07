@@ -7,6 +7,8 @@ import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/link_places.dart'
+    show hrefOfSpelling;
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show LinkSource, linkSourcesOf;
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -164,8 +166,8 @@ String _withoutTrailingPunctuation(String text) {
   return text.substring(0, end);
 }
 
-/// Whether [text], a `see` target or the destination of the link that spans
-/// it, names a `##` section of [doc], a file at the path relative to it, the
+/// Whether [text], a `see` target or the href of the link that spans it,
+/// names a `##` section of [doc], a file at the path relative to it, the
 /// doc itself included, or an anchor of the doc or of that file (R63).
 ///
 /// Text after a path makes it no path (E11). An anchor set that is unknown
@@ -208,9 +210,9 @@ final class _LinkSources {
         1,
   );
 
-  /// Returns the destination as written of the one link that runs from
-  /// column [start] to column [end] of file line [line], or null when no link
-  /// spans them or it has none.
+  /// Returns the href `markdown` makes of the destination of the one link
+  /// that runs from column [start] to column [end] of file line [line], as
+  /// the link rule reads it, or null when no link spans them or it has none.
   String? destinationSpanning(
     int line, {
     required int start,
@@ -222,7 +224,10 @@ final class _LinkSources {
           ? 0
           : _body.lastIndexOf('\n', source.offset - 1) + 1;
       if (source.offset - lineStart == start && source.end - lineStart == end) {
-        return source.shown;
+        final shown = source.shown;
+        return shown == null
+            ? null
+            : hrefOfSpelling(shown, angle: source.angle);
       }
     }
     return null;
