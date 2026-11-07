@@ -702,6 +702,28 @@ confirmed:
     expect(pass.apply(_domainPath, domain), domain.replaceAll(anchor, moved));
   });
 
+  test('$_fr E18 (W3, R74): a link whose # or anchor is a character reference '
+      'takes the new slug its href names', () {
+    const path = '../../prds/features/f01_a/us01_b/USER_STORY.md';
+    const domain =
+        '# A\n\n## Invariants\n\n'
+        '[x]($path&#35;scenario-6a--edge-lettered)\n'
+        '[y]($path#&#115;cenario-6a--edge-lettered)\n'
+        '[z][r]\n\n'
+        '[r]: $path&#x23;scenario-6a--edge-lettered\n';
+
+    final pass = _planOf({_storyPath: _story, _domainPath: domain});
+
+    expect(
+      pass.apply(_domainPath, domain),
+      '# A\n\n## Invariants\n\n'
+      '[x]($path&#35;scenario-9--edge-lettered)\n'
+      '[y]($path#scenario-9--edge-lettered)\n'
+      '[z][r]\n\n'
+      '[r]: $path&#x23;scenario-9--edge-lettered\n',
+    );
+  });
+
   test('$_fr E18 (LP2, R74): a doc markdown fails on keeps its link '
       'citations and link anchors, and the plan line names it as not fully '
       'rewritten', () {

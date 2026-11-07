@@ -79,7 +79,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// reads them.
 List<bool> _destinationMask(String body) {
   final mask = List.filled(body.length, false);
-  for (final (:start, :end, link: _) in linkScanOf(
+  for (final (:start, :end, link: _, kind: _) in linkScanOf(
     body,
     firstLine: 1,
   ).destinations) {

@@ -480,21 +480,54 @@ void main() {
     });
   });
 
-  group('writtenAnchorStart', () {
-    test('returns the index past the first # of a written destination', () {
-      expect(writtenAnchorStart('a.md#x'), 5);
-      expect(writtenAnchorStart('#x'), 1);
-      expect(writtenAnchorStart(r'f01\_a/A.md#x#y'), 12);
+  group('destinationPartsOf', () {
+    DestinationParts inline(String written) =>
+        destinationPartsOf(written, DestinationKind.inline);
+
+    test('R74: splits a written destination where its first ? or # is '
+        'written', () {
+      expect(inline('a.md#x'), (pathEnd: 4, anchorStart: 5));
+      expect(inline('#x'), (pathEnd: 0, anchorStart: 1));
+      expect(inline(r'f01\_a/A.md#x#y'), (pathEnd: 11, anchorStart: 12));
+      expect(inline('a.md?q#x'), (pathEnd: 4, anchorStart: 7));
+      expect(inline(r'../t_doc.md#a\)b'), (pathEnd: 11, anchorStart: 12));
     });
 
-    test('skips a # that opens a character reference', () {
-      expect(writtenAnchorStart('doc&#95;model.md#rule-1'), 17);
-      expect(writtenAnchorStart('a&#35;x'), isNull);
+    test('R74: a # or ? written as an escape or a character reference splits '
+        'where its text starts and ends', () {
+      expect(inline(r'a.md\#x'), (pathEnd: 4, anchorStart: 6));
+      expect(inline('USER_STORY.md&#35;s'), (pathEnd: 13, anchorStart: 18));
+      expect(inline('a&#x23;x'), (pathEnd: 1, anchorStart: 7));
+      expect(inline('a&#X23;x'), (pathEnd: 1, anchorStart: 7));
+      expect(inline('a&num;x'), (pathEnd: 1, anchorStart: 6));
+      expect(inline('a&#63;q'), (pathEnd: 1, anchorStart: null));
+      expect(inline('a&quest;q#x'), (pathEnd: 1, anchorStart: 10));
+      expect(inline(r'a&\#35;x'), (pathEnd: 1, anchorStart: 7));
     });
 
-    test('returns null for a destination with no #', () {
-      expect(writtenAnchorStart('a.md'), isNull);
-      expect(writtenAnchorStart(''), isNull);
+    test('R74: a character reference to another character, a percent escape, '
+        'and an unknown name split nothing', () {
+      expect(inline('doc&#95;model.md#r'), (pathEnd: 16, anchorStart: 17));
+      expect(inline('a.md#&#115;cenario'), (pathEnd: 4, anchorStart: 5));
+      expect(inline('a%23b.md'), (pathEnd: 8, anchorStart: null));
+      expect(inline('a&NUM;b'), (pathEnd: 7, anchorStart: null));
+      expect(inline('a.md'), (pathEnd: 4, anchorStart: null));
+      expect(inline(''), (pathEnd: 0, anchorStart: null));
+    });
+
+    test('R74: an inline destination drops the backslash before a backslash '
+        'before the rest, as markdown reads it, and a definition does not', () {
+      const written = r'a&\\#35;x';
+
+      expect(inline(written), (pathEnd: 1, anchorStart: 8));
+      expect(destinationPartsOf(written, DestinationKind.angleInline), (
+        pathEnd: 1,
+        anchorStart: 8,
+      ));
+      expect(destinationPartsOf(written, DestinationKind.definition), (
+        pathEnd: 4,
+        anchorStart: 5,
+      ));
     });
   });
 }

@@ -1,6 +1,8 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DestinationKind;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
 /// The syntax that makes `markdown`'s link elements, whose href it decodes.
@@ -145,9 +147,14 @@ List<String>? sourceHrefsOf(String lfBody, List<LinkSource> sources) {
   return hrefs != null && readersAgree(sources, hrefs) ? hrefs : null;
 }
 
-/// A link destination as written, by its body range, and the href `markdown`
-/// gives it.
-typedef HrefDestination = ({int start, int end, String href});
+/// A link destination as written, by its body range, the href `markdown`
+/// gives it, and how `markdown` reads it.
+typedef HrefDestination = ({
+  int start,
+  int end,
+  String href,
+  DestinationKind kind,
+});
 
 /// The destinations of a link scan that have an href, and whether `markdown`
 /// read the links: false when it fails on the body, which leaves every
@@ -179,9 +186,9 @@ HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
       : linkHrefs?[link];
   return (
     destinations: [
-      for (final (:start, :end, :link) in scan.destinations)
+      for (final (:start, :end, :link, :kind) in scan.destinations)
         if (hrefOf(start, end, link) case final href?)
-          (start: start, end: end, href: href),
+          (start: start, end: end, href: href, kind: kind),
     ],
     linksRead: linkHrefs != null,
   );

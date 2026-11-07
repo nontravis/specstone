@@ -6,6 +6,8 @@ import 'package:markdown/markdown.dart'
         AutolinkSyntax,
         EmailAutolinkSyntax,
         InlineHtmlSyntax;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 
 /// A source of an `a` or `img` element markdown makes: the body offsets of its
@@ -61,9 +63,15 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
 typedef BodyRange = ({int start, int end});
 
 /// A link destination as written: its body range, angle brackets left out,
-/// and the index in the scan's sources of the link written with it, null for
-/// a definition's and for one in an image description, which drops its link.
-typedef ScannedDestination = ({int start, int end, int? link});
+/// the index in the scan's sources of the link written with it, null for a
+/// definition's and for one in an image description, which drops its link,
+/// and how `markdown` reads it.
+typedef ScannedDestination = ({
+  int start,
+  int end,
+  int? link,
+  DestinationKind kind,
+});
 
 /// What one link scan of a body reads: its link sources, its prose, and the
 /// range of each link destination as written.
@@ -108,10 +116,15 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
     sources: sources,
     prose: String.fromCharCodes(prose),
     destinations: [
-      for (final (:start, :end) in reader.destinations)
-        (start: start, end: end, link: linkAt[start]),
+      for (final (:start, :end, :angle) in reader.destinations)
+        (
+          start: start,
+          end: end,
+          link: linkAt[start],
+          kind: angle ? DestinationKind.angleInline : DestinationKind.inline,
+        ),
       for (final (:start, :end) in leaf.definitionDestinations)
-        (start: start, end: end, link: null),
+        (start: start, end: end, link: null, kind: DestinationKind.definition),
     ],
   );
 }
@@ -199,8 +212,9 @@ final class _Reader {
   /// raw HTML run, and inline link's parens.
   final atoms = <BodyRange>[];
 
-  /// The range of each inline link's destination as written.
-  final destinations = <BodyRange>[];
+  /// The range of each inline link's destination as written, and whether
+  /// angle brackets enclose it.
+  final destinations = <({int start, int end, bool angle})>[];
   late final _Tables _tables = _Tables(text);
   late final _Next _angleClose = _Next(text, '>');
   late final _Next _angleOrSpace = _Next(text, _angleOrSpacePattern);
@@ -303,7 +317,13 @@ final class _Reader {
           destination: destination,
         ));
         if (close.inline) _atom(i + 1, close.end);
-        if (recordsAtoms && destination != null) destinations.add(destination);
+        if (recordsAtoms && destination != null) {
+          destinations.add((
+            start: destination.start,
+            end: destination.end,
+            angle: close.angle,
+          ));
+        }
         if (!opener.image) linksClosed++;
         i = close.end;
       } else if (unit == _backtick) {

@@ -8,7 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show parseLinkFreeBody;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show writtenAnchorStart;
+    show destinationPartsOf;
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docStructureOf;
@@ -127,10 +127,10 @@ List<String>? _headingSlugsOf(String body) {
 /// slug of [moves] set to its new slug, self links included (W3).
 ///
 /// The href is the one `markdown` gives the destination (see
-/// [hrefDestinationsOf]); the anchor as written, after the destination's
-/// first `#` that opens no character reference, takes the new slug.
+/// [hrefDestinationsOf]), so a slug written with escapes or character
+/// references moves too; the anchor as written (see [destinationPartsOf])
+/// takes the new slug.
 LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
-  if (!moves.mayName(lf)) return (moved: null, linksRead: true);
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = lf.length - body.length;
   final scan = linkScanOf(body, firstLine: 1);
@@ -138,16 +138,16 @@ LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   final destinations = [...found]..sort((a, b) => b.start - a.start);
   var text = body;
   var citesOthers = false;
-  for (final (:start, :end, :href) in destinations) {
+  for (final (:start, :end, :href, :kind) in destinations) {
     final move = _anchorMoveOf(href, docPath, moves);
     if (move == null) continue;
-    final at = writtenAnchorStart(body.substring(start, end));
+    final written = body.substring(start, end);
+    final at = destinationPartsOf(written, kind).anchorStart;
     if (at == null) continue;
-    final from = start + at;
     text = text.replaceRange(
-      from,
+      start + at,
       end,
-      _movedOver(body.substring(from, end), move),
+      _movedOver(written.substring(at), move),
     );
     citesOthers = citesOthers || move.citesOther;
   }

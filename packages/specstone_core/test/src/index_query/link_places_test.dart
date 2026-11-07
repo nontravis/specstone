@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -42,7 +44,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, link: _) in scan.destinations)
+          for (final (:start, :end, link: _, kind: _) in scan.destinations)
             body.substring(start, end),
         ]..sort(),
         [
@@ -60,7 +62,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, link: _) in scan.destinations)
+          for (final (:start, :end, link: _, kind: _) in scan.destinations)
             angled.substring(start, end),
         ],
         ['b c.md#x'],
@@ -75,10 +77,33 @@ void main() {
 
       expect(
         {
-          for (final (:start, :end, :link) in scan.destinations)
+          for (final (:start, :end, :link, kind: _) in scan.destinations)
             linked.substring(start, end): link,
         },
         {'a.md': 0, 'b.md': null, 'c.png': 1, 'd.md': null},
+      );
+    });
+
+    test('R74: each destination names how markdown reads it: inline, inline '
+        'in angle brackets, or a definition, bare or in angle brackets', () {
+      const linked =
+          '[a](a.md) [b](<b.md>) ![i [c](c.md)](d.png)\n\n'
+          '[r]: r.md\n[s]: <s.md>\n';
+      final scan = linkScanOf(linked, firstLine: 1);
+
+      expect(
+        {
+          for (final (:start, :end, link: _, :kind) in scan.destinations)
+            linked.substring(start, end): kind,
+        },
+        {
+          'a.md': DestinationKind.inline,
+          'b.md': DestinationKind.angleInline,
+          'c.md': DestinationKind.inline,
+          'd.png': DestinationKind.inline,
+          'r.md': DestinationKind.definition,
+          's.md': DestinationKind.definition,
+        },
       );
     });
   });
@@ -109,7 +134,7 @@ void main() {
     HrefDestinations readOf(String body) =>
         hrefDestinationsOf(body, linkScanOf(body, firstLine: 1));
     List<(String, String)> placedOf(String body) => [
-      for (final (:start, :end, :href) in readOf(body).destinations)
+      for (final (:start, :end, :href, kind: _) in readOf(body).destinations)
         (body.substring(start, end), href),
     ];
 

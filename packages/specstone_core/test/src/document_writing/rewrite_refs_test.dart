@@ -94,6 +94,19 @@ void main() {
     },
   );
 
+  test('f02/us05/fr02, R74: a move replaces only the path a destination is written with and keeps its ? or # part as written', () {
+    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const before =
+        '[a](../t_doc.md#a\\)b) [b](../t_doc.md#f\\(x) [c](../t_doc.md#a&amp;copy;)\n'
+        '[d](../t_doc.md&#35;s) [e](<../t_doc.md?q=a b#x>) [f](../t\\_doc.md\\#y)\n';
+
+    expect(
+      rewriteDocLinks(before, docPath: 'specs/f01_a/DOMAIN.md', moves: moves),
+      '[a](../m/t_doc.md#a\\)b) [b](../m/t_doc.md#f\\(x) [c](../m/t_doc.md#a&amp;copy;)\n'
+      '[d](../m/t_doc.md&#35;s) [e](<../m/t_doc.md?q=a b#x>) [f](../m/t_doc.md\\#y)\n',
+    );
+  });
+
   test('f02/us05/fr02/e02: a link between two files of one moved folder is unchanged', () {
     expect(
       rewriteDocLinks(

@@ -25,7 +25,7 @@ String _withoutDestinations(String lf) {
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = lf.length - body.length;
   final units = lf.codeUnits.toList();
-  for (final (:start, :end, link: _) in linkScanOf(
+  for (final (:start, :end, link: _, kind: _) in linkScanOf(
     body,
     firstLine: 1,
   ).destinations) {

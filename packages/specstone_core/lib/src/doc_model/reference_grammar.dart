@@ -278,21 +278,145 @@ LinkTargetForm readLinkTarget(String href) {
   );
 }
 
-const _ampersand = 0x26;
+/// How `markdown` 7.3.1 reads a link destination as written, which decides
+/// the backslashes its link parser drops before the rest is decoded.
+enum DestinationKind {
+  /// An inline link's or image's destination, bare.
+  inline,
 
-/// Returns the index past the `#` that opens the anchor of [destination], a
-/// link destination as written, escapes and character references kept, or
-/// null when it has none.
-///
-/// A `#` right after `&` opens a character reference, not the anchor.
-int? writtenAnchorStart(String destination) {
-  var at = destination.indexOf('#');
-  while (at >= 0) {
-    if (at == 0 || destination.codeUnitAt(at - 1) != _ampersand) return at + 1;
-    at = destination.indexOf('#', at + 1);
-  }
-  return null;
+  /// An inline link's or image's destination in angle brackets.
+  angleInline,
+
+  /// A link reference definition's destination, bare or in angle brackets.
+  definition,
 }
+
+/// A link destination as written, split as `markdown` reads it: the index
+/// where the text of its href's first `?` or `#` starts, else its length,
+/// and the index past the text of its href's first `#`, null with none.
+typedef DestinationParts = ({int pathEnd, int? anchorStart});
+
+/// One code unit of a destination as decoding reads it, and the range of the
+/// text written for it.
+typedef _ReadUnit = ({int code, int start, int end});
+
+const _backslash = 0x5C;
+const _hash = 0x23;
+const _questionMark = 0x3F;
+const _openParen = 0x28;
+const _closeParen = 0x29;
+const _greaterThan = 0x3E;
+
+/// The code a character reference decodes to that is neither `#` nor `?`.
+const _otherCode = -1;
+
+/// The character references `markdown` 7.3.1 decodes in a destination, the
+/// pattern of its `decodeHtmlCharacters`, which it does not export.
+final _characterReference = RegExp(
+  '&(?:([a-z0-9]+)|#([0-9]{1,7})|#x([a-f0-9]{1,6}));',
+  caseSensitive: false,
+);
+
+/// The named references to `#` and `?` in `markdown` 7.3.1's entity table.
+const Map<String, int> _namedSplitters = {
+  '&num;': _hash,
+  '&quest;': _questionMark,
+};
+
+/// Returns the parts of [written], a link destination as written, angle
+/// brackets left out, read as `markdown` 7.3.1 reads a [kind] destination.
+///
+/// A `#` or `?` the href takes from a backslash escape or a character
+/// reference splits where the text written for it starts and ends; a percent
+/// escape splits nothing.
+DestinationParts destinationPartsOf(String written, DestinationKind kind) {
+  int? pathEnd;
+  final units = _punctuationUnescaped(_parserUnescaped(written, kind));
+  for (final (:code, :start, :end) in _referencesDecoded(units)) {
+    if (code == _questionMark) pathEnd ??= start;
+    if (code == _hash) return (pathEnd: pathEnd ?? start, anchorStart: end);
+  }
+  return (pathEnd: pathEnd ?? written.length, anchorStart: null);
+}
+
+/// The units of [written] after the link parser of a [kind] destination
+/// drops the backslash before a backslash or a delimiter it may hold.
+List<_ReadUnit> _parserUnescaped(String written, DestinationKind kind) {
+  final dropsBefore = switch (kind) {
+    DestinationKind.inline => const {_backslash, _openParen, _closeParen},
+    DestinationKind.angleInline => const {_backslash, _greaterThan},
+    DestinationKind.definition => const <int>{},
+  };
+  final units = <_ReadUnit>[];
+  for (var i = 0; i < written.length; i++) {
+    final code = written.codeUnitAt(i);
+    final next = i + 1 < written.length ? written.codeUnitAt(i + 1) : null;
+    if (code != _backslash || next == null) {
+      units.add((code: code, start: i, end: i + 1));
+      continue;
+    }
+    if (dropsBefore.contains(next)) {
+      units.add((code: next, start: i, end: i + 2));
+    } else {
+      units
+        ..add((code: code, start: i, end: i + 1))
+        ..add((code: next, start: i + 1, end: i + 2));
+    }
+    // The parser takes the unit after a backslash as it is, never again.
+    i++;
+  }
+  return units;
+}
+
+/// [units] after `markdown`'s `escapePunctuation`: a backslash before ASCII
+/// punctuation drops, its text joining the unit after it.
+List<_ReadUnit> _punctuationUnescaped(List<_ReadUnit> units) {
+  final unescaped = <_ReadUnit>[];
+  for (var i = 0; i < units.length; i++) {
+    final unit = units[i];
+    if (unit.code == _backslash &&
+        i + 1 < units.length &&
+        _isAsciiPunctuation(units[i + 1].code)) {
+      final next = units[i + 1];
+      unescaped.add((code: next.code, start: unit.start, end: next.end));
+      i++;
+      continue;
+    }
+    unescaped.add(unit);
+  }
+  return unescaped;
+}
+
+/// [units] with each character reference read as the one unit it decodes
+/// to, its text the reference's.
+Iterable<_ReadUnit> _referencesDecoded(List<_ReadUnit> units) sync* {
+  final text = String.fromCharCodes([for (final unit in units) unit.code]);
+  var at = 0;
+  for (final match in _characterReference.allMatches(text)) {
+    yield* units.getRange(at, match.start);
+    yield (
+      code: _referenceCode(match),
+      start: units[match.start].start,
+      end: units[match.end - 1].end,
+    );
+    at = match.end;
+  }
+  yield* units.getRange(at, units.length);
+}
+
+/// The code unit [match], a character reference, decodes to when that is a
+/// `#` or a `?`; another code otherwise.
+int _referenceCode(Match match) {
+  if (match[1] != null) return _namedSplitters[match[0]] ?? _otherCode;
+  final decimal = match[2];
+  return decimal != null ? int.parse(decimal) : int.parse(match[3]!, radix: 16);
+}
+
+bool _isAsciiPunctuation(int code) =>
+    (code >= 0x21 && code <= 0x2F) ||
+    (code >= 0x3A && code <= 0x40) ||
+    (code >= 0x5B && code <= 0x60) ||
+    (code >= 0x7B && code <= 0x7E);
 
 /// Returns the index past the `:` of a scheme at [start] of [text], or -1
 /// when none opens there: an ASCII letter, then letters, digits, `+`, `-`,

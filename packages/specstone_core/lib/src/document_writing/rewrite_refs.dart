@@ -36,17 +36,18 @@ const _bom = '\uFEFF';
 ///
 /// [docPath] is where the doc sits before the moves. A link is a relative
 /// target of any extension, or a folder, that the markdown parser reports,
-/// whether it stays under the docs root or leaves it; its new href is the
-/// relative path between the moved doc and the moved target, with the `?` or
-/// `#` part and a folder's trailing `/` kept. A link whose relative path is
-/// unchanged, a web address, another scheme, and a rooted path keep their
-/// text.
+/// whether it stays under the docs root or leaves it; its new path is the
+/// relative path between the moved doc and the moved target, a folder's
+/// trailing `/` kept. A link whose relative path is unchanged, a web address,
+/// another scheme, and a rooted path keep their text.
 ///
 /// Only the text after the frontmatter is read, as the doc model does, so a
 /// link-shaped frontmatter value keeps every byte. Each inline link's and
 /// each definition's destination as written moves by the href the parser
 /// gives it (see [hrefDestinationsOf]), so an href in a code span or a fenced
-/// block keeps every byte. All of them change in one pass.
+/// block keeps every byte; only the path it is written with changes, its `?`
+/// or `#` part kept as written (see [destinationPartsOf]). All of them change
+/// in one pass.
 String? rewriteDocLinks(
   String lfText, {
   required String docPath,
@@ -67,9 +68,15 @@ String? rewriteDocLinks(
     linkScanOf(body, firstLine: 1),
   );
   final edits = [
-    for (final (:start, :end, :href) in destinations)
-      if (_movedHref(href, docPath, moves) case final newHref?)
-        (start: start, end: end, text: newHref),
+    for (final (:start, :end, :href, :kind) in destinations)
+      if (_movedPath(href, docPath, moves) case final newPath?)
+        (
+          start: start,
+          end:
+              start +
+              destinationPartsOf(body.substring(start, end), kind).pathEnd,
+          text: newPath,
+        ),
   ];
   if (edits.isEmpty) return null;
   edits.sort((a, b) => b.start.compareTo(a.start));
@@ -321,32 +328,26 @@ String? _newName(
   return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
 }
 
-/// Returns [href] after [moves], or null when the link keeps its text.
+/// Returns the path part of [href] after [moves], encoded, or null when the
+/// link keeps its text.
 ///
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
-String? _movedHref(String href, String docPath, List<PathMove> moves) {
+String? _movedPath(String href, String docPath, List<PathMove> moves) {
   if (readLinkTarget(href) case RelativeLink(:final pathEnd)) {
-    return _movedRelativeHref(href, pathEnd, docPath, moves);
+    return _movedRelativePath(href.substring(0, pathEnd), docPath, moves);
   }
   return null;
 }
 
-String? _movedRelativeHref(
-  String href,
-  int cut,
-  String docPath,
-  List<PathMove> moves,
-) {
-  final path = href.substring(0, cut);
+String? _movedRelativePath(String path, String docPath, List<PathMove> moves) {
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
   if (!percentDecodesCleanly(path)) return null;
   final after = movedRelativePath(path, docPath, moves);
   if (after == null) return null;
   final slash = path.endsWith('/') ? '/' : '';
-  final encoded = after.split('/').map(Uri.encodeComponent).join('/');
-  return '$encoded$slash${href.substring(cut)}';
+  return '${after.split('/').map(Uri.encodeComponent).join('/')}$slash';
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.
