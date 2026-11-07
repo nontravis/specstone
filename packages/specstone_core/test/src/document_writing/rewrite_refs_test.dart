@@ -107,6 +107,22 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
+    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+
+    final result = rewriteDocLinksCounted(
+      '![see [x](../t_doc.md)](pic.png)\n\n[d1]: ../t_doc.md\n',
+      docPath: 'specs/f01_a/DOMAIN.md',
+      moves: moves,
+    );
+
+    expect(
+      result?.lfText,
+      '![see [x](../t_doc.md)](pic.png)\n\n[d1]: ../m/t_doc.md\n',
+    );
+    expect(result?.count, 1);
+  });
+
   test('f02/us05/fr02/e02: a link between two files of one moved folder is unchanged', () {
     expect(
       rewriteDocLinks(

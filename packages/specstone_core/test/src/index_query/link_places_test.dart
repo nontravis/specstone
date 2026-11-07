@@ -157,6 +157,21 @@ void main() {
       expect(placedOf('[x](a.md)\n\n[a]:<b\\'), isEmpty);
     });
 
+    test('R74: an inline destination of no link borrows no definition href '
+        'written alike', () {
+      const body = '![i [b](b.md)](c.png)\n\n[d]: b.md\n';
+
+      expect(
+        [
+          for (final (:start, end: _, href: _, kind: _) in readOf(
+            body,
+          ).destinations)
+            start,
+        ],
+        [body.indexOf('c.png'), body.lastIndexOf('b.md')],
+      );
+    });
+
     test('R74: the links read unless markdown fails on the body', () {
       expect(readOf('[x](a.md)\n').linksRead, isTrue);
       expect(readOf('No links.\n').linksRead, isTrue);

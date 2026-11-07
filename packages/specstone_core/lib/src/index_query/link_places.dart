@@ -169,8 +169,9 @@ typedef HrefDestinations = ({
 /// href, with that href, in [scan]'s order.
 ///
 /// An inline link's destination takes the href of its link (see
-/// [sourceHrefsOf]). A destination of no link takes the href `markdown` gives
-/// a link to a definition whose destination is written so.
+/// [sourceHrefsOf]); one in an image description, which is no link, takes
+/// none. A definition's destination takes the href `markdown` gives a link
+/// to a definition whose destination is written so.
 HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
   if (scan.destinations.isEmpty) return (destinations: [], linksRead: true);
   final tree = parseMarkdownTree(lfBody);
@@ -181,14 +182,24 @@ HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
     for (final LinkReference(:destination) in tree.definitions.values)
       destination: _hrefOfLink(destination),
   };
-  String? hrefOf(int start, int end, int? link) => link == null
-      ? definitionHrefs[lfBody.substring(start, end)]
-      : linkHrefs?[link];
+  String? hrefOf(ScannedDestination destination) {
+    final (:start, :end, :link, :kind) = destination;
+    if (kind == DestinationKind.definition) {
+      return definitionHrefs[lfBody.substring(start, end)];
+    }
+    return link == null ? null : linkHrefs?[link];
+  }
+
   return (
     destinations: [
-      for (final (:start, :end, :link, :kind) in scan.destinations)
-        if (hrefOf(start, end, link) case final href?)
-          (start: start, end: end, href: href, kind: kind),
+      for (final destination in scan.destinations)
+        if (hrefOf(destination) case final href?)
+          (
+            start: destination.start,
+            end: destination.end,
+            href: href,
+            kind: destination.kind,
+          ),
     ],
     linksRead: linkHrefs != null,
   );
