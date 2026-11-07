@@ -99,14 +99,14 @@ String? rewriteDocLinks(
 /// of the path it is written with, its `?` or `#` part kept (see
 /// [destinationPartsOf]).
 ///
-/// A bare inline destination ends at the first `)` no `(` before it opened.
-/// There the path's parens are written `%28` and `%29`, which decode the same,
-/// and each `)` of the kept part that a `(` of the old path opened takes a
-/// `\`, so the link and its href stay.
+/// A bare destination, inline or of a definition, ends at the first `)` no
+/// `(` before it opened. There the path's parens are written `%28` and `%29`,
+/// which decode the same, and each `)` of the kept part that a `(` of the old
+/// path opened takes a `\`, so the link and its href stay.
 String _withPath(String written, DestinationKind kind, String path) {
   final pathEnd = destinationPartsOf(written, kind).pathEnd;
   final kept = written.substring(pathEnd);
-  if (kind != DestinationKind.inline) return '$path$kept';
+  if (kind == DestinationKind.angleInline) return '$path$kept';
   final balanced = path
       .replaceAll('(', _encodedOpenParen)
       .replaceAll(')', _encodedCloseParen);

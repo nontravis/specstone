@@ -128,11 +128,37 @@ void main() {
     expect(
       there,
       'See [a](x%28y/t.md#z) end. [b](<x(y/t.md#z>) [c][r]\n\n'
-      '[r]: x(y/t.md#z\n',
+      '[r]: x%28y/t.md#z\n',
     );
     expect(read(there), [for (var i = 0; i < 3; i++) ('specs/x(y/t.md', 'z')]);
     expect(home, 'See [a](t.md#z\\)) end.\n');
     expect(read(home), [('specs/t.md', 'z)')]);
+  });
+
+  test('f02/us05/fr02, R74: a folder move to or from a name with parens keeps a bare definition a definition to the same file', () {
+    const doc = 'specs/f01_a/DOMAIN.md';
+    List<String>? read(String? text) => linkPlacesOf(
+      text!,
+      docPath: doc,
+      firstLine: 1,
+    )?.fileLinks.map((link) => link.target).toList();
+    String? moved(String text, String from, String to) => rewriteDocLinks(
+      text,
+      docPath: doc,
+      moves: [(from: 'specs/$from/', to: 'specs/$to/')],
+    );
+
+    final there = moved(
+      '[i][p]\n\n[p]: ../f02_b/img%281%29.png\n',
+      'f02_b',
+      'f03_b',
+    );
+    final back = moved(there!, 'f03_b', 'f02_b');
+
+    expect(there, '[i][p]\n\n[p]: ../f03_b/img%281%29.png\n');
+    expect(back, '[i][p]\n\n[p]: ../f02_b/img%281%29.png\n');
+    expect(read(there), ['specs/f03_b/img(1).png']);
+    expect(read(back), ['specs/f02_b/img(1).png']);
   });
 
   test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
@@ -311,7 +337,7 @@ void main() {
         docPath: 'I.md',
         moves: moves,
       ),
-      '[x][m] [y][n]\n\n[m]: a/f02_x/a(b.md\n[n]: a/f02_x/F.md\n',
+      '[x][m] [y][n]\n\n[m]: a/f02_x/a%28b.md\n[n]: a/f02_x/F.md\n',
     );
   });
 
