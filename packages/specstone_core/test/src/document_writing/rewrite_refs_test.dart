@@ -246,6 +246,18 @@ void main() {
     );
   });
 
+  test('PD13, R73: a definition destination follows its moved target by the href markdown reads, an unbalanced paren included', () {
+    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    expect(
+      rewriteDocLinks(
+        '[x][m] [y][n]\n\n[m]: a/f01_x/a(b.md\n[n]: a/f01\\_x/F.md\n',
+        docPath: 'I.md',
+        moves: moves,
+      ),
+      '[x][m] [y][n]\n\n[m]: a/f02_x/a(b.md\n[n]: a/f02_x/F.md\n',
+    );
+  });
+
   test('f02/us05/fr02, PD13: a link-shaped href in a fenced block or a code span keeps every byte', () {
     const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(

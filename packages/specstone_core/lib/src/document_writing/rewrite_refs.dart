@@ -1,14 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
-import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
@@ -17,7 +14,8 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
-    show hrefOfSpelling;
+    show hrefDestinationsOf;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -45,12 +43,10 @@ const _bom = '\uFEFF';
 /// text.
 ///
 /// Only the text after the frontmatter is read, as the doc model does, so a
-/// link-shaped frontmatter value keeps every byte. The parser reports no
-/// source positions, so each `](` or `]:` destination is taken as spelled,
-/// read alone for the href the parser makes of that spelling, and replaced
-/// only when a probe parse, with that span swapped for a unique name, still
-/// yields a link to the name. An href in a code span or a fenced block keeps
-/// every byte. All proven occurrences change in one pass.
+/// link-shaped frontmatter value keeps every byte. Each inline link's and
+/// each definition's destination as written moves by the href the parser
+/// gives it (see [hrefDestinationsOf]), so an href in a code span or a fenced
+/// block keeps every byte. All of them change in one pass.
 String? rewriteDocLinks(
   String lfText, {
   required String docPath,
@@ -66,17 +62,12 @@ String? rewriteDocLinks(
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
   if (!body.contains('](') && !body.contains(']:')) return null;
-  final edits = <({int start, int end, String text})>[];
-  for (final span in destinationsIn(body)) {
-    final href = hrefOfSpelling(
-      body.substring(span.start, span.end),
-      angle: span.angle,
-    );
-    final newHref = href == null ? null : _movedHref(href, docPath, moves);
-    if (newHref != null && _yieldsLinkAt(body, span.start, span.end)) {
-      edits.add((start: span.start, end: span.end, text: newHref));
-    }
-  }
+  final destinations = hrefDestinationsOf(body, linkScanOf(body, firstLine: 1));
+  final edits = [
+    for (final (:start, :end, :href) in destinations)
+      if (_movedHref(href, docPath, moves) case final newHref?)
+        (start: start, end: end, text: newHref),
+  ];
   if (edits.isEmpty) return null;
   edits.sort((a, b) => b.start.compareTo(a.start));
   var result = body;
@@ -325,39 +316,6 @@ String? _newName(
     return names.length == 1 ? names.single : null;
   }
   return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
-}
-
-/// Returns the hrefs of every link and image the markdown parser finds in
-/// [lfText].
-///
-/// Returns none when the parser fails on it, so no span of it proves a link.
-Set<String> _hrefsOf(String lfText) {
-  final nodes = parseMarkdown(lfText);
-  if (nodes == null) return const {};
-  final hrefs = <String>{};
-  void visit(List<Node> nodes) {
-    for (final node in nodes) {
-      if (node is! Element) continue;
-      final href = switch (node.tag) {
-        'a' => node.attributes['href'] ?? '',
-        'img' => node.attributes['src'],
-        _ => null,
-      };
-      if (href != null) hrefs.add(href);
-      final children = node.children;
-      if (children != null) visit(children);
-    }
-  }
-
-  visit(nodes);
-  return hrefs;
-}
-
-/// Whether swapping `[start, end)` of [lfText] for a unique name yields a
-/// link to that name, which proves the span is a link's href.
-bool _yieldsLinkAt(String lfText, int start, int end) {
-  final probe = 'specstone-probe-$start.md';
-  return _hrefsOf(lfText.replaceRange(start, end, probe)).contains(probe);
 }
 
 /// Returns [href] after [moves], or null when the link keeps its text.

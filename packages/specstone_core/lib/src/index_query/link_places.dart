@@ -186,17 +186,6 @@ String? _hrefOfLink(String destination) {
   return node is Element ? node.attributes['href'] : null;
 }
 
-/// Returns the href `markdown` makes of a link destination written as
-/// [shown], inside angle brackets when [angle], or null when that makes no
-/// one link.
-///
-/// The href is the destination decoded as every link href is: backslash
-/// escapes and entity references read, the rest percent-encoded.
-String? hrefOfSpelling(String shown, {required bool angle}) {
-  final hrefs = _hrefsOf(angle ? '[x](<$shown>)' : '[x]($shown)');
-  return hrefs != null && hrefs.length == 1 ? hrefs.single : null;
-}
-
 /// The class a placed href falls into.
 enum _LinkKind { doc, file, self, unreadable }
 

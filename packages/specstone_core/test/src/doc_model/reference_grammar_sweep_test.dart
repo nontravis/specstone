@@ -82,11 +82,6 @@ final _allowed = <_Allowed>[
     """.indexOf(':'""",
     'Finds the colon after the key name; values go to the grammar.',
   ),
-  _core(
-    'document_writing/link_destinations.dart',
-    r"""RegExp(r'\](?:\(|:)\s*'""",
-    'Finds where a link destination opens; the grammar reads it.',
-  ),
   // Mentions: prose paths, read by design (no grammar form for prose).
   _core(
     'document_writing/rewrite_mentions.dart',
