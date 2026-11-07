@@ -11,9 +11,13 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:yaml/yaml.dart';
 
 const _referenceType = 'reference';
-const _architectureType = 'architecture';
+
+/// Id of the doc type whose Concerns lines end with a `see` target.
+const architectureTypeId = 'architecture';
 const _filesField = 'files';
-const _concernsSection = 'concerns';
+
+/// Id of the section whose lines end with a `see` target.
+const concernsSectionId = 'concerns';
 const _separator = '/';
 const _seeMarker = ' see ';
 const _notApplicable = 'N/A — ';
@@ -38,7 +42,7 @@ Iterable<Finding> checkReferenceEntries(
   switch (doc.docTypeId) {
     case _referenceType:
       yield* _missingListedFiles(context, doc);
-    case _architectureType:
+    case architectureTypeId:
       yield* _unresolvedConcerns(context, doc);
   }
 }
@@ -103,11 +107,11 @@ Iterable<Finding> _unresolvedConcerns(
   };
   final anchors = context.contentOf(doc).lineFacts.anchors;
   for (var i = 0; i < held.length; i++) {
-    if (context.templateSectionAt(doc, i)?.id != _concernsSection) {
+    if (context.templateSectionAt(doc, i)?.id != concernsSectionId) {
       continue;
     }
     for (final line in context.bodyLinesOf(doc, i)) {
-      final target = line.fenced ? null : _seeTarget(line.text);
+      final target = line.fenced ? null : seeTargetIn(line.text)?.text;
       if (target == null) continue;
       if (headers.contains(headerKey(target)) ||
           _seeResolves(context, doc, target, anchors)) {
@@ -125,21 +129,22 @@ Iterable<Finding> _unresolvedConcerns(
 }
 
 /// Returns the text after the last ` see ` of [line], less trailing
-/// punctuation and one pair of backticks, or null for a line that is `N/A — `
-/// or holds no ` see `.
-String? _seeTarget(String line) {
+/// punctuation and one pair of backticks, with the index it starts at in
+/// [line]; null for a line that is `N/A — ` or holds no ` see `.
+({String text, int start})? seeTargetIn(String line) {
   if (line.contains(_notApplicable)) return null;
   final at = line.lastIndexOf(_seeMarker);
   if (at < 0) return null;
-  var target = _withoutTrailingPunctuation(
-    line.substring(at + _seeMarker.length).trim(),
-  );
-  if (target.length > 1 &&
-      target.startsWith(_backtick) &&
-      target.endsWith(_backtick)) {
-    target = target.substring(1, target.length - 1);
+  final after = line.substring(at + _seeMarker.length);
+  var start = at + _seeMarker.length + after.length - after.trimLeft().length;
+  var text = _withoutTrailingPunctuation(after.trim());
+  if (text.length > 1 &&
+      text.startsWith(_backtick) &&
+      text.endsWith(_backtick)) {
+    text = text.substring(1, text.length - 1);
+    start++;
   }
-  return target.isEmpty ? null : target;
+  return text.isEmpty ? null : (text: text, start: start);
 }
 
 String _withoutTrailingPunctuation(String text) {

@@ -656,6 +656,33 @@ confirmed:
     );
   });
 
+  test('$_fr E18 (W3, R63): a Concerns see target, bare or in backticks, '
+      'takes the new slug of a renumbered heading; a see of another file or '
+      'of an unmoved heading stays', () {
+    const anchor = 'scenario-6a--edge-lettered';
+    const moved = 'scenario-9--edge-lettered';
+    const story = '$_story\n';
+    const architecture =
+        '# A\n\n## Concerns\n\n'
+        '- Errors — see ../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor\n'
+        '- Auth — see `../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor`.\n'
+        '- Events — see ../../prds/features/f01_a/us01_b/USER_STORY.md#scenario-1--happy-one\n'
+        '- Rollout — see ../../prds/features/f01_a/us02_e/USER_STORY.md#$anchor\n'
+        '- Lifecycle — see #$anchor\n';
+
+    final applied = _applied({
+      _storyPath: story,
+      'specs/f01_a/ARCHITECTURE.md': architecture,
+    })['specs/f01_a/ARCHITECTURE.md']!;
+
+    expect(
+      applied,
+      architecture
+          .replaceFirst('USER_STORY.md#$anchor\n', 'USER_STORY.md#$moved\n')
+          .replaceFirst('USER_STORY.md#$anchor`', 'USER_STORY.md#$moved`'),
+    );
+  });
+
   test('$_fr E18 (W3): an untyped doc takes only the moved anchors of its '
       'links, and refuses a text other than the one planned', () {
     const notesPath = 'prds/notes.md';

@@ -1,8 +1,13 @@
+import 'package:specstone_core/src/consistency_check/reference_rules.dart'
+    show architectureTypeId, concernsSectionId, seeTargetIn;
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show heldSectionIndex;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show parseLinkFreeBody;
+import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 
@@ -110,15 +115,68 @@ AnchorRewrite? withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   var text = body;
   var citesOthers = false;
   for (final (:start, :end) in destinations) {
-    final target = resolveDocLink(body.substring(start, end), docPath);
-    if (target is! DocTarget) continue;
-    final (anchor, rawAnchor) = (target.anchor, target.rawAnchor);
-    final slug = anchor == null ? null : moves.byDoc[target.docPath]?[anchor];
-    if (slug == null || rawAnchor == null) continue;
-    final written = rawAnchor == anchor ? slug : Uri.encodeComponent(slug);
-    text = text.replaceRange(end - rawAnchor.length, end, written);
-    citesOthers = citesOthers || target.docPath != docPath;
+    final moved = _movedAnchorOf(body.substring(start, end), docPath, moves);
+    if (moved == null) continue;
+    text = text.replaceRange(end - moved.oldLength, end, moved.written);
+    citesOthers = citesOthers || moved.citesOther;
   }
   if (text == body) return null;
   return (lf: lf.substring(0, bodyStart) + text, citesOthers: citesOthers);
+}
+
+/// Returns [lf] with the `#anchor` of each bare `see` target of the Concerns
+/// section of [doc], an `architecture` doc, set to its new slug when it names
+/// an old slug of [moves]; null when none changes (R63, E18).
+///
+/// A `see [text](href)` target is a link, which [withAnchorsMoved] moves.
+AnchorRewrite? withConcernsAnchorsMoved(
+  RenumberDoc doc,
+  String lf,
+  SlugMoves moves,
+) {
+  if (doc.type.id != architectureTypeId || !moves.mayName(lf)) return null;
+  final content = doc.content;
+  final section = heldSectionIndex(content, doc.type, concernsSectionId);
+  if (section == null) return null;
+  final lines = lf.split('\n');
+  var citesOthers = false;
+  for (final (:text, :line, :fenced) in sectionBodyLines(
+    content.sections,
+    content.lineFacts,
+    section,
+  )) {
+    final see = fenced ? null : seeTargetIn(text);
+    if (see == null || see.text.startsWith('[')) continue;
+    final moved = _movedAnchorOf(see.text, doc.docPath, moves);
+    if (moved == null) continue;
+    final end = see.start + see.text.length;
+    lines[line - 1] = lines[line - 1].replaceRange(
+      end - moved.oldLength,
+      end,
+      moved.written,
+    );
+    citesOthers = citesOthers || moved.citesOther;
+  }
+  final moved = lines.join('\n');
+  return moved == lf ? null : (lf: moved, citesOthers: citesOthers);
+}
+
+/// The anchor [href] names when it is an old slug of [moves]: the length of
+/// the anchor as written, the anchor to write, and whether the target is
+/// another doc than [docPath].
+({int oldLength, String written, bool citesOther})? _movedAnchorOf(
+  String href,
+  String docPath,
+  SlugMoves moves,
+) {
+  final target = resolveDocLink(href, docPath);
+  if (target is! DocTarget) return null;
+  final (anchor, rawAnchor) = (target.anchor, target.rawAnchor);
+  final slug = anchor == null ? null : moves.byDoc[target.docPath]?[anchor];
+  if (slug == null || rawAnchor == null) return null;
+  return (
+    oldLength: rawAnchor.length,
+    written: rawAnchor == anchor ? slug : Uri.encodeComponent(slug),
+    citesOther: target.docPath != docPath,
+  );
 }

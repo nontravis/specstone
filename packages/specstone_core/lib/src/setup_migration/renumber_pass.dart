@@ -123,16 +123,21 @@ final class RenumberPass {
     });
     if (moves.isEmpty) return bodies;
     for (final MapEntry(key: docPath, value: lf) in _texts.entries) {
-      final current = bodies[docPath];
-      final moved = withAnchorsMoved(current?.lf ?? lf, docPath, moves);
-      if (moved == null) continue;
-      bodies[docPath] = (
-        lf: moved.lf,
-        citesOthers: (current?.citesOthers ?? false) || moved.citesOthers,
-      );
+      var current = bodies[docPath] ?? (lf: lf, citesOthers: false);
+      final links = withAnchorsMoved(current.lf, docPath, moves);
+      if (links != null) current = _merged(current, links);
+      final doc = _docs[docPath];
+      final concerns = doc == null
+          ? null
+          : withConcernsAnchorsMoved(doc, current.lf, moves);
+      if (concerns != null) current = _merged(current, concerns);
+      if (current.lf != lf) bodies[docPath] = current;
     }
     return bodies;
   }
+
+  _Rewrite _merged(_Rewrite before, AnchorRewrite moved) =>
+      (lf: moved.lf, citesOthers: before.citesOthers || moved.citesOthers);
 
   /// The doc's ID tokens and journey steps rewritten; null when none
   /// changes.

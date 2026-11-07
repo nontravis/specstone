@@ -1020,7 +1020,9 @@ void main() {
               '---\ntraced_from: [S6]\nconfirmed:\n  - S6 $blockFingerprint\n'
               '---\n# G\n',
           'docs/prds/features/f01_a/us01_b/nf01_d.md':
-              '---\nkind: tighten\noverrides: NFR-P06a\n---\n# D\n',
+              '---\nkind: tighten\noverrides: NFR-P06a\nconfirmed:\n'
+              '  - NFR-P06a ${fingerprintOf('- **Statement:** s6a')}\n'
+              '---\n# D\n',
           'docs/prds/journeys/onboard/JOURNEY.md':
               '---\nconfirmed:\n  - a/b#S6a $blockFingerprint\n---\n'
               '# Onboard\n\n## Steps\n\n### 1. Start\nstep: a/b S6a\n',
@@ -1040,6 +1042,9 @@ void main() {
               '# A\n\n## Invariants\n\n'
               '[rules](../topics/doc_model.md) RULE-7a, '
               '[latency](../../prds/GNFR.md#nfr-p06a--latency).\n',
+          'docs/specs/f01_a/ARCHITECTURE.md':
+              '# A\n\n## Concerns\n\n- Errors — see '
+              '../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor\n',
         };
         Future<Set<String>> findings(Directory root, Directory home) async {
           final check = await _run(root, home, ['check', '--json']);
@@ -1078,6 +1083,10 @@ void main() {
         expect(
           _read(root, 'docs/prds/journeys/padded/JOURNEY.md'),
           allOf(contains('  - a/e#S09 '), contains('step: a/e S09\n')),
+        );
+        expect(
+          _read(root, 'docs/specs/f01_a/ARCHITECTURE.md'),
+          contains('USER_STORY.md#scenario-9--edge-lettered\n'),
         );
         final after = await findings(root, home);
         expect(after.difference(before), isEmpty);
