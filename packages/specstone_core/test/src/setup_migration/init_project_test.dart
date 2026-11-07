@@ -294,6 +294,22 @@ void main() {
     );
   });
 
+  test('setup_migration/set_up_new_project/write_agent_files: a repository '
+      'top folder named with a # gets its agent file at that folder, not at '
+      'a URI fragment', () async {
+    final base = await writeTree({
+      'project/docs/specs/TECH_STACK.md':
+          '---\ncode:\n  - ../other#1/\n---\n# Tech stack\n',
+      'other#1/.git/HEAD': 'ref\n',
+    });
+    final project = Directory('${base.path}/project');
+
+    final (status, _) = _run(project);
+
+    expect(status, 0);
+    expect(File('${base.path}/other#1/AGENTS.md').existsSync(), isTrue);
+  });
+
   for (final (:real, :link) in [
     (real: 'AGENTS.md', link: 'CLAUDE.md'),
     (real: 'CLAUDE.md', link: 'AGENTS.md'),

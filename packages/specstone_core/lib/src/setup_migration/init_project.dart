@@ -170,7 +170,7 @@ AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
 void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
   for (final write in [...plan.rootWrites, ...plan.topWrites]) {
     _writeNew(
-      File.fromUri(root.uri.resolve(write.path)),
+      docFileOf(root, write.path),
       write.text,
       shown: write.path,
       followLink: true,
