@@ -1,7 +1,9 @@
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// A doc line that names another doc's file in text: the doc holding the line
@@ -11,15 +13,25 @@ typedef Mention = ({IndexedDoc doc, int line});
 /// A character that ends a path written in prose.
 final pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
 
+const _lineFeed = 0x0A;
+const _space = 0x20;
+
 /// A character that continues a file name.
 final _nameChar = RegExp(r'[\p{L}\p{M}\p{N}_-]', unicode: true);
 
-/// An inline link's `](` and its destination, `<…>` or a run up to a space
-/// or `)`.
-final _inlineDestination = RegExp(r'\]\(\s*(?:<[^>]*>|[^\s)]*)');
-
-/// A link reference definition, from its label to its destination's end.
-final _definition = RegExp(r'^ {0,3}\[[^\]]+\]:\s*(?:<[^>]*>|\S+)');
+/// Returns [lf], the text of a doc, with each link destination the link scan
+/// reads, inline or in a definition, set to spaces, line ends kept.
+String _withoutDestinations(String lf) {
+  final body = Doc.parse(lf).afterFrontmatter;
+  final bodyStart = lf.length - body.length;
+  final units = lf.codeUnits.toList();
+  for (final (:start, :end) in linkScanOf(body, firstLine: 1).destinations) {
+    for (var i = bodyStart + start; i < bodyStart + end; i++) {
+      if (units[i] != _lineFeed) units[i] = _space;
+    }
+  }
+  return String.fromCharCodes(units);
+}
 
 /// Returns the lines of other docs whose text names [target] by a path, plain
 /// or in a code span, docs in tree order, each line once.
@@ -45,12 +57,10 @@ List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
       for (final link in facts.links)
         if (link.target == target.docPath) link.line,
     };
-    for (final (i, text) in lfLinesOf(toLf(content.text)).indexed) {
+    final lines = lfLinesOf(_withoutDestinations(toLf(content.text)));
+    for (final (i, prose) in lines.indexed) {
       final line = i + 1;
       if (linking.contains(line) || facts.isFenced(line)) continue;
-      final prose = text
-          .replaceAll(_definition, ' ')
-          .replaceAll(_inlineDestination, '] ');
       if (_names(prose, doc.docPath, target.docPath, namesakes)) {
         mentions.add((doc: doc, line: line));
       }

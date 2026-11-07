@@ -110,16 +110,6 @@ final _allowed = <_Allowed>[
     'Cuts the `path:line` of an `implements` entry, a code path.',
   ),
   _core(
-    'index_query/doc_mentions.dart',
-    r"""RegExp(r'\]\(\s*(?:<[^>]*>|[^\s)]*)'""",
-    'Blanks an inline link destination from prose; the link rule reads links.',
-  ),
-  _core(
-    'index_query/doc_mentions.dart',
-    r"""RegExp(r'^ {0,3}\[[^\]]+\]:\s*(?:<[^>]*>|\S+)'""",
-    'Markdown link reference definition line; the grammar reads its target.',
-  ),
-  _core(
     'index_query/link_blocks.dart',
     r"""RegExp( r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$'""",
     'Table delimiter row, no reference.',

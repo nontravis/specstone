@@ -50,6 +50,16 @@ void main() {
 
     expect(lines, isEmpty);
   });
+  test('f01/us07/fr01: a destination with balanced or escaped parentheses is no mention', () async {
+    final index = await indexWith({
+      'docs/specs/LEDGER.md': '# Ledger\n',
+      'docs/specs/f01/B.md':
+          '# B\n\nSee [x](a(b)/LEDGER.md).\n\nSee [y](a\\)b/LEDGER.md).\n',
+    });
+    final target = index.resolve('specs/LEDGER.md').single;
+
+    expect(mentionsOf(index, target), isEmpty);
+  });
   test(
     'f01/us07/fr01: a frontmatter line naming the DocPath is a mention',
     () async {
