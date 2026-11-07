@@ -45,6 +45,7 @@ class SetCommand extends WriteCommand {
     }
     final String text;
     try {
+      SetRequest.requireShape(rest.firstOrNull, args.option('base'));
       text = await console.readAll();
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson);

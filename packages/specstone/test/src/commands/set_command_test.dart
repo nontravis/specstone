@@ -219,6 +219,24 @@ void main() {
       'prds/d01_context.md has no doc type; migrate it to one before a write\n',
     );
   });
+  test(
+    'f02/us01/fr01/e12: a missing target or --base fails before stdin is read',
+    () async {
+      for (final args in [
+        ['set', '--base', '000000000000'],
+        ['set', 'user_story:login/email_login#use_case'],
+      ]) {
+        final console = _RecordingConsole();
+        final (:runner, :out, :err) = writeRunner(
+          await writeWriteProject(),
+          console: console,
+        );
+        expect(await runner.run(args), 64);
+        expect(console.reads, 0, reason: args.join(' '));
+        expect(err.toString(), startsWith('set needs '));
+      }
+    },
+  );
   test('f02/us01/fr01/e12: no target is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['set', '--base', '000000000000']), 64);
@@ -344,4 +362,27 @@ void main() {
     );
     expect(readDoc(root, story1), contains('draft: true'));
   });
+}
+
+/// A [Console] that counts how often stdin is read.
+final class _RecordingConsole implements Console {
+  int reads = 0;
+
+  @override
+  bool get stdinIsTerminal => false;
+
+  @override
+  bool get stdoutIsTerminal => false;
+
+  @override
+  bool get noColor => false;
+
+  @override
+  Future<String> readAll() async {
+    reads++;
+    return '';
+  }
+
+  @override
+  String? readLine() => null;
 }

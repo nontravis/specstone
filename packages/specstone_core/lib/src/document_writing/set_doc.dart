@@ -71,12 +71,10 @@ final class SetRequest {
     String? base,
     DocIndex? index,
   }) {
-    if (target == null) {
-      throw missingArgument('set', 'a target', _targetExample);
-    }
+    final (target: written, base: checkedBase) = requireShape(target, base);
     final (:docPart, sectionKey: key) = index == null
-        ? _splitAsWritten(target)
-        : index.splitAddress(target);
+        ? _splitAsWritten(written)
+        : index.splitAddress(written);
     final sectionKey = key == null || key.isEmpty ? null : key;
     final targets = [?sectionKey, ?field, if (title) ''];
     if (targets.length > 1) {
@@ -101,8 +99,22 @@ final class SetRequest {
         _targetExample,
       );
     }
+    return SetRequest(address: docPart, target: chosen, base: checkedBase);
+  }
+
+  /// Returns [target] and [base] when both are given; throws [IndexFault]
+  /// `argument_missing` otherwise.
+  ///
+  /// Needs no index, so a command calls it before it reads stdin.
+  static ({String target, String base}) requireShape(
+    String? target,
+    String? base,
+  ) {
+    if (target == null) {
+      throw missingArgument('set', 'a target', _targetExample);
+    }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
-    return SetRequest(address: docPart, target: chosen, base: base);
+    return (target: target, base: base);
   }
 
   static ({String docPart, String? sectionKey}) _splitAsWritten(String text) {

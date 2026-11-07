@@ -55,7 +55,7 @@ final class FakeConsole implements Console {
 ///
 /// The runner reads the built-in doc types and no user-level ones.
 ({SpecstoneCommandRunner runner, StringBuffer out, StringBuffer err})
-writeRunner(Directory root, {FakeConsole? console}) {
+writeRunner(Directory root, {Console? console}) {
   final out = StringBuffer();
   final err = StringBuffer();
   final runner = SpecstoneCommandRunner(
