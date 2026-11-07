@@ -8,11 +8,11 @@ import 'package:markdown/markdown.dart'
         InlineHtmlSyntax;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 
-/// A source of an `a` or `img` element markdown makes: the body offset of its
-/// first character, its file line, and, for an inline or reference link or
-/// image, its destination as written (null for an autolink, an email autolink,
-/// or a GFM bare URL or email).
-typedef LinkSource = ({int offset, int line, String? shown});
+/// A source of an `a` or `img` element markdown makes: the body offsets of its
+/// first character and after its last, its file line, and, for an inline or
+/// reference link or image, its destination as written (null for an autolink,
+/// an email autolink, or a GFM bare URL or email).
+typedef LinkSource = ({int offset, int end, int line, String? shown});
 
 /// Returns the sources of the links in [lfBody], in source order.
 ///
@@ -98,18 +98,18 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
   final sources = <LinkSource>[];
   var line = firstLine;
   var counted = 0;
-  for (final (:offset, :shown) in found) {
+  for (final (:offset, :end, :shown) in found) {
     for (; counted < offset; counted++) {
       if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
-    sources.add((offset: offset, line: line, shown: shown));
+    sources.add((offset: offset, end: end, line: line, shown: shown));
   }
   return sources;
 }
 
-/// A link or image the reader found: the offset of its first character and its
-/// destination.
-typedef _Found = ({int offset, String? shown});
+/// A link or image the reader found: the offsets of its first character and
+/// after its last, and its destination.
+typedef _Found = ({int offset, int end, String? shown});
 
 /// Where a `]` ends the link it closes, and the link's destination: whether
 /// it is an inline link, whose parens follow the `]`, and the range of its
@@ -191,6 +191,13 @@ final class _Reader {
     return end;
   }
 
+  /// Adds the source with no destination that runs from [at] to [end], an
+  /// autolink or a GFM bare URL or email, as an atom, and returns [end].
+  int _destinationless(int at, int end) {
+    found.add((offset: at, end: end, shown: null));
+    return _atom(at, end);
+  }
+
   /// Reads the leaf [start] to [end], adding its links to [found].
   void read(int start, int end) {
     _start = start;
@@ -242,7 +249,7 @@ final class _Reader {
           continue;
         }
         if (opener.image) found.length = opener.found;
-        found.add((offset: opener.offset, shown: close.shown));
+        found.add((offset: opener.offset, end: close.end, shown: close.shown));
         if (close.inline) _atom(i + 1, close.end);
         final destination = close.destination;
         if (recordsAtoms && destination != null) destinations.add(destination);
@@ -337,8 +344,7 @@ final class _Reader {
         _emailAutolinkPattern.matchAsPrefix(_leafText, from) ??
         _autolinkPattern.matchAsPrefix(_leafText, from);
     if (match == null) return at + 1;
-    found.add((offset: at, shown: null));
-    return _atom(at, at + (match.end - from));
+    return _destinationless(at, at + (match.end - from));
   }
 
   /// Returns the offset after the raw HTML that opens with the `<` at [at], or
@@ -401,16 +407,14 @@ final class _Reader {
     }
     if (match[1] != null) {
       if (!_mayFollow(at)) return at + 1;
-      found.add((offset: at, shown: null));
-      return _atom(at, at + _urlLength(match[0]!));
+      return _destinationless(at, at + _urlLength(match[0]!));
     }
     final after = match.end < leaf.length ? leaf.codeUnitAt(match.end) : -1;
     if (after == _underscore || after == _dash) {
       _emailRunDead = true;
       return at + 1;
     }
-    found.add((offset: at, shown: null));
-    return _atom(at, at + (match.end - from));
+    return _destinationless(at, at + (match.end - from));
   }
 
   /// Returns whether a GFM bare URL may start at [at]: at the start of the leaf

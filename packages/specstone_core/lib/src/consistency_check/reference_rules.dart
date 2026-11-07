@@ -7,8 +7,6 @@ import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/link_places.dart' show LinkPlace;
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show LinkSource, linkSourcesOf;
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -28,7 +26,6 @@ const _separator = '/';
 const _seeMarker = ' see ';
 const _notApplicable = 'N/A — ';
 const _backtick = '`';
-const _linkOpen = '[';
 const _trailingPunctuation = '.,;:!?';
 const _templatesFolder = '.specstone/templates';
 const _referenceKey = 'reference';
@@ -111,7 +108,7 @@ Iterable<Finding> _unresolvedConcerns(
     for (final section in held)
       headerKey(section.headerLine.trimLeft().substring(2)),
   };
-  final facts = context.contentOf(doc).lineFacts;
+  final anchors = context.contentOf(doc).lineFacts.anchors;
   final sources = _LinkSources(toLf(context.contentOf(doc).text));
   for (var i = 0; i < held.length; i++) {
     if (context.templateSectionAt(doc, i)?.id != concernsSectionId) {
@@ -121,15 +118,14 @@ Iterable<Finding> _unresolvedConcerns(
       final see = line.fenced ? null : seeTargetIn(line.text);
       if (see == null) continue;
       final target = see.text;
-      final resolves = target.startsWith(_linkOpen)
-          ? _linkSeeResolves(
-              context,
-              facts,
-              shown: sources.shownAt(line.line, see.start),
-              line: line.line,
-            )
-          : _pathSeeResolves(context, doc, target, facts.anchors);
-      if (headers.contains(headerKey(target)) || resolves) continue;
+      final text =
+          sources.destinationSpanning(
+            line.line,
+            start: see.start,
+            end: see.start + target.length,
+          ) ??
+          target;
+      if (_seeResolves(context, doc, text, headers, anchors)) continue;
       yield context.finding(
         doc,
         FindingKind.concernsTargetUnresolved,
@@ -168,27 +164,27 @@ String _withoutTrailingPunctuation(String text) {
   return text.substring(0, end);
 }
 
-/// Whether [target], a `see` target that is no section header, names a file
-/// beside [doc] or an anchor of the doc or of that file (R63).
+/// Whether [text], a `see` target or the destination of the link that spans
+/// it, names a `##` section of [doc], a file at the path relative to it, the
+/// doc itself included, or an anchor of the doc or of that file (R63).
 ///
-/// The target is a bare path or `#anchor`; a target written with link syntax
-/// goes to [_linkSeeResolves]. An anchor set that is unknown (null) or a file
-/// no doc indexes raises nothing; [anchors] is the set of [doc] itself.
-bool _pathSeeResolves(
+/// Text after a path makes it no path (E11). An anchor set that is unknown
+/// (null) or a file no doc indexes raises nothing for the anchor; [anchors] is
+/// the set of [doc] itself.
+bool _seeResolves(
   CheckContext context,
   IndexedDoc doc,
-  String target,
+  String text,
+  Set<String> headers,
   DocAnchors? anchors,
 ) {
-  if (readLinkTarget(target) case RelativeLink(
-    :final segments,
-    :final anchor,
-  )) {
+  if (headers.contains(headerKey(text))) return true;
+  if (readLinkTarget(text) case RelativeLink(:final segments, :final anchor)) {
     final named = _namedAnchor(anchor);
     if (segments.isEmpty) {
       return anchor != null && _anchorHeld(anchors, named);
     }
-    final path = relativeFilePathOf(target, doc.docPath);
+    final path = relativeFilePathOf(text, doc.docPath);
     return path != null && _fileHolds(context, path, named);
   }
   return false;
@@ -212,49 +208,25 @@ final class _LinkSources {
         1,
   );
 
-  /// Returns the destination as written of the link that starts at [column]
-  /// of file line [line], or null when no link starts there or it has none.
-  String? shownAt(int line, int column) {
+  /// Returns the destination as written of the one link that runs from
+  /// column [start] to column [end] of file line [line], or null when no link
+  /// spans them or it has none.
+  String? destinationSpanning(
+    int line, {
+    required int start,
+    required int end,
+  }) {
     for (final source in _all) {
       if (source.line != line) continue;
       final lineStart = source.offset == 0
           ? 0
           : _body.lastIndexOf('\n', source.offset - 1) + 1;
-      if (source.offset - lineStart == column) return source.shown;
+      if (source.offset - lineStart == start && source.end - lineStart == end) {
+        return source.shown;
+      }
     }
     return null;
   }
-}
-
-/// Whether the link that starts a `see` target on file line [line] names a
-/// file beside the doc or an anchor of the doc or of that file (R63).
-///
-/// The link is the one the link rule reads there, reference definitions known,
-/// found by its destination [shown] among the link places of the line. A
-/// target with no such link (a web address, or none) resolves nothing; a doc
-/// whose markdown did not parse (null anchors) raises nothing.
-bool _linkSeeResolves(
-  CheckContext context,
-  LineFacts facts, {
-  required String? shown,
-  required int line,
-}) {
-  if (facts.anchors == null) return true;
-  if (shown == null) return false;
-  bool onLine(LinkPlace place) => place.line == line && place.shown == shown;
-  final fileLinks = [...facts.links, ...facts.fileLinks].where(onLine);
-  final selfLinks = facts.selfLinks.where(onLine);
-  if (facts.unreadableLinks.any(onLine)) return false;
-  if (fileLinks.isEmpty && selfLinks.isEmpty) return false;
-  return fileLinks.every(
-        (place) =>
-            _fileHolds(context, place.target, _namedAnchor(place.anchor)),
-      ) &&
-      selfLinks.every(
-        (place) =>
-            place.anchor != null &&
-            _anchorHeld(facts.anchors, _namedAnchor(place.anchor)),
-      );
 }
 
 String? _namedAnchor(String? anchor) =>

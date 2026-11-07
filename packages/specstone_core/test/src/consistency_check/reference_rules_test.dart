@@ -1,6 +1,7 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
@@ -229,6 +230,76 @@ void main() {
         'docs/specs/f01_login/API.md': '# Api\n',
       }),
       ['[x](MISSING.md)'],
+    );
+  });
+
+  test('f04/us02/fr05/e08, f04/us02/fr05/e11, f04/us02/fr05/e14: a see target reads one way bare and as a link that spans it', () async {
+    Future<CheckReport> reportOf(
+      String concerns, {
+      bool unparsed = false,
+    }) async => checkOf(
+      await writeCheckProject(
+        extra:
+            {
+              ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
+              'docs/specs/f01_login/API.md':
+                  '# Api\n\n## Lifecycle\n\nSteps.\n',
+            }..update(
+              'docs/$loginArchitecture',
+              (text) => unparsed ? '$text\n[a]:<b\\' : text,
+            ),
+      ),
+    );
+    List<String> targetsIn(CheckReport report) => [
+      for (final f in report.findings)
+        if (f.kind == FindingKind.concernsTargetUnresolved)
+          f.toJson()['target']! as String,
+    ];
+
+    const resolves = {
+      'API.md': true,
+      'API.md ## Lifecycle': false,
+      'ARCHITECTURE.md': true,
+      'MISSING.md': false,
+      'API.md#missing-anchor': false,
+    };
+    final forms = [
+      for (final target in resolves.keys) ...[target, '[x]($target)'],
+    ];
+    expect(
+      targetsIn(
+        await reportOf([for (final form in forms) '- C: see $form\n'].join()),
+      ),
+      [
+        for (final MapEntry(key: target, value: resolved) in resolves.entries)
+          if (!resolved) ...[target, '[x]($target)'],
+      ],
+    );
+
+    final unparsed = await reportOf(
+      '- A: see MISSING.md\n- B: see [x](MISSING.md)\n',
+      unparsed: true,
+    );
+    expect(spots(unparsed, FindingKind.markdownUnparsed), [
+      '$loginArchitecture:1: markdown_unparsed',
+    ]);
+    expect(targetsIn(unparsed), ['MISSING.md', '[x](MISSING.md)']);
+
+    expect(
+      targetsIn(
+        await reportOf(
+          '- A: see [a](API.md) and [b](nope.md)\n'
+          '- B: see [a](API.md) and more words\n'
+          '- C: see [a](API.md) ## Lifecycle\n'
+          '- D: see [log](MISSING.md), see [x](API.md)\n'
+          '- E: see ![flow](API.md).\n',
+        ),
+      ),
+      [
+        '[a](API.md) and [b](nope.md)',
+        '[a](API.md) and more words',
+        '[a](API.md) ## Lifecycle',
+      ],
     );
   });
 
