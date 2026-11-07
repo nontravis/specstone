@@ -6,6 +6,8 @@ import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/link_places.dart'
+    show wholeLinkHrefOf;
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:yaml/yaml.dart';
@@ -23,7 +25,6 @@ const _seeMarker = ' see ';
 const _notApplicable = 'N/A — ';
 const _backtick = '`';
 const _trailingPunctuation = '.,;:!?';
-final _markdownLink = RegExp(r'^\[[^\]]*\]\(([^)]*)\)$');
 const _templatesFolder = '.specstone/templates';
 const _referenceKey = 'reference';
 const _addKey = 'add';
@@ -167,7 +168,7 @@ bool _seeResolves(
   String target,
   DocAnchors? anchors,
 ) {
-  final href = _markdownLink.firstMatch(target)?.group(1) ?? target;
+  final href = wholeLinkHrefOf(target) ?? target;
   if (readLinkTarget(href) case RelativeLink(:final segments, :final anchor)) {
     final named = anchor == null || anchor.isEmpty ? null : anchor;
     if (segments.isEmpty) {

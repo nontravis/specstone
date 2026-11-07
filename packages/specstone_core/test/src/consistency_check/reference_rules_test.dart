@@ -145,6 +145,37 @@ void main() {
     );
   });
 
+  test('f04/us02/fr05: a see link target reads every CommonMark link form the link rule reads', () async {
+    Future<List<String>> targetsOf(String concerns) async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
+            'docs/specs/f01_login/a(b).md': '# B\n',
+            'docs/specs/f01_login/API.md': '# Api\n',
+          },
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.concernsTargetUnresolved)
+            f.toJson()['target']! as String,
+      ];
+    }
+
+    expect(
+      await targetsOf(
+        '- A: see [x](a(b).md)\n'
+        '- B: see [x](<API.md>)\n'
+        '- C: see [x](API.md "t")\n',
+      ),
+      isEmpty,
+    );
+    expect(await targetsOf('- A: see [x](<MISSING.md>)\n'), [
+      '[x](<MISSING.md>)',
+    ]);
+  });
+
   test('f04/us02/fr05/e07, cc-s03/inv2: a merged set with no architecture doc type runs no Concerns rule', () async {
     final report = checkOf(
       await writeCheckProject(
