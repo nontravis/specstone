@@ -8,7 +8,7 @@ final class WebTarget extends DocLinkTarget;
 
 /// A doc under the docs root.
 final class DocTarget extends DocLinkTarget {
-  new(this.docPath, {this.anchor});
+  new(this.docPath, {this.anchor, this.rawAnchor});
 
   /// The docPath the link resolves to.
   final String docPath;
@@ -16,6 +16,9 @@ final class DocTarget extends DocLinkTarget {
   /// The fragment the link carries, decoded (RULE-7); null with no `#`; `''`
   /// for `#` alone (the doc's top, RULE-13).
   final String? anchor;
+
+  /// The fragment as written, escapes kept; null with no `#`.
+  final String? rawAnchor;
 }
 
 /// A target the grammar cannot read (RULE-11); [shown] is the href as
@@ -50,12 +53,14 @@ DocLinkTarget resolveDocLink(String href, String docPath) {
           : OutsideTarget(href);
     case AuthorityLink() || RootedLink():
       return OutsideTarget(href);
-    case RelativeLink(:final segments, :final anchor):
+    case RelativeLink(:final segments, :final anchor, :final rawAnchor):
       // An empty path (`#frag`, `?q`) names the doc itself.
-      if (segments.isEmpty) return DocTarget(docPath, anchor: anchor);
+      if (segments.isEmpty) {
+        return DocTarget(docPath, anchor: anchor, rawAnchor: rawAnchor);
+      }
       final resolved = _resolveSegments(segments, docPath);
       if (resolved == null || resolved.isEmpty) return OutsideTarget(href);
-      return DocTarget(resolved, anchor: anchor);
+      return DocTarget(resolved, anchor: anchor, rawAnchor: rawAnchor);
   }
 }
 

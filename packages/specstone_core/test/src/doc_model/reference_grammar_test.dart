@@ -369,6 +369,17 @@ void main() {
       });
     }
 
+    test('rawAnchor is the text after the first # as written', () {
+      String? rawOf(String href) => switch (readLinkTarget(href)) {
+        RelativeLink(:final rawAnchor) => rawAnchor,
+        _ => 'not relative',
+      };
+      expect(rawOf('a/b.md#caf%C3%A9'), 'caf%C3%A9');
+      expect(rawOf('a/b.md#a#b'), 'a#b');
+      expect(rawOf('#'), '');
+      expect(rawOf('a/b.md'), isNull);
+    });
+
     test('pathEnd is where ? or # begins in the href as written', () {
       int? endOf(String href) => switch (readLinkTarget(href)) {
         RelativeLink(:final pathEnd) => pathEnd,

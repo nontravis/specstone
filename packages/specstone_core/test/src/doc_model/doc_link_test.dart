@@ -109,6 +109,12 @@ void main() {
       expect(target.anchor, '');
     });
 
+    test('a doc link keeps its fragment as written in rawAnchor', () {
+      final target = resolveDocLink('x.md#caf%C3%A9', from) as DocTarget;
+      expect(target.anchor, 'caf\u00e9');
+      expect(target.rawAnchor, 'caf%C3%A9');
+    });
+
     test('a doc link with no fragment has anchor null', () {
       final target = resolveDocLink('USER_STORY.md', from) as DocTarget;
       expect(target.anchor, isNull);

@@ -60,7 +60,7 @@ Node _rewriteLink(
   switch (target) {
     case WebTarget():
       return link;
-    case DocTarget(docPath: final resolved, :final anchor):
+    case DocTarget(docPath: final resolved, :final anchor, :final rawAnchor):
       final sectionAnchor = anchors[resolved];
       if (sectionAnchor == null) return _outsideSpan(link, resolved);
       if (href.startsWith('#') && anchors.containsValue(href.substring(1))) {
@@ -71,7 +71,7 @@ Node _rewriteLink(
           anchor.isNotEmpty &&
           (docAnchors[resolved]?.holds(anchor) ?? false);
       link.attributes['href'] = named
-          ? '#$sectionAnchor-${href.substring(href.indexOf('#') + 1)}'
+          ? '#$sectionAnchor-$rawAnchor'
           : '#$sectionAnchor';
       return link;
     case OutsideTarget(:final shown) || UnreadableTarget(:final shown):

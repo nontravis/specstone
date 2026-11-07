@@ -193,7 +193,12 @@ final class RootedLink extends LinkTargetForm;
 
 /// A target relative to the linking doc.
 final class RelativeLink extends LinkTargetForm {
-  new({required this.segments, required this.anchor, required this.pathEnd});
+  new({
+    required this.segments,
+    required this.anchor,
+    required this.rawAnchor,
+    required this.pathEnd,
+  });
 
   /// The path split on `/`, each segment percent-decoded (RULE-7); empty
   /// for `#x`, `?q`.
@@ -202,6 +207,9 @@ final class RelativeLink extends LinkTargetForm {
   /// The fragment decoded as a segment is; null with no `#`; `''` for `#`
   /// alone (the doc's top, RULE-13).
   final String? anchor;
+
+  /// The text after the first `#` as written, escapes kept; null with no `#`.
+  final String? rawAnchor;
 
   /// The index in the href as written where the path ends: where `?` or `#`
   /// begins, else the href's length.
@@ -214,9 +222,8 @@ LinkTargetForm readLinkTarget(String href) {
   if (whatwgParseFails(href)) return UnreadableLink();
   final fragmentAt = href.indexOf('#');
   final beforeFragment = fragmentAt < 0 ? href : href.substring(0, fragmentAt);
-  final anchor = fragmentAt < 0
-      ? null
-      : percentDecoded(href.substring(fragmentAt + 1));
+  final rawAnchor = fragmentAt < 0 ? null : href.substring(fragmentAt + 1);
+  final anchor = rawAnchor == null ? null : percentDecoded(rawAnchor);
   final schemeEnd = _schemeEndOf(beforeFragment);
   if (schemeEnd > 0) {
     return SchemeLink(beforeFragment.substring(0, schemeEnd - 1).toLowerCase());
@@ -232,6 +239,7 @@ LinkTargetForm readLinkTarget(String href) {
         ? const <String>[]
         : [for (final segment in path.split('/')) percentDecoded(segment)],
     anchor: anchor,
+    rawAnchor: rawAnchor,
     pathEnd: path.length,
   );
 }
