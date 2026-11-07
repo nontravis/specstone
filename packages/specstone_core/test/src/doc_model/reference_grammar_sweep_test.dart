@@ -112,7 +112,7 @@ final _allowed = <_Allowed>[
   _core(
     'index_query/doc_mentions.dart',
     r"""RegExp(r'\]\(\s*(?:<[^>]*>|[^\s)]*)'""",
-    'Blanks an inline link destination from prose; the link rule reads the link.',
+    'Blanks an inline link destination from prose; the link rule reads links.',
   ),
   _core(
     'index_query/doc_mentions.dart',
