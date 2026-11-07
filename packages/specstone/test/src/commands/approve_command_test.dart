@@ -249,6 +249,36 @@ void main() {
       64,
     );
   });
+  test(
+    'R70: a doc path holding @ names the doc, so --dry-run reads it',
+    () async {
+      final root = await writeWriteProject(
+        extra: {'docs/prds/a@b.md': '---\ndraft: true\n---\n\n# A\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', 'prds/a@b.md', '--dry-run']), 0);
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), 'no draft waits for approval\n');
+    },
+  );
+  test(
+    'R70: --yes on a doc path holding @ names the doc and asks for the hash',
+    () async {
+      const name = 'prds/a@0123456789ab.md';
+      final root = await writeWriteProject(
+        extra: {'docs/$name': '---\ndraft: true\n---\n\n# A\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', name, '--yes']), 64);
+      expect(
+        err.toString(),
+        startsWith(
+          '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
+          'specstone get --json; got $name.\n',
+        ),
+      );
+    },
+  );
   test('f02/us03/fr05/e07: --context rules', () async {
     final root = await writeWriteProject();
     final seen = _seen(root, 'feature:signup');
