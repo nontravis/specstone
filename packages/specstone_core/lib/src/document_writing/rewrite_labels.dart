@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -59,21 +60,14 @@ String? rewriteLinkLabels(
   };
   if (newLabel == null) return null;
   final doc = Doc.parse(lfText);
-  final lines = lfText.split('\n');
-  final prefixLength = lfText.length - doc.afterFrontmatter.length;
-  final firstLine = '\n'.allMatches(lfText.substring(0, prefixLength)).length;
-  if (docType.id != _frType) {
-    _rewriteBody(lines, doc, firstLine, docType, newLabel, renamed);
-  }
-  var result = lines.join('\n');
-  if (docType.id == _frType) {
-    result = _withRenamedBlock(
-      result,
-      doc,
-      _tracedFromKey,
-      (block) => _renameTraced(block, newLabel),
-    );
-  }
+  var result = docType.id == _frType
+      ? _withRenamedBlock(
+          lfText,
+          doc,
+          _tracedFromKey,
+          (block) => renameKeyBlockValues(block.text, block.key, newLabel),
+        )
+      : _withRewrittenBody(lfText, doc, docType, newLabel, renamed);
   result = _withRenamedBlock(
     result,
     doc,
@@ -81,6 +75,22 @@ String? rewriteLinkLabels(
     (block) => _renameEntries(block.text, newLabel),
   );
   return result == lfText ? null : result;
+}
+
+/// Returns [lfText] with the step and FR trace lines that name a renamed doc
+/// set to the new name.
+String _withRewrittenBody(
+  String lfText,
+  Doc doc,
+  MergedDocType docType,
+  String? Function(String label) newLabel,
+  Map<(String, String), String> renamed,
+) {
+  final lines = lfText.split('\n');
+  final prefixLength = lfText.length - doc.afterFrontmatter.length;
+  final firstLine = '\n'.allMatches(lfText.substring(0, prefixLength)).length;
+  _rewriteBody(lines, doc, firstLine, docType, newLabel, renamed);
+  return lines.join('\n');
 }
 
 /// Returns [text] with the frontmatter block [name] of [doc] rewritten by
@@ -213,70 +223,6 @@ String? _scenarioEntryLabel(
     return name == null ? null : '$name#${ref.number.written}';
   }
   return null;
-}
-
-/// Returns the `traced_from` key block [block] with each entry label set to
-/// [newLabel]; a flow list and a block list both rewrite.
-String _renameTraced(KeyBlock block, String? Function(String) newLabel) {
-  final lines = block.text.split('\n');
-  for (var i = 0; i < lines.length; i++) {
-    final start = i == 0
-        ? _afterKey(lines[i], block.key)
-        : _afterDash(lines[i]);
-    if (start < 0) continue;
-    lines[i] =
-        lines[i].substring(0, start) +
-        _renameRegion(lines[i].substring(start), newLabel);
-  }
-  return lines.join('\n');
-}
-
-/// Returns the index in [line] past `<key>:` and its spaces, or -1.
-int _afterKey(String line, String key) {
-  if (!line.startsWith(key)) return -1;
-  final colon = line.indexOf(':', key.length);
-  return colon < 0 ? -1 : colon + 1 + _spaces(line, colon + 1);
-}
-
-/// Returns the index in [line] past a `- ` list marker, or -1.
-int _afterDash(String line) {
-  final dash = line.length - line.trimLeft().length;
-  if (!line.startsWith('- ', dash)) return -1;
-  return dash + 1 + _spaces(line, dash + 1);
-}
-
-int _spaces(String line, int from) {
-  var end = from;
-  while (end < line.length && line[end] == ' ') {
-    end++;
-  }
-  return end - from;
-}
-
-/// Returns [region], the value text of a `traced_from` line, with each entry
-/// label set to [newLabel]; the brackets, commas, quotes, and comment stay.
-String _renameRegion(String region, String? Function(String) newLabel) {
-  if (!region.startsWith('[')) return _renameItem(region, newLabel);
-  final close = region.indexOf(']');
-  if (close < 0) return region;
-  final items = region.substring(1, close).split(',');
-  final joined = items.map((item) => _renameItem(item, newLabel)).join(',');
-  return '[$joined${region.substring(close)}';
-}
-
-/// Returns [item] with its leading entry, quoted or bare, set to [newLabel].
-String _renameItem(String item, String? Function(String) newLabel) {
-  final start = item.length - item.trimLeft().length;
-  final quote = start < item.length && '"\''.contains(item[start])
-      ? item[start]
-      : '';
-  final labelStart = start + quote.length;
-  var end = labelStart;
-  while (end < item.length && !' ,]"\''.contains(item[end])) {
-    end++;
-  }
-  final renamed = newLabel(item.substring(labelStart, end));
-  return renamed == null ? item : item.replaceRange(labelStart, end, renamed);
 }
 
 /// Returns the `confirmed` key block [text] with each entry label set to

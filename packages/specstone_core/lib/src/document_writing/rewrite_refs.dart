@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/link_destinations.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -29,9 +30,6 @@ export 'package:specstone_core/src/document_writing/moved_paths.dart'
 
 /// The byte-order mark as the one character a journal step's text carries.
 const _bom = '\uFEFF';
-
-/// A comment that ends a YAML value; `#` opens it only after a space.
-const _trailingComment = r'(?<tail>\s+#.*)?';
 
 /// Returns [lfText] with each doc link set to the path [moves] leave its
 /// target at, or null when no link changes.
@@ -404,64 +402,9 @@ String _renameInBlock(
   MergedField field,
   Map<(String, String), String> renamed,
 ) {
-  final lines = text.split('\n');
-  final keyLine = lines.indexWhere((line) => !_isTrivia(line));
-  final keyRest = RegExp(r'^(\s*:\s*)(.*)$');
-  for (var i = keyLine; i >= 0 && i < lines.length; i++) {
-    final line = lines[i];
-    if (_isTrivia(line)) continue;
-    final match = i == keyLine
-        ? line.startsWith(key)
-              ? keyRest.firstMatch(line.substring(key.length))
-              : null
-        : RegExp(r'^(\s*-\s+)(.*)$').firstMatch(line);
-    if (match == null) continue;
-    final head = i == keyLine ? key + match[1]! : match[1]!;
-    lines[i] = head + _renameValues(match[2]!, field, renamed);
-  }
-  return lines.join('\n');
-}
-
-bool _isTrivia(String line) =>
-    line.trim().isEmpty || line.trimLeft().startsWith('#');
-
-/// Returns [region], the text after `key:` or `- `, with renamed values set.
-String _renameValues(
-  String region,
-  MergedField field,
-  Map<(String, String), String> renamed,
-) {
-  final flow = RegExp(r'^\[(?<items>[^\]]*)\](?<tail>\s*(?:#.*)?)$');
-  final flowMatch = flow.firstMatch(region);
-  if (flowMatch != null) {
-    final items = flowMatch.namedGroup('items')!.split(',').map((item) {
-      final token = item.trim();
-      final renamedToken = _renameToken(token, field, renamed);
-      return item.replaceFirst(token, renamedToken);
-    });
-    return '[${items.join(',')}]${flowMatch.namedGroup('tail')}';
-  }
-  final scalar = RegExp(
-    '^(?<token>"[^"]*"|\'[^\']*\'|\\S.*?)$_trailingComment\\s*\$',
-  ).firstMatch(region);
-  if (scalar == null) return region;
-  final token = scalar.namedGroup('token')!;
-  return _renameToken(token, field, renamed) + region.substring(token.length);
-}
-
-/// Returns [token], a scalar as written with its quotes, renamed if needed.
-String _renameToken(
-  String token,
-  MergedField field,
-  Map<(String, String), String> renamed,
-) {
-  final quote =
-      token.length >= 2 &&
-          (token.startsWith('"') || token.startsWith("'")) &&
-          token.endsWith(token[0])
-      ? token[0]
-      : '';
-  final value = quote.isEmpty ? token : token.substring(1, token.length - 1);
-  final name = _newName(field, value, renamed);
-  return name == null ? token : '$quote$name$quote';
+  return renameKeyBlockValues(
+    text,
+    key,
+    (value) => _newName(field, value, renamed),
+  );
 }

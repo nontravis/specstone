@@ -376,6 +376,34 @@ void main() {
     expect(_frKinds(root), isEmpty);
   });
 
+  for (final (shape, tracedFrom) in [
+    (
+      'a comment line above the key',
+      '# note\ntraced_from: [S1, login/reset_password#S3]\n',
+    ),
+    (
+      'a blank line above the key',
+      '\ntraced_from: [S1, login/reset_password#S3]\n',
+    ),
+    (
+      'a flow list over two lines',
+      'traced_from: [S1,\n  login/reset_password#S3]\n',
+    ),
+  ]) {
+    test(
+      'document_writing/rename_doc/rewrite_link_labels E15: traced_from with $shape rewrites with confirmed',
+      () async {
+        final root = await _frTraceProject(tracedFrom: tracedFrom);
+        _rename(root, 'user_story:login/reset_password', 'recover_password');
+        final fr = readDoc(root, loginFr);
+        expect(fr, contains('login/recover_password#S3'));
+        expect(fr, isNot(contains('reset_password')));
+        expect(fr, contains('  - login/recover_password#S3 $_fp3\n'));
+        expect(_frKinds(root), isEmpty);
+      },
+    );
+  }
+
   test('document_writing/rename_doc/rewrite_link_labels E15: an own-story label S<N> and an unrenamed story label keep their text', () async {
     final root = await _frTraceProject();
     final before = readDoc(root, loginFr);
