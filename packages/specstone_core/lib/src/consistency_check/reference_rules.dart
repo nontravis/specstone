@@ -101,7 +101,6 @@ Iterable<Finding> _unresolvedConcerns(
     for (final section in held)
       headerKey(section.headerLine.trimLeft().substring(2)),
   };
-  final folder = _folderOf(context, doc);
   final anchors = context.contentOf(doc).lineFacts.anchors;
   for (var i = 0; i < held.length; i++) {
     if (context.templateSectionAt(doc, i)?.id != _concernsSection) {
@@ -111,7 +110,7 @@ Iterable<Finding> _unresolvedConcerns(
       final target = line.fenced ? null : _seeTarget(line.text);
       if (target == null) continue;
       if (headers.contains(headerKey(target)) ||
-          _seeResolves(context, doc, target, folder, anchors)) {
+          _seeResolves(context, doc, target, anchors)) {
         continue;
       }
       yield context.finding(
@@ -152,7 +151,7 @@ String _withoutTrailingPunctuation(String text) {
 }
 
 /// Whether [target], a `see` target that is no section header, names a file
-/// of [folder] or an anchor of the doc or of that file (R63).
+/// beside [doc] or an anchor of the doc or of that file (R63).
 ///
 /// The target is a markdown link `[text](href)` or a bare path or `#anchor`.
 /// An anchor set that is unknown (null) or a file no doc indexes raises
@@ -161,18 +160,19 @@ bool _seeResolves(
   CheckContext context,
   IndexedDoc doc,
   String target,
-  String folder,
   DocAnchors? anchors,
 ) {
   final href = _markdownLink.firstMatch(target)?.group(1) ?? target;
   if (readLinkTarget(href) case RelativeLink(:final segments, :final anchor)) {
     final named = anchor == null || anchor.isEmpty ? null : anchor;
-    if (segments.isEmpty) return named == null || _holds(anchors, named);
-    if (!File('$folder/${segments.join(_separator)}').existsSync()) {
-      return false;
+    if (segments.isEmpty) {
+      return anchor != null && (named == null || _holds(anchors, named));
     }
     final path = relativeFilePathOf(href, doc.docPath);
-    final file = path == null ? null : context.index.at(path);
+    if (path == null || !File('${context.docsRoot.path}/$path').existsSync()) {
+      return false;
+    }
+    final file = context.index.at(path);
     return named == null ||
         file == null ||
         _holds(context.contentOf(file).lineFacts.anchors, named);

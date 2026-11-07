@@ -89,6 +89,7 @@ void main() {
                   concerns,
                 ),
                 'docs/specs/f01_login/ERROR.md': '# Login errors\n\n## Known\n',
+                'docs/specs/f01_login/a/b.md': '# B\n',
               }..update(
                 'docs/$loginArchitecture',
                 (text) =>
@@ -126,7 +127,10 @@ void main() {
         '- B: see [gone](MISSING.md)\n'
         '- C: see MISSING.md.\n'
         '- D: see [x](#also-missing)\n'
-        '- E: see ERROR.md#missing\n',
+        '- E: see ERROR.md#missing\n'
+        '- X: see [x]()\n'
+        '- Y: see ?q\n'
+        '- Z: see a%2Fb.md\n',
       ),
       [
         '#no-such-anchor',
@@ -134,6 +138,9 @@ void main() {
         'MISSING.md',
         '[x](#also-missing)',
         'ERROR.md#missing',
+        '[x]()',
+        '?q',
+        'a%2Fb.md',
       ],
     );
   });
