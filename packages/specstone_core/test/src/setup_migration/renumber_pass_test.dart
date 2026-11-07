@@ -656,6 +656,24 @@ confirmed:
     );
   });
 
+  test('$_fr E18 (W3): an untyped doc takes only the moved anchors of its '
+      'links, and refuses a text other than the one planned', () {
+    const notesPath = 'prds/notes.md';
+    const notes =
+        '---\nfront: matter\n---\n# Notes\n\n'
+        '[it](features/f01_a/us01_b/USER_STORY.md#scenario-6a--edge-lettered)'
+        ' and `doc_model` RULE-7a.\n';
+
+    final pass = RenumberPass.plan([
+      (docPath: notesPath, lf: notes, type: null),
+      (docPath: _topicPath, lf: _topic, type: _typeAt(_topicPath)),
+      (docPath: _storyPath, lf: _story, type: _typeAt(_storyPath)),
+    ]);
+
+    expect(pass.apply(notesPath, notes), notes.replaceFirst('6a--', '9--'));
+    expect(() => pass.apply(notesPath, '$notes\nmore\n'), throwsArgumentError);
+  });
+
   test('$_fr E18 (W4): the token scan reads prose only: link text, labels, '
       'and their uses change; destinations, autolinks, raw html, indented '
       'code, and a code span over two lines stay', () {

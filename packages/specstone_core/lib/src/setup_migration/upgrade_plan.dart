@@ -447,11 +447,10 @@ bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
   return since != null && upgrade.pin.compareTo(since) < 0;
 });
 
-/// Plans the renumber pass over the typed docs of [works].
+/// Plans the renumber pass over every doc of [works], typed or not.
 RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([
   for (final work in works)
-    if (work.docType case final type?)
-      (docPath: work.plannedPath, lf: work.lf, type: type),
+    (docPath: work.plannedPath, lf: work.lf, type: work.docType),
 ]);
 
 /// One doc of the run, with its text after the steps and link rewrites.

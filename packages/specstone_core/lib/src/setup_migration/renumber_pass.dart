@@ -29,19 +29,32 @@ typedef _Rewrite = ({String lf, bool citesOthers});
 /// IDs: a doc holding no renumbered token is read for its structure once and
 /// never rewritten, and each rewrite runs once (W17).
 final class RenumberPass {
-  new _(this._docs, this._index) : renumberings = _index.renumberings;
+  new _(this._texts, this._docs, this._index)
+    : renumberings = _index.renumberings;
 
-  /// Plans the pass over every typed doc of the run: planned DocPath, LF
-  /// text, merged doc type.
-  factory plan(List<({String docPath, String lf, MergedDocType type})> docs) {
+  /// Plans the pass over every doc of the run: planned DocPath, LF text, and
+  /// merged doc type, null for an untyped doc.
+  ///
+  /// An untyped doc holds no ID; only its links take the moved anchors, as
+  /// `check` reads its links too (W3).
+  factory plan(List<({String docPath, String lf, MergedDocType? type})> docs) {
+    final sorted = [...docs]
+      ..sort((a, b) => compareCodePoints(a.docPath, b.docPath));
     final runDocs = [
-      for (final doc in docs) RenumberDoc(doc.docPath, doc.lf, doc.type),
-    ]..sort((a, b) => compareCodePoints(a.docPath, b.docPath));
-    return RenumberPass._({
-      for (final doc in runDocs) doc.docPath: doc,
-    }, RenumberIndex(runDocs));
+      for (final doc in sorted)
+        if (doc.type case final type?) RenumberDoc(doc.docPath, doc.lf, type),
+    ];
+    return RenumberPass._(
+      {for (final doc in sorted) doc.docPath: doc.lf},
+      {for (final doc in runDocs) doc.docPath: doc},
+      RenumberIndex(runDocs),
+    );
   }
 
+  /// The LF text of every doc of the run, typed or not, in tree order.
+  final Map<String, String> _texts;
+
+  /// The typed docs of the run.
   final Map<String, RenumberDoc> _docs;
   final RenumberIndex _index;
 
@@ -58,7 +71,11 @@ final class RenumberPass {
 
   /// The final text of each doc the pass changes, in tree order.
   late final Map<String, _Rewrite> _rewrites = {
-    for (final doc in _docs.values) doc.docPath: ?_rewriteOf(doc),
+    for (final docPath in _texts.keys)
+      docPath: ?switch (_docs[docPath]) {
+        final doc? => _rewriteOf(doc),
+        null => _bodies[docPath],
+      },
   };
 
   /// Returns the doc at [docPath] with its renumbered IDs and every reference
@@ -68,9 +85,9 @@ final class RenumberPass {
   /// [ArgumentError] when [lf] is not the text the pass was planned over.
   String apply(String docPath, String lf) {
     if (renumberings.isEmpty) return lf;
-    final doc = _docs[docPath];
-    if (doc == null) return lf;
-    if (lf != doc.lf) {
+    final planned = _texts[docPath];
+    if (planned == null) return lf;
+    if (lf != planned) {
       throw ArgumentError.value(
         docPath,
         'lf',
@@ -105,11 +122,11 @@ final class RenumberPass {
       for (final MapEntry(:key, :value) in bodies.entries) key: value.lf,
     });
     if (moves.isEmpty) return bodies;
-    for (final doc in _docs.values) {
-      final current = bodies[doc.docPath];
-      final moved = withAnchorsMoved(current?.lf ?? doc.lf, doc, moves);
+    for (final MapEntry(key: docPath, value: lf) in _texts.entries) {
+      final current = bodies[docPath];
+      final moved = withAnchorsMoved(current?.lf ?? lf, docPath, moves);
       if (moved == null) continue;
-      bodies[doc.docPath] = (
+      bodies[docPath] = (
         lf: moved.lf,
         citesOthers: (current?.citesOthers ?? false) || moved.citesOthers,
       );

@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
@@ -96,26 +97,27 @@ List<String>? _headingSlugsOf(String body) {
 
 // MARK: - Link anchors
 
-/// Returns [lf], the text of [doc], with the `#anchor` of each link and
-/// definition destination that names an old slug of [moves] set to its new
-/// slug, self links included; null when none changes (W3).
-AnchorRewrite? withAnchorsMoved(String lf, RenumberDoc doc, SlugMoves moves) {
+/// Returns [lf], the text of the doc at [docPath], typed or not, with the
+/// `#anchor` of each link and definition destination that names an old slug
+/// of [moves] set to its new slug, self links included; null when none
+/// changes (W3).
+AnchorRewrite? withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   if (!moves.mayName(lf)) return null;
-  final bodyStart = doc.frontmatterText.length;
-  final body = lf.substring(bodyStart);
+  final body = Doc.parse(lf).afterFrontmatter;
+  final bodyStart = lf.length - body.length;
   final destinations = [...linkScanOf(body, firstLine: 1).destinations]
     ..sort((a, b) => b.start - a.start);
   var text = body;
   var citesOthers = false;
   for (final (:start, :end) in destinations) {
-    final target = resolveDocLink(body.substring(start, end), doc.docPath);
+    final target = resolveDocLink(body.substring(start, end), docPath);
     if (target is! DocTarget) continue;
     final (anchor, rawAnchor) = (target.anchor, target.rawAnchor);
     final slug = anchor == null ? null : moves.byDoc[target.docPath]?[anchor];
     if (slug == null || rawAnchor == null) continue;
     final written = rawAnchor == anchor ? slug : Uri.encodeComponent(slug);
     text = text.replaceRange(end - rawAnchor.length, end, written);
-    citesOthers = citesOthers || target.docPath != doc.docPath;
+    citesOthers = citesOthers || target.docPath != docPath;
   }
   if (text == body) return null;
   return (lf: lf.substring(0, bodyStart) + text, citesOthers: citesOthers);

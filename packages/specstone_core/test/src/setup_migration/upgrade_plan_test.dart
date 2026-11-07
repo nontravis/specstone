@@ -1262,6 +1262,27 @@ void _renumberTests() {
       );
     });
 
+    test('$_fr E18 (W3): an untyped doc, whose links check reads too, takes '
+        'the new slug of a renumbered heading it links', () async {
+      const notesPath = 'prds/notes.md';
+      const link = 'See [it](features/f01_a/us01_b/USER_STORY.md#scenario-';
+      final plan = _planAt(
+        await _belowSinceTree({
+          ..._e18Docs(),
+          notesPath: '# Notes\n\n${link}6a--edge-lettered).\n',
+        }),
+      );
+
+      expect(
+        _docText(plan, notesPath),
+        '# Notes\n\n${link}9--edge-lettered).\n',
+      );
+      expect(
+        plan.toText(),
+        contains('fr02_g.md, $notesPath, specs/f01_a/DOMAIN.md\n'),
+      );
+    });
+
     test('$_fr E18: a confirmed entry already suspect keeps its fingerprint '
         'and takes the new label', () async {
       final plan = _planAt(await _belowSinceTree(_e18Docs()));

@@ -1024,6 +1024,8 @@ void main() {
           'docs/prds/journeys/onboard/JOURNEY.md':
               '---\nconfirmed:\n  - a/b#S6a $blockFingerprint\n---\n'
               '# Onboard\n\n## Steps\n\n### 1. Start\nstep: a/b S6a\n',
+          'docs/prds/notes.md':
+              '# Notes\n\n[latency](GNFR.md#nfr-p06a--latency)\n',
           'docs/prds/features/f01_a/us02_e/USER_STORY.md': paddedStory,
           'docs/prds/journeys/padded/JOURNEY.md':
               '---\nconfirmed:\n  - a/e#S6a ${fingerprintOf(lettered)}\n---\n'
