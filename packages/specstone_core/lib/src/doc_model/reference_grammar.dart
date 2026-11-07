@@ -259,7 +259,7 @@ LinkTargetForm readLinkTarget(String href) {
   final beforeFragment = fragmentAt < 0 ? href : href.substring(0, fragmentAt);
   final rawAnchor = fragmentAt < 0 ? null : href.substring(fragmentAt + 1);
   final anchor = rawAnchor == null ? null : percentDecoded(rawAnchor);
-  final schemeEnd = _schemeEndOf(beforeFragment);
+  final schemeEnd = schemeEndOf(beforeFragment);
   if (schemeEnd > 0) {
     return SchemeLink(beforeFragment.substring(0, schemeEnd - 1).toLowerCase());
   }
@@ -279,12 +279,14 @@ LinkTargetForm readLinkTarget(String href) {
   );
 }
 
-/// Returns the index past the `:` of a scheme at the start of [text], or -1
-/// when [text] opens with none: an ASCII letter, then letters, digits, `+`,
-/// `-`, `.`, then `:`.
-int _schemeEndOf(String text) {
-  if (text.isEmpty || !_isAsciiLetter(text.codeUnitAt(0))) return -1;
-  var i = 1;
+/// Returns the index past the `:` of a scheme at [start] of [text], or -1
+/// when none opens there: an ASCII letter, then letters, digits, `+`, `-`,
+/// `.`, then `:` (RULE-11).
+int schemeEndOf(String text, [int start = 0]) {
+  if (start >= text.length || !_isAsciiLetter(text.codeUnitAt(start))) {
+    return -1;
+  }
+  var i = start + 1;
   for (; i < text.length; i++) {
     final code = text.codeUnitAt(i);
     if (_isAsciiLetter(code) || _isDigit(code)) continue;

@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:markdown/markdown.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show schemeEndOf;
 
 /// The deepest tree [parseMarkdown] returns, counted in element levels from a
 /// top-level node (a paragraph is level 1).
@@ -37,12 +39,21 @@ List<Node>? parseMarkdown(String text) {
 }
 
 /// Whether [body] holds the least syntax a markdown link needs: an inline
-/// opener (`](`) or a definition opener (`]:`).
+/// opener (`](`), a definition opener (`]:`), or a scheme autolink opener
+/// (`<` and a scheme).
 ///
-/// An autolink is absolute, so it never resolves to a doc. This is the one
-/// gate both the link scan and the anchor parse use (P17): a body that fails
-/// it needs no full inline parse.
-bool holdsLinkSyntax(String body) => body.contains('](') || body.contains(']:');
+/// A scheme autolink never resolves to a doc, but the grammar may fail to
+/// read it (RULE-11), so it passes too. This is the one gate of the index
+/// (P17): a body that fails it needs no full inline parse.
+bool holdsLinkSyntax(String body) =>
+    body.contains('](') || body.contains(']:') || _holdsSchemeAutolink(body);
+
+bool _holdsSchemeAutolink(String body) {
+  for (var at = body.indexOf('<'); at >= 0; at = body.indexOf('<', at + 1)) {
+    if (schemeEndOf(body, at + 1) > 0) return true;
+  }
+  return false;
+}
 
 /// Returns the nodes of [body] parsed for anchors, or null when the parse
 /// fails.
@@ -53,8 +64,13 @@ bool holdsLinkSyntax(String body) => body.contains('](') || body.contains(']:');
 /// `<` (an inline tag may carry an `id`). The heading subtrees are the nodes
 /// the full parse builds, so the anchor set is the same either way; only
 /// prose the index never reads is left unparsed.
-List<Node>? parseBodyForAnchors(String body) {
-  if (holdsLinkSyntax(body)) return parseMarkdown(body);
+List<Node>? parseBodyForAnchors(String body) =>
+    holdsLinkSyntax(body) ? parseMarkdown(body) : parseLinkFreeBody(body);
+
+/// Returns the nodes of [body], which fails [holdsLinkSyntax], parsed for
+/// anchors only, or null when the parse fails: the block pass plus the inline
+/// pass on h1-h6 content and on blocks whose text holds `<`.
+List<Node>? parseLinkFreeBody(String body) {
   final List<Node> nodes;
   try {
     final document = Document(extensionSet: ExtensionSet.gitHubFlavored);

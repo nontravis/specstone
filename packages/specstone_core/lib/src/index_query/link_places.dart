@@ -22,6 +22,14 @@ typedef LinkPlaces = ({
   List<LinkPlace> unreadableLinks,
 });
 
+/// The links of a body that holds no link syntax: none of any class.
+const LinkPlaces noLinks = (
+  docLinks: [],
+  fileLinks: [],
+  selfLinks: [],
+  unreadableLinks: [],
+);
+
 /// Returns the links of [lfBody], doc links and file links, each in source
 /// order.
 ///
@@ -36,23 +44,15 @@ typedef LinkPlaces = ({
 /// destination.
 ///
 /// Returns null when `markdown` fails on [lfBody] (see [parseMarkdown]), and
-/// no links for a body with no link syntax, which it never parses.
+/// [noLinks] for a body with no link syntax, which it never parses. Given
+/// [bodyNodes], the caller has passed that gate, so it is not run again.
 LinkPlaces? linkPlacesOf(
   String lfBody, {
   required String docPath,
   required int firstLine,
   List<Node>? bodyNodes,
 }) {
-  // Exact: a doc link is inline (`](`) or has a `]:` definition; an autolink
-  // is absolute, so it never resolves to a doc.
-  if (!holdsLinkSyntax(lfBody)) {
-    return (
-      docLinks: const [],
-      fileLinks: const [],
-      selfLinks: const [],
-      unreadableLinks: const [],
-    );
-  }
+  if (bodyNodes == null && !holdsLinkSyntax(lfBody)) return noLinks;
   final hrefs = _hrefsOf(lfBody, bodyNodes: bodyNodes);
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);

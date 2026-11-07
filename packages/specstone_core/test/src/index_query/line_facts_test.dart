@@ -268,6 +268,24 @@ void main() {
       expect(back.anchors!.toJson(), facts.anchors!.toJson());
     });
 
+    test('resolve_doc_links E21: an unreadable autolink is an unreadable link '
+        'whatever else the body holds, so one link reads one way', () {
+      const autolink = (
+        target: 'http://h:99999/',
+        line: 3,
+        shown: 'http://h:99999/',
+        anchor: null,
+      );
+      for (final body in [
+        'Autolink only <http://h:99999/> here.',
+        'Both <http://h:99999/> and [x](y.md).',
+      ]) {
+        expect(_factsOf('# T\n\n$body\n').unreadableLinks, [
+          autolink,
+        ], reason: body);
+      }
+    });
+
     test(
       's03/inv24, LP2, P11: a body the markdown parser fails on has no links '
       'and an unknown anchor set, stored as null',

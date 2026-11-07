@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show holdsLinkSyntax, parseMarkdown;
+    show holdsLinkSyntax, parseLinkFreeBody, parseMarkdown;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
@@ -92,28 +92,30 @@ final class LineFacts {
     final bodyStart = _lineCount(prefix);
     final whole = scanText(countedText);
     final body = doc.afterFrontmatter;
-    // One parse per doc, failed or not: a link-syntax body shares its full
-    // parse between the links and the anchors, so a failed parse is the
-    // links and the anchors both; any other body never parses its prose.
+    // One gate and one parse per doc, failed or not: a link-syntax body
+    // shares its full parse between the links and the anchors, so a failed
+    // parse is the links and the anchors both; any other body never parses
+    // its prose.
     final hasLinks = holdsLinkSyntax(body);
-    final bodyNodes = hasLinks ? parseMarkdown(body) : null;
-    final links = hasLinks && bodyNodes == null
+    final linkNodes = hasLinks ? parseMarkdown(body) : null;
+    final links = !hasLinks
+        ? noLinks
+        : linkNodes == null
         ? null
         : linkPlacesOf(
             body,
             docPath: docPath,
             firstLine: bodyStart + 1,
-            bodyNodes: bodyNodes,
+            bodyNodes: linkNodes,
           );
     if (links == null) warnings.add(markdownUnparsedWarning(docPath));
+    final anchorNodes = hasLinks ? linkNodes : parseLinkFreeBody(body);
     return LineFacts(
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],
       selfLinks: links?.selfLinks ?? const [],
       unreadableLinks: links?.unreadableLinks ?? const [],
-      anchors: hasLinks
-          ? (bodyNodes == null ? null : anchorsOf(bodyNodes))
-          : anchorsOfBody(body),
+      anchors: anchorNodes == null ? null : anchorsOf(anchorNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
