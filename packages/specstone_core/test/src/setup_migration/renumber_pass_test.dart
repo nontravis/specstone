@@ -575,6 +575,168 @@ confirmed:
       throwsArgumentError,
     );
   });
+
+  test('$_fr E18 (W1): a feature and a story listing a lettered vision and '
+      'goal take their new numbers; a lettered token in another key stays', () {
+    const project = '''
+# P
+
+## Project vision
+
+### PV-01 — One
+
+### PV-1a — Lettered
+
+## Project goals
+
+### PG-01 — One
+
+**Serves:** PV-01
+
+### PG-2a — Two
+
+**Serves:** PV-1a
+''';
+    const feature = '---\nvision: [PV-1a]\ngoals:\n  - PG-2a\n---\n# A\n';
+    const story =
+        '---\nstatus: planned\nvision: [PV-1a]\ngoals: [PG-2a]\n'
+        'name: PG-2a team\n---\n# B\n';
+
+    final pass = _planOf({
+      'prds/PROJECT.md': project,
+      'prds/features/f01_a/FEATURE.md': feature,
+      _storyPath: story,
+    });
+
+    expect(pass.renumberings, [
+      (docPath: 'prds/PROJECT.md', from: 'PV-1a', to: 'PV-02'),
+      (docPath: 'prds/PROJECT.md', from: 'PG-2a', to: 'PG-02'),
+    ]);
+    expect(
+      pass.apply('prds/features/f01_a/FEATURE.md', feature),
+      '---\nvision: [PV-02]\ngoals:\n  - PG-02\n---\n# A\n',
+    );
+    expect(
+      pass.apply(_storyPath, story),
+      '---\nstatus: planned\nvision: [PV-02]\ngoals: [PG-02]\n'
+      'name: PG-2a team\n---\n# B\n',
+    );
+    expect(
+      pass.apply('prds/PROJECT.md', project),
+      contains('### PG-02 — Two\n\n**Serves:** PV-02\n'),
+    );
+  });
+
+  test('$_fr E18 (W3): a link to a renumbered heading takes its new slug, '
+      'self links included, and its doc joins references', () {
+    const anchor = 'scenario-6a--edge-lettered';
+    const moved = 'scenario-9--edge-lettered';
+    const story =
+        '$_story\nSee [it](#$anchor) and [top](#scenario-1--happy-one).\n';
+    const fr =
+        '---\ntraced_from: [S1]\n---\n# C\n\n## Statement\n\n'
+        'See [the lockout](USER_STORY.md#$anchor).\n';
+    const domain =
+        '# A\n\n## Invariants\n\n'
+        '[x](../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor)\n\n'
+        '[ref]: ../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor\n';
+
+    final pass = _planOf({_storyPath: story, _frPath: fr, _domainPath: domain});
+
+    expect(
+      pass.apply(_storyPath, story),
+      contains('See [it](#$moved) and [top](#scenario-1--happy-one).\n'),
+    );
+    expect(pass.apply(_frPath, fr), fr.replaceFirst(anchor, moved));
+    expect(pass.apply(_domainPath, domain), domain.replaceAll(anchor, moved));
+    expect(
+      pass.planLine,
+      'renumber ids: $_storyPath Scenario 6a -> Scenario 9; '
+      'references: $_frPath, $_domainPath',
+    );
+  });
+
+  test('$_fr E18 (W4): the token scan reads prose only: link text, labels, '
+      'and their uses change; destinations, autolinks, raw html, indented '
+      'code, and a code span over two lines stay', () {
+    const purpose = '''
+## Purpose
+
+[RULE-7a](https://github.com/x/y/blob/main/RULE-7a.md) and <https://example.com/RULE-7a>
+[file](./RULE-7a.md) <a href="https://x/RULE-7a">RULE-7a</a> <!-- RULE-7a -->
+See [RULE-7a] and [the rule][RULE-7a].
+
+[RULE-7a]: https://example.com/RULE-7a
+
+    RULE-7a indented
+
+A span `starts
+RULE-7a` here.
+
+''';
+    final topic = _topic.replaceFirst('## Rules\n', '$purpose## Rules\n');
+
+    final applied = _applied({_topicPath: topic})[_topicPath]!;
+
+    expect(
+      applied,
+      topic
+          .replaceFirst('[RULE-7a](https', '[RULE-31](https')
+          .replaceFirst('">RULE-7a</a>', '">RULE-31</a>')
+          .replaceFirst(
+            'See [RULE-7a] and [the rule][RULE-7a].',
+            'See [RULE-31] and [the rule][RULE-31].',
+          )
+          .replaceFirst('[RULE-7a]: https', '[RULE-31]: https')
+          .replaceFirst(
+            '- **RULE-7a** — Lettered, as RULE-7a says;',
+            '- **RULE-31** — Lettered, as RULE-31 says;',
+          ),
+    );
+  });
+
+  test('$_fr E18 (W6): a short scenario ref S6a in prose takes the new '
+      'number in the story and in a doc tracing it, by the citation rule', () {
+    const story = '$_story\nAs S6a shows, Scenario 6a holds.\n';
+    const tracing =
+        '---\ntraced_from: [S1]\n---\n# C\n\n## Statement\n\nSee S6a.\n';
+    const notTracing = '# A\n\n## Invariants\n\nSee S6a.\n';
+
+    final applied = _applied({
+      _storyPath: story,
+      _frPath: tracing,
+      _domainPath: notTracing,
+    });
+
+    expect(applied[_storyPath], contains('As S9 shows, Scenario 9 holds.\n'));
+    expect(applied[_frPath], tracing.replaceFirst('S6a', 'S9'));
+    expect(applied[_domainPath], notTracing);
+  });
+
+  test('$_fr E18 (W10): an S<N> ref 1.1.0 read as the one lettered '
+      'scenario of number N takes its new number; two lettered N stay', () {
+    String tracing(String fingerprint) =>
+        '---\ntraced_from: [S6]\nconfirmed:\n  - S6 $fingerprint\n---\n# C\n';
+
+    final sole = _applied({
+      _storyPath: _story,
+      _frPath: tracing(fingerprintOf(_lettered)),
+    });
+
+    expect(
+      sole[_frPath],
+      '---\ntraced_from: [S9]\nconfirmed:\n'
+      '  - S9 ${fingerprintOf(_renumbered)}\n---\n# C\n',
+    );
+
+    final twice = _story.replaceFirst(
+      _lettered,
+      '$_lettered\n### Scenario 6b — [edge] b\n\n- **Given** g\n',
+    );
+    final two = _applied({_storyPath: twice, _frPath: tracing('0' * 12)});
+
+    expect(two[_frPath], tracing('0' * 12));
+  });
 }
 
 /// The body of the `## Statement` section of [lf], as `check` fingerprints an

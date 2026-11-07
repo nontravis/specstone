@@ -1,8 +1,5 @@
-import 'dart:convert';
-
 import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
-import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -40,25 +37,38 @@ String scenarioRefOf(String id) {
   return '$_scenarioRefPrefix${id.substring(scenarioIdPrefix.length)}';
 }
 
+/// Returns the key of the scenario block [number] names, by the value of its
+/// digits (W9): `S<value>`, and `S<value><letters>` for a lettered number.
+String scenarioBlockKeyOf(IdRead number) => switch (number) {
+  ItemId(:final number) => '$_scenarioRefPrefix$number',
+  LetteredId(:final digits, :final letters) =>
+    '$_scenarioRefPrefix${BigInt.parse(digits)}$letters',
+  UnreadableId(:final written) => written,
+};
+
+/// Returns the block key of the scenario ID [id], `Scenario <N>`, as
+/// [scenarioBlockKeyOf] names it; [id] itself for any other text.
+String scenarioBlockKeyOfId(String id) =>
+    switch (readItemIdAt(id, 0, scenarioIdPrefix)) {
+      final number? => scenarioBlockKeyOf(number),
+      null => id,
+    };
+
 // MARK: - RenumberDoc
 
-/// One typed doc of the renumber pass, parsed once as `check` parses it.
+/// One typed doc of the renumber pass, read for its structure only, as
+/// `check` reads its items and blocks: no markdown parse runs (W17).
 final class RenumberDoc {
-  new(this.docPath, this.lf, this.type)
-    : parsed = parseIndexedDoc(
-        docPath: docPath,
-        bytes: utf8.encode(lf),
-        match: MatchedDocType(type),
-      );
+  new(this.docPath, this.lf, this.type) : name = docNameOf(docPath, type);
 
   final String docPath;
   final String lf;
   final MergedDocType type;
-  final ParsedDoc parsed;
 
-  DocContent get content => parsed.content;
+  /// The Name the index gives the doc.
+  final String name;
 
-  String get name => parsed.doc.name;
+  late final DocContent content = docStructureOf(lf, type);
 
   late final List<String> lines = lf.split('\n');
 
@@ -66,10 +76,16 @@ final class RenumberDoc {
 
   /// The doc's lettered IDs, each with the next free number of its prefix,
   /// counted as `check`'s `item_id_lettered` counts it (R61).
-  late final List<LetteredItem> lettered = _letteredOf();
+  late final List<LetteredItem> lettered = _mayHoldLettered()
+      ? _letteredOf()
+      : const [];
 
-  /// The `### Scenario <N>` blocks, keyed `S<N>`, as `check` reads them.
+  /// The `### Scenario <N>` blocks, keyed `S<N>` by value, as `check` reads
+  /// them.
   late final Map<String, String> scenarioBlocks = _scenarioBlocksOf();
+
+  /// The frontmatter lines with their delimiters; empty without any.
+  late final String frontmatterText = content.frontmatterText ?? '';
 
   bool get holdsScenarios =>
       type.sections.any((section) => section.id == acceptanceSectionId);
@@ -103,6 +119,26 @@ final class RenumberDoc {
   String _nfrStatementOf(String id) {
     final item = items.where((item) => item.id?.written == id).firstOrNull;
     return item == null ? '' : statementOf(item);
+  }
+
+  /// Whether [lf] holds a token the grammar reads as a lettered ID of a
+  /// prefix the doc's items take; when not, no item is lettered, so its
+  /// sections need no read.
+  bool _mayHoldLettered() {
+    final prefixes = {
+      for (final section in type.sections) ?section.prefixId,
+      if (holdsScenarios) scenarioIdPrefix,
+    };
+    for (final prefix in prefixes) {
+      for (
+        var at = lf.indexOf(prefix);
+        at >= 0;
+        at = lf.indexOf(prefix, at + 1)
+      ) {
+        if (readItemIdAt(lf, at, prefix) is LetteredId) return true;
+      }
+    }
+    return false;
   }
 
   List<LetteredItem> _letteredOf() {

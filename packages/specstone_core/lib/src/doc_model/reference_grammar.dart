@@ -129,11 +129,14 @@ const scenarioIdPrefix = 'Scenario ';
 
 /// Reads the ID of [prefix] at the start of [text], after one optional `**`;
 /// null when [text] does not open with [prefix] and an ASCII digit.
-IdRead? readItemId(String text, String prefix) {
-  var rest = text;
-  if (rest.startsWith('**')) rest = rest.substring(2);
-  if (!rest.startsWith(prefix)) return null;
-  return _readIdAt(rest, prefix, prefix.length);
+IdRead? readItemId(String text, String prefix) =>
+    readItemIdAt(text, text.startsWith('**') ? 2 : 0, prefix);
+
+/// Reads the ID of [prefix] at index [at] of [text], in place; null when
+/// [text] holds no [prefix] and ASCII digit there.
+IdRead? readItemIdAt(String text, int at, String prefix) {
+  if (!text.startsWith(prefix, at)) return null;
+  return _readIdAt(text, prefix, at + prefix.length);
 }
 
 /// Reads the number of a `### Scenario <N>` heading [line]; null for any
@@ -188,20 +191,16 @@ int _alphanumericEnd(String text, int start) {
 /// included (P9: the test is the code point, not the UTF-16 unit).
 int _lettersEnd(String text, int start) {
   var end = start;
-  var offset = 0;
-  for (final rune in text.runes) {
-    if (offset < end) {
-      offset += _runeWidth(rune);
-      continue;
-    }
-    if (!_letters.hasMatch(String.fromCharCode(rune))) break;
-    end += _runeWidth(rune);
-    offset = end;
+  while (end < text.length) {
+    final width = _isHighSurrogate(text.codeUnitAt(end)) ? 2 : 1;
+    final next = end + width > text.length ? text.length : end + width;
+    if (!_letters.hasMatch(text.substring(end, next))) break;
+    end = next;
   }
   return end;
 }
 
-int _runeWidth(int rune) => rune > 0xFFFF ? 2 : 1;
+bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 
 // MARK: - Link targets
 

@@ -1,8 +1,9 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart'
-    show SearchLine, codeSpansOf;
+    show codeSpansOf;
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -12,6 +13,10 @@ import 'package:specstone_core/src/setup_migration/renumber_index.dart';
 // MARK: - Constants
 
 const _lineFeed = 0x0A;
+const _tracedFromKey = 'traced_from';
+
+/// The prefix of a short scenario ref in prose, `S6a` (W6).
+const _shortRefPrefix = 'S';
 final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
 // MARK: - Types
@@ -20,13 +25,19 @@ final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 /// it cites: empty for a doc address that names no doc of the run.
 typedef _Citation = ({int at, List<String> docPaths});
 
+/// An ID token of a prose line: its column, its text, and its prefix.
+typedef _Token = ({int at, String written, IdRead id});
+
+/// The edit of one token: its new text, and whether it names another doc.
+typedef _Edit = ({String to, bool isOwn});
+
 // MARK: - RenumberBodyRewrite
 
 /// Rewrites the body lines of one doc of the renumber pass, [_lines], in
 /// place: its item ID tokens and journey `step:` values.
 final class RenumberBodyRewrite {
   new(this._doc, this._index, this._lines)
-    : _body = Doc.parse(_doc.lf).afterFrontmatter;
+    : _body = _doc.lf.substring(_doc.frontmatterText.length);
 
   final RenumberDoc _doc;
   final RenumberIndex _index;
@@ -34,9 +45,12 @@ final class RenumberBodyRewrite {
   final String _body;
 
   /// The index in [_lines] of the first line past the frontmatter.
-  late final int _firstLine = '\n'
-      .allMatches(_doc.lf.substring(0, _doc.lf.length - _body.length))
-      .length;
+  late final int _firstLine = '\n'.allMatches(_doc.frontmatterText).length;
+
+  /// The one link scan of the body: its prose and its link sources (W4).
+  late final LinkScan _scan = linkScanOf(_body, firstLine: _firstLine + 1);
+
+  late final List<int> _lineStarts = _lineStartsOf(_body);
 
   late final Map<int, List<_Citation>> _linkCitations = _linkCitationsOf();
 
@@ -44,16 +58,34 @@ final class RenumberBodyRewrite {
     for (final lettered in _doc.lettered) lettered.item.line: lettered,
   };
 
-  /// Rewrites each item ID token outside fences and code spans that its
-  /// doc renumbers: the doc of the nearest citation before it on its line,
-  /// else this doc (R67). Returns whether a token of another doc changed.
+  /// The stories whose short refs `S6a` the doc's prose may hold: the doc
+  /// itself when it is one, and each story its `traced_from` names (W6).
+  late final Set<String> _shortRefStories = {
+    ?_index.ownStoryOf(_doc.docPath),
+    for (final value in _tracedFromValues())
+      if (readScenarioRef(value) case final ref?)
+        ?_index.storyOfRef(ref, _doc.docPath),
+  }..removeWhere((story) => !_index.renumbersAScenarioOf(story));
+
+  /// Rewrites each item ID token of the prose that its doc renumbers: the
+  /// doc of the nearest citation before it on its line, else this doc
+  /// (R67), and each short scenario ref of a story in [_shortRefStories].
+  /// Returns whether a token of another doc changed.
   bool rewriteTokens() {
     var citesOthers = false;
+    final prefixes = [
+      ..._index.prefixes,
+      if (_shortRefStories.isNotEmpty) _shortRefPrefix,
+    ];
     for (var index = _firstLine; index < _lines.length; index++) {
-      final line = _lines[index];
-      if (!_index.prefixes.any(line.contains)) continue;
-      if (_doc.content.lineFacts.isFenced(index + 1)) continue;
-      final (:text, :othersChanged) = _rewriteLine(line, index + 1);
+      final prose = _proseOf(index - _firstLine);
+      if (!prefixes.any(prose.contains)) continue;
+      final (:text, :othersChanged) = _rewriteLine(
+        _lines[index],
+        prose,
+        index + 1,
+        prefixes,
+      );
       _lines[index] = text;
       citesOthers = citesOthers || othersChanged;
     }
@@ -84,20 +116,35 @@ final class RenumberBodyRewrite {
   bool _rewriteStep(String value, int lineIndex) {
     final ref = readStepTargetValue(value);
     if (ref == null) return false;
-    final named = _index.scenarioOf(ref.storyName, ref.number);
-    if (named == null) return false;
+    final lettered = _index.scenarioOf(ref.storyName, ref.number);
+    if (lettered == null) return false;
     final written = ref.number.written;
     final line = _lines[lineIndex];
     final at = line.lastIndexOf(written);
     _lines[lineIndex] = line.replaceRange(
       at,
       at + written.length,
-      scenarioRefOf(named.to),
+      scenarioRefOf(lettered.to),
     );
     return true;
   }
 
-  ({String text, bool othersChanged}) _rewriteLine(String line, int fileLine) {
+  /// The prose of body line [bodyLine]: the line with all that is no prose
+  /// blanked (W4).
+  String _proseOf(int bodyLine) {
+    final start = _lineStarts[bodyLine];
+    final end = bodyLine + 1 < _lineStarts.length
+        ? _lineStarts[bodyLine + 1] - 1
+        : _scan.prose.length;
+    return _scan.prose.substring(start, end);
+  }
+
+  ({String text, bool othersChanged}) _rewriteLine(
+    String line,
+    String prose,
+    int fileLine,
+    List<String> prefixes,
+  ) {
     final citations = [..._spanCitations(line), ...?_linkCitations[fileLine]]
       ..sort((a, b) => a.at - b.at);
     // An item's own start line takes its own number, so two items lettered
@@ -105,18 +152,19 @@ final class RenumberBodyRewrite {
     var opener = _openers[fileLine];
     var othersChanged = false;
     final edits = <({int at, int end, String to})>[];
-    for (final (:at, :written) in _tokensOf(SearchLine(line, fileLine).prose)) {
-      final cited = _citedAt(citations, at) ?? [_doc.docPath];
-      final named = _renumberingIn(cited, written);
-      if (named == null) continue;
-      final isOwn = named.docPath == _doc.docPath;
-      var to = named.to;
-      if (isOwn && opener != null && opener.from == written) {
-        to = opener.to;
-        opener = null;
-      }
-      othersChanged = othersChanged || !isOwn;
-      edits.add((at: at, end: at + written.length, to: to));
+    for (final token in _tokensOf(prose, prefixes)) {
+      final cited = _citedAt(citations, token.at);
+      final edit = token.id.prefix == _shortRefPrefix
+          ? _shortRefEdit(token, cited)
+          : _idEdit(token, cited, opener);
+      if (edit == null) continue;
+      if (edit.isOwn && opener?.from == token.written) opener = null;
+      othersChanged = othersChanged || !edit.isOwn;
+      edits.add((
+        at: token.at,
+        end: token.at + token.written.length,
+        to: edit.to,
+      ));
     }
     var text = line;
     for (final (:at, :end, :to) in edits.reversed) {
@@ -125,20 +173,50 @@ final class RenumberBodyRewrite {
     return (text: text, othersChanged: othersChanged);
   }
 
-  /// The renumbered ID tokens of [prose], in line order, none overlapping.
-  List<({int at, String written})> _tokensOf(String prose) {
-    final found = <({int at, String written})>[];
-    for (final prefix in _index.prefixes) {
-      var at = prose.indexOf(prefix);
-      for (; at >= 0; at = prose.indexOf(prefix, at + 1)) {
+  /// The edit of the item ID [token]: the renumbering of the first [cited]
+  /// doc, else this doc's, whose own opener takes the opener's number.
+  _Edit? _idEdit(_Token token, List<String>? cited, LetteredItem? opener) {
+    for (final docPath in cited ?? [_doc.docPath]) {
+      final to = _index.toOf(docPath, token.written);
+      if (to == null) continue;
+      final isOwn = docPath == _doc.docPath;
+      final ownOpener = isOwn && opener?.from == token.written;
+      return (to: ownOpener ? opener!.to : to, isOwn: isOwn);
+    }
+    return null;
+  }
+
+  /// The edit of the short scenario ref [token]: the scenario of the first
+  /// [cited] story, else of the doc's own story, that it may name (W6).
+  _Edit? _shortRefEdit(_Token token, List<String>? cited) {
+    final stories = cited ?? [?_index.ownStoryOf(_doc.docPath)];
+    for (final story in stories) {
+      if (!_shortRefStories.contains(story)) continue;
+      final lettered = _index.scenarioAt(story, token.id);
+      if (lettered == null) continue;
+      return (to: scenarioRefOf(lettered.to), isOwn: story == _doc.docPath);
+    }
+    return null;
+  }
+
+  /// The lettered ID tokens of [prose] of [prefixes], read by the grammar,
+  /// in line order, none overlapping.
+  List<_Token> _tokensOf(String prose, List<String> prefixes) {
+    final found = <_Token>[];
+    for (final prefix in prefixes) {
+      for (
+        var at = prose.indexOf(prefix);
+        at >= 0;
+        at = prose.indexOf(prefix, at + 1)
+      ) {
         if (_isWordCharBefore(prose, at)) continue;
-        final id = readItemId(prose.substring(at), prefix);
+        final id = readItemIdAt(prose, at, prefix);
         if (id is! LetteredId) continue;
-        found.add((at: at, written: id.written));
+        found.add((at: at, written: id.written, id: id));
       }
     }
     found.sort((a, b) => a.at - b.at);
-    final tokens = <({int at, String written})>[];
+    final tokens = <_Token>[];
     for (final token in found) {
       final end = tokens.isEmpty
           ? 0
@@ -146,16 +224,6 @@ final class RenumberBodyRewrite {
       if (token.at >= end) tokens.add(token);
     }
     return tokens;
-  }
-
-  /// The renumbering of [written] in the first of [docPaths] that has one.
-  Renumbering? _renumberingIn(List<String> docPaths, String written) {
-    for (final docPath in docPaths) {
-      if (_index.toOf(docPath, written) case final to?) {
-        return (docPath: docPath, from: written, to: to);
-      }
-    }
-    return null;
   }
 
   /// The DocPaths the nearest citation before column [at] names, or null
@@ -181,25 +249,43 @@ final class RenumberBodyRewrite {
 
   /// The links to a doc of the run, by file line, each at its column.
   Map<int, List<_Citation>> _linkCitationsOf() {
-    final lineStarts = [0];
-    for (var i = 0; i < _body.length; i++) {
-      if (_body.codeUnitAt(i) == _lineFeed) lineStarts.add(i + 1);
-    }
     final citations = <int, List<_Citation>>{};
-    final sources = linkSourcesOf(_body, firstLine: _firstLine + 1);
-    for (final (:offset, :line, :shown) in sources) {
+    for (final (:offset, :line, :shown) in _scan.sources) {
       final docPath = shown == null
           ? null
           : _index.docAtPath(shown, _doc.docPath);
       if (docPath == null) continue;
-      final at = offset - lineStarts[line - 1 - _firstLine];
+      final at = offset - _lineStarts[line - 1 - _firstLine];
       (citations[line] ??= []).add((at: at, docPaths: [docPath]));
     }
     return citations;
   }
+
+  /// The `traced_from` values of the doc, read by the key-block scan.
+  List<String> _tracedFromValues() {
+    final block = Doc.parse(_doc.frontmatterText).frontmatter
+        ?.where((candidate) => candidate.name == _tracedFromKey)
+        .firstOrNull;
+    if (block == null) return const [];
+    final values = <String>[];
+    renameKeyBlockValues(block.text, block.key, (value) {
+      values.add(value);
+      return null;
+    });
+    return values;
+  }
 }
 
-// MARK: - Word boundaries
+// MARK: - Text
+
+/// The offset of each line's first code unit in [text].
+List<int> _lineStartsOf(String text) {
+  final starts = [0];
+  for (var i = 0; i < text.length; i++) {
+    if (text.codeUnitAt(i) == _lineFeed) starts.add(i + 1);
+  }
+  return starts;
+}
 
 /// Whether the code point before [at] in [text] is a letter or digit.
 bool _isWordCharBefore(String text, int at) {

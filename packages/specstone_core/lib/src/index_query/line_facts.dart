@@ -125,6 +125,32 @@ final class LineFacts {
     );
   }
 
+  /// Computes the section lines and fenced lines of [lfText], whose [doc] is
+  /// parsed, for a reader of item IDs and blocks that reads nothing else.
+  ///
+  /// No markdown parse runs: links are empty, anchors unknown, and section
+  /// counts empty, so only [sectionLines], [fenced], and the counts of lines
+  /// and characters hold.
+  factory structureOf({required String lfText, required Doc doc}) {
+    final bodyStart = _lineCount(
+      lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+    );
+    final whole = scanText(lfText);
+    return LineFacts(
+      links: const [],
+      fileLinks: const [],
+      selfLinks: const [],
+      unreadableLinks: const [],
+      anchors: null,
+      sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
+      sectionCounts: const [],
+      fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
+      lineCount: _lineCount(lfText, breaks: whole.breaks),
+      charCount: lfText.length - whole.pairs,
+      frontmatterErrorLine: null,
+    );
+  }
+
   /// Reads the facts [toJson] wrote, with the section counts the section rows
   /// kept.
   factory fromJson(

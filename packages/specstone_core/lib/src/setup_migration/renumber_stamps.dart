@@ -27,22 +27,23 @@ typedef _TrackedBlock = ({
 /// Returns the fingerprints of each tracked block of [docs] whose ID tokens
 /// the pass rewrites, the renumbered blocks included (R60, P25).
 ///
-/// [rewritten] is a doc's text after the pass, before layout. The new
-/// fingerprint reads the doc's final text, laid out as `format` lays it out,
-/// so the first `check` after the run matches it (P5).
-Stamps stampsOf(
-  Iterable<RenumberDoc> docs,
-  String Function(RenumberDoc doc) rewritten,
-) {
+/// [rewritten] holds the text after the body rewrite, before layout, of
+/// each doc the pass changed. The new fingerprint reads the doc's final text,
+/// laid out as `format` lays it out, so the first `check` after the run
+/// matches it (P5). Each changed doc is read once more, and once again only
+/// when the layout changes it.
+Stamps stampsOf(Iterable<RenumberDoc> docs, Map<String, String> rewritten) {
   final stamps = <(String, String), Stamp>{};
   for (final doc in docs) {
-    final passedText = rewritten(doc);
-    if (passedText == doc.lf) continue;
+    final passedText = rewritten[doc.docPath];
+    if (passedText == null || passedText == doc.lf) continue;
     final blocks = _trackedBlocksOf(doc);
     if (blocks.isEmpty) continue;
     final passed = RenumberDoc(doc.docPath, passedText, doc.type);
     final laidOut = layOutDoc(passedText, doc.type);
-    final finalDoc = RenumberDoc(doc.docPath, laidOut, doc.type);
+    final finalDoc = laidOut == passedText
+        ? passed
+        : RenumberDoc(doc.docPath, laidOut, doc.type);
     for (final (:kind, :key, :newKey, :before) in blocks) {
       final beforeFingerprint = fingerprintOf(before);
       final passedBlock = passed.trackedText(kind, newKey);
@@ -76,12 +77,12 @@ List<_TrackedBlock> _trackedBlocksOf(RenumberDoc doc) => [
 List<_TrackedBlock> _scenarioBlocksOf(RenumberDoc doc) => [
   for (final MapEntry(key: ref, value: text) in doc.scenarioBlocks.entries)
     (kind: TrackedBlockKind.scenario, key: ref, newKey: ref, before: text),
-  for (final (:item, :from, :to, docPath: _) in doc.lettered)
+  for (final (:item, :to, from: _, docPath: _) in doc.lettered)
     if (item.prefix == scenarioIdPrefix)
       (
         kind: TrackedBlockKind.scenario,
-        key: scenarioRefOf(from),
-        newKey: scenarioRefOf(to),
+        key: scenarioBlockKeyOf(item.id!),
+        newKey: scenarioBlockKeyOfId(to),
         before: doc.lines.sublist(item.line - 1, item.endLine).join('\n'),
       ),
 ];

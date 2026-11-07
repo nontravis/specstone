@@ -279,6 +279,30 @@ ParsedDoc parseIndexedDoc({
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }
 
+/// Returns the content of [lfText], a doc of [docType], as far as a reader of
+/// its item IDs and blocks reads it: its sections, keyed as
+/// [parseIndexedDoc] keys them, and their section and fenced lines.
+///
+/// No markdown parse, layout, or YAML read runs, so the content holds no
+/// links, banned matches, or section counts (see [LineFacts.structureOf]).
+DocContent docStructureOf(String lfText, MergedDocType? docType) {
+  final doc = Doc.parse(lfText);
+  final templates = _templatesByKey(docType);
+  return DocContent(
+    readText: () => lfText,
+    frontmatterText: doc.frontmatter == null
+        ? null
+        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+    head: doc.head,
+    sections: [
+      for (final section in doc.sections) _sectionOf(section, templates),
+    ],
+    links: const [],
+    lineFacts: LineFacts.structureOf(lfText: lfText, doc: doc),
+    readBannedMatches: () => const [],
+  );
+}
+
 ({String text, bool isUtf8}) _decode(
   List<int> bytes,
   String docPath,

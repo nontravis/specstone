@@ -1,5 +1,3 @@
-import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
-    show scenarioKeyOf;
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -23,38 +21,40 @@ typedef LinkTarget = ({String label, (String, String) block});
 /// What the renumber pass's renumberings and doc names resolve to.
 final class RenumberIndex {
   new(List<RenumberDoc> docs)
-    : _lettered = [for (final doc in docs) ...doc.lettered] {
+    : _docs = docs,
+      _lettered = [for (final doc in docs) ...doc.lettered] {
     for (final doc in docs) {
-      _docPaths.add(doc.docPath);
+      _docsByPath[doc.docPath] = doc;
       _typeIds[doc.docPath] = doc.type.id;
       (_byName[doc.name] ??= []).add(doc.docPath);
       (_byTypedName['${doc.type.id}:${doc.name}'] ??= []).add(doc.docPath);
       if (doc.holdsScenarios) {
         _storyPaths.putIfAbsent(doc.name, () => doc.docPath);
+        _storyDocPaths.add(doc.docPath);
       }
     }
-    for (final (:docPath, :item, :from, :to) in _lettered) {
-      (_toByDoc[docPath] ??= {}).putIfAbsent(from, () => to);
-      prefixes.add(item.prefix);
+    for (final lettered in _lettered) {
+      final key = _keyOf(lettered.from);
+      (_letteredByDoc[lettered.docPath] ??= {}).putIfAbsent(
+        key,
+        () => lettered,
+      );
+      prefixes.add(lettered.item.prefix);
     }
-    _indexIdsOfType(docs, gnfrTypeId, _nfrPaths, letteredOnly: false);
-    _indexIdsOfType(docs, _projectType, _projectPaths, letteredOnly: true);
     _indexParents(docs);
   }
 
+  final List<RenumberDoc> _docs;
   final List<LetteredItem> _lettered;
-  final _docPaths = <String>{};
+  final _docsByPath = <String, RenumberDoc>{};
   final _typeIds = <String, String>{};
   final _byName = <String, List<String>>{};
   final _byTypedName = <String, List<String>>{};
   final _storyPaths = <String, String>{};
-  final _toByDoc = <String, Map<String, String>>{};
+  final _storyDocPaths = <String>{};
 
-  /// The `gnfr` doc holding each NFR ID.
-  final _nfrPaths = <String, String>{};
-
-  /// The `project` doc holding each lettered project ID.
-  final _projectPaths = <String, String>{};
+  /// Each renumbered doc's lettered items, keyed as [_keyOf] keys an ID.
+  final _letteredByDoc = <String, Map<String, LetteredItem>>{};
 
   /// The Name of each doc's parent, by DocPath.
   final _parentNames = <String, String>{};
@@ -62,28 +62,85 @@ final class RenumberIndex {
   /// The prefixes of the renumbered IDs.
   final prefixes = <String>{};
 
+  /// The `gnfr` doc holding each NFR ID.
+  late final Map<String, String> _nfrPaths = _idPathsOfType(
+    gnfrTypeId,
+    letteredOnly: false,
+  );
+
+  /// The `project` doc holding each lettered project ID.
+  late final Map<String, String> _projectPaths = _idPathsOfType(
+    _projectType,
+    letteredOnly: true,
+  );
+
+  /// Per story DocPath, the one lettered scenario of each number value that
+  /// the story holds no plain scenario of, which 1.1.0 read `S<N>` as (W10).
+  late final Map<String, Map<BigInt, LetteredItem>> _soleLettered =
+      _soleLetteredOf();
+
+  /// The texts one of which a doc must hold for the body rewrite to change
+  /// it: each renumbered ID and its short scenario ref (W17).
+  late final Set<String> _tokens = {
+    for (final (:from, docPath: _, item: _, to: _) in _lettered) ...[
+      from,
+      if (from.startsWith(scenarioIdPrefix)) scenarioRefOf(from),
+    ],
+  };
+
   List<({String docPath, String from, String to})> get renumberings => [
     for (final (:docPath, item: _, :from, :to) in _lettered)
       (docPath: docPath, from: from, to: to),
   ];
 
+  /// Whether a scenario is renumbered, so a ref by another digit count or a
+  /// 1.1.0 `S<N>` may name it.
+  late final bool renumbersScenarios = _lettered.any(
+    (lettered) => lettered.item.prefix == scenarioIdPrefix,
+  );
+
   /// Maps each item ID of the docs of [typeId], or each lettered one, to its
   /// doc; the first doc in tree order wins.
-  static void _indexIdsOfType(
-    List<RenumberDoc> docs,
-    String typeId,
-    Map<String, String> paths, {
+  Map<String, String> _idPathsOfType(
+    String typeId, {
     required bool letteredOnly,
   }) {
-    for (final doc in docs) {
+    final paths = <String, String>{};
+    for (final doc in _docs) {
       if (doc.type.id != typeId) continue;
       final ids = letteredOnly
           ? [for (final lettered in doc.lettered) lettered.from]
-          : [for (final item in doc.items) ?item.id?.written];
+          : [
+              for (final item in doc.items)
+                if (item.id case final id? when id is! UnreadableId) id.written,
+            ];
       for (final id in ids) {
         paths.putIfAbsent(id, () => doc.docPath);
       }
     }
+    return paths;
+  }
+
+  Map<String, Map<BigInt, LetteredItem>> _soleLetteredOf() {
+    final sole = <String, Map<BigInt, LetteredItem>>{};
+    for (final MapEntry(key: docPath, value: byKey) in _letteredByDoc.entries) {
+      final byValue = <BigInt, List<LetteredItem>>{};
+      for (final lettered in byKey.values) {
+        if (lettered.item.prefix != scenarioIdPrefix) continue;
+        final value = BigInt.parse(lettered.item.id!.digits);
+        (byValue[value] ??= []).add(lettered);
+      }
+      final plain = {
+        for (final item in _docsByPath[docPath]!.items)
+          if (item.prefix == scenarioIdPrefix)
+            if (item.id case ItemId(:final number)) number,
+      };
+      for (final MapEntry(key: value, value: items) in byValue.entries) {
+        if (items.length != 1 || plain.contains(value)) continue;
+        (sole[docPath] ??= {})[value] = items.single;
+      }
+    }
+    return sole;
   }
 
   /// Names each doc's parent as `check`'s parent resolution does: its Name
@@ -107,25 +164,55 @@ final class RenumberIndex {
   static int _slugCountOf(MergedDocType type) =>
       _slugPlaceholder.allMatches(type.path ?? '').length;
 
+  /// The key of the ID [id] among a doc's lettered items: a scenario ID by
+  /// the value of its number (W9), any other ID as written.
+  static String _keyOf(String id) =>
+      id.startsWith(scenarioIdPrefix) ? scenarioBlockKeyOfId(id) : id;
+
   // MARK: - Renumberings
 
-  /// Whether [lf] holds the text of any renumbered ID or scenario ref.
-  bool mayName(String lf) => _lettered.any(
-    (lettered) =>
-        lf.contains(lettered.from) || lf.contains(scenarioRefOf(lettered.from)),
-  );
+  /// Whether [text] holds the text of any renumbered ID or scenario ref.
+  bool mayName(String text) => _tokens.any(text.contains);
 
   /// The new ID of [from] in the doc at [docPath], or null.
-  String? toOf(String docPath, String from) => _toByDoc[docPath]?[from];
+  String? toOf(String docPath, String from) =>
+      _letteredByDoc[docPath]?[_keyOf(from)]?.to;
+
+  /// The lettered scenario of the story at [storyPath] the number [number]
+  /// names: a lettered number by its value, or a plain one 1.1.0 read as the
+  /// story's one lettered scenario of that value (W10); null for none.
+  LetteredItem? scenarioAt(String storyPath, IdRead number) => switch (number) {
+    LetteredId() => _letteredByDoc[storyPath]?[scenarioBlockKeyOf(number)],
+    ItemId(:final number) => _soleLettered[storyPath]?[number],
+    UnreadableId() => null,
+  };
 
   /// The renumbering of scenario [number] of the story named [storyName].
-  Renumbering? scenarioOf(String? storyName, IdRead number) {
-    final docPath = storyName == null ? null : _storyPaths[storyName];
-    if (docPath == null) return null;
-    final digits = number.written.substring(number.prefix.length);
-    final from = '$scenarioIdPrefix$digits';
-    final to = toOf(docPath, from);
-    return to == null ? null : (docPath: docPath, from: from, to: to);
+  LetteredItem? scenarioOf(String? storyName, IdRead number) {
+    final storyPath = storyName == null ? null : _storyPaths[storyName];
+    return storyPath == null ? null : scenarioAt(storyPath, number);
+  }
+
+  /// Whether the story at [storyPath] holds a renumbered lettered scenario.
+  bool renumbersAScenarioOf(String storyPath) =>
+      _letteredByDoc[storyPath]?.values.any(
+        (lettered) => lettered.item.prefix == scenarioIdPrefix,
+      ) ??
+      false;
+
+  /// The story the doc at [docPath] holds its own scenario refs of: itself
+  /// when it holds scenarios, else its parent story; null for none.
+  String? ownStoryOf(String docPath) {
+    if (_storyDocPaths.contains(docPath)) return docPath;
+    final parent = _parentNames[docPath];
+    return parent == null ? null : _storyPaths[parent];
+  }
+
+  /// The DocPath of the story [ref] names from the doc at [docPath], or
+  /// null.
+  String? storyOfRef(ScenarioRef ref, String docPath) {
+    final named = ref.storyName ?? _parentNames[docPath];
+    return named == null ? null : _storyPaths[named];
   }
 
   // MARK: - Entry values
@@ -135,6 +222,12 @@ final class RenumberIndex {
   String? tracedFromLabel(String value, String docPath) {
     final scenario = scenarioTarget(value, docPath)?.label;
     if (scenario != null) return scenario == value ? null : scenario;
+    return projectIdLabel(value);
+  }
+
+  /// The new `vision`, `goals`, or `traced_from` value of [value], a
+  /// renumbered `project` ID; null to keep it.
+  String? projectIdLabel(String value) {
     final projectPath = _projectPaths[value];
     return projectPath == null ? null : toOf(projectPath, value);
   }
@@ -158,16 +251,16 @@ final class RenumberIndex {
   LinkTarget? scenarioTarget(String label, String docPath) {
     final ref = readScenarioRef(label);
     if (ref == null) return null;
-    final storyName = ref.storyName;
-    final named = storyName ?? _parentNames[docPath];
-    final storyPath = named == null ? null : _storyPaths[named];
+    final storyPath = storyOfRef(ref, docPath);
     if (storyPath == null) return null;
-    final written = ref.number.written;
-    final to = scenarioOf(named, ref.number)?.to;
-    final number = to == null ? written : scenarioRefOf(to);
+    final lettered = scenarioAt(storyPath, ref.number);
+    final number = lettered == null
+        ? ref.number.written
+        : scenarioRefOf(lettered.to);
+    final storyName = ref.storyName;
     return (
       label: storyName == null ? number : '$storyName#$number',
-      block: (storyPath, scenarioKeyOf(ref) ?? written),
+      block: (storyPath, scenarioBlockKeyOf(lettered?.item.id ?? ref.number)),
     );
   }
 
@@ -210,12 +303,12 @@ final class RenumberIndex {
   /// would, else read as a DocPath; null when none.
   String? docAtPath(String path, String fromPath) {
     if (resolveDocLink(path, fromPath) case DocTarget(:final docPath)
-        when _docPaths.contains(docPath)) {
+        when _docsByPath.containsKey(docPath)) {
       return docPath;
     }
-    if (_docPaths.contains(path)) return path;
+    if (_docsByPath.containsKey(path)) return path;
     if (!path.startsWith(_docsPrefix)) return null;
     final docPath = path.substring(_docsPrefix.length);
-    return _docPaths.contains(docPath) ? docPath : null;
+    return _docsByPath.containsKey(docPath) ? docPath : null;
   }
 }
