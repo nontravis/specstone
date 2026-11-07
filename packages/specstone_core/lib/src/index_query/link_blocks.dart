@@ -24,6 +24,8 @@ typedef LeafText = ({
   String text,
   List<({int start, int end})> leaves,
   Map<String, String> definitions,
+  List<({int start, int end})> definitionLabels,
+  List<({int start, int end})> definitionDestinations,
 });
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
@@ -139,6 +141,8 @@ LeafText leafTextOf(String lfBody) {
     text: String.fromCharCodes(units),
     leaves: sink.leaves,
     definitions: sink.definitions,
+    definitionLabels: sink.definitionLabels,
+    definitionDestinations: sink.definitionDestinations,
   );
 }
 
@@ -179,6 +183,11 @@ enum _Stop {
 final class _Sink {
   final leaves = <({int start, int end})>[];
   final definitions = <String, String>{};
+
+  /// The body ranges of each definition's label, brackets left out, and of
+  /// its destination as written, angle brackets left out.
+  final definitionLabels = <({int start, int end})>[];
+  final definitionDestinations = <({int start, int end})>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
   /// reads the rest. A leaf that spans lines holds them, so they are blanked
@@ -819,6 +828,7 @@ final class _BlockPass {
       cursor.advance();
       if (cursor.isDone) return null;
     }
+    final labelEnd = cursor.mark;
     final label = cursor.textFrom(labelStart);
     if (label.trim().isEmpty) return null;
     cursor.advance();
@@ -828,9 +838,11 @@ final class _BlockPass {
       ..skipBlanks(lineFeeds: true);
     if (cursor.isDone) return null;
     final String destination;
+    final (int, int) destinationStart;
+    final (int, int) destinationEnd;
     if (cursor.unit == _lessThan) {
       cursor.advance();
-      final start = cursor.mark;
+      final start = destinationStart = cursor.mark;
       while (true) {
         final unit = cursor.unit;
         if (unit == _backslash) {
@@ -845,10 +857,11 @@ final class _BlockPass {
         cursor.advance();
         if (cursor.isDone) return null;
       }
+      destinationEnd = cursor.mark;
       destination = cursor.textFrom(start);
       cursor.advance();
     } else {
-      final start = cursor.mark;
+      final start = destinationStart = cursor.mark;
       var parens = 0;
       while (true) {
         final unit = cursor.unit;
@@ -871,6 +884,7 @@ final class _BlockPass {
         cursor.advance();
         if (cursor.isDone) break;
       }
+      destinationEnd = cursor.mark;
       destination = cursor.textFrom(start);
     }
     var blanks = cursor.skipBlanks();
@@ -892,8 +906,16 @@ final class _BlockPass {
     final next = cursor.isRestBlank ? cursor.line + 1 : cursor.line;
     if (next <= first) return null;
     definitions.putIfAbsent(linkLabel(label), () => destination);
+    _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
+    _sink.definitionDestinations.add(
+      _rangeOf(destinationStart, destinationEnd),
+    );
     return next;
   }
+
+  /// The body range from the cursor mark [start] to the mark [end].
+  ({int start, int end}) _rangeOf((int, int) start, (int, int) end) =>
+      (start: _starts[start.$1] + start.$2, end: _starts[end.$1] + end.$2);
 
   /// Skips the title at the cursor and returns whether there is one
   /// (`LinkParser._parseTitle`).

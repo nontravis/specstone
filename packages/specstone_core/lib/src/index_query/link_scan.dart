@@ -45,18 +45,62 @@ typedef LinkSource = ({int offset, int line, String? shown});
 /// distinct links are disjoint. The one chain left is a title after an open
 /// paren, which takes no more steps than `markdown`'s own walk.
 List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
-  final (:text, :leaves, :definitions) = leafTextOf(lfBody);
-  final reader = _Reader(text, definitions);
-  for (final (:start, :end) in leaves) {
-    reader.read(start, end);
+  final leaf = leafTextOf(lfBody);
+  final reader = _Reader(leaf.text, leaf.definitions)..readAll(leaf.leaves);
+  return _sourcesOf(lfBody, reader, firstLine);
+}
+
+/// A body range, start included, end excluded.
+typedef BodyRange = ({int start, int end});
+
+/// What one link scan of a body reads: its link sources, its prose, and the
+/// range of each link destination as written.
+///
+/// `prose` is the body with every code unit that is no prose blanked to a
+/// space, line ends and length kept: what `markdown` never reads as inline
+/// text (see [leafTextOf]), and in the inline text each code span, autolink,
+/// GFM bare URL or email, raw HTML run, and inline link's parenthesized
+/// destination and title. Link text, a full reference's label, and a
+/// definition's label stay. `destinations` hold each inline link's
+/// destination and each definition's, angle brackets left out.
+typedef LinkScan = ({
+  List<LinkSource> sources,
+  String prose,
+  List<BodyRange> destinations,
+});
+
+/// Returns the link scan of [lfBody] as [linkSourcesOf] reads it, with the
+/// prose and destination ranges that scan passes over.
+LinkScan linkScanOf(String lfBody, {required int firstLine}) {
+  final leaf = leafTextOf(lfBody);
+  final reader = _Reader(leaf.text, leaf.definitions, recordsAtoms: true)
+    ..readAll(leaf.leaves);
+  final prose = Uint16List.fromList(leaf.text.codeUnits);
+  for (final (:start, :end) in reader.atoms) {
+    for (var i = start; i < end; i++) {
+      if (prose[i] != _lineFeed) prose[i] = _space;
+    }
   }
+  for (final (:start, :end) in leaf.definitionLabels) {
+    for (var i = start; i < end; i++) {
+      prose[i] = lfBody.codeUnitAt(i);
+    }
+  }
+  return (
+    sources: _sourcesOf(lfBody, reader, firstLine),
+    prose: String.fromCharCodes(prose),
+    destinations: [...reader.destinations, ...leaf.definitionDestinations],
+  );
+}
+
+List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
   final found = reader.found..sort((a, b) => a.offset - b.offset);
   final sources = <LinkSource>[];
   var line = firstLine;
   var counted = 0;
   for (final (:offset, :shown) in found) {
     for (; counted < offset; counted++) {
-      if (lfBody.codeUnitAt(counted) == 0x0A) line++;
+      if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
     sources.add((offset: offset, line: line, shown: shown));
   }
@@ -67,8 +111,15 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
 /// destination.
 typedef _Found = ({int offset, String? shown});
 
-/// Where a `]` ends the link it closes, and the link's destination.
-typedef _Close = ({int end, String? shown});
+/// Where a `]` ends the link it closes, and the link's destination: whether
+/// it is an inline link, whose parens follow the `]`, and the range of its
+/// destination as written when that is one run of the text.
+typedef _Close = ({
+  int end,
+  String? shown,
+  bool inline,
+  BodyRange? destination,
+});
 
 /// An open `[` or `![` of the bracket procedure.
 final class _Opener {
@@ -96,11 +147,21 @@ final class _Opener {
 
 /// Reads the leaves of a text by the bracket procedure.
 final class _Reader {
-  new(this.text, this.definitions);
+  new(this.text, this.definitions, {this.recordsAtoms = false});
 
   final String text;
   final Map<String, String> definitions;
   final found = <_Found>[];
+
+  /// Whether [read] keeps the ranges of [atoms] and [destinations].
+  final bool recordsAtoms;
+
+  /// The ranges no prose holds: each code span, autolink, bare URL or email,
+  /// raw HTML run, and inline link's parens.
+  final atoms = <BodyRange>[];
+
+  /// The range of each inline link's destination as written.
+  final destinations = <BodyRange>[];
   late final _Tables _tables = _Tables(text);
   late final _Next _angleClose = _Next(text, '>');
   late final _Next _angleOrSpace = _Next(text, _angleOrSpacePattern);
@@ -115,6 +176,20 @@ final class _Reader {
   Map<int, int>? _closers;
   int _emailRunEnd = -1;
   bool _emailRunDead = true;
+
+  /// Reads each of [leaves] in turn.
+  void readAll(List<BodyRange> leaves) {
+    for (final (:start, :end) in leaves) {
+      read(start, end);
+    }
+  }
+
+  /// Keeps [start] to [end] as an atom when [recordsAtoms] holds and returns
+  /// [end].
+  int _atom(int start, int end) {
+    if (recordsAtoms && end > start) atoms.add((start: start, end: end));
+    return end;
+  }
 
   /// Reads the leaf [start] to [end], adding its links to [found].
   void read(int start, int end) {
@@ -168,6 +243,9 @@ final class _Reader {
         }
         if (opener.image) found.length = opener.found;
         found.add((offset: opener.offset, shown: close.shown));
+        if (close.inline) _atom(i + 1, close.end);
+        final destination = close.destination;
+        if (recordsAtoms && destination != null) destinations.add(destination);
         if (!opener.image) linksClosed++;
         i = close.end;
       } else if (unit == _backtick) {
@@ -199,7 +277,7 @@ final class _Reader {
       runEnd++;
     }
     final closer = (_closers ??= _closingRuns())[at];
-    return closer == null ? runEnd : closer + (runEnd - at);
+    return closer == null ? runEnd : _atom(at, closer + (runEnd - at));
   }
 
   /// Returns the offset of the next run of the same length for each backtick
@@ -251,7 +329,7 @@ final class _Reader {
   /// closes costs no scan.
   int _angle(int at) {
     final html = _htmlEnd(at);
-    if (html > 0) return html;
+    if (html > 0) return _atom(at, html);
     final close = _angleOrSpace.from(at + 1);
     if (close >= _end || text.codeUnitAt(close) != _greaterThan) return at + 1;
     final from = at - _start;
@@ -260,7 +338,7 @@ final class _Reader {
         _autolinkPattern.matchAsPrefix(_leafText, from);
     if (match == null) return at + 1;
     found.add((offset: at, shown: null));
-    return at + (match.end - from);
+    return _atom(at, at + (match.end - from));
   }
 
   /// Returns the offset after the raw HTML that opens with the `<` at [at], or
@@ -324,7 +402,7 @@ final class _Reader {
     if (match[1] != null) {
       if (!_mayFollow(at)) return at + 1;
       found.add((offset: at, shown: null));
-      return at + _urlLength(match[0]!);
+      return _atom(at, at + _urlLength(match[0]!));
     }
     final after = match.end < leaf.length ? leaf.codeUnitAt(match.end) : -1;
     if (after == _underscore || after == _dash) {
@@ -332,7 +410,7 @@ final class _Reader {
       return at + 1;
     }
     found.add((offset: at, shown: null));
-    return at + (match.end - from);
+    return _atom(at, at + (match.end - from));
   }
 
   /// Returns whether a GFM bare URL may start at [at]: at the start of the leaf
@@ -362,7 +440,12 @@ final class _Reader {
         final collapsed = _shortcut(opener, close);
         return collapsed == null
             ? null
-            : (end: next + 2, shown: collapsed.shown);
+            : (
+                end: next + 2,
+                shown: collapsed.shown,
+                inline: false,
+                destination: null,
+              );
       }
       return _fullReference(next, end);
     }
@@ -376,7 +459,9 @@ final class _Reader {
     if (opener.pushedAfter) return null;
     final from = opener.offset + (opener.image ? 2 : 1);
     final dest = definitions[linkLabel(text.substring(from, close))];
-    return dest == null ? null : (end: close + 1, shown: dest);
+    return dest == null
+        ? null
+        : (end: close + 1, shown: dest, inline: false, destination: null);
   }
 
   /// Returns the full reference whose label opens at [open], or null when it
@@ -408,7 +493,9 @@ final class _Reader {
     final name = label.toString();
     if (_blankOnly.hasMatch(name)) return null;
     final dest = definitions[linkLabel(name)];
-    return dest == null ? null : (end: pos + 1, shown: dest);
+    return dest == null
+        ? null
+        : (end: pos + 1, shown: dest, inline: false, destination: null);
   }
 
   /// Returns the inline link whose `(` is at [open], or null when the parens
@@ -438,7 +525,12 @@ final class _Reader {
     } else {
       return null;
     }
-    return (end: paren + 1, shown: text.substring(open + 1, close));
+    return (
+      end: paren + 1,
+      shown: text.substring(open + 1, close),
+      inline: true,
+      destination: (start: open + 1, end: close),
+    );
   }
 
   /// Returns the inline link whose bare destination opens at [start], inside
@@ -453,7 +545,12 @@ final class _Reader {
     final match = tables.partner[open];
     final space = tables.nextSpace[start];
     if (match >= 0 && (space >= end || match < space)) {
-      return (end: match + 1, shown: text.substring(start, match));
+      return (
+        end: match + 1,
+        shown: text.substring(start, match),
+        inline: true,
+        destination: (start: start, end: match),
+      );
     }
     if (space >= end) return null;
     var depth = 1 + tables.parenDepth[space] - tables.parenDepth[start];
@@ -465,7 +562,14 @@ final class _Reader {
       if (paren < 0) return null;
       shown.write(text.substring(pieceStart, pos));
       depth--;
-      if (depth == 0) return (end: paren + 1, shown: shown.toString());
+      if (depth == 0) {
+        return (
+          end: paren + 1,
+          shown: shown.toString(),
+          inline: true,
+          destination: pieceStart == start ? (start: start, end: pos) : null,
+        );
+      }
       pieceStart = pos = paren + 1;
       while (true) {
         if (pos >= end) return null;
@@ -477,7 +581,12 @@ final class _Reader {
             depth--;
             if (depth == 0) {
               shown.write(text.substring(pieceStart, pos));
-              return (end: pos + 1, shown: shown.toString());
+              return (
+                end: pos + 1,
+                shown: shown.toString(),
+                inline: true,
+                destination: null,
+              );
             }
           } else if (_isDestinationSpace(unit)) {
             break;
@@ -631,6 +740,8 @@ const _slash = 0x2F;
 const _atSign = 0x40;
 const _underscore = 0x5F;
 const _carriageReturn = 0x0D;
+const _lineFeed = 0x0A;
+const _space = 0x20;
 const _lineSeparator = 0x2028;
 const _paragraphSeparator = 0x2029;
 

@@ -7,6 +7,68 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('linkScanOf', () {
+    const body =
+        '[RULE-7a](https://github.com/x/y/blob/main/RULE-7a.md) and '
+        '<https://example.com/RULE-7a>\n'
+        '[file](./RULE-7a.md) `RULE-7a` <a href="https://x/RULE-7a">RULE-7a</a> '
+        '<!-- RULE-7a --> https://example.com/RULE-7a\n'
+        '\n'
+        '[RULE-7a]: https://example.com/RULE-7a\n'
+        '\n'
+        '    RULE-7a indented\n'
+        '\n'
+        'x `a\n'
+        'RULE-7a` y [t][RULE-7a]\n';
+
+    test('apply_steps_and_pins E18: prose keeps link text, html element '
+        'text, and labels, and blanks destinations, autolinks, bare URLs, '
+        'html tags and comments, indented code, and code spans', () {
+      final scan = linkScanOf(body, firstLine: 1);
+
+      expect(scan.prose.length, body.length);
+      expect('\n'.allMatches(scan.prose).length, '\n'.allMatches(body).length);
+      final kept = [
+        for (final m in 'RULE-7a'.allMatches(scan.prose))
+          body.substring(0, m.start).split('\n').length,
+      ];
+      expect(kept, [1, 2, 4, 9]);
+      expect(scan.sources, linkSourcesOf(body, firstLine: 1));
+    });
+
+    test('apply_steps_and_pins E18: destinations are each inline link and '
+        'definition destination as written', () {
+      final scan = linkScanOf(body, firstLine: 1);
+
+      expect(
+        [
+          for (final (:start, :end) in scan.destinations)
+            body.substring(start, end),
+        ]..sort(),
+        [
+          './RULE-7a.md',
+          'https://example.com/RULE-7a',
+          'https://github.com/x/y/blob/main/RULE-7a.md',
+        ],
+      );
+    });
+
+    test('apply_steps_and_pins E18: an angle destination is ranged without '
+        'its brackets', () {
+      const angled = '[a](<b c.md#x> "t")\n';
+      final scan = linkScanOf(angled, firstLine: 1);
+
+      expect(
+        [
+          for (final (:start, :end) in scan.destinations)
+            angled.substring(start, end),
+        ],
+        ['b c.md#x'],
+      );
+      expect(scan.prose.trimRight(), '[a]');
+    });
+  });
+
   group('linkPlacesOf', () {
     List<LinkPlace> placesOf(String body) =>
         linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!.docLinks;
