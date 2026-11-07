@@ -363,6 +363,36 @@ void main() {
     expect(_frKinds(root), isEmpty);
   });
 
+  for (final entry in [
+    'login/reset_password#S3 $_fp3',
+    '"login/reset_password#S3 $_fp3"',
+  ]) {
+    test(
+      'document_writing/rename_doc/rewrite_link_labels E15: a flow-list confirmed label $entry rewrites as a '
+      'block-list one does',
+      () async {
+        final root = await _frTraceProject();
+        final file = File('${root.path}/docs/$loginFr');
+        file.writeAsStringSync(
+          file.readAsStringSync().replaceFirst(
+            'confirmed:\n  - S1 $_fp1\n  - login/reset_password#S3 $_fp3\n',
+            'confirmed: [S1 $_fp1, $entry]\n',
+          ),
+        );
+        _rename(root, 'user_story:login/reset_password', 'recover_password');
+        final renamed = entry.replaceFirst(
+          'reset_password',
+          'recover_password',
+        );
+        expect(
+          readDoc(root, loginFr),
+          contains('confirmed: [S1 $_fp1, $renamed]\n'),
+        );
+        expect(_frKinds(root), isEmpty);
+      },
+    );
+  }
+
   test('document_writing/rename_doc/rewrite_link_labels E15: a block-list traced_from rewrites and the other entries keep their text', () async {
     final root = await _frTraceProject(
       tracedFrom: 'traced_from:\n  - S1\n  - "login/reset_password#S3" # why\n',

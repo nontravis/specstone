@@ -18,10 +18,6 @@ const _frTraceSection = 'fr_trace';
 const _confirmedKey = 'confirmed';
 const _tracedFromKey = 'traced_from';
 const _stepPrefix = 'step:';
-final _entryLine = RegExp(
-  r'''^(?<head>\s*-\s+(?<q>["']?))(?<label>[^\s"']+)'''
-  r'''(?<tail> [0-9a-f]{12}\k<q>.*)$''',
-);
 
 // MARK: - rewriteLinkLabels
 
@@ -72,7 +68,7 @@ String? rewriteLinkLabels(
     result,
     doc,
     _confirmedKey,
-    (block) => _renameEntries(block.text, newLabel),
+    (block) => _renameEntries(block, newLabel),
   );
   return result == lfText ? null : result;
 }
@@ -225,16 +221,18 @@ String? _scenarioEntryLabel(
   return null;
 }
 
-/// Returns the `confirmed` key block [text] with each entry label set to
-/// [newLabel], or [text] itself when none changes.
-String _renameEntries(String text, String? Function(String label) newLabel) {
-  final lines = text.split('\n');
-  for (var i = 0; i < lines.length; i++) {
-    final match = _entryLine.firstMatch(lines[i]);
-    if (match == null) continue;
-    final renamed = newLabel(match.namedGroup('label')!);
-    if (renamed == null) continue;
-    lines[i] = '${match.namedGroup('head')}$renamed${match.namedGroup('tail')}';
-  }
-  return lines.join('\n');
-}
+/// Returns the `confirmed` key [block] with each entry label set to
+/// [newLabel], read by the shared key-block scan, so a flow list is read as a
+/// block list is; [block]'s text itself when none changes.
+///
+/// The scan passes a bare entry's label and fingerprint one at a time, and a
+/// quoted entry whole; only its label part is renamed.
+String _renameEntries(
+  KeyBlock block,
+  String? Function(String label) newLabel,
+) => renameKeyBlockValues(block.text, block.key, (value) {
+  final space = value.indexOf(' ');
+  if (space < 0) return newLabel(value);
+  final renamed = newLabel(value.substring(0, space));
+  return renamed == null ? null : '$renamed${value.substring(space)}';
+});
