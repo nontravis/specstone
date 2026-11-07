@@ -103,6 +103,35 @@ void main() {
     );
   });
 
+  test("f04/us01/fr09/e04: two scenarios of one number's value in a story are "
+      'a duplicate, Scenario 2 twice or Scenario 02 after Scenario 2; '
+      'Scenario 20 is none', () async {
+    for (final repeat in ['Scenario 2', 'Scenario 02']) {
+      final found = await _itemIdFindings(
+        _scenarios('### $repeat — [edge] Again\n\n- a'),
+        kind: FindingKind.itemIdDuplicate,
+      );
+      expect(found, hasLength(1), reason: repeat);
+      expect(found.single.line, 31);
+      expect(found.single.message, '$repeat is already held at line 25');
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('id', repeat),
+          containsPair('section', 'acceptance_criteria'),
+        ),
+      );
+    }
+
+    expect(
+      await _itemIdFindings(
+        _scenarios('### Scenario 20 — [edge] Other\n\n- a'),
+        kind: FindingKind.itemIdDuplicate,
+      ),
+      isEmpty,
+    );
+  });
+
   test('f04/us01/fr09/e01: a domain invariant with a bold ID passes', () async {
     final found = await _itemIdFindings({
       'docs/specs/f01_login/DOMAIN.md':

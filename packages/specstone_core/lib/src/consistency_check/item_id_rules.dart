@@ -48,10 +48,10 @@ List<IdAt> idsInDoc(DocContent content, MergedDocType type) {
 /// A held section whose template writes a `prefix_id` holds items: the `###`
 /// headings when it has any, else its top-level list entries, fenced code
 /// excluded and `N/A` entries skipped. An item with no ID of that prefix
-/// holds an `item_id_missing`; one repeating an ID already held in the doc
-/// holds an `item_id_duplicate`; one whose digits a letter follows, as does a
-/// story scenario heading, holds an `item_id_lettered` naming the next free
-/// number.
+/// holds an `item_id_missing`; one repeating an ID already held in the doc,
+/// or a scenario repeating a number's value, holds an `item_id_duplicate`;
+/// one whose digits a letter follows, as does a story scenario heading,
+/// holds an `item_id_lettered` naming the next free number.
 Iterable<Finding> checkItemIds(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;
@@ -71,16 +71,25 @@ Iterable<Finding> checkItemIds(CheckContext context, IndexedDoc doc) sync* {
       yield _unreadable(context, doc, item, id);
     } else if (id is LetteredId) {
       yield _lettered(context, doc, item, id, next[index]!);
-    } else if (item.prefix != scenarioIdPrefix) {
-      final first = seen[id.written];
+    } else {
+      final held = _heldKeyOf(item, id);
+      final first = seen[held];
       if (first == null) {
-        seen[id.written] = item.line;
+        seen[held] = item.line;
       } else {
         yield _duplicate(context, doc, item, id, first);
       }
     }
   }
 }
+
+// A scenario is held by its number's value, so `Scenario 01` repeats
+// `Scenario 1` (W9); an item ID by its text as written.
+String _heldKeyOf(IdAt item, IdRead id) => switch (id) {
+  ItemId(:final number) when item.prefix == scenarioIdPrefix =>
+    '$scenarioIdPrefix$number',
+  _ => id.written,
+};
 
 Finding _missing(CheckContext context, IndexedDoc doc, IdAt item) =>
     context.finding(
