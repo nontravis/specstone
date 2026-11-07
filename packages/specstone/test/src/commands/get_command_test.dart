@@ -126,6 +126,16 @@ void main() {
         'message': '--paths takes no #<section key>',
       });
     });
+    test('index_query/read_doc_section/resolve_doc_name E13 (W8): --paths reads a path holding # whole, so it is no section key and no argument_conflict', () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(
+          extra: {'docs/prds/notes#draft.md': '# Draft\n'},
+        ),
+      );
+      await runner.run(['get', 'prds/notes#draft.md', '--paths', '--json']);
+      expect(err.toString(), isNot(contains('argument_conflict')));
+      expect(err.toString(), isNot(contains('takes no #<section key>')));
+    });
     test('f10/us02/fr01: get journey:<slug> --paths prints on stdout, warnings on stderr, exit 0', () async {
       final (:runner, :out, :err) = readRunner(await project());
       expect(await runner.run(['get', 'journey:sign_in', '--paths']), 0);

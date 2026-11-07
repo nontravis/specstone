@@ -45,33 +45,30 @@ class GetCommand extends SpecstoneCommand {
     }
     final paths = args.flag('paths');
     final code = args.flag('code');
-    final conflict = _journeyConflict(paths: paths, code: code);
-    if (conflict != null) {
+    if (paths && code) {
       return fail(
-        IndexFault(IndexFaultCode.argumentConflict, conflict),
+        IndexFault(
+          IndexFaultCode.argumentConflict,
+          '--code and --paths cannot be given together',
+        ),
         asJson: asJson,
       );
     }
     final name = rest.first;
-    return runRead(
-      (session) => switch ((paths, code)) {
+    return runRead((session) {
+      final option = paths ? '--paths' : (code ? '--code' : null);
+      if (option != null &&
+          session.index.splitAddress(name).sectionKey != null) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          '$option takes no #<section key>',
+        );
+      }
+      return switch ((paths, code)) {
         (true, _) => answerJourneyPaths(session.index, name),
         (_, true) => answerJourneyCode(session.index, name),
         _ => answerGet(session.index, name),
-      },
-      asJson: asJson,
-    );
-  }
-
-  /// Returns the message for a journey option given with another, or with a
-  /// `#<section key>`; null when the flags and the name agree.
-  String? _journeyConflict({required bool paths, required bool code}) {
-    if (paths && code) return '--code and --paths cannot be given together';
-    final option = paths ? '--paths' : (code ? '--code' : null);
-    if (option == null) return null;
-    if (readDocAddress(argResults!.rest.first).sectionKey != null) {
-      return '$option takes no #<section key>';
-    }
-    return null;
+      };
+    }, asJson: asJson);
   }
 }
