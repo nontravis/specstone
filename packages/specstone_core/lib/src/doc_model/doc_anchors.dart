@@ -50,10 +50,22 @@ DocAnchors? anchorsOfBody(String body) {
 /// Follows github-slugger (RULE-13): lower-case the text, remove every
 /// character outside `\p{Alphabetic}`, `\p{M}`, `\p{Nd}`, `\p{Pc}`, space, and
 /// `-`, then turn each space into `-`.
+///
+/// A word-final `Σ` lower-cases to `ς`, the one context rule V8's lower-case
+/// applies and Dart's does not.
 String headingSlugOf(String renderedText) => renderedText
+    .replaceAll(_finalCapitalSigma, _finalSmallSigma)
     .toLowerCase()
     .replaceAll(_nonSlugCharacter, '')
     .replaceAll(' ', '-');
+
+/// Unicode's Final_Sigma context: a cased letter before, then any
+/// case-ignorable characters, and no cased letter after them.
+final _finalCapitalSigma = RegExp(
+  r'(?<=\p{Cased}\p{Case_Ignorable}*)Σ(?!\p{Case_Ignorable}*\p{Cased})',
+  unicode: true,
+);
+const _finalSmallSigma = 'ς';
 
 // The characters github-slugger's generated regex removes: everything its
 // keep class (`\p{Alphabetic}`, `\p{M}`, `\p{Nd}`, `\p{Pc}`) does not hold,

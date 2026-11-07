@@ -72,6 +72,14 @@ void main() {
       expect(anchors.headingSlugs, ['ภาษาไทย-ทดสอบ']);
     });
 
+    test('RULE-13: a word-final capital sigma lower-cases to final sigma, as '
+        'V8 does; any other stays medial', () {
+      expect(headingSlugOf('ΟΔΟΣ ΟΔΟΣ'), 'οδος-οδος');
+      expect(headingSlugOf('ΑΣ. ΑΣ1'), 'ας-ας1');
+      expect(headingSlugOf('ΣΟΦΙΑ Σ'), 'σοφια-σ');
+      expect(headingSlugOf("ΑΣ'Β"), 'ασβ');
+    });
+
     test('Résumé² drops the Other_Number superscript', () {
       final anchors = anchorsOf(_parse('## Résumé²\n'));
       expect(anchors.headingSlugs, ['résumé']);

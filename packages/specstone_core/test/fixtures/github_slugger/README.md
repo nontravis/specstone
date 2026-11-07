@@ -20,3 +20,17 @@ Skipped entries:
   U+0130 to `i` where V8 gives `i` + U+0307.
 - `Unassigned`: U+3174F is category `Lo` in Dart's Unicode tables and unassigned in github-slugger's, so the keep class
   holds it there while the slugger drops it.
+
+Divergence left in `headingSlugOf`, by code point:
+
+- U+0130 `İ`: Dart lower-cases it to `i`; V8 gives `i` + U+0307.
+- U+037F `Ϳ`: Dart leaves it uncased; V8 gives U+03F3.
+- U+0524 to U+052E, the even code points: Dart leaves these Cyrillic capitals uncased; V8 lower-cases each to the next
+  code point.
+- Word-final U+03A3 `Σ` is no divergence: `headingSlugOf` maps it to U+03C2 `ς` by Unicode's Final_Sigma context, the
+  one context rule V8's lower-case applies.
+
+The rest is a Unicode-version gap. Dart's `String.toLowerCase` and its RegExp `\p{…}` tables trail V8's: Dart SDK 3.13.5
+against Node with Unicode 17.0. A per-code-point differential over U+0020 to U+2FFFF (final review, 2026-11-07) found
+468 casing and 373 category differences, none in Thai, CJK, or Hangul. They move with the Dart SDK, not with this
+code.
