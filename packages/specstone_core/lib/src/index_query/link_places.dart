@@ -2,7 +2,7 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind;
+    show DestinationKind, parsedDestinationOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
 /// The syntax that makes `markdown`'s link elements, whose href it decodes.
@@ -168,22 +168,37 @@ typedef HrefDestination = ({
 /// The destinations of a link scan that have an href, and whether `markdown`
 /// read the links: false when it fails on the body, which leaves every
 /// destination without one, or the readers disagree (see [readersAgree]),
-/// which leaves each inline link's without one.
+/// which leaves each inline link's without one; true when no destination
+/// needed the read.
 typedef HrefDestinations = ({
   List<HrefDestination> destinations,
   bool linksRead,
 });
 
 /// Returns each destination of [scan], the link scan of [lfBody], that has an
-/// href, with that href, in [scan]'s order.
+/// href [canMove] holds for, with that href, in [scan]'s order.
 ///
 /// An inline link's destination takes the href of its link (see
 /// [sourceHrefsOf]); one in an image description, which is no link, or in a
 /// footnote definition `markdown` drops takes none. A definition's destination
 /// takes the href `markdown` gives a link to a definition whose destination is
 /// written so.
-HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
-  if (scan.destinations.isEmpty) return (destinations: [], linksRead: true);
+///
+/// The body is parsed only when some destination, read from its own text,
+/// has an href [canMove] holds for: a link takes that href or none, since
+/// context only takes a link away, so the read never misses a move.
+HrefDestinations hrefDestinationsOf(
+  String lfBody,
+  LinkScan scan, {
+  required bool Function(String href) canMove,
+}) {
+  final movable = [
+    for (final destination in scan.destinations)
+      if (_writtenHrefOf(lfBody, destination) case final href?
+          when canMove(href))
+        destination,
+  ];
+  if (movable.isEmpty) return (destinations: [], linksRead: true);
   final tree = parseMarkdownTree(lfBody);
   if (tree == null) return (destinations: [], linksRead: false);
   final hrefs = _hrefsIn(tree.inSourceOrder);
@@ -202,7 +217,7 @@ HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
 
   return (
     destinations: [
-      for (final destination in scan.destinations)
+      for (final destination in movable)
         if (hrefOf(destination) case final href?)
           (
             start: destination.start,
@@ -214,6 +229,16 @@ HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
     linksRead: linkHrefs != null,
   );
 }
+
+/// Returns the href `markdown` gives a link written with [destination], read
+/// from its text in [lfBody] alone.
+String? _writtenHrefOf(String lfBody, ScannedDestination destination) =>
+    _hrefOfLink(
+      parsedDestinationOf(
+        lfBody.substring(destination.start, destination.end),
+        destination.kind,
+      ),
+    );
 
 /// Returns the href `markdown` gives a link whose destination it read as
 /// [destination], escapes kept.

@@ -339,6 +339,14 @@ DestinationParts destinationPartsOf(String written, DestinationKind kind) {
   return (pathEnd: pathEnd ?? written.length, anchorStart: null);
 }
 
+/// Returns [written], a [kind] destination as written, angle brackets left
+/// out, as `markdown`'s link parser hands it to `LinkSyntax.createNode`.
+String parsedDestinationOf(String written, DestinationKind kind) =>
+    String.fromCharCodes([
+      for (final (:code, start: _, end: _) in _parserUnescaped(written, kind))
+        code,
+    ]);
+
 /// The units of [written] after the link parser of a [kind] destination
 /// drops the backslash before a backslash or a delimiter it may hold.
 List<_ReadUnit> _parserUnescaped(String written, DestinationKind kind) {

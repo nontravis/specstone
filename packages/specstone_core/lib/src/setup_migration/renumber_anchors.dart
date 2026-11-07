@@ -134,7 +134,11 @@ LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = lf.length - body.length;
   final scan = linkScanOf(body, firstLine: 1);
-  final (destinations: found, :linksRead) = hrefDestinationsOf(body, scan);
+  final (destinations: found, :linksRead) = hrefDestinationsOf(
+    body,
+    scan,
+    canMove: (href) => _anchorMoveOf(href, docPath, moves) != null,
+  );
   final destinations = [...found]..sort((a, b) => b.start - a.start);
   var text = body;
   var citesOthers = false;

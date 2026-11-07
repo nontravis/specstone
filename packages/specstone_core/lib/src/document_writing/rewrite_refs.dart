@@ -72,6 +72,7 @@ String? rewriteDocLinks(
   final (:destinations, linksRead: _) = hrefDestinationsOf(
     body,
     linkScanOf(body, firstLine: 1),
+    canMove: (href) => _movedPath(href, docPath, moves) != null,
   );
   final edits = [
     for (final (:start, :end, :href, :kind) in destinations)

@@ -198,8 +198,43 @@ void main() {
   });
 
   group('hrefDestinationsOf', () {
-    HrefDestinations readOf(String body) =>
-        hrefDestinationsOf(body, linkScanOf(body, firstLine: 1));
+    HrefDestinations readOf(String body) => hrefDestinationsOf(
+      body,
+      linkScanOf(body, firstLine: 1),
+      canMove: (_) => true,
+    );
+
+    test('perf-fix-10: keeps only a destination whose href, read from its '
+        'text alone, can move, escaped or written with references, and parses '
+        'the body only when one can', () {
+      const body =
+          '[a](t.md#a\\_b) [b](t.md#a&#95;b) `[c](t.md#a_b)` [d](u.md#a_b)\n'
+          '[e](<t.md#&#97;\\_b>)\n\n[f]: t.md#&#x61;_b\n';
+      HrefDestinations movingOf(String body) => hrefDestinationsOf(
+        body,
+        linkScanOf(body, firstLine: 1),
+        canMove: (href) => href == 't.md#a_b',
+      );
+
+      expect(
+        [
+          for (final (:start, :end, :href, kind: _) in movingOf(
+            body,
+          ).destinations)
+            (body.substring(start, end), href),
+        ],
+        [
+          (r't.md#a\_b', 't.md#a_b'),
+          ('t.md#a&#95;b', 't.md#a_b'),
+          (r't.md#&#97;\_b', 't.md#a_b'),
+          ('t.md#&#x61;_b', 't.md#a_b'),
+        ],
+      );
+      const unparsable = '[a](u.md)\n\n[x]:<b\\';
+      // Unparsed, so markdown's failure on the body is never met.
+      expect(movingOf(unparsable).linksRead, isTrue);
+      expect(readOf(unparsable).linksRead, isFalse);
+    });
     List<(String, String)> placedOf(String body) => [
       for (final (:start, :end, :href, kind: _) in readOf(body).destinations)
         (body.substring(start, end), href),

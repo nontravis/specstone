@@ -104,7 +104,11 @@ void main() {
         final scan = linkScanOf(body, firstLine: 1);
         final read = (
           sources: sourceHrefsOf(body, scan.sources) != null,
-          destinations: hrefDestinationsOf(body, scan).linksRead,
+          destinations: hrefDestinationsOf(
+            body,
+            scan,
+            canMove: (_) => true,
+          ).linksRead,
         );
         expect(read, (
           sources: true,
