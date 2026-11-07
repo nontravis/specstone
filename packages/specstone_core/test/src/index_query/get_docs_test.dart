@@ -451,6 +451,17 @@ void main() {
       '==> prds/empty.md · prds/empty.md <==\n\n',
     );
   });
+  test('index_query/read_doc_section/resolve_doc_name E13 (W8): a path holding # is read whole, as resolve reads it, so get splits no section key off it', () async {
+    final noted = await indexWith({'docs/prds/notes#draft.md': '# Draft\n'});
+    expect(
+      answerGet(noted, 'prds/notes#draft.md').text,
+      '==> prds/notes#draft.md · prds/notes#draft.md <==\n# Draft\n',
+    );
+    expect(
+      () => answerGet(noted, 'prds/notes#draft'),
+      throwsA(isA<IndexFault>()),
+    );
+  });
   test('f01/us04/fr02: get feature:shop/cart prints the text of the nested feature', () async {
     final nested = await nestedIndexWith();
     expect(

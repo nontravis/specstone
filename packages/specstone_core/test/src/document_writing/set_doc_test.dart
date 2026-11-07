@@ -44,6 +44,52 @@ void main() {
     expect(typed.target, isA<SectionTarget>());
   });
 
+  test('index_query/read_doc_section/resolve_doc_name E13 (W8): a path holding # is the whole address, so set takes --field for it and splits no section key off it', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/notes#draft.md': '# Draft\n'},
+    );
+    writeIn(root, (s) {
+      final whole = SetRequest.parse(
+        'prds/notes#draft.md',
+        field: 'status',
+        base: 'abc',
+        index: s.index,
+      );
+      expect(whole.address, 'prds/notes#draft.md');
+      expect(whole.target, isA<FieldTarget>());
+      expect(
+        () => SetRequest.parse(
+          'prds/notes#draft.md',
+          base: 'abc',
+          index: s.index,
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentMissing,
+          ),
+        ),
+      );
+      expect(
+        () => answerSet(s, whole, 'x\n'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.untypedTarget,
+          ),
+        ),
+      );
+      final split = SetRequest.parse(
+        'prds/notes#draft',
+        base: 'abc',
+        index: s.index,
+      );
+      expect(split.address, 'prds/notes');
+    });
+  });
+
   test(
     'f02/us01/fr01/e12, f02/us01/fr04/e06: set names one target and a base',
     () {

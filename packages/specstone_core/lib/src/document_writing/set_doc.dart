@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -59,6 +60,8 @@ final class SetRequest {
   ///
   /// [target] is `<type>:<name>[#<key>]`; [field] and [title] are the other
   /// two targets, and exactly one of the three must be given.
+  /// With an [index], a [target] that names a doc as a path has no section
+  /// key, even when it holds `#`.
   /// Throws [IndexFault] `argument_missing` for a missing target, section
   /// key, or [base], and `argument_conflict` for two targets at once.
   static SetRequest parse(
@@ -66,12 +69,14 @@ final class SetRequest {
     String? field,
     bool title = false,
     String? base,
+    DocIndex? index,
   }) {
     if (target == null) {
       throw missingArgument('set', 'a target', _targetExample);
     }
-    final read = readDocAddress(target);
-    final key = read.sectionKey;
+    final (:docPart, sectionKey: key) = index == null
+        ? _splitAsWritten(target)
+        : index.splitAddress(target);
     final sectionKey = key == null || key.isEmpty ? null : key;
     final targets = [?sectionKey, ?field, if (title) ''];
     if (targets.length > 1) {
@@ -97,7 +102,12 @@ final class SetRequest {
       );
     }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
-    return SetRequest(address: read.docPart, target: chosen, base: base);
+    return SetRequest(address: docPart, target: chosen, base: base);
+  }
+
+  static ({String docPart, String? sectionKey}) _splitAsWritten(String text) {
+    final read = readDocAddress(text);
+    return (docPart: read.docPart, sectionKey: read.sectionKey);
   }
 
   /// The doc as `<type>:<name>`.

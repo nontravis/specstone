@@ -43,17 +43,6 @@ class SetCommand extends WriteCommand {
     if (rest.length > 1) {
       usageException('Expected one target, got ${rest.length}.');
     }
-    final SetRequest request;
-    try {
-      request = SetRequest.parse(
-        rest.firstOrNull,
-        field: args.option('field'),
-        title: args.flag('title'),
-        base: args.option('base'),
-      );
-    } on SpecstoneFault catch (fault) {
-      return fail(fault, asJson: asJson);
-    }
     final String text;
     try {
       text = await console.readAll();
@@ -61,7 +50,17 @@ class SetCommand extends WriteCommand {
       return fail(fault, asJson: asJson);
     }
     return runWrite(
-      (session) => answerSet(session, request, text),
+      (session) => answerSet(
+        session,
+        SetRequest.parse(
+          rest.firstOrNull,
+          field: args.option('field'),
+          title: args.flag('title'),
+          base: args.option('base'),
+          index: session.index,
+        ),
+        text,
+      ),
       asJson: asJson,
     );
   }

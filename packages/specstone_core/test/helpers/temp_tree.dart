@@ -10,7 +10,7 @@ Future<Directory> writeTree(Map<String, String> files) async {
   final root = await Directory.systemTemp.createTemp('specstone_test_');
   addTearDown(() => root.delete(recursive: true));
   for (final MapEntry(:key, :value) in files.entries) {
-    final file = File.fromUri(root.uri.resolve(key));
+    final file = File('${root.path}/$key');
     await file.parent.create(recursive: true);
     await file.writeAsString(value);
   }

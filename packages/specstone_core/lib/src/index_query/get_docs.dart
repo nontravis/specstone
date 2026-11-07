@@ -1,6 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -19,9 +18,7 @@ final _spaceTabEnd = RegExp(r'[ \t]+$');
 /// Throws an [IndexFault] when no doc carries the name, or when no resolved
 /// doc holds a section with the key.
 ReadAnswer answerGet(DocIndex index, String address) {
-  final read = readDocAddress(address);
-  final name = read.docPart;
-  final key = read.sectionKey;
+  final (docPart: name, sectionKey: key) = index.splitAddress(address);
 
   final blocks = <_GetBlock>[];
   for (final doc in index.resolve(name)) {
