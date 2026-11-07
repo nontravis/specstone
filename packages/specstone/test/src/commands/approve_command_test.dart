@@ -249,6 +249,17 @@ void main() {
       64,
     );
   });
+  test('ms-r10: a @<hash> without --yes on a non-terminal is a usage error, exit 64', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    final named = _seen(root, 'feature:signup');
+    expect(await runner.run(['approve', named]), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      startsWith('$named: a @<hash> goes only with --yes.\n'),
+    );
+  });
   test(
     'R70: a doc path holding @ names the doc, so --dry-run reads it',
     () async {

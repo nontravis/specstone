@@ -59,18 +59,25 @@ class ApproveCommand extends WriteCommand {
     if (yes && names.isEmpty) {
       usageException('--yes needs the names of the drafts it approves.');
     }
+    if (!yes) {
+      // Only a `.md` file is a doc, so a name ending `@<12 hex>` is no path.
+      for (final name in names.where(_seenDraft.hasMatch)) {
+        usageException('$name: a @<hash> goes only with --yes.');
+      }
+    }
     final color = console.stdoutIsTerminal && !console.noColor;
     if (dryRun) {
-      return runWrite((session) {
-        _refuseHashes(session.index, names);
-        return approveDryRun(
+      return runWrite(
+        (session) => approveDryRun(
           session,
           names: names,
           context: context,
           color: color,
-        );
-      }, asJson: false);
+        ),
+        asJson: false,
+      );
     }
+    final seen = yes ? names.map(_seenDraftOf).toList() : const <SeenDraft>[];
     final confirmation = OwnerConfirmation.of(
       yes: yes,
       interactive: interactive,
@@ -81,15 +88,9 @@ class ApproveCommand extends WriteCommand {
       return failWrite(fault, asJson: false);
     }
     if (!confirmation.prompts) {
-      return runWrite((session) {
-        final seen = [
-          for (final name in names) _seenDraftOf(session.index, name),
-        ];
-        return approveNamed(session, seen);
-      }, asJson: false);
+      return runWrite((session) => approveNamed(session, seen), asJson: false);
     }
     return runWrite((session) {
-      _refuseHashes(session.index, names);
       approveDrafts(
         session,
         names: names,
@@ -113,32 +114,11 @@ class ApproveCommand extends WriteCommand {
     return value;
   }
 
-  /// Whether the whole [text] names a doc, as a path or a name (R70).
-  bool _namesDoc(DocIndex index, String text) {
-    try {
-      index.resolve(text);
-      return true;
-    } on IndexFault {
-      return false;
-    }
-  }
-
-  /// Throws a usage error for a name that ends `@<hash>` where the whole name
-  /// does not name a doc, for the walk takes no hash.
-  void _refuseHashes(DocIndex index, List<String> names) {
-    for (final name in names) {
-      if (_seenDraft.hasMatch(name) && !_namesDoc(index, name)) {
-        usageException('$name: a @<hash> goes only with --yes.');
-      }
-    }
-  }
-
   /// Returns the draft and hash of an `--yes` [arg], `<name>@<hash>`.
   ///
-  /// The whole [arg] naming a doc wins over a trailing `@<hash>`.
   /// Throws a usage error for an [arg] with no 12-hex `@<hash>`.
-  SeenDraft _seenDraftOf(DocIndex index, String arg) {
-    final match = _namesDoc(index, arg) ? null : _seenDraft.firstMatch(arg);
+  SeenDraft _seenDraftOf(String arg) {
+    final match = _seenDraft.firstMatch(arg);
     if (match == null) {
       usageException(
         '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
