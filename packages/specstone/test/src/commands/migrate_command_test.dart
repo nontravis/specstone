@@ -56,7 +56,7 @@ void main() {
   });
 
   test(
-    'f06/us01/fr01/e04:nothing to migrate, with and without --dry-run',
+    'f06/us01/fr01/e04: nothing to migrate, with and without --dry-run',
     () async {
       final root = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),
