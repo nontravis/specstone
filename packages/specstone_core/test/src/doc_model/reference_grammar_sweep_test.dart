@@ -73,6 +73,11 @@ final _allowed = <_Allowed>[
   ),
   // Frontmatter key block: the key line, not a reference.
   _core(
+    'document_writing/set_doc.dart',
+    r"""RegExp(r'^\d{4}-\d{2}-\d{2}$'""",
+    'ISO date value of a `date` field, no reference.',
+  ),
+  _core(
     'document_writing/key_block_values.dart',
     """.indexOf(':'""",
     'Finds the colon after the key name; values go to the grammar.',
@@ -141,6 +146,11 @@ final _allowed = <_Allowed>[
     'Legacy reader: finds a frontmatter key line by name.',
   ),
   _core(
+    'setup_migration/legacy_rewrites.dart',
+    r"""RegExp(r'^[A-Z][A-Z0-9]*-\d+ — '""",
+    'Legacy reader: drops a pre-1.2.0 `US-01 — ` title prefix.',
+  ),
+  _core(
     'setup_migration/legacy_tree.dart',
     r"""RegExp(r'^:?-+:?$'""",
     'Legacy reader: table delimiter cell, no reference.',
@@ -174,8 +184,9 @@ final _regExpCall = RegExp(
   r'''(?:\s*(?:r?'(?:[^'\\]|\\.)*'|r?"(?:[^"\\]|\\.)*"))*''',
 );
 
-/// A pattern text that reads `#`, `:`, a step number, or `Scenario`.
-final _referenceShaped = RegExp(r'#|:|S\[0-9\]|S\\d|Scenario');
+/// A pattern text that reads `#`, `:`, a step number, `Scenario`, or an ID's
+/// digits after its prefix's `-`.
+final _referenceShaped = RegExp(r'#|:|S\[0-9\]|S\\d|Scenario|-\\d|-\[0-9\]');
 
 /// Regex group syntax `(?:`, `(?=`, `(?!`, `(?<` holds a `:` and reads nothing.
 final _groupSyntax = RegExp(r'\(\?[:=!<]');

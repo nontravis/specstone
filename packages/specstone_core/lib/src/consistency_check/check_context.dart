@@ -7,6 +7,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -232,12 +233,28 @@ final class CheckContext {
 
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
-      for (final (i, line) in linesOf(doc).lines.indexed)
-        if (!linesOf(doc).isFenced(i + 1)) ?_nfrKeyOf(line),
+      for (final (:key, lines: _) in _itemHeadingBlocksOf(doc)) key,
   };
 
-  /// Returns the ID of each `###` heading with a ` — ` of every `project` doc.
+  /// Returns the ID of each `###` item heading of every `project` doc, as
+  /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
+
+  /// Returns the `###` blocks of each held section of [doc] whose template
+  /// sets `prefix_id`, keyed by the ID the grammar reads at the heading
+  /// (RULE-12); an unreadable ID keys no block.
+  Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
+    IndexedDoc doc,
+  ) sync* {
+    for (final (i, template) in _heldTemplatesOf(doc).indexed) {
+      final prefix = template?.prefixId;
+      if (prefix == null) continue;
+      yield* headingBlocksOf(
+        bodyLinesOf(doc, i),
+        (heading) => _itemKeyOf(heading, prefix),
+      );
+    }
+  }
 
   Iterable<IndexedDoc> get _projectDocs =>
       index.docs.where((doc) => doc.docTypeId == _projectType);
@@ -255,21 +272,16 @@ final class CheckContext {
     final statements = <String, ({String path, String text})>{};
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
-      for (var i = 0; i < contentOf(doc).sections.length; i++) {
-        for (final (:key, :lines) in headingBlocksOf(
-          bodyLinesOf(doc, i),
-          _nfrKeyOf,
-        )) {
-          final statement = lines
-              .where((line) => !line.fenced)
-              .map((line) => line.text.trim())
-              .where((text) => text.startsWith(_statementPrefix))
-              .firstOrNull;
-          statements.putIfAbsent(
-            key,
-            () => (path: doc.docPath, text: statement ?? ''),
-          );
-        }
+      for (final (:key, :lines) in _itemHeadingBlocksOf(doc)) {
+        final statement = lines
+            .where((line) => !line.fenced)
+            .map((line) => line.text.trim())
+            .where((text) => text.startsWith(_statementPrefix))
+            .firstOrNull;
+        statements.putIfAbsent(
+          key,
+          () => (path: doc.docPath, text: statement ?? ''),
+        );
       }
     }
     return statements;
@@ -331,16 +343,11 @@ const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
-const _headingIdSeparator = ' — ';
 
-bool _isWhitespaceRune(int rune) => String.fromCharCode(rune).trim().isEmpty;
-
-/// Returns the ID a `### <id> — <title>` heading [line] opens with, or null.
-String? _nfrKeyOf(String line) {
-  final text = itemHeadingTextOf(line);
-  if (text == null) return null;
-  final end = text.indexOf(_headingIdSeparator);
-  if (end <= 0) return null;
-  final id = text.substring(0, end);
-  return id.runes.any(_isWhitespaceRune) ? null : id;
+/// Returns the ID of [prefix] a `###` [heading] opens with, plain or
+/// lettered; null for any other heading and an unreadable ID.
+String? _itemKeyOf(String heading, String prefix) {
+  final text = itemHeadingTextOf(heading);
+  final id = text == null ? null : readItemId(text, prefix);
+  return id is UnreadableId ? null : id?.written;
 }

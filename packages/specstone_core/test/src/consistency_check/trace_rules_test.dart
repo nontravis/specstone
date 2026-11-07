@@ -77,37 +77,27 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us03/fr01/e06: a tab inside an NFR heading key is no key',
-    () async {
+  test('f04/us03/fr01/e06: an NFR heading key is the ID the grammar reads, '
+      'as item IDs read it: a tab or no-break space ends it, an unreadable '
+      'one keys nothing', () async {
+    final noBreakSpace = String.fromCharCode(0x00A0);
+    final unresolved = <String, List<String>>{};
+    for (final heading in [
+      '### NFR-P01\tx — Sign-in time',
+      '### NFR-P01${noBreakSpace}x — Sign-in time',
+      '### NFR-P1a1 — Sign-in time',
+    ]) {
       final report = checkOf(
         await writeCheckProject(
-          extra: doc(
-            gnfrDoc,
-            '### NFR-P01 — Sign-in time',
-            '### NFR-P01\tx — Sign-in time',
-          ),
+          extra: doc(gnfrDoc, '### NFR-P01 — Sign-in time', heading),
         ),
       );
-      expect(spots(report, FindingKind.overrideUnresolved), [
-        '$loginNf:3: override_unresolved',
-      ]);
-    },
-  );
-
-  test('f04/us03/fr01/e06: a no-break space inside an NFR heading key is no '
-      'key', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(
-          gnfrDoc,
-          '### NFR-P01 — Sign-in time',
-          '### NFR-P01\u00A0x — Sign-in time',
-        ),
-      ),
-    );
-    expect(spots(report, FindingKind.overrideUnresolved), [
-      '$loginNf:3: override_unresolved',
+      unresolved[heading] = spots(report, FindingKind.overrideUnresolved);
+    }
+    expect(unresolved.values, [
+      isEmpty,
+      isEmpty,
+      ['$loginNf:3: override_unresolved'],
     ]);
   });
 
@@ -359,6 +349,55 @@ void main() {
           .where((f) => f.kind == FindingKind.visionGoalUnresolved)
           .map((f) => f.toJson()['id']),
       ['PG-01', 'PV-07'],
+    );
+  });
+
+  test('f04/us03/fr02/e09: a lettered or unreadable Serves ID is read '
+      'whole through the grammar and is vision_goal_unresolved', () async {
+    final unresolved = <String, List<Object?>>{};
+    for (final line in [
+      '**Serves:** PV-01, PV-09a',
+      '**Serves:** PV-01 and PV-1é',
+      '**Serves:** PV-09a',
+      '**Serves:** PV-01, PV-1a1',
+    ]) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(projectDoc, '**Serves:** PV-01', line),
+        ),
+      );
+      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+      unresolved[line] = [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved) f.toJson()['id'],
+      ];
+    }
+    expect(unresolved, {
+      '**Serves:** PV-01, PV-09a': ['PV-09a'],
+      '**Serves:** PV-01 and PV-1é': ['PV-1é'],
+      '**Serves:** PV-09a': ['PV-09a'],
+      '**Serves:** PV-01, PV-1a1': ['PV-1a1'],
+    });
+  });
+
+  test('f04/us03/fr02/e05: a project heading ID is read through the grammar, '
+      'so an unreadable heading names no goal a feature may list', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(projectDoc, '### PG-01 — ', '### PG-1a1 — '),
+          ...doc(loginFeature, 'PG-01', 'PG-1a1'),
+        },
+      ),
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved &&
+              f.path == loginFeature)
+            f.toJson()['id'],
+      ],
+      ['PG-1a1'],
     );
   });
 

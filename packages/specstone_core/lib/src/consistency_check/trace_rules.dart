@@ -34,7 +34,10 @@ const _goalsSection = 'goals';
 const _visionIdPrefix = 'PV-';
 const _goalIdPrefix = 'PG-';
 final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
-final _servedId = RegExp(r'\b[A-Z][A-Za-z]*-\d+\b');
+
+/// Where a Serves ID may open: an upper-case-led prefix ending `-` that no
+/// letter or digit precedes; the grammar reads the ID from there.
+final _servedPrefix = RegExp('(?<![A-Za-z0-9])[A-Z][A-Za-z]*-');
 
 /// Returns the requirement trace findings of a typed [doc] (US-03 FR-01).
 ///
@@ -253,6 +256,21 @@ String? _goalKeyOf(String heading) {
   };
 }
 
+/// The IDs of a Serves line's [text] as the grammar reads each: plain,
+/// lettered, or unreadable, each whole, so none is skipped (INV-21).
+List<String> _servedIdsOf(String text) {
+  final ids = <String>[];
+  var readUpTo = 0;
+  for (final match in _servedPrefix.allMatches(text)) {
+    if (match.start < readUpTo) continue;
+    final id = readItemId(text.substring(match.start), match[0]!);
+    if (id == null) continue;
+    ids.add(id.written);
+    readUpTo = match.start + id.written.length;
+  }
+  return ids;
+}
+
 Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
   final section = context.heldIndexOf(doc, _goalsSection);
   if (section == null) return;
@@ -265,10 +283,7 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
         )
         .where((entry) => entry.match != null)
         .firstOrNull;
-    final ids = [
-      for (final id in _servedId.allMatches(serves?.match!.group(1) ?? ''))
-        id.group(0)!,
-    ];
+    final ids = _servedIdsOf(serves?.match!.group(1) ?? '');
     if (ids.isEmpty) {
       yield context.finding(
         doc,
