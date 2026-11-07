@@ -132,6 +132,7 @@ List<String>? _headingSlugsOf(String body) {
 /// takes the new slug.
 LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   final body = Doc.parse(lf).afterFrontmatter;
+  if (!_mayMoveAnchors(body, moves)) return (moved: null, linksRead: true);
   final bodyStart = lf.length - body.length;
   final scan = linkScanOf(body, firstLine: 1);
   final (destinations: found, :linksRead) = hrefDestinationsOf(
@@ -160,6 +161,20 @@ LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
     moved: (lf: lf.substring(0, bodyStart) + text, citesOthers: citesOthers),
     linksRead: linksRead,
   );
+}
+
+/// Whether a link of [body] may name an old slug of [moves], so the link scan
+/// and [hrefDestinationsOf] must read it.
+///
+/// A destination follows a written `](` or `]:`. With no `\`, `&`, or `%` in
+/// the body, an href's anchor decodes to the text written for it, so a body
+/// holding no old slug names none; any of the three may spell a slug the text
+/// does not hold (`&#115;`, `%73`, `\-`), and then only the read can tell.
+bool _mayMoveAnchors(String body, SlugMoves moves) {
+  if (!body.contains('](') && !body.contains(']:')) return false;
+  final spelledPlain =
+      !body.contains(r'\') && !body.contains('&') && !body.contains('%');
+  return !spelledPlain || moves.mayName(body);
 }
 
 /// Returns [lf] with the `#anchor` of each bare `see` target of the Concerns

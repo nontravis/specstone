@@ -111,6 +111,20 @@ const _readForms = <_Form>[
     topicAnchor: null,
   ),
   (
+    name: 'an anchor written with a percent escape',
+    links:
+        '[a]($_topicLink) RULE-7a\n'
+        '[b]($_storyLink#%73cenario-6a--edge-lettered)\n',
+    topicAnchor: null,
+  ),
+  (
+    name: 'an anchor written with a backslash escape',
+    links:
+        '[a]($_topicLink) RULE-7a\n'
+        '[b]($_storyLink#scenario\\-6a--edge-lettered)\n',
+    topicAnchor: null,
+  ),
+  (
     name: 'an escaped paren in the fragment',
     links: '[a]($_topicLink#a\\)b) RULE-7a\n[b]($_storyLink#$_oldSlug)\n',
     topicAnchor: 'a)b',

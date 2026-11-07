@@ -60,6 +60,45 @@ void main() {
 
     expect(mentionsOf(index, target), isEmpty);
   });
+  test("perf-fix-10: the mentions of several docs are each doc's own, read "
+      'in one pass over the docs that hold their file names', () async {
+    final index = await indexWith({
+      'docs/specs/a/USER.md': '# A\n',
+      'docs/specs/b/USER.md': '# B\n',
+      'docs/specs/c/NOTE.md': '# C\n',
+      'docs/specs/notes.md':
+          '# Notes\n\nSee a/USER.md and [b](b/USER.md).\nThen b/USER.md.\n'
+          'And c/NOTE.md.\n',
+      'docs/specs/plain.md': '# Plain\n\nNo link here: a/USER.md.\n',
+    });
+    final targets = [
+      for (final path in [
+        'specs/a/USER.md',
+        'specs/b/USER.md',
+        'specs/c/NOTE.md',
+      ])
+        index.resolve(path).single,
+    ];
+    List<(String, int)> spots(List<Mention> mentions) => [
+      for (final (:doc, :line) in mentions) (doc.docPath, line),
+    ];
+
+    final each = mentionsOfEach(index, targets);
+
+    expect(each.keys, [for (final target in targets) target.docPath]);
+    for (final target in targets) {
+      expect(
+        spots(each[target.docPath]!),
+        spots(mentionsOf(index, target)),
+        reason: target.docPath,
+      );
+    }
+    expect(spots(each['specs/a/USER.md']!), [
+      ('specs/notes.md', 3),
+      ('specs/plain.md', 3),
+    ]);
+    expect(spots(each['specs/b/USER.md']!), [('specs/notes.md', 4)]);
+  });
   test(
     'f01/us07/fr01: a frontmatter line naming the DocPath is a mention',
     () async {

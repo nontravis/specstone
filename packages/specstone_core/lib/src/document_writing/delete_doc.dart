@@ -246,10 +246,14 @@ List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
 /// delete before this runs.
 List<String> _mentionWarnings(WriteSession session, Set<String> inUnit) {
   final warnings = <String>[];
-  for (final doc in session.index.docs) {
-    if (!inUnit.contains(doc.docPath)) continue;
+  final unit = [
+    for (final doc in session.index.docs)
+      if (inUnit.contains(doc.docPath)) doc,
+  ];
+  final mentionsByDoc = mentionsOfEach(session.index, unit);
+  for (final doc in unit) {
     final from = {
-      for (final mention in mentionsOf(session.index, doc))
+      for (final mention in mentionsByDoc[doc.docPath]!)
         if (mention.doc.isTyped && !inUnit.contains(mention.doc.docPath))
           mention.doc.docPath,
     };

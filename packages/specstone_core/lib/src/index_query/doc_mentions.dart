@@ -23,6 +23,8 @@ final _nameChar = RegExp(r'[\p{L}\p{M}\p{N}_-]', unicode: true);
 /// reads, inline or in a definition, set to spaces, line ends kept.
 String _withoutDestinations(String lf) {
   final body = Doc.parse(lf).afterFrontmatter;
+  // A destination follows a written `](` or `]:`, which no reference spells.
+  if (!body.contains('](') && !body.contains(']:')) return lf;
   final bodyStart = lf.length - body.length;
   final units = lf.codeUnits.toList();
   for (final (:start, :end, link: _, kind: _) in linkScanOf(
@@ -43,7 +45,39 @@ String _withoutDestinations(String lf) {
 /// the one doc of its file name it aligns with deepest: a bare file name that
 /// several docs carry names none. Fenced code, link destinations, and a line
 /// linking to [target] are skipped; a link is a reference, listed apart.
-List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
+List<Mention> mentionsOf(DocIndex index, IndexedDoc target) =>
+    mentionsOfEach(index, [target])[target.docPath]!;
+
+/// Returns [mentionsOf] of each of [targets], by DocPath, in [targets]' order.
+///
+/// Each doc that holds a target's file name is read and scanned once, however
+/// many targets it may name.
+Map<String, List<Mention>> mentionsOfEach(
+  DocIndex index,
+  List<IndexedDoc> targets,
+) {
+  final read = <String, _ReadDoc>{};
+  _ReadDoc readOf(IndexedDoc doc) =>
+      read[doc.docPath] ??= _readDocOf(index.contentOf(doc));
+  return {
+    for (final target in targets)
+      target.docPath: _mentionsIn(index, target, readOf),
+  };
+}
+
+/// A doc's line facts and its LF lines with link destinations blanked.
+typedef _ReadDoc = ({LineFacts facts, List<String> lines});
+
+_ReadDoc _readDocOf(DocContent content) => (
+  facts: content.lineFacts,
+  lines: lfLinesOf(_withoutDestinations(toLf(content.text))),
+);
+
+List<Mention> _mentionsIn(
+  DocIndex index,
+  IndexedDoc target,
+  _ReadDoc Function(IndexedDoc doc) readOf,
+) {
   final fileName = _segmentsOf(target.docPath).last;
   final namesakes = {
     for (final doc in index.docs)
@@ -54,13 +88,11 @@ List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
   final mentions = <Mention>[];
   for (final doc in index.holding(fileName)) {
     if (doc.docPath == target.docPath) continue;
-    final content = index.contentOf(doc);
-    final facts = content.lineFacts;
+    final (:facts, :lines) = readOf(doc);
     final linking = {
       for (final link in facts.links)
         if (link.target == target.docPath) link.line,
     };
-    final lines = lfLinesOf(_withoutDestinations(toLf(content.text)));
     for (final (i, prose) in lines.indexed) {
       final line = i + 1;
       if (linking.contains(line) || facts.isFenced(line)) continue;
