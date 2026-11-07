@@ -282,6 +282,9 @@ void main() {
       '[x][paren]': false,
       '[x][open]': true,
       '[x](a( "t")b.md)': true,
+      '[x](API.md&#35;lifecycle)': true,
+      '[x](API.md#&#108;ifecycle)': true,
+      r'[x](API.md#a\)b)': false,
     };
     expect(
       targetsIn(
