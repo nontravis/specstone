@@ -120,14 +120,20 @@ Iterable<Finding> _unresolvedConcerns(
       final see = line.fenced ? null : seeTargetIn(line.text);
       if (see == null) continue;
       final target = see.text;
-      final text =
-          sources.destinationSpanning(
-            line.line,
-            start: see.start,
-            end: see.start + target.length,
-          ) ??
-          target;
-      if (_seeResolves(context, doc, text, headers, anchors)) continue;
+      final href = sources.destinationSpanning(
+        line.line,
+        start: see.start,
+        end: see.start + target.length,
+      );
+      final resolves = _seeResolves(
+        context,
+        doc,
+        href ?? target,
+        headers,
+        anchors,
+        isLink: href != null,
+      );
+      if (resolves) continue;
       yield context.finding(
         doc,
         FindingKind.concernsTargetUnresolved,
@@ -140,15 +146,15 @@ Iterable<Finding> _unresolvedConcerns(
 }
 
 /// Returns the text after the last ` see ` of [line], less trailing
-/// punctuation and one pair of backticks, with the index it starts at in
-/// [line]; null for a line that is `N/A — ` or holds no ` see `.
+/// punctuation and whitespace and one pair of backticks, with the index it
+/// starts at in [line]; null for a line that is `N/A — ` or holds no ` see `.
 ({String text, int start})? seeTargetIn(String line) {
   if (line.contains(_notApplicable)) return null;
   final at = line.lastIndexOf(_seeMarker);
   if (at < 0) return null;
   final after = line.substring(at + _seeMarker.length);
   var start = at + _seeMarker.length + after.length - after.trimLeft().length;
-  var text = _withoutTrailingPunctuation(after.trim());
+  var text = _withoutTrailingDrops(after.trim());
   if (text.length > 1 &&
       text.startsWith(_backtick) &&
       text.endsWith(_backtick)) {
@@ -158,29 +164,34 @@ Iterable<Finding> _unresolvedConcerns(
   return text.isEmpty ? null : (text: text, start: start);
 }
 
-String _withoutTrailingPunctuation(String text) {
+String _withoutTrailingDrops(String text) {
   var end = text.length;
-  while (end > 0 && _trailingPunctuation.contains(text[end - 1])) {
+  while (end > 0 && _isTrailingDrop(text[end - 1])) {
     end--;
   }
   return text.substring(0, end);
 }
 
+bool _isTrailingDrop(String char) =>
+    _trailingPunctuation.contains(char) || char.trim().isEmpty;
+
 /// Whether [text], a `see` target or the href of the link that spans it,
 /// names a `##` section of [doc], a file at the path relative to it, the
 /// doc itself included, or an anchor of the doc or of that file (R63).
 ///
-/// Text after a path makes it no path (E11). An anchor set that is unknown
-/// (null) or a file no doc indexes raises nothing for the anchor; [anchors] is
-/// the set of [doc] itself.
+/// A link, [isLink], names no section, as the link rule reads it (R71). Text
+/// after a path makes it no path (E11). An anchor set that is unknown (null)
+/// or a file no doc indexes raises nothing for the anchor; [anchors] is the
+/// set of [doc] itself.
 bool _seeResolves(
   CheckContext context,
   IndexedDoc doc,
   String text,
   Set<String> headers,
-  DocAnchors? anchors,
-) {
-  if (headers.contains(headerKey(text))) return true;
+  DocAnchors? anchors, {
+  required bool isLink,
+}) {
+  if (!isLink && headers.contains(headerKey(text))) return true;
   if (readLinkTarget(text) case RelativeLink(:final segments, :final anchor)) {
     final named = _namedAnchor(anchor);
     if (segments.isEmpty) {
@@ -211,26 +222,31 @@ final class _LinkSources {
   );
 
   /// Returns the href `markdown` makes of the destination of the one link
-  /// that runs from column [start] to column [end] of file line [line], as
-  /// the link rule reads it, or null when no link spans them or it has none.
+  /// that spans column [start] to column [end] of file line [line], as the
+  /// link rule reads it, or null when no link spans them or it has none.
   String? destinationSpanning(
     int line, {
     required int start,
     required int end,
   }) {
     for (final source in _all) {
-      if (source.line != line) continue;
-      final lineStart = source.offset == 0
-          ? 0
-          : _body.lastIndexOf('\n', source.offset - 1) + 1;
-      if (source.offset - lineStart == start && source.end - lineStart == end) {
-        final shown = source.shown;
-        return shown == null
-            ? null
-            : hrefOfSpelling(shown, angle: source.angle);
-      }
+      if (source.line != line || !_spans(source, start, end)) continue;
+      final shown = source.shown;
+      return shown == null ? null : hrefOfSpelling(shown, angle: source.angle);
     }
     return null;
+  }
+
+  /// Whether [source] starts at column [start] of its line and ends at column
+  /// [end] of it or on a later line, which takes in the rest of its line.
+  bool _spans(LinkSource source, int start, int end) {
+    final lineStart = source.offset == 0
+        ? 0
+        : _body.lastIndexOf('\n', source.offset - 1) + 1;
+    if (source.offset - lineStart != start) return false;
+    final lineEnd = _body.indexOf('\n', source.offset);
+    return source.end - lineStart == end ||
+        (lineEnd >= 0 && source.end > lineEnd);
   }
 }
 

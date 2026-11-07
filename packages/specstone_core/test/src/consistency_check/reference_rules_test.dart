@@ -274,6 +274,10 @@ void main() {
       'A_B.md': true,
       r'[x](A\_B.md)': true,
       '[x](API&#46;md)': true,
+      'API.md .': true,
+      '[x](API.md) .': true,
+      'Components': true,
+      '[x](Components)': false,
     };
     expect(
       targetsIn(
@@ -285,6 +289,21 @@ void main() {
         for (final MapEntry(key: form, value: resolved) in resolves.entries)
           if (!resolved) form,
       ],
+    );
+
+    final headerLink = await reportOf('- C: see [x](Components)\n');
+    expect(targetsIn(headerLink), ['[x](Components)']);
+    expect(spots(headerLink, FindingKind.linkTargetMissing), [
+      '$loginArchitecture:18: link_target_missing',
+    ]);
+
+    expect(
+      targetsIn(
+        await reportOf(
+          '- C: see [x](API.md\n  "t")\n- D: see [x](MISSING.md\n  "t")\n',
+        ),
+      ),
+      ['[x](MISSING.md'],
     );
 
     final unparsed = await reportOf(
