@@ -115,6 +115,34 @@ const _readForms = <_Form>[
     links: '[a]($_topicLink#a\\)b) RULE-7a\n[b]($_storyLink#$_oldSlug)\n',
     topicAnchor: 'a)b',
   ),
+  (
+    name: 'a footnote no reference names',
+    links:
+        '[a]($_topicLink) RULE-7a\n[b]($_storyLink#$_oldSlug)\n\n'
+        '[^1]: Also [c](other.md).\n',
+    topicAnchor: null,
+  ),
+  (
+    name: 'a footnote defined before its reference',
+    links:
+        '[^1]: Also [c](pic.png).\n\n'
+        '[a]($_topicLink) note[^1] RULE-7a\n[b]($_storyLink#$_oldSlug)\n',
+    topicAnchor: null,
+  ),
+  (
+    name: 'footnotes referenced out of order',
+    links:
+        '[a]($_topicLink) x[^2] y[^1] RULE-7a\n[b]($_storyLink#$_oldSlug)\n\n'
+        '[^1]: [p](p.png)\n[^2]: [q](q.png)\n',
+    topicAnchor: null,
+  ),
+  (
+    name: 'a footnote that runs on over the links',
+    links:
+        '[^1]: n [c](pic.png)\nx[^1] [a]($_topicLink) RULE-7a\n'
+        '[b]($_storyLink#$_oldSlug)\n',
+    topicAnchor: null,
+  ),
 ];
 
 late MergedSet _set;

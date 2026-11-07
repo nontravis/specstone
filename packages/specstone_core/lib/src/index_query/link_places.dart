@@ -50,15 +50,16 @@ const LinkPlaces noLinks = (
 ///
 /// Returns null when `markdown` fails on [lfBody] (see [parseMarkdown]), and
 /// [noLinks] for a body with no link syntax, which it never parses. Given
-/// [bodyNodes], the caller has passed that gate, so it is not run again.
+/// [tree], `parseMarkdownTree(lfBody)`, the caller has passed that gate, so it
+/// is not run again.
 LinkPlaces? linkPlacesOf(
   String lfBody, {
   required String docPath,
   required int firstLine,
-  List<Node>? bodyNodes,
+  MarkdownTree? tree,
 }) {
-  if (bodyNodes == null && !holdsLinkSyntax(lfBody)) return noLinks;
-  final hrefs = _hrefsOf(lfBody, bodyNodes: bodyNodes);
+  if (tree == null && !holdsLinkSyntax(lfBody)) return noLinks;
+  final hrefs = _hrefsOf(lfBody, tree: tree);
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);
   final sources = linkSourcesOf(lfBody, firstLine: firstLine);
@@ -125,23 +126,25 @@ List<LinkPlace> _placedByUse(
 
 /// Returns whether [sources] and [hrefs] describe the same links: equal
 /// counts, and each source whose destination holds no `\` and no `&` has the
-/// normalized destination `markdown` gives as its href.
-bool readersAgree(List<LinkSource> sources, List<String> hrefs) {
+/// normalized destination `markdown` gives as its href, where it gives one.
+bool readersAgree(List<LinkSource> sources, List<String?> hrefs) {
   if (sources.length != hrefs.length) return false;
   for (var i = 0; i < sources.length; i++) {
-    final shown = sources[i].shown;
-    if (shown == null || shown.contains(r'\') || shown.contains('&')) continue;
-    if (_normalize(shown) != hrefs[i]) return false;
+    final (shown, href) = (sources[i].shown, hrefs[i]);
+    if (shown == null || href == null) continue;
+    if (shown.contains(r'\') || shown.contains('&')) continue;
+    if (_normalize(shown) != href) return false;
   }
   return true;
 }
 
 /// Returns the href `markdown` gives the link of each of [sources], the link
-/// sources of [lfBody], by index: the nth href for the nth source.
+/// sources of [lfBody], by index: the nth href for the nth source, null for a
+/// link in a footnote definition `markdown` drops (see [_hrefsOf]).
 ///
 /// Null when `markdown` fails on [lfBody] or the readers disagree (see
 /// [readersAgree]), so no href is known for any source.
-List<String>? sourceHrefsOf(String lfBody, List<LinkSource> sources) {
+List<String?>? sourceHrefsOf(String lfBody, List<LinkSource> sources) {
   if (sources.isEmpty) return const [];
   final hrefs = _hrefsOf(lfBody);
   return hrefs != null && readersAgree(sources, hrefs) ? hrefs : null;
@@ -169,14 +172,15 @@ typedef HrefDestinations = ({
 /// href, with that href, in [scan]'s order.
 ///
 /// An inline link's destination takes the href of its link (see
-/// [sourceHrefsOf]); one in an image description, which is no link, takes
-/// none. A definition's destination takes the href `markdown` gives a link
-/// to a definition whose destination is written so.
+/// [sourceHrefsOf]); one in an image description, which is no link, or in a
+/// footnote definition `markdown` drops takes none. A definition's destination
+/// takes the href `markdown` gives a link to a definition whose destination is
+/// written so.
 HrefDestinations hrefDestinationsOf(String lfBody, LinkScan scan) {
   if (scan.destinations.isEmpty) return (destinations: [], linksRead: true);
   final tree = parseMarkdownTree(lfBody);
   if (tree == null) return (destinations: [], linksRead: false);
-  final hrefs = _hrefsIn(tree.nodes);
+  final hrefs = _hrefsIn(tree.inSourceOrder);
   final linkHrefs = readersAgree(scan.sources, hrefs) ? hrefs : null;
   final definitionHrefs = {
     for (final LinkReference(:destination) in tree.definitions.values)
@@ -240,11 +244,13 @@ typedef _PlacedHref = ({
 /// relative link is a file link.
 ///
 /// Each href resolves exactly once: the caller reads the path from here
-/// instead of resolving again.
-List<_PlacedHref> _placedHrefs(String docPath, List<String> hrefs) {
+/// instead of resolving again. A null href, a link `markdown` drops, is no
+/// link of the doc.
+List<_PlacedHref> _placedHrefs(String docPath, List<String?> hrefs) {
   final placed = <_PlacedHref>[];
   for (var index = 0; index < hrefs.length; index++) {
     final href = hrefs[index];
+    if (href == null) continue;
     final target = resolveDocLink(href, docPath);
     if (target is UnreadableTarget) {
       placed.add((
@@ -288,36 +294,40 @@ String _normalize(String dest) => dest.splitMapJoin(
   onNonMatch: Uri.encodeFull,
 );
 
-/// Returns the hrefs of the links and images in [body], in order, or null when
-/// `markdown` fails on it; [bodyNodes], when given, are `parseMarkdown(body)`'s
-/// nodes, so they are parsed once.
+/// Returns the hrefs of the links and images in [body], in source order, or
+/// null when `markdown` fails on it; [tree], when given, is
+/// `parseMarkdownTree(body)`, so it is parsed once.
 ///
-/// The links `markdown` makes for a footnote are left out: the author wrote
-/// neither the reference's link nor the back link.
-List<String>? _hrefsOf(String body, {List<Node>? bodyNodes}) {
-  final nodes = bodyNodes ?? parseMarkdown(body);
-  return nodes == null ? null : _hrefsIn(nodes);
+/// Each link of a footnote definition is read where the definition is
+/// written; one in a definition `markdown` drops, which no reference names,
+/// has no href and stands as null, so each link the text holds keeps its
+/// place. The links `markdown` makes for a footnote are left out: the author
+/// wrote neither the reference's link nor the back link.
+List<String?>? _hrefsOf(String body, {MarkdownTree? tree}) {
+  final parsed = tree ?? parseMarkdownTree(body);
+  return parsed == null ? null : _hrefsIn(parsed.inSourceOrder);
 }
 
-/// Returns the hrefs of the links and images of [nodes], in order, those
-/// `markdown` makes for a footnote left out (see [_hrefsOf]).
-List<String> _hrefsIn(List<Node> nodes) {
-  final hrefs = <String>[];
-  void visit(List<Node> nodes) {
+/// Returns the hrefs of the links and images of [tree], in order, null for
+/// each in a dropped node (see [_hrefsOf]).
+List<String?> _hrefsIn(SourceOrderNodes tree) {
+  final hrefs = <String?>[];
+  void visit(List<Node> nodes, {required bool rendered}) {
     for (final node in nodes) {
       if (node is! Element || _isFootnoteMade(node)) continue;
+      final isRendered = rendered && !tree.dropped.contains(node);
       final href = switch (node.tag) {
         'a' => node.attributes['href'],
         'img' => node.attributes['src'],
         _ => null,
       };
-      if (href != null) hrefs.add(href);
+      if (href != null) hrefs.add(isRendered ? href : null);
       final children = node.children;
-      if (children != null) visit(children);
+      if (children != null) visit(children, rendered: isRendered);
     }
   }
 
-  visit(nodes);
+  visit(tree.nodes, rendered: true);
   return hrefs;
 }
 

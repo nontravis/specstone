@@ -109,7 +109,7 @@ void main() {
   });
 
   group('sourceHrefsOf', () {
-    List<String>? hrefsOf(String body) =>
+    List<String?>? hrefsOf(String body) =>
         sourceHrefsOf(body, linkSourcesOf(body, firstLine: 1));
 
     test('R73: gives each source the href markdown decodes for its link, a '
@@ -127,6 +127,35 @@ void main() {
         'fails on it', () {
       expect(hrefsOf('No links.\n'), isEmpty);
       expect(hrefsOf('[x](a.md)\n\n[a]:<b\\'), isNull);
+    });
+
+    test('R74: pairs the links of a footnote definition where it is written, '
+        'those of one no reference names taking none', () {
+      expect(
+        hrefsOf(
+          'See [a](../topics/doc_model.md).\n\n'
+          '[^1]: Also [b](other.md).\n',
+        ),
+        ['../topics/doc_model.md', null],
+      );
+      expect(
+        hrefsOf(
+          '[^1]: Also [b](other.md).\n\n'
+          'See [a](../topics/doc_model.md) and a note[^1].\n',
+        ),
+        ['other.md', '../topics/doc_model.md'],
+      );
+      expect(
+        hrefsOf(
+          'See [a](../topics/doc_model.md), x[^2] y[^1].\n\n'
+          '[^1]: [p](p.md)\n[^2]: [q](q.md)\n',
+        ),
+        ['../topics/doc_model.md', 'p.md', 'q.md'],
+      );
+      expect(hrefsOf('[^1]: n [b](other.md)\nx[^1] [c](d.md)\n'), [
+        'other.md',
+        'd.md',
+      ]);
     });
   });
 

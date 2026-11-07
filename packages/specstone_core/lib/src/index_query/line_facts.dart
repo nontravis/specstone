@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show holdsLinkSyntax, parseLinkFreeBody, parseMarkdown;
+    show holdsLinkSyntax, parseLinkFreeBody, parseMarkdownTree;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
@@ -97,19 +97,19 @@ final class LineFacts {
     // parse is the links and the anchors both; any other body never parses
     // its prose.
     final hasLinks = holdsLinkSyntax(body);
-    final linkNodes = hasLinks ? parseMarkdown(body) : null;
+    final linkTree = hasLinks ? parseMarkdownTree(body) : null;
     final links = !hasLinks
         ? noLinks
-        : linkNodes == null
+        : linkTree == null
         ? null
         : linkPlacesOf(
             body,
             docPath: docPath,
             firstLine: bodyStart + 1,
-            bodyNodes: linkNodes,
+            tree: linkTree,
           );
     if (links == null) warnings.add(markdownUnparsedWarning(docPath));
-    final anchorNodes = hasLinks ? linkNodes : parseLinkFreeBody(body);
+    final anchorNodes = hasLinks ? linkTree?.nodes : parseLinkFreeBody(body);
     return LineFacts(
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],

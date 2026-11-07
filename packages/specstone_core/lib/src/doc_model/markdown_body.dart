@@ -30,15 +30,42 @@ const maxMarkdownDepth = 1000;
 /// LP2 decides.
 List<Node>? parseMarkdown(String text) => parseMarkdownTree(text)?.nodes;
 
-/// The nodes `markdown` parses a text into and the link reference
-/// definitions it reads there, keyed by normalized label.
-typedef MarkdownTree = ({
-  List<Node> nodes,
-  Map<String, LinkReference> definitions,
-});
+/// Nodes `markdown` parses a text into, in source order, and the top-level
+/// footnote definitions among them that it drops (see [MarkdownTree]).
+typedef SourceOrderNodes = ({List<Node> nodes, Set<Node> dropped});
 
-/// Returns [parseMarkdown]'s nodes of [text] with the definitions the same
-/// parse reads, or null when that parse fails.
+/// What `markdown` parses a text into: the nodes it renders, the link
+/// reference definitions it reads, keyed by normalized label, and the nodes in
+/// source order.
+final class MarkdownTree {
+  new _(
+    this._text,
+    this.nodes,
+    this.definitions, {
+    required bool definesFootnote,
+  }) : _definesFootnote = definesFootnote;
+
+  final String _text;
+  final bool _definesFootnote;
+
+  /// The nodes [parseMarkdown] returns.
+  final List<Node> nodes;
+
+  final Map<String, LinkReference> definitions;
+
+  /// [nodes] with each top-level footnote definition where it is written.
+  ///
+  /// `markdown` moves each one a reference names into a trailing section, in
+  /// first-reference order, and drops the rest (`Document.parseLineList`).
+  /// Here every one stays in place, and the dropped ones are named, so a
+  /// reader in source order meets each link where the text holds it.
+  late final SourceOrderNodes inSourceOrder = _definesFootnote
+      ? _inSourceOrder(_text, nodes)
+      : (nodes: nodes, dropped: const {});
+}
+
+/// Returns the [MarkdownTree] of [text], or null when [parseMarkdown] fails on
+/// it.
 MarkdownTree? parseMarkdownTree(String text) {
   final Document document;
   final List<Node> nodes;
@@ -49,7 +76,65 @@ MarkdownTree? parseMarkdownTree(String text) {
     return null;
   }
   if (_depthOf(nodes) > maxMarkdownDepth) return null;
-  return (nodes: nodes, definitions: document.linkReferences);
+  return MarkdownTree._(
+    text,
+    nodes,
+    document.linkReferences,
+    definesFootnote: document.footnoteReferences.isNotEmpty,
+  );
+}
+
+/// Returns the nodes of [text] in source order, as `markdown` builds them
+/// before it moves its footnote definitions, or [rendered], its parse of
+/// [text], when that build throws.
+///
+/// The build is `Document.parseLineList` short of its footnote step: the block
+/// pass, then the inline pass on each node's unparsed content. A top-level
+/// footnote definition no reference names is dropped, as there.
+SourceOrderNodes _inSourceOrder(String text, List<Node> rendered) {
+  final Document document;
+  final List<Node> nodes;
+  try {
+    document = Document(extensionSet: ExtensionSet.gitHubFlavored);
+    nodes = BlockParser(
+      LineSplitter.split(text).map(Line.new).toList(),
+      document,
+    ).parseLines();
+    _parseInline(document, nodes);
+  } on Object {
+    // The same text parsed once; a throw here leaves the rendered order.
+    return (nodes: rendered, dropped: const {});
+  }
+  final references = document.footnoteReferences;
+  return (
+    nodes: nodes,
+    dropped: Set.identity()
+      ..addAll([
+        for (final node in nodes)
+          if (node is Element &&
+              node.tag == 'li' &&
+              references.containsKey(node.footnoteLabel) &&
+              (references[node.footnoteLabel] ?? 0) == 0)
+            node,
+      ]),
+  );
+}
+
+/// Runs [document]'s inline pass on the unparsed content of [nodes], as
+/// `Document.parseLineList` does.
+void _parseInline(Document document, List<Node> nodes) {
+  for (var i = 0; i < nodes.length; i++) {
+    final node = nodes[i];
+    if (node is UnparsedContent) {
+      final inline = document.parseInline(node.textContent);
+      nodes
+        ..removeAt(i)
+        ..insertAll(i, inline);
+      i += inline.length - 1;
+    } else if (node is Element && node.children != null) {
+      _parseInline(document, node.children!);
+    }
+  }
 }
 
 /// Whether [body] holds the least syntax a markdown link needs: an inline

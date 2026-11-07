@@ -225,12 +225,12 @@ final class _LinkSources {
 
   /// The href `markdown` gives each of [_all], by index; null when none is
   /// known (see [sourceHrefsOf]).
-  late final List<String>? _hrefs = sourceHrefsOf(_body, _all);
+  late final List<String?>? _hrefs = sourceHrefsOf(_body, _all);
 
   /// Returns the one link that spans column [start] to column [end] of file
   /// line [line], as the link rule reads it, with the href `markdown` gives
-  /// it, null when that is unknown; null when no link with a destination
-  /// spans them.
+  /// it, null when it gives none or that is unknown; null when no link with a
+  /// destination spans them.
   ({String? href})? linkSpanning(
     int line, {
     required int start,

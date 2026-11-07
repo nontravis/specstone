@@ -329,6 +329,16 @@ void main() {
     expect(
       targetsIn(
         await reportOf(
+          '- B: see [x](MISSING.md)\n- C: see [x](API.md)\n\n'
+          '[^1]: Also [y](other.md).\n',
+        ),
+      ),
+      ['[x](MISSING.md)'],
+    );
+
+    expect(
+      targetsIn(
+        await reportOf(
           '- A: see [a](API.md) and [b](nope.md)\n'
           '- B: see [a](API.md) and more words\n'
           '- C: see [a](API.md) ## Lifecycle\n'

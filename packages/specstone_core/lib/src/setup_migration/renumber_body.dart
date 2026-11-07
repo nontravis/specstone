@@ -54,7 +54,7 @@ final class RenumberBodyRewrite {
 
   /// The href `markdown` gives each link source of the body, null when that
   /// is unknown (see [sourceHrefsOf]).
-  late final List<String>? _hrefs = sourceHrefsOf(_body, _scan.sources);
+  late final List<String?>? _hrefs = sourceHrefsOf(_body, _scan.sources);
 
   late final List<int> _lineStarts = _lineStartsOf(_body);
 
@@ -258,14 +258,17 @@ final class RenumberBodyRewrite {
   ];
 
   /// The links to a doc of the run, by file line, each at its column: each
-  /// resolves the href `markdown` gives it, none when that is unknown.
+  /// resolves the href `markdown` gives it, none when it gives none or that is
+  /// unknown.
   Map<int, List<_Citation>> _linkCitationsOf() {
     final citations = <int, List<_Citation>>{};
     final hrefs = _hrefs;
     if (hrefs == null) return citations;
     for (final (index, (:offset, :line, shown: _, end: _, angle: _))
         in _scan.sources.indexed) {
-      final docPath = _index.docAtPath(hrefs[index], _doc.docPath);
+      final href = hrefs[index];
+      if (href == null) continue;
+      final docPath = _index.docAtPath(href, _doc.docPath);
       if (docPath == null) continue;
       final at = offset - _lineStarts[line - 1 - _firstLine];
       (citations[line] ??= []).add((at: at, docPaths: [docPath]));
