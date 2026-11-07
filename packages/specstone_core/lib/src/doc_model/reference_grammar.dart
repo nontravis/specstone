@@ -382,6 +382,9 @@ sealed class LinkLabel {
   const new();
 
   String get written;
+
+  /// The link the label names, which an entry and a link match by.
+  String get identity => written;
 }
 
 final class ScenarioLabel extends LinkLabel {
@@ -391,6 +394,16 @@ final class ScenarioLabel extends LinkLabel {
 
   @override
   String get written => ref.label;
+
+  /// `S<value>` or `<story Name>#S<value>`, so `a/b#S09` names `a/b#S9`
+  /// (W9); a lettered number as written.
+  @override
+  String get identity {
+    final scenario = ref.scenario;
+    if (scenario == null) return written;
+    final storyName = ref.storyName;
+    return storyName == null ? 'S$scenario' : '$storyName#S$scenario';
+  }
 }
 
 /// An id `NFR-`, letters, digits, as `NFR-P01`.
@@ -421,6 +434,12 @@ LinkLabel? readLinkLabel(String text) {
   if (_slugCount(text) >= 2) return FrRefLabel(text);
   return null;
 }
+
+/// Returns the [LinkLabel.identity] of [label], or [label] as written when
+/// it reads as no link label.
+///
+/// Every reader that matches a `confirmed` entry to its link compares this.
+String linkIdentityOf(String label) => readLinkLabel(label)?.identity ?? label;
 
 bool _isNfrId(String text) {
   const open = 'NFR-';

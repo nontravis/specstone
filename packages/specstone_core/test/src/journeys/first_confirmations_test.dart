@@ -220,6 +220,26 @@ void main() {
   });
 
   test(
+    "f10/us01/fr05/e04: an entry names its link by the scenario number's "
+    'value, so a held S01 entry gets no S1 beside it, for step S1 or S01',
+    () async {
+      final root = await _project();
+      const held = '  - $_story#S01 aaaaaaaaaaaa\n';
+
+      for (final step in [_step(1, 1), '### 1. Step 1\nstep: $_story S01\n']) {
+        final text = _new(
+          root,
+          text: '---\nconfirmed:\n$held---\n\n${_body([step])}',
+        );
+
+        expect(text, contains(held));
+        expect(_count(text, '$_story#S1 '), 0, reason: step);
+        _file(root).deleteSync();
+      }
+    },
+  );
+
+  test(
     'f10/us01/fr05: draft is inserted above persona, confirmed below it, and '
     'stdin is otherwise kept',
     () async {

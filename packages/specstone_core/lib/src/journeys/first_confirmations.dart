@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/confirmed_list.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
@@ -27,14 +28,16 @@ String withFirstConfirmations(
   final doc = Doc.parse(lfText);
   final list = readConfirmedList(doc);
   if (list == null) return lfText;
-  final named = {...list.labels};
+  final named = {for (final label in list.labels) linkIdentityOf(label)};
   final added = <String>[];
   for (final step in stepsOfDoc(doc, docType).steps) {
     final target = step.target;
-    if (target == null || named.contains(target.label)) continue;
+    if (target == null) continue;
+    final identity = linkIdentityOf(target.label);
+    if (named.contains(identity)) continue;
     final block = scenarioBlockOf(index, target);
     if (block == null) continue;
-    named.add(target.label);
+    named.add(identity);
     added.add('${target.label} ${fingerprintOf(block)}');
   }
   if (added.isEmpty) return lfText;

@@ -371,6 +371,21 @@ void main() {
     });
   });
 
+  group('linkIdentityOf', () {
+    test("a scenario label is its story Name and the number's value", () {
+      expect(linkIdentityOf('S06'), 'S6');
+      expect(linkIdentityOf('a/b#S09'), 'a/b#S9');
+      expect(linkIdentityOf('a/b#S9'), 'a/b#S9');
+    });
+
+    test('a lettered scenario, an NFR, an FR ref, and other text stay as '
+        'written', () {
+      for (final label in ['a/b#S6a', 'S06a', 'NFR-P01', 'login/a', 'x']) {
+        expect(linkIdentityOf(label), label);
+      }
+    });
+  });
+
   group('readLinkTarget', () {
     void check(
       String href, {
