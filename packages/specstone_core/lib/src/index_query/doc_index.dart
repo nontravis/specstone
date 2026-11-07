@@ -77,7 +77,7 @@ final class DocIndex {
     return chain;
   }
 
-  /// Returns every doc [address] names, read as a name first, then as a path.
+  /// Returns every doc [address] names, read as a path first, then as a name.
   ///
   /// - A name: bare, `<doc type>:<name>`, or an untyped doc's DocPath.
   /// - A path, tried in order: a DocPath, `docs/` and a DocPath, a file path
