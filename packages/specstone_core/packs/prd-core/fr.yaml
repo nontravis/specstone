@@ -16,7 +16,7 @@ fields:
     list: true
     required: true
     description: |-
-      Names the source of the requirement as `S<N>`, Scenario N of the parent story, or `self-derived`.
+      Names the source of the requirement as `S<N>`, Scenario N of the parent story; `<story Name>#S<N>`, Scenario N of a sibling story of the same feature; or `self-derived`.
       Trace each FR to a scenario that covers a nominal or an off-nominal case.
       A self-derived FR needs the parent owner's agreement, or it is gold plating: delete it.
   - id: verify_method

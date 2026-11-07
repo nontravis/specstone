@@ -172,6 +172,25 @@ void main() {
       ]);
     });
 
+    test('f04/us03/fr01: guide fr --json describes the three traced_from '
+        'forms', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final tracedFrom = (json['fields']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((f) => f['id'] == 'traced_from');
+      expect(
+        tracedFrom['description'],
+        allOf(
+          contains('`S<N>`'),
+          contains('`<story Name>#S<N>`'),
+          contains('sibling story'),
+          contains('`self-derived`'),
+        ),
+      );
+    });
+
     test('f03/us06/s3, f03/us06/fr01: guide feature --json gives the prds '
         'path and no parent', () async {
       final runner = await runnerIn(await prdCoreProject());
