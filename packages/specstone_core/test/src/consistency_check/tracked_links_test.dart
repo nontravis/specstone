@@ -26,6 +26,7 @@ void main() {
     final padded = loginScenario2.replaceFirst('Scenario 2', 'Scenario 02');
     for (final extra in [
       edit(loginFr, [('  - S2\n', '  - S02\n'), ('  - S2 ', '  - S02 ')]),
+      edit(loginFr, [('  - S2 ', '  - S02 ')]),
       {
         ...doc(loginStory, loginScenario2, padded),
         ...edit(loginFr, [
@@ -49,6 +50,22 @@ void main() {
     expect(
       report.findings.single.toJson(),
       allOf(containsPair('link', 'S02'), containsPair('block', 'Scenario 2')),
+    );
+  });
+
+  test('f04/us04/fr01: traces S2 and S02 are one link, so an edit of Scenario 2 raises one suspect', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(loginStory, loginScenario2, edited),
+          ...fr('  - S2\n', '  - S2\n  - S02\n'),
+        },
+      ),
+    );
+
+    expect(
+      report.findings.single.toJson(),
+      allOf(containsPair('kind', 'suspect'), containsPair('link', 'S2')),
     );
   });
 
@@ -537,6 +554,31 @@ void main() {
 
       final bare = await check(journey([stepOne, stepTwo]));
       expect(spots(bare, FindingKind.unconfirmed), hasLength(1));
+    });
+
+    test("f04/us04/fr01: a journey entry names its scenario by story Name and the number's value, so "
+        'login/email_login#S01 confirms a step on S1 or S01 and is no stale entry', () async {
+      const padded = 'login/email_login#S01';
+      for (final step in [
+        stepOne,
+        '### 1. Open\n\nstep: login/email_login S01',
+      ]) {
+        final report = await check(
+          journey([step], confirmed: ['$padded ${fp(loginScenario1)}']),
+        );
+        expect(report.findings, isEmpty, reason: step);
+      }
+
+      final changed = await check(
+        journey([stepOne], confirmed: ['$padded ${fp(loginScenario2)}']),
+      );
+      expect(
+        changed.findings.single.toJson(),
+        allOf(
+          containsPair('kind', 'suspect'),
+          containsPair('recorded', fp(loginScenario2)),
+        ),
+      );
     });
 
     test('f04/us04/fr03/e07: an entry for a scenario no step names is confirmed_entry_stale', () async {

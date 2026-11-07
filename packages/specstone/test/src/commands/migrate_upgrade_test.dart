@@ -994,6 +994,11 @@ void main() {
         final blockFingerprint = fingerprintOf(
           '$lettered\n\nSee [it](#$anchor), S6a.',
         );
+        const paddedStory =
+            '# E\n\n## Acceptance Criteria\n\n'
+            '### Scenario 01 — [happy] one\n\n- **Given** g\n\n'
+            '### Scenario 08 — [error] eight\n\n- **Given** g\n\n'
+            '$lettered\n';
         final docs = {
           'docs/prds/PROJECT.md':
               '# P\n\n## Project vision\n\n### PV-01 — One\n\n'
@@ -1019,6 +1024,10 @@ void main() {
           'docs/prds/journeys/onboard/JOURNEY.md':
               '---\nconfirmed:\n  - a/b#S6a $blockFingerprint\n---\n'
               '# Onboard\n\n## Steps\n\n### 1. Start\nstep: a/b S6a\n',
+          'docs/prds/features/f01_a/us02_e/USER_STORY.md': paddedStory,
+          'docs/prds/journeys/padded/JOURNEY.md':
+              '---\nconfirmed:\n  - a/e#S6a ${fingerprintOf(lettered)}\n---\n'
+              '# Padded\n\n## Steps\n\n### 1. Start\nstep: a/e S6a\n',
           topicPath:
               '# Doc model\n\n## Purpose\n\n'
               '[RULE-7a](https://example.com/RULE-7a.md) and '
@@ -1063,6 +1072,10 @@ void main() {
         expect(
           before,
           contains('reference_malformed specs/topics/doc_model.md'),
+        );
+        expect(
+          _read(root, 'docs/prds/journeys/padded/JOURNEY.md'),
+          allOf(contains('  - a/e#S09 '), contains('step: a/e S09\n')),
         );
         final after = await findings(root, home);
         expect(after.difference(before), isEmpty);

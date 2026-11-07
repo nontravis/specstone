@@ -55,7 +55,8 @@ final class TrackedLink {
   final String? fingerprint;
 }
 
-/// Returns the links [doc] tracks, one per label, in trace order (INV-5).
+/// Returns the links [doc] tracks, one per link identity, in trace order
+/// (INV-5): `S6` and `S06` are one link.
 ///
 /// An `fr` tracks its `S<N>` and sibling `<story Name>#S<N>` trace
 /// entries (a lettered number yields a link with no upstream), an `nf` of
@@ -72,8 +73,19 @@ List<TrackedLink> trackedLinksOf(CheckContext context, IndexedDoc doc) {
   final seen = <String>{};
   return [
     for (final link in links)
-      if (seen.add(link.label)) link,
+      if (seen.add(_identityOf(link.label))) link,
   ];
+}
+
+// A scenario label names its link by story Name and the number's value, so
+// the entry `a/b#S09` names the link `a/b#S9` (W9); any other label as written.
+String _identityOf(String label) {
+  final read = readLinkLabel(label);
+  if (read is! ScenarioLabel) return label;
+  final key = scenarioKeyOf(read.ref);
+  if (key == null) return label;
+  final story = read.ref.storyName;
+  return story == null ? key : '$story#$key';
 }
 
 Iterable<TrackedLink> _scenarioLinks(
@@ -188,11 +200,12 @@ typedef _Entry = ({String fingerprint, int line});
   return (label: label.written, fingerprint: fingerprint);
 }
 
-// The first well-formed entry naming [label] is its entry (PD19).
+// The first well-formed entry naming the link of [label] is its entry (PD19).
 _Entry? _entryOf(DocLines lines, String label) {
+  final identity = _identityOf(label);
   for (final item in lines.entriesOf(_confirmedKey)) {
     final entry = _readEntry(item.value);
-    if (entry != null && entry.label == label) {
+    if (entry != null && _identityOf(entry.label) == identity) {
       return (fingerprint: entry.fingerprint, line: item.line);
     }
   }
@@ -275,7 +288,9 @@ Iterable<Finding> checkConfirmedEntries(
   IndexedDoc doc,
 ) sync* {
   if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return;
-  final tracked = {for (final link in trackedLinksOf(context, doc)) link.label};
+  final tracked = {
+    for (final link in trackedLinksOf(context, doc)) _identityOf(link.label),
+  };
   for (final item in context.linesOf(doc).entriesOf(_confirmedKey)) {
     // A block map item's span ends with its line break.
     final text = item.text.trim();
@@ -293,7 +308,7 @@ Iterable<Finding> checkConfirmedEntries(
       continue;
     }
     final label = entry.label;
-    if (tracked.contains(label)) continue;
+    if (tracked.contains(_identityOf(label))) continue;
     yield context.finding(
       doc,
       FindingKind.confirmedEntryStale,
