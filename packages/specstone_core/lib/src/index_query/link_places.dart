@@ -148,10 +148,11 @@ typedef _PlacedHref = ({
 /// the path it resolved to, and its class.
 ///
 /// A link to a `.md` doc other than [docPath] is a doc link; a link to
-/// [docPath] itself is a self link, a bare `#anchor` included; a link whose
-/// target the grammar cannot read is an unreadable link, its target the href
-/// as written; an empty path with no anchor, a web address, another scheme,
-/// and a rooted path are left out; every other relative link is a file link.
+/// [docPath] itself is a self link, a bare `#anchor` and an empty path with
+/// no anchor (`[x]()`, `[x](?q)`) included; a link whose target the grammar
+/// cannot read is an unreadable link, its target the href as written; a web
+/// address, another scheme, and a rooted path are left out; every other
+/// relative link is a file link.
 ///
 /// Each href resolves exactly once: the caller reads the path from here
 /// instead of resolving again.

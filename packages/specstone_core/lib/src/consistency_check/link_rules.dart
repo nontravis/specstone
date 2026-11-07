@@ -8,6 +8,9 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
+/// How a `link_self` message shows an empty link target, `[x]()`.
+const _emptyTarget = '(empty)';
+
 /// One string `doc_ref` value of a doc, with its field and its file line.
 typedef _DocRefValue = ({MergedField field, String value, int line});
 
@@ -150,7 +153,9 @@ Iterable<Finding> _selfLinks(CheckContext context, IndexedDoc doc) sync* {
       doc,
       FindingKind.linkSelf,
       line: place.line,
-      message: 'link target ${place.shown} names the doc that holds it',
+      message:
+          'link target ${place.shown.isEmpty ? _emptyTarget : place.shown} '
+          'names the doc that holds it',
       keys: {'target': place.shown},
     );
   }

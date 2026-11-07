@@ -40,6 +40,20 @@ void main() {
       ]);
     });
 
+    test('resolve_doc_links E18: an empty path with no anchor, [x]() or '
+        '[x](?q), is a self link with no anchor', () {
+      final places = linkPlacesOf(
+        '[a]() and [b](?q)\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+
+      expect(places.selfLinks, [
+        (target: 'x.md', line: 1, shown: '', anchor: null),
+        (target: 'x.md', line: 1, shown: '?q', anchor: null),
+      ]);
+    });
+
     test('consistency_check/find_broken_pointers/resolve_doc_links E16: the '
         'links markdown makes for a footnote are no link the author wrote', () {
       final footnoteOnly = linkPlacesOf(

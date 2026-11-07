@@ -606,6 +606,19 @@ void main() {
       ]);
     });
 
+    test('consistency_check/find_broken_pointers/resolve_doc_links E18: an empty link target is link_self, its '
+        'message showing (empty) for the target', () async {
+      final findings = pointersOf(
+        await writeCheckProject(extra: gnfrLinking('[TBD]() here.')),
+      );
+      expect(textOf(findings), [
+        '$gnfrDoc:12: link_self: link target (empty) names the doc that holds it',
+      ]);
+      expect(keysOf(findings), [
+        {'target': ''},
+      ]);
+    });
+
     test('consistency_check/find_broken_pointers/resolve_doc_links E19: a doc_ref value one list field holds a '
         'second time is doc_ref_duplicate at the second value; another field is its own list', () async {
       const checkout = 'prds/features/f02_checkout/FEATURE.md';
