@@ -64,6 +64,16 @@ DocText readDocText(List<int> bytes) {
   );
 }
 
+/// Returns the file of [docPath] under [docsRoot], possibly leaving it.
+///
+/// A path is joined as text: a URI reads `#` in a doc name as a fragment.
+File docFileOf(Directory docsRoot, String docPath) {
+  final root = docsRoot.path;
+  final separator = Platform.pathSeparator;
+  final base = root.endsWith(separator) ? root : '$root$separator';
+  return File('$base${docPath.split('/').join(separator)}');
+}
+
 /// Reads the doc [file] at [docPath] into LF text, or returns null when its
 /// bytes are not UTF-8 text.
 ///

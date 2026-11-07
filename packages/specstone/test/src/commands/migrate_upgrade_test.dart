@@ -216,6 +216,22 @@ void main() {
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
 
+    test('a docs-root file named with # is read as a file name, not a URI '
+        'fragment', () async {
+      final home = await _home();
+      final root = await _project(
+        files: {
+          _runbookPath: _runbookDoc,
+          'docs/prds/notes#draft.md': '# Notes\n',
+        },
+      );
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, endsWith('dry run: nothing written\n'));
+    });
+
     test('f06/us02/s2: every doc of the type and the override carry the new '
         'section name, and the pin moves', () async {
       final home = await _home();

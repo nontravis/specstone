@@ -39,8 +39,24 @@ void main() {
     expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
   });
 
+  test('a docs-root file named with # is read as a file name, not a URI '
+      'fragment', () async {
+    final root = await writeTree({
+      ...acmeLegacy,
+      'docs/prds/notes#draft.md': '# Notes\n',
+    });
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['migrate', '--dry-run']),
+      0,
+      reason: err.toString(),
+    );
+    expect(out.toString(), endsWith('dry run: nothing written\n'));
+  });
+
   test(
-    'f06/us01/fr01/e04: nothing to migrate, with and without --dry-run',
+    'f06/us01/fr01/e04:nothing to migrate, with and without --dry-run',
     () async {
       final root = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),

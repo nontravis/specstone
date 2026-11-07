@@ -247,10 +247,7 @@ Map<String, DocText> _originalsOf(Directory docsRoot, List<String> docPaths) =>
     {
       for (final docPath in docPaths)
         if (docPath.endsWith('.md'))
-          docPath: ?readDocFile(
-            File.fromUri(docsRoot.uri.resolve(docPath)),
-            docPath: docPath,
-          ),
+          docPath: ?readDocFile(docFileOf(docsRoot, docPath), docPath: docPath),
     };
 
 /// Returns the code root of a created config: [linkFolder] from [root] when
@@ -427,10 +424,7 @@ void _rewriteRefs(
 /// Whether [path], from [docsRoot] and possibly leaving it, names a file or
 /// folder of the legacy tree.
 bool _existsIn(Directory docsRoot, String path) =>
-    FileSystemEntity.typeSync(
-      '${docsRoot.path}${Platform.pathSeparator}'
-      '${path.split('/').join(Platform.pathSeparator)}',
-    ) !=
+    FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
     FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and keeps every

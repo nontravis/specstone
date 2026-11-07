@@ -8,6 +8,8 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
+import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
+    show docFileOf;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
@@ -121,18 +123,17 @@ int _scaffold(Directory root, InitRequest request) {
     homeDirectory: request.homeDirectory,
   );
   final agentPlan = _planAgentFiles(root, set);
+  final docsRoot = Directory.fromUri(root.uri.resolve('docs/'));
   for (final docType in singularDocTypes(set)) {
-    final file = File.fromUri(root.uri.resolve('docs/${docType.path}'));
+    final path = docType.path;
+    if (path == null) continue;
+    final file = docFileOf(docsRoot, path);
     if (file.existsSync()) {
-      request.out.writeln('kept docs/${docType.path}: exists');
+      request.out.writeln('kept docs/$path: exists');
       continue;
     }
-    _writeNew(
-      file,
-      skeletonOf(docType, docType.id),
-      shown: 'docs/${docType.path}',
-    );
-    request.out.writeln('created docs/${docType.path} (draft)');
+    _writeNew(file, skeletonOf(docType, docType.id), shown: 'docs/$path');
+    request.out.writeln('created docs/$path (draft)');
   }
   _writeAgentFiles(root, agentPlan, request.out);
   _writeNew(
