@@ -150,7 +150,7 @@ void main() {
     expect((jsonDecode(json.out.toString()) as Map)['warnings'], hasLength(1));
   });
 
-  test('f04/us01/fr01/e08, f04/us01/fr01/e10: a pin fault exits 78 before any rule; an unknown option or two targets '
+  test('f04/us01/fr01/e08, f04/us01/fr01/e19: a pin fault exits 78 before any rule; an unknown option or two targets '
       'exit 64', () async {
     final pinned = readRunner(
       await writeCheckProject(
