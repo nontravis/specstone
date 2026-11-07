@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
@@ -27,7 +28,9 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     for (final (:line, :entry, :match, section: _)
         in matchesBySection[i] ?? const <BannedMatch>[]) {
       final banned = entries[entry];
-      if (banned.scope == PatternScope.code && _namesFolders(context, match)) {
+      if (banned.scope == PatternScope.code &&
+          (_namesFolders(context, match) ||
+              _inReferenceSpan(context, doc, line, match))) {
         continue;
       }
       yield context.finding(
@@ -61,3 +64,22 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
 /// Other scopes read prose, where a folder name is ordinary text.
 bool _namesFolders(CheckContext context, String matched) =>
     matched.split('/').every(context.folderNames.contains);
+
+/// Whether every code span of the 1-based [line] that holds [matched] is one
+/// the reference grammar reads as a doc address with no lookup (R62).
+///
+/// A stored match names no span, so a match two spans hold stays a hit unless
+/// both are references.
+bool _inReferenceSpan(
+  CheckContext context,
+  IndexedDoc doc,
+  int line,
+  String matched,
+) {
+  final holding = SearchLine(
+    context.linesOf(doc).lines[line - 1],
+    line,
+  ).code.where((span) => span.contains(matched));
+  return holding.isNotEmpty &&
+      holding.every((span) => readDocAddress(span).isReferenceWithoutLookup);
+}

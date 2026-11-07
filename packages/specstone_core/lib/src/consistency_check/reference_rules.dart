@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -15,6 +17,8 @@ const _separator = '/';
 const _seeMarker = ' see ';
 const _notApplicable = 'N/A — ';
 const _backtick = '`';
+const _trailingPunctuation = '.,;:!?';
+final _markdownLink = RegExp(r'^\[[^\]]*\]\(([^)]*)\)$');
 const _templatesFolder = '.specstone/templates';
 const _referenceKey = 'reference';
 const _addKey = 'add';
@@ -97,6 +101,7 @@ Iterable<Finding> _unresolvedConcerns(
       headerKey(section.headerLine.trimLeft().substring(2)),
   };
   final folder = _folderOf(context, doc);
+  final anchors = context.contentOf(doc).lineFacts.anchors;
   for (var i = 0; i < held.length; i++) {
     if (context.templateSectionAt(doc, i)?.id != _concernsSection) {
       continue;
@@ -105,7 +110,7 @@ Iterable<Finding> _unresolvedConcerns(
       final target = line.fenced ? null : _seeTarget(line.text);
       if (target == null) continue;
       if (headers.contains(headerKey(target)) ||
-          File('$folder/$target').existsSync()) {
+          _seeResolves(target, folder, anchors)) {
         continue;
       }
       yield context.finding(
@@ -119,19 +124,49 @@ Iterable<Finding> _unresolvedConcerns(
   }
 }
 
-/// Returns the text after the last ` see ` of [line], or null for a line that
-/// is `N/A — ` or holds no ` see `.
+/// Returns the text after the last ` see ` of [line], less trailing
+/// punctuation and one pair of backticks, or null for a line that is `N/A — `
+/// or holds no ` see `.
 String? _seeTarget(String line) {
   if (line.contains(_notApplicable)) return null;
   final at = line.lastIndexOf(_seeMarker);
   if (at < 0) return null;
-  var target = line.substring(at + _seeMarker.length).trim();
+  var target = _withoutTrailingPunctuation(
+    line.substring(at + _seeMarker.length).trim(),
+  );
   if (target.length > 1 &&
       target.startsWith(_backtick) &&
       target.endsWith(_backtick)) {
     target = target.substring(1, target.length - 1);
   }
   return target.isEmpty ? null : target;
+}
+
+String _withoutTrailingPunctuation(String text) {
+  var end = text.length;
+  while (end > 0 && _trailingPunctuation.contains(text[end - 1])) {
+    end--;
+  }
+  return text.substring(0, end);
+}
+
+/// Whether [target], a `see` target that is no section header, names a file
+/// of [folder] or an anchor of the doc (R63).
+///
+/// The target is a markdown link `[text](href)` or a bare path or `#anchor`;
+/// [anchors] is null when the anchor parse failed, and then any anchor holds.
+bool _seeResolves(String target, String folder, DocAnchors? anchors) {
+  final href = _markdownLink.firstMatch(target)?.group(1) ?? target;
+  if (readLinkTarget(href) case RelativeLink(:final segments, :final anchor)) {
+    if (segments.isEmpty) {
+      return anchor == null ||
+          anchor.isEmpty ||
+          anchors == null ||
+          anchors.holds(anchor);
+    }
+    return File('$folder/${segments.join(_separator)}').existsSync();
+  }
+  return false;
 }
 
 /// Returns each string `doc` value of the reference entries of [file], with

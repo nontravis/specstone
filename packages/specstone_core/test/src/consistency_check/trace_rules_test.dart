@@ -175,6 +175,40 @@ void main() {
     );
   });
 
+  test(
+    'f04/us03/fr02/e12: an "As an" role line reads as an "As a" one',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginStory,
+            '- **As a** Agent who signs in',
+            '- **As an** Intruder who signs in',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.roleUnresolved), [
+        '$loginStory:13: role_unresolved',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.roleUnresolved)
+            .toJson()['role'],
+        'Intruder',
+      );
+      final known = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginStory,
+            '- **As a** Agent who signs in',
+            '- **As an** Agent who signs in',
+          ),
+        ),
+      );
+      expect(spots(known, FindingKind.roleUnresolved), isEmpty);
+    },
+  );
+
   test('f04/us03/s5, f04/us03/fr02/e04: a story goal its feature does not cite is vision_goal_widened', () async {
     final report = checkOf(
       await writeCheckProject(

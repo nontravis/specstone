@@ -180,7 +180,8 @@ void main() {
     );
     expect(
       found.map((f) => f.toJson()['match']),
-      unorderedEquals(['not_a_folder', 'f01_login/not_a_folder']),
+      // `f01_login/not_a_folder` is a 2-slug Name: the grammar drops it (E08).
+      ['not_a_folder'],
     );
 
     final allScope = await _findings(
@@ -202,6 +203,73 @@ void main() {
     // The shipped doc_citation entry also fires here; only `tree` is ours.
     final own = allScope.where((f) => f.toJson()['pattern'] == 'tree');
     expect(own.map((f) => f.toJson()['match']), ['docs/superpowers']);
+  });
+
+  test('f04/us01/fr08/e08: a code span the grammar reads as a doc address with no lookup is no hit, under the '
+      'shipped code_identifier and a project in: code entry', () async {
+    const kept = [
+      'parseDoc()',
+      'doc_model.dart',
+      'user_id',
+      'prds/features/f01_login/FEATURE.md',
+    ];
+    const dropped = [
+      'affiliate_module/profile',
+      'fr:index_query/read_doc_section/resolve_doc_name',
+      'feature:index_query',
+      'ai:ghost',
+    ];
+    String lineOf(List<String> spans) =>
+        [for (final s in spans) '`$s`'].join(' and ');
+
+    final story = doc(
+      loginStory,
+      '- **so that** I reach my work',
+      '- **so that** I reach my work\n${lineOf([...dropped.take(3), ...kept])}',
+    );
+    final shipped = await _findings('sections: []\n', edits: story);
+    expect(
+      shipped
+          .where((f) => f.toJson()['pattern'] == 'code_identifier')
+          .map((f) => f.toJson()['match']),
+      unorderedEquals(kept),
+    );
+
+    final project = await _findings(
+      _banned(r'''
+      - id: any_code
+        pattern: '\S+'
+        message: no code
+        in: code
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse ${lineOf([...dropped, ...kept])}.',
+      ),
+    );
+    expect(
+      project
+          .where((f) => f.toJson()['pattern'] == 'any_code')
+          .map((f) => f.toJson()['match']),
+      unorderedEquals(kept),
+    );
+
+    final allScope = await _findings(
+      _banned('''
+      - id: any_all
+        pattern: 'affiliate_module/profile'
+        message: all
+        in: all
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse ${lineOf(dropped)}.',
+      ),
+    );
+    expect(
+      allScope.where((f) => f.toJson()['pattern'] == 'any_all'),
+      hasLength(1),
+    );
   });
 
   test('f04/us01/fr08, f04/nfr-p03, s03/inv2: an edited pattern applies on the next check over the same index', () async {

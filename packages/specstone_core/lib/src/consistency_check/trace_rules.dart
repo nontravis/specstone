@@ -21,7 +21,7 @@ const _personaType = 'persona';
 const _storyType = 'user_story';
 const _roleKey = 'role';
 const _idKey = 'id';
-const _asAPrefix = '- **As a** ';
+const _asPrefixes = ['- **As a** ', '- **As an** '];
 const _whoSeparator = ' who ';
 const _storyVisionKeys = ['vision', 'goals'];
 const _apiType = 'api';
@@ -156,19 +156,20 @@ Iterable<Finding> _personaRole(CheckContext context, IndexedDoc doc) sync* {
   yield* _unresolvedRole(context, doc, role, line);
 }
 
+String? _asPrefixOf(String line) =>
+    _asPrefixes.where(line.startsWith).firstOrNull;
+
 Iterable<Finding> _storyRole(CheckContext context, IndexedDoc doc) sync* {
   final lines = context.linesOf(doc);
-  final asA = lines.lines.indexed
-      .where(
-        (entry) =>
-            !lines.isFenced(entry.$1 + 1) && entry.$2.startsWith(_asAPrefix),
-      )
-      .firstOrNull;
-  if (asA == null) return;
-  final text = asA.$2.substring(_asAPrefix.length);
-  final who = text.indexOf(_whoSeparator);
-  final role = (who < 0 ? text : text.substring(0, who)).trim();
-  yield* _unresolvedRole(context, doc, role, asA.$1 + 1);
+  for (final (index, line) in lines.lines.indexed) {
+    final prefix = _asPrefixOf(line);
+    if (prefix == null || lines.isFenced(index + 1)) continue;
+    final text = line.substring(prefix.length);
+    final who = text.indexOf(_whoSeparator);
+    final role = (who < 0 ? text : text.substring(0, who)).trim();
+    yield* _unresolvedRole(context, doc, role, index + 1);
+    return;
+  }
 }
 
 Iterable<Finding> _unresolvedRole(
