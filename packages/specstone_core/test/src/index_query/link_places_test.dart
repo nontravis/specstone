@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:specstone_core/src/doc_model/markdown_body.dart'
+    show parseMarkdownTree;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
@@ -158,6 +160,30 @@ void main() {
       ]);
     });
 
+    test('R74: reads a footnote definition as the block markdown makes it: '
+        'it ends a paragraph, ends at a block line, and takes an indented one '
+        'after a blank', () {
+      expect(hrefsOf('[^1]: n\n[ss]: z.md\n\nx [q][ẞ] [a](a.md)\n'), [
+        'z.md',
+        'a.md',
+      ]);
+      expect(hrefsOf('x [a](a.md "t\n[^1]: u") [c](c.md)\n\ny[^1]\n'), [
+        'c.md',
+      ]);
+      expect(hrefsOf('[^1]: n\n\n    [c](c.md)\n\n[d](d.md) y[^1]\n'), [
+        'c.md',
+        'd.md',
+      ]);
+    });
+
+    test('R74: reads a footnote reference in link text as markdown does: a '
+        "[^1] turns the link off, an image's ![^1] keeps it", () {
+      expect(hrefsOf('x [s [^1]](b.md) [a](a.md)\n\n[^1]: n\n'), ['a.md']);
+      expect(hrefsOf('x [s ![^1]](b.md)\n\n[^1]: n\n'), ['b.md']);
+      expect(hrefsOf('x [s [q][^1]](b.md)\n\n[^1]: n\n'), <String>[]);
+      expect(hrefsOf('x [s [^2]](b.md)\n\n[^1]: n\n'), ['b.md']);
+    });
+
     test('R73: reads a reference link where markdown folds its label to a '
         'definition label, and only there', () {
       String body(String reference, String definition) =>
@@ -223,6 +249,21 @@ void main() {
   group('linkPlacesOf', () {
     List<LinkPlace> placesOf(String body) =>
         linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!.docLinks;
+
+    test('R74: says whether the scan and markdown list the same links', () {
+      const body = '[^1]: [b](b.md)\n\n[a](a.md) [q][ẞ]\n\n[ss]: c.md\n';
+      bool agreeOn(String body, {String? parsed}) => linkPlacesOf(
+        body,
+        docPath: 'x.md',
+        firstLine: 1,
+        tree: parsed == null ? null : parseMarkdownTree(parsed),
+      )!.readersAgree;
+
+      expect(agreeOn(body), isTrue);
+      expect(agreeOn('No links.\n'), isTrue);
+      // A tree of other text stands in for a markdown reading the scan misses.
+      expect(agreeOn(body, parsed: '[a](a.md)\n'), isFalse);
+    });
 
     test('f04/us02/fr04/e15-e16, e21-e22, PS-R3: each link class carries its '
         'line, shown text, and decoded anchor', () {

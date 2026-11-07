@@ -14,6 +14,21 @@ const _tilde = 0x7E;
 String markdownUnparsedWarning(String docPath) =>
     '$docPath: the markdown parser failed; its links are not indexed';
 
+/// Returns the warning [links], the links of the doc at [docPath], give it:
+/// [markdownUnparsedWarning] when the parser failed (null [links]), a
+/// warning when the link scan and the parser list its links differently,
+/// and null otherwise.
+///
+/// The second keeps a doc whose links a move or the see rule cannot read
+/// from passing in silence (R74).
+String? linkWarningOf(String docPath, LinkPlaces? links) {
+  if (links == null) return markdownUnparsedWarning(docPath);
+  if (links.readersAgree) return null;
+  return '$docPath: the link scan and the markdown parser list its links '
+      'differently; a move or rename leaves its inline links as written, and '
+      'check skips its see links';
+}
+
 /// The 1-based file lines `first` through `last`, both included.
 typedef LineRange = ({int first, int last});
 
@@ -76,7 +91,7 @@ final class LineFacts {
   /// frontmatter. A body whose parse fails has no links and an unknown anchor
   /// set; [markdownUnparsedWarning] joins [warnings] only when the body holds
   /// link syntax, as at base — a body with no link syntax is never parsed for
-  /// links, so it never warns.
+  /// links, so it never warns. [linkWarningOf] gives the warning.
   factory of({
     required String lfText,
     required String countedText,
@@ -108,7 +123,9 @@ final class LineFacts {
             firstLine: bodyStart + 1,
             tree: linkTree,
           );
-    if (links == null) warnings.add(markdownUnparsedWarning(docPath));
+    if (linkWarningOf(docPath, links) case final warning?) {
+      warnings.add(warning);
+    }
     final anchorNodes = hasLinks ? linkTree?.nodes : parseLinkFreeBody(body);
     return LineFacts(
       links: links?.docLinks ?? const [],

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -255,6 +256,54 @@ void main() {
     expect(parsed.content.links, isEmpty);
     expect(parsed.doc.warnings, [markdownUnparsedWarning('prds/x.md')]);
     expect(parsed.content.sections.map((s) => s.key), ['a']);
+  });
+
+  test(
+    'R74: the warning of a doc names the parser failing on it, or the link '
+    'scan and the parser reading its links differently, and nothing else',
+    () {
+      const agreeing = (
+        docLinks: <LinkPlace>[],
+        fileLinks: <LinkPlace>[],
+        selfLinks: <LinkPlace>[],
+        unreadableLinks: <LinkPlace>[],
+        readersAgree: true,
+      );
+      final disagreeing = (
+        docLinks: agreeing.docLinks,
+        fileLinks: agreeing.fileLinks,
+        selfLinks: agreeing.selfLinks,
+        unreadableLinks: agreeing.unreadableLinks,
+        readersAgree: false,
+      );
+
+      expect(
+        linkWarningOf('prds/x.md', null),
+        markdownUnparsedWarning('prds/x.md'),
+      );
+      expect(linkWarningOf('prds/x.md', agreeing), isNull);
+      expect(
+        linkWarningOf('prds/x.md', disagreeing),
+        'prds/x.md: the link scan and the markdown parser list its links '
+        'differently; a move or rename leaves its inline links as written, and '
+        'check skips its see links',
+      );
+    },
+  );
+
+  test('R74: a doc with footnotes and folded labels is indexed with no link '
+      'warning', () {
+    final parsed = parseIndexedDoc(
+      docPath: 'prds/x.md',
+      bytes: utf8.encode(
+        '# X\n\n## A\n[^1]: Also [b](b.md).\nSee [y](y.md), [q][ẞ], '
+        'and [s [^1]](s.md).\n\n[ss]: z.md\n[^2]: [c](c.md)\n',
+      ),
+      match: const NoDocType(),
+    );
+
+    expect(parsed.doc.warnings, isEmpty);
+    expect(parsed.content.links, ['prds/b.md', 'prds/y.md', 'prds/z.md']);
   });
 
   test('f01/us01/fr03/e13, is-s03/inv4: an undeclared header keys as lowercase words joined by _', () {

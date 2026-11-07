@@ -2,8 +2,13 @@ import 'dart:typed_data';
 
 import 'package:markdown/markdown.dart'
     show
+        BlockParser,
         BlockquoteSyntax,
         CodeBlockSyntax,
+        Document,
+        DummyBlockSyntax,
+        EmptyBlockSyntax,
+        ExtensionSet,
         FencedCodeBlockSyntax,
         FootnoteDefSyntax,
         HeaderSyntax,
@@ -19,11 +24,13 @@ import 'package:specstone_core/src/index_query/case_folding.g.dart';
 /// `text` is the body with every code unit markdown never reads as inline text
 /// blanked to a space, line ends and length kept; `leaves` are the inline text
 /// ranges in source order; `definitions` maps `linkLabel(label)` to the
-/// destination as written, the first definition of a label winning.
+/// destination as written, the first definition of a label winning;
+/// `footnoteLabels` holds each footnote definition's label, lowercased.
 typedef LeafText = ({
   String text,
   List<({int start, int end})> leaves,
   Map<String, WrittenDestination> definitions,
+  Set<String> footnoteLabels,
   List<({int start, int end})> definitionLabels,
   List<({int start, int end})> definitionDestinations,
 });
@@ -44,6 +51,22 @@ final RegExp _footnote = const FootnoteDefSyntax().pattern;
 final RegExp _definitionStart = const LinkReferenceDefinitionSyntax().pattern;
 final RegExp _blockquote = const BlockquoteSyntax().pattern;
 final RegExp _listItem = const UnorderedListSyntax().pattern;
+
+/// The patterns of the block syntaxes `markdown` tries, its blank-line and
+/// paragraph ones left out: a line one matches ends a footnote definition
+/// (`FootnoteDefSyntax.parseChildLines`).
+final List<RegExp> _footnoteEnds = [
+  for (final syntax in BlockParser(
+    const [],
+    Document(extensionSet: ExtensionSet.gitHubFlavored),
+  ).blockSyntaxes)
+    if (syntax.pattern != const EmptyBlockSyntax().pattern &&
+        syntax.pattern != const DummyBlockSyntax().pattern)
+      syntax.pattern,
+];
+
+/// The indent a footnote definition's continuation line loses.
+const _footnoteIndent = '    ';
 
 /// `ListSyntax.parseTaskListItem`'s checkbox (`list_syntax.dart:93`).
 final _checkbox = RegExp(r'^ {0,3}\[([ xX])\][ \t]');
@@ -145,6 +168,7 @@ LeafText leafTextOf(String lfBody) {
     text: String.fromCharCodes(units),
     leaves: sink.leaves,
     definitions: sink.definitions,
+    footnoteLabels: sink.footnoteLabels,
     definitionLabels: sink.definitionLabels,
     definitionDestinations: sink.definitionDestinations,
   );
@@ -197,6 +221,9 @@ enum _Stop {
 final class _Sink {
   final leaves = <({int start, int end})>[];
   final definitions = <String, WrittenDestination>{};
+
+  /// The label of each footnote definition, lowercased.
+  final footnoteLabels = <String>{};
 
   /// The body ranges of each definition's label, brackets left out, and of
   /// its destination as written, angle brackets left out.
@@ -308,6 +335,7 @@ final class _BlockPass {
     final line = _lines[i];
     if (_opensFence(line) ||
         _headsTable(i) ||
+        _footnote.hasMatch(line) ||
         _isBlankLine(line) ||
         _endsHtml(line) ||
         _blockquote.hasMatch(line) ||
@@ -373,6 +401,7 @@ final class _BlockPass {
       if (end != null) return end;
     }
     if (_startsListItem(line)) return _readList(i);
+    if (_footnote.hasMatch(line)) return _readFootnote(i);
     if (_isBlankLine(line)) return i + 1;
     if (_htmlStart.hasMatch(line)) return _skipHtml(i);
     if (_atxHeading.hasMatch(line)) {
@@ -382,7 +411,7 @@ final class _BlockPass {
     if (_indentedCode.hasMatch(line)) return _skipIndentedCode(i);
     if (_blockquote.hasMatch(line)) return _readQuote(i);
     if (_thematicBreak.hasMatch(line)) return i + 1;
-    if (_definitionStart.hasMatch(line) && !_footnote.hasMatch(line)) {
+    if (_definitionStart.hasMatch(line)) {
       final next = _readDefinition(i);
       if (next != null) return next;
     }
@@ -411,6 +440,38 @@ final class _BlockPass {
       listParent: listParent,
       setextDisabled: setextDisabled,
     ).run();
+  }
+
+  /// Reads the footnote definition that starts at line [i] as
+  /// `FootnoteDefSyntax` does, reads its child lines, and returns the line
+  /// after it.
+  ///
+  /// The `[^label]:` and the blanks after it are cut, and so is the indent of
+  /// a line indented four spaces. A line that matches a block syntax, or any
+  /// line after a blank one that is not so indented, ends the definition.
+  int _readFootnote(int i) {
+    final opener = _footnote.firstMatch(_lines[i])!;
+    _sink.footnoteLabels.add(opener[2]!.toLowerCase());
+    final child = <_ChildLine>[];
+    _cut(child, i, opener[0]!.length);
+    var afterBlank = false;
+    var j = i + 1;
+    for (; j < _lines.length; j++) {
+      final line = _lines[j];
+      if (line.trim().isEmpty) {
+        child.add((text: line, start: _starts[j]));
+        afterBlank = true;
+      } else if (line.startsWith(_footnoteIndent)) {
+        _cut(child, j, _footnoteIndent.length);
+        afterBlank = false;
+      } else if (afterBlank || _footnoteEnds.any((e) => e.hasMatch(line))) {
+        break;
+      } else {
+        child.add((text: line, start: _starts[j]));
+      }
+    }
+    _readChildren(child);
+    return j;
   }
 
   /// Reads the blockquote that starts at line [i] as

@@ -55,7 +55,8 @@ typedef LinkSource = ({
 /// paren, which takes no more steps than `markdown`'s own walk.
 List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
   final leaf = leafTextOf(lfBody);
-  final reader = _Reader(leaf.text, leaf.definitions)..readAll(leaf.leaves);
+  final reader = _Reader(leaf.text, leaf.definitions, leaf.footnoteLabels)
+    ..readAll(leaf.leaves);
   return _sourcesOf(lfBody, reader, firstLine);
 }
 
@@ -93,8 +94,12 @@ typedef LinkScan = ({
 /// prose and destination ranges that scan passes over.
 LinkScan linkScanOf(String lfBody, {required int firstLine}) {
   final leaf = leafTextOf(lfBody);
-  final reader = _Reader(leaf.text, leaf.definitions, recordsAtoms: true)
-    ..readAll(leaf.leaves);
+  final reader = _Reader(
+    leaf.text,
+    leaf.definitions,
+    leaf.footnoteLabels,
+    recordsAtoms: true,
+  )..readAll(leaf.leaves);
   final prose = Uint16List.fromList(leaf.text.codeUnits);
   for (final (:start, :end) in reader.atoms) {
     for (var i = start; i < end; i++) {
@@ -165,12 +170,16 @@ typedef _Found = ({
 /// angle brackets enclose it, whether it is an inline link, whose parens
 /// follow the `]`, and the range of its destination as written when that is
 /// one run of the text.
+///
+/// A footnote reference closes too, with no destination: `markdown` makes it
+/// a link of its own, which is no source (see [linkSourcesOf]).
 typedef _Close = ({
   int end,
   String? shown,
   bool angle,
   bool inline,
   BodyRange? destination,
+  bool footnote,
 });
 
 /// An open `[` or `![` of the bracket procedure.
@@ -199,10 +208,19 @@ final class _Opener {
 
 /// Reads the leaves of a text by the bracket procedure.
 final class _Reader {
-  new(this.text, this.definitions, {this.recordsAtoms = false});
+  new(
+    this.text,
+    this.definitions,
+    this.footnoteLabels, {
+    this.recordsAtoms = false,
+  });
 
   final String text;
   final Map<String, WrittenDestination> definitions;
+
+  /// Each footnote definition's label, lowercased.
+  final Set<String> footnoteLabels;
+
   final found = <_Found>[];
 
   /// Whether [read] keeps the ranges of [atoms] and [destinations].
@@ -305,6 +323,13 @@ final class _Reader {
         final close = _close(opener, i, end);
         if (close == null) {
           i++;
+          continue;
+        }
+        if (close.footnote) {
+          // A `[^1]` turns off the link openers before it, as a link does; an
+          // image opener's `![^1]` and `![x][^1]` keep their text and links.
+          if (!opener.image) linksClosed++;
+          i = close.end;
           continue;
         }
         if (opener.image) found.length = opener.found;
@@ -521,6 +546,7 @@ final class _Reader {
                 angle: collapsed.angle,
                 inline: false,
                 destination: null,
+                footnote: collapsed.footnote,
               );
       }
       return _fullReference(next, end);
@@ -529,25 +555,48 @@ final class _Reader {
   }
 
   /// Returns the reference [opener]'s text names, or null when the text is
-  /// not a definition label or an opener was pushed after [opener], which
-  /// makes the text hold a bracket no label holds.
+  /// not a label (see [_referenceTo]) or an opener was pushed after [opener],
+  /// which makes the text hold a bracket no label holds.
   _Close? _shortcut(_Opener opener, int close) {
     if (opener.pushedAfter) return null;
     final from = opener.offset + (opener.image ? 2 : 1);
-    final dest = definitions[linkLabel(text.substring(from, close))];
-    return dest == null
-        ? null
-        : (
-            end: close + 1,
-            shown: dest.shown,
-            angle: dest.angle,
+    return _referenceTo(text.substring(from, close), close + 1);
+  }
+
+  /// Returns the reference to [label] that ends at [end], as
+  /// `LinkSyntax._tryCreateReferenceLink` makes it: a link to the definition
+  /// of the label, else a footnote reference when [label] is `^` and a
+  /// footnote label, else null.
+  _Close? _referenceTo(String label, int end) {
+    final dest = definitions[linkLabel(label)];
+    if (dest != null) {
+      return (
+        end: end,
+        shown: dest.shown,
+        angle: dest.angle,
+        inline: false,
+        destination: null,
+        footnote: false,
+      );
+    }
+    final names =
+        label.startsWith('^') &&
+        footnoteLabels.contains(label.substring(1).trim().toLowerCase());
+    return names
+        ? (
+            end: end,
+            shown: null,
+            angle: false,
             inline: false,
             destination: null,
-          );
+            footnote: true,
+          )
+        : null;
   }
 
   /// Returns the full reference whose label opens at [open], or null when it
-  /// is no valid label or names no definition (`_parseReferenceLinkLabel`).
+  /// is no valid label or names nothing (`_parseReferenceLinkLabel`, then
+  /// [_referenceTo]).
   _Close? _fullReference(int open, int end) {
     var pos = open + 1;
     if (pos >= end) return null;
@@ -574,16 +623,7 @@ final class _Reader {
     }
     final name = label.toString();
     if (_blankOnly.hasMatch(name)) return null;
-    final dest = definitions[linkLabel(name)];
-    return dest == null
-        ? null
-        : (
-            end: pos + 1,
-            shown: dest.shown,
-            angle: dest.angle,
-            inline: false,
-            destination: null,
-          );
+    return _referenceTo(name, pos + 1);
   }
 
   /// Returns the inline link whose `(` is at [open], or null when the parens
@@ -619,6 +659,7 @@ final class _Reader {
       angle: true,
       inline: true,
       destination: (start: open + 1, end: close),
+      footnote: false,
     );
   }
 
@@ -640,6 +681,7 @@ final class _Reader {
         angle: false,
         inline: true,
         destination: (start: start, end: match),
+        footnote: false,
       );
     }
     if (space >= end) return null;
@@ -659,6 +701,7 @@ final class _Reader {
           angle: false,
           inline: true,
           destination: pieceStart == start ? (start: start, end: pos) : null,
+          footnote: false,
         );
       }
       pieceStart = pos = paren + 1;
@@ -678,6 +721,7 @@ final class _Reader {
                 angle: false,
                 inline: true,
                 destination: null,
+                footnote: false,
               );
             }
           } else if (_isDestinationSpace(unit)) {

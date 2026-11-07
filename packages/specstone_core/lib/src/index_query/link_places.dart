@@ -19,12 +19,15 @@ typedef LinkPlace = ({String target, int line, String shown, String? anchor});
 /// The links of a doc: the doc links, which resolve to a `.md` doc other than
 /// the doc itself, the file links, every other relative link, the self links,
 /// which name the doc itself, a bare `#anchor` included, and the unreadable
-/// links, whose target the grammar cannot read.
+/// links, whose target the grammar cannot read; and whether the scan and
+/// `markdown` agree on them (see [readersAgree]), without which a move, the
+/// see rule, and the renumber pass read no href of an inline link.
 typedef LinkPlaces = ({
   List<LinkPlace> docLinks,
   List<LinkPlace> fileLinks,
   List<LinkPlace> selfLinks,
   List<LinkPlace> unreadableLinks,
+  bool readersAgree,
 });
 
 /// The links of a body that holds no link syntax: none of any class.
@@ -33,6 +36,7 @@ const LinkPlaces noLinks = (
   fileLinks: [],
   selfLinks: [],
   unreadableLinks: [],
+  readersAgree: true,
 );
 
 /// Returns the links of [lfBody], doc links and file links, each in source
@@ -63,7 +67,8 @@ LinkPlaces? linkPlacesOf(
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);
   final sources = linkSourcesOf(lfBody, firstLine: firstLine);
-  final places = readersAgree(sources, hrefs)
+  final agree = readersAgree(sources, hrefs);
+  final places = agree
       ? [
           for (final (:index, :href, :target, kind: _, :anchor) in placed)
             (
@@ -91,6 +96,7 @@ LinkPlaces? linkPlacesOf(
       for (final (i, place) in places.indexed)
         if (placed[i].kind == _LinkKind.unreadable) place,
     ],
+    readersAgree: agree,
   );
 }
 
