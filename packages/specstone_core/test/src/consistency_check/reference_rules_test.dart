@@ -212,6 +212,24 @@ void main() {
     expect(await targetsOf('- A: see [x][r]\n\n[r]: GONE.md\n', {}), [
       '[x][r]',
     ]);
+    expect(
+      await targetsOf('- A: [log](MISSING.md), see [x](API.md)\n', {
+        'docs/specs/f01_login/API.md': '# Api\n',
+      }),
+      isEmpty,
+    );
+    expect(
+      await targetsOf('- A: [log](API.md), see [x][r]\n\n[r]: GONE.md\n', {
+        'docs/specs/f01_login/API.md': '# Api\n',
+      }),
+      ['[x][r]'],
+    );
+    expect(
+      await targetsOf('- A: [log](API.md), see [x](MISSING.md)\n', {
+        'docs/specs/f01_login/API.md': '# Api\n',
+      }),
+      ['[x](MISSING.md)'],
+    );
   });
 
   test('f04/us02/fr05/e07, cc-s03/inv2: a merged set with no architecture doc type runs no Concerns rule', () async {

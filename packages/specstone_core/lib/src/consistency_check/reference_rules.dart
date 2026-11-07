@@ -2,13 +2,17 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart' show LinkPlace;
+import 'package:specstone_core/src/index_query/link_scan.dart'
+    show LinkSource, linkSourcesOf;
 import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:yaml/yaml.dart';
 
@@ -108,15 +112,22 @@ Iterable<Finding> _unresolvedConcerns(
       headerKey(section.headerLine.trimLeft().substring(2)),
   };
   final facts = context.contentOf(doc).lineFacts;
+  final sources = _LinkSources(toLf(context.contentOf(doc).text));
   for (var i = 0; i < held.length; i++) {
     if (context.templateSectionAt(doc, i)?.id != concernsSectionId) {
       continue;
     }
     for (final line in context.bodyLinesOf(doc, i)) {
-      final target = line.fenced ? null : seeTargetIn(line.text)?.text;
-      if (target == null) continue;
+      final see = line.fenced ? null : seeTargetIn(line.text);
+      if (see == null) continue;
+      final target = see.text;
       final resolves = target.startsWith(_linkOpen)
-          ? _linkSeeResolves(context, facts, line.line)
+          ? _linkSeeResolves(
+              context,
+              facts,
+              shown: sources.shownAt(line.line, see.start),
+              line: line.line,
+            )
           : _pathSeeResolves(context, doc, target, facts.anchors);
       if (headers.contains(headerKey(target)) || resolves) continue;
       yield context.finding(
@@ -183,15 +194,54 @@ bool _pathSeeResolves(
   return false;
 }
 
-/// Whether every link the link rule reads on [line] of a doc, reference
-/// definitions known, names a file beside the doc or an anchor of the doc or
-/// of that file (R63).
+/// The link sources of a doc's body, read on first use by the link scan the
+/// link rule places its links from.
+final class _LinkSources {
+  new(this._text);
+
+  final String _text;
+
+  late final String _body = Doc.parse(_text).afterFrontmatter;
+
+  late final List<LinkSource> _all = linkSourcesOf(
+    _body,
+    firstLine:
+        '\n'
+            .allMatches(_text.substring(0, _text.length - _body.length))
+            .length +
+        1,
+  );
+
+  /// Returns the destination as written of the link that starts at [column]
+  /// of file line [line], or null when no link starts there or it has none.
+  String? shownAt(int line, int column) {
+    for (final source in _all) {
+      if (source.line != line) continue;
+      final lineStart = source.offset == 0
+          ? 0
+          : _body.lastIndexOf('\n', source.offset - 1) + 1;
+      if (source.offset - lineStart == column) return source.shown;
+    }
+    return null;
+  }
+}
+
+/// Whether the link that starts a `see` target on file line [line] names a
+/// file beside the doc or an anchor of the doc or of that file (R63).
 ///
-/// A line with no link place (a web address) resolves nothing; a doc whose
-/// markdown did not parse (null anchors) raises nothing.
-bool _linkSeeResolves(CheckContext context, LineFacts facts, int line) {
+/// The link is the one the link rule reads there, reference definitions known,
+/// found by its destination [shown] among the link places of the line. A
+/// target with no such link (a web address, or none) resolves nothing; a doc
+/// whose markdown did not parse (null anchors) raises nothing.
+bool _linkSeeResolves(
+  CheckContext context,
+  LineFacts facts, {
+  required String? shown,
+  required int line,
+}) {
   if (facts.anchors == null) return true;
-  bool onLine(LinkPlace place) => place.line == line;
+  if (shown == null) return false;
+  bool onLine(LinkPlace place) => place.line == line && place.shown == shown;
   final fileLinks = [...facts.links, ...facts.fileLinks].where(onLine);
   final selfLinks = facts.selfLinks.where(onLine);
   if (facts.unreadableLinks.any(onLine)) return false;
