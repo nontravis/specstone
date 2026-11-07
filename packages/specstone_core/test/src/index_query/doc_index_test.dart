@@ -36,6 +36,40 @@ void main() {
       );
     }
   });
+  test('f01/us04/fr01: resolve reads the path first, so a whole text naming a doc wins over its #, and a # or @ '
+      'suffix on text that names no doc is doc_not_found', () async {
+    final root = await writeLoginProject();
+    for (final name in ['c#_tips.md', 'a@7e11fc4a24d2.md']) {
+      File('${root.path}/docs/notes/$name')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('# Note\n');
+    }
+    final session = openSession(root);
+    addTearDown(session.close);
+    final hashed = session.index;
+    for (final address in [
+      'notes/c#_tips.md',
+      'docs/notes/c#_tips.md',
+      'notes/a@7e11fc4a24d2.md',
+    ]) {
+      expect(paths(hashed.resolve(address)), [
+        address.replaceFirst('docs/', ''),
+      ], reason: address);
+    }
+    for (final address in ['nosuch#problem', 'nosuch@7e11fc4a24d2']) {
+      expect(
+        () => hashed.resolve(address),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.docNotFound,
+          ),
+        ),
+        reason: address,
+      );
+    }
+  });
   test('f01/us04/fr01, f01/us04/fr01/e01, s03/inv6: a bare name gives every doc carrying it, in tree order', () async {
     expect(paths(index.resolve('login')), [
       'prds/features/f01_login/FEATURE.md',

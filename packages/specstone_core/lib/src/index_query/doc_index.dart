@@ -1,5 +1,4 @@
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
-import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -81,21 +80,25 @@ final class DocIndex {
   ///   from the working directory inside the docs root. `<doc type>:<path>`
   ///   keeps the doc only when it has that doc type.
   ///
-  /// A command that reads a `#<section key>` or an `@<hash>` splits it off
-  /// before it calls; one left on [address] is refused, so a whole-doc command
-  /// never acts on a doc the caller meant to narrow.
+  /// The path is read first: the whole text naming a doc wins, so a path may
+  /// hold `#` or `@`. A command that reads a `#<section key>` or an `@<hash>`
+  /// splits it off before it calls; one left on text before it that names a
+  /// doc is refused, so a whole-doc command never acts on a doc the caller
+  /// meant to narrow.
   ///
-  /// Throws an [IndexFault] `argument_invalid` for such a suffix, when no path
-  /// names a doc either, a [TemplateFault] for a doc type id the set lacks and
-  /// an [IndexFault] when no doc carries the name.
+  /// Throws an [IndexFault] `argument_invalid` for such a suffix, a
+  /// [TemplateFault] for a doc type id the set lacks and an [IndexFault]
+  /// `doc_not_found` when no doc carries the name.
   List<IndexedDoc> resolve(String address) {
-    _refuseSuffix(address);
-    try {
-      return _named(address);
-    } on SpecstoneFault {
-      if (_atPath(address) case final doc?) return [doc];
-      rethrow;
-    }
+    if (_atPath(address) case final doc?) return [doc];
+    final docPart = _beforeSuffix(address);
+    if (docPart == null) return _named(address);
+    // Throws the not-found fault when the text before the suffix names no doc.
+    if (_atPath(docPart) == null) _named(docPart);
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '$address: this command takes no #<section key> or @<hash>',
+    );
   }
 
   /// Returns the shortest address that picks only [doc]: `<doc type>:<name>`
@@ -107,14 +110,13 @@ final class DocIndex {
         : doc.docPath;
   }
 
-  void _refuseSuffix(String address) {
-    final hasSection = readDocAddress(address).sectionKey != null;
-    if (hasSection || _hashSuffix.hasMatch(address)) {
-      throw IndexFault(
-        IndexFaultCode.argumentInvalid,
-        '$address: this command takes no #<section key> or @<hash>',
-      );
-    }
+  /// The text of [address] before its `#<section key>` or `@<hash>`; null
+  /// when it carries neither.
+  String? _beforeSuffix(String address) {
+    final read = readDocAddress(address);
+    if (read.sectionKey != null) return read.docPart;
+    final hash = _hashSuffix.firstMatch(address);
+    return hash == null ? null : address.substring(0, hash.start);
   }
 
   List<IndexedDoc> _named(String address) {
