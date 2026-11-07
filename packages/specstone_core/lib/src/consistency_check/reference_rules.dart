@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -110,7 +111,7 @@ Iterable<Finding> _unresolvedConcerns(
       final target = line.fenced ? null : _seeTarget(line.text);
       if (target == null) continue;
       if (headers.contains(headerKey(target)) ||
-          _seeResolves(target, folder, anchors)) {
+          _seeResolves(context, doc, target, folder, anchors)) {
         continue;
       }
       yield context.finding(
@@ -151,23 +152,36 @@ String _withoutTrailingPunctuation(String text) {
 }
 
 /// Whether [target], a `see` target that is no section header, names a file
-/// of [folder] or an anchor of the doc (R63).
+/// of [folder] or an anchor of the doc or of that file (R63).
 ///
-/// The target is a markdown link `[text](href)` or a bare path or `#anchor`;
-/// [anchors] is null when the anchor parse failed, and then any anchor holds.
-bool _seeResolves(String target, String folder, DocAnchors? anchors) {
+/// The target is a markdown link `[text](href)` or a bare path or `#anchor`.
+/// An anchor set that is unknown (null) or a file no doc indexes raises
+/// nothing; [anchors] is the set of [doc] itself.
+bool _seeResolves(
+  CheckContext context,
+  IndexedDoc doc,
+  String target,
+  String folder,
+  DocAnchors? anchors,
+) {
   final href = _markdownLink.firstMatch(target)?.group(1) ?? target;
   if (readLinkTarget(href) case RelativeLink(:final segments, :final anchor)) {
-    if (segments.isEmpty) {
-      return anchor == null ||
-          anchor.isEmpty ||
-          anchors == null ||
-          anchors.holds(anchor);
+    final named = anchor == null || anchor.isEmpty ? null : anchor;
+    if (segments.isEmpty) return named == null || _holds(anchors, named);
+    if (!File('$folder/${segments.join(_separator)}').existsSync()) {
+      return false;
     }
-    return File('$folder/${segments.join(_separator)}').existsSync();
+    final path = relativeFilePathOf(href, doc.docPath);
+    final file = path == null ? null : context.index.at(path);
+    return named == null ||
+        file == null ||
+        _holds(context.contentOf(file).lineFacts.anchors, named);
   }
   return false;
 }
+
+bool _holds(DocAnchors? anchors, String anchor) =>
+    anchors == null || anchors.holds(anchor);
 
 /// Returns each string `doc` value of the reference entries of [file], with
 /// its 1-based line.

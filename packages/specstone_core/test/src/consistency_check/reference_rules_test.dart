@@ -88,7 +88,7 @@ void main() {
                   '- Errors: see Components\n',
                   concerns,
                 ),
-                'docs/specs/f01_login/ERROR.md': '# Login errors\n',
+                'docs/specs/f01_login/ERROR.md': '# Login errors\n\n## Known\n',
               }..update(
                 'docs/$loginArchitecture',
                 (text) =>
@@ -113,7 +113,10 @@ void main() {
         '- E: see #deep-dive\n'
         '- F: see #body-anchor\n'
         '- G: see #\n'
-        '- H: see [top](#)\n',
+        '- H: see [top](#)\n'
+        '- I: see ERROR.md#known\n'
+        '- J: see [e](ERROR.md#known)\n'
+        '- K: see ERROR.md#\n',
       ),
       isEmpty,
     );
@@ -122,13 +125,15 @@ void main() {
         '- A: see #no-such-anchor.\n'
         '- B: see [gone](MISSING.md)\n'
         '- C: see MISSING.md.\n'
-        '- D: see [x](#also-missing)\n',
+        '- D: see [x](#also-missing)\n'
+        '- E: see ERROR.md#missing\n',
       ),
       [
         '#no-such-anchor',
         '[gone](MISSING.md)',
         'MISSING.md',
         '[x](#also-missing)',
+        'ERROR.md#missing',
       ],
     );
   });
