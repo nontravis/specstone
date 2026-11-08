@@ -1,14 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show codeRootFiles;
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
@@ -47,6 +52,9 @@ const _layoutAndAgentCommit2Message =
 const _agentFileRootsKey = 'agent_file_roots';
 const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
+
+/// The byte-order mark as the one character a written text starts with.
+const _bom = '\uFEFF';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -510,30 +518,36 @@ _LabelPlan _planLabelPass(
     codeEntries: const [],
   ).first;
   final entries = codeEntriesOnDisk(projectRoot, set);
-  final labelled = <String, DocText>{};
+  final labelled = <String, _CodeFile>{};
   for (final codePath in codeRootFiles(codeRoot, entries)) {
     final projectPath = _projectPathOf(config.codeRoot, codePath);
     if (projectPath.startsWith(_docsFolder)) continue;
     final original = _readCodeFile(codeRoot, codePath);
-    if (original != null && holdsNumberLabel(projectPath, original.lf)) {
+    if (original != null && holdsNumberLabel(projectPath, original.text)) {
       labelled[projectPath] = original;
     }
   }
-  final tracked = labelled.isEmpty
+  // A path outside the project root is no path of the project's git, and
+  // `ls-files` fails on it (E27).
+  final pathspecs = [
+    for (final entry in entries)
+      if (_projectPathOf(config.codeRoot, entry) case final path
+          when _isInsideProject(path))
+        path,
+  ];
+  final tracked = labelled.isEmpty || pathspecs.isEmpty
       ? const <String>{}
-      : _trackedPaths(projectRoot, [
-          for (final entry in entries) _projectPathOf(config.codeRoot, entry),
-        ], runGit);
+      : _trackedPaths(projectRoot, pathspecs, runGit);
   final convertible = {
     for (final path in labelled.keys)
-      if (tracked.contains(path) && !path.startsWith('../')) path,
+      if (tracked.contains(path) && _isInsideProject(path)) path,
   };
   final pass = LabelPass.plan(
     docs,
-    [for (final path in convertible) (path: path, lf: labelled[path]!.lf)],
+    [for (final path in convertible) (path: path, text: labelled[path]!.text)],
     untrackedCodeFiles: [
       for (final MapEntry(:key, :value) in labelled.entries)
-        if (!convertible.contains(key)) (path: key, lf: value.lf),
+        if (!convertible.contains(key)) (path: key, text: value.text),
     ],
     docTypes: docTypes,
   );
@@ -543,7 +557,7 @@ _LabelPlan _planLabelPass(
       for (final MapEntry(:key, :value) in pass.codeFiles.entries)
         PlannedRewrite(
           path: key,
-          text: writtenText(labelled[key]!, value),
+          text: '${labelled[key]!.bom ? _bom : ''}$value',
           before: labelled[key]!.hash,
           changes: const [_labelChange],
         ),
@@ -551,21 +565,32 @@ _LabelPlan _planLabelPass(
   );
 }
 
+/// A code file as decoded: its text with every line end as written, whether
+/// it began with a byte order mark, and the [textHashOf] of its text.
+typedef _CodeFile = ({String text, bool bom, String hash});
+
 /// Reads the code file at [codePath] under [codeRoot], or null when it cannot
 /// be read or is no UTF-8 text.
-DocText? _readCodeFile(Directory codeRoot, String codePath) {
+_CodeFile? _readCodeFile(Directory codeRoot, String codePath) {
   final file = File(
     '${codeRoot.path}${Platform.pathSeparator}'
     '${codePath.split('/').join(Platform.pathSeparator)}',
   );
   try {
-    return readDocText(file.readAsBytesSync());
+    final bytes = file.readAsBytesSync();
+    final text = utf8.decode(bytes);
+    return (text: text, bom: startsWithUtf8Bom(bytes), hash: textHashOf(text));
   } on FileSystemException {
     return null;
   } on FormatException {
     return null;
   }
 }
+
+/// Whether [projectPath], a normalized path from the project root, lies
+/// inside it.
+bool _isInsideProject(String projectPath) =>
+    projectPath != '..' && !projectPath.startsWith('../');
 
 /// Returns [codePath], a path from the code root [codeRoot], as a path from
 /// the project root: `/`-separated, `.` dropped, `..` applied where it can be.

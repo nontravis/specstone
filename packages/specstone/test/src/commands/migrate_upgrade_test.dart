@@ -1138,6 +1138,11 @@ void main() {
           'vendor/b.dart': '// F-01 US-01\n',
         });
 
+        // The ignored folder is a nested repository of its own.
+        final vendor = Directory('${root.path}/vendor');
+        expect(git(vendor, ['init', '-q']).exitCode, 0);
+        commitAll(vendor, 'vendored');
+
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0, reason: result.err);

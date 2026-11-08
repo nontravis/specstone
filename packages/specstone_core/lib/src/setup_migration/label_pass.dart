@@ -3,8 +3,9 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart'
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show isCommentLine, markdownExtension, readsNameMentions;
+    show isCommentLine, markdownExtension;
 import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
@@ -24,7 +25,6 @@ const _listJoiners = {', ', '; ', ' and ', ' or ', ' to '};
 final _featureFolder = RegExp(r'^f(\d+)_([a-z0-9_]+)$');
 final _storyFolder = RegExp(r'^us(\d+)_([a-z0-9_]+)$');
 final _frFile = RegExp(r'^fr(\d+)_([a-z0-9_]+)\.md$');
-final _specFile = RegExp(r'^([A-Z][A-Z_]*)\.md$');
 
 const _featureFile = 'FEATURE.md';
 const _storyFile = 'USER_STORY.md';
@@ -45,13 +45,15 @@ typedef _Resolve = String? Function(NumberLabel label, NumberLabel? before);
 /// A label a file keeps: its 1-based line and the label as written.
 typedef _Kept = ({int line, String label});
 
-typedef _Converted = ({String lf, List<_Kept> kept});
+/// A label's replacement: the 0-based line, the column of its first character,
+/// and its length in that line.
+typedef _LineEdit = ({int line, int column, int length, String text});
+
+typedef _Converted = ({List<_LineEdit> edits, List<_Kept> kept});
 
 /// A doc after the heading step and the label conversion, the operation
 /// headings it converted, and the labels it keeps.
 typedef _DocResult = ({String lf, List<_Kept> headings, List<_Kept> kept});
-
-typedef _Edit = ({int start, int end, String text});
 
 enum _DocKind { feature, story, fr, spec }
 
@@ -77,11 +79,15 @@ final class LabelTree {
   /// Reads the numbered docs of [docs], DocPath and LF text, each once.
   ///
   /// A doc is numbered when its path is a feature, user story, or FR doc of
-  /// `prds/features/`, or a spec doc of `specs/f<nn>_<slug>/`.
-  new of(Iterable<({String docPath, String lf})> docs)
-    : _docs = [
-        for (final (:docPath, :lf) in docs) ?_TreeDoc.parse(docPath, lf),
-      ];
+  /// `prds/features/`, or a spec doc of `specs/f<nn>_<slug>/` whose merged
+  /// type [docTypes] holds by DocPath; a spec doc is named from that type.
+  new of(
+    Iterable<({String docPath, String lf})> docs, {
+    Map<String, MergedDocType> docTypes = const {},
+  }) : _docs = [
+         for (final (:docPath, :lf) in docs)
+           ?_TreeDoc.parse(docPath, lf, docTypes[docPath]),
+       ];
 
   final List<_TreeDoc> _docs;
   final _declarations = <String, RegExp>{};
@@ -249,7 +255,7 @@ final class _TreeDoc {
     required this.slug,
   });
 
-  static _TreeDoc? parse(String docPath, String lf) {
+  static _TreeDoc? parse(String docPath, String lf, MergedDocType? type) {
     final located = _locate(docPath);
     if (located == null || located.rest.length != 1) return null;
     final file = located.rest.single;
@@ -271,12 +277,11 @@ final class _TreeDoc {
       slug: slug,
     );
     if (located.isSpec) {
-      final type = _specFile.firstMatch(file)?.group(1)?.toLowerCase();
       return type == null
           ? null
           : doc(
               kind: _DocKind.spec,
-              name: '$type:$featureSlug',
+              name: '${type.id}:$featureSlug',
               slug: featureSlug,
             );
     }
@@ -338,18 +343,19 @@ final class LabelPass {
   /// Plans the pass over every doc of the run, DocPath and LF text after the
   /// earlier passes, and the files under the `code:` roots.
   ///
-  /// [trackedCodeFiles] are the ProjectPaths and LF text of the files the
+  /// [trackedCodeFiles] are the ProjectPaths and decoded text, line ends as
+  /// written, of the files the
   /// project's git tracks; their labels convert. A label in an
   /// [untrackedCodeFiles] file stays and is listed. [docTypes] holds the
   /// merged type of each typed doc by DocPath; an `architecture` doc's bare
   /// `see` anchors move only with it.
   static LabelPass plan(
     List<({String docPath, String lf})> docs,
-    List<({String path, String lf})> trackedCodeFiles, {
-    List<({String path, String lf})> untrackedCodeFiles = const [],
+    List<({String path, String text})> trackedCodeFiles, {
+    List<({String path, String text})> untrackedCodeFiles = const [],
     Map<String, MergedDocType> docTypes = const {},
   }) {
-    final tree = LabelTree.of(docs);
+    final tree = LabelTree.of(docs, docTypes: docTypes);
     final sorted = _sortedBy(docs, (doc) => doc.docPath);
     final results = {
       for (final (:docPath, :lf) in sorted)
@@ -372,17 +378,19 @@ final class LabelPass {
       for (final file in untrackedCodeFiles) (file: file, isTracked: false),
     ]..sort((a, b) => compareCodePoints(a.file.path, b.file.path));
     for (final (:file, :isTracked) in code) {
-      final converted = _convertCodeFile(
+      final (:edits, :kept) = _codeFileEdits(
         file.path,
-        file.lf,
+        file.text,
         isTracked ? codeResolve : _keepsEvery,
       );
-      if (converted.lf != file.lf) codeFiles[file.path] = converted.lf;
+      if (edits.isNotEmpty) {
+        codeFiles[file.path] = _applyLineEdits(file.text, edits);
+      }
       files.add((
         path: file.path,
-        converted: converted.lf != file.lf,
+        converted: edits.isNotEmpty,
         headings: const [],
-        kept: converted.kept,
+        kept: kept,
       ));
     }
     return LabelPass._(docTexts, codeFiles, files);
@@ -391,7 +399,8 @@ final class LabelPass {
   final Map<String, String> _docTexts;
   final List<_FileResult> _files;
 
-  /// The LF text of each code file the pass changes, by ProjectPath.
+  /// The text of each code file the pass changes, line ends as written, by
+  /// ProjectPath.
   final Map<String, String> codeFiles;
 
   /// Returns the text of the doc at [path] with its labels converted, [lf]
@@ -428,11 +437,10 @@ typedef _FileResult = ({
   List<_Kept> kept,
 });
 
-/// Whether the file at [path], whose LF text is [lf], holds a number label the
-/// pass reads: a doc's reading for markdown, a comment line's for any other
-/// file with a line-comment mark.
-bool holdsNumberLabel(String path, String lf) =>
-    _convertCodeFile(path, lf, _keepsEvery).kept.isNotEmpty;
+/// Whether the code file at [path], whose text is [text], holds a number label
+/// the pass reads: a doc's reading for markdown, any line's for another file.
+bool holdsNumberLabel(String path, String text) =>
+    _codeFileEdits(path, text, _keepsEvery).kept.isNotEmpty;
 
 List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
     [...items]..sort((a, b) => compareCodePoints(key(a), key(b)));
@@ -524,7 +532,7 @@ Map<String, String> _slugMovesOf(String before, String after) {
 
 String? _keepsEvery(NumberLabel label, NumberLabel? before) => null;
 
-/// Resolves in a code file: no place, and no list reading (E27).
+/// Resolves in a code file: no place, and no list reading (E26, E27).
 _Resolve _codeResolverOf(LabelTree tree) => (label, _) {
   final target = tree._resolveFrom(label, _noPlace, null);
   return target == null ? null : tree.nameOf(target);
@@ -534,20 +542,27 @@ _Resolve _codeResolverOf(LabelTree tree) => (label, _) {
 
 /// Returns [lf], a doc or a markdown file, with the labels [resolve] names
 /// converted, and the labels it keeps.
+({String lf, List<_Kept> kept}) _convertMarkdown(String lf, _Resolve resolve) {
+  final (:edits, :kept) = _markdownEdits(lf, resolve);
+  return (lf: _applyLineEdits(lf, edits), kept: kept);
+}
+
+/// Returns the edits that convert the labels [resolve] names in [lf], a doc or
+/// a markdown file, and the labels it keeps.
 ///
 /// Labels are read as `numberLabelsInMarkdown` reads them, after the
 /// frontmatter.
-_Converted _convertMarkdown(String lf, _Resolve resolve) {
+_Converted _markdownEdits(String lf, _Resolve resolve) {
   final body = Doc.parse(lf).afterFrontmatter;
   final labels = numberLabelsInMarkdown(body);
-  if (labels.isEmpty) return (lf: lf, kept: const []);
+  if (labels.isEmpty) return (edits: const [], kept: const []);
   final prefixLength = lf.length - body.length;
-  final firstLine = '\n'.allMatches(lf.substring(0, prefixLength)).length + 1;
+  final firstLine = '\n'.allMatches(lf.substring(0, prefixLength)).length;
   final lines = body.split('\n');
   final scan = blockScan(lines);
   final starts = _lineStarts(lines);
   final paragraphSpans = <int, List<CodeSpan>>{};
-  final edits = <_Edit>[];
+  final edits = <_LineEdit>[];
   final kept = <_Kept>[];
   var line = 0;
   NumberLabel? previous;
@@ -558,13 +573,13 @@ _Converted _convertMarkdown(String lf, _Resolve resolve) {
     }
     final isListed =
         previous != null &&
-        _listJoiners.contains(body.substring(previous.end, label.start));
+        _listJoiners.contains(_gapBetween(body, previous, label));
     final before = isListed ? carried : null;
     final name = resolve(label, before);
     previous = label;
     carried = _carry(label, before);
     if (name == null) {
-      kept.add((line: firstLine + line, label: label.written));
+      kept.add((line: firstLine + line + 1, label: label.written));
       continue;
     }
     var first = line;
@@ -589,15 +604,23 @@ _Converted _convertMarkdown(String lf, _Resolve resolve) {
           label.end - starts[first],
         );
     edits.add((
-      start: label.start,
-      end: label.end,
+      line: firstLine + line,
+      column: label.start - starts[line],
+      length: label.end - label.start,
       text: isBare ? name : '`$name`',
     ));
   }
-  return (
-    lf: '${lf.substring(0, prefixLength)}${_withEdits(body, edits)}',
-    kept: kept,
-  );
+  return (edits: edits, kept: kept);
+}
+
+/// Returns the text between [previous] and [label], less the item ID that
+/// follows [previous], since the ID hides no list (R82).
+String _gapBetween(String body, NumberLabel previous, NumberLabel label) {
+  final gap = body.substring(previous.end, label.start);
+  final itemId = previous.itemId;
+  return itemId != null && gap.startsWith(' $itemId')
+      ? gap.substring(itemId.length + 1)
+      : gap;
 }
 
 /// Returns [label] with a missing feature and story taken from [before].
@@ -620,36 +643,41 @@ NumberLabel _carry(NumberLabel label, NumberLabel? before) {
 
 // MARK: - Code files
 
-/// Returns the code file at [path] with the labels [resolve] names converted,
-/// and the labels it keeps.
+/// Returns the edits that convert the labels [resolve] names in the code file
+/// at [path], whose text is [text], and the labels it keeps.
 ///
-/// A markdown file is read as a doc, any other file by its comment lines; a
-/// file of an extension with neither holds no label.
-_Converted _convertCodeFile(String path, String lf, _Resolve resolve) {
+/// A markdown file is read as a doc. In any other file every line is read:
+/// the name goes in a code span in a comment line, and alone elsewhere, as in
+/// a string such as a test name, and inside a code span that holds the label.
+/// Offsets are lines and columns, so `\r` at a line end is never touched.
+_Converted _codeFileEdits(String path, String text, _Resolve resolve) {
   final extension = _extensionOf(path);
-  if (extension == markdownExtension) return _convertMarkdown(lf, resolve);
-  if (!readsNameMentions(extension)) return (lf: lf, kept: const []);
-  final lines = lf.split('\n');
+  if (extension == markdownExtension) {
+    return _markdownEdits(toLf(text), resolve);
+  }
+  final edits = <_LineEdit>[];
   final kept = <_Kept>[];
-  for (final (index, line) in lines.indexed) {
-    if (!isCommentLine(line, extension)) continue;
-    final edits = <_Edit>[];
+  for (final (index, line) in text.split('\n').indexed) {
+    final labels = numberLabelsIn(line);
+    if (labels.isEmpty) continue;
     final spans = codeSpansOf(line);
-    for (final label in numberLabelsIn(line)) {
+    final isComment = isCommentLine(line, extension);
+    for (final label in labels) {
       final name = resolve(label, null);
       if (name == null) {
         kept.add((line: index + 1, label: label.written));
         continue;
       }
+      final isSpanned = _insideSpan(spans, label.start, label.end);
       edits.add((
-        start: label.start,
-        end: label.end,
-        text: _insideSpan(spans, label.start, label.end) ? name : '`$name`',
+        line: index,
+        column: label.start,
+        length: label.end - label.start,
+        text: isComment && !isSpanned ? '`$name`' : name,
       ));
     }
-    if (edits.isNotEmpty) lines[index] = _withEdits(line, edits);
   }
-  return (lf: lines.join('\n'), kept: kept);
+  return (edits: edits, kept: kept);
 }
 
 String _extensionOf(String path) {
@@ -675,11 +703,17 @@ bool _insideSpan(List<CodeSpan> spans, int start, int end) => spans.any(
   (span) => start >= span.start + span.ticks && end <= span.end - span.ticks,
 );
 
-/// Returns [text] with each of [edits], in order of offset, applied.
-String _withEdits(String text, List<_Edit> edits) {
-  var result = text;
-  for (final (:start, :end, text: replacement) in edits.reversed) {
-    result = result.replaceRange(start, end, replacement);
+/// Returns [text] with each of [edits], in order of position, applied; every
+/// other byte stays.
+String _applyLineEdits(String text, List<_LineEdit> edits) {
+  if (edits.isEmpty) return text;
+  final lines = text.split('\n');
+  for (final (:line, :column, :length, text: replacement) in edits.reversed) {
+    final current = lines[line];
+    lines[line] =
+        current.substring(0, column) +
+        replacement +
+        current.substring(column + length);
   }
-  return result;
+  return lines.join('\n');
 }

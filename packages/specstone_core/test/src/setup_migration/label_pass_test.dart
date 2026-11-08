@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -29,8 +31,8 @@ Map<String, String> _baseDocs() => {
   _gamma: _edgeCases,
   _delta: _edgeCases.replaceAll('E01', 'E02'),
   _story2: '# Eps\n',
-  _zeta: '# Zeta\n',
-  _eta: '# Eta\n',
+  _zeta: '# Zeta\n\n1. E01 — one\n',
+  _eta: '# Eta\n\n1. E02 — two\n',
   _theta: '# Theta\n',
   _domain: '# Domain\n\n- **INV-5** Five.\n',
   _api: '# Api\n',
@@ -38,11 +40,23 @@ Map<String, String> _baseDocs() => {
   _otherFeature: '# Other\n',
 };
 
+final MergedSet _set = TemplateResolver().resolveCarried(
+  packNames: const ['prd-core', 'software-tech'],
+  homeDirectory: null,
+);
+
+/// The shipped doc type of each of [paths] that has one.
+Map<String, MergedDocType> _typesOf(Iterable<String> paths) => {
+  for (final path in paths)
+    if (DocTypeMatcher(_set).match(path) case MatchedDocType(:final docType))
+      path: docType,
+};
+
 LabelPass _passOf(
   String citing,
   String text, {
-  List<({String path, String lf})> code = const [],
-  List<({String path, String lf})> untracked = const [],
+  List<({String path, String text})> code = const [],
+  List<({String path, String text})> untracked = const [],
 }) {
   final docs = {..._baseDocs(), citing: text};
   return LabelPass.plan(
@@ -52,6 +66,7 @@ LabelPass _passOf(
     ],
     code,
     untrackedCodeFiles: untracked,
+    docTypes: _typesOf(docs.keys),
   );
 }
 
@@ -61,7 +76,7 @@ String _convert(String citing, String text) =>
 LabelTree _tree() => LabelTree.of([
   for (final MapEntry(:key, :value) in _baseDocs().entries)
     (docPath: key, lf: value),
-]);
+], docTypes: _typesOf(_baseDocs().keys));
 
 void main() {
   group('$_fr E26 LabelTree.resolve', () {
@@ -194,6 +209,29 @@ void main() {
       },
     );
 
+    test('an item ID after a label hides no list: the next label has both '
+        'readings', () {
+      const text = '1. E02 — x\n\nSee (US-02 FR-01 E01, FR-02 E02).\n';
+
+      expect(
+        _convert(_delta, text),
+        '1. E02 — x\n\nSee (`alpha/eps/zeta` E01, FR-02 E02).\n',
+      );
+    });
+
+    test('a spec doc is named from its doc type, not its file stem', () {
+      final tree = LabelTree.of(
+        [(docPath: _domain, lf: '# D\n- **INV-5** x\n')],
+        docTypes: {
+          _domain: _typesOf([_api])[_api]!,
+        },
+      );
+      final label = numberLabelsIn('F-01 INV-5').single;
+
+      expect(tree.nameOf(_domain), 'api:alpha');
+      expect(tree.resolve(label, citingDocPath: _topic), _domain);
+    });
+
     test('the name alone goes inside a code span that holds the label', () {
       expect(
         _convert(_topic, 'Cite `F-01 US-01` and `see F-01 here`.\n'),
@@ -284,36 +322,53 @@ void main() {
   });
 
   group('$_fr E26 files under the code roots', () {
-    test('a comment line gets a code span, a partial label stays listed', () {
+    test('a comment line gets a code span, a string gets the name alone', () {
       const text =
-          'int a = 0; // F-01 not read\n'
           '// see F-01 US-01 and US-01 FR-01\n'
           '  // F-01 INV-5\n'
-          "const t = 'F-01 US-01 name';\n";
+          "test('F-01 US-01: name', () {});\n"
+          "const t = 'US-01 FR-01';\n"
+          'int a = 0; // F-01 here\n'
+          '// cite `F-01` there\n';
       final pass = _passOf(
         _topic,
         'plain\n',
-        code: [(path: 'lib/a.dart', lf: text)],
+        code: [(path: 'lib/a.dart', text: text)],
       );
 
       expect(pass.codeFiles, {
         'lib/a.dart':
-            'int a = 0; // F-01 not read\n'
             '// see `alpha/beta` and US-01 FR-01\n'
             '  // `domain:alpha` INV-5\n'
-            "const t = 'F-01 US-01 name';\n",
+            "test('alpha/beta: name', () {});\n"
+            "const t = 'US-01 FR-01';\n"
+            'int a = 0; // feature:alpha here\n'
+            '// cite `feature:alpha` there\n',
       });
       expect(
         pass.planLine,
-        'number labels: lib/a.dart; left: lib/a.dart:2 US-01 FR-01',
+        'number labels: lib/a.dart; left: lib/a.dart:1 US-01 FR-01, '
+        'lib/a.dart:4 US-01 FR-01',
       );
+    });
+
+    test('a line end the file wrote stays, a lone line keeps its CR', () {
+      final pass = _passOf(
+        _topic,
+        'plain\n',
+        code: [(path: 'lib/m.dart', text: '// F-01\r\n// F-01 US-01\nx\r\n')],
+      );
+
+      expect(pass.codeFiles, {
+        'lib/m.dart': '// `feature:alpha`\r\n// `alpha/beta`\nx\r\n',
+      });
     });
 
     test('a markdown file is read as a doc, the name in a code span', () {
       final pass = _passOf(
         _topic,
         'plain\n',
-        code: [(path: 'notes.md', lf: '---\nx: F-01\n---\nSee F-01 here.\n')],
+        code: [(path: 'notes.md', text: '---\nx: F-01\n---\nSee F-01 here.\n')],
       );
 
       expect(pass.codeFiles, {
@@ -325,7 +380,7 @@ void main() {
       final pass = _passOf(
         _topic,
         'plain\n',
-        untracked: [(path: 'vendor/b.dart', lf: '// F-01 US-01\n')],
+        untracked: [(path: 'vendor/b.dart', text: '// F-01 US-01\n')],
       );
 
       expect(pass.codeFiles, isEmpty);
@@ -335,22 +390,21 @@ void main() {
       );
     });
 
-    test('a file with an extension that holds no comment mark is not read', () {
+    test('a file of any extension is read line by line', () {
       final pass = _passOf(
         _topic,
         'plain\n',
-        code: [(path: 'data.json', lf: '{"a": "F-01"}\n')],
+        code: [(path: 'data.json', text: '{"a": "F-01"}\n')],
       );
 
-      expect(pass.codeFiles, isEmpty);
-      expect(pass.planLine, isNull);
+      expect(pass.codeFiles, {'data.json': '{"a": "feature:alpha"}\n'});
     });
 
     test('holdsNumberLabel reads a file as the pass does', () {
       expect(holdsNumberLabel('a.dart', '// F-01\n'), isTrue);
-      expect(holdsNumberLabel('a.dart', 'x = "F-01";\n'), isFalse);
+      expect(holdsNumberLabel('a.dart', 'x = "F-01";\n'), isTrue);
       expect(holdsNumberLabel('a.md', 'F-01\n'), isTrue);
-      expect(holdsNumberLabel('a.json', 'F-01\n'), isFalse);
+      expect(holdsNumberLabel('a.dart', 'UTF-8 and US-ASCII\n'), isFalse);
     });
   });
 
@@ -360,8 +414,8 @@ void main() {
         _topic,
         'F-01\n',
         code: [
-          (path: 'z.dart', lf: '// F-01\n'),
-          (path: 'a.dart', lf: '// F-01\n'),
+          (path: 'z.dart', text: '// F-01\n'),
+          (path: 'a.dart', text: '// F-01\n'),
         ],
       );
 
@@ -380,10 +434,14 @@ void main() {
 
     LabelPass pass(String headings, {Map<String, String> others = const {}}) {
       final docs = {..._baseDocs(), _api: api(headings), ...others};
-      return LabelPass.plan([
-        for (final MapEntry(:key, :value) in docs.entries)
-          (docPath: key, lf: value),
-      ], const []);
+      return LabelPass.plan(
+        [
+          for (final MapEntry(:key, :value) in docs.entries)
+            (docPath: key, lf: value),
+        ],
+        const [],
+        docTypes: _typesOf(docs.keys),
+      );
     }
 
     String linkTo(String slug) =>
@@ -501,7 +559,7 @@ void main() {
             (docPath: key, lf: value),
         ],
         const [],
-        docTypes: {path: type},
+        docTypes: {..._typesOf(docs.keys), path: type},
       );
 
       expect(built.apply(path, docs[path]!), '${concerns}alpha-run\n');

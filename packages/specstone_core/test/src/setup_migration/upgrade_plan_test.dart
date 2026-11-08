@@ -1622,6 +1622,48 @@ void _labelTests() {
       },
     );
 
+    test('$_fr E26: a code file with mixed line ends keeps every byte but '
+        'the converted label', () async {
+      final project = await _labelTree(
+        {},
+        code: {'lib/m.dart': '\uFEFF// A F-01 US-01\n// B F-01\r\nint a;\r\n'},
+      );
+
+      final plan = _planWith(project, _tracking({'lib/m.dart'}));
+
+      expect(
+        plan.rewrites.singleWhere((r) => r.path == 'lib/m.dart').text,
+        '\uFEFF// A `a/b`\n// B `feature:a`\r\nint a;\r\n',
+      );
+    });
+
+    test(
+      '$_fr E27: a code entry outside the project root is left out of '
+      'ls-files, its files are kept and listed, an in-repo file converts',
+      () async {
+        final project = await _labelTree({}, code: {'lib/a.dart': '// F-01\n'});
+        final outside = Directory('${project.path}_outside')..createSync();
+        addTearDown(() => outside.deleteSync(recursive: true));
+        final name = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+        File('${outside.path}/x.dart').writeAsStringSync('// F-01 US-01\n');
+        File('${project.path}/docs/$_techStackPath').writeAsStringSync(
+          '---\ncode:\n  - lib/\n  - ../$name/\n---\n# Tech stack\n',
+        );
+        final calls = <List<String>>[];
+
+        final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
+
+        expect(plan.rewrites.map((r) => r.path), contains('lib/a.dart'));
+        expect(
+          plan.toText(),
+          contains(
+            '  number labels: lib/a.dart; left: ../$name/x.dart:1 F-01 US-01\n',
+          ),
+        );
+        expect(calls.single.where((a) => a.startsWith('..')), isEmpty);
+      },
+    );
+
     test('$_fr E26: a binary code file is skipped', () async {
       final project = await _labelTree({});
       File('${project.path}/lib/bin.dart').createSync(recursive: true);
