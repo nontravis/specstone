@@ -631,16 +631,39 @@ name: login
     const newBase = 'prds/features/f01_login';
     const frLegacy = '$frFolder/fr01_validate_credentials.md';
 
-    final tree = LabelTree.legacy([
-      for (final docPath in [
-        '$newBase/FEATURE.md',
-        '$newBase/us01_email_login/USER_STORY.md',
-        '$newBase/us01_email_login/fr01_validate_credentials.md',
-        '$newBase/us01_email_login/fr02_lock_account.md',
-        'prds/features/f01_other/us01_x/fr01_y.md',
-      ])
-        (docPath: docPath, lf: ''),
-    ]);
+    final tree = LabelTree.legacy(
+      [
+        for (final (legacyPath, docPath) in [
+          ('$base/FEATURE.md', '$newBase/FEATURE.md'),
+          (
+            '$base/us01_email_login/USER_STORY.md',
+            '$newBase/us01_email_login/USER_STORY.md',
+          ),
+          (frLegacy, '$newBase/us01_email_login/fr01_validate_credentials.md'),
+          (
+            '$frFolder/fr02_lock_account.md',
+            '$newBase/us01_email_login/fr02_lock_account.md',
+          ),
+          (
+            'prds/features/ai01_other/us01_x/functional_requirements/'
+                'fr01_y.md',
+            'prds/features/f01_other/us01_x/fr01_y.md',
+          ),
+          (
+            'prds/features/ui01_third/us01_z/functional_requirements/'
+                'fr05_w.md',
+            'prds/features/f01_third/us01_z/fr05_w.md',
+          ),
+        ])
+          (docPath: docPath, legacyPath: legacyPath, lf: ''),
+      ],
+      featurePaths: {
+        '$base/': 'f01_login',
+        'prds/features/ai01_other/': 'f01_other',
+        'prds/features/ui01_third/': 'f01_third',
+        'prds/features/g01_payments/ai02_chat/': 'g01_payments/f02_chat',
+      },
+    );
 
     ({String lf, List<({int line, String label})> kept}) convert(
       String lf, {
@@ -672,13 +695,26 @@ name: login
 
     test('$rewrite E18: a legacy ID the move list maps to 2 FRs stays as '
         'written and is listed', () {
-      final result = convert('Both ai01/us01/fr01 and ui01/us01/fr01.\n');
+      final result = convert('Both ai01/us01/fr01 here.\n');
 
-      expect(result.lf, 'Both ai01/us01/fr01 and ui01/us01/fr01.\n');
-      expect(result.kept.map((k) => k.label), [
-        'ai01/us01/fr01',
-        'ui01/us01/fr01',
-      ]);
+      expect(result.lf, 'Both ai01/us01/fr01 here.\n');
+      expect(result.kept, [(line: 1, label: 'ai01/us01/fr01')]);
+    });
+
+    test('$rewrite E18: a legacy ID finds only the folders of its own '
+        'prefix, though another feature holds that number', () {
+      final result = convert('Is ai01/us01/fr05 there, or ui01/us01/fr05?\n');
+
+      expect(result.lf, 'Is ai01/us01/fr05 there, or `third/z/w`?\n');
+      expect(result.kept, [(line: 1, label: 'ai01/us01/fr05')]);
+    });
+
+    test('$rewrite E18: a legacy ID that goes on to another folder names no '
+        'doc by its first folders', () {
+      final result = convert('Not ai01/us01/nf01 or ai01/us01/fr02/x.\n');
+
+      expect(result.lf, 'Not ai01/us01/nf01 or ai01/us01/fr02/x.\n');
+      expect(result.kept, isEmpty);
     });
 
     test('$rewrite E19: a full label names the story by its legacy folder '
@@ -724,6 +760,28 @@ name: login
 
       expect(result.lf, '---\nname: FR-02\n---\n\n[x](FR-02.md)\n');
       expect(result.kept, isEmpty);
+    });
+
+    test('$rewrite E19: a doc of a grouped feature has no place, so a '
+        'partial label there stays', () {
+      final result = convert(
+        'After US-01.\n',
+        citedFrom:
+            'prds/features/g01_payments/ai02_chat/us13_pay/USER_STORY.md',
+      );
+
+      expect(result.lf, 'After US-01.\n');
+      expect(result.kept, [(line: 1, label: 'US-01')]);
+    });
+
+    test('$rewrite E19: a doc left in place under a feature folder reads '
+        'against that place', () {
+      final result = convert(
+        'After US-01.\n',
+        citedFrom: 'specs/f01_login/DOMAIN.md',
+      );
+
+      expect(result.lf, 'After `login/email_login`.\n');
     });
   });
 }

@@ -20,13 +20,15 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart'
-    show LabelTree;
+    show LabelTree, numberLabelsPlanLine;
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
+    show stampsPlanLine;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
@@ -40,7 +42,6 @@ const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
-const _keptLabelsLabel = 'left as written: ';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -144,9 +145,9 @@ RunPlan planLegacyRun(
     rewriteLines: [
       for (final rewrite in rewrites.planned)
         if (rewrite.changes.isNotEmpty) _rewriteLineOf(rewrite),
+      ?rewrites.labelsLine,
       ?formatLayoutLine(rewrites.layoutOnly),
-      if (rewrites.keptLabels.isNotEmpty)
-        '$_keptLabelsLabel${rewrites.keptLabels.join(', ')}',
+      ?rewrites.stampsLine,
       if (configRewrite != null) _rewriteLineOf(configRewrite),
     ],
     creates: [
@@ -230,12 +231,13 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 /// The planned rewrites, and the DocPaths of the typed docs whose only change
 /// is their layout.
 ///
-/// `keptLabels` are the legacy IDs and number labels no single doc answers
-/// to, each as `<DocPath>:<line> <label>`.
+/// `labelsLine` and `stampsLine` are the upgrade's `number labels:` and
+/// `stamps:` plan lines, null when the run has nothing to say.
 typedef _Rewrites = ({
   List<PlannedRewrite> planned,
   List<String> layoutOnly,
-  List<String> keptLabels,
+  String? labelsLine,
+  String? stampsLine,
 });
 
 /// One markdown doc on its way to commit 2.
@@ -251,6 +253,9 @@ final class _Work {
 
   /// The text before the approval stamp, the last write of the doc.
   String laidOut = '';
+
+  /// Whether a legacy ID or number label of the doc became a name.
+  bool hasNamedLabels = false;
   final List<String> changes = [];
   String note = '';
 
@@ -373,6 +378,8 @@ _Rewrites _rewritesOf(
   required bool Function(String path) exists,
 }) {
   final matcher = DocTypeMatcher(projectSet);
+  var approvals = 0;
+  var fingerprintEntries = 0;
   MergedDocType? typeOf(_Work work) => switch (matcher.match(work.newPath)) {
     MatchedDocType(:final docType) => docType,
     _ => null,
@@ -385,10 +392,11 @@ _Rewrites _rewritesOf(
     work.laidOut = work.lf;
     if (type != null) {
       work.lf = withApprovalHash(withKeyBlock(work.lf, 'draft', null), type);
+      approvals++;
     }
   }
 
-  final keptLabels = _convertLabels(works, typeOf);
+  final tree = _convertLabels(works, typeOf, features);
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
@@ -401,6 +409,7 @@ _Rewrites _rewritesOf(
       featureFrs: _featureFrsOf(features, work.newPath, rewritten: textOf),
     );
     work.lf = fingerprints.lf;
+    fingerprintEntries += fingerprints.entries;
     final label = fingerprints.label;
     if (label != null) work.changes.add(label);
     _rewriteRefs(work, legacy.moves, exists);
@@ -411,6 +420,8 @@ _Rewrites _rewritesOf(
     for (final work in works)
       if (work.changes.isNotEmpty || work.lf != work.original.lf) work,
   ];
+  final byPath = [...works]
+    ..sort((a, b) => compareCodePoints(a.newPath, b.newPath));
   return (
     planned: [
       for (final work in written)
@@ -424,42 +435,68 @@ _Rewrites _rewritesOf(
     ],
     layoutOnly: [
       for (final work in written)
-        if (work.changes.isEmpty && work.laidOut != work.original.lf)
+        if (work.changes.isEmpty &&
+            !work.hasNamedLabels &&
+            work.laidOut != work.original.lf)
           work.newPath,
     ],
-    keptLabels: keptLabels,
+    labelsLine: numberLabelsPlanLine(
+      converted: [
+        for (final work in byPath)
+          if (work.hasNamedLabels) work.newPath,
+      ],
+      kept: _keptLabelsOf(tree, byPath),
+    ),
+    stampsLine: stampsPlanLine(approvals, fingerprintEntries),
   );
 }
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
-/// doc to its name, and returns the ones it keeps as
-/// `<DocPath>:<line> <label>` (`rewrite_titles_keys_and_links` E18, E19).
+/// doc to its name (`rewrite_titles_keys_and_links` E18, E19).
 ///
 /// The tree is read before any conversion, from the texts the title and key
-/// rewrites left; a doc cites from its legacy path.
-List<String> _convertLabels(
+/// rewrites left; a doc cites from its legacy path. Returns the tree.
+LabelTree _convertLabels(
   List<_Work> works,
   MergedDocType? Function(_Work work) typeOf,
+  LegacyFeatures features,
 ) {
   final tree = LabelTree.legacy(
-    [for (final work in works) (docPath: work.newPath, lf: work.lf)],
+    [
+      for (final work in works)
+        (docPath: work.newPath, legacyPath: work.legacyPath, lf: work.lf),
+    ],
     docTypes: {for (final work in works) work.newPath: ?typeOf(work)},
+    featurePaths: {
+      for (final feature in features.features)
+        feature.folder: ?feature.featurePath,
+    },
   );
-  final kept = <String>[];
   for (final work in works) {
     final converted = convertLegacyLabels(
       tree,
       legacyPath: work.legacyPath,
       lf: work.lf,
     );
+    work.hasNamedLabels = converted.lf != work.lf;
     work.lf = converted.lf;
-    kept.addAll([
-      for (final (:line, :label) in converted.kept)
-        '${work.newPath}:$line $label',
-    ]);
   }
-  return kept;
+  return tree;
 }
+
+/// Returns the labels left in the written text of [works] as
+/// `<DocPath>:<line> <label>`.
+///
+/// Read from the text the run writes, so each line is the line of the file.
+List<String> _keptLabelsOf(LabelTree tree, List<_Work> works) => [
+  for (final work in works)
+    for (final (:line, :label) in convertLegacyLabels(
+      tree,
+      legacyPath: work.legacyPath,
+      lf: work.lf,
+    ).kept)
+      '${work.newPath}:$line $label',
+];
 
 /// Points the links and path mentions of [work] at the paths [moves] leave
 /// their files at, labelling each kind that changes.

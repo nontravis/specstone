@@ -355,6 +355,24 @@ void main() {
       );
     });
 
+    test('a legacy ID keeps the prefix of its feature folder', () {
+      final label = numberLabelsInMarkdown(
+        'See $legacyId.\n',
+        legacyIds: true,
+      ).single;
+
+      expect(label.prefix, 'ai');
+    });
+
+    test('a folder run that goes on to another folder is no label, as a '
+        'legacy ID or not', () {
+      expect(
+        numberLabelsInMarkdown('ai01/us01/nf01\n', legacyIds: true),
+        isEmpty,
+      );
+      expect(numberLabelsInMarkdown('us01/fr01/x\n'), isEmpty);
+    });
+
     test('a story and an FR folder name keep their own ranks', () {
       final label = numberLabelsInMarkdown(
         'us13/fr01\n',

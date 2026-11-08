@@ -7,8 +7,6 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
-import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
-    show featurePathOf;
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -95,17 +93,25 @@ final class LabelTree {
   /// Reads the docs of a legacy tree at the final path the move list gives
   /// each, as [LabelTree.of] reads them.
   ///
-  /// A doc is named by its final path, but a label it cites reads against its
-  /// place before the move: [resolve] takes the legacy path as the citing doc
-  /// (`ai<nn>` feature folders included).
+  /// A doc is named and numbered by its final path, and a legacy ID finds it
+  /// by the folder ID of its legacy path, such as `ai02`. A label a doc cites
+  /// reads against its place before the move: [resolve] takes the legacy path
+  /// as the citing doc, its feature folder read as the FeaturePath that
+  /// [featurePaths] gives it (legacy feature folder to FeaturePath); a doc
+  /// under no such folder keeps its path's own place.
   new legacy(
-    Iterable<({String docPath, String lf})> docs, {
+    Iterable<({String docPath, String legacyPath, String lf})> docs, {
     Map<String, MergedDocType> docTypes = const {},
+    Map<String, String> featurePaths = const {},
   }) : _docs = [
-         for (final (:docPath, :lf) in docs)
-           ?_TreeDoc.parse(docPath, lf, docTypes[docPath]),
+         for (final (:docPath, :legacyPath, :lf) in docs)
+           ?_TreeDoc.parse(
+             docPath,
+             lf,
+             docTypes[docPath],
+           )?.withLegacyId(_legacyFolderId(legacyPath)),
        ],
-       _placeOf = _locateLegacy;
+       _placeOf = ((path) => _locate(_atFeaturePath(path, featurePaths)));
 
   final List<_TreeDoc> _docs;
   final _Located? Function(String docPath) _placeOf;
@@ -173,9 +179,12 @@ final class LabelTree {
     if (feature == null) return const [];
     final isStoryLess = label.feature != null && parts.story == null;
     if (parts.fr != null && isStoryLess) return const [];
+    final legacyId = _legacyIdOf(label);
     final inScope = _docs.where(
       (doc) =>
-          doc.feature == feature &&
+          (legacyId == null
+              ? doc.feature == feature
+              : doc.legacyId == legacyId) &&
           (parts.story == null || doc.story == parts.story) &&
           (parts.fr == null || doc.fr == parts.fr),
     );
@@ -212,6 +221,34 @@ final class LabelTree {
   );
 }
 
+/// The folder ID a legacy ID names its feature by, such as `ai02`, or null
+/// for a label with no legacy prefix.
+String? _legacyIdOf(NumberLabel label) {
+  if (label.prefix == null) return null;
+  return label.written.split('/').first.split('_').first;
+}
+
+/// The `<prefix><nn>` that opens the feature folder of [legacyPath], or null.
+String? _legacyFolderId(String legacyPath) {
+  final segments = legacyPath.split('/');
+  if (segments.length < 4) return null;
+  return _legacyFolderIdPattern.firstMatch(segments[2])?.group(0);
+}
+
+final _legacyFolderIdPattern = RegExp(r'^[a-z]+\d+');
+
+/// [docPath] with its legacy feature folder replaced by the FeaturePath that
+/// [featurePaths] gives it, else [docPath] as it is.
+String _atFeaturePath(String docPath, Map<String, String> featurePaths) {
+  for (final MapEntry(key: folder, value: featurePath)
+      in featurePaths.entries) {
+    if (docPath.startsWith(folder)) {
+      return 'prds/features/$featurePath/${docPath.substring(folder.length)}';
+    }
+  }
+  return docPath;
+}
+
 /// [label] with each part it lacks taken from [base].
 _Parts _partsOf(NumberLabel label, _Base base) {
   if (label.feature != null) {
@@ -231,31 +268,15 @@ _Base _baseOf(_Located? located) {
 
 /// Reads the feature and story a doc path sits under, or null for a path
 /// under neither `prds/features/` nor `specs/`.
-_Located? _locate(String docPath) =>
-    _locateUnder(docPath, _featureFolder.firstMatch);
-
-/// Reads the place of a doc of a legacy tree: its feature folder is
-/// `<prefix><nn>[_<nn>]*_<slug>`, the last number the feature's, and a legacy
-/// spec doc has no feature place.
-_Located? _locateLegacy(String docPath) => _locateUnder(docPath, (folder) {
-  final featurePath = featurePathOf(folder);
-  return featurePath == null ? null : _featureFolder.firstMatch(featurePath);
-}, allowsSpec: false);
-
-_Located? _locateUnder(
-  String docPath,
-  RegExpMatch? Function(String folderName) readFeature, {
-  bool allowsSpec = true,
-}) {
+_Located? _locate(String docPath) {
   final segments = docPath.split('/');
-  final isSpec =
-      allowsSpec && segments.length == 3 && segments.first == 'specs';
+  final isSpec = segments.length == 3 && segments.first == 'specs';
   final isPrd =
       segments.length >= 4 &&
       segments[0] == 'prds' &&
       segments[1] == 'features';
   if (!isSpec && !isPrd) return null;
-  final folder = readFeature(segments[isSpec ? 1 : 2]);
+  final folder = _featureFolder.firstMatch(segments[isSpec ? 1 : 2]);
   final feature = folder == null ? null : int.tryParse(folder.group(1)!);
   if (folder == null || feature == null) return null;
   var rest = segments.sublist(isSpec ? 2 : 3);
@@ -287,6 +308,7 @@ final class _TreeDoc {
     required this.fr,
     required this.name,
     required this.slug,
+    this.legacyId,
   });
 
   static _TreeDoc? parse(String docPath, String lf, MergedDocType? type) {
@@ -347,6 +369,21 @@ final class _TreeDoc {
           );
   }
 
+  /// This doc with [legacyId] set: the `<prefix><nn>` of its legacy feature
+  /// folder.
+  _TreeDoc withLegacyId(String? legacyId) => _TreeDoc._(
+    path: path,
+    lf: lf,
+    kind: kind,
+    feature: feature,
+    story: story,
+    fr: fr,
+    name: name,
+    slug: slug,
+    legacyId: legacyId,
+  );
+
+  final String? legacyId;
   final String path;
   final String lf;
   final _DocKind kind;
@@ -445,21 +482,31 @@ final class LabelPass {
   /// after `; left:` each label it keeps as `<path>:<line> <label>`; null for
   /// a tree with no label.
   String? get planLine {
-    final named = [
-      for (final file in _files) ...[
-        if (file.converted) file.path,
-        for (final (:line, :label) in file.headings)
-          '${file.path}:$line $label',
+    return numberLabelsPlanLine(
+      converted: [
+        for (final file in _files) ...[
+          if (file.converted) file.path,
+          for (final (:line, :label) in file.headings)
+            '${file.path}:$line $label',
+        ],
       ],
-    ];
-    final kept = [
-      for (final file in _files)
-        for (final (:line, :label) in file.kept) '${file.path}:$line $label',
-    ];
-    if (named.isEmpty && kept.isEmpty) return null;
-    return '$_planLabel${named.join(', ')}'
-        '${kept.isEmpty ? '' : '$_leftLabel${kept.join(', ')}'}';
+      kept: [
+        for (final file in _files)
+          for (final (:line, :label) in file.kept) '${file.path}:$line $label',
+      ],
+    );
   }
+}
+
+/// The `number labels:` plan line: the [converted] entries, then after
+/// `; left:` the [kept] ones; null when both are empty.
+String? numberLabelsPlanLine({
+  required Iterable<String> converted,
+  required Iterable<String> kept,
+}) {
+  if (converted.isEmpty && kept.isEmpty) return null;
+  return '$_planLabel${converted.join(', ')}'
+      '${kept.isEmpty ? '' : '$_leftLabel${kept.join(', ')}'}';
 }
 
 /// A file the pass read, whether it changed it, the operation headings it

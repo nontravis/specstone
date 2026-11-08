@@ -28,6 +28,7 @@ final class NumberLabel {
     this.fr,
     this.slug,
     this.itemId,
+    this.prefix,
   });
 
   final int start;
@@ -40,6 +41,10 @@ final class NumberLabel {
   final String? slug;
   final String? itemId;
 
+  /// The lowercase prefix of a legacy ID's feature folder, such as `ai` in
+  /// `ai02`; null for any other label.
+  final String? prefix;
+
   NumberLabel _shiftedBy(int offset) => NumberLabel(
     start: start + offset,
     end: end + offset,
@@ -50,6 +55,7 @@ final class NumberLabel {
     fr: fr,
     slug: slug,
     itemId: itemId,
+    prefix: prefix,
   );
 }
 
@@ -110,7 +116,7 @@ const _storyRank = 1;
 const _frRank = 2;
 
 /// One part of a label: its rank (feature, story, FR), number, and end.
-typedef _Part = ({int rank, int number, String? slug, int end});
+typedef _Part = ({int rank, int number, String? slug, int end, String? prefix});
 
 NumberLabel? _labelAt(String line, int at, bool legacyIds) =>
     _dashRunAt(line, at) ?? _folderRunAt(line, at, legacyIds);
@@ -159,7 +165,7 @@ _Part? _dashPartAt(String line, int at) {
     final end = _digitsEnd(line, digits);
     if (end == digits) return null;
     final number = _numberOf(line.substring(digits, end));
-    return (rank: rank, number: number, slug: null, end: end);
+    return (rank: rank, number: number, slug: null, end: end, prefix: null);
   }
   return null;
 }
@@ -179,6 +185,7 @@ NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
   if (parts.length < 2 || parts.every((part) => part.slug != null)) {
     return null;
   }
+  if (_continuesAsPath(line, parts.last.end)) return null;
   final numbers = <int?>[null, null, null];
   for (final part in parts) {
     numbers[part.rank] = part.number;
@@ -190,8 +197,16 @@ NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
     shape: LabelShape.folderPath,
     numbers: numbers,
     slug: parts.last.slug,
+    prefix: parts.first.prefix,
   );
 }
+
+/// Whether a `/<folder>` follows at [end]: the run is then part of a longer
+/// path, such as `ai01/us01/nf01`, and names no doc by its folders.
+bool _continuesAsPath(String line, int end) =>
+    line.startsWith('/', end) &&
+    end + 1 < line.length &&
+    _isSlugChar(line.codeUnitAt(end + 1));
 
 /// Reads a folder name `f<digits>`, `us<digits>`, or `fr<digits>`, with an
 /// optional `_<slug>`, at [at]; with [legacyIds] a feature folder may open
@@ -211,6 +226,9 @@ _Part? _folderAt(String line, int at, {required bool legacyIds}) {
     number: _numberOf(line.substring(digits, digitsEnd)),
     slug: slugEnd == null ? null : line.substring(digitsEnd + 1, slugEnd),
     end: slugEnd ?? digitsEnd,
+    prefix: legacyIds && rank == _featureRank
+        ? line.substring(at, at + prefixLength)
+        : null,
   );
 }
 
@@ -251,6 +269,7 @@ NumberLabel _labelOf(
   required LabelShape shape,
   required List<int?> numbers,
   String? slug,
+  String? prefix,
 }) => NumberLabel(
   start: start,
   end: end,
@@ -261,6 +280,7 @@ NumberLabel _labelOf(
   fr: numbers[_frRank],
   slug: slug,
   itemId: _itemIdAfter(line, end),
+  prefix: prefix,
 );
 
 /// Returns the item ID that follows a label ending at [end] after one space:

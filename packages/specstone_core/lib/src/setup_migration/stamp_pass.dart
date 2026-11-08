@@ -100,10 +100,15 @@ final class StampPass {
   }
 
   /// The `stamps:` plan line, or null when nothing is stamped.
-  String? get planLine => _approvals == 0 && _fingerprints == 0
-      ? null
-      : 'stamps: $_approvals approval hashes, $_fingerprints fingerprints';
+  String? get planLine => stampsPlanLine(_approvals, _fingerprints);
 }
+
+/// The `stamps:` plan line for [approvals] approval hashes and [fingerprints]
+/// `confirmed` fingerprints, or null when both are zero.
+String? stampsPlanLine(int approvals, int fingerprints) =>
+    approvals == 0 && fingerprints == 0
+    ? null
+    : 'stamps: $approvals approval hashes, $fingerprints fingerprints';
 
 // MARK: - Approval
 

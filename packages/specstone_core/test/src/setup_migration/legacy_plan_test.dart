@@ -41,7 +41,9 @@ commit 2, rewrites:
   prds/features/f01_login/us01_email_login/USER_STORY.md: title, name
   prds/features/f01_login/us01_email_login/fr01_validate_credentials.md: title, name
   specs/f01_login/ARCHITECTURE.md: title, name, feature_id, Concerns, covers (1 path)
+  number labels: prds/features/f01_login/FEATURE.md
   format layout: specs/f01_login/DOMAIN.md
+  stamps: 8 approval hashes, 0 fingerprints
 commit 2, creates:
 ''';
 
@@ -749,6 +751,10 @@ Text.
     expect(domain.text, contains('## Not in the template\n\nText.\n'));
     expect(domain.text, contains('| Session | Aggregate root | token    |'));
     expect(plan.toText(), isNot(contains('format layout:')));
+    expect(
+      plan.toText(),
+      contains('stamps: 8 approval hashes, 0 fingerprints'),
+    );
   });
 
   test('f06/us01/fr06/e01, write_first_fingerprints: the fingerprint hashes '
@@ -1159,7 +1165,9 @@ name: NFR
         );
         expect(
           plan.toText(),
-          contains('prds/features/f01_login/FEATURE.md:3 ai09/us01/fr01'),
+          contains(
+            '; left: prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01, ',
+          ),
         );
       });
 
@@ -1178,13 +1186,39 @@ name: NFR
           _rewrite(plan, frPath).text,
           contains('After `login/email_login/lock_account` and not FR-09.'),
         );
-        expect(plan.toText(), contains('$frPath:3 FR-09'));
+        expect(plan.toText(), contains(', $frPath:7 FR-09'));
       });
 
-      test('E19: a plan with no id or label to keep lists none', () async {
+      test(
+        'E19: the plan names each doc a label became a name in, as the '
+        'upgrade plan does, and an untyped one is no layout rewrite',
+        () async {
+          final plan = await _plan({
+            ..._citingLegacy,
+            'docs/prds/d04_glossary.md': 'See F-01.\n',
+          });
+
+          final lines = plan.toText().split('\n');
+
+          expect(
+            lines.singleWhere((l) => l.startsWith('  number labels: ')),
+            startsWith(
+              '  number labels: prds/d04_glossary.md, '
+              'prds/features/f01_login/FEATURE.md, ',
+            ),
+          );
+          expect(lines.any((l) => l.contains('format layout:')), isFalse);
+          expect(
+            _rewrite(plan, 'prds/d04_glossary.md').text,
+            'See `feature:login`.\n',
+          );
+        },
+      );
+
+      test('E19: a tree with no label to keep prints no left list', () async {
         final plan = await _plan(acmeLegacy);
 
-        expect(plan.toText(), isNot(contains('left as written')));
+        expect(plan.toText(), isNot(contains('; left:')));
       });
     },
   );
@@ -1223,6 +1257,7 @@ name: NFR
       final domain = _rewrite(plan, 'specs/f01_login/DOMAIN.md');
 
       expect(domain.text, contains('approved: "'));
+      expect(plan.toText(), contains('stamps: 8 approval hashes'));
       expect(
         plan.rewrites.map((r) => r.path),
         isNot(contains('docs/specs/INDEX.md')),
@@ -1251,6 +1286,7 @@ name: Login API
         final plan = await _plan(tree);
 
         final api = _rewrite(plan, 'specs/f01_login/API.md');
+        expect(plan.toText(), contains(', 1 fingerprints\n'));
         expect(api.text, contains('confirmed:\n  - email_login/'));
         expect(
           withApprovalHash(api.text, _typeOf('specs/f01_login/API.md')),
