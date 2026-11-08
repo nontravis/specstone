@@ -1238,6 +1238,7 @@ String _docText(RunPlan plan, String docPath) =>
 ProcessResult _missingGit(
   List<String> arguments, {
   required String workingDirectory,
+  Map<String, String>? environment,
 }) => throw const ProcessException('git', []);
 
 void _renumberTests() {

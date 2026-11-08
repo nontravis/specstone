@@ -14,6 +14,7 @@ import '../../helpers/temp_tree.dart';
 ProcessResult _gitMissing(
   List<String> arguments, {
   required String workingDirectory,
+  Map<String, String>? environment,
 }) => throw const ProcessException('git', []);
 
 void main() {
@@ -75,7 +76,7 @@ void main() {
     /// A `RunGit` that prints [version] for `git --version` and runs the real
     /// `git` for every other call.
     RunGit gitAt(String version) =>
-        (arguments, {required workingDirectory}) =>
+        (arguments, {required workingDirectory, environment}) =>
             arguments.first == '--version'
             ? ProcessResult(0, 0, '$version\n', '')
             : runRealGit(arguments, workingDirectory: workingDirectory);
@@ -194,6 +195,7 @@ void main() {
     ProcessResult failing(
       List<String> arguments, {
       required String workingDirectory,
+      Map<String, String>? environment,
     }) => ProcessResult(0, 128, '', 'fatal: not a git repository');
 
     expect(

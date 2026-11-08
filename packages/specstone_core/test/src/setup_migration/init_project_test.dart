@@ -60,6 +60,7 @@ const _draftPaths = [
 ProcessResult _noGit(
   List<String> arguments, {
   required String workingDirectory,
+  Map<String, String>? environment,
 }) {
   throw StateError('init must start no git process: git $arguments');
 }
@@ -597,7 +598,7 @@ void main() {
         root,
         confirmation: OwnerConfirmation.prompt,
         answers: ['y'],
-        runGit: (arguments, {required workingDirectory}) =>
+        runGit: (arguments, {required workingDirectory, environment}) =>
             arguments.first == 'commit'
             ? ProcessResult(0, 1, '', 'error: commit refused\n')
             : runRealGit(arguments, workingDirectory: workingDirectory),
@@ -619,7 +620,7 @@ void main() {
       () => _run(
         root,
         confirmation: OwnerConfirmation.prompt,
-        runGit: (arguments, {required workingDirectory}) =>
+        runGit: (arguments, {required workingDirectory, environment}) =>
             throw const ProcessException('git', []),
       ),
       throwsA(

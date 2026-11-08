@@ -882,7 +882,7 @@ void main() {
       final target = JournalTarget(
         projectRoot: root,
         docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
-        runGit: (arguments, {required workingDirectory}) {
+        runGit: (arguments, {required workingDirectory, environment}) {
           calls.add(arguments);
           return runRealGit(arguments, workingDirectory: workingDirectory);
         },
@@ -1281,7 +1281,7 @@ void main() {
             JournalTarget(
               projectRoot: root,
               docsRoot: root,
-              runGit: (arguments, {required workingDirectory}) =>
+              runGit: (arguments, {required workingDirectory, environment}) =>
                   arguments.first == 'log'
                   ? ProcessResult(0, 0, '', '')
                   : failing(stderr, stdout),
@@ -1309,7 +1309,7 @@ void main() {
       JournalTarget target() => JournalTarget(
         projectRoot: root,
         docsRoot: root,
-        runGit: (arguments, {required workingDirectory}) =>
+        runGit: (arguments, {required workingDirectory, environment}) =>
             arguments.first == 'log'
             ? ProcessResult(0, 0, '', '')
             : ProcessResult(0, 1, 'On branch x\nnothing to commit\n\n', ''),

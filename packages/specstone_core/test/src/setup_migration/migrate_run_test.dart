@@ -1000,7 +1000,7 @@ void main() {
             confirmation: OwnerConfirmation.prompt,
             readLine: () => null,
             out: StringBuffer(),
-            runGit: (arguments, {required workingDirectory}) =>
+            runGit: (arguments, {required workingDirectory, environment}) =>
                 throw const ProcessException('git', []),
           ),
         ),
@@ -1030,7 +1030,7 @@ void main() {
             confirmation: OwnerConfirmation.prompt,
             readLine: () => null,
             out: StringBuffer(),
-            runGit: (arguments, {required workingDirectory}) =>
+            runGit: (arguments, {required workingDirectory, environment}) =>
                 arguments.first == '--version'
                 ? ProcessResult(0, 0, 'git version 2.24.4\n', '')
                 : runRealGit(arguments, workingDirectory: workingDirectory),
@@ -1062,7 +1062,7 @@ void main() {
             confirmation: OwnerConfirmation.prompt,
             readLine: () => 'y',
             out: StringBuffer(),
-            runGit: (arguments, {required workingDirectory}) =>
+            runGit: (arguments, {required workingDirectory, environment}) =>
                 arguments.first == 'add'
                 ? throw ProcessException(
                     'git',

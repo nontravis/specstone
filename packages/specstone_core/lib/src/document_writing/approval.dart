@@ -193,6 +193,19 @@ final class UnknownHistory extends ApprovalLookup {
   const new();
 }
 
+/// Whether a committed copy counts as approved (R85, R86): no `draft: true`,
+/// and an `approved:` value that is the ApprovalHash of the copy's own
+/// content, or `approved: true`.
+bool countsAsApprovedCopy(String lfCopy, MergedDocType? docType) {
+  final fields = ApprovalFields.of(Doc.parse(lfCopy));
+  if (fields.isDraft) return false;
+  return switch (fields.approvedValue) {
+    true => true,
+    final String value => value == approvalHashOf(lfCopy, docType),
+    _ => false,
+  };
+}
+
 /// Finds the last approved copy of a doc in git.
 final class ApprovalHistory {
   /// [runGit] replaces the real `git` process, for tests.
@@ -200,38 +213,32 @@ final class ApprovalHistory {
 
   final RunGit _runGit;
 
-  /// Returns the newest committed copy of [projectPath] without `draft`.
+  /// Returns the newest committed copy of [projectPath] that counts as
+  /// approved for [docType] (see [countsAsApprovedCopy]).
   ///
   /// [projectPath] is relative to [projectRoot], which may sit below the
   /// repository top-level; the history follows renames and skips the commits
-  /// that deleted the file.
-  ApprovalLookup lastApproved(Directory projectRoot, String projectPath) {
+  /// that deleted the file. A path no commit holds is looked up at the path
+  /// the doc held before an uncommitted move.
+  ApprovalLookup lastApproved(
+    Directory projectRoot,
+    String projectPath, {
+    required MergedDocType? docType,
+  }) {
     try {
-      final revParse = _runGit([
-        'rev-parse',
-        '--show-prefix',
-      ], workingDirectory: projectRoot.path);
-      if (revParse.exitCode != 0) return const UnknownHistory();
-      final prefix = _prefixOf(revParse.stdout as String);
-      final log = _runGit([
-        'log',
-        '--follow',
-        '--diff-filter=d',
-        '-z',
-        '--format=%H',
-        '--name-only',
-        '--',
-        projectPath,
-      ], workingDirectory: projectRoot.path);
-      if (log.exitCode != 0) return const UnknownHistory();
-      for (final (sha, path) in _commitsOf(log.stdout as String)) {
-        final show = _runGit([
-          'show',
-          '$sha:$path',
-        ], workingDirectory: projectRoot.path);
-        if (show.exitCode != 0) return const UnknownHistory();
-        final copy = show.stdout as String;
-        if (!Doc.parse(toLf(copy)).isDraft) {
+      final prefix = _prefixOf(
+        _git(projectRoot, ['rev-parse', '--show-prefix']),
+      );
+      var commits = _commitsFollowing(projectRoot, projectPath);
+      if (commits.isEmpty) {
+        final before = _pathBeforeMove(projectRoot, projectPath, prefix);
+        if (before != null) {
+          commits = _commitsFollowing(projectRoot, ':(top)$before');
+        }
+      }
+      for (final (sha, path) in commits) {
+        final copy = _git(projectRoot, ['show', '$sha:$path']);
+        if (countsAsApprovedCopy(toLf(copy), docType)) {
           return ApprovedCopy(
             copy,
             commit: sha,
@@ -240,6 +247,8 @@ final class ApprovalHistory {
         }
       }
       return const NoApprovedCopy();
+    } on _GitCannotAnswer {
+      return const UnknownHistory();
     } on ProcessException {
       return const UnknownHistory();
     } on FormatException {
@@ -247,6 +256,81 @@ final class ApprovalHistory {
       return const UnknownHistory();
     }
   }
+
+  List<(String, String)> _commitsFollowing(Directory root, String path) =>
+      _commitsOf(
+        _git(root, [
+          'log',
+          '--follow',
+          '--diff-filter=d',
+          '-z',
+          '--format=%H',
+          '--name-only',
+          '--',
+          path,
+        ]),
+      ).toList();
+
+  /// Returns the top-level path [projectPath] held in `HEAD` before an
+  /// uncommitted move, or null when git pairs it with no deleted path.
+  ///
+  /// Git detects the rename in a temporary copy of the index, so the user's
+  /// index is never written.
+  String? _pathBeforeMove(Directory root, String projectPath, String prefix) {
+    final index = _git(root, ['rev-parse', '--git-path', 'index']).trim();
+    final named = File(index);
+    final source = named.isAbsolute ? named : File('${root.path}/$index');
+    if (!source.existsSync()) return null;
+    final scratch = Directory.systemTemp.createTempSync('specstone_index_');
+    try {
+      final copy = source.copySync('${scratch.path}/index');
+      final env = {'GIT_INDEX_FILE': copy.path};
+      final docsRoot = projectPath.split('/').first;
+      _git(root, ['add', '-A', '--', docsRoot], environment: env);
+      final status = _git(root, [
+        'diff',
+        '--cached',
+        '-M',
+        '-z',
+        '--name-status',
+        'HEAD',
+      ], environment: env);
+      return _renamedFrom(status, '$prefix$projectPath');
+    } finally {
+      scratch.deleteSync(recursive: true);
+    }
+  }
+
+  String _git(
+    Directory root,
+    List<String> arguments, {
+    Map<String, String>? environment,
+  }) {
+    final result = _runGit(
+      arguments,
+      workingDirectory: root.path,
+      environment: environment,
+    );
+    if (result.exitCode != 0) throw const _GitCannotAnswer();
+    return result.stdout as String;
+  }
+}
+
+/// A git command that exited non-zero.
+final class _GitCannotAnswer implements Exception {
+  const new();
+}
+
+/// Returns the old path of the rename to [topLevelPath] in a
+/// `diff -z --name-status` [status], or null when it lists none.
+String? _renamedFrom(String status, String topLevelPath) {
+  final fields = status.split('\x00');
+  for (var i = 0; i + 2 < fields.length; i++) {
+    if (fields[i].startsWith('R') && fields[i + 2] == topLevelPath) {
+      return fields[i + 1];
+    }
+  }
+  return null;
 }
 
 /// Returns the folder `git rev-parse --show-prefix` printed in [output].

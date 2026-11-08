@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -17,11 +18,15 @@ import '../../helpers/git_repo.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
-const _approvedText = '# Signup\n\nApproved body.\n';
+const _approvedBody = '# Signup\n\nApproved body.\n';
+
+/// A committed copy that counts as approved: it carries its own hash.
+final String _approvedText = withApprovalHash(_approvedBody, _docType);
 
 /// Long enough that git still pairs a drafted copy with it as a rename.
-final _longApproved =
+final String _longBody =
     '# Recover\n\n${List.filled(8, 'A step of the flow.\n').join()}';
+final String _longApproved = withApprovalHash(_longBody, _docType);
 const _draftText = '---\ndraft: true\n---\n# Signup\n\nDraft body.\n';
 
 const _docType = MergedDocType(
@@ -256,6 +261,42 @@ void main() {
     });
   });
 
+  group('countsAsApprovedCopy', () {
+    const base = '# Signup\n\nBody.\n';
+    final hashed = withApprovalHash(base, _docType);
+
+    test('f02/us03/fr02/e19, e20: its own hash counts; a stale hash, a draft, '
+        'or no mark does not', () {
+      expect(countsAsApprovedCopy(hashed, _docType), isTrue);
+      expect(
+        countsAsApprovedCopy(hashed.replaceFirst('Body', 'Edit'), _docType),
+        isFalse,
+      );
+      expect(
+        countsAsApprovedCopy('---\ndraft: true\n---\n$base', _docType),
+        isFalse,
+      );
+      expect(countsAsApprovedCopy(base, _docType), isFalse);
+    });
+
+    test(
+      'f02/us03/fr02/e11: `approved: true` counts, even with no doc type',
+      () {
+        expect(
+          countsAsApprovedCopy('---\napproved: true\n---\n$base', null),
+          isTrue,
+        );
+      },
+    );
+
+    test('f02/us03/fr02/e21: an unquoted digits hash is no hash', () {
+      expect(
+        countsAsApprovedCopy('---\napproved: 123456789012\n---\n$base', null),
+        isFalse,
+      );
+    });
+  });
+
   group('approval rules', () {
     const hash = '5d1e0c4b7a92';
     // The digits-only rows hash to their own digits (E14).
@@ -422,7 +463,11 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, 'docs/$signupFeature'),
+      const ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);
@@ -437,7 +482,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, path),
+      const ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>()
           .having((c) => c.commit, 'commit', approvingCommit)
           .having((c) => c.path, 'path', path),
@@ -454,11 +499,11 @@ void main() {
         .createSync(recursive: true);
     expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
     File('${repo.path}/$newPath')
-        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+        .writeAsStringSync('---\ndraft: true\n---\n$_longBody');
     commitAll(repo, 'moved and drafted');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, newPath),
+      const ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.path, 'path', oldPath),
     );
   }, skip: skipGit);
@@ -472,7 +517,11 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(Directory('${repo.path}/sub'), path),
+      const ApprovalHistory().lastApproved(
+        Directory('${repo.path}/sub'),
+        path,
+        docType: _docType,
+      ),
       isA<ApprovedCopy>()
           .having((c) => c.text, 'text', _approvedText)
           .having((c) => c.path, 'path', path),
@@ -494,6 +543,7 @@ void main() {
       const ApprovalHistory().lastApproved(
         Directory('${repo.path}/$sub'),
         path,
+        docType: _docType,
       ),
       isA<ApprovedCopy>().having((c) => c.path, 'path', path),
     );
@@ -510,13 +560,14 @@ void main() {
         .createSync(recursive: true);
     expect(git(repo, ['mv', 'sub/$oldPath', 'sub/$newPath']).exitCode, 0);
     File('${repo.path}/sub/$newPath')
-        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+        .writeAsStringSync('---\ndraft: true\n---\n$_longBody');
     commitAll(repo, 'moved and drafted');
 
     expect(
       const ApprovalHistory().lastApproved(
         Directory('${repo.path}/sub'),
         newPath,
+        docType: _docType,
       ),
       isA<ApprovedCopy>()
           .having((c) => c.text, 'text', _longApproved)
@@ -534,13 +585,14 @@ void main() {
         .createSync(recursive: true);
     expect(git(repo, ['mv', oldPath, 'sub/$newPath']).exitCode, 0);
     File('${repo.path}/sub/$newPath')
-        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+        .writeAsStringSync('---\ndraft: true\n---\n$_longBody');
     commitAll(repo, 'moved and drafted');
 
     expect(
       const ApprovalHistory().lastApproved(
         Directory('${repo.path}/sub'),
         newPath,
+        docType: _docType,
       ),
       isA<ApprovedCopy>()
           .having((c) => c.text, 'text', _longApproved)
@@ -550,14 +602,18 @@ void main() {
 
   test('f02/us03/fr02/e04: a failing rev-parse is UnknownHistory', () {
     final failing = ApprovalHistory(
-      runGit: (arguments, {required workingDirectory}) =>
+      runGit: (arguments, {required workingDirectory, environment}) =>
           arguments.first == 'rev-parse'
           ? ProcessResult(0, 128, '', 'fatal: not a git repository')
           : ProcessResult(0, 0, '', ''),
     );
 
     expect(
-      failing.lastApproved(Directory.systemTemp, 'docs/$story1'),
+      failing.lastApproved(
+        Directory.systemTemp,
+        'docs/$story1',
+        docType: _docType,
+      ),
       isA<UnknownHistory>(),
     );
   });
@@ -574,11 +630,11 @@ void main() {
           .createSync(recursive: true);
       expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
       File('${repo.path}/$newPath')
-          .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+          .writeAsStringSync('---\ndraft: true\n---\n$_longBody');
       commitAll(repo, 'moved and drafted');
 
       expect(
-        const ApprovalHistory().lastApproved(repo, newPath),
+        const ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
         isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
       );
     },
@@ -596,14 +652,176 @@ void main() {
         .createSync(recursive: true);
     expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
     File('${repo.path}/$newPath')
-        .writeAsStringSync('---\ndraft: true\n---\n$_longApproved');
+        .writeAsStringSync('---\ndraft: true\n---\n$_longBody');
     commitAll(repo, 'moved and drafted');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, newPath),
+      const ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
     );
   }, skip: skipSha256);
+
+  test('f02/us03/fr02/e03, dw-s03/inv11: a committed copy with neither key is '
+      'no approval', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedBody});
+    commitAll(repo, 'written by hand');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<NoApprovedCopy>(),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e05, dw-s03/inv11: an edit before any commit leaves the '
+      'committed approved copy the newest', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
+    File('${repo.path}/docs/$signupFeature')
+        .writeAsStringSync('$_approvedText\nUncommitted edit.\n');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e19, dw-s03/inv11: a newer copy with no draft and no '
+      '`approved:` value is passed over for an older approved one', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
+    File('${repo.path}/docs/$signupFeature')
+        .writeAsStringSync('# Signup\n\nA legacy run left this.\n');
+    commitAll(repo, 'legacy copy');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
+
+  test('f02/us03/fr02/e20, dw-s03/inv11: an edit committed with its old hash '
+      'counts as no approval', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
+    File('${repo.path}/docs/$signupFeature')
+        .writeAsStringSync(_approvedText.replaceFirst('Approved', 'Edited'));
+    commitAll(repo, 'edited in an editor');
+
+    expect(
+      const ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
+
+  test(
+    'f02/us03/fr02/e21, dw-s03/inv11: an unquoted digits hash is no hash',
+    () async {
+      final digits = RegExp(r'"(\d{12})"');
+      final text = _approvedBody.replaceFirst(
+        '# Signup',
+        '---\napproved: 123456789012\n---\n# Signup',
+      );
+      expect(digits.hasMatch(text), isFalse);
+      final repo = await _repo({'docs/$signupFeature': text});
+      commitAll(repo, 'unquoted');
+
+      expect(
+        const ApprovalHistory().lastApproved(
+          repo,
+          'docs/$signupFeature',
+          docType: _docType,
+        ),
+        isA<NoApprovedCopy>(),
+      );
+    },
+    skip: skipGit,
+  );
+
+  group('an uncommitted move (f02/us03/fr02/e18)', () {
+    const oldPath = 'docs/$story3';
+    const newPath =
+        'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
+
+    Future<Directory> movedRepo({required bool staged}) async {
+      final repo = await _repo({oldPath: _longApproved});
+      commitAll(repo, 'approved');
+      File('${repo.path}/$newPath')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('---\ndraft: true\n---\n${_longBody}An edit.\n');
+      File('${repo.path}/$oldPath').deleteSync();
+      if (staged) expect(git(repo, ['add', '-A']).exitCode, 0);
+      return repo;
+    }
+
+    for (final staged in [false, true]) {
+      test('${staged ? 'staged' : 'unstaged'} move then edit: the history runs '
+          'on the path before it, and the index stays byte-equal', () async {
+        final repo = await movedRepo(staged: staged);
+        final index = File('${repo.path}/.git/index');
+        final before = index.readAsBytesSync();
+        final indexFiles = <String>[];
+        final history = ApprovalHistory(
+          runGit: (arguments, {required workingDirectory, environment}) {
+            final file = environment?['GIT_INDEX_FILE'];
+            if (file != null) indexFiles.add(file);
+            return runRealGit(
+              arguments,
+              workingDirectory: workingDirectory,
+              environment: environment,
+            );
+          },
+        );
+
+        final lookup = history.lastApproved(repo, newPath, docType: _docType);
+
+        expect(
+          lookup,
+          isA<ApprovedCopy>()
+              .having((c) => c.text, 'text', _longApproved)
+              .having((c) => c.path, 'path', oldPath),
+        );
+        expect(indexFiles, isNotEmpty, reason: 'the move branch ran');
+        expect(indexFiles, everyElement(isNot(index.path)));
+        expect(index.readAsBytesSync(), before);
+      }, skip: skipGit);
+    }
+
+    test(
+      'a doc no move put there, whose path no commit holds, is none',
+      () async {
+        final repo = await movedRepo(staged: false);
+        File('${repo.path}/docs/$story1')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('---\ndraft: true\n---\n# Other\n');
+
+        expect(
+          const ApprovalHistory().lastApproved(
+            repo,
+            'docs/$story1',
+            docType: _docType,
+          ),
+          isA<NoApprovedCopy>(),
+        );
+      },
+      skip: skipGit,
+    );
+  });
 
   test('f02/us03/s3, f02/us03/fr02/e03, f02/us03/fr02/e05: no committed copy without draft is NoApprovedCopy', () async {
     final repo = await _repo({'docs/$signupFeature': _draftText});
@@ -613,7 +831,11 @@ void main() {
     commitAll(repo, 'still draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, 'docs/$signupFeature'),
+      const ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
       isA<NoApprovedCopy>(),
     );
   }, skip: skipGit);
@@ -625,7 +847,11 @@ void main() {
       commitAll(repo, 'approved');
 
       expect(
-        const ApprovalHistory().lastApproved(repo, 'docs/$story1'),
+        const ApprovalHistory().lastApproved(
+          repo,
+          'docs/$story1',
+          docType: _docType,
+        ),
         isA<NoApprovedCopy>(),
       );
     },
@@ -637,27 +863,36 @@ void main() {
       const ApprovalHistory().lastApproved(
         await writeWriteProject(),
         'docs/$story1',
+        docType: _docType,
       ),
       isA<UnknownHistory>(),
       skip: skipGit,
     );
     final missing = ApprovalHistory(
-      runGit: (_, {required workingDirectory}) =>
+      runGit: (_, {required workingDirectory, environment}) =>
           throw const ProcessException('git', []),
     );
     expect(
-      missing.lastApproved(Directory.systemTemp, 'docs/$story1'),
+      missing.lastApproved(
+        Directory.systemTemp,
+        'docs/$story1',
+        docType: _docType,
+      ),
       isA<UnknownHistory>(),
     );
   });
 
   test('f02/us03/fr02/e04, dw-s03/inv11, final Important 3: git output that is not UTF-8 makes the history unknown', () {
     final garbled = ApprovalHistory(
-      runGit: (_, {required workingDirectory}) =>
+      runGit: (_, {required workingDirectory, environment}) =>
           throw const FormatException('Missing extension byte'),
     );
     expect(
-      garbled.lastApproved(Directory.systemTemp, 'docs/$story1'),
+      garbled.lastApproved(
+        Directory.systemTemp,
+        'docs/$story1',
+        docType: _docType,
+      ),
       isA<UnknownHistory>(),
     );
   });
@@ -674,7 +909,7 @@ void main() {
     commitAll(repo, 'added again as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, path),
+      const ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);
@@ -690,7 +925,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, path),
+      const ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);
@@ -700,7 +935,7 @@ void main() {
     () {
       final sha = 'a' * 40;
       final failing = ApprovalHistory(
-        runGit: (arguments, {required workingDirectory}) =>
+        runGit: (arguments, {required workingDirectory, environment}) =>
             switch (arguments.first) {
               'rev-parse' => ProcessResult(0, 0, '\n', ''),
               'log' => ProcessResult(0, 0, '$sha\x00\ndocs/$story1\x00', ''),
@@ -708,7 +943,11 @@ void main() {
             },
       );
       expect(
-        failing.lastApproved(Directory.systemTemp, 'docs/$story1'),
+        failing.lastApproved(
+          Directory.systemTemp,
+          'docs/$story1',
+          docType: _docType,
+        ),
         isA<UnknownHistory>(),
       );
     },

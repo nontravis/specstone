@@ -2,19 +2,25 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Runs `git` with [arguments] in [workingDirectory].
+///
+/// [environment] adds variables to the process environment, such as
+/// `GIT_INDEX_FILE`.
 typedef RunGit = ProcessResult Function(
   List<String> arguments, {
   required String workingDirectory,
+  Map<String, String>? environment,
 });
 
 /// Starts the real `git` program; the only code that does.
 ProcessResult runRealGit(
   List<String> arguments, {
   required String workingDirectory,
+  Map<String, String>? environment,
 }) => Process.runSync(
   'git',
   arguments,
   workingDirectory: workingDirectory,
+  environment: environment,
   stdoutEncoding: utf8,
 );
 

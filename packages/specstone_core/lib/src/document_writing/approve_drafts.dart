@@ -277,7 +277,11 @@ String _viewOf(
     status: session.index.statusOf(doc),
     projectPath: projectPath,
     text: utf8.decode(bytes),
-    lookup: history.lastApproved(session.project.projectRoot, projectPath),
+    lookup: history.lastApproved(
+      session.project.projectRoot,
+      projectPath,
+      docType: session.index.typeOf(doc),
+    ),
   );
   return renderApprovalView(
     draft,

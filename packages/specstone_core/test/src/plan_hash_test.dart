@@ -22,6 +22,7 @@ void main() {
     ProcessResult missingGit(
       List<String> arguments, {
       required String workingDirectory,
+      Map<String, String>? environment,
     }) => throw const ProcessException('git', []);
     expect(planHashOf(_plan, root, missingGit), baseHashOf(_plan));
   });
