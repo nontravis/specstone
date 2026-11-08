@@ -729,4 +729,97 @@ void main() {
       expect(findings, isEmpty);
     });
   });
+
+  group('resolve_doc_links doc-name mentions', () {
+    List<Finding> mentionsOf(Directory project) => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == FindingKind.docNameUnresolved) f,
+    ];
+
+    Map<String, String> featureWriting(String text) => doc(
+      loginFeature,
+      'Users forget passwords.',
+      'Users forget passwords; $text',
+    );
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E25: a typed '
+        'name one letter short under a top-level feature is '
+        'doc_name_unresolved, the name as written', () async {
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: featureWriting(
+            'see `fr:login/email_login/check_pasword#statement`.',
+          ),
+        ),
+      );
+      expect(
+        [for (final f in findings) f.textLine],
+        [
+          '$loginFeature:13: doc_name_unresolved: doc name fr:login/email_login/check_pasword#statement names no doc',
+        ],
+      );
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'name': 'fr:login/email_login/check_pasword#statement'},
+        ],
+      );
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E26: a '
+        'name whose first slug names no top-level feature, a git ref, and a '
+        'skill name raise nothing', () async {
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: featureWriting(
+            'see `shop/checkout`, `architecture:shop`, `origin/develop`, '
+            '`specstone:init`, `user_id`, and `check architecture:login`.',
+          ),
+        ),
+      );
+      expect(findings, isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E27: names '
+        'that resolve raise nothing, and a section key the doc lacks is '
+        'never read', () async {
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: featureWriting(
+            'see `feature:login`, `login/email_login#nothing_here`, and '
+            '`login/email_login/check_password`.',
+          ),
+        ),
+      );
+      expect(findings, isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E07: a name '
+        'in plain text and one in fenced code raise nothing', () async {
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: featureWriting(
+            'see login/email_login/check_pasword.\n\n```text\n'
+            '`login/email_login/check_pasword`\n```',
+          ),
+        ),
+      );
+      expect(findings, isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links S14: an '
+        'untyped doc is checked and the finding names the doc, the line, and '
+        'the name', () async {
+      const notes = 'prds/d07_notes.md';
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: {'docs/$notes': '# Notes\n\nOne `login/email_logn`.\n'},
+        ),
+      );
+      expect(
+        [for (final f in findings) f.textLine],
+        ['$notes:3: doc_name_unresolved: doc name login/email_logn names no doc'],
+      );
+    });
+  });
 }

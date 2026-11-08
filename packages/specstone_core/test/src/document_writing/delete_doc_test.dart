@@ -1203,6 +1203,52 @@ void main() {
         ),
       );
     });
+
+    test(
+      'document_writing/delete_doc_subtree/delete_doc_subtree E13: a doc-name '
+      'mention of the feature warns as a path mention does, the delete '
+      'going on',
+      () async {
+        final root = await mentioning({
+          project: '# Project context\n\nSee `feature:login`.\n',
+        });
+
+        final answer = delLogin(root);
+
+        expect(answer.json['removed'], contains(loginFeature));
+        expect(answer.warnings, [mentionWarning]);
+        expect(hasDoc(root, project), isTrue);
+      },
+    );
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E13: a bare '
+        'name and a typed name of one doc on two lines give one warning, and '
+        'a dry run warns the same', () async {
+      final root = await mentioning({
+        project:
+            '# Project context\n\nSee `login/reset_password`.\n\n'
+            'And `user_story:login/reset_password`.\n',
+      });
+
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['feature:login']),
+      );
+
+      expect(answer.warnings, [
+        '$project mentions $story3; the mention will dangle',
+      ]);
+      expect(hasDoc(root, story3), isTrue);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E13: a '
+        'doc-name mention from an untyped doc gives no warning', () async {
+      final root = await mentioning({
+        'prds/d02_notes.md': '# Notes\n\nSee `feature:login`.\n',
+      });
+
+      expect(delLogin(root).warnings, isEmpty);
+    });
   });
 
   test('document_writing/delete_doc_subtree/delete_doc_subtree E06: delete of a story an FR of another feature traces is doc_referenced listing that FR', () async {

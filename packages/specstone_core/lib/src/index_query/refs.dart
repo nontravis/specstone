@@ -54,7 +54,8 @@ final class _Ref {
 /// docs whose `doc_ref` value reaches the doc, then those linking to it, then
 /// the journeys with a step naming it, then the `fr` docs tracing it, each
 /// group in tree order of the referring docs. Mentions holds each line of
-/// another typed doc that names the doc's file in text (see [mentionsOf]);
+/// another typed doc that names the doc's file in text or holds a doc-name
+/// mention of it (see [mentionsOf]);
 /// Untyped mentions holds those of untyped docs, which no write takes as a
 /// target. Throws an [IndexFault] when no doc carries the name.
 ReadAnswer answerRefs(DocIndex index, String address) {

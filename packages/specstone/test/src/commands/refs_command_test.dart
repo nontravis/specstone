@@ -81,6 +81,30 @@ void main() {
       {'kind': 'step', 'name': 'login/email_login', 'docType': 'user_story'},
     ]);
   });
+  test('index_query/follow_references/list_doc_references S3: a doc that writes the name in a code span shows among the mentions, in text and in JSON', () async {
+    final project = await writeReadProject(
+      extra: {
+        'docs/prds/personas/buyer/PERSONA.md':
+            '# Buyer\n\n## Profile\nUses `feature:login` daily.\n',
+        'docs/prds/d01_notes.md':
+            '# Notes\n\nPlain feature login. Also `login/email_login`.\n',
+      },
+    );
+    final (:runner, :out, :err) = readRunner(project);
+    expect(await runner.run(['refs', 'feature:login']), 0);
+    expect(
+      out.toString(),
+      contains('Mentions\n- prds/personas/buyer/PERSONA.md:4\n'),
+    );
+    final json = readRunner(project);
+    expect(await json.runner.run(['refs', 'login/email_login', '--json']), 0);
+    final doc =
+        ((jsonDecode(json.out.toString()) as Map)['docs']! as List).single
+            as Map;
+    expect(doc['untypedMentions'], [
+      {'path': 'prds/d01_notes.md', 'line': 3},
+    ]);
+  });
   test('f01/us04/fr01/e09: two names are a usage error whose usage line takes a name or a path, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['refs', 'a', 'b']), 64);

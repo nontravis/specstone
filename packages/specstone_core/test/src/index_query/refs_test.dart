@@ -505,6 +505,33 @@ void main() {
       },
     );
   });
+  test('index_query/follow_references/list_doc_references E04, S3: a doc that '
+      'writes the name in plain words is no mention, and one that writes it '
+      'in a code span is a mention, never a reference', () async {
+    final mentions = await indexWith({
+      'docs/specs/f01_login/notes_plain.md':
+          '# Plain\n\nSee login/email_login in words.\n',
+      'docs/specs/f01_login/notes_code.md':
+          '# Code\n\nSee `login/email_login` and `login`.\n',
+      'docs/prds/personas/buyer/PERSONA.md':
+          '# Buyer\n\n## Profile\nUses `feature:login` daily.\n',
+    });
+    expect(
+      answerRefs(mentions, 'login/email_login').text,
+      endsWith(
+        'Mentions\n- none\nUntyped mentions\n- specs/f01_login/notes_code.md:3\n',
+      ),
+    );
+    final feature = answerRefs(mentions, 'feature:login');
+    expect(
+      feature.text,
+      contains('Mentions\n- prds/personas/buyer/PERSONA.md:4\n'),
+    );
+    final json = feature.json['docs']! as List;
+    expect((json.single as Map)['mentions'], [
+      {'path': 'prds/personas/buyer/PERSONA.md', 'line': 4},
+    ]);
+  });
   test('f01/us07/fr01: refs user_story:shop/cart/add_item lists the API that links it', () async {
     final nested = await nestedIndexWith();
     final text = answerRefs(nested, 'user_story:shop/cart/add_item').text;

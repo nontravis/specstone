@@ -109,4 +109,80 @@ void main() {
       expect(lines, [2]);
     },
   );
+
+  group('doc-name mentions', () {
+    const notes = 'docs/specs/tools/notes.md';
+    const loginName = 'prds/features/f01_login/FEATURE.md';
+
+    Future<List<int>> linesNaming(String text, {String file = notes}) async {
+      final index = await indexWith({file: text});
+      final target = index.resolve(loginName).single;
+      return [for (final mention in mentionsOf(index, target)) mention.line];
+    }
+
+    test(
+      'index_query/follow_references/list_doc_references E04: a code span of '
+      'the name or the typed name is a mention, a bare one-slug name or '
+      'plain text is none',
+      () async {
+        expect(
+          await linesNaming(
+            '# Notes\n\n`feature:login` here.\n\nA `login` alone.\n\n'
+            'Plain feature:login text.\n\n`feature:login#goal`.\n',
+          ),
+          [3, 9],
+        );
+      },
+    );
+
+    test(
+      'index_query/follow_references/list_doc_references E04: a story is '
+      'mentioned by its name and its typed name, not by another type',
+      () async {
+        final index = await indexWith({
+          notes:
+              '# Notes\n\n`login/email_login`\n\n`user_story:login/email_login`\n\n'
+              '`fr:login/email_login`\n',
+        });
+        final story = index.resolve('user_story:login/email_login').single;
+        expect([for (final m in mentionsOf(index, story)) m.line], [3, 5]);
+      },
+    );
+
+    test(
+      'index_query/follow_references/list_doc_references E13: a name in '
+      'fenced code or on a line that links to the doc is no mention',
+      () async {
+        expect(
+          await linesNaming(
+            '# Notes\n\n```text\n`feature:login`\n```\n\n'
+            '[the feature](../../prds/features/f01_login/FEATURE.md) and '
+            '`feature:login`.\n',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('index_query/follow_references/list_doc_references E12: a path and a '
+        'name on one line give one mention of it', () async {
+      expect(
+        await linesNaming(
+          '# Notes\n\n`feature:login` in '
+          'prds/features/f01_login/FEATURE.md.\n',
+        ),
+        [3],
+      );
+    });
+
+    test('index_query/follow_references/list_doc_references E04: a name '
+        'mention of the doc inside the doc itself is no mention', () async {
+      final index = await indexWith({
+        'docs/prds/features/f01_login/FEATURE.md':
+            '# Login\n\n## Problem\n\nSee `feature:login`.\n',
+      });
+      final target = index.resolve('feature:login').single;
+      expect(mentionsOf(index, target), isEmpty);
+    });
+  });
 }

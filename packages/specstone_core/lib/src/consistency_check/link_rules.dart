@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -38,11 +39,56 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
     yield* _repeatedDocRefs(context, doc, values);
     yield* _selfDocRefs(context, doc, values);
   }
+  yield* _unresolvedNames(context, doc);
   yield* _unresolvedLinks(context, doc);
   yield* _missingAnchors(context, doc);
   yield* _selfLinks(context, doc);
   yield* _malformedLinks(context, doc);
   yield* _missingFileLinks(context, doc);
+}
+
+/// What names a doc to a doc-name mention (RULE-11), and the top-level
+/// features: one read per index, since an index is one read snapshot.
+typedef _NameSets = ({Set<String> names, Set<String> topLevelFeatures});
+
+final _nameSetsOf = Expando<_NameSets>();
+
+const _featureType = 'feature';
+
+_NameSets _nameSets(DocIndex index) => _nameSetsOf[index] ??= (
+  names: {
+    for (final doc in index.docs) ...[
+      doc.name,
+      if (doc.docTypeId != null) '${doc.docTypeId}:${doc.name}',
+    ],
+  },
+  topLevelFeatures: {
+    for (final doc in index.docs)
+      if (doc.docTypeId == _featureType && !doc.name.contains('/')) doc.name,
+  },
+);
+
+/// Yields a finding per doc-name mention of [doc] that names no doc while the
+/// first slug of its Name names a top-level feature (RULE-11); any other
+/// unresolved mention is plain text.
+///
+/// The mention's section key is never read.
+Iterable<Finding> _unresolvedNames(CheckContext context, IndexedDoc doc) sync* {
+  final sets = _nameSets(context.index);
+  for (final mention in context.contentOf(doc).lineFacts.nameMentions) {
+    final address = mention.address;
+    if (sets.names.contains(address.docPart)) continue;
+    if (!sets.topLevelFeatures.contains(address.body.split('/').first)) {
+      continue;
+    }
+    yield context.finding(
+      doc,
+      FindingKind.docNameUnresolved,
+      line: mention.line,
+      message: 'doc name ${mention.text} names no doc',
+      keys: {'name': mention.text},
+    );
+  }
 }
 
 /// Returns the string values of every `doc_ref` field of [doc], in field

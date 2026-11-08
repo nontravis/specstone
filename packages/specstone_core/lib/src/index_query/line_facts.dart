@@ -2,6 +2,9 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseLinkFreeBody, parseMarkdownTree;
+import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show readDocAddress;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:yaml/yaml.dart';
@@ -73,6 +76,7 @@ final class LineFacts {
     required this.fileLinks,
     required this.selfLinks,
     required this.unreadableLinks,
+    required this.nameMentions,
     required this.anchors,
     required this.sectionLines,
     required this.sectionCounts,
@@ -132,6 +136,7 @@ final class LineFacts {
       fileLinks: links?.fileLinks ?? const [],
       selfLinks: links?.selfLinks ?? const [],
       unreadableLinks: links?.unreadableLinks ?? const [],
+      nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       anchors: anchorNodes == null ? null : anchorsOf(anchorNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
@@ -158,6 +163,7 @@ final class LineFacts {
       fileLinks: const [],
       selfLinks: const [],
       unreadableLinks: const [],
+      nameMentions: const [],
       anchors: null,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: const [],
@@ -181,6 +187,7 @@ final class LineFacts {
       fileLinks: _placesOfJson(json['file_links']!),
       selfLinks: _placesOfJson(json['self_links']!),
       unreadableLinks: _placesOfJson(json['unreadable_links']!),
+      nameMentions: _mentionsOfJson(json['name_mentions']!),
       anchors: anchors == null
           ? null
           : DocAnchors(
@@ -217,6 +224,10 @@ final class LineFacts {
   /// The links whose target the grammar cannot read, in source order; each
   /// target is the href as written.
   final List<LinkPlace> unreadableLinks;
+
+  /// The doc-name mentions of the body, in source order (RULE-11); `line` is
+  /// the file line.
+  final List<NameMention> nameMentions;
 
   /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
   /// be computed, never a stand-in for an empty one.
@@ -273,6 +284,9 @@ final class LineFacts {
     'file_links': _placesToJson(fileLinks),
     'self_links': _placesToJson(selfLinks),
     'unreadable_links': _placesToJson(unreadableLinks),
+    'name_mentions': [
+      for (final m in nameMentions) [m.line, m.column, m.text],
+    ],
     'anchors': anchors?.toJson(),
     'sections': sectionLines,
     'fenced': [
@@ -283,6 +297,29 @@ final class LineFacts {
     'yaml_error': frontmatterErrorLine,
   };
 }
+
+/// Returns the mentions of [body], whose lines start at file line
+/// `bodyStart + 1`.
+List<NameMention> _mentionsFrom(String body, int bodyStart) => [
+  for (final m in nameMentionsInMarkdown(body))
+    (
+      line: bodyStart + m.line,
+      column: m.column,
+      text: m.text,
+      address: m.address,
+    ),
+];
+
+/// Returns the mentions [json] holds, as `LineFacts.toJson` wrote them.
+List<NameMention> _mentionsOfJson(Object json) => [
+  for (final m in (json as List<Object?>).cast<List<Object?>>())
+    (
+      line: m[0]! as int,
+      column: m[1]! as int,
+      text: m[2]! as String,
+      address: readDocAddress(m[2]! as String),
+    ),
+];
 
 /// Returns the places [json] holds, as [_placesToJson] wrote them.
 List<LinkPlace> _placesOfJson(Object json) => [
