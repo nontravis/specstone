@@ -158,7 +158,7 @@ void main() {
       );
     }
   });
-  test('index_query/read_doc_section/resolve_doc_name E07: an unknown doc type prefix is doc_type_unknown, exit 64', () async {
+  test('f01/us04/fr01/e07: an unknown doc type prefix is doc_type_unknown, exit 64', () async {
     expect(
       () => index.resolve('architectur:login'),
       throwsA(
