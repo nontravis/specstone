@@ -53,8 +53,6 @@ typedef _NameSets = ({Set<String> names, Set<String> topLevelFeatures});
 
 final _nameSetsOf = Expando<_NameSets>();
 
-const _featureType = 'feature';
-
 _NameSets _nameSets(DocIndex index) => _nameSetsOf[index] ??= (
   names: {
     for (final doc in index.docs) ...[
@@ -64,7 +62,7 @@ _NameSets _nameSets(DocIndex index) => _nameSetsOf[index] ??= (
   },
   topLevelFeatures: {
     for (final doc in index.docs)
-      if (doc.docTypeId == _featureType && !doc.name.contains('/')) doc.name,
+      if (doc.docTypeId == featureType && !doc.name.contains('/')) doc.name,
   },
 );
 

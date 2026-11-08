@@ -1,7 +1,6 @@
+import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show blockScan;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
-import 'package:specstone_core/src/index_query/banned_matches.dart'
-    show codeSpansOf;
 
 /// A doc-name mention: a code span whose whole text, less an optional
 /// `#<section key>`, reads as a DocAddress of the no-lookup class (RULE-11).

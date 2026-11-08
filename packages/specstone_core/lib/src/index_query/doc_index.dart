@@ -6,7 +6,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-const _featureType = 'feature';
+/// The id of the `feature` doc type.
+const featureType = 'feature';
 const _storyType = 'user_story';
 const _planned = 'planned';
 const _implemented = 'implemented';
@@ -195,7 +196,7 @@ final class DocIndex {
   /// that is not deprecated is, else `planned`. Any other doc returns the
   /// status it writes, or null.
   String? statusOf(IndexedDoc doc) {
-    if (doc.docTypeId != _featureType) return doc.writtenStatus;
+    if (doc.docTypeId != featureType) return doc.writtenStatus;
     final stories = [
       for (final member in subtreeOf(doc).skip(1))
         if (member.docTypeId == _storyType) member.writtenStatus,

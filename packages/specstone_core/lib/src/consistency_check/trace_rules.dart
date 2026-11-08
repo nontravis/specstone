@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 
@@ -25,7 +26,6 @@ const _asPrefixes = ['- **As a** ', '- **As an** '];
 const _whoSeparator = ' who ';
 const _storyVisionKeys = ['vision', 'goals'];
 const _apiType = 'api';
-const _featureType = 'feature';
 const _architectureType = 'architecture';
 const _implementsKey = 'implements';
 const _statusKey = 'status';
@@ -145,7 +145,7 @@ Iterable<Finding> checkRolesAndGoals(
     case _storyType:
       if (readsRoles) yield* _storyRole(context, doc);
       yield* _storyGoalSets(context, doc);
-    case _featureType:
+    case featureType:
       yield* _featureGoalSets(context, doc);
     case _projectType:
       yield* _goalServes(context, doc);
@@ -322,7 +322,7 @@ Iterable<Finding> checkSpecAgainstPrd(
   switch (doc.docTypeId) {
     case _apiType:
       yield* _unresolvedFrRows(context, doc);
-    case _featureType:
+    case featureType:
       if (context.hasArchitecture) yield* _missingArchitecture(context, doc);
   }
 }

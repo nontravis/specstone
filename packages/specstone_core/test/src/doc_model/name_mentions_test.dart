@@ -54,5 +54,13 @@ void main() {
         [(4, 'login/email_login')],
       );
     });
+
+    test('doc_model RULE-11: a backslash-escaped backtick opens no span, so '
+        'no mention', () {
+      expect(
+        nameMentionsInMarkdown('Write \\`login/email_login\\` as is.\n'),
+        isEmpty,
+      );
+    });
   });
 }
