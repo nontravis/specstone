@@ -1267,6 +1267,21 @@ name: NFR
       expect(second.toText(), contains('stamps: 7 approval hashes'));
     });
 
+    test('E07: the stamps line counts a typed doc whose frontmatter is no '
+        'valid YAML, since the run writes its stamp', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        'docs/specs/f01_login/DOMAIN.md':
+            '---\nname: "Login\n---\n\n# Login domain\n',
+      });
+
+      expect(
+        _rewrite(plan, 'specs/f01_login/DOMAIN.md').text,
+        contains('approved: "'),
+      );
+      expect(plan.toText(), contains('stamps: 8 approval hashes'));
+    });
+
     test('E07: a typed doc the run neither moves nor edits is stamped and '
         'written, and an untyped doc stays as it is', () async {
       final plan = await _plan(acmeLegacy);

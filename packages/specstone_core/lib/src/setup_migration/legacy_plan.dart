@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
-import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
-    show ApprovalFields, withApprovalHash;
+    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
@@ -451,7 +451,7 @@ _Rewrites _rewritesOf(
           .where(
             (work) =>
                 typeOf(work) != null &&
-                _approvedOf(work.lf) != _approvedOf(work.original.lf),
+                _approvedBlockOf(work.lf) != _approvedBlockOf(work.original.lf),
           )
           .length,
       fingerprintEntries,
@@ -459,8 +459,12 @@ _Rewrites _rewritesOf(
   );
 }
 
-Object? _approvedOf(String lf) =>
-    ApprovalFields.of(Doc.parse(lf)).approvedValue;
+/// The text of the `approved` key block of [lf], empty when it has none; read
+/// as text so a frontmatter that is no valid YAML still counts.
+String _approvedBlockOf(String lf) => [
+  for (final block in Doc.parse(lf).frontmatter ?? const <KeyBlock>[])
+    if (block.name == 'approved') block.text,
+].join();
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
 /// doc to its name (`rewrite_titles_keys_and_links` E18, E19).

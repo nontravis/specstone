@@ -655,6 +655,11 @@ name: login
             'prds/features/f02_chat/us01_c/fr02_d.md',
           ),
           (
+            'prds/features/ai03_2fa_login/us01_e/functional_requirements/'
+                'fr01_f.md',
+            'prds/features/f03_2fa_login/us01_e/fr01_f.md',
+          ),
+          (
             'prds/features/ui01_third/us01_z/functional_requirements/'
                 'fr05_w.md',
             'prds/features/f01_third/us01_z/fr05_w.md',
@@ -666,6 +671,7 @@ name: login
         '$base/': 'f01_login',
         'prds/features/ai01_other/': 'f01_other',
         'prds/features/ai01_02_chat/': 'f02_chat',
+        'prds/features/ai03_2fa_login/': 'f03_2fa_login',
         'prds/features/ui01_third/': 'f01_third',
         'prds/features/g01_payments/ai02_chat/': 'g01_payments/f02_chat',
       },
@@ -720,6 +726,13 @@ name: login
       final result = convert('Is ai01/us01/fr02 or ai01_02/us01/fr02?\n');
 
       expect(result.lf, 'Is `login/email_login/lock_account` or `chat/c/d`?\n');
+    });
+
+    test('$rewrite E18: a legacy folder ID ends where the folder name does, '
+        'not inside a slug that opens with digits', () {
+      final result = convert('See ai03/us01/fr01.\n');
+
+      expect(result.lf, 'See `2fa_login/e/f`.\n');
     });
 
     test('$rewrite E18: a legacy ID that goes on to another folder names no '

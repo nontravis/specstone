@@ -193,6 +193,16 @@ String? featurePathOf(String folderName, {String? groupSlug}) {
   return groupSlug == null ? path : '$groupSlug/$path';
 }
 
+/// Returns the folder ID that [folderName] opens with, `<prefix><NN>` and each
+/// `_<NN>` after it, such as `ai01` or `ai01_02`, or null for a name that is
+/// no feature folder name.
+String? legacyFolderIdOf(String folderName) {
+  final match = _featureName.firstMatch(folderName);
+  return match == null
+      ? null
+      : folderName.substring(0, folderName.length - match.group(3)!.length - 1);
+}
+
 /// Throws [MigrateFault] `group_slug_duplicate` when two group folders give
 /// one GroupSlug (INV-3); a group with no GroupSlug stays, so never clashes.
 ///

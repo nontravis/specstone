@@ -7,6 +7,8 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
+import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
+    show legacyFolderIdOf;
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -109,7 +111,7 @@ final class LabelTree {
              docPath,
              lf,
              docTypes[docPath],
-           )?.withLegacyId(_legacyFolderId(legacyPath)),
+           )?.withLegacyFolder(_legacyFolderOf(legacyPath)),
        ],
        _placeOf = ((path) => _locate(_atFeaturePath(path, featurePaths)));
 
@@ -184,7 +186,7 @@ final class LabelTree {
       (doc) =>
           (legacyId == null
               ? doc.feature == feature
-              : doc.legacyId == legacyId) &&
+              : _isNamedFolder(doc.legacyFolder, legacyId)) &&
           (parts.story == null || doc.story == parts.story) &&
           (parts.fr == null || doc.fr == parts.fr),
     );
@@ -221,22 +223,21 @@ final class LabelTree {
   );
 }
 
-/// The folder ID a legacy ID names its feature by, such as `ai02`, or null
-/// for a label with no legacy prefix.
-String? _legacyIdOf(NumberLabel label) {
-  if (label.prefix == null) return null;
-  return _legacyFolderIdPattern.firstMatch(label.written)?.group(0);
-}
+/// The first folder a legacy ID names, as written: `ai02`, or a whole folder
+/// name.
+String? _legacyIdOf(NumberLabel label) =>
+    label.prefix == null ? null : label.written.split('/').first;
 
-/// The whole folder ID that opens the feature folder of [legacyPath], such as
-/// `ai01` or `ai01_02`, or null.
-String? _legacyFolderId(String legacyPath) {
+/// The feature folder name of [legacyPath], or null.
+String? _legacyFolderOf(String legacyPath) {
   final segments = legacyPath.split('/');
-  if (segments.length < 4) return null;
-  return _legacyFolderIdPattern.firstMatch(segments[2])?.group(0);
+  return segments.length < 4 ? null : segments[2];
 }
 
-final _legacyFolderIdPattern = RegExp(r'^[a-z]+\d+(?:_\d+)*');
+/// Whether [folder] is the feature folder that the legacy ID's first folder
+/// [named] points at: its whole name, or its whole folder ID.
+bool _isNamedFolder(String? folder, String named) =>
+    folder != null && (folder == named || legacyFolderIdOf(folder) == named);
 
 /// [docPath] with its legacy feature folder replaced by the FeaturePath that
 /// [featurePaths] gives it, else [docPath] as it is.
@@ -309,7 +310,7 @@ final class _TreeDoc {
     required this.fr,
     required this.name,
     required this.slug,
-    this.legacyId,
+    this.legacyFolder,
   });
 
   static _TreeDoc? parse(String docPath, String lf, MergedDocType? type) {
@@ -370,9 +371,8 @@ final class _TreeDoc {
           );
   }
 
-  /// This doc with [legacyId] set: the `<prefix><nn>` of its legacy feature
-  /// folder.
-  _TreeDoc withLegacyId(String? legacyId) => _TreeDoc._(
+  /// This doc with [legacyFolder] set: the name of its legacy feature folder.
+  _TreeDoc withLegacyFolder(String? legacyFolder) => _TreeDoc._(
     path: path,
     lf: lf,
     kind: kind,
@@ -381,10 +381,10 @@ final class _TreeDoc {
     fr: fr,
     name: name,
     slug: slug,
-    legacyId: legacyId,
+    legacyFolder: legacyFolder,
   );
 
-  final String? legacyId;
+  final String? legacyFolder;
   final String path;
   final String lf;
   final _DocKind kind;
