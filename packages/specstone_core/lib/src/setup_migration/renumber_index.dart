@@ -12,8 +12,8 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
 
 // MARK: - Types
 
-/// The block a `confirmed` label tracks, as a stamp key, and the label after
-/// the renumber pass.
+/// The block a `confirmed` label tracks, as its DocPath and block key, and the
+/// label after the renumber pass.
 typedef LinkTarget = ({String label, (String, String) block});
 
 // MARK: - RenumberIndex

@@ -102,6 +102,7 @@ void main() {
   _agentFilesTests();
   _renumberTests();
   _labelTests();
+  _stampTests();
 
   test('agentFilesSince matches the shipped versions of its packs', () {
     final shipped = shippedPackVersions();
@@ -1235,7 +1236,22 @@ Future<Directory> _belowSinceTree(Map<String, String> docs) => writeTree({
 });
 
 String _docText(RunPlan plan, String docPath) =>
+    _withoutStamp(_stampedDocText(plan, docPath));
+
+String _stampedDocText(RunPlan plan, String docPath) =>
     _rewriteAt(plan, 'docs/$docPath').text;
+
+final _approvedLine = RegExp(
+  r'^approved: "[0-9a-f]{12}"\r?\n',
+  multiLine: true,
+);
+final _emptyFrontmatter = RegExp(r'^(\uFEFF?)---\r?\n---\r?\n(?:\r?\n)?');
+
+/// [text] without the approval hash the stamp pass wrote, for a test about
+/// what the other passes wrote.
+String _withoutStamp(String text) => text
+    .replaceAll(_approvedLine, '')
+    .replaceFirstMapped(_emptyFrontmatter, (match) => match.group(1)!);
 
 ProcessResult _missingGit(
   List<String> arguments, {
@@ -1697,5 +1713,53 @@ void _labelTests() {
         expect(calls, isEmpty);
       },
     );
+  });
+}
+
+void _stampTests() {
+  group('stamp pass', () {
+    const frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
+    final matched = fingerprintOf(_lettered);
+
+    test('$_fr E30, E31: the upgrade stamps each doc that counted as '
+        'approved and each matched entry once, after the layout pass, and '
+        'lists them on one stamps line', () async {
+      final plan = _planAt(await _belowSinceTree(_e18Docs()));
+
+      final text = plan.toText();
+      const line = '  stamps: 6 approval hashes, 1 fingerprints\n';
+      expect(text, contains(line));
+      expect(text.indexOf(line), greaterThan(text.indexOf('  renumber ids: ')));
+      expect(text.indexOf(line), lessThan(text.indexOf('  agent files: ')));
+      final fr = _stampedDocText(plan, frPath);
+      expect(fr, contains('  - S9 ${fingerprintOf(_renumbered)}\n'));
+      expect(
+        fr,
+        matches(RegExp(r'^approved: "[0-9a-f]{12}"$', multiLine: true)),
+      );
+    });
+
+    test('$_fr E30: a doc the upgrade leaves a draft is not stamped, and a '
+        'tree with nothing to stamp prints no stamps line', () async {
+      final plan = _planAt(
+        await _belowSinceTree({
+          _storyPath: '---\ndraft: true\n---\n# B\n',
+          frPath: _tracingFr(matched)
+              .replaceFirst('---\n', '---\ndraft: true\n'),
+        }),
+      );
+
+      expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('$_fr E30: no later upgrade stamps', () async {
+      final plan = _plan(await _fixture(docs: const {_topicPath: _topic}));
+
+      expect(plan.toText(), isNot(contains('stamps:')));
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.text),
+        everyElement(isNot(contains('approved: "'))),
+      );
+    });
   });
 }

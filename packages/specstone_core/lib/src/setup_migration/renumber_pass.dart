@@ -5,7 +5,6 @@ import 'package:specstone_core/src/setup_migration/renumber_body.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart';
 import 'package:specstone_core/src/setup_migration/renumber_index.dart';
-import 'package:specstone_core/src/setup_migration/renumber_stamps.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -71,10 +70,6 @@ final class RenumberPass {
   /// The text after the body rewrite of each doc it changes: ID tokens,
   /// journey steps, then the anchors of links to a moved heading slug.
   late final Map<String, _Rewrite> _bodies = _bodyPass.bodies;
-
-  late final Stamps _stamps = stampsOf(_docs.values, {
-    for (final MapEntry(:key, :value) in _bodies.entries) key: value.lf,
-  });
 
   /// The final text of each doc the pass changes, in tree order.
   late final Map<String, _Rewrite> _rewrites = {
@@ -196,7 +191,7 @@ final class RenumberPass {
     final body = _bodies[doc.docPath];
     final bodyText = body?.lf ?? doc.lf;
     final lf = _mayRenameEntries(doc)
-        ? withEntriesRenumbered(bodyText, doc, _index, _stamps)
+        ? withEntriesRenumbered(bodyText, doc, _index)
         : bodyText;
     if (lf == doc.lf) return null;
     return (
@@ -206,13 +201,13 @@ final class RenumberPass {
   }
 
   /// Whether the doc's frontmatter may hold an entry the pass renames: a
-  /// renumbered ID's text, or, while a scenario renumbers or a block is
-  /// re-stamped, any [renumberedEntryKeys] key.
+  /// renumbered ID's text, or, while a scenario renumbers, any
+  /// [renumberedEntryKeys] key.
   bool _mayRenameEntries(RenumberDoc doc) {
     final frontmatter = doc.frontmatterText;
     if (frontmatter.isEmpty) return false;
     if (_index.mayName(frontmatter)) return true;
-    if (!_index.renumbersScenarios && _stamps.isEmpty) return false;
+    if (!_index.renumbersScenarios) return false;
     return renumberedEntryKeys.any(frontmatter.contains);
   }
 }

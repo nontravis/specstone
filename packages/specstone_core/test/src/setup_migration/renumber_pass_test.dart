@@ -48,7 +48,6 @@ const _otherTopic = '''
 ''';
 
 const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
-const _renumbered = '### Scenario 9 — [edge] lettered\n\n- **Given** g';
 
 const _story = '''
 # B
@@ -309,8 +308,8 @@ RULE-7a on a line that cites no doc
     );
   });
 
-  test('$_fr E18: a matched confirmed entry records the renumbered block '
-      'fingerprint after layout; a suspect one keeps its fingerprint', () {
+  test('$_fr E18: a confirmed entry takes the new label and keeps its '
+      'fingerprint, matched or suspect', () {
     final matched = fingerprintOf(_lettered);
     final docs = {
       _storyPath: _story,
@@ -327,7 +326,7 @@ RULE-7a on a line that cites no doc
       applied[_frPath],
       startsWith(
         '---\ntraced_from:\n  - S1\n  - S9\nconfirmed:\n'
-        '  - S9 ${fingerprintOf(_renumbered)}\n---\n',
+        '  - S9 $matched\n---\n',
       ),
     );
     expect(
@@ -367,10 +366,7 @@ step: a/b S1
     expect(
       applied,
       journey
-          .replaceFirst(
-            'a/b#S6a $matched',
-            'a/b#S9 ${fingerprintOf(_renumbered)}',
-          )
+          .replaceFirst('a/b#S6a $matched', 'a/b#S9 $matched')
           .replaceFirst('step: a/b S6a', 'step: a/b S9'),
     );
   });
@@ -467,8 +463,8 @@ confirmed:
     );
   });
 
-  test('$_fr E18: a quoted confirmed entry takes the new label and the '
-      'renumbered block fingerprint in its quotes', () {
+  test('$_fr E18: a quoted confirmed entry takes the new label in its '
+      'quotes and keeps its fingerprint', () {
     final fr =
         '---\ntraced_from: [S6a]\nconfirmed:\n'
         '  - "S6a ${fingerprintOf(_lettered)}"\n---\n# C\n';
@@ -478,12 +474,12 @@ confirmed:
     expect(
       applied,
       '---\ntraced_from: [S9]\nconfirmed:\n'
-      '  - "S9 ${fingerprintOf(_renumbered)}"\n---\n# C\n',
+      '  - "S9 ${fingerprintOf(_lettered)}"\n---\n# C\n',
     );
   });
 
-  test('$_fr E18: a scenario whose prose the pass rewrites keeps a current '
-      'link; an entry already suspect stays suspect', () {
+  test('$_fr E18: a scenario whose prose the pass rewrites leaves its '
+      "entries' fingerprints to the stamp pass", () {
     const eight = '### Scenario 8 — [error] eight\n\n- **Given** g';
     const mentioning = '$eight, unlike Scenario 6a';
     final story = _story.replaceFirst(eight, mentioning);
@@ -496,15 +492,13 @@ confirmed:
       _siblingFrPath: tracing('000000000000'),
     });
 
-    expect(
-      applied[_frPath],
-      tracing(fingerprintOf('$eight, unlike Scenario 9')),
-    );
+    expect(applied[_storyPath], contains('$eight, unlike Scenario 9'));
+    expect(applied[_frPath], tracing(fingerprintOf(mentioning)));
     expect(applied[_siblingFrPath], tracing('000000000000'));
   });
 
   test('$_fr E18: a zero-padded story names a scenario by its value, so a '
-      'padded entry whose block the pass rewrites keeps a current link', () {
+      'padded entry keeps its label and fingerprint', () {
     const eight = '### Scenario 08 — [error] eight\n\n- **Given** g';
     const mentioning = '$eight, unlike Scenario 6a';
     final story = _story
@@ -525,14 +519,14 @@ confirmed:
       paddedFrPath: tracing('S08', fingerprintOf(mentioning)),
     });
 
-    final current = fingerprintOf('$eight, unlike Scenario 09');
+    final written = fingerprintOf(mentioning);
     expect(applied[_storyPath], contains('### Scenario 09 — [edge] lettered'));
-    expect(applied[_frPath], tracing('S8', current));
-    expect(applied[paddedFrPath], tracing('S08', current));
+    expect(applied[_frPath], tracing('S8', written));
+    expect(applied[paddedFrPath], tracing('S08', written));
   });
 
-  test('$_fr E18: an FR Statement the pass rewrites keeps the api FR trace '
-      'link current', () {
+  test('$_fr E18: an FR Statement the pass rewrites leaves the api FR '
+      'trace entry as written', () {
     final fr = _frDoc('000000000000');
     String api(String fingerprint) =>
         '---\nconfirmed:\n  - b/c $fingerprint\n---\n# A\n\n## FR trace\n\n'
@@ -546,10 +540,7 @@ confirmed:
 
     final applied = _applied(docs);
 
-    expect(
-      applied['specs/f01_a/API.md'],
-      api(fingerprintOf(_statementOf(applied[_frPath]!))),
-    );
+    expect(applied['specs/f01_a/API.md'], api(fingerprintOf(_statementOf(fr))));
     expect(_statementOf(applied[_frPath]!), isNot(_statementOf(fr)));
   });
 
@@ -571,8 +562,8 @@ confirmed:
     expect(pass.planLine, endsWith('; references: $_nfPath'));
   });
 
-  test('$_fr E18: a gnfr Statement the pass rewrites keeps a matched nf link '
-      'current', () {
+  test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
+      'written', () {
     const statement =
         '- **Statement:** The tool shall keep `doc_model` RULE-7a.';
     const gnfr =
@@ -588,10 +579,7 @@ confirmed:
     });
 
     expect(applied[_gnfrPath], contains('`doc_model` RULE-31.\n'));
-    expect(
-      applied[_nfPath],
-      nf(fingerprintOf(statement.replaceFirst('RULE-7a', 'RULE-31'))),
-    );
+    expect(applied[_nfPath], nf(fingerprintOf(statement)));
   });
 
   test('$_fr E18: applying the pass to a text other than the one it was '
@@ -902,7 +890,7 @@ RULE-7a` here.
     expect(
       sole[_frPath],
       '---\ntraced_from: [S9]\nconfirmed:\n'
-      '  - S9 ${fingerprintOf(_renumbered)}\n---\n# C\n',
+      '  - S9 ${fingerprintOf(_lettered)}\n---\n# C\n',
     );
 
     final twice = _story.replaceFirst(

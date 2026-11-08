@@ -27,9 +27,6 @@ typedef LetteredItem = ({String docPath, IdAt item, String from, String to});
 /// A renumbering a reference names: the renumbered doc and its ID's change.
 typedef Renumbering = ({String docPath, String from, String to});
 
-/// The kinds of block a `confirmed` entry tracks.
-enum TrackedBlockKind { scenario, nfrStatement, frStatement }
-
 /// Returns the `S<N>` ref of the scenario ID [id], `Scenario <N>`; any other
 /// ID as it is.
 String scenarioRefOf(String id) {
@@ -106,19 +103,6 @@ final class RenumberDoc {
   String? get statementBody {
     final index = heldSectionIndex(content, type, statementSectionId);
     return index == null ? null : content.sections[index].body;
-  }
-
-  /// The text a link fingerprints of the block [key] of [kind]; empty when
-  /// the doc holds none.
-  String trackedText(TrackedBlockKind kind, String key) => switch (kind) {
-    TrackedBlockKind.scenario => scenarioBlocks[key] ?? '',
-    TrackedBlockKind.nfrStatement => _nfrStatementOf(key),
-    TrackedBlockKind.frStatement => statementBody ?? '',
-  };
-
-  String _nfrStatementOf(String id) {
-    final item = items.where((item) => item.id?.written == id).firstOrNull;
-    return item == null ? '' : statementOf(item);
   }
 
   /// Whether [lf] holds a token the grammar reads as a lettered ID of a

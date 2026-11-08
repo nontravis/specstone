@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart'
-    show fingerprintOf;
+    show fingerprintOf, legacyFingerprintOf;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
@@ -960,9 +960,14 @@ void main() {
             '  renumber ids: prds/features/f01_a/us01_b/USER_STORY.md '
             'Scenario 6a -> Scenario 9, specs/topics/doc_model.md RULE-7a -> '
             'RULE-31; references: prds/features/f01_a/us01_b/fr01_c.md, '
-            'prds/features/f01_a/us01_b/fr02_g.md, '
-            'prds/features/f01_a/us01_b/fr03_h.md, specs/f01_a/API.md\n',
+            'prds/features/f01_a/us01_b/fr02_g.md\n',
           ),
+        );
+        // The renumber pass renames labels only; the stamp pass re-stamps
+        // the two entries, so their docs are on its line, not the references.
+        expect(
+          result.out,
+          contains('  stamps: 7 approval hashes, 3 fingerprints\n'),
         );
         expect(_read(root, tracingPath), contains('`doc_model` RULE-31\n'));
         expect(_read(root, storyPath), contains('unlike Scenario 9\n'));
@@ -1172,6 +1177,60 @@ void main() {
         expect(committed, contains('lib/a.dart'));
         expect(committed, contains('docs/specs/topics/labelled.md'));
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+    });
+
+    group('setup_migration/upgrade_pack_pins stamp pass', () {
+      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
+
+      test('$fr E30, E31: the first check after the upgrade of a 1.1.0 tree '
+          'raises no suspect and no approval_stale', () async {
+        const table =
+            '### Scenario 1 — [happy] Table\n| Item | Count |\n| --- | --- |\n'
+            '| apple | 2 |';
+        const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
+        const frPath = 'docs/prds/features/f01_a/us01_b/fr01_c.md';
+        const draftPath = 'docs/prds/features/f01_a/us01_b/fr02_d.md';
+        final docs = {
+          storyPath:
+              '---\napproved: true\n---\n# B\n\n'
+              '## Acceptance Criteria\n\n$table\n',
+          frPath:
+              '---\ntraced_from: [S1]\nconfirmed:\n'
+              '  - S1 ${legacyFingerprintOf(table)}\n---\n# C\n',
+          draftPath: '---\ndraft: true\ntraced_from: [S1]\n---\n# D\n',
+        };
+        Future<List<Object?>> findings(Directory root, Directory home) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return report['findings']! as List<Object?>;
+        }
+
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          ...docs,
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('stamps: 2 approval hashes, 1 fingerprints'),
+        );
+        expect(_read(root, frPath), contains('S1 ${fingerprintOf(table)}\n'));
+        expect(_read(root, draftPath), docs[draftPath]);
+        final kinds = [
+          for (final finding in await findings(root, home))
+            if (finding case {'kind': final String kind}) kind,
+        ];
+        expect(kinds, isNot(contains('suspect')));
+        expect(kinds, isNot(contains('approval_stale')));
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
       });
     });
   }, skip: hasGit ? null : 'git is not available');

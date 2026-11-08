@@ -26,6 +26,7 @@ import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
@@ -52,6 +53,7 @@ const _layoutAndAgentCommit2Message =
 const _agentFileRootsKey = 'agent_file_roots';
 const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
+const _stampChange = 'stamp approvals';
 
 /// The byte-order mark as the one character a written text starts with.
 const _bom = '\uFEFF';
@@ -229,16 +231,43 @@ RunPlan planUpgradeRun(
           docTypes: {for (final work in works) work.plannedPath: ?work.docType},
         )
       : null;
-  final docRewrites = <PlannedRewrite>[];
   final laidOutPaths = <String>[];
+  final laidOut = <String>[];
   for (final (index, work) in works.indexed) {
     var lf = renumbered[index];
     final converted = labels?.pass.apply(work.plannedPath, lf) ?? lf;
     if (converted != lf) work.changes.add(_labelChange);
-    lf = converted;
-    final laidOut = layOutDoc(lf, work.docType);
-    if (laidOut != lf) laidOutPaths.add(work.plannedPath);
-    lf = laidOut;
+    lf = layOutDoc(converted, work.docType);
+    if (lf != converted) laidOutPaths.add(work.plannedPath);
+    laidOut.add(lf);
+  }
+  final stamps = isOneTime
+      ? StampPass.plan(
+          [
+            for (final work in works)
+              (
+                docPath: work.plannedPath,
+                lf: work.original.lf,
+                type: work.docType,
+              ),
+          ],
+          [
+            for (final (index, work) in works.indexed)
+              (
+                docPath: work.plannedPath,
+                lf: laidOut[index],
+                type: work.docType,
+              ),
+          ],
+        )
+      : null;
+  final docRewrites = <PlannedRewrite>[];
+  for (final (index, work) in works.indexed) {
+    final stamped = stamps?.apply(work.plannedPath, laidOut[index]);
+    if (stamped != null && stamped != laidOut[index]) {
+      work.changes.add(_stampChange);
+    }
+    final lf = stamped ?? laidOut[index];
     if (lf == work.original.lf) continue;
     docRewrites.add(
       PlannedRewrite(
@@ -324,6 +353,7 @@ RunPlan planUpgradeRun(
       ?renumber?.planLine,
       ?labels?.pass.planLine,
       ?formatLayoutLine(laidOutPaths),
+      ?stamps?.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
       if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
     ],
