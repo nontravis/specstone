@@ -31,28 +31,31 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('DocTypeLayer.parse', () {
-    test('template_packs/add_doc_type/read_doc_type_file/e30: a file name '
-        'that is no slug is unknown_value before doc_type_id_mismatch', () {
-      for (final name in ['Grid', 'api-v2']) {
-        final file = '.specstone/templates/$name.yaml';
-        expect(
-          () => DocTypeLayer.parse(
-            'id: epic\n',
-            file: file,
-            docTypeId: name,
-            kind: LayerKind.project,
-            files: const _FakeFiles({}),
-          ),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.unknownValue)
-                .having((f) => f.file, 'file', file)
-                .having((f) => f.key, 'key', 'id'),
-          ),
-          reason: name,
-        );
-      }
-    });
+    for (final kind in LayerKind.values) {
+      test('template_packs/add_doc_type/read_doc_type_file/e30: a ${kind.name} '
+          'file name that is no slug is unknown_value before '
+          'doc_type_id_mismatch', () {
+        for (final name in ['Grid', 'api-v2']) {
+          final file = '.specstone/templates/$name.yaml';
+          expect(
+            () => DocTypeLayer.parse(
+              'id: epic\n',
+              file: file,
+              docTypeId: name,
+              kind: kind,
+              files: const _FakeFiles({}),
+            ),
+            throwsA(
+              isA<TemplateFault>()
+                  .having((f) => f.code, 'code', FaultCode.unknownValue)
+                  .having((f) => f.file, 'file', file)
+                  .having((f) => f.key, 'key', 'id'),
+            ),
+            reason: name,
+          );
+        }
+      });
+    }
 
     test('template_packs/add_doc_type/read_doc_type_file: a slug file name '
         'loads', () {
