@@ -78,21 +78,24 @@ void main() {
   });
 
   for (final (label, written) in [
-    ('e05, a quoted 12-hex hash', 'approved: "3f2a9c01b4de"'),
-    ('e10, the 1.1.0 mark true', 'approved: true'),
-    ('e10, a boolean false', 'approved: false'),
-    ('e10, a list', 'approved: [a]'),
-    ('e10, a number', 'approved: 7'),
+    ('E05, a quoted 12-hex hash', 'approved: "3f2a9c01b4de"'),
+    ('E10, the 1.1.0 mark true', 'approved: true'),
+    ('E10, a boolean false', 'approved: false'),
+    ('E10, a list', 'approved: [a]'),
+    ('E10, a number', 'approved: 7'),
   ]) {
-    test('f04/us01/fr03/$label: approved raises no field finding', () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: fr('checkPassword\n---', 'checkPassword\n$written\n---'),
-        ),
-      );
-      expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
-      expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
-    });
+    test(
+      'consistency_check/find_template_breaks/check_frontmatter_fields $label: approved raises no field finding',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: fr('checkPassword\n---', 'checkPassword\n$written\n---'),
+          ),
+        );
+        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+        expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
+      },
+    );
   }
 
   test('f04/us01/fr03/e06: a status written in a FEATURE is feature_status_written, whatever its stories hold', () async {

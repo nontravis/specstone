@@ -458,8 +458,8 @@ final class DocTypeMerger {
     if (!entry.disabled && !changesType && !shapesApproved) return;
     throw TemplateFault(
       FaultCode.lockedFieldDisabled,
-      'the built-in field ${entry.id} cannot be disabled or change its type, '
-      'and approved takes no enum or list',
+      'the built-in field ${entry.id} cannot be disabled or change its type'
+      '${shapesApproved ? '; approved takes no enum or list' : ''}',
       file: layer.file,
       key: 'fields.${entry.id}',
     );

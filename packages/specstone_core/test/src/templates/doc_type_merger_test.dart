@@ -399,9 +399,23 @@ sections:
       );
     });
 
+    test('a locked-field fault on slug names no approved clause', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: slug, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.lockedFieldDisabled,
+            'fields.slug',
+            message:
+                'the built-in field slug cannot be disabled or change its type',
+          ),
+        ),
+      );
+    });
+
     for (final type in ['boolean', 'integer', 'date']) {
       test(
-        'f03/us02/fr04/e06, e09, s03/inv20: writing type $type on approved is locked_field_disabled',
+        'template_packs/customize_shipped_doc_type/keep_locked_fields E06, E09: writing type $type on approved is locked_field_disabled',
         () {
           expect(
             () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
@@ -411,7 +425,7 @@ sections:
       );
     }
 
-    test('f03/us02/fr04/e09: approved is of type string, so writing type string is accepted', () {
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E09: approved is of type string, so writing type string is accepted', () {
       final merged = project(
         shipped(),
         'fields: [{id: approved, type: string}]',
@@ -423,7 +437,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr04/e10: writing enum values on approved is locked_field_disabled', () {
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing enum values on approved is locked_field_disabled', () {
       expect(
         () => project(
           shipped(),
@@ -433,17 +447,14 @@ sections:
       );
     });
 
-    test(
-      'f03/us02/fr04/e10: writing list on approved is locked_field_disabled',
-      () {
-        expect(
-          () => project(shipped(), 'fields: [{id: approved, list: true}]'),
-          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
-        );
-      },
-    );
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing list on approved is locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, list: true}]'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
 
-    test('f03/us02/fr04/e10: writing enum values with no type on approved is locked_field_disabled', () {
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing enum values with no type on approved is locked_field_disabled', () {
       expect(
         () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
