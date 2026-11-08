@@ -1,4 +1,4 @@
-import 'package:specstone_core/src/doc_model/doc.dart' show blockScan;
+import 'package:specstone_core/src/doc_model/doc.dart' show fenceScan;
 
 /// How a number label names its doc.
 enum LabelShape {
@@ -273,8 +273,6 @@ int _upperEnd(String text, int from) {
 
 const _asciiLimit = 0x80;
 const _dash = 0x2D;
-const _backtick = 0x60;
-const _tilde = 0x7E;
 
 bool _isDigit(int unit) => unit >= 0x30 && unit <= 0x39;
 bool _isUpper(int unit) => unit >= 0x41 && unit <= 0x5A;
@@ -288,81 +286,17 @@ bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 /// Returns, per line, whether it holds text to read: prose, and the lines of
 /// a `mermaid` block between its fences.
 List<bool> _readableLines(List<String> lines) {
-  final fenced = blockScan(lines).fenced;
-  final readable = [for (final isFenced in fenced) !isFenced];
-  var i = 0;
-  while (i < lines.length) {
-    if (!fenced[i]) {
-      i++;
-      continue;
-    }
-    final (:last, :isClosed) = _fenceExtent(lines, fenced, i);
-    if (_isMermaidOpening(lines[i])) {
-      for (var j = i + 1; j < (isClosed ? last : last + 1); j++) {
-        readable[j] = true;
-      }
-    }
-    i = last + 1;
+  final scan = fenceScan(lines);
+  final readable = <bool>[];
+  var inMermaid = false;
+  for (var i = 0; i < lines.length; i++) {
+    final opened = scan.opens[i];
+    if (opened != null) inMermaid = opened == 'mermaid';
+    if (!scan.fenced[i]) inMermaid = false;
+    final isDelimiter = opened != null || scan.closes[i];
+    readable.add(!scan.fenced[i] || (inMermaid && !isDelimiter));
   }
   return readable;
-}
-
-/// Returns the last line of the fence opened at [open] and whether a closing
-/// delimiter ends it; an unclosed fence ends with its run of fenced lines.
-({int last, bool isClosed}) _fenceExtent(
-  List<String> lines,
-  List<bool> fenced,
-  int open,
-) {
-  final (:marker, :run) = _fenceMarkerOf(lines[open]);
-  var j = open + 1;
-  while (j < lines.length && fenced[j]) {
-    if (_closesFence(lines[j], marker, run)) return (last: j, isClosed: true);
-    j++;
-  }
-  return (last: j - 1, isClosed: false);
-}
-
-/// Returns the fence character and run length of an opening delimiter [line],
-/// after any block quote or list marker.
-({int marker, int run}) _fenceMarkerOf(String line) {
-  var at = 0;
-  while (line.codeUnitAt(at) != _backtick && line.codeUnitAt(at) != _tilde) {
-    at++;
-  }
-  final marker = line.codeUnitAt(at);
-  return (marker: marker, run: _runEnd(line, at, marker) - at);
-}
-
-bool _isMermaidOpening(String line) {
-  final (:marker, :run) = _fenceMarkerOf(line);
-  final info = line.substring(line.indexOf(String.fromCharCode(marker)) + run);
-  final words = info.trim();
-  var end = 0;
-  while (end < words.length && !_isBlank(words.codeUnitAt(end))) {
-    end++;
-  }
-  return words.substring(0, end) == 'mermaid';
-}
-
-bool _closesFence(String line, int marker, int run) {
-  var at = 0;
-  while (at < line.length && _isContainerPrefix(line.codeUnitAt(at))) {
-    at++;
-  }
-  final end = _runEnd(line, at, marker);
-  return end - at >= run && line.substring(end).trim().isEmpty;
-}
-
-bool _isContainerPrefix(int unit) =>
-    unit == 0x20 || unit == 0x09 || unit == 0x3E;
-
-int _runEnd(String line, int from, int unit) {
-  var end = from;
-  while (end < line.length && line.codeUnitAt(end) == unit) {
-    end++;
-  }
-  return end;
 }
 
 /// Returns the labels of [line] that lie outside a link destination, their

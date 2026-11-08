@@ -329,6 +329,27 @@ blockScan(List<String> lines) {
   );
 }
 
+/// Reads [lines] as [blockScan] does and reports, per line, the fence it
+/// opens or closes.
+///
+/// `opens` holds the info word of the fence a line opens (empty without one),
+/// null on any other line; `closes` is whether a line is a closing delimiter.
+/// A fence a container ends has no closing line.
+({List<bool> fenced, List<String?> opens, List<bool> closes}) fenceScan(
+  List<String> lines,
+) {
+  final tracker = _BlockTracker();
+  final fenced = List.filled(lines.length, false);
+  final opens = List<String?>.filled(lines.length, null);
+  final closes = List.filled(lines.length, false);
+  for (var i = 0; i < lines.length; i++) {
+    fenced[i] = tracker.consume(lines[i]);
+    opens[i] = tracker.openedInfo;
+    closes[i] = tracker.closedFence;
+  }
+  return (fenced: fenced, opens: opens, closes: closes);
+}
+
 const _tab = 0x09;
 const _space = 0x20;
 const _closeParen = 0x29;
@@ -382,6 +403,14 @@ final class _BlockTracker {
   _Fence? _fence;
   var _inParagraph = false;
   var _continues = false;
+  String? _openedInfo;
+  var _closedFence = false;
+
+  /// The info word of the fence the line fed last opened, else null.
+  String? get openedInfo => _openedInfo;
+
+  /// Whether the line fed last closed a fence.
+  bool get closedFence => _closedFence;
 
   /// The delimiter line of the open fence, or null outside a fence.
   String? get openingLine => _fence?.openingLine;
@@ -395,6 +424,8 @@ final class _BlockTracker {
   /// Feeds one [line]; returns whether it is fence content or a delimiter.
   bool consume(String line) {
     _continues = false;
+    _openedInfo = null;
+    _closedFence = false;
     final text = _expandTabs(line);
     var column = 0;
     var matched = 0;
@@ -407,7 +438,10 @@ final class _BlockTracker {
     final fence = _fence;
     if (fence != null) {
       if (matched == _containers.length) {
-        if (fence.closesOn(text, column)) _fence = null;
+        if (fence.closesOn(text, column)) {
+          _fence = null;
+          _closedFence = true;
+        }
         return true;
       }
       // A fence takes no lazy line, so it ends with its container.
@@ -466,6 +500,7 @@ final class _BlockTracker {
         run: run,
         openingLine: line,
       );
+      _openedInfo = _infoWordAt(text, start + run);
       _inParagraph = false;
       return true;
     }
@@ -484,6 +519,21 @@ final class _BlockTracker {
     }
   }
 }
+
+/// Returns the first word of the info string that starts at [from].
+String _infoWordAt(String text, int from) {
+  var start = from;
+  while (start < text.length && _isBlankUnit(text.codeUnitAt(start))) {
+    start++;
+  }
+  var end = start;
+  while (end < text.length && !_isBlankUnit(text.codeUnitAt(end))) {
+    end++;
+  }
+  return text.substring(start, end);
+}
+
+bool _isBlankUnit(int unit) => unit == _space || unit == _tab;
 
 /// An open fenced code block.
 final class _Fence {

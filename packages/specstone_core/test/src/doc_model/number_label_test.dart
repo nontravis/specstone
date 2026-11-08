@@ -302,6 +302,22 @@ void main() {
       expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(3)]);
     });
 
+    test('a mermaid fence holding an indented fence-like line and an empty '
+        'line still reads its label', () {
+      final text = '```mermaid\n\n    ```\nA[${f(1)}]\n```\n${us(2)}\n';
+      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1), us(2)]);
+    });
+
+    test('a dart fence holding an indented fence-like line and an empty '
+        'line reads none inside', () {
+      final text = '```dart\n\n    ```\n${f(1)}\n```\n${us(2)}\n';
+      expect(numberLabelsInMarkdown(text).map((l) => l.written), [us(2)]);
+    });
+
+    test('a stray backtick line opens no fence', () {
+      expect(numberLabelsInMarkdown('`\n${f(1)}\n'), hasLength(1));
+    });
+
     test('text with no label gives none', () {
       expect(numberLabelsInMarkdown('Nothing here.\n'), isEmpty);
       expect(numberLabelsInMarkdown(''), isEmpty);
