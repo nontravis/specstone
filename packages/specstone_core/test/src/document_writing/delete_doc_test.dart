@@ -161,7 +161,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in the chat",
+              "fr:login/email_login/validate_credentials holds guarded docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in the chat",
             ),
       ),
     );
@@ -492,6 +492,76 @@ void main() {
     },
   );
 
+  test(
+    'f02/us04/fr02/e05: a doc carrying draft beside a hash is guarded',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$fr32': '---\ndraft: true\napproved: "0123456789ab"\ntraced_from: US-03\nverify_method: test\n---\n\n# Expire reset link\n',
+        },
+      );
+      expect(
+        () => del(root, ['fr:login/reset_password/expire_reset_link']),
+        refusesWith(WriteFaultCode.ownerTerminalRequired),
+      );
+      expect(hasDoc(root, fr32), isTrue);
+    },
+  );
+
+  test(
+    'f02/us04/fr02/e04: a doc with no frontmatter at all is guarded',
+    () async {
+      final root = await writeWriteProject(
+        extra: {'docs/$fr32': '# Expire reset link\n'},
+      );
+      expect(
+        () => del(root, ['fr:login/reset_password/expire_reset_link']),
+        refusesWith(WriteFaultCode.ownerTerminalRequired),
+      );
+      expect(hasDoc(root, fr32), isTrue);
+    },
+  );
+
+  test('f02/us04/fr02/e08: an untyped .md file with a hash beside draft is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {
+        ...withoutLink,
+        'docs/prds/features/f01_login/us03_reset_password/notes.md':
+            '---\ndraft: true\napproved: "0123456789ab"\n---\n\n# Notes\n',
+      },
+    );
+    expect(
+      () => del(root, ['user_story:login/reset_password']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('f02/us01/fr05/e04: the delete prompt holds no write lock', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    writeIn(root, (_) {}); // creates the index
+    var otherWriteLanded = false;
+    final answer = writeIn(
+      root,
+      (s) => answerDelete(
+        s,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () {
+          writeIn(
+            root,
+            (other) => other.locked(() => otherWriteLanded = true),
+            busyTimeout: const Duration(milliseconds: 200),
+          );
+          return 'y';
+        },
+        prompts: StringBuffer(),
+      ),
+    );
+    expect(otherWriteLanded, isTrue);
+    expect(answer.json['removed'], hasLength(3));
+  });
+
   test('f02/us04/fr02/e06: the Owner deleting a never-approved unit sees no prompt', () async {
     final root = await writeWriteProject(extra: withoutLink);
     final prompts = StringBuffer();
@@ -806,7 +876,7 @@ void main() {
             isA<WriteFault>().having(
               (f) => f.message,
               'message',
-              'the delete set holds approved docs; only the Owner deletes '
+              'the delete set holds guarded docs; only the Owner deletes '
                   'them, at an interactive terminal, or with --yes after the '
                   "Owner's ok in the chat",
             ),

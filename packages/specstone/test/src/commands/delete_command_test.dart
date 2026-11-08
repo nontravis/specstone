@@ -42,7 +42,7 @@ void main() {
     expect(error['code'], 'owner_terminal_required');
     expect(
       error['message'],
-      'fr:login/email_login/validate_credentials holds approved docs; '
+      'fr:login/email_login/validate_credentials holds guarded docs; '
       'only the Owner deletes them, at an interactive terminal, or with '
       "--yes after the Owner's ok in the chat",
     );
@@ -261,7 +261,10 @@ void main() {
     final root = await writeWriteProject(extra: untyped);
     final (:runner, :out, :err) = writeRunner(root);
     expect(await runner.run(['delete', notes]), 77);
-    expect(err.toString(), contains('only the Owner deletes them'));
+    expect(
+      err.toString(),
+      contains('holds guarded docs; only the Owner deletes them'),
+    );
     expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
   });
   test('f02/us04/s8, f02/us04/fr04/e03: at a terminal the Owner sees the list and the prompt, then the removed paths', () async {

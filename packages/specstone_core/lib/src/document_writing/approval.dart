@@ -128,9 +128,6 @@ final class ApprovalFields {
 
   /// The YAML value of `approved:`; null when absent or empty.
   final Object? approvedValue;
-
-  /// Whether `approved:` holds YAML `true`, the mark before the hash.
-  bool get holdsTrueMark => approvedValue == true;
 }
 
 /// Returns the [Approval] [fields] state.

@@ -30,7 +30,7 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// the order given, and the first refusal refuses the call. A doc outside the
 /// unit that refers to a doc inside it refuses the delete, and no file moves,
 /// except an untyped doc outside the checked folders, such as a plan: its link
-/// is left to dangle, and the answer warns of each such link. An approved
+/// is left to dangle, and the answer warns of each such link. A guarded
 /// `.md` file in the unit (an untyped one included) leaves the delete to the
 /// Owner, as [confirmation] says. At a terminal [prompts] lists
 /// the files and asks, one answer from [readLine] outside the lock; anything
@@ -43,7 +43,7 @@ typedef _UnitFiles = Map<String, List<int>>;
 ///
 /// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc,
-/// `owner_terminal_required` for an approved unit the Owner cannot confirm,
+/// `owner_terminal_required` for a guarded unit the Owner cannot confirm,
 /// and `plan_mismatch` under `--yes` for a list that changed since the dry
 /// run; an `IndexFault` for an address that names neither one typed doc nor an
 /// untyped doc's DocPath; `index_busy` when another call holds the lock.
@@ -67,13 +67,13 @@ ReadAnswer answerDelete(
         'specstone delete --dry-run again, show it, and ask for a new ok',
       );
     }
-    final approved = _holdsApprovedDoc(shown);
-    if (approved) {
+    final guarded = _holdsGuardedDoc(shown);
+    if (guarded) {
       confirmation.refuseIfMissing(
-        '${unit.subject} holds approved docs; only the Owner deletes them,',
+        '${unit.subject} holds guarded docs; only the Owner deletes them,',
       );
     }
-    if (approved && confirmation.prompts) {
+    if (guarded && confirmation.prompts) {
       prompts
         ..writeln(shown.keys.join('\n'))
         ..write('delete ${shown.length} files? [y/N] ');
@@ -375,10 +375,10 @@ _UnitFiles _readUnit(WriteSession session, List<String> roots) {
   return files;
 }
 
-/// Whether a `.md` file of [files] was ever approved.
+/// Whether a `.md` file of [files] is guarded (INV-7).
 ///
-/// Bytes that are not UTF-8 cannot show a draft, so they count as approved.
-bool _holdsApprovedDoc(_UnitFiles files) {
+/// Bytes that are not UTF-8 cannot show a draft, so they count as guarded.
+bool _holdsGuardedDoc(_UnitFiles files) {
   for (final MapEntry(:key, :value) in files.entries) {
     if (!key.endsWith('.md')) continue;
     final String text;
@@ -387,8 +387,7 @@ bool _holdsApprovedDoc(_UnitFiles files) {
     } on FormatException {
       return true;
     }
-    final fields = ApprovalFields.of(Doc.parse(toLf(text)));
-    if (!fields.isDraft || fields.holdsTrueMark) return true;
+    if (isGuarded(ApprovalFields.of(Doc.parse(toLf(text))))) return true;
   }
   return false;
 }
