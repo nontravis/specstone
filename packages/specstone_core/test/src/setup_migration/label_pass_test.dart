@@ -366,4 +366,102 @@ void main() {
       expect(pass.planLine, 'number labels: $_topic, a.dart, z.dart');
     });
   });
+
+  group('$_fr E28 E29 api operation headings', () {
+    const trace =
+        '# Alpha API\n\n## FR trace\n\n| FR | Operation |\n|----|-----------|\n'
+        '| `beta/gamma` | `alpha run` |\n| `beta/delta` | `alpha run` |\n'
+        '| `eps/zeta` | `alpha run` |\n| `eps/zeta` | `alpha two` |\n'
+        '| `beta/gamma` | `alpha two` |\n\n## Operations\n\n';
+
+    String api(String headings) => '$trace$headings\nBody.\n';
+
+    LabelPass pass(String headings, {Map<String, String> others = const {}}) {
+      final docs = {..._baseDocs(), _api: api(headings), ...others};
+      return LabelPass.plan([
+        for (final MapEntry(:key, :value) in docs.entries)
+          (docPath: key, lf: value),
+      ], const []);
+    }
+
+    String linkTo(String slug) =>
+        '[x](../f01_alpha/API.md#$slug) [y](../f01_alpha/API.md#zz)\n';
+
+    String heading(String headings) {
+      final text = api(headings);
+      return pass(headings).apply(_api, text).split('\n')[14];
+    }
+
+    test('E28 drops the dash and every label, a range and a list too', () {
+      expect(
+        heading('### `alpha run` — US-01 FR-01 to FR-02; US-02 FR-01\n'),
+        '### `alpha run`',
+      );
+      expect(
+        heading('### `alpha run` — US-01 FR-01, FR-02\n'),
+        '### `alpha run`',
+      );
+    });
+
+    test('E28 reads a trailing of-story as the story of the labels', () {
+      expect(heading('### `alpha two` — FR-01 of US-02\n'), '### `alpha two`');
+      expect(heading('### `alpha two` — FR-01 of US-01\n'), '### `alpha two`');
+    });
+
+    test('E29 keeps a heading whose label names no FR of its rows', () {
+      expect(
+        heading('### `alpha two` — US-01 FR-02\n'),
+        '### `alpha two` — US-01 FR-02',
+      );
+    });
+
+    test('E29 keeps a heading whose label names two FRs of its rows', () {
+      expect(heading('### `alpha run` — FR-01\n'), '### `alpha run` — FR-01');
+    });
+
+    test('a kept heading is listed and its labels never become doc names', () {
+      final built = pass('### `alpha two` — US-02 FR-04\n');
+
+      expect(
+        built.apply(_api, api('### `alpha two` — US-02 FR-04\n')),
+        api('### `alpha two` — US-02 FR-04\n'),
+      );
+      expect(built.planLine, 'number labels: ; left: $_api:15 US-02 FR-04');
+    });
+
+    test('the plan line names each heading the step converts', () {
+      final built = pass('### `alpha run` — US-01 FR-01\n');
+
+      expect(built.planLine, 'number labels: $_api, $_api:15 `alpha run`');
+    });
+
+    test('a link to a converted heading takes the new slug, in any doc', () {
+      const old = 'alpha-run--us-01-fr-01';
+      final built = pass(
+        '### `alpha run` — US-01 FR-01\n\n[self](#$old)\n',
+        others: {_topic: linkTo(old)},
+      );
+
+      expect(
+        built.apply(_topic, linkTo(old)),
+        '[x](../f01_alpha/API.md#alpha-run) [y](../f01_alpha/API.md#zz)\n',
+      );
+      expect(built.apply(_api, ''), contains('[self](#alpha-run)'));
+    });
+
+    test(
+      'a link to a heading whose label became a doc name takes its slug',
+      () {
+        final built = pass(
+          '### Rule F-01\n',
+          others: {_topic: '[x](../f01_alpha/API.md#rule-f-01)\n'},
+        );
+
+        expect(
+          built.apply(_topic, ''),
+          '[x](../f01_alpha/API.md#rule-featurealpha)\n',
+        );
+      },
+    );
+  });
 }

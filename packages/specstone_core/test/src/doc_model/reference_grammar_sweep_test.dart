@@ -155,6 +155,11 @@ final _allowed = <_Allowed>[
     r"""RegExp( r'^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#{1,6}[ \t]+)?' r'(?:\|[ \t]*)?(?:\*\*|__|`)?' '${RegExp.escape(itemId)}(?![A-Za-z0-9])'""",
     'Label pass reader: finds the line that declares an item ID.',
   ),
+  _core(
+    'setup_migration/api_heading_labels.dart',
+    r"""RegExp(r'^###[ \t]+(`[^`]+`)[ \t]+—[ \t]+(.+?)[ \t]*$'""",
+    'Upgrade reader: splits an api operation heading at its dash.',
+  ),
   // File-system paths, not references.
   _core(
     'templates/project_config.dart',

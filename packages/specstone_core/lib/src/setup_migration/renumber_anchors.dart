@@ -77,8 +77,8 @@ SlugMoves slugMovesOf(
       continue;
     }
     final bodyStart = doc.frontmatterText.length;
-    final before = _headingSlugsOf(doc.lf.substring(bodyStart));
-    final after = _headingSlugsOf(text.substring(bodyStart));
+    final before = headingSlugsOf(doc.lf.substring(bodyStart));
+    final after = headingSlugsOf(text.substring(bodyStart));
     if (before == null || after == null || before.length != after.length) {
       continue;
     }
@@ -115,7 +115,7 @@ bool _isAtxHeading(String line) {
 
 /// The heading slugs of [body], read by the anchor-only parse, whose heading
 /// subtrees are the ones the full parse builds (P17).
-List<String>? _headingSlugsOf(String body) {
+List<String>? headingSlugsOf(String body) {
   final nodes = parseLinkFreeBody(body);
   return nodes == null ? null : anchorsOf(nodes).headingSlugs;
 }

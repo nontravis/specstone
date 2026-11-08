@@ -3,6 +3,9 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show isCommentLine, markdownExtension, readsNameMentions;
 import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
+import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
+    show SlugMoves, headingSlugsOf, withAnchorsMoved;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 // MARK: - Constants
@@ -22,6 +25,7 @@ final _specFile = RegExp(r'^([A-Z][A-Z_]*)\.md$');
 const _featureFile = 'FEATURE.md';
 const _storyFile = 'USER_STORY.md';
 const _featureTypeId = 'feature';
+const _apiTypeId = 'api';
 
 // MARK: - Types
 
@@ -38,6 +42,10 @@ typedef _Resolve = String? Function(NumberLabel label, NumberLabel? before);
 typedef _Kept = ({int line, String label});
 
 typedef _Converted = ({String lf, List<_Kept> kept});
+
+/// A doc after the heading step and the label conversion, the operation
+/// headings it converted, and the labels it keeps.
+typedef _DocResult = ({String lf, List<_Kept> headings, List<_Kept> kept});
 
 typedef _Edit = ({int start, int end, String text});
 
@@ -94,6 +102,25 @@ final class LabelTree {
   String? nameOf(String docPath) {
     for (final doc in _docs) {
       if (doc.path == docPath) return doc.name;
+    }
+    return null;
+  }
+
+  /// Whether the doc at [docPath] is the `api` doc of a feature.
+  bool isApi(String docPath) =>
+      nameOf(docPath)?.startsWith('$_apiTypeId:') ?? false;
+
+  /// The story and FR numbers of the FR doc that [cell], a `## FR trace` FR
+  /// cell of the `api` doc at [apiDocPath], names; null for a cell that
+  /// names none.
+  ({int story, int fr})? frNamedBy(String apiDocPath, String cell) {
+    final located = _locate(apiDocPath);
+    if (located == null) return null;
+    final name = '${located.featureSlug}/$cell';
+    for (final doc in _docs) {
+      if (doc.kind == _DocKind.fr && doc.feature == located.feature) {
+        if (doc.name == name) return (story: doc.story!, fr: doc.fr!);
+      }
     }
     return null;
   }
@@ -316,24 +343,21 @@ final class LabelPass {
     List<({String path, String lf})> untrackedCodeFiles = const [],
   }) {
     final tree = LabelTree.of(docs);
-    final files = <_FileResult>[];
-    final docTexts = <String, String>{};
-    for (final (:docPath, :lf) in _sortedBy(docs, (doc) => doc.docPath)) {
-      final converted = _convertMarkdown(lf, (label, before) {
-        final target = tree.resolve(
-          label,
-          citingDocPath: docPath,
-          before: before,
-        );
-        return target == null ? null : tree.nameOf(target);
-      });
-      if (converted.lf != lf) docTexts[docPath] = converted.lf;
-      files.add((
-        path: docPath,
-        converted: converted.lf != lf,
-        kept: converted.kept,
-      ));
-    }
+    final sorted = _sortedBy(docs, (doc) => doc.docPath);
+    final results = {
+      for (final (:docPath, :lf) in sorted)
+        docPath: _convertDoc(tree, docPath, lf),
+    };
+    final docTexts = _withAnchorsMoved(sorted, results);
+    final files = <_FileResult>[
+      for (final (:docPath, lf: _) in sorted)
+        (
+          path: docPath,
+          converted: docTexts.containsKey(docPath),
+          headings: results[docPath]!.headings,
+          kept: results[docPath]!.kept,
+        ),
+    ];
     final codeFiles = <String, String>{};
     final codeResolve = _codeResolverOf(tree);
     final code = [
@@ -350,6 +374,7 @@ final class LabelPass {
       files.add((
         path: file.path,
         converted: converted.lf != file.lf,
+        headings: const [],
         kept: converted.kept,
       ));
     }
@@ -371,8 +396,11 @@ final class LabelPass {
   /// a tree with no label.
   String? get planLine {
     final named = [
-      for (final file in _files)
+      for (final file in _files) ...[
         if (file.converted) file.path,
+        for (final (:line, :label) in file.headings)
+          '${file.path}:$line $label',
+      ],
     ];
     final kept = [
       for (final file in _files)
@@ -384,8 +412,14 @@ final class LabelPass {
   }
 }
 
-/// A file the pass read, whether it converted a label, and the labels it kept.
-typedef _FileResult = ({String path, bool converted, List<_Kept> kept});
+/// A file the pass read, whether it changed it, the operation headings it
+/// converted, and the labels it kept.
+typedef _FileResult = ({
+  String path,
+  bool converted,
+  List<_Kept> headings,
+  List<_Kept> kept,
+});
 
 /// Whether the file at [path], whose LF text is [lf], holds a number label the
 /// pass reads: a doc's reading for markdown, a comment line's for any other
@@ -395,6 +429,78 @@ bool holdsNumberLabel(String path, String lf) =>
 
 List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
     [...items]..sort((a, b) => compareCodePoints(key(a), key(b)));
+
+// MARK: - Docs
+
+/// Returns [lf], the doc at [docPath], with the labels of its operation
+/// headings dropped when it is an `api` doc, then each label that names one
+/// doc converted.
+///
+/// A heading that keeps its labels stays as written: its labels are listed
+/// and never converted.
+_DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
+  final step = tree.isApi(docPath)
+      ? dropHeadingLabels(lf, (cell) => tree.frNamedBy(docPath, cell))
+      : noHeadingStep(lf);
+  final bodyStart = step.lf.length - Doc.parse(step.lf).afterFrontmatter.length;
+  bool isInKeptHeading(NumberLabel label) => step.kept.any(
+    (heading) =>
+        heading.start <= bodyStart + label.start &&
+        bodyStart + label.start < heading.end,
+  );
+  final converted = _convertMarkdown(step.lf, (label, before) {
+    if (isInKeptHeading(label)) return null;
+    final target = tree.resolve(label, citingDocPath: docPath, before: before);
+    return target == null ? null : tree.nameOf(target);
+  });
+  return (
+    lf: converted.lf,
+    headings: [
+      for (final (:line, :operation) in step.converted)
+        (line: line, label: operation),
+    ],
+    kept: converted.kept,
+  );
+}
+
+/// Returns the text of each doc the pass changes, its links to a heading
+/// whose slug the pass changed set to the new slug (D58, ledger G11).
+///
+/// A heading changes its slug when its operation label is dropped or a label
+/// in its text becomes a doc name; the move is read heading by heading.
+Map<String, String> _withAnchorsMoved(
+  List<({String docPath, String lf})> docs,
+  Map<String, _DocResult> results,
+) {
+  final texts = {
+    for (final (:docPath, :lf) in docs)
+      if (results[docPath]!.lf != lf) docPath: results[docPath]!.lf,
+  };
+  final moves = SlugMoves({
+    for (final (:docPath, :lf) in docs)
+      if (texts[docPath] case final text?
+          when _slugMovesOf(lf, text).isNotEmpty)
+        docPath: _slugMovesOf(lf, text),
+  });
+  if (moves.isEmpty) return texts;
+  for (final (:docPath, :lf) in docs) {
+    final moved = withAnchorsMoved(texts[docPath] ?? lf, docPath, moves).moved;
+    if (moved != null) texts[docPath] = moved.lf;
+  }
+  return texts;
+}
+
+/// Each heading slug of [before] that differs from the slug of the same
+/// heading in [after], by heading position.
+Map<String, String> _slugMovesOf(String before, String after) {
+  final old = headingSlugsOf(Doc.parse(before).afterFrontmatter);
+  final now = headingSlugsOf(Doc.parse(after).afterFrontmatter);
+  if (old == null || now == null || old.length != now.length) return const {};
+  return {
+    for (var i = 0; i < old.length; i++)
+      if (old[i] != now[i]) old[i]: now[i],
+  };
+}
 
 // MARK: - Resolvers
 
