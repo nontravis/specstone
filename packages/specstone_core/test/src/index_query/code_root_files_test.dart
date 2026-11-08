@@ -92,4 +92,14 @@ void main() {
       'test/t.dart',
     ]);
   });
+
+  test('document_writing/rename_doc/rewrite_name_references code input: dot '
+      'segments of an entry are dropped, so every path is in one form', () {
+    touch('lib/a.dart');
+    touch('top.dart');
+    expect(filesUnderCodeRoot(root, './lib/'), ['lib/a.dart']);
+    expect(filesUnderCodeRoot(root, './'), ['lib/a.dart', 'top.dart']);
+    expect(filesUnderCodeRoot(root, '.'), ['lib/a.dart', 'top.dart']);
+    expect(filesUnderCodeRoot(root, 'lib/./a.dart'), ['lib/a.dart']);
+  });
 }

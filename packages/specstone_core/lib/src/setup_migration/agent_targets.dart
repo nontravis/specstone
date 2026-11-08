@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -220,6 +222,7 @@ final class AgentWrite {
     required this.path,
     required this.text,
     required this.isNew,
+    required this.before,
     required this.isAtTop,
   });
 
@@ -232,6 +235,9 @@ final class AgentWrite {
 
   /// Whether the file does not exist yet.
   final bool isNew;
+
+  /// The [textHashOf] of the existing file's text; null for a new file.
+  final String? before;
 
   /// Whether the file lies at a repository top, outside the project's commits.
   final bool isAtTop;
@@ -296,6 +302,7 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
           path: file.path,
           text: text,
           isNew: !file.exists,
+          before: file.current.hashOrNull,
           isAtTop: folder.isTop,
         ),
       );
@@ -310,6 +317,7 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
         path: _agentMdPath,
         text: agentMdText,
         isNew: !agentMd.exists,
+        before: agentMd.before,
         isAtTop: false,
       ),
     );
@@ -324,10 +332,13 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
 
 /// The state of `.specstone/AGENT.md`.
 final class _AgentMd {
-  const new({required this.exists, required this.matches});
+  const new({required this.exists, required this.matches, this.before});
 
   final bool exists;
   final bool matches;
+
+  /// The [textHashOf] of the existing file's text; null when it is missing.
+  final String? before;
 }
 
 /// One agent file as found on disk, or as a full upsert would create it.
@@ -618,6 +629,7 @@ _AgentMd _agentMdOf(Directory root) {
   return _AgentMd(
     exists: true,
     matches: _sameBytes(bytes, utf8.encode(agentMdText)),
+    before: textHashOf(utf8.decode(bytes, allowMalformed: true)),
   );
 }
 
@@ -683,4 +695,12 @@ String? _readAgentText(File file) {
       bytes[1] == 0xBB &&
       bytes[2] == 0xBF;
   return text == null ? null : (hasMark ? '$_byteOrderMark$text' : text);
+}
+
+extension on String? {
+  /// The [textHashOf] of this text, or null for a missing file.
+  String? get hashOrNull => switch (this) {
+    final String text => textHashOf(text),
+    null => null,
+  };
 }

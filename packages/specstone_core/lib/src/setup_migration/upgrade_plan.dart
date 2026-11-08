@@ -209,6 +209,7 @@ RunPlan planUpgradeRun(
       PlannedRewrite(
         path: '$_docsFolder${work.plannedPath}',
         text: writtenText(work.original, lf),
+        before: work.original.hash,
         changes: work.changes,
       ),
     );
@@ -220,6 +221,7 @@ RunPlan planUpgradeRun(
         PlannedRewrite(
           path: file.path,
           text: writtenText(file.original, file.lf),
+          before: file.original.hash,
           changes: [
             for (final index in file.changedBy) _describe(steps[index].step),
           ],
@@ -491,6 +493,7 @@ PlannedRewrite? _configRewriteOf(
   return PlannedRewrite(
     path: projectConfigPath,
     text: writtenText(original, text),
+    before: original.hash,
     changes: [
       if (upgrades.isNotEmpty) 'pins',
       if (agentFileRoots != null) _agentFileRootsKey,

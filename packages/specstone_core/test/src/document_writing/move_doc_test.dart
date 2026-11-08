@@ -363,7 +363,7 @@ void main() {
       for (final (i, (from, _)) in moves.indexed)
         MoveStep(path(from), stage(i)),
       for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
-      WriteStep(
+      WriteStep.unguarded(
         'docs/$f/us02_email_login/fr02_lock_after_failures.md',
         linkText.replaceAll('us03_reset_password', 'us01_reset_password'),
       ),
@@ -775,7 +775,7 @@ void main() {
         'docs/$f/us03_reset_password',
         'docs/$f/us03_recover_account',
       ),
-      WriteStep(
+      WriteStep.unguarded(
         'docs/$linkFile',
         linkText.replaceAll('us03_reset_password', 'us03_recover_account'),
       ),
@@ -1833,6 +1833,36 @@ void main() {
       expect(File('${root.path}/app/lib/run.sh').statSync().mode & 0xFFF, 493);
     }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
 
+    test('document_writing/rename_doc/rewrite_name_references E05: a code root that holds the docs folder rewrites a doc through the doc step only, which keeps it approved and prints no warning', () async {
+      final root = await writeCheckProject(
+        extra: {...doc(techStack, '- app/lib/\n', '- ./\n')},
+      );
+      final approvedText =
+          '${readDoc(root, projectDoc)}\nSee `login/email_login`.\n';
+      docFile(root, projectDoc).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(approvedText, s.docTypeAt(projectDoc)),
+        ),
+      );
+      final before = approvedHash(root, projectDoc);
+      final stderrLines = _CapturedStderr();
+      final answer = IOOverrides.runZoned(
+        () => renameLogin(root),
+        stderr: () => stderrLines,
+      );
+      expect(readDoc(root, projectDoc), contains('See `signin/email_login`.'));
+      expect(approvedHash(root, projectDoc), isNot(before));
+      expect(staleDocs(root), isEmpty);
+      expect(stderrLines.lines, isEmpty);
+      expect(
+        (answer.json['rewritten']! as List).where(
+          (p) => (p! as String).startsWith('docs/'),
+        ),
+        isEmpty,
+      );
+    });
+
     group('a code root outside the project root', () {
       late Directory outside;
       late String folder;
@@ -1953,4 +1983,15 @@ void main() {
       }
     });
   });
+}
+
+/// A stderr that keeps the lines written to it.
+final class _CapturedStderr implements Stdout {
+  final lines = <String>[];
+
+  @override
+  void writeln([Object? object = '']) => lines.add('$object');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

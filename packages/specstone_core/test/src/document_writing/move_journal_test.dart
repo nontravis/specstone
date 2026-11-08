@@ -370,7 +370,7 @@ void main() {
     ).replaceAll('us03_reset_password', 'us03_forgot_password');
     writeJournal(root, [
       const MoveStep('docs/$_login/us03_reset_password', 'docs/$renamed'),
-      WriteStep('docs/$fr12', rewritten),
+      WriteStep.unguarded('docs/$fr12', rewritten),
     ]);
     Directory('${root.path}/docs/$_login/us03_reset_password')
         .renameSync('${root.path}/docs/$renamed');
@@ -555,10 +555,10 @@ void main() {
     final project = JournalTarget.of(openProject(root));
     final before = readDoc(root, story1);
 
-    const WriteStep('docs/prds/missing.md', 'x').apply(project);
+    const WriteStep.unguarded('docs/prds/missing.md', 'x').apply(project);
     const MoveStep('docs/prds/missing.md', 'docs/prds/other.md').apply(project);
-    WriteStep('docs/$story1', before).apply(project);
-    const WriteStep('docs/$story1', 'changed\n').apply(project);
+    WriteStep.unguarded('docs/$story1', before).apply(project);
+    const WriteStep.unguarded('docs/$story1', 'changed\n').apply(project);
 
     expect(hasDoc(root, 'prds/missing.md'), isFalse);
     expect(hasDoc(root, 'prds/other.md'), isFalse);
@@ -591,7 +591,7 @@ void main() {
     docFile(root, story1).writeAsBytesSync([0xff, 0xfe, 0x41]);
 
     expect(
-      () => const WriteStep(
+      () => const WriteStep.unguarded(
         'docs/$story1',
         'x',
       ).apply(JournalTarget.of(openProject(root))),
@@ -840,7 +840,10 @@ void main() {
           paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
           base: base,
         ),
-        const WriteStep('docs/prds/PROJECT.md', '# Project context\n'),
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          '# Project context\n',
+        ),
         const CreateStep('.specstone/config.yaml', 'packs:\n'),
         CommitStep(
           message: 'rewrite',
@@ -968,7 +971,10 @@ void main() {
           ],
           base: base,
         ),
-        const WriteStep('docs/specs/notes.local.md', '# Local notes\n'),
+        const WriteStep.unguarded(
+          'docs/specs/notes.local.md',
+          '# Local notes\n',
+        ),
         CommitStep(
           message: 'rewrite',
           paths: ['docs/specs/notes.local.md', '.specstone/.gitignore'],
@@ -1097,7 +1103,10 @@ void main() {
           paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
           base: base,
         ),
-        const WriteStep('docs/prds/PROJECT.md', '# Project context\n'),
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          '# Project context\n',
+        ),
         const CreateStep('.specstone/config.yaml', 'packs:\n'),
         CommitStep(
           message: 'rewrite',
@@ -1141,7 +1150,10 @@ void main() {
           paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
           base: base,
         ),
-        const WriteStep('docs/prds/PROJECT.md', '# Project context\n'),
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          '# Project context\n',
+        ),
         const CreateStep('.specstone/config.yaml', 'packs:\n'),
         CommitStep(
           message: 'rewrite',
@@ -1189,7 +1201,7 @@ void main() {
           paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
           base: base,
         ),
-        const WriteStep('docs/prds/PROJECT.md', 'y\n'),
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
         CommitStep(
           message: 'rewrite',
           paths: ['docs/prds/PROJECT.md'],
@@ -1232,8 +1244,9 @@ void main() {
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(
           jsonEncode(
-            const MoveJournal([WriteStep('docs/prds/PROJECT.md', 'y\n')])
-                .toJson(),
+            const MoveJournal([
+              WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+            ]).toJson(),
           ),
         );
       expect(MoveJournal.read(root)!.map((s) => s.describe()), [
@@ -1422,11 +1435,14 @@ void main() {
       final root = await writeTree({'docs/prds/PROJECT.md': 'same\n'});
 
       expect(
-        const WriteStep('docs/prds/PROJECT.md', 'same\n').isDone(_target(root)),
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          'same\n',
+        ).isDone(_target(root)),
         isTrue,
       );
       expect(
-        const WriteStep(
+        const WriteStep.unguarded(
           'docs/prds/PROJECT.md',
           'other\n',
         ).isDone(_target(root)),
@@ -1442,11 +1458,11 @@ void main() {
     const stuck = 'docs/prds/stuck.md';
     // `z -> x` refills the source of `x -> y`, as a chained upgrade move does.
     const chain = [MoveStep(x, y), MoveStep(z, x)];
-    const stopped = [...chain, WriteStep(stuck, 'new\n')];
+    const stopped = [...chain, WriteStep.unguarded(stuck, 'new\n')];
     // A failing first step, then a park and its unpark: the unpark's source
     // is absent until the park runs, so it reads as done with no cursor.
     const firstFails = [
-      WriteStep(stuck, 'new\n'),
+      WriteStep.unguarded(stuck, 'new\n'),
       MoveStep(x, '${MoveJournal.stagePath}/0'),
       MoveStep('${MoveJournal.stagePath}/0', y),
     ];

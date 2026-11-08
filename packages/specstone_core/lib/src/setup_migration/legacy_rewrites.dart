@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
     show rewritePathMentions;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
@@ -51,8 +53,9 @@ const _headerRenames = <LegacyKind, (String, String)>{
   LegacyKind.api: ('FR ↔ endpoint trace', 'FR trace'),
 };
 
-/// A doc file as LF text with the line style and byte order mark it came with.
-typedef DocText = ({String lf, LineEnding ending, bool bom});
+/// A doc file as LF text with the line style and byte order mark it came with,
+/// and the [textHashOf] its text had.
+typedef DocText = ({String lf, LineEnding ending, bool bom, String hash});
 
 /// Reads UTF-8 [bytes] into LF text, the byte order mark dropped from it.
 DocText readDocText(List<int> bytes) {
@@ -61,6 +64,7 @@ DocText readDocText(List<int> bytes) {
     lf: toLf(text),
     ending: LineEnding.of(text),
     bom: startsWithUtf8Bom(bytes),
+    hash: textHashOf(text),
   );
 }
 

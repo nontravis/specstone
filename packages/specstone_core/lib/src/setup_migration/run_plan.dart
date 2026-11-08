@@ -26,12 +26,16 @@ final class PlannedRewrite {
   const new({
     required this.path,
     required this.text,
+    required this.before,
     required this.changes,
     this.note = '',
   });
 
   /// The ProjectPath of the doc, after the moves.
   final String path;
+
+  /// The [textHashOf] of the file's text when the plan was made.
+  final String before;
 
   /// The text as written to disk.
   final String text;
@@ -185,13 +189,14 @@ final class RunPlan {
               (from: '$_docsPrefix${move.from}', to: '$_docsPrefix${move.to}'),
           ],
         ),
-      for (final rewrite in rewrites) WriteStep(rewrite.path, rewrite.text),
+      for (final rewrite in rewrites)
+        WriteStep(rewrite.path, rewrite.text, before: rewrite.before),
       for (final create in creates) CreateStep(create.path, create.text),
       for (final (:write, :path) in agentWrites)
-        if (write.isNew)
-          CreateStep(path, write.text)
+        if (write.before case final before?)
+          WriteStep(path, write.text, before: before)
         else
-          WriteStep(path, write.text),
+          CreateStep(path, write.text),
       CommitStep(
         message: commit2Message,
         paths: commit2Paths.toList(),

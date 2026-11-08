@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -762,6 +763,45 @@ void main() {
         startsWith('pending migration: ${root.resolveSymbolicLinksSync()} '),
       );
     }, skip: skipGit);
+
+    test(
+      'document_writing/delete_doc_subtree/finish_interrupted_move: a resumed '
+      'migrate leaves an edited doc and an edited CLAUDE.md as they are and '
+      'finishes the rest',
+      () async {
+        final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+        _stopAfterCommit1(root);
+        final journal = jsonDecode(
+          File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+        ) as Map<String, Object?>;
+        final writes = [
+          for (final step in journal['steps']! as List<Object?>)
+            if ((step! as Map<String, Object?>)['write']
+                case final Map<String, Object?> write)
+              write['path']! as String,
+        ];
+        final doc = writes.firstWhere((path) => path.startsWith('docs/'));
+        expect(writes, contains('CLAUDE.md'));
+        final edits = <String, String>{};
+        for (final path in [doc, 'CLAUDE.md']) {
+          final file = File('${root.path}/$path');
+          file.writeAsStringSync('${file.readAsStringSync()}\nuser edit\n');
+          edits[path] = file.readAsStringSync();
+        }
+
+        expect(_run(root, StringBuffer()), 0);
+
+        for (final MapEntry(:key, :value) in edits.entries) {
+          expect(File('${root.path}/$key').readAsStringSync(), value);
+        }
+        expect(MoveJournal.pending(root), isFalse);
+        expect(
+          File('${root.path}/.specstone/config.yaml').existsSync(),
+          isTrue,
+        );
+      },
+      skip: skipGit,
+    );
 
     test('f06/us01/fr07/e04: --dry-run lists the remaining steps and writes '
         'nothing', () async {

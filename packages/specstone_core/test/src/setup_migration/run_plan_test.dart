@@ -32,10 +32,12 @@ AgentWrite _agentWrite(
   String path, {
   required bool isNew,
   bool isAtTop = false,
+  String was = 'old\n',
 }) => AgentWrite(
   path: path,
   text: 'text of $path\n',
   isNew: isNew,
+  before: isNew ? null : textHashOf(was),
   isAtTop: isAtTop,
 );
 
@@ -57,7 +59,7 @@ RunPlan _planWithAgents({List<String>? rewriteLines}) => RunPlan(
   moves: const [],
   prunes: const [],
   rewrites: const [
-    PlannedRewrite(path: 'docs/a.md', text: 'a', changes: ['x']),
+    PlannedRewrite(path: 'docs/a.md', text: 'a', before: 'b', changes: ['x']),
   ],
   creates: const [PlannedCreate(path: 'docs/b.md', text: 'b')],
   left: const [],
@@ -307,7 +309,9 @@ void main() {
           commit1Message: 'move',
           commit2Message: 'pin',
           agentFiles: AgentWritePlan(
-            rootWrites: [_agentWrite('CLAUDE.md', isNew: false)],
+            rootWrites: [
+              _agentWrite('CLAUDE.md', isNew: false, was: 'Owner\n'),
+            ],
             topWrites: const [],
             agentFileRoots: const [],
             addedRoots: const [],

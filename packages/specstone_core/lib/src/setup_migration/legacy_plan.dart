@@ -4,6 +4,8 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
@@ -388,6 +390,7 @@ _Rewrites _rewritesOf(
         PlannedRewrite(
           path: '$_docsFolder${work.newPath}',
           text: writtenText(work.original, work.lf),
+          before: work.original.hash,
           changes: work.changes,
           note: work.note,
         ),
@@ -443,8 +446,14 @@ PlannedRewrite? _configRewriteOf(
     codeRoot: existing.codeRoot,
     agentFileRoots: agentFileRoots,
   );
-  if (text == config.readAsStringSync()) return null;
-  return PlannedRewrite(path: projectConfigPath, text: text, changes: ['pins']);
+  final current = config.readAsStringSync();
+  if (text == current) return null;
+  return PlannedRewrite(
+    path: projectConfigPath,
+    text: text,
+    before: textHashOf(current),
+    changes: ['pins'],
+  );
 }
 
 /// Returns the plan line of [rewrite]: its path from the docs root, or from

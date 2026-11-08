@@ -96,13 +96,10 @@ sealed class JournalStep {
             'write',
             {'path': final String path, 'text': final String text},
           ):
-            return WriteStep(
-              path,
-              text,
-              before: value['before'] is String
-                  ? value['before']! as String
-                  : null,
-            );
+            return switch (value['before']) {
+              final String before => WriteStep(path, text, before: before),
+              _ => WriteStep.unguarded(path, text),
+            };
           case (
             'create',
             {'path': final String path, 'text': final String text},
@@ -243,11 +240,15 @@ final class PruneStep extends JournalStep {
 
 /// Writes [text] to a file that exists and differs from it.
 ///
-/// When [before] holds the [textHashOf] the file had when the run was
-/// planned, the step writes only a file that still holds that text; a file
-/// edited since is left as it is and named in a warning.
+/// The step writes only a file that still holds the text whose [textHashOf]
+/// is [before], the text it had when the run was planned; a file edited since
+/// is left as it is and named in a warning.
 final class WriteStep extends JournalStep {
-  const new(this.path, this.text, {this.before});
+  const new(this.path, this.text, {required String this.before});
+
+  /// A step from a journal an older release wrote, which recorded no hash and
+  /// so writes over whatever the file holds.
+  const new unguarded(this.path, this.text) : before = null;
 
   /// The file to write.
   final String path;
@@ -255,7 +256,8 @@ final class WriteStep extends JournalStep {
   /// The new UTF-8 text.
   final String text;
 
-  /// The [textHashOf] of the text the step replaces, or null to replace any.
+  /// The [textHashOf] of the text the step replaces; null for an unguarded
+  /// step.
   final String? before;
 
   @override

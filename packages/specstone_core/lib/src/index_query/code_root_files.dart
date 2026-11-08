@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _separator = '/';
 const _dotName = '.';
+const _dotSegment = '.';
 
 /// Returns [entry], a `code:` entry, with its final `/` dropped.
 String withoutFinalSlash(String entry) =>
@@ -11,6 +12,7 @@ String withoutFinalSlash(String entry) =>
 
 /// Returns the files under the `code:` [entry], as paths from [codeRoot]
 /// sorted by code point; an [entry] that names a file lists that file.
+/// `.` segments of [entry] are dropped, so every path is in one form.
 ///
 /// Names starting with a dot and links are skipped, and no file is read. A
 /// missing root yields none. A folder that exists but cannot be listed is
@@ -21,7 +23,7 @@ List<String> filesUnderCodeRoot(
   String entry, {
   void Function(String folder)? onUnlistable,
 }) {
-  final root = withoutFinalSlash(entry);
+  final root = _withoutDotSegments(withoutFinalSlash(entry));
   final kind = FileSystemEntity.typeSync(
     '${codeRoot.path}$_separator$root',
     followLinks: false,
@@ -41,6 +43,13 @@ List<String> codeRootFiles(Directory codeRoot, Iterable<String> entries) {
   return files.toList()..sort(compareCodePoints);
 }
 
+/// Returns [path] without its `.` segments, so `./lib` and `lib` list the same
+/// paths and `.` names the code root itself.
+String _withoutDotSegments(String path) => path
+    .split(_separator)
+    .where((segment) => segment != _dotSegment && segment.isNotEmpty)
+    .join(_separator);
+
 void _collect(
   Directory codeRoot,
   String folderPath,
@@ -58,7 +67,7 @@ void _collect(
   for (final entity in entities) {
     final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
     if (name.startsWith(_dotName)) continue;
-    final path = '$folderPath$_separator$name';
+    final path = folderPath.isEmpty ? name : '$folderPath$_separator$name';
     switch (entity) {
       case File():
         files.add(path);
