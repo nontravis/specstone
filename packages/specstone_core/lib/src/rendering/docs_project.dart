@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart' as approval;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -37,6 +38,7 @@ final class DocsProject {
     required this.projectRoot,
     required this.docsRoot,
     required this.codeRoot,
+    required this.stampsHaveRun,
     required this.matcher,
     required this.set,
   });
@@ -64,19 +66,24 @@ final class DocsProject {
       homeDirectory: homeDirectory,
     );
     final projectRoot = Directory(found.resolveSymbolicLinksSync());
-    final codeRoot = ProjectConfig.read(projectRoot).codeRoot;
+    final config = ProjectConfig.read(projectRoot);
     return DocsProject._(
       projectRoot: projectRoot,
       docsRoot: Directory(
         _canonicalPath('${projectRoot.path}$_separator$docsFolderName'),
       ),
       codeRoot: Directory(
-        _canonicalPath('${projectRoot.path}$_separator$codeRoot'),
+        _canonicalPath('${projectRoot.path}$_separator${config.codeRoot}'),
       ),
+      stampsHaveRun: approval.stampsHaveRun(config.pins),
       matcher: DocTypeMatcher(set),
       set: set,
     );
   }
+
+  /// Whether the config pins a pack at or above the version whose upgrade
+  /// stamps every doc; read once at open.
+  final bool stampsHaveRun;
 
   /// The canonical project root.
   final Directory projectRoot;

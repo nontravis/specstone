@@ -1,8 +1,16 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/temp_tree.dart';
@@ -14,6 +22,43 @@ const _approvedText = '# Signup\n\nApproved body.\n';
 final _longApproved =
     '# Recover\n\n${List.filled(8, 'A step of the flow.\n').join()}';
 const _draftText = '---\ndraft: true\n---\n# Signup\n\nDraft body.\n';
+
+const _docType = MergedDocType(
+  id: 'fr',
+  generators: ['scenario_copy'],
+  fields: [
+    MergedField(id: 'slug', type: FieldType.string, list: true),
+    MergedField(id: 'status', type: FieldType.string),
+    MergedField(id: 'draft', type: FieldType.boolean),
+    MergedField(id: 'approved', type: FieldType.string),
+    MergedField(
+      id: 'implements',
+      type: FieldType.outputRef,
+      list: true,
+      pointer: PointerKind.exact,
+    ),
+  ],
+  sections: [MergedSection(id: 'statement', header: 'Statement')],
+  lint: MergedLint(),
+  files: [],
+);
+
+/// An index entry whose frontmatter is [lines] as the index stores values.
+IndexedDoc _indexed(String lines) {
+  final map = loadYaml(lines) as YamlMap;
+  return IndexedDoc(
+    docPath: 'a.md',
+    name: 'a',
+    frontmatter: {
+      for (final e in map.entries)
+        '${e.key}': switch (e.value) {
+          double(isInfinite: true) => '.inf',
+          final Object? v => v,
+        },
+    },
+    tokens: 1,
+  );
+}
 
 /// Whether this machine's `git` can make a SHA-256 repository.
 final bool hasSha256Git = () {
@@ -52,47 +97,264 @@ void main() {
       ? null
       : 'git cannot make a SHA-256 repository';
 
-  test('dw-s03/inv5, f02/us04/fr02/e04, f02/us04/fr02/e05: approval reads the frontmatter only', () {
-    expect(
-      approvalOf(Doc.parse('---\ndraft: true\n---\n# A\n')),
-      Approval.neverApproved,
-    );
-    expect(
-      approvalOf(Doc.parse('---\ndraft: true\napproved: true\n---\n# A\n')),
-      Approval.approved,
-    );
-    expect(approvalOf(Doc.parse('# A\n')), Approval.approved);
+  group('stampsHaveRun', () {
+    PackVersion v(String text) => PackVersion.parse(text, file: 'x', key: 'x');
+    for (final (pins, expected) in [
+      ({'prd-core': '1.6.0', 'software-tech': '1.3.0'}, false),
+      ({'prd-core': '1.7.0', 'software-tech': '1.3.0'}, true),
+      ({'prd-core': '1.6.0', 'software-tech': '1.4.0'}, true),
+      ({'prd-core': '1.6.9'}, false),
+      ({'prd-core': '1.8.0'}, true),
+      (<String, String>{'acme': '9.0.0'}, false),
+    ]) {
+      test('dw-s03/approval, walk_drafts E12: pins $pins -> $expected', () {
+        expect(
+          stampsHaveRun({for (final e in pins.entries) e.key: v(e.value)}),
+          expected,
+        );
+      });
+    }
   });
 
-  test('dw-s03/inv5, f02/us04/fr02/e04: holdsApproved is true exactly when approved holds YAML true', () {
-    expect(
-      holdsApproved(Doc.parse('---\ndraft: true\napproved: true\n---\n# A\n')),
-      isTrue,
+  group('approvalHashOf', () {
+    const body =
+        '---\nstatus: planned\nimplements:\n  - a.dart:one\n---\n\n'
+        '# Doc\n\n## Statement\n\nThe system shall do it.\n\n'
+        '| a | b |\n|---|---|\n| x | y |\n';
+    String hash(String text) => approvalHashOf(text, _docType);
+
+    test('dw-s03/approvalhash: 12 lowercase hex characters', () {
+      expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
+    });
+
+    test('report_stale_approvals E02: padded cells give the same hash', () {
+      final padded = body.replaceFirst(
+        '| a | b |\n|---|---|\n| x | y |',
+        '| a   | b   |\n|-----|-----|\n| x   | y   |',
+      );
+      expect(padded, isNot(body));
+      expect(hash(padded), hash(body));
+    });
+
+    test(
+      'report_stale_approvals E02: a blank line under a heading is ignored',
+      () {
+        final spaced = body.replaceFirst('## Statement\n\n', '## Statement\n');
+        expect(spaced, isNot(body));
+        expect(hash(spaced), hash(body));
+      },
     );
-    expect(holdsApproved(Doc.parse('---\napproved: true\n---\n# A\n')), isTrue);
-    expect(
-      holdsApproved(Doc.parse('---\ndraft: true\napproved: false\n---\n# A\n')),
-      isFalse,
+
+    test('CRLF line ends hash as LF once the caller converts', () {
+      expect(hash(toLf(body.replaceAll('\n', '\r\n'))), hash(body));
+    });
+
+    test('report_stale_approvals E03: a changed implements entry keeps it', () {
+      expect(hash(body.replaceFirst('a.dart:one', 'b.dart:two')), hash(body));
+    });
+
+    test(
+      'mark_doc_approved: the approved and draft key blocks are not hashed',
+      () {
+        final marked = body.replaceFirst(
+          'status: planned\n',
+          'draft: true\nstatus: planned\napproved: "0123456789ab"\n',
+        );
+        expect(hash(marked), hash(body));
+      },
     );
-    expect(
-      holdsApproved(Doc.parse('---\napproved: "true"\n---\n# A\n')),
-      isFalse,
+
+    test(
+      'report_stale_approvals E03: a refreshed generated block keeps it',
+      () {
+        String withBlock(String inner) =>
+            '$body\n${generatedOpenMarker('scenario_copy')}\n$inner'
+            '$generatedEndMarker\n';
+        expect(hash(withBlock('first\n')), hash(withBlock('second\n')));
+      },
     );
-    expect(holdsApproved(Doc.parse('---\ndraft: true\n---\n# A\n')), isFalse);
-    expect(holdsApproved(Doc.parse('# A\n')), isFalse);
+
+    test('report_stale_approvals E02: one changed sentence differs', () {
+      expect(
+        hash(body.replaceFirst('shall do it', 'shall not do it')),
+        isNot(hash(body)),
+      );
+    });
+
+    test('an untyped doc hashes its text as written', () {
+      expect(approvalHashOf('# A\n', null), baseHashOf('# A\n'));
+    });
   });
 
-  test('dw-s03/inv5, HD4: a quoted "approved": true holds approved', () {
-    expect(
-      holdsApproved(
-        Doc.parse('---\ndraft: true\n"approved": true\n---\n# A\n'),
+  group('withApprovalHash', () {
+    const draft =
+        '---\ndraft: true\nstatus: planned\n---\n\n# Doc\n\n'
+        '## Statement\n\nText.\n';
+
+    test('mark_doc_approved E11: the double-quoted hash at the field slot', () {
+      final written = withApprovalHash(draft, _docType);
+      final hash = approvalHashOf(draft, _docType);
+      expect(
+        written,
+        '---\ndraft: true\nstatus: planned\napproved: "$hash"\n---\n\n'
+        '# Doc\n\n## Statement\n\nText.\n',
+      );
+    });
+
+    test('mark_doc_approved E11: replaces approved: true in place', () {
+      const old =
+          '---\napproved: true\nstatus: planned\n---\n\n# Doc\n\n'
+          '## Statement\n\nText.\n';
+      final written = withApprovalHash(old, _docType);
+      expect(
+        written,
+        startsWith(
+          '---\napproved: "${approvalHashOf(old, _docType)}"\n'
+          'status: planned\n',
+        ),
+      );
+      expect(written, isNot(contains('approved: true')));
+    });
+
+    test('a doc carrying its own hash hashes to that hash', () {
+      final written = withApprovalHash(draft, _docType);
+      expect(
+        approvalHashOf(written, _docType),
+        approvalHashOf(draft, _docType),
+      );
+    });
+  });
+
+  group('approval rules', () {
+    const hash = '5d1e0c4b7a92';
+    // (label, frontmatter lines, awaits below pins, awaits at pins,
+    // approvalOf below pins, approvalOf at pins, guarded)
+    final rows = <(String, String, bool, bool, Approval, Approval, bool)>[
+      (
+        'draft: true',
+        'draft: true',
+        true,
+        true,
+        Approval.neverApproved,
+        Approval.neverApproved,
+        false,
       ),
-      isTrue,
-    );
-    expect(
-      approvalOf(Doc.parse("---\ndraft: true\n'approved': true\n---\n# A\n")),
-      Approval.approved,
-    );
+      (
+        'a matching hash',
+        'approved: "$hash"',
+        false,
+        false,
+        Approval.approved,
+        Approval.approved,
+        true,
+      ),
+      (
+        'a stale hash',
+        'approved: "0123456789ab"',
+        true,
+        true,
+        Approval.approved,
+        Approval.approved,
+        true,
+      ),
+      (
+        'approved: true',
+        'approved: true',
+        false,
+        true,
+        Approval.approved,
+        Approval.approved,
+        true,
+      ),
+      (
+        'neither key',
+        'status: planned',
+        false,
+        true,
+        Approval.approved,
+        Approval.unmarked,
+        true,
+      ),
+      (
+        'an unquoted 12-digit value',
+        'approved: 123456789012',
+        true,
+        true,
+        Approval.approved,
+        Approval.approved,
+        true,
+      ),
+      (
+        'a quoted 12-digit value',
+        'approved: "123456789012"',
+        true,
+        true,
+        Approval.approved,
+        Approval.approved,
+        true,
+      ),
+      (
+        'a float-shaped 12-character value',
+        'approved: 123e45678901',
+        true,
+        true,
+        Approval.approved,
+        Approval.approved,
+        true,
+      ),
+    ];
+    for (final (
+          label,
+          lines,
+          belowAwaits,
+          atAwaits,
+          belowApproval,
+          atApproval,
+          guarded,
+        )
+        in rows) {
+      for (final fields in [
+        ('Doc', ApprovalFields.of(Doc.parse('---\n$lines\n---\n# A\n'))),
+        ('IndexedDoc', ApprovalFields.ofIndexed(_indexed(lines))),
+      ]) {
+        final (reader, f) = fields;
+        test('walk_drafts E11-E14, dw-s03/approval: $label via $reader', () {
+          expect(
+            awaitsApproval(f, hash, stampsHaveRun: false),
+            belowAwaits,
+            reason: 'awaits below pins',
+          );
+          expect(
+            awaitsApproval(f, hash, stampsHaveRun: true),
+            atAwaits,
+            reason: 'awaits at pins',
+          );
+          expect(approvalOf(f, stampsHaveRun: false), belowApproval);
+          expect(approvalOf(f, stampsHaveRun: true), atApproval);
+          expect(isGuarded(f), guarded);
+        });
+      }
+    }
+
+    test('a doc with no frontmatter is unmarked at the pins', () {
+      final f = ApprovalFields.of(Doc.parse('# A\n'));
+      expect(approvalOf(f, stampsHaveRun: true), Approval.unmarked);
+      expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
+    });
+
+    test('dw-s03/inv5: an approved value that is no YAML holds no value', () {
+      final f = ApprovalFields.of(
+        Doc.parse('---\ndraft: true\napproved: [\n---\n# A\n'),
+      );
+      expect(approvalOf(f, stampsHaveRun: false), Approval.neverApproved);
+    });
+
+    test('HD4: a quoted "approved" key is read', () {
+      final f = ApprovalFields.of(
+        Doc.parse('---\ndraft: true\n"approved": true\n---\n# A\n'),
+      );
+      expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
+    });
   });
 
   test('f02/us03/s2, f02/us03/fr02/e01, dw-s03/inv11: the newest committed copy without draft is found', () async {
@@ -393,10 +655,4 @@ void main() {
       );
     },
   );
-
-  test('dw-s03/inv5: an approved value that is no YAML holds no approval', () {
-    final doc = Doc.parse('---\ndraft: true\napproved: [\n---\n# A\n');
-    expect(holdsApproved(doc), isFalse);
-    expect(approvalOf(doc), Approval.neverApproved);
-  });
 }

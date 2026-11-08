@@ -45,7 +45,7 @@ final _beginVersion = RegExp(r'<!-- BEGIN specstone v\d+\.\d+\.\d+ -->');
 final Map<String, PackVersion> agentFilesSince = Map.unmodifiable({
   for (final (pack, version) in const [
     ('prd-core', '1.7.0'),
-    ('software-tech', '1.3.0'),
+    ('software-tech', '1.4.0'),
   ])
     pack: PackVersion.parse(version, file: 'agent_targets.dart', key: pack),
 });

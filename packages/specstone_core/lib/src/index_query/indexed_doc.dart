@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
@@ -89,6 +90,7 @@ final class IndexedDoc {
     required this.frontmatter,
     required this.tokens,
     this.formatted,
+    this.approvalHash,
     this.order = 0,
     this.warnings = const [],
   });
@@ -118,6 +120,10 @@ final class IndexedDoc {
   ///
   /// Null for an untyped doc and for a doc the format command refuses.
   final bool? formatted;
+
+  /// The ApprovalHash of the doc as its doc type lays it out; null for an
+  /// untyped doc.
+  final String? approvalHash;
 
   /// The position of the doc in tree order.
   final int order;
@@ -274,6 +280,7 @@ ParsedDoc parseIndexedDoc({
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),
     formatted: laid is Formatted ? laid.text == lfText : null,
+    approvalHash: docType == null ? null : approvalHashOf(lfText, docType),
     warnings: warnings,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));

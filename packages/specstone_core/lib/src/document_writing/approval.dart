@@ -1,33 +1,160 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:yaml/yaml.dart';
+
+const _approvedKey = 'approved';
+const _hashLength = 12;
+
+/// Whether the approval stamps have run: any pin at or above its
+/// [agentFilesSince] entry, `prd-core` 1.7.0 or `software-tech` 1.4.0 (R82).
+bool stampsHaveRun(Map<String, PackVersion> pins) =>
+    agentFilesSince.entries.any(
+      (since) => switch (pins[since.key]) {
+        final PackVersion pin => pin.compareTo(since.value) >= 0,
+        null => false,
+      },
+    );
+
+/// Returns the ApprovalHash of [lfText] laid out as [docType] lays it out,
+/// less its `approved:`, `draft:`, and `output_ref` key blocks and the text of
+/// its generated blocks.
+String approvalHashOf(String lfText, MergedDocType? docType) {
+  var covered = layOutDoc(lfText, docType);
+  if (docType != null) {
+    final dropped = [
+      _approvedKey,
+      'draft',
+      for (final field in docType.fields)
+        if (field.type == FieldType.outputRef) field.id,
+    ];
+    for (final key in dropped) {
+      covered = withKeyBlock(covered, key, null);
+    }
+    covered = _withoutGeneratedBlocks(
+      covered,
+      docType.listedGenerators.toSet(),
+    );
+  }
+  return baseHashOf(covered).substring(0, _hashLength);
+}
+
+String _withoutGeneratedBlocks(String text, Set<String> kinds) {
+  if (kinds.isEmpty) return text;
+  final lines = text.split('\n');
+  final generated = generatedBlockLines(lines, kinds);
+  return [
+    for (final (i, line) in lines.indexed)
+      if (!generated[i]) line,
+  ].join('\n');
+}
+
+/// Returns [lfText] with `approved: "<approvalHashOf>"` in place of any
+/// `approved:` value, at its slot in the field order of [docType].
+///
+/// The one writer of the mark (R84).
+String withApprovalHash(String lfText, MergedDocType? docType) => withKeyBlock(
+  lfText,
+  _approvedKey,
+  'approved: "${approvalHashOf(lfText, docType)}"\n',
+  fieldOrder: docType == null
+      ? null
+      : [for (final field in docType.fields) field.id],
+);
 
 /// Whether a doc was ever approved.
 enum Approval {
-  /// A draft whose `approved` key does not hold YAML `true`.
+  /// A draft with no `approved:` value.
   neverApproved,
 
-  /// Not a draft, or a draft whose `approved` key holds YAML `true`.
+  /// Neither `draft` nor `approved:`, once the stamps have run: a file made
+  /// outside the commands.
+  unmarked,
+
+  /// Carries an `approved:` value, or neither key below the pins.
   approved,
 }
 
-/// Returns the [Approval] the frontmatter of [doc] states.
-Approval approvalOf(Doc doc) =>
-    doc.isDraft && !holdsApproved(doc) ? .neverApproved : .approved;
+/// The two frontmatter values the approval rules read.
+///
+/// The one place a frontmatter `approved:` value is read (R85).
+final class ApprovalFields {
+  const new({required this.isDraft, required this.approvedValue});
 
-/// Whether the frontmatter `approved` key of [doc] holds YAML `true`.
-bool holdsApproved(Doc doc) {
-  final block = doc.frontmatter?.where((b) => b.name == 'approved').firstOrNull;
-  if (block == null) return false;
+  /// Reads the fields from the frontmatter of [doc].
+  ///
+  /// A value that is no YAML reads as no value.
+  factory of(Doc doc) {
+    final block = doc.frontmatter
+        ?.where((b) => b.name == _approvedKey)
+        .firstOrNull;
+    return ApprovalFields(
+      isDraft: doc.isDraft,
+      approvedValue: block == null ? null : _yamlValueOf(block.valueText),
+    );
+  }
+
+  /// Reads the fields from the stored frontmatter of [doc].
+  factory ofIndexed(IndexedDoc doc) => ApprovalFields(
+    isDraft: doc.isDraft,
+    approvedValue: doc.frontmatter[_approvedKey],
+  );
+
+  /// Whether `draft` holds YAML `true`.
+  final bool isDraft;
+
+  /// The YAML value of `approved:`; null when absent or empty.
+  final Object? approvedValue;
+
+  /// Whether `approved:` holds YAML `true`, the mark before the hash.
+  bool get holdsTrueMark => approvedValue == true;
+}
+
+Object? _yamlValueOf(String valueText) {
   try {
-    return loadYaml(block.valueText) == true;
+    return loadYaml(valueText);
   } on YamlException {
-    return false;
+    return null;
   }
 }
+
+/// Returns the [Approval] [fields] state.
+Approval approvalOf(ApprovalFields fields, {required bool stampsHaveRun}) {
+  if (fields.approvedValue != null) return .approved;
+  if (fields.isDraft) return .neverApproved;
+  return stampsHaveRun ? .unmarked : .approved;
+}
+
+/// Whether the doc of [fields] awaits the Owner's approval (INV-5), given
+/// [hash], its current ApprovalHash.
+bool awaitsApproval(
+  ApprovalFields fields,
+  String hash, {
+  required bool stampsHaveRun,
+}) {
+  if (fields.isDraft) return true;
+  return switch (fields.approvedValue) {
+    null => stampsHaveRun,
+    true => stampsHaveRun,
+    final String value => value != hash,
+    _ => true,
+  };
+}
+
+/// Whether only the Owner may delete the doc of [fields]: any `approved:`
+/// value, or no `draft: true` (INV-7).
+bool isGuarded(ApprovalFields fields) =>
+    fields.approvedValue != null || !fields.isDraft;
 
 /// What the git history says about the last approved copy of a doc.
 sealed class ApprovalLookup {

@@ -69,7 +69,7 @@ void _apply(Directory base, AgentWritePlan plan) {
 
 void main() {
   group('agentFilesSince', () {
-    test('$_write: prd-core 1.7.0 and software-tech 1.3.0', () {
+    test('$_write: prd-core 1.7.0 and software-tech 1.4.0', () {
       expect(
         agentFilesSince.keys,
         unorderedEquals(['prd-core', 'software-tech']),
@@ -80,7 +80,7 @@ void main() {
       );
       expect(
         agentFilesSince['software-tech'],
-        PackVersion.parse('1.3.0', file: 'x', key: 'x'),
+        PackVersion.parse('1.4.0', file: 'x', key: 'x'),
       );
     });
   });

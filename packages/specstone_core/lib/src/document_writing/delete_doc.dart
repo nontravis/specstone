@@ -387,7 +387,8 @@ bool _holdsApprovedDoc(_UnitFiles files) {
     } on FormatException {
       return true;
     }
-    if (approvalOf(Doc.parse(toLf(text))) == .approved) return true;
+    final fields = ApprovalFields.of(Doc.parse(toLf(text)));
+    if (!fields.isDraft || fields.holdsTrueMark) return true;
   }
   return false;
 }

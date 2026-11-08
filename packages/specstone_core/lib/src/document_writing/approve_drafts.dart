@@ -301,7 +301,7 @@ void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
   final text = utf8.decode(bytes);
   final lfText = toLf(text);
   final undrafted = withKeyBlock(lfText, 'draft', null);
-  final approved = holdsApproved(Doc.parse(lfText))
+  final approved = ApprovalFields.of(Doc.parse(lfText)).holdsTrueMark
       ? undrafted
       : withKeyBlock(
           undrafted,

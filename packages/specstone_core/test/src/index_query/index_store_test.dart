@@ -562,5 +562,16 @@ void main() {
       raw.execute('UPDATE meta SET layout = 9');
       expect(store.readStamp(), isNull);
     });
+    test('dw-s03/approvalhash: an index of layout 10 has no stamp, so it is rebuilt', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute('UPDATE meta SET layout = 10');
+      expect(store.readStamp(), isNull);
+    });
   });
 }

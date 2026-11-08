@@ -37,7 +37,7 @@ const _notWritableMessage =
 /// banned-match JSON, and how that JSON is computed. An index of another
 /// layout is then rebuilt instead of failing a read (INV-2). An older build's
 /// reset recreates the meta row without it, so its index is rebuilt too.
-const _layoutVersion = 10;
+const _layoutVersion = 11;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -57,6 +57,7 @@ CREATE TABLE docs (
   frontmatter TEXT NOT NULL,
   tokens INTEGER NOT NULL,
   formatted INTEGER,
+  approval_hash TEXT,
   ord INTEGER NOT NULL,
   warnings TEXT NOT NULL,
   content_hash TEXT NOT NULL,
@@ -339,9 +340,9 @@ final class IndexStore {
     deleteDoc(doc.docPath);
     _db.execute(
       'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
-      'tokens, formatted, ord, warnings, content_hash, text, '
+      'tokens, formatted, approval_hash, ord, warnings, content_hash, text, '
       'frontmatter_text, head, line_facts, banned_matches) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -353,6 +354,7 @@ final class IndexStore {
           final bool formatted => formatted ? 1 : 0,
           null => null,
         },
+        doc.approvalHash,
         doc.order,
         jsonEncode(doc.warnings),
         parsed.contentHash,
@@ -465,7 +467,8 @@ final class IndexStore {
   List<IndexedDoc> loadDocs() => [
     for (final row in _db.select(
       'SELECT doc_path, doc_type_id, name, parent_path, parent_warning, '
-      'title, frontmatter, tokens, formatted, ord, warnings FROM docs '
+      'title, frontmatter, tokens, formatted, approval_hash, ord, warnings '
+      'FROM docs '
       'ORDER BY ord, doc_path',
     ))
       IndexedDoc(
@@ -482,6 +485,7 @@ final class IndexStore {
           final int flag => flag == 1,
           _ => null,
         },
+        approvalHash: row['approval_hash'] as String?,
         order: row['ord'] as int,
         warnings: [
           ...(jsonDecode(row['warnings'] as String) as List<Object?>)
