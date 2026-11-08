@@ -59,12 +59,13 @@ Owner, to the brief, and dispatch again with the same inputs.
 
 ## 4. Write the drafts, then audit them
 
-1. After the approval, and never before, dispatch `mode: author` with the document's path. Put no doc text and no
-   design text in the prompt: the path is the hand-off.
-2. Dispatch a fresh `mode: audit` with the document's path and the author's drafts list as its targets.
+1. After the approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt:
+   the path is the hand-off.
+2. Run the author's `Move:` command, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
+   list as its targets.
 3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
-   dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two such
-   fix rounds. The drafts list is the first author report's drafts plus each doc a fix round added.
+   dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two fix
+   rounds. The drafts list is the first author report's drafts plus each doc a fix round added.
 4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
    until then, per `specstone:expert-sdd`.
 

@@ -582,6 +582,27 @@ void _handOffTests() {
     expect(check, contains('before your first write'));
     expect(check, contains('after your last'));
   });
+
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E07: the '
+      'author report holds the ready move command, and the skill runner runs '
+      'it before the audit', () {
+    final report = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      '5. Report',
+    );
+    expect(
+      report,
+      contains('\nMove: specstone move <story> … --under <feature>\n'),
+    );
+    expect(report, contains('only when the design moves stories'));
+    final drafts = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      '4. Write the drafts, then audit them',
+    );
+    final move = drafts.indexOf("Run the author's `Move:` command");
+    expect(move, isNonNegative);
+    expect(move, lessThan(drafts.indexOf('`mode: audit`')));
+  });
 }
 
 /// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
