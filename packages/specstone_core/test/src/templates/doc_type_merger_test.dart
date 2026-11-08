@@ -99,7 +99,7 @@ void main() {
         FieldType.string,
         FieldType.enumType,
         FieldType.boolean,
-        FieldType.boolean,
+        FieldType.string,
         FieldType.docRef,
       ]);
       expect(merged.fields.map((f) => f.list), [
@@ -399,9 +399,53 @@ sections:
       );
     });
 
-    test('f03/us02/fr04/e06, s03/inv20: changing the type of approved is locked_field_disabled', () {
+    for (final type in ['boolean', 'integer', 'date']) {
+      test(
+        'f03/us02/fr04/e06, e09, s03/inv20: writing type $type on approved is locked_field_disabled',
+        () {
+          expect(
+            () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
+            throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+          );
+        },
+      );
+    }
+
+    test('f03/us02/fr04/e09: approved is of type string, so writing type string is accepted', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: approved, type: string}]',
+      );
+
       expect(
-        () => project(shipped(), 'fields: [{id: approved, type: string}]'),
+        merged.fields.singleWhere((f) => f.id == 'approved').type,
+        FieldType.string,
+      );
+    });
+
+    test('f03/us02/fr04/e10: writing enum values on approved is locked_field_disabled', () {
+      expect(
+        () => project(
+          shipped(),
+          'fields: [{id: approved, type: enum, enum: [a, b]}]',
+        ),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test(
+      'f03/us02/fr04/e10: writing list on approved is locked_field_disabled',
+      () {
+        expect(
+          () => project(shipped(), 'fields: [{id: approved, list: true}]'),
+          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+        );
+      },
+    );
+
+    test('f03/us02/fr04/e10: writing enum values with no type on approved is locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
       );
     });

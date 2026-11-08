@@ -6,6 +6,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _featureType = 'feature';
 const _statusKey = 'status';
+// `approval_stale` alone reads this value, so the value rule skips it.
+const _approvedKey = 'approved';
 final _isoDate = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
 
 /// Returns the frontmatter findings of a typed [doc]; an untyped doc has none.
@@ -73,7 +75,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         message: '$key is not a field of the ${type.id} doc type',
         keys: {'field': key},
       );
-    } else if (value != null && !_fits(field, value)) {
+    } else if (value != null && key != _approvedKey && !_fits(field, value)) {
       yield context.finding(
         doc,
         FindingKind.fieldValueMismatch,

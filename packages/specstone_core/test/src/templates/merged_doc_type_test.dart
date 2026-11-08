@@ -21,7 +21,7 @@ fields:
   - id: draft
     description: Content the Owner has not approved.
   - id: approved
-    description: The Owner approved the doc at least once; written only by approve.
+    description: The Owner approved the doc at least once; written only by approve and the hash stamps.
   - id: reference
     description: Reference docs the doc cites.
 sections:
@@ -104,9 +104,10 @@ final s02FeatureJson = <String, Object>{
     },
     {
       'id': 'approved',
-      'type': 'boolean',
+      'type': 'string',
       'description':
-          'The Owner approved the doc at least once; written only by approve.',
+          'The Owner approved the doc at least once; '
+          'written only by approve and the hash stamps.',
     },
     {
       'id': 'reference',
