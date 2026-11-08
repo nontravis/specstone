@@ -314,6 +314,27 @@ void main() {
   );
 
   test(
+    '$_name: an approved: list of any shape is one approval_stale with value as written, and check does not throw',
+    () async {
+      for (final (written, value) in [
+        ('approved: []', '[]'),
+        ('approved: [a, b]', '[a, b]'),
+        ('approved:\n  - a\n  - b', '- a\n  - b'),
+      ]) {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: fr('status: implemented', 'status: implemented\n$written'),
+          ),
+        );
+        expect(spots(report, FindingKind.approvalStale), [
+          '$loginFr:3: approval_stale',
+        ], reason: written);
+        expect(_stales(report).single.keys, {'value': value}, reason: written);
+      }
+    },
+  );
+
+  test(
     '$_name: a tree pinned below both pins raises nothing for approved: true docs or docs with no approved: key',
     () async {
       final report = await _checkBelowPins({

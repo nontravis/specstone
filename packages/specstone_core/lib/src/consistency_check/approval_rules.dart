@@ -1,5 +1,4 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
-import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -41,14 +40,8 @@ Iterable<Finding> staleApproval(CheckContext context, IndexedDoc doc) sync* {
     FindingKind.approvalStale,
     line: keyLine ?? 1,
     message: _changedMessage,
-    keys: {'value': _writtenValue(lines.entriesOf(_approvedKey))},
+    keys: {
+      'value': lines.writtenValueOf(_approvedKey) ?? '${fields.approvedValue}',
+    },
   );
-}
-
-// The index turns a non-finite number into a string, so the YAML entry, not
-// the indexed value, decides: a string reads as itself, any other value as
-// its source text.
-String _writtenValue(List<YamlEntry> entries) {
-  final entry = entries.single;
-  return entry.value is String ? entry.value! as String : entry.text;
 }

@@ -88,6 +88,18 @@ final class DocLines {
     return entry == null ? null : _lineOf(entry.key);
   }
 
+  /// The value of [key] as written: a string as itself, any other value, a
+  /// list or a map included, as its source text.
+  ///
+  /// Null when [key] is absent or holds no value.
+  String? writtenValueOf(String key) {
+    final node = _keyEntry(key)?.value;
+    if (node == null || node.value == null) return null;
+    return node is YamlScalar && node.value is String
+        ? node.value! as String
+        : node.span.text.trimRight();
+  }
+
   /// Each item of the list value of [key], or its one scalar, with lines.
   ///
   /// Empty when [key] is absent. A null value, or a null item, is absent too.
