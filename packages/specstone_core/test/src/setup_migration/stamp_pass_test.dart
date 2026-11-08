@@ -4,6 +4,7 @@ import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -17,6 +18,14 @@ const _notesPath = 'notes/free.md';
 const _one = '### Scenario 1 — [happy] one\n\n- **Given** g';
 const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
 const _renumbered = '### Scenario 9 — [edge] lettered\n\n- **Given** g';
+
+PackVersion _version(String text) =>
+    PackVersion.parse(text, file: 'config.yaml', key: 'packs');
+
+Map<String, PackVersion> get _belowBoth => {
+  'prd-core': _version('1.0.0'),
+  'software-tech': _version('1.0.0'),
+};
 
 final _approvedHash = RegExp(r'^approved: "[0-9a-f]{12}"$', multiLine: true);
 
@@ -42,9 +51,14 @@ List<StampDoc> _docs(Map<String, String> texts) => [
 /// The pass over [before] and [after], applied to each doc of [after].
 ({StampPass pass, Map<String, String> applied}) _run(
   Map<String, String> before,
-  Map<String, String> after,
-) {
-  final pass = StampPass.plan(_docs(before), _docs(after));
+  Map<String, String> after, {
+  Map<String, PackVersion>? pins,
+}) {
+  final pass = StampPass.plan(
+    _docs(before),
+    _docs(after),
+    pins: pins ?? _belowBoth,
+  );
   return (
     pass: pass,
     applied: {
@@ -122,11 +136,49 @@ void main() {
     test('a doc counts as approved by its text before the run: a draft the '
         'run left no longer a draft is still not stamped', () {
       final before = {_storyPath: '---\ndraft: true\n---\n${_story(_one)}'};
-      final after = {_storyPath: '---\ndraft: true\n---\n${_story(_one)}\n'};
+      final after = {_storyPath: _story(_one)};
 
       final run = _run(before, after);
 
       expect(run.applied, after);
+    });
+
+    test('a stale string hash and a digits-only value stay as written', () {
+      final docs = {
+        _storyPath: '---\napproved: "000000000000"\n---\n${_story(_one)}',
+        _frPath: '---\napproved: 123456789012\n---\n# C\n',
+      };
+
+      final run = _runUnchanged(docs);
+
+      expect(run.applied, docs);
+      expect(run.pass.planLine, isNull);
+    });
+
+    test('approved: true is stamped while the pins before the run are below '
+        'both, and left once one of them has the stamps', () {
+      final docs = {_storyPath: '---\napproved: true\n---\n${_story(_one)}'};
+      final mixed = {
+        'prd-core': _version('1.7.0'),
+        'software-tech': _version('1.3.0'),
+      };
+
+      expect(_run(docs, docs).applied[_storyPath], matches(_approvedHash));
+      expect(_run(docs, docs, pins: mixed).applied, docs);
+    });
+
+    test('a doc whose frontmatter is not valid YAML keeps its bytes, its '
+        'entries included', () {
+      final docs = {
+        _storyPath: '---\ndraft: true\n: bad: [\n---\n${_story(_one)}',
+        _frPath:
+            '---\nconfirmed:\n  - S1 ${fingerprintOf(_one)}\nkey: [\n---\n'
+            '# C\n',
+      };
+
+      final run = _runUnchanged(docs);
+
+      expect(run.applied, docs);
     });
 
     test('a doc whose text is not the planned one is refused', () {

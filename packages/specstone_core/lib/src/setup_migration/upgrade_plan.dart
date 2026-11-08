@@ -259,6 +259,7 @@ RunPlan planUpgradeRun(
                 type: work.docType,
               ),
           ],
+          pins: pins,
         )
       : null;
   final docRewrites = <PlannedRewrite>[];

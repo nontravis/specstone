@@ -1,12 +1,15 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart'
+    show parseFrontmatterYaml;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
     show withBlockValues;
 import 'package:specstone_core/src/setup_migration/renumber_index.dart';
 import 'package:specstone_core/src/setup_migration/tracked_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 
 // MARK: - Constants
 
@@ -36,7 +39,15 @@ final class StampPass {
   ///
   /// An entry is paired with the one at its position in the doc before the
   /// run; a doc whose `confirmed` entries changed in number keeps them.
-  factory plan(List<StampDoc> before, List<StampDoc> after) {
+  ///
+  /// [pins] are the pack pins before the run: a doc counts as approved when it
+  /// did not await approval under them (`document_writing` approval rule).
+  factory plan(
+    List<StampDoc> before,
+    List<StampDoc> after, {
+    required Map<String, PackVersion> pins,
+  }) {
+    final ran = stampsHaveRun(pins);
     final beforeAt = {for (final doc in before) doc.docPath: doc};
     final world = _World(after);
     final beforeWorld = _World(before);
@@ -48,10 +59,15 @@ final class StampPass {
       final type = doc.type;
       final old = beforeAt[doc.docPath];
       if (type == null || old == null) continue;
+      if (_hasInvalidFrontmatter(old.lf) || _hasInvalidFrontmatter(doc.lf)) {
+        continue;
+      }
       planned[doc.docPath] = doc.lf;
       final entries = _restamped(doc, old, beforeWorld, world);
       var lf = entries.lf;
-      if (_countedAsApproved(old.lf)) lf = withApprovalHash(lf, type);
+      if (_countedAsApproved(old.lf, type, stampsHaveRun: ran)) {
+        lf = withApprovalHash(lf, type);
+      }
       if (lf == doc.lf) continue;
       stamped[doc.docPath] = lf;
       fingerprints += entries.count;
@@ -91,11 +107,26 @@ final class StampPass {
 
 // MARK: - Approval
 
-// The run starts below the pins, so a doc with neither key counts as approved
-// (G3, R81).
-bool _countedAsApproved(String beforeLf) =>
-    approvalOf(ApprovalFields.of(Doc.parse(beforeLf)), stampsHaveRun: false) ==
-    Approval.approved;
+// A doc that did not await approval before the run counts as approved; one
+// `check` flagged then (a stale hash, a bad value) stays as written (G32).
+bool _countedAsApproved(
+  String beforeLf,
+  MergedDocType type, {
+  required bool stampsHaveRun,
+}) => !awaitsApproval(
+  ApprovalFields.of(Doc.parse(beforeLf)),
+  approvalHashOf(beforeLf, type),
+  stampsHaveRun: stampsHaveRun,
+);
+
+// `check` reports a doc whose frontmatter is not valid YAML alone; nothing
+// is written into it.
+bool _hasInvalidFrontmatter(String lf) {
+  final blocks = Doc.parse(lf).frontmatter;
+  if (blocks == null) return false;
+  return parseFrontmatterYaml(blocks.map((b) => b.text).join()).errorLine !=
+      null;
+}
 
 // MARK: - Confirmed entries
 
