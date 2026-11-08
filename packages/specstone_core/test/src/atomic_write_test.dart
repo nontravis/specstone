@@ -147,6 +147,28 @@ void main() {
       },
     );
 
+    test('the temp of a private file holds its mode before the rename, so no '
+        'other user reads the new text', () {
+      final file = File('${folder.path}/secrets.yaml')
+        ..writeAsStringSync('old\n');
+      Process.runSync('chmod', ['600', file.path]);
+
+      final temp = writeTempSibling(file, utf8.encode('new\n'));
+
+      expect(temp.statSync().mode & 0xFFF, 384);
+      expect(temp.readAsStringSync(), 'new\n');
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
+
+    test('the temp of a read-only file takes its bytes and its mode', () {
+      final file = File('${folder.path}/locked.md')..writeAsStringSync('old\n');
+      Process.runSync('chmod', ['444', file.path]);
+
+      final temp = writeTempSibling(file, utf8.encode('new\n'));
+
+      expect(temp.statSync().mode & 0xFFF, 292);
+      expect(temp.readAsStringSync(), 'new\n');
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
+
     test('two calls for one target write two temps', () {
       final file = File('${folder.path}/FEATURE.md');
 

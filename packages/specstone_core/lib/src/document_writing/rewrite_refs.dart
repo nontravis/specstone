@@ -430,7 +430,7 @@ WriteStep? _stepFor(
   final writtenPath = movedPath(doc.docPath, moves);
   final writtenType = session.docTypeAt(writtenPath);
   final laidOut = layOutDoc(text, writtenType);
-  final stamped = _wasApproved(doc)
+  final stamped = _wasApproved(lfText, session.docTypeAt(doc.docPath))
       ? withApprovalHash(laidOut, writtenType)
       : laidOut;
   return WriteStep(
@@ -440,13 +440,17 @@ WriteStep? _stepFor(
   );
 }
 
-/// Whether [doc] is no draft and its `approved:` value is the hash of its
-/// content, so a rewrite of its references re-stamps it (a stale hash stays).
-bool _wasApproved(IndexedDoc doc) {
-  final fields = ApprovalFields.ofIndexed(doc);
+/// Whether [lfText], the doc as the step reads it under the lock, is no draft
+/// and its `approved:` value is the hash of its content under [docType], so a
+/// rewrite of its references re-stamps it (a stale hash stays).
+///
+/// Read from the bytes the step rewrites, not the index: an edit made after
+/// the session opened stays stale.
+bool _wasApproved(String lfText, MergedDocType? docType) {
+  final fields = ApprovalFields.of(Doc.parse(lfText));
   return !fields.isDraft &&
       fields.approvedValue is String &&
-      fields.approvedValue == doc.approvalHash;
+      fields.approvedValue == approvalHashOf(lfText, docType);
 }
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null

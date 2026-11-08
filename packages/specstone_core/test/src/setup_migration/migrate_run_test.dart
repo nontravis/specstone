@@ -108,7 +108,7 @@ int _run(
   return runMigrate(
     MigrateRequest(
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: testHome(),
       templates: TemplateResolver(),
       dryRun: dryRun,
       confirmation: confirmation,
@@ -491,6 +491,7 @@ void main() {
     File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{');
+    recordJournalFile(root);
 
     Matcher refusal() => throwsA(
       isA<RenderFault>()
@@ -564,7 +565,7 @@ void main() {
     final status = runMigrate(
       MigrateRequest(
         workingDirectory: root,
-        homeDirectory: null,
+        homeDirectory: testHome(),
         templates: TemplateResolver(),
         dryRun: false,
         confirmation: OwnerConfirmation.given,
@@ -762,7 +763,7 @@ void main() {
       final status = runMigrate(
         MigrateRequest(
           workingDirectory: root,
-          homeDirectory: null,
+          homeDirectory: testHome(),
           templates: TemplateResolver(),
           dryRun: false,
           confirmation: OwnerConfirmation.prompt,
@@ -1060,7 +1061,7 @@ void main() {
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
-            homeDirectory: null,
+            homeDirectory: testHome(),
             templates: TemplateResolver(),
             dryRun: false,
             confirmation: OwnerConfirmation.prompt,
@@ -1090,7 +1091,7 @@ void main() {
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
-            homeDirectory: null,
+            homeDirectory: testHome(),
             templates: TemplateResolver(),
             dryRun: false,
             confirmation: OwnerConfirmation.prompt,
@@ -1122,7 +1123,7 @@ void main() {
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
-            homeDirectory: null,
+            homeDirectory: testHome(),
             templates: TemplateResolver(),
             dryRun: false,
             confirmation: OwnerConfirmation.prompt,
@@ -1168,7 +1169,7 @@ void _stopAfterCommit1(Directory root) {
   final steps = planLegacyRun(
     root,
     templates: TemplateResolver(),
-    homeDirectory: null,
+    homeDirectory: testHome(),
   ).journalSteps(base: headOf(root), projectRoot: root);
   final specstone = Directory('${root.path}/.specstone')
     ..createSync(recursive: true);
@@ -1178,6 +1179,7 @@ void _stopAfterCommit1(Directory root) {
   final target = JournalTarget(
     projectRoot: root,
     docsRoot: Directory('${root.path}/docs'),
+    homeDirectory: testHome(),
   );
   for (final step in steps) {
     step.apply(target);

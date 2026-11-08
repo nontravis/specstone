@@ -1525,6 +1525,18 @@ void main() {
       expect(draftStory, isNot(contains('approved:')));
     });
 
+    test('document_writing/rename_doc/rewrite_name_references: an approved doc edited after the session read it keeps its stale hash', () async {
+      final root = await writeWriteProject();
+      final before = approvedValue(root, featuresIndex);
+      writeIn(root, (s) {
+        leaveStale(root, featuresIndex);
+        return answerRename(s, 'feature:signup', slug: 'register');
+      });
+      expect(readDoc(root, featuresIndex), contains('f02_register/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), before);
+      expect(staleDocs(root), [featuresIndex]);
+    });
+
     test('document_writing/rename_doc/rewrite_name_references: a rename stamps an approved doc it rewrites and keeps a stale hash stale', () async {
       final root = await writeWriteProject();
       final before = approvedValue(root, featuresIndex);
@@ -1981,6 +1993,7 @@ void main() {
             final target = JournalTarget(
               projectRoot: root,
               docsRoot: Directory('${root.path}/docs'),
+              homeDirectory: testHome(),
               warn: lines.add,
             );
             WriteStep(

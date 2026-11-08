@@ -8,6 +8,8 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/write_fixture.dart' show testHome;
+
 const _runbook = 'prds/runbooks/deploy/RUNBOOK.md';
 const _notes = 'prds/runbooks/deploy/NOTES.md';
 
@@ -225,7 +227,11 @@ void main() {
         final project = Directory('${temp.path}/project')..createSync();
         final code = Directory('${temp.path}/code')..createSync();
         File('${code.path}/CLAUDE.md').writeAsStringSync('old\n');
-        final target = JournalTarget(projectRoot: project, docsRoot: project);
+        final target = JournalTarget(
+          projectRoot: project,
+          docsRoot: project,
+          homeDirectory: testHome(),
+        );
 
         final steps = _planWithAgents().journalSteps(
           base: 'abc',
@@ -298,7 +304,11 @@ void main() {
         addTearDown(() => temp.deleteSync(recursive: true));
         File('${temp.path}/AGENTS.md').writeAsStringSync('Owner\n');
         Link('${temp.path}/CLAUDE.md').createSync('AGENTS.md');
-        final target = JournalTarget(projectRoot: temp, docsRoot: temp);
+        final target = JournalTarget(
+          projectRoot: temp,
+          docsRoot: temp,
+          homeDirectory: testHome(),
+        );
         final plan = RunPlan(
           header: 'migrate',
           moves: const [],

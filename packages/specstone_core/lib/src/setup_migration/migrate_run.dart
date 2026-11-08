@@ -12,6 +12,7 @@ import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
 /// Opens the `owner_terminal_required` message of an apply.
@@ -242,7 +243,7 @@ int _resume(MigrateRequest request, Directory root) {
   final out = request.out..write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (!request.confirmation.prompts) _requireSeenPlan(request, root, planText);
-  final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
+  final commits = MoveJournal.read(target)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
   if (commits.last.message == legacyCommit2Message) {
@@ -273,12 +274,26 @@ void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
   );
 }
 
+/// Returns the journal target of the migrate run at [root]: its code root is
+/// the config's `code_root`, or the root itself before a legacy run writes
+/// the config.
 JournalTarget _targetOf(Directory root, MigrateRequest request) =>
     JournalTarget(
       projectRoot: root,
       docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
+      homeDirectory: request.homeDirectory,
+      codeRoot: _configuredCodeRoot(root),
       runGit: request.runGit,
     );
+
+Directory? _configuredCodeRoot(Directory root) {
+  if (!File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
+    return null;
+  }
+  return Directory.fromUri(
+    root.uri.resolveUri(Uri(path: '${ProjectConfig.read(root).codeRoot}/')),
+  );
+}
 
 /// Prints a `commit <n> <sha>: <subject>` line per commit of the [steps] since
 /// the first one's base, where `n` is the step's place in a two-commit run.

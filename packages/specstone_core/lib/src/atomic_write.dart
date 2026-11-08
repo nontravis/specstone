@@ -30,10 +30,13 @@ String _randomHex() => [
 /// The temp is `.<target name>.<pid>.<random hex>.specstone.tmp` in [target]'s
 /// folder, so the later rename stays on one volume. The random part keeps two
 /// isolates of one process, which share a pid, off one temp, and the exclusive
-/// create fails rather than reuse a temp that exists. Creates no parent folder.
+/// create fails rather than reuse a temp that exists. The empty temp takes the
+/// permission bits of a [target] that exists before any byte lands, so no
+/// other user reads the new text of a private file. Creates no parent folder.
 /// Deletes the partial temp and rethrows when the write fails.
 ///
-/// Throws [FileSystemException] when the folder is missing or the write fails.
+/// Throws [FileSystemException] when the folder is missing, the mode cannot be
+/// copied, or the write fails.
 File writeTempSibling(File target, List<int> bytes) {
   final segments = target.uri.pathSegments.where((s) => s.isNotEmpty);
   // Created outside the try: a temp that already exists is another writer's,
@@ -43,7 +46,16 @@ File writeTempSibling(File target, List<int> bytes) {
     '.${segments.last}.$pid.${_randomHex()}.specstone.tmp',
   )..createSync(exclusive: true);
   try {
-    temp.writeAsBytesSync(bytes, flush: true);
+    // Opened before the mode narrows, so a read-only mode still takes bytes.
+    final sink = temp.openSync(mode: FileMode.writeOnly);
+    try {
+      _copyMode(target, temp);
+      sink
+        ..writeFromSync(bytes)
+        ..flushSync();
+    } finally {
+      sink.closeSync();
+    }
   } on FileSystemException {
     if (temp.existsSync()) temp.deleteSync();
     rethrow;
@@ -103,11 +115,36 @@ T renameSyncRetrying<T extends FileSystemEntity>(T entity, String newPath) {
 void writeFileAtomic(File target, List<int> bytes) {
   final temp = writeTempSibling(target, bytes);
   try {
-    _copyMode(target, temp);
     renameSyncRetrying(temp, target.path);
   } on FileSystemException {
     if (temp.existsSync()) temp.deleteSync();
     rethrow;
+  }
+}
+
+/// The `chmod` the CLI runs, by absolute path so no `PATH` entry stands in.
+const chmodPath = '/bin/chmod';
+
+/// The POSIX mode of a folder only its owner may enter.
+const _ownerOnlyFolderMode = '700';
+
+/// Narrows [folder] to its owner on POSIX, so other local users cannot read
+/// what it holds; Windows has no such mode.
+///
+/// Throws [FileSystemException] when `chmod` refuses or cannot start.
+void restrictToOwner(Directory folder) {
+  if (Platform.isWindows) return;
+  final ProcessResult result;
+  try {
+    result = Process.runSync(chmodPath, [_ownerOnlyFolderMode, folder.path]);
+  } on ProcessException catch (error) {
+    throw FileSystemException(
+      'cannot start chmod: ${error.message}',
+      folder.path,
+    );
+  }
+  if (result.exitCode != 0) {
+    throw FileSystemException('cannot make it private', folder.path);
   }
 }
 
@@ -116,13 +153,23 @@ const _permissionBits = 0xFFF;
 
 /// Gives [temp] the permission bits of [target] when it exists, so the rename
 /// keeps an executable file executable. Windows has no such bits.
+///
+/// Throws [FileSystemException] when `chmod` refuses or cannot start.
 void _copyMode(File target, File temp) {
   if (Platform.isWindows) return;
   final stat = target.statSync();
   if (stat.type != FileSystemEntityType.file) return;
   final mode = stat.mode & _permissionBits;
   if (mode == temp.statSync().mode & _permissionBits) return;
-  final result = Process.runSync('chmod', [mode.toRadixString(8), temp.path]);
+  final ProcessResult result;
+  try {
+    result = Process.runSync(chmodPath, [mode.toRadixString(8), temp.path]);
+  } on ProcessException catch (error) {
+    throw FileSystemException(
+      'cannot start chmod: ${error.message}',
+      target.path,
+    );
+  }
   if (result.exitCode != 0) {
     throw FileSystemException('cannot copy the file mode', target.path);
   }

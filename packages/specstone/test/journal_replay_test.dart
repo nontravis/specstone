@@ -4,7 +4,8 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
 import '../../specstone_core/test/helpers/check_fixture.dart';
-import '../../specstone_core/test/helpers/write_fixture.dart' show writeJournal;
+import '../../specstone_core/test/helpers/write_fixture.dart'
+    show testHome, writeJournal;
 import 'helpers/built_cli.dart';
 
 void main() {
@@ -28,12 +29,12 @@ void main() {
         ),
       ]);
 
-      final result = await Process.run(binary, [
-        'rename',
-        'feature:login',
-        '--to',
-        'signin',
-      ], workingDirectory: root.path);
+      final result = await Process.run(
+        binary,
+        ['rename', 'feature:login', '--to', 'signin'],
+        workingDirectory: root.path,
+        environment: {'HOME': testHome().path, 'USERPROFILE': testHome().path},
+      );
 
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       expect(

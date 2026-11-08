@@ -4,6 +4,8 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
 import 'package:specstone_core/specstone_core.dart';
 
+import '../../../specstone_core/test/helpers/write_fixture.dart' show testHome;
+
 /// A [Console] with scripted input and terminal facts.
 final class FakeConsole implements Console {
   /// Creates a console that reads [input] whole and answers each
@@ -53,7 +55,8 @@ final class FakeConsole implements Console {
 
 /// Returns a runner on [root] with [console] and the sinks it prints to.
 ///
-/// The runner reads the built-in doc types and no user-level ones.
+/// The runner reads the built-in doc types and no user-level ones: its home
+/// is the test's own, which holds only the journal records of its runs.
 ({SpecstoneCommandRunner runner, StringBuffer out, StringBuffer err})
 writeRunner(Directory root, {Console? console}) {
   final out = StringBuffer();
@@ -63,7 +66,7 @@ writeRunner(Directory root, {Console? console}) {
     err: err,
     templates: TemplateResolver(),
     workingDirectory: root,
-    homeDirectory: null,
+    homeDirectory: testHome(),
     console: console ?? FakeConsole(),
   );
   return (runner: runner, out: out, err: err);
