@@ -1,13 +1,12 @@
 // The file contents are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 
 import 'index_fixture.dart';
 import 'shipped_pins.dart';
@@ -41,11 +40,8 @@ const loginArchitecture = 'specs/f01_login/ARCHITECTURE.md';
 /// The DocPath of the login API doc.
 const loginApi = 'specs/f01_login/API.md';
 
-String _fp(String text) =>
-    sha256.convert(utf8.encode(text)).toString().substring(0, 12);
-
-/// Returns the first 12 hex digits of the SHA-256 of [block] and a newline.
-String fingerprintFor(String block) => _fp('$block\n');
+/// Returns the fingerprint of [block], as the library takes it.
+String fingerprintFor(String block) => fingerprintOf(block);
 
 /// The text of login scenario 1.
 const loginScenario1 =

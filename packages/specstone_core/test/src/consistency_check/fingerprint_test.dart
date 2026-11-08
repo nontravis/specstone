@@ -1,6 +1,8 @@
 // The expected texts are plan literals kept as written.
+// ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -25,4 +27,46 @@ void main() {
     expect(upstreamText('a\nb\n  \n\n'), 'a\nb\n');
     expect(upstreamText('\n \n'), '');
   });
+
+  group(
+    'f04/us04/fr01/e06: a fingerprint reads the block as format lays it out',
+    () {
+      const laid =
+          '### Scenario 3 — [happy] Table\n\n| Item | Count |\n| --- | --- |\n'
+          '| apple | 2 |\n';
+      const padded =
+          '### Scenario 3 — [happy] Table\n\n| Item  | Count |\n| ----- | ----- |\n'
+          '| apple | 2     |\n';
+      const noGap =
+          '### Scenario 3 — [happy] Table\n| Item | Count |\n| --- | --- |\n'
+          '| apple | 2 |\n';
+
+      test('a padded table fingerprints as the laid-out block does', () {
+        expect(fingerprintOf(padded), fingerprintOf(laid));
+      });
+
+      test('a dropped heading gap fingerprints as the laid-out block does', () {
+        expect(fingerprintOf(noGap), fingerprintOf(laid));
+      });
+
+      test('a changed word still changes the fingerprint', () {
+        expect(
+          fingerprintOf(laid.replaceAll('apple', 'pear')),
+          isNot(fingerprintOf(laid)),
+        );
+      });
+    },
+  );
+
+  test(
+    'g9: the legacy fingerprint keeps the 1.1.0 recipe when the layout changes',
+    () {
+      const block = '### Scenario 3 — [happy] Table\n| a  | b |\n';
+      expect(
+        legacyFingerprintOf(block),
+        baseHashOf('### Scenario 3 — [happy] Table\n| a  | b |\n'),
+      );
+      expect(legacyFingerprintOf(block), isNot(fingerprintOf(block)));
+    },
+  );
 }
