@@ -1,0 +1,561 @@
+import 'package:specstone_core/src/doc_model/code_spans.dart';
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show isCommentLine, markdownExtension, readsNameMentions;
+import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
+
+// MARK: - Constants
+
+const _planLabel = 'number labels: ';
+const _leftLabel = '; left: ';
+
+/// The text between two labels that makes the second follow the first in a
+/// list or a range (R82).
+const _listJoiners = {', ', '; ', ' and ', ' or ', ' to '};
+
+final _featureFolder = RegExp(r'^f(\d+)_([a-z0-9_]+)$');
+final _storyFolder = RegExp(r'^us(\d+)_([a-z0-9_]+)$');
+final _frFile = RegExp(r'^fr(\d+)_([a-z0-9_]+)\.md$');
+final _specFile = RegExp(r'^([A-Z][A-Z_]*)\.md$');
+
+const _featureFile = 'FEATURE.md';
+const _storyFile = 'USER_STORY.md';
+const _featureTypeId = 'feature';
+
+// MARK: - Types
+
+/// The feature and story a label reads against; null for a place with none.
+typedef _Base = ({int? feature, int? story});
+
+/// A label with every part it lacks taken from its [_Base].
+typedef _Parts = ({int? feature, int? story, int? fr});
+
+/// A reader of a label: the name of the one doc it names, else null.
+typedef _Resolve = String? Function(NumberLabel label, NumberLabel? before);
+
+/// A label a file keeps: its 1-based line and the label as written.
+typedef _Kept = ({int line, String label});
+
+typedef _Converted = ({String lf, List<_Kept> kept});
+
+typedef _Edit = ({int start, int end, String text});
+
+enum _DocKind { feature, story, fr, spec }
+
+/// The place a doc path gives: its feature and story, and what is left of
+/// the path.
+typedef _Located = ({
+  int feature,
+  String featureSlug,
+  int? story,
+  String? storySlug,
+  List<String> rest,
+  bool isSpec,
+});
+
+/// No feature and no story: a code file, or a doc outside any feature.
+const _Base _noPlace = (feature: null, story: null);
+
+// MARK: - LabelTree
+
+/// The docs and files a label resolves against: DocPaths with their order
+/// numbers, and the item IDs each doc holds.
+final class LabelTree {
+  /// Reads the numbered docs of [docs], DocPath and LF text, each once.
+  ///
+  /// A doc is numbered when its path is a feature, user story, or FR doc of
+  /// `prds/features/`, or a spec doc of `specs/f<nn>_<slug>/`.
+  new of(Iterable<({String docPath, String lf})> docs)
+    : _docs = [
+        for (final (:docPath, :lf) in docs) ?_TreeDoc.parse(docPath, lf),
+      ];
+
+  final List<_TreeDoc> _docs;
+  final _declarations = <String, RegExp>{};
+
+  // MARK: - Resolving
+
+  /// The one DocPath [label], read relative to [citingDocPath], names; null
+  /// for none or two or more (E26, E27).
+  ///
+  /// [before] is the label the list or range puts just before [label]: a
+  /// label that lacks a feature or story then has two readings, the citing
+  /// doc's place and [before]'s, and resolves only when they name exactly one
+  /// doc between them.
+  String? resolve(
+    NumberLabel label, {
+    required String citingDocPath,
+    NumberLabel? before,
+  }) => _resolveFrom(label, _baseOf(citingDocPath), before);
+
+  /// The name of the doc at [docPath], or null for a doc the tree does not
+  /// number.
+  String? nameOf(String docPath) {
+    for (final doc in _docs) {
+      if (doc.path == docPath) return doc.name;
+    }
+    return null;
+  }
+
+  String? _resolveFrom(NumberLabel label, _Base base, NumberLabel? before) {
+    final readings = <_Base>[base];
+    if (before != null && label.feature == null) {
+      final prior = _partsOf(before, base);
+      readings.add((feature: prior.feature, story: prior.story));
+    }
+    final named = {
+      for (final reading in readings) ..._candidates(label, reading),
+    };
+    return named.length == 1 ? named.single : null;
+  }
+
+  /// The paths of the docs [label] names when read against [base].
+  List<String> _candidates(NumberLabel label, _Base base) {
+    final parts = _partsOf(label, base);
+    final feature = parts.feature;
+    if (feature == null) return const [];
+    final isStoryLess = label.feature != null && parts.story == null;
+    if (parts.fr != null && isStoryLess) return const [];
+    final inScope = _docs.where(
+      (doc) =>
+          doc.feature == feature &&
+          (parts.story == null || doc.story == parts.story) &&
+          (parts.fr == null || doc.fr == parts.fr),
+    );
+    final itemId = label.itemId;
+    if (itemId != null) {
+      final declaration = _declarationOf(itemId);
+      return [
+        for (final doc in inScope)
+          if (declaration.hasMatch(doc.lf)) doc.path,
+      ];
+    }
+    final kind = parts.fr != null
+        ? _DocKind.fr
+        : parts.story != null
+        ? _DocKind.story
+        : _DocKind.feature;
+    return [
+      for (final doc in inScope)
+        if (doc.kind == kind && (label.slug == null || label.slug == doc.slug))
+          doc.path,
+    ];
+  }
+
+  /// The pattern for a line that opens with [itemId] after any list mark,
+  /// heading mark, table bar, or emphasis.
+  RegExp _declarationOf(String itemId) => _declarations.putIfAbsent(
+    itemId,
+    () => RegExp(
+      r'^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#{1,6}[ \t]+)?'
+      r'(?:\|[ \t]*)?(?:\*\*|__|`)?'
+      '${RegExp.escape(itemId)}(?![A-Za-z0-9])',
+      multiLine: true,
+    ),
+  );
+}
+
+/// [label] with each part it lacks taken from [base].
+_Parts _partsOf(NumberLabel label, _Base base) {
+  if (label.feature != null) {
+    return (feature: label.feature, story: label.story, fr: label.fr);
+  }
+  if (label.story != null) {
+    return (feature: base.feature, story: label.story, fr: label.fr);
+  }
+  return (feature: base.feature, story: base.story, fr: label.fr);
+}
+
+_Base _baseOf(String docPath) {
+  final located = _locate(docPath);
+  return located == null
+      ? _noPlace
+      : (feature: located.feature, story: located.story);
+}
+
+/// Reads the feature and story a doc path sits under, or null for a path
+/// under neither `prds/features/` nor `specs/`.
+_Located? _locate(String docPath) {
+  final segments = docPath.split('/');
+  final isSpec = segments.length == 3 && segments.first == 'specs';
+  final isPrd =
+      segments.length >= 4 &&
+      segments[0] == 'prds' &&
+      segments[1] == 'features';
+  if (!isSpec && !isPrd) return null;
+  final folder = _featureFolder.firstMatch(segments[isSpec ? 1 : 2]);
+  final feature = folder == null ? null : int.tryParse(folder.group(1)!);
+  if (folder == null || feature == null) return null;
+  var rest = segments.sublist(isSpec ? 2 : 3);
+  final storyFolder = isPrd && rest.length >= 2
+      ? _storyFolder.firstMatch(rest.first)
+      : null;
+  final story = storyFolder == null
+      ? null
+      : int.tryParse(storyFolder.group(1)!);
+  if (story != null) rest = rest.sublist(1);
+  return (
+    feature: feature,
+    featureSlug: folder.group(2)!,
+    story: story,
+    storySlug: story == null ? null : storyFolder!.group(2),
+    rest: rest,
+    isSpec: isSpec,
+  );
+}
+
+/// One numbered doc: its place in the tree and the name that cites it.
+final class _TreeDoc {
+  new _({
+    required this.path,
+    required this.lf,
+    required this.kind,
+    required this.feature,
+    required this.story,
+    required this.fr,
+    required this.name,
+    required this.slug,
+  });
+
+  static _TreeDoc? parse(String docPath, String lf) {
+    final located = _locate(docPath);
+    if (located == null || located.rest.length != 1) return null;
+    final file = located.rest.single;
+    final featureSlug = located.featureSlug;
+    final storySlug = located.storySlug;
+    _TreeDoc doc({
+      required _DocKind kind,
+      required String name,
+      required String slug,
+      int? fr,
+    }) => _TreeDoc._(
+      path: docPath,
+      lf: lf,
+      kind: kind,
+      feature: located.feature,
+      story: located.story,
+      fr: fr,
+      name: name,
+      slug: slug,
+    );
+    if (located.isSpec) {
+      final type = _specFile.firstMatch(file)?.group(1)?.toLowerCase();
+      return type == null
+          ? null
+          : doc(
+              kind: _DocKind.spec,
+              name: '$type:$featureSlug',
+              slug: featureSlug,
+            );
+    }
+    if (storySlug == null) {
+      return file == _featureFile
+          ? doc(
+              kind: _DocKind.feature,
+              name: '$_featureTypeId:$featureSlug',
+              slug: featureSlug,
+            )
+          : null;
+    }
+    if (file == _storyFile) {
+      return doc(
+        kind: _DocKind.story,
+        name: '$featureSlug/$storySlug',
+        slug: storySlug,
+      );
+    }
+    final frFile = _frFile.firstMatch(file);
+    final fr = frFile == null ? null : int.tryParse(frFile.group(1)!);
+    return fr == null
+        ? null
+        : doc(
+            kind: _DocKind.fr,
+            name: '$featureSlug/$storySlug/${frFile!.group(2)}',
+            slug: frFile.group(2)!,
+            fr: fr,
+          );
+  }
+
+  final String path;
+  final String lf;
+  final _DocKind kind;
+  final int feature;
+  final int? story;
+  final int? fr;
+
+  /// The doc's name as a doc-name mention writes it (`doc_model` RULE-11).
+  final String name;
+
+  /// The slug of the folder or file a folder path ends with.
+  final String slug;
+}
+
+// MARK: - LabelPass
+
+/// The one-time pass of a pack upgrade that replaces each number label that
+/// names exactly one doc with that doc's name (D18, R81, R82).
+///
+/// A converted label becomes the doc name in a code span, the name alone
+/// inside a code span that holds it and inside a `mermaid` block. A file under
+/// the `code:` roots has no story or feature, so only a full label or a
+/// folder path that names its feature resolves there. Every byte outside a
+/// converted label stays.
+final class LabelPass {
+  new _(this._docTexts, this.codeFiles, this._files);
+
+  /// Plans the pass over every doc of the run, DocPath and LF text after the
+  /// earlier passes, and the files under the `code:` roots.
+  ///
+  /// [trackedCodeFiles] are the ProjectPaths and LF text of the files the
+  /// project's git tracks; their labels convert. A label in an
+  /// [untrackedCodeFiles] file stays and is listed.
+  static LabelPass plan(
+    List<({String docPath, String lf})> docs,
+    List<({String path, String lf})> trackedCodeFiles, {
+    List<({String path, String lf})> untrackedCodeFiles = const [],
+  }) {
+    final tree = LabelTree.of(docs);
+    final files = <_FileResult>[];
+    final docTexts = <String, String>{};
+    for (final (:docPath, :lf) in _sortedBy(docs, (doc) => doc.docPath)) {
+      final converted = _convertMarkdown(lf, (label, before) {
+        final target = tree.resolve(
+          label,
+          citingDocPath: docPath,
+          before: before,
+        );
+        return target == null ? null : tree.nameOf(target);
+      });
+      if (converted.lf != lf) docTexts[docPath] = converted.lf;
+      files.add((
+        path: docPath,
+        converted: converted.lf != lf,
+        kept: converted.kept,
+      ));
+    }
+    final codeFiles = <String, String>{};
+    final codeResolve = _codeResolverOf(tree);
+    final code = [
+      for (final file in trackedCodeFiles) (file: file, isTracked: true),
+      for (final file in untrackedCodeFiles) (file: file, isTracked: false),
+    ]..sort((a, b) => compareCodePoints(a.file.path, b.file.path));
+    for (final (:file, :isTracked) in code) {
+      final converted = _convertCodeFile(
+        file.path,
+        file.lf,
+        isTracked ? codeResolve : _keepsEvery,
+      );
+      if (converted.lf != file.lf) codeFiles[file.path] = converted.lf;
+      files.add((
+        path: file.path,
+        converted: converted.lf != file.lf,
+        kept: converted.kept,
+      ));
+    }
+    return LabelPass._(docTexts, codeFiles, files);
+  }
+
+  final Map<String, String> _docTexts;
+  final List<_FileResult> _files;
+
+  /// The LF text of each code file the pass changes, by ProjectPath.
+  final Map<String, String> codeFiles;
+
+  /// Returns the text of the doc at [path] with its labels converted, [lf]
+  /// when it has none to convert.
+  String apply(String path, String lf) => _docTexts[path] ?? lf;
+
+  /// The `number labels:` plan line: each doc and file the pass rewrites, then
+  /// after `; left:` each label it keeps as `<path>:<line> <label>`; null for
+  /// a tree with no label.
+  String? get planLine {
+    final named = [
+      for (final file in _files)
+        if (file.converted) file.path,
+    ];
+    final kept = [
+      for (final file in _files)
+        for (final (:line, :label) in file.kept) '${file.path}:$line $label',
+    ];
+    if (named.isEmpty && kept.isEmpty) return null;
+    return '$_planLabel${named.join(', ')}'
+        '${kept.isEmpty ? '' : '$_leftLabel${kept.join(', ')}'}';
+  }
+}
+
+/// A file the pass read, whether it converted a label, and the labels it kept.
+typedef _FileResult = ({String path, bool converted, List<_Kept> kept});
+
+/// Whether the file at [path], whose LF text is [lf], holds a number label the
+/// pass reads: a doc's reading for markdown, a comment line's for any other
+/// file with a line-comment mark.
+bool holdsNumberLabel(String path, String lf) =>
+    _convertCodeFile(path, lf, _keepsEvery).kept.isNotEmpty;
+
+List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
+    [...items]..sort((a, b) => compareCodePoints(key(a), key(b)));
+
+// MARK: - Resolvers
+
+String? _keepsEvery(NumberLabel label, NumberLabel? before) => null;
+
+/// Resolves in a code file: no place, and no list reading (E27).
+_Resolve _codeResolverOf(LabelTree tree) => (label, _) {
+  final target = tree._resolveFrom(label, _noPlace, null);
+  return target == null ? null : tree.nameOf(target);
+};
+
+// MARK: - Markdown
+
+/// Returns [lf], a doc or a markdown file, with the labels [resolve] names
+/// converted, and the labels it keeps.
+///
+/// Labels are read as `numberLabelsInMarkdown` reads them, after the
+/// frontmatter.
+_Converted _convertMarkdown(String lf, _Resolve resolve) {
+  final body = Doc.parse(lf).afterFrontmatter;
+  final labels = numberLabelsInMarkdown(body);
+  if (labels.isEmpty) return (lf: lf, kept: const []);
+  final prefixLength = lf.length - body.length;
+  final firstLine = '\n'.allMatches(lf.substring(0, prefixLength)).length + 1;
+  final lines = body.split('\n');
+  final scan = blockScan(lines);
+  final starts = _lineStarts(lines);
+  final paragraphSpans = <int, List<CodeSpan>>{};
+  final edits = <_Edit>[];
+  final kept = <_Kept>[];
+  var line = 0;
+  NumberLabel? previous;
+  NumberLabel? carried;
+  for (final label in labels) {
+    while (line + 1 < lines.length && starts[line + 1] <= label.start) {
+      line++;
+    }
+    final isListed =
+        previous != null &&
+        _listJoiners.contains(body.substring(previous.end, label.start));
+    final before = isListed ? carried : null;
+    final name = resolve(label, before);
+    previous = label;
+    carried = _carry(label, before);
+    if (name == null) {
+      kept.add((line: firstLine + line, label: label.written));
+      continue;
+    }
+    var first = line;
+    while (first > 0 && scan.continuesParagraph[first]) {
+      first--;
+    }
+    var last = line;
+    while (last + 1 < lines.length && scan.continuesParagraph[last + 1]) {
+      last++;
+    }
+    final spans = paragraphSpans.putIfAbsent(
+      first,
+      () => codeSpansOf(
+        body.substring(starts[first], starts[last] + lines[last].length),
+      ),
+    );
+    final isBare =
+        scan.fenced[line] ||
+        _insideSpan(
+          spans,
+          label.start - starts[first],
+          label.end - starts[first],
+        );
+    edits.add((
+      start: label.start,
+      end: label.end,
+      text: isBare ? name : '`$name`',
+    ));
+  }
+  return (
+    lf: '${lf.substring(0, prefixLength)}${_withEdits(body, edits)}',
+    kept: kept,
+  );
+}
+
+/// Returns [label] with a missing feature and story taken from [before].
+///
+/// The label after it in a list reads against these parts.
+NumberLabel _carry(NumberLabel label, NumberLabel? before) {
+  if (before == null || label.feature != null) return label;
+  return NumberLabel(
+    start: label.start,
+    end: label.end,
+    written: label.written,
+    shape: label.shape,
+    feature: before.feature,
+    story: label.story ?? before.story,
+    fr: label.fr,
+    slug: label.slug,
+    itemId: label.itemId,
+  );
+}
+
+// MARK: - Code files
+
+/// Returns the code file at [path] with the labels [resolve] names converted,
+/// and the labels it keeps.
+///
+/// A markdown file is read as a doc, any other file by its comment lines; a
+/// file of an extension with neither holds no label.
+_Converted _convertCodeFile(String path, String lf, _Resolve resolve) {
+  final extension = _extensionOf(path);
+  if (extension == markdownExtension) return _convertMarkdown(lf, resolve);
+  if (!readsNameMentions(extension)) return (lf: lf, kept: const []);
+  final lines = lf.split('\n');
+  final kept = <_Kept>[];
+  for (final (index, line) in lines.indexed) {
+    if (!isCommentLine(line, extension)) continue;
+    final edits = <_Edit>[];
+    final spans = codeSpansOf(line);
+    for (final label in numberLabelsIn(line)) {
+      final name = resolve(label, null);
+      if (name == null) {
+        kept.add((line: index + 1, label: label.written));
+        continue;
+      }
+      edits.add((
+        start: label.start,
+        end: label.end,
+        text: _insideSpan(spans, label.start, label.end) ? name : '`$name`',
+      ));
+    }
+    if (edits.isNotEmpty) lines[index] = _withEdits(line, edits);
+  }
+  return (lf: lines.join('\n'), kept: kept);
+}
+
+String _extensionOf(String path) {
+  final name = path.substring(path.lastIndexOf('/') + 1);
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot);
+}
+
+// MARK: - Text
+
+List<int> _lineStarts(List<String> lines) {
+  final starts = <int>[];
+  var at = 0;
+  for (final line in lines) {
+    starts.add(at);
+    at += line.length + 1;
+  }
+  return starts;
+}
+
+/// Whether the offsets [start] to [end] lie between the backticks of a span.
+bool _insideSpan(List<CodeSpan> spans, int start, int end) => spans.any(
+  (span) => start >= span.start + span.ticks && end <= span.end - span.ticks,
+);
+
+/// Returns [text] with each of [edits], in order of offset, applied.
+String _withEdits(String text, List<_Edit> edits) {
+  var result = text;
+  for (final (:start, :end, text: replacement) in edits.reversed) {
+    result = result.replaceRange(start, end, replacement);
+  }
+  return result;
+}

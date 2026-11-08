@@ -150,6 +150,11 @@ final _allowed = <_Allowed>[
     r"""RegExp('^${RegExp.escape(block.key)}(?=\\s*:)'""",
     'Upgrade reader: finds a frontmatter key line by name.',
   ),
+  _core(
+    'setup_migration/label_pass.dart',
+    r"""RegExp( r'^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#{1,6}[ \t]+)?' r'(?:\|[ \t]*)?(?:\*\*|__|`)?' '${RegExp.escape(itemId)}(?![A-Za-z0-9])'""",
+    'Label pass reader: finds the line that declares an item ID.',
+  ),
   // File-system paths, not references.
   _core(
     'templates/project_config.dart',

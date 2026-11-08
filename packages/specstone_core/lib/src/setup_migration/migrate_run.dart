@@ -209,6 +209,7 @@ RunPlan _planOf(
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
+        runGit: request.runGit,
       )
     : planLegacyRun(
         root,

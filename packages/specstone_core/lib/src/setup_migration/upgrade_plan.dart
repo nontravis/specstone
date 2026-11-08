@@ -6,9 +6,13 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show codeRootFiles;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
@@ -42,6 +46,7 @@ const _layoutAndAgentCommit2Message =
     'lay docs out and refresh the Specstone agent files';
 const _agentFileRootsKey = 'agent_file_roots';
 const _renumberChange = 'renumber ids';
+const _labelChange = 'convert number labels';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -49,22 +54,26 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 ///
 /// Selects every pinned pack's steps, refuses an override the new versions
 /// leave dangling, then plans the moves, the section and field renames in the
-/// docs and the overrides, the link rewrites, the renumber pass, each typed
-/// doc laid out as `format` lays it out, the agent files step, and the new
-/// pins. With every pin equal the plan holds the layout pass and the agent
-/// files step alone. Writes nothing. Throws `MigrateFault`
+/// docs and the overrides, the link rewrites, the renumber pass, the label
+/// pass, each typed doc laid out as `format` lays it out, the agent files
+/// step, and the new pins. With every pin equal the plan holds the layout pass
+/// and the agent files step alone. Writes nothing. Throws `MigrateFault`
 /// `override_dangling`, `MigrateFault` `upgrade_collision` listing every move
 /// and rename collision at once, `agent_block_malformed`, and a
 /// `TemplateFault` before it returns, so a refused run prints nothing. When
-/// [runsOneTimePasses] holds, the renumber pass runs and the agent files step
-/// is the full upsert; otherwise the step refreshes what exists.
-/// [homeDirectory] is the personal pack home, or null.
+/// [runsOneTimePasses] holds, the renumber and label passes run and the agent
+/// files step is the full upsert; otherwise the step refreshes what exists.
+/// [homeDirectory] is the personal pack home, or null. [runGit] lists the
+/// files the project's git tracks, which the label pass reads under the
+/// `code:` roots.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  RunGit runGit = runRealGit,
 }) {
-  final pins = ProjectConfig.read(root).pins;
+  final config = ProjectConfig.read(root);
+  final pins = config.pins;
   final available = templates.availableManifests(
     pins.keys,
     homeDirectory: homeDirectory,
@@ -190,17 +199,34 @@ RunPlan planUpgradeRun(
   }
   _throwCollisions([...moveCollisions, ...renameCollisions]);
 
-  // The pass reads every doc's text after the steps and link rewrites (P5).
-  final renumber = runsOneTimePasses(upgrades) ? _renumberPassOf(works) : null;
+  // The passes read every doc's text after the steps and link rewrites (P5).
+  final isOneTime = runsOneTimePasses(upgrades);
+  final renumber = isOneTime ? _renumberPassOf(works) : null;
+  final renumbered = <String>[];
+  for (final work in works) {
+    final lf = renumber?.apply(work.plannedPath, work.lf) ?? work.lf;
+    if (lf != work.lf) work.changes.add(_renumberChange);
+    renumbered.add(lf);
+  }
+  final labels = isOneTime
+      ? _planLabelPass(
+          root,
+          config: config,
+          set: finalSet,
+          docs: [
+            for (final (index, work) in works.indexed)
+              (docPath: work.plannedPath, lf: renumbered[index]),
+          ],
+          runGit: runGit,
+        )
+      : null;
   final docRewrites = <PlannedRewrite>[];
   final laidOutPaths = <String>[];
-  for (final work in works) {
-    var lf = work.lf;
-    if (renumber != null) {
-      final renumbered = renumber.apply(work.plannedPath, lf);
-      if (renumbered != lf) work.changes.add(_renumberChange);
-      lf = renumbered;
-    }
+  for (final (index, work) in works.indexed) {
+    var lf = renumbered[index];
+    final converted = labels?.pass.apply(work.plannedPath, lf) ?? lf;
+    if (converted != lf) work.changes.add(_labelChange);
+    lf = converted;
     final laidOut = layOutDoc(lf, work.docType);
     if (laidOut != lf) laidOutPaths.add(work.plannedPath);
     lf = laidOut;
@@ -273,7 +299,12 @@ RunPlan planUpgradeRun(
     header: header,
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...docRewrites, ...overrideRewrites, ?configRewrite],
+    rewrites: [
+      ...docRewrites,
+      ...?labels?.codeRewrites,
+      ...overrideRewrites,
+      ?configRewrite,
+    ],
     creates: const [],
     left: const [],
     commit1Message: _commit1Message,
@@ -282,6 +313,7 @@ RunPlan planUpgradeRun(
       ...stepLines,
       ...linkLines,
       ?renumber?.planLine,
+      ?labels?.pass.planLine,
       ?formatLayoutLine(laidOutPaths),
       if (agentFiles.line.isNotEmpty) agentFiles.line,
       if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
@@ -451,6 +483,127 @@ RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([
   for (final work in works)
     (docPath: work.plannedPath, lf: work.lf, type: work.docType),
 ]);
+
+/// The label pass of a run and the rewrites of the code files it changes.
+typedef _LabelPlan = ({LabelPass pass, List<PlannedRewrite> codeRewrites});
+
+/// Plans the label pass over [docs], the run's docs after the renumber pass,
+/// and the files under the `code:` roots that hold a label.
+///
+/// A code file converts only when the project's git tracks it and its path
+/// lies inside the project root, since commit 2 holds nothing else; a label in
+/// any other file stays and is listed (E27). Git is asked only when a code
+/// file holds a label. A file that is no UTF-8 text is skipped.
+_LabelPlan _planLabelPass(
+  Directory root, {
+  required ProjectConfig config,
+  required MergedSet set,
+  required List<({String docPath, String lf})> docs,
+  required RunGit runGit,
+}) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  final codeRoot = codeRootFolders(
+    projectRoot,
+    codeRoot: config.codeRoot,
+    codeEntries: const [],
+  ).first;
+  final entries = codeEntriesOnDisk(projectRoot, set);
+  final labelled = <String, DocText>{};
+  for (final codePath in codeRootFiles(codeRoot, entries)) {
+    final projectPath = _projectPathOf(config.codeRoot, codePath);
+    if (projectPath.startsWith(_docsFolder)) continue;
+    final original = _readCodeFile(codeRoot, codePath);
+    if (original != null && holdsNumberLabel(projectPath, original.lf)) {
+      labelled[projectPath] = original;
+    }
+  }
+  final tracked = labelled.isEmpty
+      ? const <String>{}
+      : _trackedPaths(projectRoot, [
+          for (final entry in entries) _projectPathOf(config.codeRoot, entry),
+        ], runGit);
+  final convertible = {
+    for (final path in labelled.keys)
+      if (tracked.contains(path) && !path.startsWith('../')) path,
+  };
+  final pass = LabelPass.plan(
+    docs,
+    [for (final path in convertible) (path: path, lf: labelled[path]!.lf)],
+    untrackedCodeFiles: [
+      for (final MapEntry(:key, :value) in labelled.entries)
+        if (!convertible.contains(key)) (path: key, lf: value.lf),
+    ],
+  );
+  return (
+    pass: pass,
+    codeRewrites: [
+      for (final MapEntry(:key, :value) in pass.codeFiles.entries)
+        PlannedRewrite(
+          path: key,
+          text: writtenText(labelled[key]!, value),
+          before: labelled[key]!.hash,
+          changes: const [_labelChange],
+        ),
+    ],
+  );
+}
+
+/// Reads the code file at [codePath] under [codeRoot], or null when it cannot
+/// be read or is no UTF-8 text.
+DocText? _readCodeFile(Directory codeRoot, String codePath) {
+  final file = File(
+    '${codeRoot.path}${Platform.pathSeparator}'
+    '${codePath.split('/').join(Platform.pathSeparator)}',
+  );
+  try {
+    return readDocText(file.readAsBytesSync());
+  } on FileSystemException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+}
+
+/// Returns [codePath], a path from the code root [codeRoot], as a path from
+/// the project root: `/`-separated, `.` dropped, `..` applied where it can be.
+String _projectPathOf(String codeRoot, String codePath) {
+  final segments = <String>[];
+  for (final segment in '$codeRoot/$codePath'.split('/')) {
+    if (segment.isEmpty || segment == '.') continue;
+    if (segment == '..' && segments.isNotEmpty && segments.last != '..') {
+      segments.removeLast();
+    } else {
+      segments.add(segment);
+    }
+  }
+  return segments.join('/');
+}
+
+/// Returns the paths under [pathspecs], from [projectRoot], that the project's
+/// git tracks; none when git cannot start or [projectRoot] is no work tree.
+Set<String> _trackedPaths(
+  Directory projectRoot,
+  List<String> pathspecs,
+  RunGit runGit,
+) {
+  try {
+    final result = runGit([
+      '--literal-pathspecs',
+      'ls-files',
+      '-z',
+      '--',
+      for (final pathspec in pathspecs.toSet())
+        if (pathspec.isEmpty) '.' else pathspec,
+    ], workingDirectory: projectRoot.path);
+    if (result.exitCode != 0) return const {};
+    return {
+      for (final path in (result.stdout as String).split('\x00'))
+        if (path.isNotEmpty) path,
+    };
+  } on ProcessException {
+    return const {};
+  }
+}
 
 /// One doc of the run, with its text after the steps and link rewrites.
 final class _DocWork {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show MoveStep;
+import 'package:specstone_core/src/git_process.dart' show RunGit;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
@@ -100,6 +101,7 @@ PlannedRewrite _rewriteAt(RunPlan plan, String path) =>
 void main() {
   _agentFilesTests();
   _renumberTests();
+  _labelTests();
 
   test('agentFilesSince matches the shipped versions of its packs', () {
     final shipped = shippedPackVersions();
@@ -1472,6 +1474,185 @@ migrations:
           second.rewrites.map((rewrite) => rewrite.path),
           everyElement(isNot(startsWith('docs/'))),
         );
+      },
+    );
+  });
+}
+
+const _labelFeature = 'prds/features/f01_a/FEATURE.md';
+const _labelFr = 'prds/features/f01_a/us01_b/fr01_c.md';
+const _techStackPath = 'specs/TECH_STACK.md';
+
+/// A fake `git` that lists [tracked] for `ls-files` and records its calls.
+RunGit _tracking(Set<String> tracked, [List<List<String>>? calls]) =>
+    (arguments, {required workingDirectory, environment}) {
+      calls?.add([workingDirectory, ...arguments]);
+      return ProcessResult(0, 0, tracked.map((path) => '$path\x00').join(), '');
+    };
+
+RunPlan _planWith(Directory project, [RunGit? runGit]) => planUpgradeRun(
+  _canonical(project),
+  templates: TemplateResolver(),
+  homeDirectory: null,
+  runGit: runGit ?? _tracking({}),
+);
+
+Future<Directory> _labelTree(
+  Map<String, String> docs, {
+  Map<String, String> code = const {},
+  String pins = _belowSince,
+}) => writeTree({
+  '.specstone/config.yaml': pins,
+  'docs/$_labelFeature': '# A\n',
+  'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
+  'docs/$_labelFr': '# C\n',
+  'docs/$_techStackPath':
+      '---\ncode:\n  - lib/\n  - vendor/\n---\n# Tech stack\n',
+  for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+  ...code,
+});
+
+void _labelTests() {
+  group('label pass', () {
+    test('$_fr E26: the upgrade converts each label in a doc and lists the '
+        'doc after the renumber line', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _belowSince,
+        for (final MapEntry(:key, :value) in _e18Docs().entries)
+          'docs/$key': value,
+        'docs/specs/topics/labelled.md':
+            '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
+      });
+
+      final plan = _planAt(project);
+
+      final text = plan.toText();
+      expect(
+        _docText(plan, 'specs/topics/labelled.md'),
+        contains('See `a/b/c` and FR-09.'),
+      );
+      final lines = text.split('\n');
+      final renumber = lines.indexWhere((l) => l.startsWith('  renumber ids:'));
+      final labels = lines.indexWhere((l) => l.startsWith('  number labels:'));
+      expect(renumber, isNonNegative);
+      expect(labels, greaterThan(renumber));
+      expect(
+        lines[labels],
+        '  number labels: specs/topics/labelled.md; left: '
+        'specs/topics/labelled.md:5 FR-09',
+      );
+      expect(lines[labels + 1], startsWith('  '));
+      expect(
+        lines.indexWhere((l) => l.startsWith('  .specstone/config.yaml:')),
+        greaterThan(labels),
+      );
+    });
+
+    test('$_fr E26: a doc keeps its line ending, byte order mark, and link '
+        'destinations', () async {
+      final project = await _labelTree({
+        'specs/topics/labelled.md': '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[F-01 US-01](../../prds/features/f01_a/us01_b/USER_STORY.md) and F-01.\r\n',
+      });
+
+      final text = _docText(_planWith(project), 'specs/topics/labelled.md');
+
+      expect(
+        text,
+        '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[`a/b`](../../prds/features/f01_a/us01_b/USER_STORY.md) and `feature:a`.\r\n',
+      );
+    });
+
+    test(
+      '$_fr E26: a run that is no one-time pass leaves every label',
+      () async {
+        final project = await _labelTree({
+          'specs/topics/labelled.md': '# L\n\nF-01 here.\n',
+        }, pins: shippedPinsConfig());
+
+        final plan = _planWith(project);
+
+        expect(plan.toText(), isNot(contains('number labels:')));
+        expect(
+          plan.rewrites.where((r) => r.path.contains('labelled')),
+          isEmpty,
+        );
+      },
+    );
+
+    test('$_fr E26: a tracked file under the code roots converts, a partial '
+        'label in it stays listed, and line ending and mark stay', () async {
+      final project = await _labelTree(
+        {},
+        code: {
+          'lib/a.dart': '\uFEFF// See F-01 US-01 and FR-01\r\nint a = 0;\r\n',
+        },
+      );
+      final calls = <List<String>>[];
+
+      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
+
+      final rewrite = plan.rewrites.singleWhere((r) => r.path == 'lib/a.dart');
+      expect(rewrite.text, '\uFEFF// See `a/b` and FR-01\r\nint a = 0;\r\n');
+      expect(
+        plan.toText(),
+        contains('  number labels: lib/a.dart; left: lib/a.dart:1 FR-01\n'),
+      );
+      expect(calls.single.first, _canonical(project).path);
+      expect(calls.single, containsAll(['ls-files', '-z']));
+    });
+
+    test(
+      '$_fr E27: a file git does not track keeps every label, listed',
+      () async {
+        final project = await _labelTree(
+          {},
+          code: {'vendor/b.dart': '// F-01 US-01\n'},
+        );
+
+        final plan = _planWith(project);
+
+        expect(
+          plan.rewrites.map((r) => r.path),
+          isNot(contains('vendor/b.dart')),
+        );
+        expect(
+          plan.toText(),
+          contains('  number labels: ; left: vendor/b.dart:1 F-01 US-01\n'),
+        );
+      },
+    );
+
+    test('$_fr E26: a binary code file is skipped', () async {
+      final project = await _labelTree({});
+      File('${project.path}/lib/bin.dart').createSync(recursive: true);
+      File('${project.path}/lib/bin.dart').writeAsBytesSync([
+        0x2F,
+        0x2F,
+        0x20,
+        0x46,
+        0x2D,
+        0x30,
+        0x31,
+        0xC3,
+        0x28,
+        0x0A,
+      ]);
+
+      final plan = _planWith(project, _tracking({'lib/bin.dart'}));
+
+      expect(plan.toText(), isNot(contains('number labels:')));
+      expect(plan.rewrites.map((r) => r.path), isNot(contains('lib/bin.dart')));
+    });
+
+    test(
+      '$_fr E26: git is asked only when a code file holds a label',
+      () async {
+        final project = await _labelTree({}, code: {'lib/a.dart': 'int a;\n'});
+        final calls = <List<String>>[];
+
+        _planWith(project, _tracking({'lib/a.dart'}, calls));
+
+        expect(calls, isEmpty);
       },
     );
   });
