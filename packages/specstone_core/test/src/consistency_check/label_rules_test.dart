@@ -48,6 +48,24 @@ void main() {
     expect(finding.toJson(), containsPair('label', run));
   });
 
+  test('$_name: a folder path followed by an item ID or scenario segment '
+      'gives one finding for the path', () async {
+    final cell = path(path('f03', 'us02'), 'fr04');
+    final findings = await labelsInFeature('Cite ${path(cell, 'e09')} here.');
+
+    expect(findings, hasLength(1));
+    expect(findings.single.keys, {'label': cell});
+  });
+
+  test('$_name: a folder path followed by a numbered folder gives one '
+      'finding for the path', () async {
+    final cell = path('us03', 'fr04');
+    final findings = await labelsInFeature('Cite ${path(cell, 'nf02')} here.');
+
+    expect(findings, hasLength(1));
+    expect(findings.single.keys, {'label': cell});
+  });
+
   test('$_name E02: a table cell holding a folder path whose story folder '
       'has no slug gives one finding', () async {
     final cell = path('us03', 'fr04_check_password');

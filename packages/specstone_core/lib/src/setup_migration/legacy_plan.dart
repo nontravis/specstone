@@ -2,10 +2,11 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
-    show withApprovalHash;
+    show ApprovalFields, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
@@ -378,7 +379,6 @@ _Rewrites _rewritesOf(
   required bool Function(String path) exists,
 }) {
   final matcher = DocTypeMatcher(projectSet);
-  var approvals = 0;
   var fingerprintEntries = 0;
   MergedDocType? typeOf(_Work work) => switch (matcher.match(work.newPath)) {
     MatchedDocType(:final docType) => docType,
@@ -392,7 +392,6 @@ _Rewrites _rewritesOf(
     work.laidOut = work.lf;
     if (type != null) {
       work.lf = withApprovalHash(withKeyBlock(work.lf, 'draft', null), type);
-      approvals++;
     }
   }
 
@@ -447,9 +446,21 @@ _Rewrites _rewritesOf(
       ],
       kept: _keptLabelsOf(tree, byPath),
     ),
-    stampsLine: stampsPlanLine(approvals, fingerprintEntries),
+    stampsLine: stampsPlanLine(
+      written
+          .where(
+            (work) =>
+                typeOf(work) != null &&
+                _approvedOf(work.lf) != _approvedOf(work.original.lf),
+          )
+          .length,
+      fingerprintEntries,
+    ),
   );
 }
+
+Object? _approvedOf(String lf) =>
+    ApprovalFields.of(Doc.parse(lf)).approvedValue;
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
 /// doc to its name (`rewrite_titles_keys_and_links` E18, E19).

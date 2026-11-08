@@ -650,6 +650,11 @@ name: login
             'prds/features/f01_other/us01_x/fr01_y.md',
           ),
           (
+            'prds/features/ai01_02_chat/us01_c/functional_requirements/'
+                'fr02_d.md',
+            'prds/features/f02_chat/us01_c/fr02_d.md',
+          ),
+          (
             'prds/features/ui01_third/us01_z/functional_requirements/'
                 'fr05_w.md',
             'prds/features/f01_third/us01_z/fr05_w.md',
@@ -660,6 +665,7 @@ name: login
       featurePaths: {
         '$base/': 'f01_login',
         'prds/features/ai01_other/': 'f01_other',
+        'prds/features/ai01_02_chat/': 'f02_chat',
         'prds/features/ui01_third/': 'f01_third',
         'prds/features/g01_payments/ai02_chat/': 'g01_payments/f02_chat',
       },
@@ -709,12 +715,22 @@ name: login
       expect(result.kept, [(line: 1, label: 'ai01/us01/fr05')]);
     });
 
+    test('$rewrite E18: a legacy ID names the whole folder ID, so ai01 and '
+        'ai01_02 side by side stay apart', () {
+      final result = convert('Is ai01/us01/fr02 or ai01_02/us01/fr02?\n');
+
+      expect(result.lf, 'Is `login/email_login/lock_account` or `chat/c/d`?\n');
+    });
+
     test('$rewrite E18: a legacy ID that goes on to another folder names no '
         'doc by its first folders', () {
-      final result = convert('Not ai01/us01/nf01 or ai01/us01/fr02/x.\n');
+      final result = convert('Not ai01/us01/nf01 or ai01/us01/fr02/e09.\n');
 
-      expect(result.lf, 'Not ai01/us01/nf01 or ai01/us01/fr02/x.\n');
-      expect(result.kept, isEmpty);
+      expect(
+        result.lf,
+        'Not ai01/us01/nf01 or `login/email_login/lock_account`/e09.\n',
+      );
+      expect(result.kept, [(line: 1, label: 'ai01/us01')]);
     });
 
     test('$rewrite E19: a full label names the story by its legacy folder '

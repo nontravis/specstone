@@ -1250,6 +1250,23 @@ name: NFR
       expect(tech.text, startsWith('---\ndraft: true\n'));
     });
 
+    test('E07: the stamps line counts only the docs whose approved value '
+        'the run changes', () async {
+      final first = await _plan(acmeLegacy);
+      final stamped = _rewrite(first, 'specs/f01_login/DOMAIN.md').text;
+
+      final second = await _plan({
+        ...acmeLegacy,
+        'docs/specs/f01_login/DOMAIN.md': stamped,
+      });
+
+      expect(
+        second.rewrites.map((r) => r.path),
+        isNot(contains('docs/specs/f01_login/DOMAIN.md')),
+      );
+      expect(second.toText(), contains('stamps: 7 approval hashes'));
+    });
+
     test('E07: a typed doc the run neither moves nor edits is stamped and '
         'written, and an untyped doc stays as it is', () async {
       final plan = await _plan(acmeLegacy);

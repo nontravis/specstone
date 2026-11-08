@@ -176,7 +176,7 @@ final class LabelTree {
   List<String> _candidates(NumberLabel label, _Base base) {
     final parts = _partsOf(label, base);
     final feature = parts.feature;
-    if (feature == null) return const [];
+    if (feature == null || label.isPartOfPath) return const [];
     final isStoryLess = label.feature != null && parts.story == null;
     if (parts.fr != null && isStoryLess) return const [];
     final legacyId = _legacyIdOf(label);
@@ -225,17 +225,18 @@ final class LabelTree {
 /// for a label with no legacy prefix.
 String? _legacyIdOf(NumberLabel label) {
   if (label.prefix == null) return null;
-  return label.written.split('/').first.split('_').first;
+  return _legacyFolderIdPattern.firstMatch(label.written)?.group(0);
 }
 
-/// The `<prefix><nn>` that opens the feature folder of [legacyPath], or null.
+/// The whole folder ID that opens the feature folder of [legacyPath], such as
+/// `ai01` or `ai01_02`, or null.
 String? _legacyFolderId(String legacyPath) {
   final segments = legacyPath.split('/');
   if (segments.length < 4) return null;
   return _legacyFolderIdPattern.firstMatch(segments[2])?.group(0);
 }
 
-final _legacyFolderIdPattern = RegExp(r'^[a-z]+\d+');
+final _legacyFolderIdPattern = RegExp(r'^[a-z]+\d+(?:_\d+)*');
 
 /// [docPath] with its legacy feature folder replaced by the FeaturePath that
 /// [featurePaths] gives it, else [docPath] as it is.
@@ -751,6 +752,7 @@ NumberLabel _carry(NumberLabel label, NumberLabel? before) {
     fr: label.fr,
     slug: label.slug,
     itemId: label.itemId,
+    isPartOfPath: label.isPartOfPath,
   );
 }
 

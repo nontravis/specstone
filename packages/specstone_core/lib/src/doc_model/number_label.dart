@@ -29,6 +29,7 @@ final class NumberLabel {
     this.slug,
     this.itemId,
     this.prefix,
+    this.isPartOfPath = false,
   });
 
   final int start;
@@ -45,6 +46,11 @@ final class NumberLabel {
   /// `ai02`; null for any other label.
   final String? prefix;
 
+  /// Whether a numbered folder that does not follow the label's last part
+  /// comes right after it, as `nf01` does after a story folder: the label is
+  /// read and reported, but names no doc by its folders.
+  final bool isPartOfPath;
+
   NumberLabel _shiftedBy(int offset) => NumberLabel(
     start: start + offset,
     end: end + offset,
@@ -56,6 +62,7 @@ final class NumberLabel {
     slug: slug,
     itemId: itemId,
     prefix: prefix,
+    isPartOfPath: isPartOfPath,
   );
 }
 
@@ -185,7 +192,6 @@ NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
   if (parts.length < 2 || parts.every((part) => part.slug != null)) {
     return null;
   }
-  if (_continuesAsPath(line, parts.last.end)) return null;
   final numbers = <int?>[null, null, null];
   for (final part in parts) {
     numbers[part.rank] = part.number;
@@ -198,15 +204,20 @@ NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
     numbers: numbers,
     slug: parts.last.slug,
     prefix: parts.first.prefix,
+    isPartOfPath: _numberedFolderFollows(line, parts.last.end),
   );
 }
 
-/// Whether a `/<folder>` follows at [end]: the run is then part of a longer
-/// path, such as `ai01/us01/nf01`, and names no doc by its folders.
-bool _continuesAsPath(String line, int end) =>
+final _numberedFolder = RegExp(
+  r'(?:nf|us|fr|f)\d+(?:_[a-z0-9_]+)?(?![A-Za-z0-9])',
+);
+
+/// Whether a numbered folder (`nf`, `f`, `us`, or `fr` and digits) comes
+/// after a `/` at [end]; an item ID or scenario segment, such as `e09`, is
+/// none.
+bool _numberedFolderFollows(String line, int end) =>
     line.startsWith('/', end) &&
-    end + 1 < line.length &&
-    _isSlugChar(line.codeUnitAt(end + 1));
+    _numberedFolder.matchAsPrefix(line, end + 1) != null;
 
 /// Reads a folder name `f<digits>`, `us<digits>`, or `fr<digits>`, with an
 /// optional `_<slug>`, at [at]; with [legacyIds] a feature folder may open
@@ -270,6 +281,7 @@ NumberLabel _labelOf(
   required List<int?> numbers,
   String? slug,
   String? prefix,
+  bool isPartOfPath = false,
 }) => NumberLabel(
   start: start,
   end: end,
@@ -281,6 +293,7 @@ NumberLabel _labelOf(
   slug: slug,
   itemId: _itemIdAfter(line, end),
   prefix: prefix,
+  isPartOfPath: isPartOfPath,
 );
 
 /// Returns the item ID that follows a label ending at [end] after one space:

@@ -364,13 +364,29 @@ void main() {
       expect(label.prefix, 'ai');
     });
 
-    test('a folder run that goes on to another folder is no label, as a '
-        'legacy ID or not', () {
-      expect(
-        numberLabelsInMarkdown('ai01/us01/nf01\n', legacyIds: true),
-        isEmpty,
-      );
-      expect(numberLabelsInMarkdown('us01/fr01/x\n'), isEmpty);
+    test('a run followed by an item ID or scenario segment is a label as '
+        'before, in both readers', () {
+      for (final legacy in [false, true]) {
+        final labels = numberLabelsInMarkdown(
+          'f03/us02/fr04/e09 and f06/us01/s1\n',
+          legacyIds: legacy,
+        );
+
+        expect(labels.map((l) => l.written), ['f03/us02/fr04', 'f06/us01']);
+        expect(labels.every((l) => !l.isPartOfPath), isTrue);
+      }
+    });
+
+    test('a run followed by a numbered folder that does not follow is read '
+        'but names no doc by its folders, in both readers', () {
+      final legacy = numberLabelsInMarkdown(
+        'ai01/us01/nf01\n',
+        legacyIds: true,
+      ).single;
+      final upgrade = numberLabelsInMarkdown('us01/fr01/nf02\n').single;
+
+      expect((legacy.written, legacy.isPartOfPath), ('ai01/us01', true));
+      expect((upgrade.written, upgrade.isPartOfPath), ('us01/fr01', true));
     });
 
     test('a story and an FR folder name keep their own ranks', () {
