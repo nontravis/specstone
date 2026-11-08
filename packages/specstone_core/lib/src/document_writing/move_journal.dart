@@ -22,6 +22,7 @@ final class JournalTarget {
     required this.docsRoot,
     required this.homeDirectory,
     this.codeRoot,
+    this.repositoryTop,
     this.runGit = runRealGit,
     this.warn = _warnOnStderr,
   });
@@ -49,6 +50,10 @@ final class JournalTarget {
   /// The folder of the code files a step may rewrite; null for the project
   /// root.
   final Directory? codeRoot;
+
+  /// The repository top whose agent files a migrate writes (R49), so a
+  /// stopped migrate still replays them; null admits none.
+  final Directory? repositoryTop;
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
@@ -795,8 +800,9 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
 ///
 /// A journal clones and other tools can carry is untrusted input: it runs
 /// only when its digest is recorded under the home folder and every path of
-/// every step lands inside the project, docs, or code root, on no `.git`
-/// entry and through no link out of them.
+/// every step lands inside the project, docs, or code root, or is an agent
+/// file at the target's repository top, on no `.git` entry and through no
+/// link out of them.
 ///
 /// Throws [RenderFault] `output_not_writable` when the journal is unrecorded,
 /// a path leaves those roots, or the journal cannot be read or parsed.
@@ -804,7 +810,11 @@ List<JournalStep>? _trustedSteps(JournalTarget target) {
   final bytes = _recordedBytes(target.projectRoot, target._records);
   if (bytes == null) return null;
   final steps = _stepsIn(bytes);
-  final bounds = JournalBounds(target.projectRoot, target._bounds);
+  final bounds = JournalBounds(
+    target.projectRoot,
+    target._bounds,
+    repositoryTop: target.repositoryTop?.resolveSymbolicLinksSync(),
+  );
   for (final step in steps) {
     for (final path in step._paths) {
       if (!bounds.holds(path)) {

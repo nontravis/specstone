@@ -15,17 +15,10 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 
 const _agentMdPath = '.specstone/AGENT.md';
-const _cursorPath = '.cursor/rules/specstone.mdc';
 const _cursorFolder = '.cursor';
 const _gitEntry = '.git';
 const _codeField = 'code';
 const _docsFolder = 'docs/';
-const List<String> _importNames = ['CLAUDE.md', 'GEMINI.md'];
-const List<String> _instructionNames = [
-  ..._importNames,
-  'AGENTS.md',
-  '.github/copilot-instructions.md',
-];
 const _defaultInstructionName = 'AGENTS.md';
 const _agentsLinePrefix = 'agent files: ';
 const _malformedMessage =
@@ -564,7 +557,7 @@ List<_AgentFile> _filesIn(
   );
   final inlineBlockText = inlineBlock(cliVersion: cliVersion);
   final namesByFile = <String, List<String>>{};
-  for (final name in _instructionNames) {
+  for (final name in agentInstructionNames) {
     final file = _fileIn(folder, name);
     if (FileSystemEntity.typeSync(file.path) != FileSystemEntityType.file) {
       continue;
@@ -576,7 +569,7 @@ List<_AgentFile> _filesIn(
   for (final names in namesByFile.values) {
     final text = _readAgentText(_fileIn(folder, names.first));
     if (text == null) continue;
-    final isImport = names.every(_importNames.contains);
+    final isImport = names.every(agentImportNames.contains);
     final block = isImport ? importBlockText : inlineBlockText;
     files.add(
       _AgentFile(
@@ -605,12 +598,12 @@ List<_AgentFile> _filesIn(
       ),
     );
   }
-  final cursor = _fileIn(folder, _cursorPath);
+  final cursor = _fileIn(folder, agentCursorPath);
   final cursorText = cursor.existsSync() ? _readAgentText(cursor) : null;
   if (cursor.existsSync() ? cursorText != null : hasCursorFolder) {
     files.add(
       _AgentFile(
-        path: pathOf(_cursorPath),
+        path: pathOf(agentCursorPath),
         block: inlineBlockText,
         expected: cursorRulesText(cliVersion: cliVersion),
         current: cursorText,

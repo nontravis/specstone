@@ -752,6 +752,45 @@ void main() {
   group('f06/us01/fr07: resume and replay', () {
     final skipGit = hasGit ? null : 'git is not available';
 
+    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+        'stopped migrate one folder below its repository top replays the '
+        'repository-top CLAUDE.md to its end', () async {
+      final base = await gitFixture({
+        'CLAUDE.md': 'Owner\n',
+        'specs/.specstone/config.yaml': shippedPinsConfig(),
+        'specs/docs/prds/PROJECT.md': '# Project\n',
+      });
+      final project = Directory('${base.path}/specs');
+      final head = (git(base, ['rev-parse', 'HEAD']).stdout as String).trim();
+      writeJournal(project, [
+        WriteStep(
+          '../CLAUDE.md',
+          'Owner\nblock\n',
+          before: textHashOf('Owner\n'),
+        ),
+        CommitStep(message: 'agent files', paths: const [], base: head),
+      ]);
+
+      final status = runMigrate(
+        MigrateRequest(
+          workingDirectory: project,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: false,
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => throw StateError('resume must not ask'),
+          out: StringBuffer(),
+        ),
+      );
+
+      expect(status, 0);
+      expect(
+        File('${base.path}/CLAUDE.md').readAsStringSync(),
+        'Owner\nblock\n',
+      );
+      expect(MoveJournal.pending(project), isFalse);
+    }, skip: skipGit);
+
     test('f06/us01/fr07/e03, f06/us01/fr01/e07, f06/us01/s9: a run stopped '
         'after commit 1 finishes with no second y', () async {
       final root = await gitFixture(acmeLegacy);

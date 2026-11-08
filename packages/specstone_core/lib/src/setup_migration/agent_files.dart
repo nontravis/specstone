@@ -9,6 +9,24 @@ import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 /// (`setup_migration/set_up_new_project/write_agent_files`).
 final String agentMdText = utf8.decode(base64Decode(agentMdTextBase64));
 
+/// The instruction files that import `.specstone/AGENT.md`.
+const List<String> agentImportNames = ['CLAUDE.md', 'GEMINI.md'];
+
+/// Every instruction file the CLI writes a block into, by its path from the
+/// folder that holds it.
+const List<String> agentInstructionNames = [
+  ...agentImportNames,
+  'AGENTS.md',
+  '.github/copilot-instructions.md',
+];
+
+/// The Cursor rules file the CLI writes, from the folder that holds it.
+const agentCursorPath = '.cursor/rules/specstone.mdc';
+
+/// Every agent file the CLI writes at a project root or a repository top,
+/// by its path from that folder.
+const List<String> agentFilePaths = [...agentInstructionNames, agentCursorPath];
+
 const _projectRule = '- Run `specstone get project` before any task.\n';
 const _endMarker = '<!-- END specstone -->';
 const _byteOrderMark = '\uFEFF';

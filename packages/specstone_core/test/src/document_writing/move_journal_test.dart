@@ -979,6 +979,45 @@ void main() {
       expect(File('${base.path}/lib/a.dart').readAsStringSync(), '// new\n');
     });
 
+    test('a migrate target admits the agent files at its repository top, '
+        'and no other file there', () async {
+      final base = await writeTree({
+        'CLAUDE.md': 'Owner\n',
+        'notes.md': 'mine\n',
+        '.git/config': '[core]\n',
+        'specs/.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'specs/docs/prds/PROJECT.md': 'x\n',
+      });
+      final project = Directory('${base.path}/specs');
+      JournalTarget migrateTarget() => JournalTarget(
+        projectRoot: project,
+        docsRoot: Directory('${project.path}/docs'),
+        homeDirectory: testHome(),
+        repositoryTop: base,
+      );
+
+      for (final path in ['../notes.md', '../.git/config']) {
+        writeJournal(project, [WriteStep.unguarded(path, 'payload\n')]);
+        expect(
+          () => MoveJournal.replay(migrateTarget()),
+          untrusted(
+            'its step path $path leaves the project, docs, and code roots',
+          ),
+        );
+      }
+      writeJournal(project, const [
+        WriteStep.unguarded('../CLAUDE.md', 'Owner\nblock\n'),
+      ]);
+      MoveJournal.replay(migrateTarget());
+
+      expect(
+        File('${base.path}/CLAUDE.md').readAsStringSync(),
+        'Owner\nblock\n',
+      );
+      expect(File('${base.path}/notes.md').readAsStringSync(), 'mine\n');
+      expect(File('${base.path}/.git/config').readAsStringSync(), '[core]\n');
+    });
+
     test('a stopped run replays on the next command, and its record goes '
         'with the journal', () {
       final before = readDoc(root, persona);
