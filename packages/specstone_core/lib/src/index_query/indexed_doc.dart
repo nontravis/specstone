@@ -366,6 +366,17 @@ IndexedSection _sectionOf(
   );
 }
 
+/// Returns the frontmatter values of [doc] as the index stores them.
+///
+/// Empty when the frontmatter is absent or is not valid YAML.
+Map<String, Object?> frontmatterValuesOf(Doc doc) {
+  final blocks = doc.frontmatter;
+  final yaml = blocks == null
+      ? null
+      : parseFrontmatterYaml(blocks.map((b) => b.text).join());
+  return _frontmatterValues(yaml, '', []);
+}
+
 Map<String, Object?> _frontmatterValues(
   FrontmatterYaml? yaml,
   String docPath,

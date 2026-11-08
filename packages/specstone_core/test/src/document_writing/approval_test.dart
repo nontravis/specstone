@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
@@ -10,7 +12,6 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:test/test.dart';
-import 'package:yaml/yaml.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/temp_tree.dart';
@@ -43,22 +44,12 @@ const _docType = MergedDocType(
   files: [],
 );
 
-/// An index entry whose frontmatter is [lines] as the index stores values.
-IndexedDoc _indexed(String lines) {
-  final map = loadYaml(lines) as YamlMap;
-  return IndexedDoc(
-    docPath: 'a.md',
-    name: 'a',
-    frontmatter: {
-      for (final e in map.entries)
-        '${e.key}': switch (e.value) {
-          double(isInfinite: true) => '.inf',
-          final Object? v => v,
-        },
-    },
-    tokens: 1,
-  );
-}
+/// The index entry the refresh stores for a doc whose frontmatter is [lines].
+IndexedDoc _indexed(String lines) => parseIndexedDoc(
+  docPath: 'a.md',
+  bytes: utf8.encode('---\n$lines\n---\n# A\n'),
+  match: const NoDocType(),
+).doc;
 
 /// Whether this machine's `git` can make a SHA-256 repository.
 final bool hasSha256Git = () {
@@ -103,11 +94,12 @@ void main() {
       ({'prd-core': '1.6.0', 'software-tech': '1.3.0'}, false),
       ({'prd-core': '1.7.0', 'software-tech': '1.3.0'}, true),
       ({'prd-core': '1.6.0', 'software-tech': '1.4.0'}, true),
+      ({'prd-core': '1.7.0', 'software-tech': '1.4.0'}, true),
       ({'prd-core': '1.6.9'}, false),
       ({'prd-core': '1.8.0'}, true),
       (<String, String>{'acme': '9.0.0'}, false),
     ]) {
-      test('dw-s03/approval, walk_drafts E12: pins $pins -> $expected', () {
+      test('domain:document_writing Approval: pins $pins -> $expected', () {
         expect(
           stampsHaveRun({for (final e in pins.entries) e.key: v(e.value)}),
           expected,
@@ -123,9 +115,12 @@ void main() {
         '| a | b |\n|---|---|\n| x | y |\n';
     String hash(String text) => approvalHashOf(text, _docType);
 
-    test('dw-s03/approvalhash: 12 lowercase hex characters', () {
-      expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
-    });
+    test(
+      'domain:document_writing ApprovalHash: 12 lowercase hex characters',
+      () {
+        expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
+      },
+    );
 
     test('report_stale_approvals E02: padded cells give the same hash', () {
       final padded = body.replaceFirst(
@@ -181,8 +176,31 @@ void main() {
       );
     });
 
-    test('an untyped doc hashes its text as written', () {
+    test('an untyped doc hashes its text less approved and draft', () {
       expect(approvalHashOf('# A\n', null), baseHashOf('# A\n'));
+      expect(
+        approvalHashOf(
+          '---\ndraft: true\napproved: "0123456789ab"\n---\n# A\n',
+          null,
+        ),
+        baseHashOf('# A\n'),
+      );
+    });
+
+    test('mark_doc_approved E09: a block a format run inserts keeps it', () {
+      final inserted = switch (writeGeneratedBlocks(body, _docType, [
+        const GeneratedBlock(
+          kind: 'scenario_copy',
+          sectionId: 'statement',
+          place: SectionTop(),
+          text: 'Copied text.\n',
+        ),
+      ])) {
+        BlocksWritten(:final lfText) => lfText,
+        OpenBlock() => fail('the body holds no open block'),
+      };
+      expect(inserted, isNot(body));
+      expect(hash(inserted), hash(body));
     });
   });
 
@@ -216,6 +234,19 @@ void main() {
       expect(written, isNot(contains('approved: true')));
     });
 
+    for (final (label, text) in [
+      ('with frontmatter', draft),
+      ('without frontmatter', '# Doc\n\n## Statement\n\nText.\n'),
+    ]) {
+      test('mark_doc_approved E10, E11: a doc $label matches its stamp', () {
+        final written = withApprovalHash(text, _docType);
+        final stamp = RegExp('approved: "([0-9a-f]{12})"')
+            .firstMatch(written)!
+            .group(1);
+        expect(approvalHashOf(written, _docType), stamp);
+      });
+    }
+
     test('a doc carrying its own hash hashes to that hash', () {
       final written = withApprovalHash(draft, _docType);
       expect(
@@ -227,6 +258,12 @@ void main() {
 
   group('approval rules', () {
     const hash = '5d1e0c4b7a92';
+    // The digits-only rows hash to their own digits (E14).
+    String hashOf(String lines) => lines.contains('123456789012')
+        ? '123456789012'
+        : lines.contains('123e45678901')
+        ? '123e45678901'
+        : hash;
     // (label, frontmatter lines, awaits below pins, awaits at pins,
     // approvalOf below pins, approvalOf at pins, guarded)
     final rows = <(String, String, bool, bool, Approval, Approval, bool)>[
@@ -287,8 +324,8 @@ void main() {
       (
         'a quoted 12-digit value',
         'approved: "123456789012"',
-        true,
-        true,
+        false,
+        false,
         Approval.approved,
         Approval.approved,
         true,
@@ -318,14 +355,14 @@ void main() {
         ('IndexedDoc', ApprovalFields.ofIndexed(_indexed(lines))),
       ]) {
         final (reader, f) = fields;
-        test('walk_drafts E11-E14, dw-s03/approval: $label via $reader', () {
+        test('walk_drafts E11-E14, Approval: $label via $reader', () {
           expect(
-            awaitsApproval(f, hash, stampsHaveRun: false),
+            awaitsApproval(f, hashOf(lines), stampsHaveRun: false),
             belowAwaits,
             reason: 'awaits below pins',
           );
           expect(
-            awaitsApproval(f, hash, stampsHaveRun: true),
+            awaitsApproval(f, hashOf(lines), stampsHaveRun: true),
             atAwaits,
             reason: 'awaits at pins',
           );
@@ -342,11 +379,32 @@ void main() {
       expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
     });
 
-    test('dw-s03/inv5: an approved value that is no YAML holds no value', () {
-      final f = ApprovalFields.of(
-        Doc.parse('---\ndraft: true\napproved: [\n---\n# A\n'),
-      );
-      expect(approvalOf(f, stampsHaveRun: false), Approval.neverApproved);
+    test(
+      'domain:document_writing INV-5: a value that is no YAML holds none',
+      () {
+        final f = ApprovalFields.of(
+          Doc.parse('---\ndraft: true\napproved: [\n---\n# A\n'),
+        );
+        expect(f.isDraft, isFalse);
+        expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
+      },
+    );
+
+    test('an invalid YAML key reads as no value through both readers', () {
+      const text = '---\nstatus: [\ndraft: true\napproved: true\n---\n# A\n';
+      for (final f in [
+        ApprovalFields.of(Doc.parse(text)),
+        ApprovalFields.ofIndexed(
+          parseIndexedDoc(
+            docPath: 'a.md',
+            bytes: utf8.encode(text),
+            match: const NoDocType(),
+          ).doc,
+        ),
+      ]) {
+        expect(f.isDraft, isFalse);
+        expect(f.approvedValue, isNull);
+      }
     });
 
     test('HD4: a quoted "approved" key is read', () {

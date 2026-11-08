@@ -11,7 +11,6 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
-import 'package:yaml/yaml.dart';
 
 const _approvedKey = 'approved';
 const _hashLength = 12;
@@ -29,26 +28,28 @@ bool stampsHaveRun(Map<String, PackVersion> pins) =>
 /// Returns the ApprovalHash of [lfText] laid out as [docType] lays it out,
 /// less its `approved:`, `draft:`, and `output_ref` key blocks and the text of
 /// its generated blocks.
+///
+/// A frontmatter left empty hashes as an absent one, so the doc hashes the
+/// same before and after [withApprovalHash] adds a fence.
 String approvalHashOf(String lfText, MergedDocType? docType) {
-  var covered = layOutDoc(lfText, docType);
-  if (docType != null) {
-    final dropped = [
-      _approvedKey,
-      'draft',
-      for (final field in docType.fields)
-        if (field.type == FieldType.outputRef) field.id,
-    ];
-    for (final key in dropped) {
-      covered = withKeyBlock(covered, key, null);
-    }
-    covered = _withoutGeneratedBlocks(
-      covered,
-      docType.listedGenerators.toSet(),
-    );
+  var covered = _withoutGeneratedBlocks(
+    lfText,
+    docType?.listedGenerators.toSet() ?? const {},
+  );
+  for (final key in [
+    _approvedKey,
+    'draft',
+    for (final field in docType?.fields ?? const <MergedField>[])
+      if (field.type == FieldType.outputRef) field.id,
+  ]) {
+    covered = withKeyBlock(covered, key, null);
   }
+  covered = layOutDoc(_withoutEmptyFrontmatter(covered), docType);
   return baseHashOf(covered).substring(0, _hashLength);
 }
 
+// Strips before the layout, so a block a `format` run inserts leaves no
+// layout whitespace behind.
 String _withoutGeneratedBlocks(String text, Set<String> kinds) {
   if (kinds.isEmpty) return text;
   final lines = text.split('\n');
@@ -58,6 +59,20 @@ String _withoutGeneratedBlocks(String text, Set<String> kinds) {
       if (!generated[i]) line,
   ].join('\n');
 }
+
+// A doc with no frontmatter gains `---\n---\n` and a blank line from
+// `withApprovalHash`; both leave the hash, with any leading blank lines.
+String _withoutEmptyFrontmatter(String text) {
+  final doc = Doc.parse(text);
+  final blocks = doc.frontmatter;
+  if (blocks != null && blocks.any((b) => b.text.trim().isNotEmpty)) {
+    return text;
+  }
+  final body = blocks == null ? text : doc.afterFrontmatter;
+  return body.replaceFirst(_leadingBlankLines, '');
+}
+
+final _leadingBlankLines = RegExp(r'^\n+');
 
 /// Returns [lfText] with `approved: "<approvalHashOf>"` in place of any
 /// `approved:` value, at its slot in the field order of [docType].
@@ -91,16 +106,14 @@ enum Approval {
 final class ApprovalFields {
   const new({required this.isDraft, required this.approvedValue});
 
-  /// Reads the fields from the frontmatter of [doc].
+  /// Reads the fields from the frontmatter of [doc] as the index reads it.
   ///
-  /// A value that is no YAML reads as no value.
+  /// A frontmatter that is not valid YAML as a whole holds neither value.
   factory of(Doc doc) {
-    final block = doc.frontmatter
-        ?.where((b) => b.name == _approvedKey)
-        .firstOrNull;
+    final values = frontmatterValuesOf(doc);
     return ApprovalFields(
-      isDraft: doc.isDraft,
-      approvedValue: block == null ? null : _yamlValueOf(block.valueText),
+      isDraft: values['draft'] == true,
+      approvedValue: values[_approvedKey],
     );
   }
 
@@ -118,14 +131,6 @@ final class ApprovalFields {
 
   /// Whether `approved:` holds YAML `true`, the mark before the hash.
   bool get holdsTrueMark => approvedValue == true;
-}
-
-Object? _yamlValueOf(String valueText) {
-  try {
-    return loadYaml(valueText);
-  } on YamlException {
-    return null;
-  }
 }
 
 /// Returns the [Approval] [fields] state.
