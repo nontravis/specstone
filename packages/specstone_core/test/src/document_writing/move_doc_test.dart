@@ -16,7 +16,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart'
-    show checkOf, projectDoc, spots, writeCheckProject;
+    show checkOf, doc, projectDoc, spots, techStack, writeCheckProject;
 import '../../helpers/failing_rename.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -1585,7 +1585,7 @@ void main() {
           '`user_story:shop/cart/add_item#acceptance_criteria`.\n'
           'final plain = "shop/cart/add_item";\n';
       const skill =
-          'Use `shop/cart/add_item/check_stock`.\n\n```\n'
+          'Use `shop/cart/add_item`.\n\n```\n'
           '`shop/cart/add_item`\n```\n\nPlain shop/cart/add_item.\n';
       final root = await writeNestedProject(
         extra: {
@@ -1609,8 +1609,8 @@ void main() {
       expect(
         codeText(root, 'app/lib/SKILL.md'),
         skill.replaceFirst(
-          'Use `shop/cart/add_item/check_stock`',
-          'Use `shop/pay/add_item/check_stock`',
+          'Use `shop/cart/add_item`',
+          'Use `shop/pay/add_item`',
         ),
       );
       expect(
@@ -1638,6 +1638,151 @@ void main() {
       expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
       expect(approvedHash(root, shopDomain), isNot(before));
       expect(staleDocs(root), isNot(contains(shopDomain)));
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: a code entry that names a file has that file rewritten', () async {
+      const before = '// `login/email_login`\n';
+      final root = await writeCheckProject(
+        extra: {
+          ...doc(techStack, '- app/lib/\n', '- app/lib/note.dart\n'),
+          'app/lib/note.dart': before,
+          'app/lib/other.dart': before,
+        },
+      );
+      final answer = renameLogin(root);
+      expect(codeText(root, 'app/lib/note.dart'), '// `signin/email_login`\n');
+      expect(codeText(root, 'app/lib/other.dart'), before);
+      expect(answer.json['rewritten'], contains('app/lib/note.dart'));
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: an executable code file stays executable after its rewrite', () async {
+      final root = await writeCheckProject(
+        extra: {'app/lib/run.sh': '# `login/email_login`\n'},
+      );
+      Process.runSync('chmod', ['755', '${root.path}/app/lib/run.sh']);
+      renameLogin(root);
+      expect(codeText(root, 'app/lib/run.sh'), '# `signin/email_login`\n');
+      expect(File('${root.path}/app/lib/run.sh').statSync().mode & 0xFFF, 493);
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
+
+    group('a code root outside the project root', () {
+      late Directory outside;
+      late String folder;
+
+      setUp(() {
+        outside = Directory.systemTemp.createTempSync('specstone_outside_');
+        addTearDown(() => outside.deleteSync(recursive: true));
+        folder = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+      });
+
+      Future<Directory> project() async {
+        File('${outside.path}/app/lib/doc.dart')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('// `login/email_login`\n');
+        return writeCheckProject(
+          extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}code_root: ../$folder\n',
+          },
+        );
+      }
+
+      test('document_writing/rename_doc/rewrite_name_references: rename rewrites its file and lists it by a ../ path', () async {
+        final root = await project();
+        final answer = renameLogin(root);
+        expect(
+          File('${outside.path}/app/lib/doc.dart').readAsStringSync(),
+          '// `signin/email_login`\n',
+        );
+        expect(answer.json['rewritten'], ['../$folder/app/lib/doc.dart']);
+      });
+
+      test('document_writing/rename_doc/rewrite_name_references: a stopped run replays its write to the same file', () async {
+        final root = await project();
+        writeJournal(root, [
+          WriteStep(
+            '../$folder/app/lib/doc.dart',
+            '// `signin/email_login`\n',
+            before: textHashOf('// `login/email_login`\n'),
+          ),
+        ]);
+        writeIn(root, (s) => s.index.docs.length);
+        expect(
+          File('${outside.path}/app/lib/doc.dart').readAsStringSync(),
+          '// `signin/email_login`\n',
+        );
+        expect(MoveJournal.pending(root), isFalse);
+      });
+    });
+
+    group('a replayed write step', () {
+      const original = 'old text\n';
+      const planned = 'new text\n';
+      const edited = 'old text\nthe user added a line\n';
+
+      // A doc and a code file, each with the step the run planned for it.
+      final cases = {
+        'a doc': ('docs/notes.md', 'notes.md'),
+        'a code file': ('app/lib/note.dart', 'app/lib/note.dart'),
+      };
+
+      for (final MapEntry(key: label, value: (path, _)) in cases.entries) {
+        Future<Directory> stopped(String onDisk) async {
+          final root = await writeCheckProject(extra: {path: onDisk});
+          writeJournal(root, [
+            WriteStep(path, planned, before: textHashOf(original)),
+          ]);
+          return root;
+        }
+
+        String text(Directory root) =>
+            File('${root.path}/$path').readAsStringSync();
+
+        test(
+          'document_writing/delete_doc_subtree/finish_interrupted_move: $label that holds the step text counts as done',
+          () async {
+            final root = await stopped(planned);
+            writeIn(root, (s) => s.index.docs.length);
+            expect(text(root), planned);
+            expect(MoveJournal.pending(root), isFalse);
+          },
+        );
+
+        test(
+          'document_writing/delete_doc_subtree/finish_interrupted_move: $label that holds the planned-from text gets the step',
+          () async {
+            final root = await stopped(original);
+            writeIn(root, (s) => s.index.docs.length);
+            expect(text(root), planned);
+            expect(MoveJournal.pending(root), isFalse);
+          },
+        );
+
+        test(
+          'document_writing/delete_doc_subtree/finish_interrupted_move: $label edited after the stop is left as it is, named in a warning, and the journal still clears',
+          () async {
+            final root = await stopped(edited);
+            final lines = <String>[];
+            final target = JournalTarget(
+              projectRoot: root,
+              docsRoot: Directory('${root.path}/docs'),
+              warn: lines.add,
+            );
+            WriteStep(
+              path,
+              planned,
+              before: textHashOf(original),
+            ).apply(target);
+            expect(text(root), edited);
+            expect(lines, [
+              '$path changed since the stopped run; left as it is',
+            ]);
+            writeIn(root, (s) => s.index.docs.length);
+            expect(text(root), edited);
+            expect(MoveJournal.pending(root), isFalse);
+          },
+        );
+      }
     });
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -17,6 +18,7 @@ final class JournalTarget {
     required this.projectRoot,
     required this.docsRoot,
     this.runGit = runRealGit,
+    this.warn = _warnOnStderr,
   });
 
   /// Returns the target of an opened [project].
@@ -33,7 +35,22 @@ final class JournalTarget {
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
+
+  /// Reports one warning line; writes it to stderr unless replaced.
+  final void Function(String line) warn;
 }
+
+void _warnOnStderr(String line) => stderr.writeln(line);
+
+/// Returns the hash of [text], read as a file's text without a byte-order
+/// mark; a [WriteStep] records it for the text it replaces.
+String textHashOf(String text) {
+  final bare = text.startsWith(_bom) ? text.substring(1) : text;
+  return sha256.convert(utf8.encode(bare)).toString();
+}
+
+/// The byte-order mark as the one character a step's text may begin with.
+const _bom = '\uFEFF';
 
 /// One idempotent step of a [MoveJournal].
 ///
@@ -79,7 +96,13 @@ sealed class JournalStep {
             'write',
             {'path': final String path, 'text': final String text},
           ):
-            return WriteStep(path, text);
+            return WriteStep(
+              path,
+              text,
+              before: value['before'] is String
+                  ? value['before']! as String
+                  : null,
+            );
           case (
             'create',
             {'path': final String path, 'text': final String text},
@@ -219,8 +242,12 @@ final class PruneStep extends JournalStep {
 }
 
 /// Writes [text] to a file that exists and differs from it.
+///
+/// When [before] holds the [textHashOf] the file had when the run was
+/// planned, the step writes only a file that still holds that text; a file
+/// edited since is left as it is and named in a warning.
 final class WriteStep extends JournalStep {
-  const new(this.path, this.text);
+  const new(this.path, this.text, {this.before});
 
   /// The file to write.
   final String path;
@@ -228,9 +255,12 @@ final class WriteStep extends JournalStep {
   /// The new UTF-8 text.
   final String text;
 
+  /// The [textHashOf] of the text the step replaces, or null to replace any.
+  final String? before;
+
   @override
   Map<String, Object> toJson() => {
-    'write': {'path': path, 'text': text},
+    'write': {'path': path, 'text': text, 'before': ?before},
   };
 
   @override
@@ -239,20 +269,31 @@ final class WriteStep extends JournalStep {
   @override
   bool isDone(JournalTarget target) {
     final file = File(_absolute(target, path));
-    return !file.existsSync() || file.readAsStringSync() == text;
+    return !file.existsSync() || _textOf(file) == _withoutBom(text);
   }
 
   @override
   void apply(JournalTarget target) {
     try {
       if (isDone(target)) return;
-      writeFileAtomic(File(_absolute(target, path)), utf8.encode(text));
+      final file = File(_absolute(target, path));
+      if (before case final expected?
+          when textHashOf(_textOf(file)) != expected) {
+        target.warn('$path changed since the stopped run; left as it is');
+        return;
+      }
+      writeFileAtomic(file, utf8.encode(text));
     } on FileSystemException catch (error) {
       throw _notWritable('write', path, error);
     } on FormatException catch (error) {
       throw _notWritable('write', path, error);
     }
   }
+
+  static String _textOf(File file) => _withoutBom(file.readAsStringSync());
+
+  static String _withoutBom(String text) =>
+      text.startsWith(_bom) ? text.substring(1) : text;
 }
 
 /// Writes [text] to a path that does not exist yet, creating its parent

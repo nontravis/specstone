@@ -220,13 +220,12 @@ String? rewriteDocRefs(
   return result == lfText ? null : result;
 }
 
-/// Returns the journal writes that keep every link and `doc_ref` true.
+/// Returns the sorted journal writes that keep every link, `doc_ref`, and
+/// doc-name mention true, in docs and in code files under the `code:` roots.
 ///
-/// Candidates are docs that link under a moved path, move and hold a link or
-/// path mention a rewrite changes, or, for [renamed], name a renamed doc; a
-/// lenient read keeps a non-UTF-8 doc naming nothing renamed from blocking.
-/// Steps hold the rewritten text, sorted by path, with draft marks untouched;
-/// a doc whose hash matched its `approved:` value is re-stamped.
+/// A non-UTF-8 code file is skipped, as a doc naming nothing renamed is; a
+/// doc whose hash matched its `approved:` value is re-stamped, a code file
+/// never. Draft marks stay untouched.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
@@ -313,7 +312,7 @@ WriteStep? _codeFileStep(
     );
   }
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
-  return WriteStep(projectPath, '$bom$text');
+  return WriteStep(projectPath, '$bom$text', before: textHashOf(raw));
 }
 
 /// Returns the extension of [path], a `.` and the letters after its last
@@ -437,6 +436,7 @@ WriteStep? _stepFor(
   return WriteStep(
     session.projectPathOf(writtenPath),
     '$bom${LineEnding.of(raw).apply(stamped)}',
+    before: textHashOf(raw),
   );
 }
 

@@ -93,6 +93,7 @@ T renameSyncRetrying<T extends FileSystemEntity>(T entity, String newPath) {
 
 /// Replaces [target] with [bytes] so a reader never sees a partial file.
 ///
+/// A target that exists keeps its permission bits, an executable one included.
 /// Deletes the temp sibling and rethrows when the write or the rename fails.
 /// Creates no parent folder. On Windows, when another handle holds the temp
 /// or the target open, the rename can block for up to 1 s before it succeeds
@@ -102,9 +103,27 @@ T renameSyncRetrying<T extends FileSystemEntity>(T entity, String newPath) {
 void writeFileAtomic(File target, List<int> bytes) {
   final temp = writeTempSibling(target, bytes);
   try {
+    _copyMode(target, temp);
     renameSyncRetrying(temp, target.path);
   } on FileSystemException {
     if (temp.existsSync()) temp.deleteSync();
     rethrow;
+  }
+}
+
+/// The permission bits of a file mode.
+const _permissionBits = 0xFFF;
+
+/// Gives [temp] the permission bits of [target] when it exists, so the rename
+/// keeps an executable file executable. Windows has no such bits.
+void _copyMode(File target, File temp) {
+  if (Platform.isWindows) return;
+  final stat = target.statSync();
+  if (stat.type != FileSystemEntityType.file) return;
+  final mode = stat.mode & _permissionBits;
+  if (mode == temp.statSync().mode & _permissionBits) return;
+  final result = Process.runSync('chmod', [mode.toRadixString(8), temp.path]);
+  if (result.exitCode != 0) {
+    throw FileSystemException('cannot copy the file mode', target.path);
   }
 }

@@ -198,4 +198,20 @@ void main() {
       ]);
     },
   );
+
+  test('consistency_check/find_broken_pointers/report_uncovered_code: a code entry that names a file is checked for covers as that file', () async {
+    final uncovered = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(techStack, '- app/lib/\n', '- app/lib/other.dart\n'),
+          ...narrow('app/lib/login.dart'),
+          'app/lib/other.dart': '',
+        },
+      ),
+    );
+    expect(
+      [for (final f in uncovered.findings) f.toJson()['path']],
+      ['app/lib/other.dart'],
+    );
+  });
 }

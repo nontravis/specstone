@@ -117,23 +117,25 @@ void main() {
     expect(_unresolvedSteps(root), 1);
   });
 
-  test('document_writing/rename_doc/rewrite_link_labels E01: rename of a shop story rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
-    final fingerprint = fingerprintFor(
-      '### Scenario 1 — [happy] Add an item\n- **Given** a shopper\n'
-      '- **When** the shopper acts\n- **Then** the shopper sees the result',
-    );
-    final root = await writeNestedProject(
+  test('document_writing/rename_doc/rewrite_link_labels E01: rename of shop/set_up_cart rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
+    String shop(String text) => text
+        .replaceAll('email_login', 'set_up_cart')
+        .replaceAll('login', 'shop');
+    final root = await writeCheckProject(
+      without: {
+        for (final key in checkProjectFiles().keys)
+          if (shop(key) != key) key,
+      },
       extra: {
-        'docs/$_journeyPath':
-            '---\nconfirmed:\n  - shop/cart/add_item#S1 $fingerprint\n---\n\n'
-            '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
-            '### 1. Add\nstep: shop/cart/add_item S1\n',
+        for (final MapEntry(:key, :value) in checkProjectFiles().entries)
+          shop(key): shop(value),
+        'docs/$_journeyPath': shop(_journey()),
       },
     );
-    _rename(root, 'user_story:shop/cart/add_item', 'start_cart');
+    _rename(root, 'user_story:shop/set_up_cart', 'start_cart');
     final text = readDoc(root, _journeyPath);
-    expect(text, contains('step: shop/cart/start_cart S1\n'));
-    expect(text, contains('  - shop/cart/start_cart#S1 $fingerprint\n'));
+    expect(text, contains('### 1. Sign in\n\nstep: shop/start_cart S1\n'));
+    expect(text, contains('  - shop/start_cart#S1 $_fp1\n'));
     expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
   });
 

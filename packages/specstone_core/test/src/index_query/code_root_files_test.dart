@@ -59,9 +59,14 @@ void main() {
   });
 
   test('document_writing/rename_doc/rewrite_name_references code input: a file entry '
-      'lists nothing', () {
+      'lists that file', () {
     touch('lib/a.dart');
-    expect(filesUnderCodeRoot(root, 'lib/a.dart'), isEmpty);
+    touch('lib/b.dart');
+    expect(filesUnderCodeRoot(root, 'lib/a.dart'), ['lib/a.dart']);
+    expect(codeRootFiles(root, ['lib/a.dart', 'lib/']), [
+      'lib/a.dart',
+      'lib/b.dart',
+    ]);
   });
 
   test('document_writing/rename_doc/rewrite_name_references code input: a folder that '

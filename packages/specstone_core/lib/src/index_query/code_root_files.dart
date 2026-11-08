@@ -10,7 +10,7 @@ String withoutFinalSlash(String entry) =>
     entry.endsWith(_separator) ? entry.substring(0, entry.length - 1) : entry;
 
 /// Returns the files under the `code:` [entry], as paths from [codeRoot]
-/// sorted by code point.
+/// sorted by code point; an [entry] that names a file lists that file.
 ///
 /// Names starting with a dot and links are skipped, and no file is read. A
 /// missing root yields none. A folder that exists but cannot be listed is
@@ -21,8 +21,14 @@ List<String> filesUnderCodeRoot(
   String entry, {
   void Function(String folder)? onUnlistable,
 }) {
+  final root = withoutFinalSlash(entry);
+  final kind = FileSystemEntity.typeSync(
+    '${codeRoot.path}$_separator$root',
+    followLinks: false,
+  );
+  if (kind == FileSystemEntityType.file) return [root];
   final files = <String>[];
-  _collect(codeRoot, withoutFinalSlash(entry), files, onUnlistable);
+  _collect(codeRoot, root, files, onUnlistable);
   return files..sort(compareCodePoints);
 }
 

@@ -24,6 +24,14 @@ void main() {
       .toList();
 
   group('writeFileAtomic', () {
+    test('a rewrite keeps the permission bits of an existing file', () {
+      final file = File('${folder.path}/run.sh')..writeAsStringSync('old\n');
+      Process.runSync('chmod', ['755', file.path]);
+      writeFileAtomic(file, utf8.encode('new\n'));
+      expect(file.readAsStringSync(), 'new\n');
+      expect(file.statSync().mode & 0xFFF, 493);
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
+
     test('NFR-DI01: replaces the file and leaves no temp sibling', () {
       final file = File('${folder.path}/FEATURE.md')
         ..writeAsStringSync('old\n');
