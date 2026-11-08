@@ -22,7 +22,7 @@ const _agentMd =
     '- Before writing any plan, ground it with '
     '`specstone context <story> --for implement`.\n'
     '- Cite a doc by its name (`<feature>/<story>`), never by a number label '
-    '(`F-02 US-01`).\n'
+    '(`F-<nn> US-<nn>`).\n'
     '- Before reporting work done, run `specstone check <doc>` on each doc you '
     'changed until every finding it reports says it waits for the Owner.\n'
     '- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.\n';

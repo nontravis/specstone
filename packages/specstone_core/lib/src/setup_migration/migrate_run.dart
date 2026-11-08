@@ -66,9 +66,10 @@ final class MigrateRequest {
 /// it on the Owner's `y`, or under `--yes` with no prompt, after checking git
 /// again.
 ///
-/// A pending journal is finished first: an F-02 journal is replayed before the
-/// git checks, and a migrate journal is resumed with no second `y`. A dry run
-/// replays nothing, but refuses a journal the replay would refuse.
+/// A pending journal is finished first: a `document_writing` journal is
+/// replayed before the git checks, and a migrate journal is resumed with no
+/// second `y`. A dry run replays nothing, but refuses a journal the replay
+/// would refuse.
 ///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal, the git checks
@@ -153,8 +154,9 @@ int runLegacyAt(
 ///
 /// The git checks run again after the `y`, since the Owner may read the plan
 /// for minutes: a change to the tree or a new commit in that time refuses
-/// `working_tree_dirty` with nothing written, as F-02's delete and approve
-/// re-check after their prompt (INV-3). A legacy plan reads [linkFolder].
+/// `working_tree_dirty` with nothing written, as
+/// `document_writing`'s delete and approve re-check after their prompt
+/// (INV-3). A legacy plan reads [linkFolder].
 int _plannedRun(
   MigrateRequest request,
   Directory root,

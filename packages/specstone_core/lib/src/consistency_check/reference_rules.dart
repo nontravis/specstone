@@ -39,7 +39,7 @@ const _docKey = 'doc';
 ///
 /// A `reference` doc lists files that sit beside it. An `architecture` doc
 /// ends each Concerns line with `see <x>`, where `<x>` is a sibling file or a
-/// `##` header of the doc, matched as F-05's `format` matches headers.
+/// `##` header of the doc, matched as `rendering/format_docs` matches headers.
 Iterable<Finding> checkReferenceEntries(
   CheckContext context,
   IndexedDoc doc,

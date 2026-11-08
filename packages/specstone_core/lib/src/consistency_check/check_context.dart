@@ -118,7 +118,7 @@ final class CheckContext {
   /// Returns the template section the held section [index] of [doc] maps to,
   /// or null.
   ///
-  /// Both headers compare by `headerKey`, as F-05's `format` matches them.
+  /// Both headers compare by `headerKey`, as `rendering/format_docs` matches them.
   MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
       _heldTemplatesOf(doc)[index];
 

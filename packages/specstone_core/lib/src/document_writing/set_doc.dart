@@ -198,7 +198,7 @@ ReadAnswer _setField(
   final stripped = withoutTrailingBlankLines(lf);
   final empty = stripped.trim().isEmpty;
   final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
-  // Empty stdin on a feature's status removes the written key (f08/us05).
+  // Empty stdin on a feature's status removes the written key (`document_writing/edit_one_section_or_field/write_one_field` E05, E13).
   if (!empty && fieldId == 'status' && doc.docTypeId == _computedStatusType) {
     throw WriteFault(
       WriteFaultCode.fieldNotWritable,

@@ -9,7 +9,8 @@ const pathLengthLimit = 200;
 /// The fewest chain children a nested nesting-type doc holds (SF-C4).
 const _minimumChildren = 2;
 
-/// Returns the nesting findings of the typed [doc] (FR-10).
+/// Returns the nesting findings of the typed [doc]
+/// (`consistency_check/find_template_breaks/report_nesting_problems`).
 ///
 /// A nesting-type doc holding a child of its own type and a child of another
 /// chain type is mixed; one whose parent is a nesting-type doc and that holds
@@ -64,7 +65,7 @@ Finding _tooSmall(
 );
 
 /// Returns `path_over_limit` for [doc] when `docs/<DocPath>` is too long
-/// (FR-11).
+/// (`consistency_check/find_template_breaks/report_long_paths`).
 Iterable<Finding> checkPathLength(CheckContext context, IndexedDoc doc) sync* {
   final length = '$docsFolderName/${doc.docPath}'.length;
   if (length <= pathLengthLimit) return;

@@ -19,12 +19,12 @@ String _overBudgetLine(IndexedDoc doc, bool summary, int tokens) =>
 String _listName(IndexedDoc doc, bool summary) =>
     summary ? '${nameWithType(doc)} · summary' : nameWithType(doc);
 
-/// Renders [bundle]'s docs as one `context` answer (us05 FR-02).
+/// Renders [bundle]'s docs as one `context` answer (`index_query/get_task_bundle/trim_and_order_bundle`).
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
 /// prints it under the JSON key `code` instead of `target`. A bundle larger
 /// than [budget] prints its sizes and the next step instead of doc text, with
-/// exit status 1 (us05 FR-03); a bundle equal to it prints whole.
+/// exit status 1 (`index_query/get_task_bundle/refuse_bundle_over_budget`); a bundle equal to it prints whole.
 ReadAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -91,7 +91,7 @@ ReadAnswer answerContext(
 }
 
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
-/// [budget]: each doc's size, no doc text, and the next step (us05 FR-03).
+/// [budget]: each doc's size, no doc text, and the next step (`index_query/get_task_bundle/refuse_bundle_over_budget`).
 ReadAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,

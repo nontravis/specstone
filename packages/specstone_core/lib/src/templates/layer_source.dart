@@ -106,7 +106,7 @@ LoadedPack loadShippedPackManifest(String name, Map<String, Uint8List> files) {
   );
 }
 
-/// Reads the manifest of the personal pack [name] under [home] (US-04 FR-01).
+/// Reads the manifest of the personal pack [name] under [home] (`template_packs/share_personal_pack/load_listed_personal_packs`).
 ///
 /// The pack folder is `~/.specstone/packs/<name>`; faults print it as that
 /// path with `/` separators. Call [LoadedPack.parseDocTypes] later to parse
@@ -153,7 +153,7 @@ List<DocTypeLayer> loadProjectTemplates(Directory root) {
 ///
 /// [displayFolder] is the pack folder as faults print it. An absent
 /// `pack.yaml` is `missing_key` at the manifest's `name` key, since the fault
-/// catalog carries no absent-manifest code and US-04 FR-01 E04 routes an
+/// catalog carries no absent-manifest code and `template_packs/share_personal_pack/load_listed_personal_packs` E04 routes an
 /// unusable manifest there.
 PackManifest _packManifest(String displayFolder, Uint8List? bytes) {
   final file = '$displayFolder/$packManifestName';

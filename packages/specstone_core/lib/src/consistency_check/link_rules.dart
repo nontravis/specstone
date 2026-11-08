@@ -20,7 +20,7 @@ typedef _DocRefValue = ({MergedField field, String value, int line});
 ///
 /// A typed doc is checked for both, an untyped doc of a checked folder for
 /// links only. A doc the markdown parser failed on gets `markdown_unparsed`,
-/// stating the F-01 warning, since its links go unchecked.
+/// stating the `index_query` warning, since its links go unchecked.
 Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   final unparsed = markdownUnparsedWarning(doc.docPath);
   if (doc.warnings.contains(unparsed)) {

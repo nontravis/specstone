@@ -203,7 +203,7 @@ final class Bundle {
   }
 }
 
-/// Returns the bundle [target] holds for [mode] (us05 FR-01).
+/// Returns the bundle [target] holds for [mode] (`index_query/get_task_bundle/pick_bundle_docs`).
 ///
 /// `--no-project` drops the docs that join through `bundle:` lists. [summary]
 /// prints a top doc's ChainType children in summary and throws

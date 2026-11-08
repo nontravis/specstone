@@ -222,7 +222,7 @@ bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
 
 /// Returns the `suspect` and `unconfirmed` findings of [doc] (INV-6, INV-7).
 ///
-/// A link whose upstream block is missing takes no state; US-03 reports it.
+/// A link whose upstream block is missing takes no state; `consistency_check/find_broken_pointers` reports it.
 /// Only a doc type that defines `confirmed` is read (INV-2).
 Iterable<Finding> checkTrackedLinks(
   CheckContext context,

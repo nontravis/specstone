@@ -9,6 +9,6 @@ This project keeps its PRD and spec as Specstone docs.
 - Change docs only with `specstone set`, `new`, `move`, or `rename`. What an agent writes stays a draft until the
   Owner runs `specstone approve`.
 - Before writing any plan, ground it with `specstone context <story> --for implement`.
-- Cite a doc by its name (`<feature>/<story>`), never by a number label (`F-02 US-01`).
+- Cite a doc by its name (`<feature>/<story>`), never by a number label (`F-<nn> US-<nn>`).
 - Before reporting work done, run `specstone check <doc>` on each doc you changed until every finding it reports says it waits for the Owner.
 - If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.

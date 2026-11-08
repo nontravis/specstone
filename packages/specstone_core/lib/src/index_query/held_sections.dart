@@ -11,7 +11,7 @@ typedef BodyLine = ({String text, int line, bool fenced});
 
 /// Returns the template section each of the held [sections] maps to.
 ///
-/// Both headers compare by `headerKey`, as F-05's `format` matches them. An
+/// Both headers compare by `headerKey`, as `rendering/format_docs` matches them. An
 /// entry is null for a header [type] lacks, and every entry is null when
 /// [type] is null.
 List<MergedSection?> heldTemplatesOf(
