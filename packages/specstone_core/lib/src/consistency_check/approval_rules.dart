@@ -25,12 +25,13 @@ Iterable<Finding> staleApproval(CheckContext context, IndexedDoc doc) sync* {
   if (!awaitsApproval(fields, hash, stampsHaveRun: context.stampsHaveRun)) {
     return;
   }
-  final value = fields.approvedValue;
-  if (value == null) {
+  final keyLine = lines.keyLine(_approvedKey);
+  if (fields.approvedValue == null) {
+    // An `approved:` key with no value sits on its own line; no key, line 1.
     yield context.finding(
       doc,
       FindingKind.approvalStale,
-      line: 1,
+      line: keyLine ?? 1,
       message: _unapprovedMessage,
     );
     return;
@@ -38,13 +39,16 @@ Iterable<Finding> staleApproval(CheckContext context, IndexedDoc doc) sync* {
   yield context.finding(
     doc,
     FindingKind.approvalStale,
-    line: lines.keyLine(_approvedKey) ?? 1,
+    line: keyLine ?? 1,
     message: _changedMessage,
-    keys: {'value': _writtenValue(lines.entriesOf(_approvedKey), value)},
+    keys: {'value': _writtenValue(lines.entriesOf(_approvedKey))},
   );
 }
 
-// A string reads as itself; any other value reads as its source text, since
-// the parsed value of `123e45678901` is no longer what was written.
-String _writtenValue(List<YamlEntry> entries, Object value) =>
-    value is String || entries.length != 1 ? '$value' : entries.single.text;
+// The index turns a non-finite number into a string, so the YAML entry, not
+// the indexed value, decides: a string reads as itself, any other value as
+// its source text.
+String _writtenValue(List<YamlEntry> entries) {
+  final entry = entries.single;
+  return entry.value is String ? entry.value! as String : entry.text;
+}

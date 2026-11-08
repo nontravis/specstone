@@ -277,6 +277,42 @@ void main() {
     },
   );
 
+  test('$_name E09: a literal overflowing exponent reads as written', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: fr(
+          'status: implemented\n',
+          'status: implemented\napproved: 123e45678901\n',
+        ),
+      ),
+    );
+    expect(spots(report, FindingKind.approvalStale), [
+      '$loginFr:3: approval_stale',
+    ]);
+    expect(_stales(report).single.keys, {'value': '123e45678901'});
+  });
+
+  test(
+    '$_name: an approved: key with no value reports its own line with the no-approval message and no value',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr(
+            'status: implemented\n',
+            'status: implemented\napproved:\n',
+          ),
+          unstamped: {'docs/$loginFr'},
+        ),
+      );
+      expect(spots(report, FindingKind.approvalStale), [
+        '$loginFr:3: approval_stale',
+      ]);
+      final finding = _stales(report).single;
+      expect(finding.message, _unapproved);
+      expect(finding.keys, isEmpty);
+    },
+  );
+
   test(
     '$_name: a tree pinned below both pins raises nothing for approved: true docs or docs with no approved: key',
     () async {
