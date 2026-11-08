@@ -470,7 +470,8 @@ void main() {
     final root = await _frTraceProject();
     writeIn(
       root,
-      (s) => answerMove(s, 'user_story:login/reset_password', under: 'account'),
+      (s) =>
+          answerMove(s, ['user_story:login/reset_password'], under: 'account'),
     );
     final fr = readDoc(root, loginFr);
     expect(fr, contains('traced_from: [S1, account/reset_password#S3]\n'));
@@ -484,7 +485,8 @@ void main() {
     final before = readDoc(root, _resetFr);
     writeIn(
       root,
-      (s) => answerMove(s, 'user_story:login/reset_password', under: 'account'),
+      (s) =>
+          answerMove(s, ['user_story:login/reset_password'], under: 'account'),
     );
     final moved = _resetFr
         .replaceFirst('f01_login', 'f02_account')

@@ -887,8 +887,11 @@ void main() {
     const addItemFolder = 'prds/features/f02_shop/f01_cart/us01_add_item';
     const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
 
+    ReadAnswer moveAll(Directory root, List<String> addresses, String? under) =>
+        writeIn(root, (s) => answerMove(s, addresses, under: under));
+
     ReadAnswer move(Directory root, String address, String? under) =>
-        writeIn(root, (s) => answerMove(s, address, under: under));
+        moveAll(root, [address], under);
 
     void appendTo(Directory root, String docPath, String text) =>
         docFile(root, docPath).writeAsStringSync(text, mode: FileMode.append);
@@ -1186,6 +1189,171 @@ void main() {
       );
     });
 
+    group('several stories in one call', () {
+      const dropFolder = 'prds/features/f02_shop/f01_cart/us02_drop_item';
+      const addLanded = 'prds/features/f02_shop/f02_pay/us04_add_item';
+      const dropLanded = 'prds/features/f02_shop/f02_pay/us03_drop_item';
+      const addItem = 'user_story:shop/cart/add_item';
+      const dropItem = 'user_story:shop/cart/drop_item';
+
+      void expectNothingMoved(Directory root) {
+        expect(hasDoc(root, cartAdd), isTrue);
+        expect(hasDoc(root, cartDrop), isTrue);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
+        expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isFalse);
+      }
+
+      test('f02/us07/fr01/e09: no target is argument_missing', () async {
+        final root = await writeNestedProject();
+        expect(
+          () => moveAll(root, const [], 'shop/pay'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move needs a target, such as specstone move '
+                      'user_story:login/reset_password --under account',
+                ),
+          ),
+        );
+      });
+
+      test('f02/us07/fr01/e15, f02/us07/s4: two stories land in the order given, through one pass that rewrites each reference once', () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$journeyPath':
+                '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+                '### 1. Add\nstep: shop/cart/drop_item S1\n'
+                '### 2. Drop\nstep: shop/cart/add_item S1\n',
+          },
+        );
+        final answer = moveAll(root, [dropItem, addItem], 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$dropFolder/', 'to': '$dropLanded/'},
+          {'from': '$addItemFolder/', 'to': '$addLanded/'},
+        ]);
+        expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isTrue);
+        expect(hasDoc(root, '$addLanded/fr01_check_stock.md'), isTrue);
+        expect(hasDoc(root, cartAdd), isFalse);
+        expect(hasDoc(root, cartDrop), isFalse);
+        final journey = readDoc(root, journeyPath);
+        expect(journey, contains('step: shop/pay/drop_item S1'));
+        expect(journey, contains('step: shop/pay/add_item S1'));
+        final rewritten = answer.json['rewritten']! as List<Object?>;
+        expect(rewritten.where((p) => p == journeyPath), hasLength(1));
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test('f02/us07/fr01/e16, f02/us07/s5: a target of another type refuses the whole call, and nothing moves', () async {
+        final root = await writeNestedProject();
+        expect(
+          () => moveAll(root, [
+            addItem,
+            'fr:shop/cart/add_item/check_stock',
+          ], 'shop/pay'),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.code,
+              'code',
+              WriteFaultCode.docTypeNotMovable,
+            ),
+          ),
+        );
+        expectNothingMoved(root);
+      });
+
+      test('f02/us07/fr01/e16: a name no doc carries refuses the whole call, and nothing moves', () async {
+        final root = await writeNestedProject();
+        expect(
+          () => moveAll(root, [
+            addItem,
+            'user_story:shop/cart/nothing_here',
+          ], 'shop/pay'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+        expectNothingMoved(root);
+      });
+
+      test('f02/us07/fr01/e16, f02/us07/s5: a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$dropLanded/USER_STORY.md': '# Drop item\n'},
+        );
+        expect(
+          () => moveAll(root, [addItem, dropItem], 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', '$dropLanded/USER_STORY.md'),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+        expect(hasDoc(root, cartDrop), isTrue);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
+      });
+
+      test('f02/us07/fr01/e17: two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/prds/features/f04_wishlist/us01_add_item/USER_STORY.md':
+                '# Add item\n',
+          },
+        );
+        expect(
+          () => moveAll(root, [
+            addItem,
+            'user_story:wishlist/add_item',
+          ], 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', cartAdd),
+          ),
+        );
+        expectNothingMoved(root);
+        expect(
+          hasDoc(
+            root,
+            'prds/features/f04_wishlist/us01_add_item/USER_STORY.md',
+          ),
+          isTrue,
+        );
+      });
+
+      test(
+        'f02/us07/fr01/e18: the same story named twice moves once',
+        () async {
+          final root = await writeNestedProject();
+          final answer = moveAll(root, [addItem, addItem], 'shop/pay');
+          expect(answer.json['moved'], [
+            {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+          ]);
+          expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+          expect(hasDoc(root, cartAdd), isFalse);
+        },
+      );
+
+      test('f02/us07/fr01/e18: a target already directly under the feature stays, and the others move', () async {
+        final root = await writeNestedProject();
+        final answer = moveAll(root, [
+          'user_story:shop/pay/card',
+          addItem,
+        ], 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ]);
+        expect(hasDoc(root, payCard), isTrue);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+      });
+    });
+
     test('f02/us07/fr01/e08: an --under no feature carries is doc_not_found, and nothing moves', () async {
       final root = await writeNestedProject();
       expect(
@@ -1380,7 +1548,7 @@ void main() {
       writeIn(
         root,
         (s) =>
-            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
       );
       expect(readDoc(root, shopApi), contains('pay/add_item/check_stock'));
       expect(approvedValue(root, shopApi), isNot(before));
@@ -1392,7 +1560,7 @@ void main() {
       writeIn(
         stale,
         (s) =>
-            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
       );
       expect(approvedValue(stale, shopApi), kept);
       expect(staleDocs(stale), contains(shopApi));
@@ -1597,7 +1765,7 @@ void main() {
       final answer = writeIn(
         root,
         (s) =>
-            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
       );
       expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
       expect(
@@ -1633,7 +1801,7 @@ void main() {
       writeIn(
         root,
         (s) =>
-            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
       );
       expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
       expect(approvedHash(root, shopDomain), isNot(before));

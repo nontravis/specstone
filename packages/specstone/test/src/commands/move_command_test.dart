@@ -146,8 +146,8 @@ void main() {
       expect(
         out.toString(),
         contains(
-          'The feature that takes the story: <doc type>:<name>, a bare name, '
-          'or a path.',
+          'The feature that takes the stories: <doc type>:<name>, '
+          'a bare name, or a path.',
         ),
       );
     },
@@ -195,22 +195,66 @@ void main() {
     expect(err.toString(), startsWith('move needs a target'));
   });
 
-  test(
-    'f02/us07/fr01/e09: two positionals print the usage line, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-      expect(await runner.run(['move', 'a', 'b', '--under', 'x']), 64);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        contains(
-          'Expected one target, got 2.\n\n'
-          'Usage: specstone move <doc address> --under <doc address> '
-          '[--json]\n',
-        ),
-      );
-    },
-  );
+  test('f02/us07/s4, f02/us07/fr01/e15: several stories move in one call, in the order named', () async {
+    const dropFolder = 'prds/features/f02_shop/f01_cart/us02_drop_item';
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'move',
+        'shop/cart/drop_item',
+        addItem,
+        '--under',
+        'shop/pay',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith(
+        'moved $dropFolder/ to prds/features/f02_shop/f02_pay/us03_drop_item/\n'
+        'moved $addItemFolder/ to prds/features/f02_shop/f02_pay/us04_add_item/\n',
+      ),
+    );
+    expect(docFile(root, cartAdd).existsSync(), isFalse);
+    expect(docFile(root, cartDrop).existsSync(), isFalse);
+  });
+
+  test('f02/us07/s5, f02/us07/fr01/e16: one story that cannot move refuses the call, and nothing moves', () async {
+    const clash = 'prds/features/f02_shop/f02_pay/us03_drop_item';
+    final root = await writeNestedProject(
+      extra: {'docs/$clash/USER_STORY.md': '# Drop item\n'},
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'move',
+        addItem,
+        'user_story:shop/cart/drop_item',
+        '--under',
+        'shop/pay',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      '$clash/USER_STORY.md: a user_story named shop/pay/drop_item exists\n',
+    );
+    expect(docFile(root, cartAdd).existsSync(), isTrue);
+    expect(docFile(root, cartDrop).existsSync(), isTrue);
+    expect(docFile(root, '$movedFolder/USER_STORY.md').existsSync(), isFalse);
+  });
+
+  test('f02/us07/fr01/e12: move --help names the several-story form', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(await runner.run(['move', '--help']), 0);
+    expect(
+      out.toString(),
+      contains('specstone move <doc address> … --under <doc address> [--json]'),
+    );
+  });
 
   test('document_writing/move_story/move_story_folder E11: move writes a rewritten typed doc laid out', () async {
     final root = await writeNestedProject();
