@@ -1804,7 +1804,7 @@ path: features/f{nn}_{slug}/FEATURE.md
     });
 
     test('f03/us03/fr02/e06, s03/inv22: a path conflict names the file that '
-        'loads later by path, not by doc type id', () async {
+        'loads later by path', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
         '.specstone/templates/run.yaml': '''
@@ -1812,8 +1812,8 @@ id: run
 description: A run
 path: ops/{slug}/RUN.md
 ''',
-        '.specstone/templates/run-book.yaml': '''
-id: run-book
+        '.specstone/templates/run_book.yaml': '''
+id: run_book
 description: A run book
 path: ops/{slug}/RUN.md
 ''',
@@ -1826,9 +1826,13 @@ path: ops/{slug}/RUN.md
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
-              .having((f) => f.file, 'file', '.specstone/templates/run.yaml')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/run_book.yaml',
+              )
               .having((f) => f.relatedFiles, 'relatedFiles', [
-                '.specstone/templates/run-book.yaml',
+                '.specstone/templates/run.yaml',
               ]),
         ),
       );

@@ -221,6 +221,21 @@ void main() {
       expect(error['key'], 'bogus');
     });
 
+    test('template_packs/add_doc_type/read_doc_type_file/e30: a project '
+        'doc-type file named Grid.yaml exits 78 as unknown_value', () async {
+      final runner = await runnerIn(
+        await projectWith({'.specstone/templates/Grid.yaml': 'max_depth: 1\n'}),
+      );
+
+      expect(await runner.run(['guide', '--json']), 78);
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'unknown_value');
+      expect(error['file'], '.specstone/templates/Grid.yaml');
+      expect(error['key'], 'id');
+    });
+
     test('f03/us01/fr02/e04: a broken project template prints file and line on '
         'stderr for a doc type and exits 78', () async {
       final runner = await runnerIn(

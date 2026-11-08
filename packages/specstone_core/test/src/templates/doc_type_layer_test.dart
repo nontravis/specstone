@@ -31,6 +31,34 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('DocTypeLayer.parse', () {
+    test('template_packs/add_doc_type/read_doc_type_file/e30: a file name '
+        'that is no slug is unknown_value before doc_type_id_mismatch', () {
+      for (final name in ['Grid', 'api-v2']) {
+        final file = '.specstone/templates/$name.yaml';
+        expect(
+          () => DocTypeLayer.parse(
+            'id: epic\n',
+            file: file,
+            docTypeId: name,
+            kind: LayerKind.project,
+            files: const _FakeFiles({}),
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.file, 'file', file)
+                .having((f) => f.key, 'key', 'id'),
+          ),
+          reason: name,
+        );
+      }
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file: a slug file name '
+        'loads', () {
+      expect(_parse('max_depth: 1\n').docTypeId, 'feature');
+    });
+
     test('f03/us03/fr01/e09, s03/inv15: an id unlike the file name is doc_type_id_mismatch', () {
       expect(
         () => _parse('id: epic\n'),

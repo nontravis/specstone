@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
@@ -297,7 +298,8 @@ final class DocTypeLayer {
   ///
   /// [files] answers whether the layer holds a file at a layer-relative path,
   /// for `reference` checks.
-  /// Throws a [TemplateFault] for any format fault.
+  /// Throws a [TemplateFault] for any format fault, `unknown_value` first when
+  /// [docTypeId] is no slug.
   static DocTypeLayer parse(
     String text, {
     required String file,
@@ -305,6 +307,14 @@ final class DocTypeLayer {
     required LayerKind kind,
     required LayerFiles files,
   }) {
+    if (!isDocTypeIdShaped(docTypeId)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the file name without .yaml must be a slug: [a-z][a-z0-9_]*',
+        file: file,
+        key: 'id',
+      );
+    }
     final map = readYamlMap(text, file: file);
     checkKeys(map, _topKeys, file: file, format: 'doc-type');
     final id = optionalValue<String>(map, 'id', file: file);
