@@ -1,12 +1,10 @@
 import 'dart:convert';
 
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -25,7 +23,7 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// writes only when its bytes are those the Owner saw, else the draft shows
 /// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
-/// `draft` and adds `approved: true` unless the doc already holds it.
+/// `draft` and writes the doc's ApprovalHash as `approved:`.
 /// Reads every selected draft before the first view shows.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries,
 /// `RenderFault` `output_not_writable` for a draft that cannot be read or is
@@ -153,7 +151,7 @@ ReadAnswer approveNamed(WriteSession session, List<SeenDraft> seen) {
 /// `draft_not_found` for a doc that is no draft.
 IndexedDoc _draftAt(WriteSession session, String name) {
   final doc = session.target(name);
-  if (!doc.isDraft) {
+  if (!_waitsForApproval(session, doc)) {
     throw WriteFault(
       WriteFaultCode.draftNotFound,
       '$name is no draft waiting for approval',
@@ -177,11 +175,12 @@ WriteFault _changedSinceSeen(List<IndexedDoc> changed) => WriteFault(
 
 String _addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
 
-/// Returns the typed drafts in tree order: all of them when [names] is empty,
-/// else those under any of [names], each once.
+/// Returns the typed docs that await approval in tree order: all of them when
+/// [names] is empty, else those under any of [names], each once.
 ///
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries.
-List<IndexedDoc> _draftsUnder(DocIndex index, List<String> names) {
+List<IndexedDoc> _draftsUnder(WriteSession session, List<String> names) {
+  final index = session.index;
   final selected = names.isEmpty
       ? null
       : {
@@ -190,12 +189,21 @@ List<IndexedDoc> _draftsUnder(DocIndex index, List<String> names) {
         };
   return [
     for (final doc in index.docs)
-      if (_waitsForApproval(doc) && (selected?.contains(doc.docPath) ?? true))
+      if (_waitsForApproval(session, doc) &&
+          (selected?.contains(doc.docPath) ?? true))
         doc,
   ];
 }
 
-bool _waitsForApproval(IndexedDoc doc) => doc.isTyped && doc.isDraft;
+bool _waitsForApproval(WriteSession session, IndexedDoc doc) {
+  final hash = doc.approvalHash;
+  return hash != null &&
+      awaitsApproval(
+        ApprovalFields.ofIndexed(doc),
+        hash,
+        stampsHaveRun: session.project.stampsHaveRun,
+      );
+}
 
 /// A draft and the bytes of its file at selection.
 typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
@@ -204,7 +212,7 @@ typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
 /// is gone, so the numbers `Draft n/m` count only drafts the Owner can see.
 List<_ShownDraft> _shownDraftsUnder(WriteSession session, List<String> names) {
   final shown = <_ShownDraft>[];
-  for (final doc in _draftsUnder(session.index, names)) {
+  for (final doc in _draftsUnder(session, names)) {
     final bytes = session.readDocBytes(doc.docPath);
     if (bytes != null) shown.add((doc: doc, bytes: bytes));
   }
@@ -295,28 +303,13 @@ bool _approveIfUnchanged(
   });
 }
 
-/// Writes [bytes] of [doc] back without `draft`, adding `approved: true`
-/// unless the doc holds it; runs under the lock.
+/// Writes [bytes] of [doc] back without `draft`, with the ApprovalHash of its
+/// content as `approved:`; runs under the lock.
 void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
   final text = utf8.decode(bytes);
-  final lfText = toLf(text);
-  final undrafted = withKeyBlock(lfText, 'draft', null);
-  final approved = ApprovalFields.of(Doc.parse(lfText)).holdsTrueMark
-      ? undrafted
-      : withKeyBlock(
-          undrafted,
-          'approved',
-          'approved: true\n',
-          fieldOrder: _fieldOrderOf(session, doc),
-        );
+  final undrafted = withKeyBlock(toLf(text), 'draft', null);
+  final approved = withApprovalHash(undrafted, session.index.typeOf(doc));
   session.writeDoc(doc.docPath, approved, LineEnding.of(text));
-}
-
-List<String>? _fieldOrderOf(WriteSession session, IndexedDoc doc) {
-  final docType = session.index.typeOf(doc);
-  return docType == null
-      ? null
-      : [for (final field in docType.fields) field.id];
 }
 
 bool _sameBytes(List<int> a, List<int> b) {

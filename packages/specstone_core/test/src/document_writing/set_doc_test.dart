@@ -561,7 +561,11 @@ void main() {
     );
     expect(
       readDoc(root, story2),
-      startsWith('---\nstatus: planned\ndraft: true\napproved: true\n---\n'),
+      matches(
+        RegExp(
+          r'^---\nstatus: planned\ndraft: true\napproved: "[0-9a-f]{12}"\n---\n',
+        ),
+      ),
     );
     expect(readDoc(root, story2), contains('## Use Case\n\nSign out now.\n'));
 
@@ -576,7 +580,11 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/FEATURES.md'),
-      startsWith('---\ndraft: true\n---\n\n# Feature index\n'),
+      matches(
+        RegExp(
+          r'^---\ndraft: true\napproved: "[0-9a-f]{12}"\n---\n\n# Feature index\n',
+        ),
+      ),
     );
   });
 
@@ -1130,7 +1138,11 @@ void main() {
     );
     expect(
       readDoc(root, loginFeature),
-      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\n\nUsers sign in with an email and a password.\n',
+      matches(
+        RegExp(
+          r'^---\ndraft: true\napproved: "[0-9a-f]{12}"\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\n\nUsers sign in with an email and a password\.\n$',
+        ),
+      ),
     );
     expect(
       answer.text,

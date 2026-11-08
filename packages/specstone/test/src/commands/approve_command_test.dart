@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 /// Returns `<address>@<hash>`, the hash `get --json` prints as bases.doc.
@@ -43,7 +44,7 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(out.toString(), contains('approve? [y/n/q] '));
     final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
-    expect(text, contains('approved: true'));
+    expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
   test('f02/us03/fr01: approve takes no --json', () async {
@@ -91,7 +92,7 @@ void main() {
       'approved feature:signup\n',
     );
     final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
-    expect(text, contains('approved: true'));
+    expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
   test('ms-r10: --yes with no name is a usage error, exit 64', () async {
@@ -450,6 +451,75 @@ void main() {
         expect(out.toString(), contains('+Users sign up.'));
         expect(out.toString().contains(kept), shown);
       }
+    });
+  });
+
+  group('what awaits approval, through the built CLI', () {
+    late String binary;
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<ProcessResult> run(Directory root, List<String> args) =>
+        Process.run(binary, args, workingDirectory: root.path);
+
+    String editedStory(String text) =>
+        text.replaceFirst('Sign out.\n', 'Sign out of every device.\n');
+
+    test('f02/us03/s12: an approved story edited in an editor is walked, its view showing the edit', () async {
+      final root = await writeWriteProject();
+      File('${root.path}/docs/$story2').writeAsStringSync(
+        editedStory(File('${root.path}/docs/$story2').readAsStringSync()),
+      );
+      final shown = await run(root, ['approve', '--dry-run']);
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      expect(shown.stdout, contains('`docs/$story2`'));
+      expect(shown.stdout, contains('+Sign out of every device.'));
+    });
+
+    test('f02/us03/s13: a layout change keeps the approval, so the story is not walked', () async {
+      final root = await writeWriteProject();
+      final arch = File('${root.path}/docs/$loginArch');
+      arch.writeAsStringSync(
+        arch.readAsStringSync().replaceFirst(
+          '| Component | Responsibility |\n|---|---|\n| Login form | Collects the email and the password |\n',
+          '| Component  | Responsibility                       |\n|------------|--------------------------------------|\n| Login form | Collects the email and the password  |\n',
+        ),
+      );
+      final shown = await run(root, ['approve', '--dry-run']);
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      expect(shown.stdout, isNot(contains('`docs/$loginArch`')));
+    });
+
+    test('f02/us03/s14: a story made in an editor with neither mark is walked, and its approval writes the hash', () async {
+      const made = '# Reset password\n\n## Use Case\n\nReset a password.\n';
+      final root = await writeWriteProject(extra: {'docs/$story3': made});
+      final shown = await run(root, ['approve', '--dry-run']);
+      expect(shown.stdout, contains('`docs/$story3`'));
+      final hash = RegExp(r'\| hash +\| `([0-9a-f]{12})`').firstMatch(
+        (await run(root, [
+              'approve',
+              '--dry-run',
+              'user_story:login/reset_password',
+            ])).stdout
+            as String,
+      );
+      expect(hash, isNotNull);
+      final approved = await run(root, [
+        'approve',
+        'user_story:login/reset_password@${hash!.group(1)}',
+        '--yes',
+      ]);
+      expect(approved.exitCode, 0, reason: '${approved.stderr}');
+      final text = File('${root.path}/docs/$story3').readAsStringSync();
+      expect(text, matches(RegExp(r'^---\napproved: "[0-9a-f]{12}"\n---\n')));
+      expect(text, isNot(contains('draft:')));
+      final after = await run(root, [
+        'approve',
+        '--dry-run',
+        'user_story:login/reset_password',
+      ]);
+      expect(after.stdout, isNot(contains('`docs/$story3`')));
     });
   });
 }

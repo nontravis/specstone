@@ -138,7 +138,10 @@ void main() {
           out: 'approved feature:signup\n',
           err: '',
         ));
-        expect(readDoc(root, signupFeature), contains('approved: true'));
+        expect(
+          readDoc(root, signupFeature),
+          matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')),
+        );
       },
     );
 

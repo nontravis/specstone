@@ -4,11 +4,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
 import 'index_fixture.dart';
@@ -31,18 +34,21 @@ const loginFeature = 'prds/features/f01_login/FEATURE.md';
 const signupFeature = 'prds/features/f02_signup/FEATURE.md';
 const loginArch = 'specs/f01_login/ARCHITECTURE.md';
 const signupArch = 'specs/f02_signup/ARCHITECTURE.md';
+const featuresIndex = 'prds/FEATURES.md';
 const persona = 'prds/personas/buyer/PERSONA.md';
 const antiPersona = 'prds/personas/buyer/ANTI_PERSONA.md';
 
 /// The project every write test starts from.
 ///
 /// Keys are paths relative to the project root; values use LF line ends.
-/// Approved: [loginFeature], [fr11], [story2], [loginArch]. Untyped:
-/// `prds/d01_context.md`. Inbound links: [fr12] into [story3], [fr32] into
+/// Approved: [featuresIndex], [loginFeature], [fr11], [story2], [loginArch].
+/// Untyped: `prds/d01_context.md`. Inbound links: [fr12] into [story3], [fr32] into
 /// [fr31], [story3] into [story2], `FEATURES.md` into both features,
 /// `d01_context.md` into [signupFeature]. `doc_ref` values: [story1]'s
 /// `persona: buyer`, [persona]'s `reference: login/email_login`.
-final writeProject = <String, String>{
+final Map<String, String> writeProject = _withApprovalHashes(_plainProject);
+
+final Map<String, String> _plainProject = <String, String>{
   '.specstone/config.yaml': shippedPinsConfig(),
   'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n\n- [Login](features/f01_login/FEATURE.md)\n- [Signup](features/f02_signup/FEATURE.md)\n',
   'docs/prds/d01_context.md': '# Context\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n',
@@ -81,6 +87,49 @@ final writeProject = <String, String>{
       '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n\n| Component | Responsibility |\n'
       '|---|---|\n| Signup form | Collects the email |\n',
 };
+
+/// The docs [writeProject] holds approved, each with the hash
+/// `withApprovalHash` writes.
+const List<String> _approvedDocs = [
+  featuresIndex,
+  loginFeature,
+  fr11,
+  story2,
+  loginArch,
+];
+
+// Resolves the doc types from a scratch project holding the fixture's config,
+// so no hash is typed by hand.
+Map<String, String> _withApprovalHashes(Map<String, String> files) {
+  final scratch = Directory.systemTemp.createTempSync('specstone_fixture_');
+  try {
+    File('${scratch.path}/.specstone/config.yaml')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(files['.specstone/config.yaml']!);
+    final matcher = DocTypeMatcher(
+      TemplateResolver().resolve(
+        workingDirectory: scratch,
+        homeDirectory: null,
+      ),
+    );
+    return {
+      for (final MapEntry(:key, :value) in files.entries)
+        key: _approvedDocs.contains(_docPathOf(key))
+            ? withApprovalHash(value, _docTypeAt(matcher, _docPathOf(key)))
+            : value,
+    };
+  } finally {
+    scratch.deleteSync(recursive: true);
+  }
+}
+
+String _docPathOf(String projectPath) => projectPath.replaceFirst('docs/', '');
+
+MergedDocType? _docTypeAt(DocTypeMatcher matcher, String docPath) =>
+    switch (matcher.match(docPath)) {
+      MatchedDocType(:final docType) => docType,
+      _ => null,
+    };
 
 /// Writes [writeProject] to a new temp folder and returns it.
 ///
