@@ -117,10 +117,10 @@ void main() {
     final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
     expect(paths(colon.resolve('notes/10:00.md')), ['notes/10:00.md']);
   }, skip: Platform.isWindows ? colonSkip : false);
-  test('f01/us04/fr01/e07: a colon argument whose prefix is no doc type and names no untyped doc is still doc_type_unknown', () async {
+  test('f01/us04/fr01/e07: a colon argument whose slug prefix is no doc type and names no untyped doc is still doc_type_unknown', () async {
     final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
     expect(
-      () => colon.resolve('notes/11:00.md'),
+      () => colon.resolve('notes:11:00.md'),
       throwsA(isA<TemplateFault>()),
     );
   }, skip: Platform.isWindows ? colonSkip : false);
@@ -141,6 +141,23 @@ void main() {
       );
     },
   );
+  test('f01/us04/fr01/e18: a target whose text before its first colon is no slug is doc_not_found, never doc_type_unknown', () async {
+    for (final address in ['Grid:login', 'check architecture:login']) {
+      expect(
+        () => index.resolve(address),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no doc carries the name $address',
+              ),
+        ),
+        reason: address,
+      );
+    }
+  });
   test('f01/us04/fr01/e07: an unknown doc type prefix is doc_type_unknown, exit 64', () async {
     expect(
       () => index.resolve('architectur:login'),

@@ -40,8 +40,8 @@ final _beginVersion = RegExp(r'<!-- BEGIN specstone v\d+\.\d+\.\d+ -->');
 /// The pack versions from which the agent files are written once.
 ///
 /// A pack upgrade that moves one of these pins up from below its version runs
-/// the full agent file upsert (`setup_migration/set_up_new_project/
-/// write_agent_files`).
+/// the full agent file upsert
+/// (`setup_migration/set_up_new_project/write_agent_files`).
 final Map<String, PackVersion> agentFilesSince = Map.unmodifiable({
   for (final (pack, version) in const [
     ('prd-core', '1.7.0'),

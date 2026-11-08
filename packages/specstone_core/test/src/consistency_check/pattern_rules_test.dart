@@ -272,6 +272,28 @@ void main() {
     );
   });
 
+  test('f04/us01/fr08/e08: a code span whose text before its first colon is no slug is no doc address, so an in: code '
+      'entry reports it', () async {
+    final findings = await _findings(
+      _banned('''
+      - id: any_code
+        pattern: 'check architecture:login'
+        message: no code
+        in: code
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse `check architecture:login`.',
+      ),
+    );
+    expect(
+      findings
+          .where((f) => f.toJson()['pattern'] == 'any_code')
+          .map((f) => f.toJson()['match']),
+      ['check architecture:login'],
+    );
+  });
+
   test('f04/us01/fr08, f04/nfr-p03, s03/inv2: an edited pattern applies on the next check over the same index', () async {
     String layer(String pattern) => _banned('''
       - id: word

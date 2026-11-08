@@ -52,6 +52,27 @@ void main() {
       'message': 'no architecture doc carries the name signup',
     });
   });
+  test('f01/us04/fr01/e18: a target whose text before its first colon is no slug is doc_not_found, exit 64', () async {
+    for (final target in ['Grid:login', 'check architecture:login']) {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['get', target, '--json']), 64, reason: target);
+      expect((jsonDecode(err.toString()) as Map)['error'], {
+        'code': 'doc_not_found',
+        'message': 'no doc carries the name $target',
+      }, reason: target);
+    }
+  });
+  test(
+    'f01/us04/fr01/e07: a misspelled slug prefix is doc_type_unknown, exit 64',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['get', 'architectur:login', '--json']), 64);
+      expect(
+        ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+        'doc_type_unknown',
+      );
+    },
+  );
   test('f01/us04/s7, f01/us04/fr02/e07: outside a project, or under a 9.9.9 pin, exits 78', () async {
     expect(
       await readRunner(await writeTree({})).runner.run(['get', 'login']),

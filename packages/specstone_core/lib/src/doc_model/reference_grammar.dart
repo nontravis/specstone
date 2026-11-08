@@ -6,8 +6,8 @@ import 'package:specstone_core/src/doc_model/whatwg_url.dart';
 final class DocAddress {
   const new({this.typeId, required this.body, this.sectionKey});
 
-  /// The text before the first `:`, when that `:` sits past index 0 and
-  /// before any `#`.
+  /// The text before the first `:`, when that text is one slug
+  /// (`[a-z][a-z0-9_]*`) and the `:` sits before any `#`.
   final String? typeId;
 
   /// The Name or path after any `<doc type>:`, before any `#`, as written.
@@ -58,14 +58,22 @@ bool _isSlugChar(int code) =>
 
 bool _isDigit(int code) => code >= 0x30 && code <= 0x39;
 
+final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
+
+/// Whether all of [text] is shaped like a doc type id: `[a-z][a-z0-9_]*`.
+bool isDocTypeIdShaped(String text) => _docTypeId.hasMatch(text);
+
 /// Reads [text] as a doc address: an optional `<doc type>:` prefix, a Name
 /// or path, and an optional `#<section key>` (RULE-11).
+///
+/// The text before the first `:` is a prefix only when it is one slug; any
+/// other text reads whole as the body.
 DocAddress readDocAddress(String text) {
   final hash = text.indexOf('#');
   final beforeHash = hash < 0 ? text : text.substring(0, hash);
   final sectionKey = hash < 0 ? null : text.substring(hash + 1);
   final colon = beforeHash.indexOf(':');
-  if (colon <= 0) {
+  if (colon <= 0 || !isDocTypeIdShaped(beforeHash.substring(0, colon))) {
     return DocAddress(body: beforeHash, sectionKey: sectionKey);
   }
   return DocAddress(

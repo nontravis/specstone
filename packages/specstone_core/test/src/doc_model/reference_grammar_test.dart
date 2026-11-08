@@ -57,6 +57,23 @@ void main() {
     );
     check('gnfr#', body: 'gnfr', sectionKey: '', name: true);
     check('#x', body: '', sectionKey: 'x');
+    check('Grid:login', body: 'Grid:login');
+    check('check architecture:login', body: 'check architecture:login');
+    check(
+      'architecture:login',
+      typeId: 'architecture',
+      body: 'login',
+      name: true,
+      referenceWithoutLookup: true,
+    );
+    check(
+      'fr:a/b/c#x',
+      typeId: 'fr',
+      body: 'a/b/c',
+      sectionKey: 'x',
+      name: true,
+      referenceWithoutLookup: true,
+    );
 
     test('a Name may hold 2 or more slugs, and a one-slug Name marks a '
         'reference only when typed (R62)', () {
@@ -82,6 +99,17 @@ void main() {
       expect(readDocAddress('gnfr:gnfr#performance').docPart, 'gnfr:gnfr');
       expect(readDocAddress('login/email_login').docPart, 'login/email_login');
       expect(readDocAddress('gnfr#_lead').docPart, 'gnfr');
+    });
+  });
+
+  group('isDocTypeIdShaped', () {
+    test('accepts a whole-string [a-z][a-z0-9_]* and nothing else', () {
+      for (final id in ['a', 'fr', 'user_story', 'a1_b2']) {
+        expect(isDocTypeIdShaped(id), isTrue, reason: id);
+      }
+      for (final id in ['', 'Grid', '1a', '_a', 'a-b', 'a b', 'a/b', 'a\n']) {
+        expect(isDocTypeIdShaped(id), isFalse, reason: id);
+      }
     });
   });
 
