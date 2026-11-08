@@ -675,7 +675,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'approved is written only by specstone approve',
+                'approved is written only by specstone approve and the hash stamps',
               )
               .having((f) => f.key, 'key', 'approved'),
         ),

@@ -942,6 +942,16 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
     });
 
+    test('rendering/format_docs/write_formatted_files E07: a doc that holds an '
+        'approved hash keeps the key block byte for byte', () async {
+      const hashed = '---\napproved: "0123456789ab"\n---\n';
+      final run = await _openNotes({_noteA: _noteDoc(_stale(), front: hashed)});
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      expect(_read(run, _noteA), _noteDoc(_fresh(), front: hashed));
+    });
+
     test('rendering/keep_generated_blocks_current/write_generated_blocks '
         'E08: an approved doc whose block changed is written with no '
         'draft: true', () async {

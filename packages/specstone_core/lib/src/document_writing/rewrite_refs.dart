@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -217,7 +218,8 @@ String? rewriteDocRefs(
 /// Candidates are docs that link under a moved path, move and hold a link or
 /// path mention a rewrite changes, or, for [renamed], name a renamed doc; a
 /// lenient read keeps a non-UTF-8 doc naming nothing renamed from blocking.
-/// Steps hold the rewritten text, sorted by path, with draft marks untouched.
+/// Steps hold the rewritten text, sorted by path, with draft marks untouched;
+/// a doc whose hash matched its `approved:` value is re-stamped.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
@@ -333,11 +335,24 @@ WriteStep? _stepFor(
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
   final writtenPath = movedPath(doc.docPath, moves);
-  final laidOut = layOutDoc(text, session.docTypeAt(writtenPath));
+  final writtenType = session.docTypeAt(writtenPath);
+  final laidOut = layOutDoc(text, writtenType);
+  final stamped = _wasApproved(doc)
+      ? withApprovalHash(laidOut, writtenType)
+      : laidOut;
   return WriteStep(
     session.projectPathOf(writtenPath),
-    '$bom${LineEnding.of(raw).apply(laidOut)}',
+    '$bom${LineEnding.of(raw).apply(stamped)}',
   );
+}
+
+/// Whether [doc] is no draft and its `approved:` value is the hash of its
+/// content, so a rewrite of its references re-stamps it (a stale hash stays).
+bool _wasApproved(IndexedDoc doc) {
+  final fields = ApprovalFields.ofIndexed(doc);
+  return !fields.isDraft &&
+      fields.approvedValue is String &&
+      fields.approvedValue == doc.approvalHash;
 }
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null

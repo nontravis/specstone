@@ -24,15 +24,15 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Refuses [lfText] whose frontmatter holds an `approved` key of any value.
 ///
-/// Only `specstone approve` writes the mark, so `new` never takes it from
-/// stdin.
+/// Only `specstone approve` and the hash stamps write the mark, so `new`
+/// never takes it from stdin.
 void _refuseApprovedMark(String lfText) {
   final marked =
       Doc.parse(lfText).frontmatter?.any((b) => b.name == 'approved') ?? false;
   if (!marked) return;
   throw WriteFault(
     WriteFaultCode.fieldNotWritable,
-    'approved is written only by specstone approve',
+    approvedNotWritableMessage,
     key: 'approved',
   );
 }

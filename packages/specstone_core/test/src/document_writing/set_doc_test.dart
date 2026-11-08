@@ -17,7 +17,7 @@ import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show spots;
+import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
@@ -240,6 +240,31 @@ void main() {
     expect(sectionBase(root, target), written);
   });
 
+  test('document_writing/edit_one_section_or_field/write_one_section E19: a changed ### heading is written as given, and a link to its old anchor is reported, not rewritten', () async {
+    const link =
+        '[sign in](features/f01_login/us01_email_login/USER_STORY.md#scenario-1--happy-sign-in)';
+    final root = await writeWriteProject(
+      extra: {'docs/prds/d01_context.md': '# Context\n\nSee $link.\n'},
+    );
+    expect(spots(checkOf(root), FindingKind.linkAnchorMissing), isEmpty);
+    const target = 'user_story:login/email_login#acceptance_criteria';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '\n### Scenario 1 — [happy] Sign in again\n- **Given** a registered email\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      contains('### Scenario 1 — [happy] Sign in again'),
+    );
+    expect(readDoc(root, 'prds/d01_context.md'), contains(link));
+    expect(spots(checkOf(root), FindingKind.linkAnchorMissing), [
+      'prds/d01_context.md:3: link_anchor_missing',
+    ]);
+  });
   group(
     'f02/us01/fr01/e01, doc-model/inv5: a get-then-set round trip of a section',
     () {
@@ -1118,7 +1143,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'approved is written only by specstone approve',
+                'approved is written only by specstone approve and the hash stamps',
               ),
         ),
       );
@@ -1167,6 +1192,29 @@ void main() {
       contains('covers:\n  - app/lib/src/login/\n'),
     );
     expect(answer.json['draft'], isFalse);
+  });
+  test('document_writing/approve_drafts/mark_doc_approved E09: an implements write and a covers write leave an approved doc approved', () async {
+    final root = await writeWriteProject();
+    const fr = 'fr:login/email_login/validate_credentials';
+    const arch = 'architecture:login';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(fr, 'implements', fieldBase(root, fr, 'implements')),
+        '- app/lib/src/login/password_check.dart:checkPassword\n',
+      ),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+        '- app/lib/src/login/\n',
+      ),
+    );
+    final stale = spots(checkOf(root), FindingKind.approvalStale);
+    expect(stale, isEmpty);
   });
   test('f02/us01/fr03/e05: status on a feature is field_not_writable; on a story it is written', () async {
     final root = await writeWriteProject();

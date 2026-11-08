@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -1285,5 +1287,114 @@ void main() {
         expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
       },
     );
+  });
+
+  group('approval stamp on a reference rewrite', () {
+    String? approvedValue(Directory root, String docPath) => RegExp(
+      r'^approved: "([^"]+)"$',
+      multiLine: true,
+    ).firstMatch(readDoc(root, docPath))?.group(1);
+
+    List<String> staleDocs(Directory root) => spots(
+      checkOf(root),
+      FindingKind.approvalStale,
+    ).map((spot) => spot.split(':').first).toList();
+
+    void leaveStale(Directory root, String docPath) => docFile(
+      root,
+      docPath,
+    ).writeAsStringSync('\nA late note.\n', mode: FileMode.append);
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E07: a rewritten approved doc is stamped with the hash of its new content and stays approved', () async {
+      final root = await writeWriteProject();
+      final before = approvedValue(root, featuresIndex);
+      writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
+      expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), isNotNull);
+      expect(approvedValue(root, featuresIndex), isNot(before));
+      expect(staleDocs(root), isEmpty);
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E07: a rewritten doc whose hash did not match keeps its hash and still awaits approval', () async {
+      final root = await writeWriteProject();
+      leaveStale(root, featuresIndex);
+      final before = approvedValue(root, featuresIndex);
+      writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
+      expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), before);
+      expect(staleDocs(root), [featuresIndex]);
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E07: a rewritten draft keeps draft and gains no approved', () async {
+      final root = await writeWriteProject();
+      writeIn(
+        root,
+        (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+      );
+      final draftStory = readDoc(
+        root,
+        'prds/features/f01_login/us01_reset_password/USER_STORY.md',
+      );
+      expect(draftStory, contains('draft: true'));
+      expect(draftStory, isNot(contains('approved:')));
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: a rename stamps an approved doc it rewrites and keeps a stale hash stale', () async {
+      final root = await writeWriteProject();
+      final before = approvedValue(root, featuresIndex);
+      rename(root, 'feature:signup', 'register');
+      expect(readDoc(root, featuresIndex), contains('f02_register/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), isNot(before));
+      expect(staleDocs(root), isEmpty);
+
+      final stale = await writeWriteProject();
+      leaveStale(stale, featuresIndex);
+      final kept = approvedValue(stale, featuresIndex);
+      rename(stale, 'feature:signup', 'register');
+      expect(approvedValue(stale, featuresIndex), kept);
+      expect(staleDocs(stale), [featuresIndex]);
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: a renamed doc_ref name stamps the approved doc that held it', () async {
+      final root = await writeWriteProject();
+      final withPersona = readDoc(
+        root,
+        story2,
+      ).replaceFirst('approved:', 'persona:\n  - buyer\napproved:');
+      docFile(root, story2).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(withPersona, s.docTypeAt(story2)),
+        ),
+      );
+      expect(staleDocs(root), isEmpty);
+      rename(root, 'persona:buyer', 'shopper');
+      expect(readDoc(root, story2), contains('persona:\n  - shopper\n'));
+      expect(staleDocs(root), isEmpty);
+    });
+
+    test('document_writing/move_story/rewrite_moved_story_references: a move stamps the approved api doc it rewrites and keeps a stale hash stale', () async {
+      final root = await writeNestedProject();
+      final before = approvedValue(root, shopApi);
+      writeIn(
+        root,
+        (s) =>
+            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+      );
+      expect(readDoc(root, shopApi), contains('pay/add_item/check_stock'));
+      expect(approvedValue(root, shopApi), isNot(before));
+      expect(staleDocs(root), isNot(contains(shopApi)));
+
+      final stale = await writeNestedProject();
+      leaveStale(stale, shopApi);
+      final kept = approvedValue(stale, shopApi);
+      writeIn(
+        stale,
+        (s) =>
+            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+      );
+      expect(approvedValue(stale, shopApi), kept);
+      expect(staleDocs(stale), contains(shopApi));
+    });
   });
 }

@@ -186,7 +186,9 @@ ReadAnswer _setField(
   if (fieldId == 'draft' || fieldId == 'approved') {
     throw WriteFault(
       WriteFaultCode.fieldNotWritable,
-      '$fieldId is written only by specstone approve',
+      fieldId == 'draft'
+          ? 'draft is written only by specstone approve'
+          : approvedNotWritableMessage,
       file: doc.docPath,
       key: fieldId,
     );
