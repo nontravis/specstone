@@ -51,12 +51,14 @@ Not landed: <decision>: <why no doc took it>
 Rulings swept: <ruling>: <type>:<name>#<key>, ..., or none
 Drafts for the Owner's specstone approve <type>:<name>: <type>:<name>, ...
 Move: specstone move <story> … --under <feature>
+Move: specstone move <story> … --under <other feature>
 Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
 ```
 
 - **Rows**: one per decision; in a fix round, one per finding. `Not landed:` lines come first, read before any
   approval.
 - **Drafts**: every doc you wrote or confirmed again; in a fix round, the first author report's drafts plus each doc
-  a fix round added, this one's included. The audit and plan modes take this list.
-- **Move**: only when the design moves stories. Run no `move`: the runner of `specstone:brainstorming-sdd` runs this
-  command before the audit.
+  a fix round added, this one's included. The audit and plan modes take this list. Name each draft a `Move:` line
+  moves, the story and its FRs, by the name it holds after the move.
+- **Move**: only when the design moves stories, one line per target feature; copy each into the relay block. Run no
+  `move`: the runner of `specstone:brainstorming-sdd` runs each line's command before the audit.

@@ -592,9 +592,26 @@ void _handOffTests() {
     );
     expect(
       report,
-      contains('\nMove: specstone move <story> … --under <feature>\n'),
+      contains(
+        '\nMove: specstone move <story> … --under <feature>\n'
+        'Move: specstone move <story> … --under <other feature>\n',
+      ),
     );
-    expect(report, contains('only when the design moves stories'));
+    final flatReport = report.replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      flatReport,
+      contains(
+        'only when the design moves stories, one line per target feature; '
+        'copy each into the relay block.',
+      ),
+    );
+    expect(
+      flatReport,
+      contains(
+        'Name each draft a `Move:` line moves, the story and its FRs, by the '
+        'name it holds after the move.',
+      ),
+    );
     final drafts = _sectionOf(
       _pluginText('skills/brainstorming-sdd/SKILL.md'),
       '4. Write the drafts, then audit them',
