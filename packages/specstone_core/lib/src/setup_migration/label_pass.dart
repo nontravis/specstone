@@ -573,7 +573,7 @@ _Converted _markdownEdits(String lf, _Resolve resolve) {
     }
     final isListed =
         previous != null &&
-        _listJoiners.contains(_gapBetween(body, previous, label));
+        _isListGap(body.substring(previous.end, label.start), previous.itemId);
     final before = isListed ? carried : null;
     final name = resolve(label, before);
     previous = label;
@@ -613,15 +613,29 @@ _Converted _markdownEdits(String lf, _Resolve resolve) {
   return (edits: edits, kept: kept);
 }
 
-/// Returns the text between [previous] and [label], less the item ID that
-/// follows [previous], since the ID hides no list (R82).
-String _gapBetween(String body, NumberLabel previous, NumberLabel label) {
-  final gap = body.substring(previous.end, label.start);
-  final itemId = previous.itemId;
-  return itemId != null && gap.startsWith(' $itemId')
-      ? gap.substring(itemId.length + 1)
-      : gap;
+/// Whether [gap], the text between two labels, joins them in a list or a
+/// range: a joiner, with any item IDs and a joiner after each, once the
+/// [firstItemId] that follows the first label is set aside (R82).
+bool _isListGap(String gap, String? firstItemId) {
+  var rest = gap;
+  if (firstItemId != null && rest.startsWith(' $firstItemId')) {
+    rest = rest.substring(firstItemId.length + 1);
+  }
+  while (true) {
+    final joiner = _listJoiners.where(rest.startsWith).firstOrNull;
+    if (joiner == null) return false;
+    rest = rest.substring(joiner.length);
+    if (rest.isEmpty) return true;
+    final itemId = _itemIdAtStart(rest);
+    if (itemId == null) return false;
+    rest = rest.substring(itemId.length);
+  }
 }
+
+/// The item ID that [text] opens with, read as the label reader reads the ID
+/// after a label, or null.
+String? _itemIdAtStart(String text) =>
+    numberLabelsIn('FR-01 $text').first.itemId;
 
 /// Returns [label] with a missing feature and story taken from [before].
 ///

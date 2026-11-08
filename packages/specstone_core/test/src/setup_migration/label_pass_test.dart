@@ -219,6 +219,28 @@ void main() {
       );
     });
 
+    test('every item ID in the gap is passed over when reading a list', () {
+      const head = '1. E02 — x\n\nSee ';
+
+      expect(
+        _convert(_delta, '${head}US-02 FR-01 E01, E06, FR-02 E02.\n'),
+        '${head}`alpha/eps/zeta` E01, E06, FR-02 E02.\n',
+      );
+      expect(
+        _convert(_delta, '${head}US-02 FR-01 E01 and E06, FR-02 E02.\n'),
+        '${head}`alpha/eps/zeta` E01 and E06, FR-02 E02.\n',
+      );
+    });
+
+    test('a gap that holds an ID and other words is no list', () {
+      const head = '1. E02 — x\n\nSee ';
+
+      expect(
+        _convert(_delta, '${head}US-02 FR-01 E01 shows FR-02 E02.\n'),
+        '${head}`alpha/eps/zeta` E01 shows `alpha/beta/delta` E02.\n',
+      );
+    });
+
     test('a spec doc is named from its doc type, not its file stem', () {
       final tree = LabelTree.of(
         [(docPath: _domain, lf: '# D\n- **INV-5** x\n')],
