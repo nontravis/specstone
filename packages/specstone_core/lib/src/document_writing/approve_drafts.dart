@@ -195,15 +195,11 @@ List<IndexedDoc> _draftsUnder(WriteSession session, List<String> names) {
   ];
 }
 
-bool _waitsForApproval(WriteSession session, IndexedDoc doc) {
-  final hash = doc.approvalHash;
-  return hash != null &&
-      awaitsApproval(
-        ApprovalFields.ofIndexed(doc),
-        hash,
-        stampsHaveRun: session.project.stampsHaveRun,
-      );
-}
+bool _waitsForApproval(WriteSession session, IndexedDoc doc) => awaitsApproval(
+  ApprovalFields.ofIndexed(doc),
+  doc.approvalHash,
+  stampsHaveRun: session.project.stampsHaveRun,
+);
 
 /// A draft and the bytes of its file at selection.
 typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});

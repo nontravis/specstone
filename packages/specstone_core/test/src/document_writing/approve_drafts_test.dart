@@ -1100,6 +1100,15 @@ void main() {
       expect(walksDoc(below, signupFeature, below: true), isFalse);
     });
 
+    test('walk_drafts: a doc whose frontmatter is not valid YAML is never walked, so a y never writes a hash the index cannot read', () async {
+      const broken =
+          '---\nstatus: [planned\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n';
+      final root = await writeWriteProject(
+        extra: {'docs/$signupFeature': broken},
+      );
+      expect(walksDoc(root, signupFeature), isFalse);
+    });
+
     test('walk_drafts E13: approved: true is walked once the stamps have run and not below them', () async {
       const mark =
           '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n';

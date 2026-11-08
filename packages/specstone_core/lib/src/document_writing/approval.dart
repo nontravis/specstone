@@ -4,6 +4,8 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart'
+    show parseFrontmatterYaml;
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -87,19 +89,6 @@ String withApprovalHash(String lfText, MergedDocType? docType) => withKeyBlock(
       : [for (final field in docType.fields) field.id],
 );
 
-/// Whether a doc was ever approved.
-enum Approval {
-  /// A draft with no `approved:` value.
-  neverApproved,
-
-  /// Neither `draft` nor `approved:`, once the stamps have run: a file made
-  /// outside the commands.
-  unmarked,
-
-  /// Carries an `approved:` value, or neither key below the pins.
-  approved,
-}
-
 /// The two frontmatter values the approval rules read.
 ///
 /// The one place a frontmatter `approved:` value is read (R85).
@@ -130,20 +119,28 @@ final class ApprovalFields {
   final Object? approvedValue;
 }
 
-/// Returns the [Approval] [fields] state.
-Approval approvalOf(ApprovalFields fields, {required bool stampsHaveRun}) {
-  if (fields.approvedValue != null) return .approved;
-  if (fields.isDraft) return .neverApproved;
-  return stampsHaveRun ? .unmarked : .approved;
+/// Returns the ApprovalHash every approval reader compares for [lfText], or
+/// null when its frontmatter is not valid YAML.
+///
+/// A doc with no such hash never awaits approval and is never stamped: the
+/// approve walk, `check`, and the stamp pass leave it to `check`'s
+/// `frontmatter_invalid`, while the delete gate still guards it.
+String? comparedApprovalHash(String lfText, MergedDocType? docType) {
+  final blocks = Doc.parse(lfText).frontmatter;
+  final isValid =
+      blocks == null ||
+      parseFrontmatterYaml(blocks.map((b) => b.text).join()).errorLine == null;
+  return isValid ? approvalHashOf(lfText, docType) : null;
 }
 
 /// Whether the doc of [fields] awaits the Owner's approval (INV-5), given
-/// [hash], its current ApprovalHash.
+/// [hash], its [comparedApprovalHash]; never when [hash] is null.
 bool awaitsApproval(
   ApprovalFields fields,
-  String hash, {
+  String? hash, {
   required bool stampsHaveRun,
 }) {
+  if (hash == null) return false;
   if (fields.isDraft) return true;
   return switch (fields.approvedValue) {
     null => stampsHaveRun,

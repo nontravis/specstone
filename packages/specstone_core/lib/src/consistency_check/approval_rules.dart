@@ -14,16 +14,19 @@ const _unapprovedMessage =
 /// Owner's approval and is no draft.
 ///
 /// Reads the stored approval hash and lays nothing out. A doc whose
-/// frontmatter is invalid YAML has `frontmatter_invalid` alone.
+/// frontmatter is invalid YAML never awaits approval ([awaitsApproval]), so
+/// it has `frontmatter_invalid` alone.
 Iterable<Finding> staleApproval(CheckContext context, IndexedDoc doc) sync* {
-  final hash = doc.approvalHash;
-  if (hash == null || doc.isDraft) return;
-  final lines = context.linesOf(doc);
-  if (lines.frontmatterErrorLine != null) return;
+  if (doc.isDraft) return;
   final fields = ApprovalFields.ofIndexed(doc);
-  if (!awaitsApproval(fields, hash, stampsHaveRun: context.stampsHaveRun)) {
+  if (!awaitsApproval(
+    fields,
+    doc.approvalHash,
+    stampsHaveRun: context.stampsHaveRun,
+  )) {
     return;
   }
+  final lines = context.linesOf(doc);
   final keyLine = lines.keyLine(_approvedKey);
   if (fields.approvedValue == null) {
     // An `approved:` key with no value sits on its own line; no key, line 1.

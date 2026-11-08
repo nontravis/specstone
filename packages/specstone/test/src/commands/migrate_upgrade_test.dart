@@ -1155,13 +1155,17 @@ void main() {
           result.out,
           contains(
             '  number labels: specs/topics/labelled.md, lib/a.dart; left: '
-            'specs/topics/labelled.md:5 FR-09, lib/a.dart:1 FR-01, '
+            'specs/topics/labelled.md:9 FR-09, lib/a.dart:1 FR-01, '
             'vendor/b.dart:1 F-01 US-01\n',
           ),
         );
         expect(
           _read(root, 'docs/specs/topics/labelled.md'),
           contains('See `a/b/c` and FR-09.\n'),
+        );
+        expect(
+          _read(root, 'docs/specs/topics/labelled.md').split('\n')[8],
+          contains('FR-09'),
         );
         expect(
           _read(root, 'lib/a.dart'),

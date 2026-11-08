@@ -21,7 +21,7 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart'
-    show LabelTree, numberLabelsPlanLine;
+    show LabelTree, numberLabelsPlanLine, withLabelAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
@@ -467,7 +467,8 @@ String _approvedBlockOf(String lf) => [
 ].join();
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
-/// doc to its name (`rewrite_titles_keys_and_links` E18, E19).
+/// doc to its name (`rewrite_titles_keys_and_links` E18, E19), and moves the
+/// anchors of links to a heading whose slug a conversion changed.
 ///
 /// The tree is read before any conversion, from the texts the title and key
 /// rewrites left; a doc cites from its legacy path. Returns the tree.
@@ -487,14 +488,27 @@ LabelTree _convertLabels(
         feature.folder: ?feature.featurePath,
     },
   );
+  final before = [
+    for (final work in works) (docPath: work.legacyPath, lf: work.lf),
+  ];
+  final texts = withLabelAnchorsMoved(
+    before,
+    {
+      for (final work in works)
+        work.legacyPath: convertLegacyLabels(
+          tree,
+          legacyPath: work.legacyPath,
+          lf: work.lf,
+        ).lf,
+    },
+    {for (final work in works) work.legacyPath: ?typeOf(work)},
+  );
   for (final work in works) {
-    final converted = convertLegacyLabels(
-      tree,
-      legacyPath: work.legacyPath,
-      lf: work.lf,
-    );
-    work.hasNamedLabels = converted.lf != work.lf;
-    work.lf = converted.lf;
+    final text = texts[work.legacyPath];
+    if (text == null) continue;
+    work
+      ..hasNamedLabels = true
+      ..lf = text;
   }
   return tree;
 }

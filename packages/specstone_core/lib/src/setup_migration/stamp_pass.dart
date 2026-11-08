@@ -1,13 +1,12 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/document_writing/approval.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart'
-    show parseFrontmatterYaml;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
     show withBlockValues;
 import 'package:specstone_core/src/setup_migration/renumber_index.dart';
 import 'package:specstone_core/src/setup_migration/tracked_blocks.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 
@@ -24,15 +23,21 @@ typedef StampDoc = ({String docPath, String lf, MergedDocType? type});
 
 // MARK: - StampPass
 
-/// The last one-time step of a pack upgrade: it stamps the approval hash on
-/// each doc that counted as approved before the run and re-stamps each
-/// `confirmed` entry that matched before the run (apply_steps_and_pins E30,
-/// E31).
+/// The last step of a pack upgrade: it stamps the approval hash on each doc
+/// that counted as approved before the run (R81) and, in the one-time run
+/// alone, re-stamps each `confirmed` entry that matched before the run
+/// (apply_steps_and_pins E30, E31).
 ///
 /// One pass computes every after-hash, over the text each doc has after every
 /// other step, so no earlier step stamps a value a later one changes.
 final class StampPass {
-  new _(this._planned, this._stamped, this._approvals, this._fingerprints);
+  new _(
+    this._planned,
+    this._stamped,
+    this._approvals,
+    this._fingerprints,
+    this._skipped,
+  );
 
   /// Plans the pass over the docs of the run as they were [before] it and as
   /// they stand [after] its last step, both at the planned DocPath.
@@ -42,12 +47,17 @@ final class StampPass {
   ///
   /// [pins] are the pack pins before the run: a doc counts as approved when it
   /// did not await approval under them (`document_writing` approval rule).
+  /// [restampsFingerprints] holds for the one-time run alone. A typed doc
+  /// whose frontmatter is not valid YAML, before or after, is skipped and
+  /// named on the plan line.
   factory plan(
     List<StampDoc> before,
     List<StampDoc> after, {
     required Map<String, PackVersion> pins,
+    required bool restampsFingerprints,
   }) {
     final ran = stampsHaveRun(pins);
+    final skipped = <String>[];
     final beforeAt = {for (final doc in before) doc.docPath: doc};
     final world = _World(after);
     final beforeWorld = _World(before);
@@ -59,13 +69,23 @@ final class StampPass {
       final type = doc.type;
       final old = beforeAt[doc.docPath];
       if (type == null || old == null) continue;
-      if (_hasInvalidFrontmatter(old.lf) || _hasInvalidFrontmatter(doc.lf)) {
+      final beforeHash = comparedApprovalHash(old.lf, type);
+      if (beforeHash == null || comparedApprovalHash(doc.lf, type) == null) {
+        skipped.add(doc.docPath);
         continue;
       }
       planned[doc.docPath] = doc.lf;
-      final entries = _restamped(doc, old, beforeWorld, world);
+      final entries = restampsFingerprints
+          ? _restamped(doc, old, beforeWorld, world)
+          : (lf: doc.lf, count: 0);
       var lf = entries.lf;
-      if (_countedAsApproved(old.lf, type, stampsHaveRun: ran)) {
+      // A doc that did not await approval before the run counts as approved;
+      // one `check` flagged then (a stale hash, a bad value) stays (G32).
+      if (!awaitsApproval(
+        ApprovalFields.of(Doc.parse(old.lf)),
+        beforeHash,
+        stampsHaveRun: ran,
+      )) {
         lf = withApprovalHash(lf, type);
       }
       if (lf == doc.lf) continue;
@@ -73,13 +93,14 @@ final class StampPass {
       fingerprints += entries.count;
       if (lf != entries.lf) approvals++;
     }
-    return StampPass._(planned, stamped, approvals, fingerprints);
+    return StampPass._(planned, stamped, approvals, fingerprints, skipped);
   }
 
   final Map<String, String> _planned;
   final Map<String, String> _stamped;
   final int _approvals;
   final int _fingerprints;
+  final List<String> _skipped;
 
   /// Returns the doc at [docPath] with its approval hash and `confirmed`
   /// fingerprints stamped.
@@ -99,38 +120,25 @@ final class StampPass {
     return _stamped[docPath] ?? lf;
   }
 
-  /// The `stamps:` plan line, or null when nothing is stamped.
-  String? get planLine => stampsPlanLine(_approvals, _fingerprints);
+  /// The `stamps:` plan line, or null when nothing is stamped or skipped.
+  String? get planLine =>
+      stampsPlanLine(_approvals, _fingerprints, skipped: _skipped);
 }
 
 /// The `stamps:` plan line for [approvals] approval hashes and [fingerprints]
-/// `confirmed` fingerprints, or null when both are zero.
-String? stampsPlanLine(int approvals, int fingerprints) =>
-    approvals == 0 && fingerprints == 0
-    ? null
-    : 'stamps: $approvals approval hashes, $fingerprints fingerprints';
-
-// MARK: - Approval
-
-// A doc that did not await approval before the run counts as approved; one
-// `check` flagged then (a stale hash, a bad value) stays as written (G32).
-bool _countedAsApproved(
-  String beforeLf,
-  MergedDocType type, {
-  required bool stampsHaveRun,
-}) => !awaitsApproval(
-  ApprovalFields.of(Doc.parse(beforeLf)),
-  approvalHashOf(beforeLf, type),
-  stampsHaveRun: stampsHaveRun,
-);
-
-// `check` reports a doc whose frontmatter is not valid YAML alone; nothing
-// is written into it.
-bool _hasInvalidFrontmatter(String lf) {
-  final blocks = Doc.parse(lf).frontmatter;
-  if (blocks == null) return false;
-  return parseFrontmatterYaml(blocks.map((b) => b.text).join()).errorLine !=
-      null;
+/// `confirmed` fingerprints, then `; skipped: ` and each DocPath of [skipped],
+/// a doc left unstamped for invalid frontmatter; null when all are empty.
+String? stampsPlanLine(
+  int approvals,
+  int fingerprints, {
+  List<String> skipped = const [],
+}) {
+  if (approvals == 0 && fingerprints == 0 && skipped.isEmpty) return null;
+  final counts =
+      'stamps: $approvals approval hashes, $fingerprints fingerprints';
+  if (skipped.isEmpty) return counts;
+  final paths = [...skipped]..sort(compareCodePoints);
+  return '$counts; skipped: ${paths.join(', ')}';
 }
 
 // MARK: - Confirmed entries

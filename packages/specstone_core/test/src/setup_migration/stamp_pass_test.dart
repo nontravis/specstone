@@ -53,11 +53,13 @@ List<StampDoc> _docs(Map<String, String> texts) => [
   Map<String, String> before,
   Map<String, String> after, {
   Map<String, PackVersion>? pins,
+  bool restampsFingerprints = true,
 }) {
   final pass = StampPass.plan(
     _docs(before),
     _docs(after),
     pins: pins ?? _belowBoth,
+    restampsFingerprints: restampsFingerprints,
   );
   return (
     pass: pass,
@@ -179,6 +181,44 @@ void main() {
       final run = _runUnchanged(docs);
 
       expect(run.applied, docs);
+      expect(
+        run.pass.planLine,
+        'stamps: 0 approval hashes, 0 fingerprints; skipped: $_storyPath, '
+        '$_frPath',
+      );
+    });
+
+    test('an upgrade past the one-time run stamps a doc that was approved '
+        'before it, and keeps confirmed entries as written', () {
+      final before = {
+        _storyPath: _story(_one),
+        _frPath: _tracing('  - S1 000000000000\n'),
+      };
+      final approvedBefore = {
+        _storyPath: withApprovalHash(before[_storyPath]!, _typeAt(_storyPath)),
+        _frPath: before[_frPath]!,
+      };
+      final after = {
+        _storyPath: approvedBefore[_storyPath]!.replaceFirst('# B', '# B2'),
+        _frPath: approvedBefore[_frPath]!,
+      };
+
+      final run = _run(
+        approvedBefore,
+        after,
+        pins: {
+          'prd-core': _version('1.7.0'),
+          'software-tech': _version('1.4.0'),
+        },
+        restampsFingerprints: false,
+      );
+
+      expect(
+        run.applied[_storyPath],
+        withApprovalHash(after[_storyPath]!, _typeAt(_storyPath)),
+      );
+      expect(run.applied[_frPath], after[_frPath]);
+      expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
     });
 
     test('a doc whose text is not the planned one is refused', () {

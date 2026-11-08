@@ -153,7 +153,28 @@ final class RunPlan {
   /// An agent file reached through a symbolic link, of the file or of a folder
   /// above it, gets its step on the real path from [projectRoot], so the link
   /// stays a link. A real path outside the project joins no commit (R49).
+  ///
+  /// Throws [StateError] when two text steps land on one path: both would
+  /// carry one `before` text, so the first would make the second skip.
   List<JournalStep> journalSteps({
+    required String base,
+    required Directory projectRoot,
+  }) {
+    final steps = _journalSteps(base: base, projectRoot: projectRoot);
+    final written = <String>{};
+    for (final step in steps) {
+      final path = switch (step) {
+        WriteStep(:final path) || CreateStep(:final path) => path,
+        _ => null,
+      };
+      if (path != null && !written.add(path)) {
+        throw StateError('two steps of the run write $path');
+      }
+    }
+    return steps;
+  }
+
+  List<JournalStep> _journalSteps({
     required String base,
     required Directory projectRoot,
   }) {

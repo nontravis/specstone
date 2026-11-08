@@ -218,11 +218,13 @@ RunPlan planUpgradeRun(
     if (lf != work.lf) work.changes.add(_renumberChange);
     renumbered.add(lf);
   }
+  final plannedAgentFiles = _agentFilesOf(root, upgrades, set: finalSet);
   final labels = isOneTime
       ? _planLabelPass(
           root,
           config: config,
           set: finalSet,
+          agentWrites: plannedAgentFiles,
           docs: [
             for (final (index, work) in works.indexed)
               (docPath: work.plannedPath, lf: renumbered[index]),
@@ -241,34 +243,24 @@ RunPlan planUpgradeRun(
     if (lf != converted) laidOutPaths.add(work.plannedPath);
     laidOut.add(lf);
   }
-  final stamps = isOneTime
-      ? StampPass.plan(
-          [
-            for (final work in works)
-              (
-                docPath: work.plannedPath,
-                lf: work.original.lf,
-                type: work.docType,
-              ),
-          ],
-          [
-            for (final (index, work) in works.indexed)
-              (
-                docPath: work.plannedPath,
-                lf: laidOut[index],
-                type: work.docType,
-              ),
-          ],
-          pins: pins,
-        )
-      : null;
+  final stamps = StampPass.plan(
+    [
+      for (final work in works)
+        (docPath: work.plannedPath, lf: work.original.lf, type: work.docType),
+    ],
+    [
+      for (final (index, work) in works.indexed)
+        (docPath: work.plannedPath, lf: laidOut[index], type: work.docType),
+    ],
+    pins: pins,
+    restampsFingerprints: isOneTime,
+  );
   final docRewrites = <PlannedRewrite>[];
+  final writtenLf = <String, String>{};
   for (final (index, work) in works.indexed) {
-    final stamped = stamps?.apply(work.plannedPath, laidOut[index]);
-    if (stamped != null && stamped != laidOut[index]) {
-      work.changes.add(_stampChange);
-    }
-    final lf = stamped ?? laidOut[index];
+    final lf = stamps.apply(work.plannedPath, laidOut[index]);
+    writtenLf[work.plannedPath] = lf;
+    if (lf != laidOut[index]) work.changes.add(_stampChange);
     if (lf == work.original.lf) continue;
     docRewrites.add(
       PlannedRewrite(
@@ -292,7 +284,7 @@ RunPlan planUpgradeRun(
           ],
         ),
   ];
-  final agentFiles = _agentFilesOf(root, upgrades, set: finalSet);
+  final agentFiles = labels?.agentFiles ?? plannedAgentFiles;
   final configRewrite = _configRewriteOf(
     root,
     upgrades,
@@ -352,9 +344,9 @@ RunPlan planUpgradeRun(
       ...stepLines,
       ...linkLines,
       ?renumber?.planLine,
-      ?labels?.pass.planLine,
+      ?labels?.pass.planLineOn(writtenLf),
       ?formatLayoutLine(laidOutPaths),
-      ?stamps?.planLine,
+      ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
       if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
     ],
@@ -525,7 +517,13 @@ RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([
 ]);
 
 /// The label pass of a run and the rewrites of the code files it changes.
-typedef _LabelPlan = ({LabelPass pass, List<PlannedRewrite> codeRewrites});
+/// The label pass, the code files it rewrites, and the agent file writes
+/// with the label conversion composed into each agent file it also converts.
+typedef _LabelPlan = ({
+  LabelPass pass,
+  List<PlannedRewrite> codeRewrites,
+  AgentWritePlan agentFiles,
+});
 
 /// Plans the label pass over [docs], the run's docs after the renumber pass,
 /// and the files under the `code:` roots that hold a label.
@@ -534,10 +532,15 @@ typedef _LabelPlan = ({LabelPass pass, List<PlannedRewrite> codeRewrites});
 /// lies inside the project root, since commit 2 holds nothing else; a label in
 /// any other file stays and is listed (E27). Git is asked only when a code
 /// file holds a label. A file that is no UTF-8 text is skipped.
+///
+/// A code file that [agentWrites] also writes is read as the agent write
+/// leaves it, and its conversion becomes that agent write, so each path gets
+/// one write: two from one `before` text would make the guard skip one.
 _LabelPlan _planLabelPass(
   Directory root, {
   required ProjectConfig config,
   required MergedSet set,
+  required AgentWritePlan agentWrites,
   required List<({String docPath, String lf})> docs,
   required RunGit runGit,
   required Map<String, MergedDocType> docTypes,
@@ -549,6 +552,14 @@ _LabelPlan _planLabelPass(
     codeEntries: const [],
   ).first;
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
+  final agentByFile = {
+    for (final write in [...agentWrites.rootWrites, ...agentWrites.topWrites])
+      if (!write.isNew)
+        File('${projectRoot.path}${Platform.pathSeparator}${write.path}')
+                .resolveSymbolicLinksSync():
+            write,
+  };
+  final agentAt = <String, AgentWrite>{};
   final labelled = <String, _CodeFile>{};
   for (final codePath in codeRootFiles(
     codeRoot,
@@ -561,9 +572,21 @@ _LabelPlan _planLabelPass(
       codeRoot: codeRoot,
     );
     if (projectPath == null) continue;
-    final original = _readCodeFile(codeRoot, codePath);
-    if (original != null && holdsNumberLabel(projectPath, original.text)) {
+    final onDisk = _readCodeFile(codeRoot, codePath);
+    if (onDisk == null) continue;
+    final agentWrite = agentByFile[_realPathOf(codeRoot, codePath)];
+    final original = agentWrite == null
+        ? onDisk
+        : (
+            text: agentWrite.text.startsWith(_bom)
+                ? agentWrite.text.substring(_bom.length)
+                : agentWrite.text,
+            bom: onDisk.bom,
+            hash: onDisk.hash,
+          );
+    if (holdsNumberLabel(projectPath, original.text)) {
       labelled[projectPath] = original;
+      if (agentWrite != null) agentAt[projectPath] = agentWrite;
     }
   }
   final tracked = labelled.isEmpty
@@ -582,19 +605,47 @@ _LabelPlan _planLabelPass(
     ],
     docTypes: docTypes,
   );
+  String textOf(String path, String converted) =>
+      '${labelled[path]!.bom ? _bom : ''}$converted';
+  final composed = <AgentWrite, String>{
+    for (final MapEntry(:key, :value) in pass.codeFiles.entries)
+      ?agentAt[key]: textOf(key, value),
+  };
+  AgentWrite withComposed(AgentWrite write) => switch (composed[write]) {
+    final text? => AgentWrite(
+      path: write.path,
+      text: text,
+      isNew: write.isNew,
+      before: write.before,
+      isAtTop: write.isAtTop,
+    ),
+    null => write,
+  };
   return (
     pass: pass,
     codeRewrites: [
       for (final MapEntry(:key, :value) in pass.codeFiles.entries)
-        PlannedRewrite(
-          path: key,
-          text: '${labelled[key]!.bom ? _bom : ''}$value',
-          before: labelled[key]!.hash,
-          changes: const [_labelChange],
-        ),
+        if (!agentAt.containsKey(key))
+          PlannedRewrite(
+            path: key,
+            text: textOf(key, value),
+            before: labelled[key]!.hash,
+            changes: const [_labelChange],
+          ),
     ],
+    agentFiles: AgentWritePlan(
+      rootWrites: [for (final w in agentWrites.rootWrites) withComposed(w)],
+      topWrites: [for (final w in agentWrites.topWrites) withComposed(w)],
+      agentFileRoots: agentWrites.agentFileRoots,
+      addedRoots: agentWrites.addedRoots,
+    ),
   );
 }
+
+/// Returns the canonical path of the code file [codePath] under [codeRoot].
+String _realPathOf(Directory codeRoot, String codePath) =>
+    File([codeRoot.path, ...codePath.split('/')].join(Platform.pathSeparator))
+        .resolveSymbolicLinksSync();
 
 /// A code file as decoded: its text with every line end as written, whether
 /// it began with a byte order mark, and the [textHashOf] of its text.

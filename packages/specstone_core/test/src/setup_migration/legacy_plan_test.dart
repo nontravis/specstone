@@ -1150,6 +1150,34 @@ name: NFR
           'prds/features/f01_login/us01_email_login/'
           'fr01_validate_credentials.md';
 
+      test('E19: a link to a heading whose label became a name follows the '
+          "heading's new slug", () async {
+        final plan = await _plan({
+          ..._citingLegacy,
+          'docs/prds/features/ai01_login/us01_email_login/USER_STORY.md':
+              '# US-01 — Email login\n\n### Scenario 2 — FR-02 lockout\n',
+          'docs/prds/features/ai01_login/us01_email_login/functional_requirements/'
+                  'fr01_validate_credentials.md':
+              '# FR-01 — Validate credentials\n\n'
+              'See [lockout](../USER_STORY.md#scenario-2--fr-02-lockout).\n',
+        });
+
+        final story = _rewrite(
+          plan,
+          'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        ).text;
+        final fr = _rewrite(plan, frPath).text;
+
+        expect(story, contains('`login/email_login/lock_account` lockout'));
+        expect(fr, isNot(contains('#scenario-2--fr-02-lockout')));
+        expect(
+          fr,
+          contains(
+            '(USER_STORY.md#scenario-2--loginemail_loginlock_account-lockout)',
+          ),
+        );
+      });
+
       test('E18: a legacy ID the move list maps to one FR becomes its name, '
           'another is kept and listed in the plan', () async {
         final plan = await _plan(_citingLegacy);

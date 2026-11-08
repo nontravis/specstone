@@ -310,61 +310,18 @@ void main() {
         : lines.contains('123e45678901')
         ? '123e45678901'
         : hash;
-    // (label, frontmatter lines, awaits below pins, awaits at pins,
-    // approvalOf below pins, approvalOf at pins, guarded)
-    final rows = <(String, String, bool, bool, Approval, Approval, bool)>[
-      (
-        'draft: true',
-        'draft: true',
-        true,
-        true,
-        Approval.neverApproved,
-        Approval.neverApproved,
-        false,
-      ),
-      (
-        'a matching hash',
-        'approved: "$hash"',
-        false,
-        false,
-        Approval.approved,
-        Approval.approved,
-        true,
-      ),
-      (
-        'a stale hash',
-        'approved: "0123456789ab"',
-        true,
-        true,
-        Approval.approved,
-        Approval.approved,
-        true,
-      ),
-      (
-        'approved: true',
-        'approved: true',
-        false,
-        true,
-        Approval.approved,
-        Approval.approved,
-        true,
-      ),
-      (
-        'neither key',
-        'status: planned',
-        false,
-        true,
-        Approval.approved,
-        Approval.unmarked,
-        true,
-      ),
+    // (label, frontmatter lines, awaits below pins, awaits at pins, guarded)
+    final rows = <(String, String, bool, bool, bool)>[
+      ('draft: true', 'draft: true', true, true, false),
+      ('a matching hash', 'approved: "$hash"', false, false, true),
+      ('a stale hash', 'approved: "0123456789ab"', true, true, true),
+      ('approved: true', 'approved: true', false, true, true),
+      ('neither key', 'status: planned', false, true, true),
       (
         'an unquoted 12-digit value',
         'approved: 123456789012',
         true,
         true,
-        Approval.approved,
-        Approval.approved,
         true,
       ),
       (
@@ -372,8 +329,6 @@ void main() {
         'approved: "123456789012"',
         false,
         false,
-        Approval.approved,
-        Approval.approved,
         true,
       ),
       (
@@ -381,27 +336,16 @@ void main() {
         'approved: 123e45678901',
         true,
         true,
-        Approval.approved,
-        Approval.approved,
         true,
       ),
     ];
-    for (final (
-          label,
-          lines,
-          belowAwaits,
-          atAwaits,
-          belowApproval,
-          atApproval,
-          guarded,
-        )
-        in rows) {
+    for (final (label, lines, belowAwaits, atAwaits, guarded) in rows) {
       for (final fields in [
         ('Doc', ApprovalFields.of(Doc.parse('---\n$lines\n---\n# A\n'))),
         ('IndexedDoc', ApprovalFields.ofIndexed(_indexed(lines))),
       ]) {
         final (reader, f) = fields;
-        test('walk_drafts E11-E14, Approval: $label via $reader', () {
+        test('walk_drafts E11-E14, the approval rule: $label via $reader', () {
           expect(
             awaitsApproval(f, hashOf(lines), stampsHaveRun: false),
             belowAwaits,
@@ -412,27 +356,48 @@ void main() {
             atAwaits,
             reason: 'awaits at pins',
           );
-          expect(approvalOf(f, stampsHaveRun: false), belowApproval);
-          expect(approvalOf(f, stampsHaveRun: true), atApproval);
           expect(isGuarded(f), guarded);
         });
       }
     }
 
-    test('a doc with no frontmatter is unmarked at the pins', () {
-      final f = ApprovalFields.of(Doc.parse('# A\n'));
-      expect(approvalOf(f, stampsHaveRun: true), Approval.unmarked);
-      expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
+    test('a doc with no frontmatter awaits approval at the pins alone, and '
+        'is guarded', () {
+      const text = '# A\n';
+      final f = ApprovalFields.of(Doc.parse(text));
+      final hash = comparedApprovalHash(text, null);
+      expect(awaitsApproval(f, hash, stampsHaveRun: true), isTrue);
+      expect(awaitsApproval(f, hash, stampsHaveRun: false), isFalse);
+      expect(isGuarded(f), isTrue);
     });
 
     test(
-      'domain:document_writing INV-5: a value that is no YAML holds none',
+      'domain:document_writing INV-5: a frontmatter that is no YAML holds no '
+      'value, never awaits approval, and stays guarded',
       () {
-        final f = ApprovalFields.of(
-          Doc.parse('---\ndraft: true\napproved: [\n---\n# A\n'),
-        );
+        const text = '---\ndraft: true\napproved: [\n---\n# A\n';
+        final f = ApprovalFields.of(Doc.parse(text));
         expect(f.isDraft, isFalse);
-        expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
+        expect(comparedApprovalHash(text, null), isNull);
+        for (final ran in [false, true]) {
+          expect(
+            awaitsApproval(
+              f,
+              comparedApprovalHash(text, null),
+              stampsHaveRun: ran,
+            ),
+            isFalse,
+          );
+        }
+        expect(isGuarded(f), isTrue);
+        expect(
+          parseIndexedDoc(
+            docPath: 'a.md',
+            bytes: utf8.encode(text),
+            match: const NoDocType(),
+          ).doc.approvalHash,
+          isNull,
+        );
       },
     );
 
@@ -457,7 +422,8 @@ void main() {
       final f = ApprovalFields.of(
         Doc.parse('---\ndraft: true\n"approved": true\n---\n# A\n'),
       );
-      expect(approvalOf(f, stampsHaveRun: false), Approval.approved);
+      expect(f.approvedValue, isTrue);
+      expect(isGuarded(f), isTrue);
     });
   });
 

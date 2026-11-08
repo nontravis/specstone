@@ -410,7 +410,7 @@ final class _TreeDoc {
 /// folder path that names its feature resolves there. Every byte outside a
 /// converted label stays.
 final class LabelPass {
-  new _(this._docTexts, this.codeFiles, this._files);
+  new _(this._tree, this._docTexts, this.codeFiles, this._files);
 
   /// Plans the pass over every doc of the run, DocPath and LF text after the
   /// earlier passes, and the files under the `code:` roots.
@@ -433,7 +433,9 @@ final class LabelPass {
       for (final (:docPath, :lf) in sorted)
         docPath: _convertDoc(tree, docPath, lf),
     };
-    final docTexts = _withAnchorsMoved(sorted, results, docTypes);
+    final docTexts = withLabelAnchorsMoved(sorted, {
+      for (final MapEntry(:key, :value) in results.entries) key: value.lf,
+    }, docTypes);
     final files = <_FileResult>[
       for (final (:docPath, lf: _) in sorted)
         (
@@ -465,9 +467,10 @@ final class LabelPass {
         kept: kept,
       ));
     }
-    return LabelPass._(docTexts, codeFiles, files);
+    return LabelPass._(tree, docTexts, codeFiles, files);
   }
 
+  final LabelTree _tree;
   final Map<String, String> _docTexts;
   final List<_FileResult> _files;
 
@@ -482,21 +485,66 @@ final class LabelPass {
   /// The `number labels:` plan line: each doc and file the pass rewrites, then
   /// after `; left:` each label it keeps as `<path>:<line> <label>`; null for
   /// a tree with no label.
-  String? get planLine {
+  String? get planLine => planLineOn(const {});
+
+  /// The [planLine] with the lines of each doc in [written], its LF text as
+  /// the run writes it after every later step, counted on that text, so each
+  /// cited line is the line of the file `check` reads.
+  String? planLineOn(Map<String, String> written) {
+    final files = [for (final file in _files) _onWritten(file, written)];
     return numberLabelsPlanLine(
       converted: [
-        for (final file in _files) ...[
+        for (final file in files) ...[
           if (file.converted) file.path,
           for (final (:line, :label) in file.headings)
             '${file.path}:$line $label',
         ],
       ],
       kept: [
-        for (final file in _files)
+        for (final file in files)
           for (final (:line, :label) in file.kept) '${file.path}:$line $label',
       ],
     );
   }
+
+  /// Returns [file] with its lines counted on its [written] text.
+  ///
+  /// A kept label does not resolve, so converting the written text again
+  /// finds each one at its written line; a converted heading is found as the
+  /// same occurrence of its line's text.
+  _FileResult _onWritten(_FileResult file, Map<String, String> written) {
+    final text = written[file.path];
+    if (text == null) return file;
+    final passLines = (_docTexts[file.path] ?? '').split('\n');
+    final writtenLines = text.split('\n');
+    return (
+      path: file.path,
+      converted: file.converted,
+      headings: [
+        for (final heading in file.headings)
+          (
+            line: _sameLineIn(passLines, writtenLines, heading.line),
+            label: heading.label,
+          ),
+      ],
+      kept: _convertDoc(_tree, file.path, text).kept,
+    );
+  }
+}
+
+/// Returns the 1-based line of [to] that holds the same occurrence of the
+/// text of [line], a 1-based line of [from]; [line] itself when none does.
+int _sameLineIn(List<String> from, List<String> to, int line) {
+  if (line < 1 || line > from.length) return line;
+  final text = from[line - 1];
+  final occurrence = from.take(line - 1).where((l) => l == text).length;
+  var seen = 0;
+  for (final (index, candidate) in to.indexed) {
+    if (candidate != text) continue;
+    if (seen == occurrence) return index + 1;
+    seen++;
+  }
+  return line;
 }
 
 /// The `number labels:` plan line: the [converted] entries, then after
@@ -560,19 +608,22 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
   );
 }
 
-/// Returns the text of each doc the pass changes, its links to a heading
-/// whose slug the pass changed set to the new slug (D58, ledger G11).
+/// Returns the text of each of [docs] a label conversion changes, its links
+/// to a heading whose slug the conversion changed set to the new slug (D58,
+/// ledger G11); the one step both the upgrade and the legacy run take.
 ///
-/// A heading changes its slug when its operation label is dropped or a label
-/// in its text becomes a doc name; the move is read heading by heading.
-Map<String, String> _withAnchorsMoved(
+/// [docs] are the texts before the conversion and [converted] the texts
+/// after it, by the path each doc's links are relative to. A heading changes
+/// its slug when its operation label is dropped or a label in its text
+/// becomes a doc name; the move is read heading by heading.
+Map<String, String> withLabelAnchorsMoved(
   List<({String docPath, String lf})> docs,
-  Map<String, _DocResult> results,
+  Map<String, String> converted,
   Map<String, MergedDocType> docTypes,
 ) {
   final texts = {
     for (final (:docPath, :lf) in docs)
-      if (results[docPath]!.lf != lf) docPath: results[docPath]!.lf,
+      if (converted[docPath] case final text? when text != lf) docPath: text,
   };
   final moves = SlugMoves({
     for (final (:docPath, :lf) in docs)

@@ -1,8 +1,11 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show MoveStep;
+    show MoveStep, WriteStep, textHashOf;
 import 'package:specstone_core/src/git_process.dart' show RunGit;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -13,6 +16,7 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart'
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -22,6 +26,8 @@ import 'package:test/test.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
+
+const _apply = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
 const _runbookDoc = '''
 ---
@@ -523,6 +529,44 @@ sections:
                   'again',
             ),
       ),
+    );
+  });
+
+  test('$_apply E30: an upgrade past the one-time run re-stamps an approved '
+      'doc its steps rewrite, so it stays approved', () async {
+    final draftFixture = await _fixture(overrides: const {});
+    final set = TemplateResolver().resolveCarried(
+      packNames: ProjectConfig.read(draftFixture.project).pins.keys,
+      homeDirectory: draftFixture.home,
+    );
+    const path = 'prds/runbooks/deploy/RUNBOOK.md';
+    final type = switch (DocTypeMatcher(set).match(path)) {
+      MatchedDocType(:final docType) => docType,
+      _ => null,
+    };
+    final approved = withApprovalHash(_runbookDoc, type);
+    final fixture = await _fixture(overrides: const {}, docs: {path: approved});
+
+    final plan = _plan(fixture);
+
+    final written = plan.rewrites.singleWhere((r) => r.path == 'docs/$path');
+    expect(written.text, contains('## Procedure'));
+    expect(
+      RegExp(
+        r'^approved: "(\w+)"$',
+        multiLine: true,
+      ).firstMatch(written.text)!.group(1),
+      approvalHashOf(written.text, type),
+    );
+    final approvedLine = RegExp(
+      r'^approved: .*$',
+      multiLine: true,
+    ).stringMatch(approved);
+    expect(approvedLine, isNotNull);
+    expect(written.text, isNot(contains(approvedLine)));
+    expect(
+      plan.toText(),
+      contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
     );
   });
 
@@ -1555,7 +1599,7 @@ void _labelTests() {
       expect(
         lines[labels],
         '  number labels: specs/topics/labelled.md; left: '
-        'specs/topics/labelled.md:5 FR-09',
+        'specs/topics/labelled.md:9 FR-09',
       );
       expect(lines[labels + 1], startsWith('  '));
       expect(
@@ -1704,6 +1748,48 @@ void _labelTests() {
 
       expect(plan.rewrites.map((r) => r.path), contains('lib/a.dart'));
       expect(calls.single.skip(1), ['ls-files', '-z']);
+    });
+
+    test('$_fr E26: an agent file the label pass converts gets one write '
+        'that holds the conversion and the Specstone block', () async {
+      final project = await _labelTree(
+        {},
+        code: {'AGENTS.md': 'Current work: `F-01 US-01`\n'},
+      );
+      File('${project.path}/docs/$_techStackPath')
+          .writeAsStringSync('---\ncode:\n  - ./\n---\n# Tech stack\n');
+
+      final plan = _planWith(project, _tracking({'AGENTS.md'}));
+
+      expect(plan.rewrites.map((r) => r.path), isNot(contains('AGENTS.md')));
+      final write = plan.agentFiles!.rootWrites.singleWhere(
+        (w) => w.path == 'AGENTS.md',
+      );
+      expect(write.text, startsWith('Current work: `a/b`\n'));
+      expect(write.text, contains('<!-- BEGIN specstone v'));
+      expect(write.before, textHashOf('Current work: `F-01 US-01`\n'));
+      expect(plan.toText(), contains('  number labels: AGENTS.md'));
+      final steps = plan.journalSteps(base: 'HEAD', projectRoot: project);
+      expect(
+        steps.whereType<WriteStep>().where((s) => s.path == 'AGENTS.md'),
+        hasLength(1),
+      );
+    });
+
+    test('$_fr E26: a left label is cited at its line in the text the run '
+        'writes, after the stamp adds its line', () async {
+      final project = await _labelTree({
+        'specs/topics/t.md': '---\ntraced_from: [S1]\n---\n# T\n\nSee FR-07.\n',
+      });
+
+      final plan = _planWith(project);
+
+      final written = _stampedDocText(plan, 'specs/topics/t.md');
+      final line =
+          written.split('\n').indexWhere((l) => l.contains('FR-07')) + 1;
+      expect(written, contains('approved: "'));
+      expect(line, greaterThan(6));
+      expect(plan.toText(), contains('specs/topics/t.md:$line FR-07'));
     });
 
     test('$_fr E26: a binary code file is skipped', () async {

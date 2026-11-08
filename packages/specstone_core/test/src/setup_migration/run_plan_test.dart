@@ -80,6 +80,42 @@ List<String> _moveLines(RunPlan plan) => [
 ];
 
 void main() {
+  test(
+    'setup_migration/upgrade_pack_pins/apply_steps_and_pins: two writes '
+    'of one path are refused, since the first would make the second skip',
+    () {
+      const plan = RunPlan(
+        header: 'migrate',
+        moves: [],
+        prunes: [],
+        rewrites: [
+          PlannedRewrite(
+            path: 'AGENTS.md',
+            text: 'a',
+            before: 'b',
+            changes: [],
+          ),
+          PlannedRewrite(
+            path: 'AGENTS.md',
+            text: 'c',
+            before: 'b',
+            changes: [],
+          ),
+        ],
+        creates: [],
+        left: [],
+        commit1Message: 'move',
+        commit2Message: 'pin',
+      );
+
+      expect(
+        () =>
+            plan.journalSteps(base: 'HEAD', projectRoot: Directory.systemTemp),
+        throwsStateError,
+      );
+    },
+  );
+
   setUp(() {
     _root = Directory.systemTemp.createTempSync('run_plan_root');
     addTearDown(() => _root.deleteSync(recursive: true));

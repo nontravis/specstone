@@ -121,8 +121,8 @@ final class IndexedDoc {
   /// Null for an untyped doc and for a doc the format command refuses.
   final bool? formatted;
 
-  /// The ApprovalHash of the doc as its doc type lays it out; null for an
-  /// untyped doc.
+  /// The [comparedApprovalHash] of the doc; null for an untyped doc or one
+  /// whose frontmatter is not valid YAML.
   final String? approvalHash;
 
   /// The position of the doc in tree order.
@@ -280,7 +280,9 @@ ParsedDoc parseIndexedDoc({
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),
     formatted: laid is Formatted ? laid.text == lfText : null,
-    approvalHash: docType == null ? null : approvalHashOf(lfText, docType),
+    approvalHash: docType == null
+        ? null
+        : comparedApprovalHash(lfText, docType),
     warnings: warnings,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
