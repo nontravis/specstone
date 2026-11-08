@@ -14,7 +14,7 @@ class DeleteCommand extends WriteCommand {
         'yes',
         negatable: false,
         help:
-            'Delete approved docs without the terminal prompt; the agent '
+            'Delete guarded docs without the terminal prompt; the agent '
             "runs it after the Owner's ok.",
       )
       ..addOption(

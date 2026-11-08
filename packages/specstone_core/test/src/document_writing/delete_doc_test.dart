@@ -492,37 +492,31 @@ void main() {
     },
   );
 
-  test(
-    'f02/us04/fr02/e05: a doc carrying draft beside a hash is guarded',
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          'docs/$fr32': '---\ndraft: true\napproved: "0123456789ab"\ntraced_from: US-03\nverify_method: test\n---\n\n# Expire reset link\n',
-        },
-      );
-      expect(
-        () => del(root, ['fr:login/reset_password/expire_reset_link']),
-        refusesWith(WriteFaultCode.ownerTerminalRequired),
-      );
-      expect(hasDoc(root, fr32), isTrue);
-    },
-  );
+  test('document_writing/delete_doc_subtree/gate_approved_delete E05: a doc carrying draft beside a hash is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr32': '---\ndraft: true\napproved: "0123456789ab"\ntraced_from: US-03\nverify_method: test\n---\n\n# Expire reset link\n',
+      },
+    );
+    expect(
+      () => del(root, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr32), isTrue);
+  });
 
-  test(
-    'f02/us04/fr02/e04: a doc with no frontmatter at all is guarded',
-    () async {
-      final root = await writeWriteProject(
-        extra: {'docs/$fr32': '# Expire reset link\n'},
-      );
-      expect(
-        () => del(root, ['fr:login/reset_password/expire_reset_link']),
-        refusesWith(WriteFaultCode.ownerTerminalRequired),
-      );
-      expect(hasDoc(root, fr32), isTrue);
-    },
-  );
+  test('document_writing/delete_doc_subtree/gate_approved_delete E04: a doc with no frontmatter at all is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/$fr32': '# Expire reset link\n'},
+    );
+    expect(
+      () => del(root, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr32), isTrue);
+  });
 
-  test('f02/us04/fr02/e08: an untyped .md file with a hash beside draft is guarded', () async {
+  test('document_writing/delete_doc_subtree/gate_approved_delete E08: an untyped .md file with a hash beside draft is guarded', () async {
     final root = await writeWriteProject(
       extra: {
         ...withoutLink,
@@ -537,7 +531,18 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
-  test('f02/us01/fr05/e04: the delete prompt holds no write lock', () async {
+  test('document_writing/delete_doc_subtree/gate_approved_delete E04: a doc whose whole frontmatter is invalid YAML is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/$fr32': '---\ndraft: true\n: [unclosed\n---\n\n# Expire\n'},
+    );
+    expect(
+      () => del(root, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr32), isTrue);
+  });
+
+  test('document_writing/edit_one_section_or_field/serialize_writes E04: the delete prompt holds no write lock', () async {
     final root = await writeWriteProject(extra: approvedSignOut);
     writeIn(root, (_) {}); // creates the index
     var otherWriteLanded = false;
