@@ -272,7 +272,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr08/e08: a code span whose text before its first colon is no slug is no doc address, so an in: code '
+  test('consistency_check/find_template_breaks/check_patterns E08: a code span whose text before its first colon is no slug is no doc address, so an in: code '
       'entry reports it', () async {
     final findings = await _findings(
       _banned('''

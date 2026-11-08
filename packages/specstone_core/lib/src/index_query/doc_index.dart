@@ -153,8 +153,8 @@ final class DocIndex {
 
   /// Returns the doc [address] names as a path, or null when none.
   ///
-  /// The whole text is tried as a path too: `C:/docs/x.md` reads as the doc
-  /// type id `C`.
+  /// The whole text is tried as a path too: `c:/docs/x.md` reads as the doc
+  /// type id `c`.
   IndexedDoc? _atPath(String address) {
     final read = readDocAddress(address);
     final typeId = read.typeId;
