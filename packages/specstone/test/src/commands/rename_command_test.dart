@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
@@ -187,5 +188,36 @@ void main() {
     expect(text, contains('traced_from: [S1, login/recover_account#S3]\n'));
     expect(text, contains('  - login/recover_account#S3 0123456789ab\n'));
     expect(out.toString(), contains('rewrote $fr11\n'));
+  });
+
+  test('document_writing/rename_doc/rewrite_name_references: rename rewrites a doc-name mention in a code comment and prints the code file among the rewrote lines', () async {
+    final root = await writeCheckProject(
+      extra: {
+        'app/lib/doc.dart': '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['rename', 'feature:login', '--to', 'signin']), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), contains('rewrote app/lib/doc.dart\n'));
+    expect(
+      File('${root.path}/app/lib/doc.dart').readAsStringSync(),
+      '/// Lays out `signin/email_login`.\nfinal a = "login/email_login";\n',
+    );
+  });
+
+  test('document_writing/rename_doc/rewrite_name_references: rename --json lists the code file among rewritten', () async {
+    final root = await writeCheckProject(
+      extra: {'app/lib/doc.dart': '// `login/email_login`\n'},
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['rename', 'feature:login', '--to', 'signin', '--json']),
+      0,
+    );
+    expect(
+      (jsonDecode(out.toString()) as Map)['rewritten'],
+      contains('app/lib/doc.dart'),
+    );
   });
 }

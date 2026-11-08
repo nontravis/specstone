@@ -6,6 +6,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
+    show rewriteNameMentions;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -935,6 +937,112 @@ void main() {
       final text = readDoc(nested, shopApi);
       expect(text, contains('| basket/add_item/check_stock | `addItem` |'));
       expect(text, isNot(contains('| FR                        |')));
+    });
+  });
+  group('rewriteNameMentions', () {
+    const renamed = {
+      ('feature', 'login'): 'signin',
+      ('user_story', 'login/email_login'): 'signin/email_login',
+      ('persona', 'buyer'): 'shopper',
+    };
+
+    test('document_writing/rename_doc/rewrite_name_references E03: the Name changes, the type prefix and section key stay', () {
+      expect(
+        rewriteNameMentions(
+          '`login/email_login`, `user_story:login/email_login#goal`, '
+              '`feature:login#problem`\n',
+          '.md',
+          renamed,
+        ),
+        '`signin/email_login`, `user_story:signin/email_login#goal`, '
+        '`feature:signin#problem`\n',
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E03: a typed mention of another type, a one-slug bare name, and plain text stay', () {
+      expect(
+        rewriteNameMentions(
+          '`fr:login/email_login` `login` login/email_login `persona:login`\n',
+          '.md',
+          renamed,
+        ),
+        isNull,
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E03: a bare name two renamed docs call differently stays', () {
+      expect(
+        rewriteNameMentions('`shop/cart`\n', '.md', {
+          ('feature', 'shop/cart'): 'shop/basket',
+          ('user_story', 'shop/cart'): 'shop/trolley',
+        }),
+        isNull,
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a code file changes on its comment lines only', () {
+      expect(
+        rewriteNameMentions(
+          '// `login/email_login`\nx = `login/email_login`;\n',
+          '.dart',
+          renamed,
+        ),
+        '// `signin/email_login`\nx = `login/email_login`;\n',
+      );
+      expect(
+        rewriteNameMentions('// `login/email_login`\n', '.txt', renamed),
+        isNull,
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: two mentions on one line both change, each at its own column', () {
+      expect(
+        rewriteNameMentions(
+          '// `login/email_login` and `feature:login`\r\n',
+          '.dart',
+          renamed,
+        ),
+        '// `signin/email_login` and `feature:signin`\r\n',
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: no rename changes nothing', () {
+      expect(rewriteNameMentions('`login/email_login`\n', '.md', {}), isNull);
+    });
+  });
+
+  group('planRewrites code files', () {
+    const entry = 'app/lib/doc.dart';
+    const rename = {('user_story', 'login/email_login'): 'signin/email_login'};
+    const noMoves = <PathMove>[];
+
+    Future<Directory> withCode(String text) => writeWriteProject(
+      extra: {
+        'docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+            '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+            '## Naming\n\n- snake_case file names\n',
+        entry: text,
+      },
+    );
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a code file step is listed by its project path with its rewritten text, never stamped', () async {
+      root = await withCode('// `login/email_login`\n');
+      final step = plan(
+        noMoves,
+        renamed: rename,
+      ).singleWhere((s) => s.path == entry);
+      expect(step.text, '// `signin/email_login`\n');
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a code file with no mention of a renamed doc gets no step, and no rename reads no code file', () async {
+      root = await withCode('// `login/email_login`\n');
+      expect(plan(noMoves).map((s) => s.path), isNot(contains(entry)));
+      root = await withCode('// `other/name`\n');
+      expect(
+        plan(noMoves, renamed: rename).map((s) => s.path),
+        isNot(contains(entry)),
+      );
     });
   });
 }

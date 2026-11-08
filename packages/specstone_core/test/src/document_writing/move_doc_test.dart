@@ -15,7 +15,8 @@ import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show checkOf, projectDoc, spots;
+import '../../helpers/check_fixture.dart'
+    show checkOf, projectDoc, spots, writeCheckProject;
 import '../../helpers/failing_rename.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -1395,6 +1396,248 @@ void main() {
       );
       expect(approvedValue(stale, shopApi), kept);
       expect(staleDocs(stale), contains(shopApi));
+    });
+  });
+  group('doc-name mentions in docs and code files', () {
+    String codeText(Directory root, String path) =>
+        File('${root.path}/$path').readAsStringSync();
+
+    List<int> codeBytes(Directory root, String path) =>
+        File('${root.path}/$path').readAsBytesSync();
+
+    void putBytes(Directory root, String path, List<int> bytes) =>
+        File('${root.path}/$path')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(bytes);
+
+    ReadAnswer renameLogin(Directory root) =>
+        rename(root, 'feature:login', 'signin');
+
+    String? approvedHash(Directory root, String docPath) => RegExp(
+      r'^approved: "([^"]+)"$',
+      multiLine: true,
+    ).firstMatch(readDoc(root, docPath))?.group(1);
+
+    List<String> staleDocs(Directory root) => spots(
+      checkOf(root),
+      FindingKind.approvalStale,
+    ).map((spot) => spot.split(':').first).toList();
+
+    test('document_writing/rename_doc/rewrite_name_references E03: a doc-name mention in any doc follows the rename, its type prefix and section key kept', () async {
+      final root = await writeCheckProject(
+        extra: {
+          'docs/notes.md':
+              'See `login/email_login` or `feature:login#problem`, plain '
+              'login/email_login, and `login`.\n',
+        },
+      );
+      renameLogin(root);
+      expect(
+        readDoc(root, 'notes.md'),
+        'See `signin/email_login` or `feature:signin#problem`, plain '
+        'login/email_login, and `login`.\n',
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a Dart file under a code root has its comment lines rewritten and every other byte kept', () async {
+      const before =
+          '/// Lays out `login/email_login`.\n'
+          'final a = "`login/email_login`";\n'
+          '  // see `user_story:login/email_login#acceptance_criteria` and `login`\n'
+          'void f() {} // also `login/email_login`\n'
+          '// split `login/\n'
+          '// email_login`\n'
+          "const tag = '`login/email_login`';\n";
+      final root = await writeCheckProject(
+        extra: {'app/lib/doc.dart': before, 'other/doc.dart': before},
+      );
+      final answer = renameLogin(root);
+      expect(
+        codeText(root, 'app/lib/doc.dart'),
+        '/// Lays out `signin/email_login`.\n'
+        'final a = "`login/email_login`";\n'
+        '  // see `user_story:signin/email_login#acceptance_criteria` and `login`\n'
+        'void f() {} // also `login/email_login`\n'
+        '// split `login/\n'
+        '// email_login`\n'
+        "const tag = '`login/email_login`';\n",
+      );
+      expect(codeText(root, 'other/doc.dart'), before);
+      expect(answer.json['rewritten'], contains('app/lib/doc.dart'));
+      expect(answer.json['rewritten'], isNot(contains('other/doc.dart')));
+      expect(answer.text, contains('rewrote app/lib/doc.dart\n'));
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a CRLF or mixed-ending file keeps every line end', () async {
+      const before =
+          '// `login/email_login`\r\nfinal a = 1;\n// `login/email_login`\r\n'
+          '// `login/email_login` x\r\n';
+      final root = await writeCheckProject(extra: {'app/lib/crlf.dart': ''});
+      File('${root.path}/app/lib/crlf.dart').writeAsStringSync(before);
+      renameLogin(root);
+      expect(
+        codeText(root, 'app/lib/crlf.dart'),
+        before.replaceAll('login/email_login', 'signin/email_login'),
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a byte-order mark stays', () async {
+      final root = await writeCheckProject();
+      putBytes(root, 'app/lib/bom.dart', [
+        0xEF,
+        0xBB,
+        0xBF,
+        ...utf8.encode('// `login/email_login` é\n'),
+      ]);
+      renameLogin(root);
+      expect(codeBytes(root, 'app/lib/bom.dart'), [
+        0xEF,
+        0xBB,
+        0xBF,
+        ...utf8.encode('// `signin/email_login` é\n'),
+      ]);
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a PNG and a file of invalid text under a code root leave the rename unblocked and keep their bytes', () async {
+      final root = await writeCheckProject();
+      final png = [0x89, 0x50, 0x4E, 0x47, 0x60, 0xFF, 0xFE];
+      final bad = [...utf8.encode('// `login/email_login`\n'), 0xFF, 0xFE];
+      putBytes(root, 'app/lib/logo.png', png);
+      putBytes(root, 'app/lib/bad.dart', bad);
+      renameLogin(root);
+      expect(codeBytes(root, 'app/lib/logo.png'), png);
+      expect(codeBytes(root, 'app/lib/bad.dart'), bad);
+      expect(hasDoc(root, 'prds/features/f01_signin/FEATURE.md'), isTrue);
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E08: a markdown file under a code root reads as a doc, its fenced code, frontmatter, and plain text kept', () async {
+      const before =
+          '---\nname: skill\ndescription: Use `login/email_login`.\n'
+          'approved: "abc"\n---\n\n# Skill\n\nRun `login/email_login`.\n\n'
+          '```sh\n`login/email_login`\n```\n\nPlain login/email_login.\n';
+      final root = await writeCheckProject(extra: {'app/lib/SKILL.md': before});
+      renameLogin(root);
+      expect(
+        codeText(root, 'app/lib/SKILL.md'),
+        before.replaceFirst(
+          'Run `login/email_login`',
+          'Run `signin/email_login`',
+        ),
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: a read-only code file that would change refuses the rename; one that would not change is left alone', () async {
+      final root = await writeCheckProject(
+        extra: {
+          'app/lib/locked.dart': '// `login/email_login`\n',
+          'app/lib/fine.dart': '// nothing here\n',
+        },
+      );
+      for (final name in ['locked', 'fine']) {
+        Process.runSync('chmod', ['444', '${root.path}/app/lib/$name.dart']);
+        addTearDown(
+          () => Process.runSync('chmod', [
+            '644',
+            '${root.path}/app/lib/$name.dart',
+          ]),
+        );
+      }
+      expect(
+        () => renameLogin(root),
+        throwsA(
+          isA<RenderFault>().having(
+            (e) => e.code,
+            'code',
+            RenderFaultCode.outputNotWritable,
+          ),
+        ),
+      );
+      expect(hasDoc(root, 'prds/features/f01_login/FEATURE.md'), isTrue);
+      expect(codeText(root, 'app/lib/locked.dart'), '// `login/email_login`\n');
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('document_writing/rename_doc/rewrite_name_references E05: a rewritten draft keeps draft: true; an approved doc is stamped again', () async {
+      final root = await writeWriteProject();
+      File(
+        '${root.path}/docs/$antiPersona',
+      ).writeAsStringSync('\nSee `feature:signup`.\n', mode: FileMode.append);
+      final approvedText =
+          '${readDoc(root, loginFeature)}\nSee `feature:signup`.\n';
+      docFile(root, loginFeature).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(approvedText, s.docTypeAt(loginFeature)),
+        ),
+      );
+      final before = approvedHash(root, loginFeature);
+      expect(staleDocs(root), isEmpty);
+      rename(root, 'feature:signup', 'register');
+      expect(readDoc(root, antiPersona), contains('draft: true'));
+      expect(readDoc(root, antiPersona), contains('`feature:register`'));
+      expect(readDoc(root, loginFeature), contains('`feature:register`'));
+      expect(approvedHash(root, loginFeature), isNot(before));
+      expect(staleDocs(root), isEmpty);
+    });
+
+    test('document_writing/move_story/rewrite_moved_story_references E06, E08: a move rewrites a mention in a doc, in a code comment, and in a code markdown file, but not a fenced one or plain text', () async {
+      const code =
+          '// Adds `shop/cart/add_item` and '
+          '`user_story:shop/cart/add_item#acceptance_criteria`.\n'
+          'final plain = "shop/cart/add_item";\n';
+      const skill =
+          'Use `shop/cart/add_item/check_stock`.\n\n```\n'
+          '`shop/cart/add_item`\n```\n\nPlain shop/cart/add_item.\n';
+      final root = await writeNestedProject(
+        extra: {
+          'docs/notes.md': 'See `shop/cart/add_item`.\n',
+          'app/lib/cart.dart': code,
+          'app/lib/SKILL.md': skill,
+        },
+      );
+      final answer = writeIn(
+        root,
+        (s) =>
+            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+      );
+      expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
+      expect(
+        codeText(root, 'app/lib/cart.dart'),
+        '// Adds `shop/pay/add_item` and '
+        '`user_story:shop/pay/add_item#acceptance_criteria`.\n'
+        'final plain = "shop/cart/add_item";\n',
+      );
+      expect(
+        codeText(root, 'app/lib/SKILL.md'),
+        skill.replaceFirst(
+          'Use `shop/cart/add_item/check_stock`',
+          'Use `shop/pay/add_item/check_stock`',
+        ),
+      );
+      expect(
+        answer.json['rewritten'],
+        containsAll(['notes.md', 'app/lib/cart.dart', 'app/lib/SKILL.md']),
+      );
+    });
+
+    test('document_writing/move_story/rewrite_moved_story_references E07: a move stamps an approved doc whose mention it rewrites', () async {
+      final root = await writeNestedProject();
+      final approvedText =
+          '${readDoc(root, shopDomain)}\nSee `shop/cart/add_item`.\n';
+      docFile(root, shopDomain).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(approvedText, s.docTypeAt(shopDomain)),
+        ),
+      );
+      final before = approvedHash(root, shopDomain);
+      writeIn(
+        root,
+        (s) =>
+            answerMove(s, 'user_story:shop/cart/add_item', under: 'shop/pay'),
+      );
+      expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
+      expect(approvedHash(root, shopDomain), isNot(before));
+      expect(staleDocs(root), isNot(contains(shopDomain)));
     });
   });
 }

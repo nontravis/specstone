@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/atomic_write.dart' show isReadOnly;
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show markdownExtension, readsNameMentions;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
@@ -12,6 +16,7 @@ import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
@@ -22,7 +27,9 @@ import 'package:specstone_core/src/rendering/doc_reader.dart'
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
-    show RenderFault;
+    show RenderFault, RenderFaultCode;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart'
+    show codeEntriesOnDisk;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -241,6 +248,7 @@ List<WriteStep> planRewrites(
       candidates[doc.docPath] = doc;
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
+        _mentionsRenamedDoc(index, doc, renamed) ||
         _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
     }
@@ -248,9 +256,93 @@ List<WriteStep> planRewrites(
   final steps = [
     for (final doc in candidates.values)
       ?_stepFor(session, doc, moves, renamed),
+    ..._codeFileSteps(session, renamed),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
 }
+
+/// Returns the writes of the code files under the `code:` roots that hold a
+/// doc-name mention of a doc in [renamed].
+///
+/// A markdown file is read as a doc is, any other file by its comment lines;
+/// a file that is no UTF-8 text, cannot be read, or sits in the docs folder
+/// is left out. A code file is never stamped and never marked draft.
+List<WriteStep> _codeFileSteps(
+  WriteSession session,
+  Map<(String, String), String> renamed,
+) {
+  if (renamed.isEmpty) return const [];
+  final project = session.project;
+  final paths = codeRootFiles(
+    project.codeRoot,
+    codeEntriesOnDisk(project.projectRoot, project.set),
+  );
+  return [for (final path in paths) ?_codeFileStep(session, path, renamed)];
+}
+
+WriteStep? _codeFileStep(
+  WriteSession session,
+  String codePath,
+  Map<(String, String), String> renamed,
+) {
+  final extension = _extensionOf(codePath);
+  if (!readsNameMentions(extension)) return null;
+  final project = session.project;
+  final file = File(
+    '${project.codeRoot.path}${Platform.pathSeparator}'
+    '${codePath.split('/').join(Platform.pathSeparator)}',
+  );
+  final projectPath = _projectPathOf(project.projectRoot, file);
+  if (projectPath.startsWith('$docsFolderName/')) return null;
+  final String raw;
+  final List<int> bytes;
+  try {
+    bytes = file.readAsBytesSync();
+    raw = utf8.decode(bytes);
+  } on FileSystemException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+  final text = rewriteNameMentions(raw, extension, renamed);
+  if (text == null) return null;
+  if (isReadOnly(file)) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $projectPath: read-only',
+    );
+  }
+  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
+  return WriteStep(projectPath, '$bom$text');
+}
+
+/// Returns the extension of [path], a `.` and the letters after its last
+/// one, or an empty string for a name with none.
+String _extensionOf(String path) {
+  final name = path.substring(path.lastIndexOf('/') + 1);
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot);
+}
+
+/// Returns [file] as a path from [projectRoot], `/`-separated, with `..` for
+/// each folder it leaves.
+String _projectPathOf(Directory projectRoot, File file) {
+  final from = _segmentsOf(projectRoot.path);
+  final to = _segmentsOf(file.path);
+  var shared = 0;
+  while (shared < from.length &&
+      shared < to.length &&
+      from[shared] == to[shared]) {
+    shared++;
+  }
+  return [
+    for (var i = shared; i < from.length; i++) '..',
+    ...to.skip(shared),
+  ].join('/');
+}
+
+List<String> _segmentsOf(String path) =>
+    path.split(Platform.pathSeparator).where((s) => s.isNotEmpty).toList();
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path
 /// that [moves] move.
@@ -322,15 +414,17 @@ WriteStep? _stepFor(
   final refs =
       rewriteDocRefs(mentioned ?? lfText, fields: fields, renamed: renamed) ??
       mentioned;
+  final named =
+      rewriteNameMentions(refs ?? lfText, markdownExtension, renamed) ?? refs;
   final text =
       rewriteLinkLabels(
-        refs ?? lfText,
+        named ?? lfText,
         docType: session.index.typeOf(doc),
         featureName: session.index.parentOf(doc)?.name,
         newFeatureName: _newParentName(session, doc, renamed),
         renamed: renamed,
       ) ??
-      refs;
+      named;
   if (text == null) return null;
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
@@ -396,6 +490,19 @@ bool _namesRenamedLabel(
       ) !=
       null;
 }
+
+/// Whether [doc] holds a doc-name mention of a doc that [renamed] renames.
+bool _mentionsRenamedDoc(
+  DocIndex index,
+  IndexedDoc doc,
+  Map<(String, String), String> renamed,
+) =>
+    renamed.isNotEmpty &&
+    index
+        .contentOf(doc)
+        .lineFacts
+        .nameMentions
+        .any((m) => renamedNameOf(m.address, renamed) != null);
 
 /// Whether [doc] carries a `doc_ref` value that [renamed] renames.
 bool _namesRenamedDoc(

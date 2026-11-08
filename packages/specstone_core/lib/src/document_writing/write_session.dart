@@ -129,6 +129,12 @@ final class WriteSession {
   String docPathOf(String projectPath) =>
       projectPath.substring(_docsPrefix.length);
 
+  /// Returns [projectPath] as a write is listed: a doc by its DocPath, any
+  /// other file, a code file, by its project path.
+  String listedPathOf(String projectPath) => projectPath.startsWith(_docsPrefix)
+      ? docPathOf(projectPath)
+      : projectPath;
+
   /// Returns the one typed doc [address] names.
   ///
   /// [address] is `<doc type>:<name>`, a bare name, or a path to the doc, as

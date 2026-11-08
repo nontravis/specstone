@@ -517,7 +517,9 @@ ReadAnswer _answerFor(
   List<PathMove> moves,
   List<WriteStep> rewrites,
 ) {
-  final rewritten = [for (final step in rewrites) session.docPathOf(step.path)];
+  final rewritten = [
+    for (final step in rewrites) session.listedPathOf(step.path),
+  ];
   return ReadAnswer(
     text: [
       for (final move in moves) 'moved ${move.from} to ${move.to}\n',

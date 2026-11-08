@@ -117,6 +117,26 @@ void main() {
     expect(_unresolvedSteps(root), 1);
   });
 
+  test('document_writing/rename_doc/rewrite_link_labels E01: rename of a shop story rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
+    final fingerprint = fingerprintFor(
+      '### Scenario 1 — [happy] Add an item\n- **Given** a shopper\n'
+      '- **When** the shopper acts\n- **Then** the shopper sees the result',
+    );
+    final root = await writeNestedProject(
+      extra: {
+        'docs/$_journeyPath':
+            '---\nconfirmed:\n  - shop/cart/add_item#S1 $fingerprint\n---\n\n'
+            '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+            '### 1. Add\nstep: shop/cart/add_item S1\n',
+      },
+    );
+    _rename(root, 'user_story:shop/cart/add_item', 'start_cart');
+    final text = readDoc(root, _journeyPath);
+    expect(text, contains('step: shop/cart/start_cart S1\n'));
+    expect(text, contains('  - shop/cart/start_cart#S1 $fingerprint\n'));
+    expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
+  });
+
   test('f02/us06/fr03/e02: rename of a feature rewrites every step naming its stories', () async {
     final root = await _project();
     _rename(root, 'feature:login', 'signin');

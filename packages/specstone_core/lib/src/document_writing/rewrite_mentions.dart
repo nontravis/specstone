@@ -1,9 +1,14 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show nameMentionsInFile;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DocAddress;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 
 /// A closing `.`, `,`, `;`, or `:` that prose adds after a path.
 final _closingMark = RegExp(r'[.,;:]$');
@@ -139,4 +144,61 @@ String? _pathOf(String token) {
   final shaped = path.contains('/') || _extension.hasMatch(path);
   // Prose carries no percent escape, and the path resolver would decode one.
   return named && shaped && !path.contains('%') ? path : null;
+}
+
+/// Returns [text], a file of [extension], with the Name of each doc-name
+/// mention of a doc in [renamed] set to its new name, or null when none
+/// changes.
+///
+/// [renamed] maps `(doc type id, old name)` to the new name. The mention's
+/// `<doc type>:` prefix and `#<section key>` stay as written; a bare name
+/// takes the rename only when every renamed doc called so agrees on one new
+/// name. Mentions are read as [nameMentionsInFile] reads them from the text
+/// with `\r\n` as `\n`, and every byte outside a changed Name, line ends
+/// included, stays.
+String? rewriteNameMentions(
+  String text,
+  String extension,
+  Map<(String, String), String> renamed,
+) {
+  if (renamed.isEmpty || !text.contains('`')) return null;
+  final edits = <({int line, int column, int length, String text})>[];
+  for (final mention in nameMentionsInFile(toLf(text), extension)) {
+    final name = renamedNameOf(mention.address, renamed);
+    if (name == null) continue;
+    final address = mention.address;
+    final prefix = address.typeId == null ? '' : '${address.typeId}:';
+    final kept = mention.text.substring(address.docPart.length);
+    edits.add((
+      line: mention.line,
+      column: mention.column,
+      length: mention.text.length,
+      text: '$prefix$name$kept',
+    ));
+  }
+  if (edits.isEmpty) return null;
+  final lines = text.split('\n');
+  for (final edit in edits.reversed) {
+    final line = lines[edit.line - 1];
+    lines[edit.line - 1] =
+        line.substring(0, edit.column) +
+        edit.text +
+        line.substring(edit.column + edit.length);
+  }
+  return lines.join('\n');
+}
+
+/// Returns the new name of the doc [address] names, or null when it names no
+/// renamed doc or, bare, names renamed docs that disagree.
+String? renamedNameOf(
+  DocAddress address,
+  Map<(String, String), String> renamed,
+) {
+  final typeId = address.typeId;
+  if (typeId != null) return renamed[(typeId, address.body)];
+  final names = {
+    for (final MapEntry(:key, :value) in renamed.entries)
+      if (key.$2 == address.body) value,
+  };
+  return names.length == 1 ? names.single : null;
 }

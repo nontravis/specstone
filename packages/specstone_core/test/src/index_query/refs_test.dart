@@ -538,4 +538,22 @@ void main() {
     expect(text, contains('Inbound\n- link: shop (api)'));
     expect(text, contains(cartAdd));
   });
+
+  test('index_query/follow_references/list_doc_references E03: an implements entry stays outbound as written, and a mention in a code file is no inbound pointer', () async {
+    final withCode = await indexWith({
+      'app/lib/src/login/sign_in_page.dart':
+          '/// Lays out `login/email_login`.\nclass SignInPage {}\n',
+    });
+    final answer = answerRefs(withCode, 'login/email_login');
+    expect(
+      answer.text,
+      contains(
+        '- implements: app/lib/src/login/sign_in_page.dart:SignInPage\n',
+      ),
+    );
+    expect(
+      answer.text,
+      contains('Mentions\n- none\nUntyped mentions\n- none\n'),
+    );
+  });
 }

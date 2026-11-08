@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
@@ -241,5 +242,25 @@ void main() {
     expect(text, contains('traced_from: [S1, shop/cart/card#S1]\n'));
     expect(text, contains('  - shop/cart/card#S1 0123456789ab\n'));
     expect(out.toString(), contains('rewrote $cartAddFr\n'));
+  });
+
+  test('document_writing/move_story/rewrite_moved_story_references: move rewrites a doc-name mention in a code comment and prints the code file', () async {
+    final root = await writeNestedProject(
+      extra: {
+        'app/lib/cart.dart':
+            '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['move', 'shop/cart/add_item', '--under', 'shop/pay']),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), contains('rewrote app/lib/cart.dart\n'));
+    expect(
+      File('${root.path}/app/lib/cart.dart').readAsStringSync(),
+      '// Adds `user_story:shop/pay/add_item#acceptance_criteria`.\n',
+    );
   });
 }
