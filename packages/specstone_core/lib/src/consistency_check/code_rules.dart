@@ -13,7 +13,7 @@ const _separator = '/';
 /// typed [doc].
 ///
 /// Only a doc type that defines `covers` or `code` is read. An entry names
-/// something when its path, a final `/` dropped, is a file or a folder.
+/// something when its path in [normalCodeEntry]'s form is a file or a folder.
 Iterable<Finding> checkCoversAndCodeRoots(
   CheckContext context,
   IndexedDoc doc,
@@ -78,24 +78,27 @@ Iterable<Finding> uncoveredCode(CheckContext context) sync* {
   }
 }
 
-/// Returns every `covers` entry of every typed doc, a final `/` dropped.
+/// Returns every `covers` entry of every typed doc in [normalCodeEntry]'s
+/// form, the form the lister gives its paths in.
 List<String> _coversOf(CheckContext context) => [
   for (final doc in context.index.docs)
     if (context.typeHoldsField(context.typeOf(doc), _coversField))
       for (final (:value, line: _, text: _)
           in context.linesOf(doc).entriesOf(_coversField))
-        if (value is String) withoutFinalSlash(value),
+        if (value is String) normalCodeEntry(value),
 ];
 
-/// Whether an entry equals [path] or names a folder that holds it.
+/// Whether an entry equals [path], names a folder that holds it, or names
+/// the code root itself.
 ///
 /// Matching is by path segment: `lib/src` does not reach `lib/srcx/a.dart`.
 bool _isCovered(List<String> covers, String path) => covers.any(
-  (entry) => path == entry || path.startsWith('$entry$_separator'),
+  (entry) =>
+      entry.isEmpty || path == entry || path.startsWith('$entry$_separator'),
 );
 
 bool _namesSomething(CheckContext context, String entry) =>
     FileSystemEntity.typeSync(
-      '${context.codeRoot.path}$_separator${withoutFinalSlash(entry)}',
+      '${context.codeRoot.path}$_separator${normalCodeEntry(entry)}',
     ) !=
     FileSystemEntityType.notFound;

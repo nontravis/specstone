@@ -5,6 +5,9 @@ import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
 
+const _lister =
+    'document_writing/rename_doc/rewrite_name_references code input:';
+
 void main() {
   late Directory root;
 
@@ -101,5 +104,119 @@ void main() {
     expect(filesUnderCodeRoot(root, './'), ['lib/a.dart', 'top.dart']);
     expect(filesUnderCodeRoot(root, '.'), ['lib/a.dart', 'top.dart']);
     expect(filesUnderCodeRoot(root, 'lib/./a.dart'), ['lib/a.dart']);
+  });
+
+  group('$_lister bounds', () {
+    late Directory codeRoot;
+
+    setUp(() {
+      codeRoot = Directory('${root.path}/code')..createSync();
+      touch('code/lib/a.dart');
+      touch('outside/b.dart');
+    });
+
+    test('an entry that leaves the code root lists nothing', () {
+      expect(filesUnderCodeRoot(codeRoot, '../'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, 'lib/../../outside/'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, '../outside/b.dart'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, 'lib/../lib/'), ['lib/a.dart']);
+    });
+
+    test('an entry that is not a relative / path lists nothing', () {
+      expect(filesUnderCodeRoot(codeRoot, '${root.path}/outside/'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, r'..\outside\'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, 'C:/x/'), isEmpty);
+    });
+
+    test('an entry that is a link, or passes one, lists nothing', () {
+      Link('${codeRoot.path}/out').createSync('${root.path}/outside');
+      Link('${codeRoot.path}/in').createSync('${codeRoot.path}/lib');
+      Link('${codeRoot.path}/b.dart').createSync('${root.path}/outside/b.dart');
+      expect(filesUnderCodeRoot(codeRoot, 'out/'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, 'out/b.dart'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, 'in/'), isEmpty);
+      expect(filesUnderCodeRoot(codeRoot, 'b.dart'), isEmpty);
+    }, skip: Platform.isWindows ? 'links need a privilege on Windows' : false);
+  });
+
+  group('$_lister normal form', () {
+    test('a code or covers entry drops . and the final /, and applies ..', () {
+      expect(normalCodeEntry('./lib/'), 'lib');
+      expect(normalCodeEntry('lib/./src//'), 'lib/src');
+      expect(normalCodeEntry('lib/../docs/'), 'docs');
+      expect(normalCodeEntry('../x/../y'), '../y');
+      expect(normalCodeEntry('./'), '');
+    });
+
+    test('a code file in the docs folder, by a lib/../docs entry, has no '
+        'project path', () {
+      touch('docs/x.md');
+      touch('lib/a.dart');
+      final docsRoot = Directory('${root.path}/docs');
+      final files = filesUnderCodeRoot(root, 'lib/../docs/');
+      expect(files, ['docs/x.md']);
+      expect(
+        projectPathOfCodeFile(
+          files.single,
+          projectRoot: root,
+          docsRoot: docsRoot,
+          codeRoot: root,
+        ),
+        isNull,
+      );
+      expect(
+        projectPathOfCodeFile(
+          'lib/a.dart',
+          projectRoot: root,
+          docsRoot: docsRoot,
+          codeRoot: root,
+        ),
+        'lib/a.dart',
+      );
+    });
+
+    test('a Docs/ entry on a case-insensitive volume names the docs '
+        'folder', () {
+      touch('docs/x.md');
+      if (!Directory('${root.path}/DOCS').existsSync()) {
+        markTestSkipped('the volume is case-sensitive');
+        return;
+      }
+      expect(
+        projectPathOfCodeFile(
+          'Docs/x.md',
+          projectRoot: root,
+          docsRoot: Directory('${root.path}/docs'),
+          codeRoot: root,
+        ),
+        isNull,
+      );
+    });
+
+    test('a code file above the project, under code_root .., reads from the '
+        'project with ..', () {
+      touch('specs/docs/x.md');
+      touch('lib/a.dart');
+      final project = Directory('${root.path}/specs');
+      final docsRoot = Directory('${project.path}/docs');
+      expect(
+        projectPathOfCodeFile(
+          'lib/a.dart',
+          projectRoot: project,
+          docsRoot: docsRoot,
+          codeRoot: root,
+        ),
+        '../lib/a.dart',
+      );
+      expect(
+        projectPathOfCodeFile(
+          'specs/docs/x.md',
+          projectRoot: project,
+          docsRoot: docsRoot,
+          codeRoot: root,
+        ),
+        isNull,
+      );
+    });
   });
 }

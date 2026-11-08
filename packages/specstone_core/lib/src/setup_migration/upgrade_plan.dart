@@ -11,7 +11,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show codeRootFiles;
+    show codeRootFiles, projectPathOfCodeFile;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -548,27 +548,27 @@ _LabelPlan _planLabelPass(
     codeRoot: config.codeRoot,
     codeEntries: const [],
   ).first;
-  final entries = codeEntriesOnDisk(projectRoot, set);
+  final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   final labelled = <String, _CodeFile>{};
-  for (final codePath in codeRootFiles(codeRoot, entries)) {
-    final projectPath = _projectPathOf(config.codeRoot, codePath);
-    if (projectPath.startsWith(_docsFolder)) continue;
+  for (final codePath in codeRootFiles(
+    codeRoot,
+    codeEntriesOnDisk(projectRoot, set),
+  )) {
+    final projectPath = projectPathOfCodeFile(
+      codePath,
+      projectRoot: projectRoot,
+      docsRoot: docsRoot,
+      codeRoot: codeRoot,
+    );
+    if (projectPath == null) continue;
     final original = _readCodeFile(codeRoot, codePath);
     if (original != null && holdsNumberLabel(projectPath, original.text)) {
       labelled[projectPath] = original;
     }
   }
-  // A path outside the project root is no path of the project's git, and
-  // `ls-files` fails on it (E27).
-  final pathspecs = [
-    for (final entry in entries)
-      if (_projectPathOf(config.codeRoot, entry) case final path
-          when _isInsideProject(path))
-        path,
-  ];
-  final tracked = labelled.isEmpty || pathspecs.isEmpty
+  final tracked = labelled.isEmpty
       ? const <String>{}
-      : _trackedPaths(projectRoot, pathspecs, runGit);
+      : _trackedPaths(projectRoot, runGit);
   final convertible = {
     for (final path in labelled.keys)
       if (tracked.contains(path) && _isInsideProject(path)) path,
@@ -623,36 +623,14 @@ _CodeFile? _readCodeFile(Directory codeRoot, String codePath) {
 bool _isInsideProject(String projectPath) =>
     projectPath != '..' && !projectPath.startsWith('../');
 
-/// Returns [codePath], a path from the code root [codeRoot], as a path from
-/// the project root: `/`-separated, `.` dropped, `..` applied where it can be.
-String _projectPathOf(String codeRoot, String codePath) {
-  final segments = <String>[];
-  for (final segment in '$codeRoot/$codePath'.split('/')) {
-    if (segment.isEmpty || segment == '.') continue;
-    if (segment == '..' && segments.isNotEmpty && segments.last != '..') {
-      segments.removeLast();
-    } else {
-      segments.add(segment);
-    }
-  }
-  return segments.join('/');
-}
-
-/// Returns the paths under [pathspecs], from [projectRoot], that the project's
-/// git tracks; none when git cannot start or [projectRoot] is no work tree.
-Set<String> _trackedPaths(
-  Directory projectRoot,
-  List<String> pathspecs,
-  RunGit runGit,
-) {
+/// Returns the paths under [projectRoot] that the project's git tracks, from
+/// one listing intersected locally, so no `code:` entry reaches git; none
+/// when git cannot start or [projectRoot] is no work tree.
+Set<String> _trackedPaths(Directory projectRoot, RunGit runGit) {
   try {
     final result = runGit([
-      '--literal-pathspecs',
       'ls-files',
       '-z',
-      '--',
-      for (final pathspec in pathspecs.toSet())
-        if (pathspec.isEmpty) '.' else pathspec,
     ], workingDirectory: projectRoot.path);
     if (result.exitCode != 0) return const {};
     return {

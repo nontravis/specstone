@@ -40,6 +40,20 @@ void main() {
     );
   });
 
+  test('consistency_check/find_broken_pointers/report_uncovered_code: a ./ covers entry reaches the files of a ./ code entry', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(techStack, '  - app/lib/\n', '  - ./app/lib/\n'),
+          ...doc(loginArchitecture, '  - app/lib/\n', '  - ./app/lib/\n'),
+          'app/lib/src/a.dart': '',
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.codeUncovered), isEmpty);
+    expect(spots(report, FindingKind.coversPathMissing), isEmpty);
+  });
+
   test('code_root: covers and code resolve under the code folder; code_uncovered names a path from it', () async {
     final report = checkOf(
       await writeCheckProject(

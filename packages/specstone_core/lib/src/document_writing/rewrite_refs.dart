@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart' show isReadOnly;
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension, readsNameMentions;
@@ -291,8 +290,13 @@ WriteStep? _codeFileStep(
     '${project.codeRoot.path}${Platform.pathSeparator}'
     '${codePath.split('/').join(Platform.pathSeparator)}',
   );
-  final projectPath = _projectPathOf(project.projectRoot, file);
-  if (projectPath.startsWith('$docsFolderName/')) return null;
+  final projectPath = projectPathOfCodeFile(
+    codePath,
+    projectRoot: project.projectRoot,
+    docsRoot: project.docsRoot,
+    codeRoot: project.codeRoot,
+  );
+  if (projectPath == null) return null;
   final String raw;
   final List<int> bytes;
   try {
@@ -322,26 +326,6 @@ String _extensionOf(String path) {
   final dot = name.lastIndexOf('.');
   return dot < 0 ? '' : name.substring(dot);
 }
-
-/// Returns [file] as a path from [projectRoot], `/`-separated, with `..` for
-/// each folder it leaves.
-String _projectPathOf(Directory projectRoot, File file) {
-  final from = _segmentsOf(projectRoot.path);
-  final to = _segmentsOf(file.path);
-  var shared = 0;
-  while (shared < from.length &&
-      shared < to.length &&
-      from[shared] == to[shared]) {
-    shared++;
-  }
-  return [
-    for (var i = shared; i < from.length; i++) '..',
-    ...to.skip(shared),
-  ].join('/');
-}
-
-List<String> _segmentsOf(String path) =>
-    path.split(Platform.pathSeparator).where((s) => s.isNotEmpty).toList();
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path
 /// that [moves] move.
