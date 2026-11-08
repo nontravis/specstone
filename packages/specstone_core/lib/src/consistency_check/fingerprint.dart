@@ -4,10 +4,15 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// Returns [block] as LF text laid out as `format` writes it.
 ///
-/// Trailing blank lines are dropped; a last line with no line break gets one;
-/// an empty or all-blank [block] stays empty (INV-3).
+/// Leading and trailing blank lines are dropped, so a section body hashes the
+/// same with or without the gap under its heading; a last line with no line
+/// break gets one; an empty or all-blank [block] stays empty (INV-3).
 String upstreamText(String block) =>
-    _withoutTrailingBlanks(layOutText(toLf(block)));
+    _withoutLeadingBlanks(_withoutTrailingBlanks(layOutText(toLf(block))));
+
+String _withoutLeadingBlanks(String lf) => lf.replaceFirst(_leadingBlanks, '');
+
+final _leadingBlanks = RegExp(r'^(?:[ \t]*\n)+');
 
 String _withoutTrailingBlanks(String lf) {
   final lines = lf.split('\n');
