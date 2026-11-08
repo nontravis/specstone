@@ -218,6 +218,7 @@ RunPlan planUpgradeRun(
               (docPath: work.plannedPath, lf: renumbered[index]),
           ],
           runGit: runGit,
+          docTypes: {for (final work in works) work.plannedPath: ?work.docType},
         )
       : null;
   final docRewrites = <PlannedRewrite>[];
@@ -500,6 +501,7 @@ _LabelPlan _planLabelPass(
   required MergedSet set,
   required List<({String docPath, String lf})> docs,
   required RunGit runGit,
+  required Map<String, MergedDocType> docTypes,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
   final codeRoot = codeRootFolders(
@@ -533,6 +535,7 @@ _LabelPlan _planLabelPass(
       for (final MapEntry(:key, :value) in labelled.entries)
         if (!convertible.contains(key)) (path: key, lf: value.lf),
     ],
+    docTypes: docTypes,
   );
   return (
     pass: pass,

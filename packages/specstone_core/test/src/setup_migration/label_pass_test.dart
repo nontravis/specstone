@@ -1,5 +1,7 @@
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
@@ -463,5 +465,46 @@ void main() {
         );
       },
     );
+
+    test('E29 keeps a heading below converted ones as written, listed', () {
+      const headings =
+          '### `alpha run` — US-01 FR-01 to FR-02\n\n'
+          '### `alpha run` — US-01 FR-01, FR-02\n\n'
+          '### `alpha run` — US-01 FR-01 to FR-02; US-02 FR-01\n\n'
+          '### `alpha two` — US-02 FR-04\n';
+      final built = pass(headings);
+      final text = built.apply(_api, api(headings));
+
+      expect(text, endsWith('### `alpha two` — US-02 FR-04\n\nBody.\n'));
+      expect(built.planLine, endsWith('; left: $_api:21 US-02 FR-04'));
+    });
+
+    test('a bare Concerns see of an architecture doc takes the new slug', () {
+      final set = TemplateResolver().resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      );
+      const path = 'specs/f01_alpha/ARCHITECTURE.md';
+      final type = switch (DocTypeMatcher(set).match(path)) {
+        MatchedDocType(:final docType) => docType,
+        _ => throw StateError('no doc type'),
+      };
+      const concerns = '# A\n\n## Concerns\n\n- Errors — see API.md#';
+      final docs = {
+        ..._baseDocs(),
+        _api: api('### `alpha run` — US-01 FR-01\n'),
+        path: '${concerns}alpha-run--us-01-fr-01\n',
+      };
+      final built = LabelPass.plan(
+        [
+          for (final MapEntry(:key, :value) in docs.entries)
+            (docPath: key, lf: value),
+        ],
+        const [],
+        docTypes: {path: type},
+      );
+
+      expect(built.apply(path, docs[path]!), '${concerns}alpha-run\n');
+    });
   });
 }

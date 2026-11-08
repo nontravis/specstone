@@ -27,8 +27,8 @@ typedef ConvertedHeading = ({int line, String operation});
 
 /// The result of [dropHeadingLabels].
 ///
-/// `kept` holds the offsets in `lf` of each heading that holds a label and
-/// stays as written.
+/// `kept` holds the offsets in the result's `lf` of each heading that holds
+/// a label and stays as written.
 typedef HeadingStep = ({
   String lf,
   List<ConvertedHeading> converted,
@@ -83,7 +83,7 @@ HeadingStep dropHeadingLabels(String lf, FrOfCell frOf) {
       }
     }
     out.write(i == 0 ? text : '\n$text');
-    offset += body[i].length + 1;
+    offset += text.length + 1;
   }
   return (lf: out.toString(), converted: converted, kept: kept);
 }

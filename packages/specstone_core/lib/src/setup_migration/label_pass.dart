@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/consistency_check/reference_rules.dart'
+    show architectureTypeId;
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
@@ -5,8 +7,10 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
-    show SlugMoves, headingSlugsOf, withAnchorsMoved;
+    show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
+import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Constants
 
@@ -336,11 +340,14 @@ final class LabelPass {
   ///
   /// [trackedCodeFiles] are the ProjectPaths and LF text of the files the
   /// project's git tracks; their labels convert. A label in an
-  /// [untrackedCodeFiles] file stays and is listed.
+  /// [untrackedCodeFiles] file stays and is listed. [docTypes] holds the
+  /// merged type of each typed doc by DocPath; an `architecture` doc's bare
+  /// `see` anchors move only with it.
   static LabelPass plan(
     List<({String docPath, String lf})> docs,
     List<({String path, String lf})> trackedCodeFiles, {
     List<({String path, String lf})> untrackedCodeFiles = const [],
+    Map<String, MergedDocType> docTypes = const {},
   }) {
     final tree = LabelTree.of(docs);
     final sorted = _sortedBy(docs, (doc) => doc.docPath);
@@ -348,7 +355,7 @@ final class LabelPass {
       for (final (:docPath, :lf) in sorted)
         docPath: _convertDoc(tree, docPath, lf),
     };
-    final docTexts = _withAnchorsMoved(sorted, results);
+    final docTexts = _withAnchorsMoved(sorted, results, docTypes);
     final files = <_FileResult>[
       for (final (:docPath, lf: _) in sorted)
         (
@@ -471,6 +478,7 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
 Map<String, String> _withAnchorsMoved(
   List<({String docPath, String lf})> docs,
   Map<String, _DocResult> results,
+  Map<String, MergedDocType> docTypes,
 ) {
   final texts = {
     for (final (:docPath, :lf) in docs)
@@ -484,8 +492,18 @@ Map<String, String> _withAnchorsMoved(
   });
   if (moves.isEmpty) return texts;
   for (final (:docPath, :lf) in docs) {
-    final moved = withAnchorsMoved(texts[docPath] ?? lf, docPath, moves).moved;
-    if (moved != null) texts[docPath] = moved.lf;
+    var text = texts[docPath] ?? lf;
+    text = withAnchorsMoved(text, docPath, moves).moved?.lf ?? text;
+    final type = docTypes[docPath];
+    if (type != null && type.id == architectureTypeId) {
+      final concerns = withConcernsAnchorsMoved(
+        RenumberDoc(docPath, text, type),
+        text,
+        moves,
+      );
+      text = concerns?.lf ?? text;
+    }
+    if (text != lf) texts[docPath] = text;
   }
   return texts;
 }
