@@ -47,6 +47,7 @@ enum FindingKind {
   referenceMalformed('reference_malformed'),
   linkTargetMissing('link_target_missing'),
   markdownUnparsed('markdown_unparsed'),
+  numberLabel('number_label'),
   referenceDocUnresolved('reference_doc_unresolved'),
   listedFileMissing('listed_file_missing'),
   concernsTargetUnresolved('concerns_target_unresolved'),

@@ -337,4 +337,36 @@ void main() {
     expect(await formatted.runner.run(['format', 'docs/$loginFeature']), 0);
     expect(file.readAsStringSync(), contains(kept));
   });
+
+  test('consistency_check/find_broken_pointers S15: check prints one number_label finding per label with its key, '
+      'and none for a placeholder', () async {
+    // The labels are built from parts so this file holds no number label.
+    final run = ['F-${2}', 'US-${3}', 'FR-${4}'].join(' ');
+    final project = await writeCheckProject(
+      extra: edit(loginFeature, [
+        (
+          'Users forget passwords.',
+          'Cite $run, or F-<nn> US-<nn> FR-<nn>, or ${'us01'}/${'fr02_x'}.',
+        ),
+      ]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      '$loginFeature:12: number_label: $run is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
+      '$loginFeature:12: number_label: us01/fr02_x is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
+      '2 findings\n',
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final findings =
+        (jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+            as List;
+    expect(findings.map((f) => (f as Map<String, Object?>)['label']), [
+      run,
+      'us01/fr02_x',
+    ]);
+  });
 }
