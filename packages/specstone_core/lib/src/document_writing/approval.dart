@@ -163,7 +163,7 @@ sealed class ApprovalLookup {
   const new();
 }
 
-/// The newest committed copy that is not a draft.
+/// The newest committed copy that counts as approved ([countsAsApprovedCopy]).
 final class ApprovedCopy extends ApprovalLookup {
   const new(this.text, {required this.commit, required this.path});
 
@@ -180,7 +180,7 @@ final class ApprovedCopy extends ApprovalLookup {
   final String path;
 }
 
-/// A history in which no committed copy is free of `draft`.
+/// A history in which no committed copy counts as approved.
 final class NoApprovedCopy extends ApprovalLookup {
   const new();
 }
@@ -204,11 +204,17 @@ bool countsAsApprovedCopy(String lfCopy, MergedDocType? docType) {
 }
 
 /// Finds the last approved copy of a doc in git.
+///
+/// One instance serves one approve run: it detects the uncommitted moves once
+/// and reuses them for every later doc.
 final class ApprovalHistory {
   /// [runGit] replaces the real `git` process, for tests.
-  const new({RunGit? runGit}) : _runGit = runGit ?? runRealGit;
+  new({RunGit? runGit}) : _runGit = runGit ?? runRealGit;
 
   final RunGit _runGit;
+
+  // The `diff --name-status` of the moves, by project root and docs root.
+  final Map<String, String?> _moves = {};
 
   /// Returns the newest committed copy of [projectPath] that counts as
   /// approved for [docType] (see [countsAsApprovedCopy]).
@@ -248,6 +254,9 @@ final class ApprovalHistory {
       return const UnknownHistory();
     } on ProcessException {
       return const UnknownHistory();
+    } on FileSystemException {
+      // The temporary index could not be set up, so no move can be paired.
+      return const UnknownHistory();
     } on FormatException {
       // git printed bytes that are not UTF-8, so its history cannot be read.
       return const UnknownHistory();
@@ -274,6 +283,13 @@ final class ApprovalHistory {
   /// Git detects the rename in a temporary copy of the index, so the user's
   /// index is never written.
   String? _pathBeforeMove(Directory root, String projectPath, String prefix) {
+    final docsRoot = projectPath.split('/').first;
+    final status = _moves[root.path + docsRoot] ??= _movesIn(root, docsRoot);
+    return status == null ? null : _renamedFrom(status, '$prefix$projectPath');
+  }
+
+  // Null when the repository has no index file yet.
+  String? _movesIn(Directory root, String docsRoot) {
     final index = _git(root, ['rev-parse', '--git-path', 'index']).trim();
     final named = File(index);
     final source = named.isAbsolute ? named : File('${root.path}/$index');
@@ -282,9 +298,8 @@ final class ApprovalHistory {
     try {
       final copy = source.copySync('${scratch.path}/index');
       final env = {'GIT_INDEX_FILE': copy.path};
-      final docsRoot = projectPath.split('/').first;
       _git(root, ['add', '-A', '--', docsRoot], environment: env);
-      final status = _git(root, [
+      return _git(root, [
         'diff',
         '--cached',
         '-M',
@@ -292,9 +307,12 @@ final class ApprovalHistory {
         '--name-status',
         'HEAD',
       ], environment: env);
-      return _renamedFrom(status, '$prefix$projectPath');
     } finally {
-      scratch.deleteSync(recursive: true);
+      try {
+        scratch.deleteSync(recursive: true);
+      } on FileSystemException {
+        // A temp dir left behind is harmless: the answer is already in hand.
+      }
     }
   }
 

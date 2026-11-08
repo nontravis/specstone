@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
@@ -265,7 +266,7 @@ void main() {
     const base = '# Signup\n\nBody.\n';
     final hashed = withApprovalHash(base, _docType);
 
-    test('f02/us03/fr02/e19, e20: its own hash counts; a stale hash, a draft, '
+    test('document_writing/approve_drafts/show_changes_since_approval E19, E20: its own hash counts; a stale hash, a draft, '
         'or no mark does not', () {
       expect(countsAsApprovedCopy(hashed, _docType), isTrue);
       expect(
@@ -279,17 +280,21 @@ void main() {
       expect(countsAsApprovedCopy(base, _docType), isFalse);
     });
 
-    test(
-      'f02/us03/fr02/e11: `approved: true` counts, even with no doc type',
-      () {
-        expect(
-          countsAsApprovedCopy('---\napproved: true\n---\n$base', null),
-          isTrue,
-        );
-      },
-    );
+    test('document_writing/approve_drafts/show_changes_since_approval E11: a copy holding its own hash counts, and the '
+        'approval view compares it without the mark', () {
+      expect(hashed, contains('approved: "'));
+      expect(countsAsApprovedCopy(hashed, _docType), isTrue);
+      expect(withoutApprovalMarks(hashed), isNot(contains('approved')));
+    });
 
-    test('f02/us03/fr02/e21: an unquoted digits hash is no hash', () {
+    test('document_writing/approve_drafts/show_changes_since_approval E11: `approved: true` counts, even with no doc type', () {
+      expect(
+        countsAsApprovedCopy('---\napproved: true\n---\n$base', null),
+        isTrue,
+      );
+    });
+
+    test('document_writing/approve_drafts/show_changes_since_approval E21: an unquoted digits hash is no hash', () {
       expect(
         countsAsApprovedCopy('---\napproved: 123456789012\n---\n$base', null),
         isFalse,
@@ -463,7 +468,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         repo,
         'docs/$signupFeature',
         docType: _docType,
@@ -482,7 +487,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, path, docType: _docType),
+      ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>()
           .having((c) => c.commit, 'commit', approvingCommit)
           .having((c) => c.path, 'path', path),
@@ -503,7 +508,7 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
+      ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.path, 'path', oldPath),
     );
   }, skip: skipGit);
@@ -517,7 +522,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         Directory('${repo.path}/sub'),
         path,
         docType: _docType,
@@ -540,7 +545,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         Directory('${repo.path}/$sub'),
         path,
         docType: _docType,
@@ -564,7 +569,7 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         Directory('${repo.path}/sub'),
         newPath,
         docType: _docType,
@@ -589,7 +594,7 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         Directory('${repo.path}/sub'),
         newPath,
         docType: _docType,
@@ -634,7 +639,7 @@ void main() {
       commitAll(repo, 'moved and drafted');
 
       expect(
-        const ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
+        ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
         isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
       );
     },
@@ -656,18 +661,18 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
+      ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
     );
   }, skip: skipSha256);
 
-  test('f02/us03/fr02/e03, dw-s03/inv11: a committed copy with neither key is '
+  test('document_writing/approve_drafts/show_changes_since_approval E03, domain:document_writing INV-11: a committed copy with neither key is '
       'no approval', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedBody});
     commitAll(repo, 'written by hand');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         repo,
         'docs/$signupFeature',
         docType: _docType,
@@ -676,7 +681,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e05, dw-s03/inv11: an edit before any commit leaves the '
+  test('document_writing/approve_drafts/show_changes_since_approval E05, domain:document_writing INV-11: an edit before any commit leaves the '
       'committed approved copy the newest', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');
@@ -684,7 +689,7 @@ void main() {
         .writeAsStringSync('$_approvedText\nUncommitted edit.\n');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         repo,
         'docs/$signupFeature',
         docType: _docType,
@@ -693,7 +698,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e19, dw-s03/inv11: a newer copy with no draft and no '
+  test('document_writing/approve_drafts/show_changes_since_approval E19, domain:document_writing INV-11: a newer copy with no draft and no '
       '`approved:` value is passed over for an older approved one', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');
@@ -702,7 +707,7 @@ void main() {
     commitAll(repo, 'legacy copy');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         repo,
         'docs/$signupFeature',
         docType: _docType,
@@ -711,7 +716,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e20, dw-s03/inv11: an edit committed with its old hash '
+  test('document_writing/approve_drafts/show_changes_since_approval E20, domain:document_writing INV-11: an edit committed with its old hash '
       'counts as no approval', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');
@@ -720,7 +725,7 @@ void main() {
     commitAll(repo, 'edited in an editor');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         repo,
         'docs/$signupFeature',
         docType: _docType,
@@ -729,31 +734,27 @@ void main() {
     );
   }, skip: skipGit);
 
-  test(
-    'f02/us03/fr02/e21, dw-s03/inv11: an unquoted digits hash is no hash',
-    () async {
-      final digits = RegExp(r'"(\d{12})"');
-      final text = _approvedBody.replaceFirst(
-        '# Signup',
-        '---\napproved: 123456789012\n---\n# Signup',
-      );
-      expect(digits.hasMatch(text), isFalse);
-      final repo = await _repo({'docs/$signupFeature': text});
-      commitAll(repo, 'unquoted');
+  test('document_writing/approve_drafts/show_changes_since_approval E21, domain:document_writing INV-11: an unquoted digits hash is no hash', () async {
+    final digits = RegExp(r'"(\d{12})"');
+    final text = _approvedBody.replaceFirst(
+      '# Signup',
+      '---\napproved: 123456789012\n---\n# Signup',
+    );
+    expect(digits.hasMatch(text), isFalse);
+    final repo = await _repo({'docs/$signupFeature': text});
+    commitAll(repo, 'unquoted');
 
-      expect(
-        const ApprovalHistory().lastApproved(
-          repo,
-          'docs/$signupFeature',
-          docType: _docType,
-        ),
-        isA<NoApprovedCopy>(),
-      );
-    },
-    skip: skipGit,
-  );
+    expect(
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<NoApprovedCopy>(),
+    );
+  }, skip: skipGit);
 
-  group('an uncommitted move (f02/us03/fr02/e18)', () {
+  group('an uncommitted move (document_writing/approve_drafts/show_changes_since_approval E18)', () {
     const oldPath = 'docs/$story3';
     const newPath =
         'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
@@ -803,6 +804,92 @@ void main() {
     }
 
     test(
+      'the approval view prints the renamed from line for the moved doc',
+      () async {
+        final repo = await movedRepo(staged: false);
+        final lookup = ApprovalHistory().lastApproved(
+          repo,
+          newPath,
+          docType: _docType,
+        );
+
+        final view = renderApprovalView(
+          DraftView(
+            name: 'recover_account',
+            docType: 'fr',
+            mergedType: _docType,
+            projectPath: newPath,
+            text: File('${repo.path}/$newPath').readAsStringSync(),
+            lookup: lookup,
+          ),
+          position: 1,
+          count: 1,
+        );
+
+        expect(view, contains('renamed from `$oldPath`'));
+        expect(view, contains('+An edit.'));
+        expect(view, isNot(contains('@@ -0,0')));
+      },
+      skip: skipGit,
+    );
+
+    test(
+      'three never-committed drafts run the temp-index commands once',
+      () async {
+        final repo = await movedRepo(staged: false);
+        var indexCommands = 0;
+        final history = ApprovalHistory(
+          runGit: (arguments, {required workingDirectory, environment}) {
+            if (environment?['GIT_INDEX_FILE'] != null) indexCommands++;
+            return runRealGit(
+              arguments,
+              workingDirectory: workingDirectory,
+              environment: environment,
+            );
+          },
+        );
+
+        for (final path in [newPath, 'docs/$story1', 'docs/$story2']) {
+          history.lastApproved(repo, path, docType: _docType);
+        }
+
+        // One `add` and one `diff` for the whole run.
+        expect(indexCommands, 2);
+      },
+      skip: skipGit,
+    );
+
+    test(
+      'a temp index that cannot be set up makes the history unknown',
+      () async {
+        final repo = await movedRepo(staged: false);
+        final history = ApprovalHistory(
+          runGit: (arguments, {required workingDirectory, environment}) {
+            if (arguments.contains('--git-path')) {
+              // An index file that cannot be copied: it is read-protected.
+              return ProcessResult(0, 0, '${repo.path}/unreadable\n', '');
+            }
+            return runRealGit(
+              arguments,
+              workingDirectory: workingDirectory,
+              environment: environment,
+            );
+          },
+        );
+        final unreadable = File('${repo.path}/unreadable')
+          ..writeAsStringSync('x');
+        expect(Process.runSync('chmod', ['000', unreadable.path]).exitCode, 0);
+        addTearDown(() => Process.runSync('chmod', ['600', unreadable.path]));
+
+        expect(
+          history.lastApproved(repo, newPath, docType: _docType),
+          isA<UnknownHistory>(),
+        );
+      },
+      skip: skipGit ?? (Platform.isWindows ? 'no chmod' : null),
+    );
+
+    test(
       'a doc no move put there, whose path no commit holds, is none',
       () async {
         final repo = await movedRepo(staged: false);
@@ -811,7 +898,7 @@ void main() {
           ..writeAsStringSync('---\ndraft: true\n---\n# Other\n');
 
         expect(
-          const ApprovalHistory().lastApproved(
+          ApprovalHistory().lastApproved(
             repo,
             'docs/$story1',
             docType: _docType,
@@ -831,7 +918,7 @@ void main() {
     commitAll(repo, 'still draft');
 
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         repo,
         'docs/$signupFeature',
         docType: _docType,
@@ -847,11 +934,7 @@ void main() {
       commitAll(repo, 'approved');
 
       expect(
-        const ApprovalHistory().lastApproved(
-          repo,
-          'docs/$story1',
-          docType: _docType,
-        ),
+        ApprovalHistory().lastApproved(repo, 'docs/$story1', docType: _docType),
         isA<NoApprovedCopy>(),
       );
     },
@@ -860,7 +943,7 @@ void main() {
 
   test('f02/us03/fr02/e04, dw-s03/inv11: outside a repo, or with git missing, the history is unknown', () async {
     expect(
-      const ApprovalHistory().lastApproved(
+      ApprovalHistory().lastApproved(
         await writeWriteProject(),
         'docs/$story1',
         docType: _docType,
@@ -909,7 +992,7 @@ void main() {
     commitAll(repo, 'added again as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, path, docType: _docType),
+      ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);
@@ -925,7 +1008,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      const ApprovalHistory().lastApproved(repo, path, docType: _docType),
+      ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);

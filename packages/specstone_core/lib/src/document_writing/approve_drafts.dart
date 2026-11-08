@@ -43,7 +43,7 @@ void approveDrafts(
     out.write(_nothingWaits);
     return;
   }
-  final lookup = history ?? const ApprovalHistory();
+  final lookup = history ?? ApprovalHistory();
   for (final (at, (:doc, bytes: _)) in drafts.indexed) {
     String viewOf(List<int> bytes) => _viewOf(
       session,
@@ -75,7 +75,7 @@ ReadAnswer approveDryRun(
   ApprovalHistory? history,
 }) {
   final drafts = _shownDraftsUnder(session, names);
-  final lookup = history ?? const ApprovalHistory();
+  final lookup = history ?? ApprovalHistory();
   final views = [
     for (final (at, (:doc, :bytes)) in drafts.indexed)
       _viewOf(
