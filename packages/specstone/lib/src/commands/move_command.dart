@@ -28,9 +28,22 @@ class MoveCommand extends WriteCommand {
   @override
   Future<int> run() {
     final args = argResults!;
+    final asJson = args.flag('json');
+    if (args.rest.isEmpty) {
+      return Future.value(
+        fail(
+          missingArgument(
+            name,
+            'a target',
+            'specstone move user_story:login/reset_password --under account',
+          ),
+          asJson: asJson,
+        ),
+      );
+    }
     return runWrite(
       (session) => answerMove(session, args.rest, under: args.option('under')),
-      asJson: args.flag('json'),
+      asJson: asJson,
     );
   }
 }

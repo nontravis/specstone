@@ -1203,7 +1203,7 @@ void main() {
         expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isFalse);
       }
 
-      test('f02/us07/fr01/e09: no target is argument_missing', () async {
+      test('document_writing/move_story/move_story_folder E09: no target is argument_missing', () async {
         final root = await writeNestedProject();
         expect(
           () => moveAll(root, const [], 'shop/pay'),
@@ -1220,7 +1220,7 @@ void main() {
         );
       });
 
-      test('f02/us07/fr01/e15, f02/us07/s4: two stories land in the order given, through one pass that rewrites each reference once', () async {
+      test('document_writing/move_story/move_story_folder E15: two stories land in the order given, through one pass that rewrites each reference once', () async {
         final root = await writeNestedProject(
           extra: {
             'docs/$journeyPath':
@@ -1246,7 +1246,7 @@ void main() {
         expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
       });
 
-      test('f02/us07/fr01/e16, f02/us07/s5: a target of another type refuses the whole call, and nothing moves', () async {
+      test('document_writing/move_story/move_story_folder E16: a target of another type refuses the whole call, and nothing moves', () async {
         final root = await writeNestedProject();
         expect(
           () => moveAll(root, [
@@ -1264,7 +1264,7 @@ void main() {
         expectNothingMoved(root);
       });
 
-      test('f02/us07/fr01/e16: a name no doc carries refuses the whole call, and nothing moves', () async {
+      test('document_writing/move_story/move_story_folder E16: a name no doc carries refuses the whole call, and nothing moves', () async {
         final root = await writeNestedProject();
         expect(
           () => moveAll(root, [
@@ -1282,7 +1282,7 @@ void main() {
         expectNothingMoved(root);
       });
 
-      test('f02/us07/fr01/e16, f02/us07/s5: a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
+      test('document_writing/move_story/move_story_folder E16: a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
         final root = await writeNestedProject(
           extra: {'docs/$dropLanded/USER_STORY.md': '# Drop item\n'},
         );
@@ -1299,7 +1299,7 @@ void main() {
         expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
       });
 
-      test('f02/us07/fr01/e17: two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
+      test('document_writing/move_story/move_story_folder E17: two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
         final root = await writeNestedProject(
           extra: {
             'docs/prds/features/f04_wishlist/us01_add_item/USER_STORY.md':
@@ -1327,20 +1327,37 @@ void main() {
         );
       });
 
-      test(
-        'f02/us07/fr01/e18: the same story named twice moves once',
-        () async {
-          final root = await writeNestedProject();
-          final answer = moveAll(root, [addItem, addItem], 'shop/pay');
-          expect(answer.json['moved'], [
-            {'from': '$addItemFolder/', 'to': '$movedFolder/'},
-          ]);
-          expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
-          expect(hasDoc(root, cartAdd), isFalse);
-        },
-      );
+      test('document_writing/move_story/move_story_folder E15: a story created after the targets are checked is skipped by the landing numbers', () async {
+        final root = await writeNestedProject();
+        var raced = false;
+        final answer = IOOverrides.runWithIOOverrides(
+          () => moveAll(root, [addItem, dropItem], 'shop/pay'),
+          _CreateFileHook((path) {
+            if (raced || !path.endsWith('f02_pay/us03_add_item')) return;
+            raced = true;
+            File('${root.path}/docs/$shop/f02_pay/us03_other/USER_STORY.md')
+                .createSync(recursive: true);
+          }),
+        );
+        expect(raced, isTrue);
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$shop/f02_pay/us04_add_item/'},
+          {'from': '$dropFolder/', 'to': '$shop/f02_pay/us05_drop_item/'},
+        ]);
+        expect(hasDoc(root, '$shop/f02_pay/us03_other/USER_STORY.md'), isTrue);
+      });
 
-      test('f02/us07/fr01/e18: a target already directly under the feature stays, and the others move', () async {
+      test('document_writing/move_story/move_story_folder E18: the same story named twice moves once', () async {
+        final root = await writeNestedProject();
+        final answer = moveAll(root, [addItem, addItem], 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ]);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+        expect(hasDoc(root, cartAdd), isFalse);
+      });
+
+      test('document_writing/move_story/move_story_folder E18: a target already directly under the feature stays, and the others move', () async {
         final root = await writeNestedProject();
         final answer = moveAll(root, [
           'user_story:shop/pay/card',
@@ -1994,4 +2011,26 @@ final class _CapturedStderr implements Stdout {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// A `File` made inside `onCreate` reaches the real file system: the hook is
+/// off while it runs.
+final class _CreateFileHook extends IOOverrides {
+  new(this._onCreate);
+
+  final void Function(String path) _onCreate;
+  var _inside = false;
+
+  @override
+  File createFile(String path) {
+    if (!_inside) {
+      _inside = true;
+      try {
+        _onCreate(path);
+      } finally {
+        _inside = false;
+      }
+    }
+    return super.createFile(path);
+  }
 }

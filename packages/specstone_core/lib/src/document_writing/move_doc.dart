@@ -184,8 +184,11 @@ ReadAnswer answerMove(
   ];
   if (stories.isEmpty) return _answerFor(session, const [], const []);
   _checkTakesStory(session, newParent, parentTypeId);
-  final moves = _storyMoves(session, stories, docType, newParent);
+  // Refuse before the lock; the numbers are taken again inside it, since a
+  // concurrent `new` can claim one in between.
+  _storyMoves(session, stories, docType, newParent);
   return session.locked(() {
+    final moves = _storyMoves(session, stories, docType, newParent);
     final renamed = _renamedNames(session, moves);
     final rewrites = planRewrites(session, moves, renamed: renamed);
     MoveJournal([

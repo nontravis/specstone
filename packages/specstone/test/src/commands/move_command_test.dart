@@ -195,7 +195,7 @@ void main() {
     expect(err.toString(), startsWith('move needs a target'));
   });
 
-  test('f02/us07/s4, f02/us07/fr01/e15: several stories move in one call, in the order named', () async {
+  test('user_story:document_writing/move_story S4: several stories move in one call, in the order named', () async {
     const dropFolder = 'prds/features/f02_shop/f01_cart/us02_drop_item';
     final root = await writeNestedProject();
     final (:runner, :out, :err) = writeRunner(root);
@@ -221,7 +221,7 @@ void main() {
     expect(docFile(root, cartDrop).existsSync(), isFalse);
   });
 
-  test('f02/us07/s5, f02/us07/fr01/e16: one story that cannot move refuses the call, and nothing moves', () async {
+  test('user_story:document_writing/move_story S5: one story that cannot move refuses the call, and nothing moves', () async {
     const clash = 'prds/features/f02_shop/f02_pay/us03_drop_item';
     final root = await writeNestedProject(
       extra: {'docs/$clash/USER_STORY.md': '# Drop item\n'},
@@ -247,12 +247,25 @@ void main() {
     expect(docFile(root, '$movedFolder/USER_STORY.md').existsSync(), isFalse);
   });
 
-  test('f02/us07/fr01/e12: move --help names the several-story form', () async {
+  test('document_writing/move_story/move_story_folder E12: move --help names the several-story form', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(await runner.run(['move', '--help']), 0);
     expect(
       out.toString(),
       contains('specstone move <doc address> … --under <doc address> [--json]'),
+    );
+  });
+
+  test('document_writing/move_story/move_story_folder E09: no target outside a project is argument_missing, exit 64', () async {
+    final outside = Directory.systemTemp.createTempSync('specstone_move_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    final (:runner, :out, :err) = writeRunner(outside);
+    expect(await runner.run(['move', '--under', 'shop/pay']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      'move needs a target, such as specstone move '
+      'user_story:login/reset_password --under account\n',
     );
   });
 
