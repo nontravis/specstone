@@ -224,12 +224,14 @@ String _withoutComments(String text) => text
     .map((line) => line.trimLeft().startsWith('//') ? '' : line)
     .join('\n');
 
+/// Returns [file]'s path relative to `packages/`, with `/` separators.
+String _relative(File file) => file.path
+    .substring(_packagesDir().uri.toFilePath().length)
+    .replaceAll(r'\', '/');
+
 /// Returns `<relative file>: <snippet>` for each reference-shaped read.
 List<({String file, String snippet})> _sites(File file) {
-  final packagesPath = _packagesDir().uri.toFilePath();
-  final relative = file.path
-      .substring(packagesPath.length)
-      .replaceAll(r'\', '/');
+  final relative = _relative(file);
   if (relative == _grammarFile) return const [];
   final text = _withoutComments(file.readAsStringSync());
   return [
@@ -241,7 +243,168 @@ List<({String file, String snippet})> _sites(File file) {
   ];
 }
 
+/// One group 3 rule: `pattern` matches a read or write that only the
+/// `exempt` files may hold; any other match in a source `appliesTo` fails
+/// unless `allowed` lists it.
+typedef _Rule = ({
+  String name,
+  String remedy,
+  RegExp pattern,
+  Set<String> exempt,
+  List<_Allowed> allowed,
+  bool Function(String text) appliesTo,
+});
+
+String _lib(String file) => 'specstone_core/lib/src/$file';
+
+/// A `RegExp(` call whose first string literal holds [inner], a regex source.
+RegExp _regExpLiteralWith(String inner) => RegExp(
+  "RegExp\\(\\s*r?(?:'[^'\\n]*(?:$inner)[^'\\n]*'"
+  '|"[^"\\n]*(?:$inner)[^"\\n]*")',
+);
+
+bool _everySource(String text) => true;
+
+/// Whether [text] reads number labels, through `number_label.dart`.
+bool _readsLabels(String text) => text.contains('number_label.dart');
+
+final String _approvalFile = _lib('document_writing/approval.dart');
+
+final _rules = <_Rule>[
+  (
+    name: 'a number label is read only by number_label',
+    remedy: 'Read the label through doc_model/number_label.dart.',
+    pattern: _regExpLiteralWith(r'(?:F|US|FR)-|[Uu][Ss]\\d|[Ff][Rr]\\d'),
+    exempt: {_lib('doc_model/number_label.dart')},
+    allowed: [
+      (
+        file: _lib('setup_migration/legacy_moves.dart'),
+        snippet: r"""RegExp( r'^(us\d+_[^/]+)/(?:(USER_STORY\.md)'""",
+        reason: 'Legacy story folder name in a legacy tree, no label text.',
+      ),
+      (
+        file: _lib('setup_migration/legacy_plan.dart'),
+        snippet: r"""RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$'""",
+        reason: 'Legacy FR file name in a legacy tree path, no label text.',
+      ),
+    ],
+    appliesTo: _everySource,
+  ),
+  (
+    name: 'a label reader parses no fence or code span of its own',
+    remedy:
+        'Use blockScan, fenceScan, or codeSpansOf; they are the one fence '
+        'and code-span parser.',
+    pattern: RegExp(
+      r'''\x27`\x27|"`"|\x27~~~\x27|"~~~"|`{3}|0x60\b|0x7[Ee]\b''',
+    ),
+    exempt: {},
+    allowed: [
+      (
+        file: _lib('setup_migration/api_heading_labels.dart'),
+        snippet: "'`'",
+        reason: 'Unwraps one backtick pair of a table cell, no label.',
+      ),
+    ],
+    appliesTo: _readsLabels,
+  ),
+  (
+    name: 'an approved: line is written only by withApprovalHash',
+    remedy: 'Write the stamp through withApprovalHash in approval.dart.',
+    pattern: RegExp(
+      r'''\x27[^\x27\n]*\bapproved:[^\x27\n]*\x27|"[^"\n]*\bapproved:[^"\n]*"''',
+    ),
+    exempt: {_approvalFile},
+    allowed: [],
+    appliesTo: _everySource,
+  ),
+  (
+    name: 'the approved value is read only by approval and the index',
+    remedy: 'Read it through ApprovalFields in approval.dart.',
+    pattern: RegExp(
+      r'''\[\s*(?:\x27approved\x27|"approved"|_approvedKey)\s*\]'''
+      r'''|loadYaml\w*\([^;)]*[aA]pproved''',
+    ),
+    exempt: {_approvalFile, _lib('index_query/indexed_doc.dart')},
+    allowed: [],
+    appliesTo: _everySource,
+  ),
+  (
+    name: 'the pin table of the approval stamps is read by two functions',
+    remedy:
+        'Ask stampsHaveRun in approval.dart; do not compare pins to '
+        'agentFilesSince again.',
+    pattern: RegExp(r'\bagentFilesSince\b'),
+    exempt: {_lib('setup_migration/agent_targets.dart'), _approvalFile},
+    allowed: [
+      (
+        file: _lib('setup_migration/upgrade_plan.dart'),
+        snippet: 'agentFilesSince',
+        reason:
+            'runsOneTimePasses reads the one version table stampsHaveRun '
+            'reads, to tell a pin that crosses it.',
+      ),
+    ],
+    appliesTo: _everySource,
+  ),
+  (
+    name: 'the 1.1.0 fingerprint is taken only by the stamp pass',
+    remedy: 'Call legacyFingerprintOf from setup_migration/stamp_pass.dart.',
+    pattern: RegExp(r'\blegacyFingerprintOf\b'),
+    exempt: {
+      _lib('consistency_check/fingerprint.dart'),
+      _lib('setup_migration/stamp_pass.dart'),
+    },
+    allowed: [],
+    appliesTo: _everySource,
+  ),
+];
+
+/// Returns `<file>: <snippet>` for each match of [rule] outside its exempt
+/// files that its allow list does not name, and the allow entries it uses.
+({List<String> unlisted, Set<_Allowed> used}) _hitsOf(_Rule rule) {
+  final unlisted = <String>[];
+  final used = <_Allowed>{};
+  for (final file in _sources()) {
+    final relative = _relative(file);
+    if (rule.exempt.contains(relative)) continue;
+    final source = file.readAsStringSync();
+    if (!rule.appliesTo(source)) continue;
+    final text = _withoutComments(source);
+    for (final m in rule.pattern.allMatches(text)) {
+      final snippet = m.group(0)!.replaceAll(RegExp(r'\s+'), ' ');
+      final entry = rule.allowed.where(
+        (a) => a.file == relative && a.snippet == snippet,
+      );
+      if (entry.isEmpty) {
+        unlisted.add('$relative: $snippet');
+      } else {
+        used.add(entry.first);
+      }
+    }
+  }
+  return (unlisted: unlisted, used: used);
+}
+
 void main() {
+  for (final rule in _rules) {
+    test(rule.name, () {
+      final (:unlisted, :used) = _hitsOf(rule);
+      if (unlisted.isNotEmpty) {
+        fail('${rule.remedy}\n${unlisted.toSet().join('\n')}');
+      }
+      final stale = [
+        for (final a in rule.allowed)
+          if (!used.contains(a)) '${a.file}: ${a.snippet}',
+      ];
+      if (stale.isNotEmpty) {
+        fail(
+          'Remove the allow-list entries no site hits:\n${stale.join('\n')}',
+        );
+      }
+    });
+  }
+
   test('no hand-written reference parser sits outside reference_grammar', () {
     final unlisted = <String>[];
     final used = <_Allowed>{};
