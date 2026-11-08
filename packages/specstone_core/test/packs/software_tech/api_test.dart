@@ -10,7 +10,8 @@ const _says = <String, List<String>>{
   'fr_trace': ['FR', 'operation', 'operationId', 'command'],
   'operations': [
     '###',
-    '`<operation>` — FR-<NN>',
+    '`<operation>` ``',
+    'no FR label',
     'Request example',
     'Response example',
     'success',

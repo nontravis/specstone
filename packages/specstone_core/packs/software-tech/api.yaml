@@ -34,7 +34,7 @@ sections:
     header: Operations
     required: true
     description: |-
-      Write one `###` per operation, headed `` `<operation>` — FR-<NN> ``, holding a Request example.
+      Write one `###` per operation, headed `` `<operation>` `` alone with no FR label, holding a Request example.
       Write a success and an error Response example, both required and valid against the source of truth when one exists.
       Write Errors as the codes with a pointer to the error doc, and Auth as a scope or `none`.
       Write Idempotent on every mutating operation: `yes` with the key, or `no`.

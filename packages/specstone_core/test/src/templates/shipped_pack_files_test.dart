@@ -32,4 +32,9 @@ void main() {
       }
     },
   );
+
+  test('template_packs/write_spec_docs_from_software_tech/ship_software_tech_pack: '
+      'the shipped software-tech pack is 1.4.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.4.0');
+  });
 }

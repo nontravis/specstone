@@ -104,8 +104,6 @@ void main() {
   test('agentFilesSince matches the shipped versions of its packs', () {
     final shipped = shippedPackVersions();
     for (final entry in agentFilesSince.entries) {
-      // Task 15 bumps software-tech to its entry; drop the exception then.
-      if (entry.key == 'software-tech') continue;
       expect(shipped[entry.key], entry.value.toString());
     }
   });
@@ -951,6 +949,23 @@ void _agentFilesTests() {
         plan.toText(),
         contains('agent files: .specstone/AGENT.md, CLAUDE.md'),
       );
+    });
+
+    test('$_fr E14: software-tech moving up from 1.3.0 with prd-core already '
+        'at 1.7.0 writes every agent file once', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.7.0\n  software-tech: 1.3.0\n',
+        'CLAUDE.md': '# Owner rules\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
+        '.specstone/AGENT.md',
+        'CLAUDE.md',
+      ]);
+      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.4.0'));
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
