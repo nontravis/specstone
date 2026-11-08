@@ -27,7 +27,7 @@ void main() {
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.bannedWord,
     );
-    expect(finding.line, 16);
+    expect(finding.line, 17);
     expect(
       finding.toJson(),
       allOf(containsPair('word', 'fast'), containsPair('section', 'statement')),
@@ -69,7 +69,7 @@ void main() {
         ]),
       ),
     );
-    expect(spots(report, FindingKind.bannedWord), ['$gnfrDoc:7: banned_word']);
+    expect(spots(report, FindingKind.bannedWord), ['$gnfrDoc:11: banned_word']);
   });
 
   test('f04/us01/fr05/e04: allowed_words free a word everywhere, or in their section only', () async {
@@ -100,7 +100,7 @@ void main() {
       ),
     );
     expect(spots(oneSection, FindingKind.bannedWord), [
-      '$loginFr:24: banned_word',
+      '$loginFr:25: banned_word',
     ]);
   });
 

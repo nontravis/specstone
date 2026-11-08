@@ -43,6 +43,9 @@ final class CheckContext {
   /// The folder code paths are written from, `code_root` of the config.
   Directory get codeRoot => _session.project.codeRoot;
 
+  /// Whether the config pins a pack at or above the approval stamps.
+  bool get stampsHaveRun => _session.project.stampsHaveRun;
+
   /// The merged doc types of the project.
   MergedSet get set => _session.project.set;
 

@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show withApprovalHashes;
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 
@@ -467,7 +468,7 @@ void main() {
     expect(
       answerGet(nested, 'feature:shop/cart').text,
       '==> shop/cart (feature) · $cartFeature <==\n'
-      '${nestedFiles()['docs/$cartFeature']}',
+      '${withApprovalHashes(nestedFiles())['docs/$cartFeature']}',
     );
   });
 }

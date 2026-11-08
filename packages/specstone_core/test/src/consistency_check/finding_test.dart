@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check INV-2: 55 snake_case kinds, no error code', () {
+  test('consistency_check: 56 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -74,6 +74,7 @@ void main() {
       'confirmed_entry_stale',
       'format_drift',
       'agent_block_stale',
+      'approval_stale',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
     const writeCodes = {

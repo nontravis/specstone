@@ -78,7 +78,7 @@ void main() {
     final finding = report.findings.single;
     expect(
       finding.textLine,
-      '$loginFr:7: suspect: S2 changed after it was confirmed: recorded ${fp(loginScenario2)}, current '
+      '$loginFr:8: suspect: S2 changed after it was confirmed: recorded ${fp(loginScenario2)}, current '
       '${fp(edited)}; read Scenario 2 of $loginStory, then record S2 ${fp(edited)}',
     );
     expect(
@@ -118,7 +118,7 @@ void main() {
         extra: doc(gnfrDoc, loginNfrStatement, statement),
       ),
     );
-    expect(spots(suspect), ['$loginNf:6: suspect']);
+    expect(spots(suspect), ['$loginNf:7: suspect']);
     expect(suspect.findings.single.toJson()['block'], 'NFR-P01 Statement');
     final rationale = checkOf(
       await writeCheckProject(
@@ -161,7 +161,7 @@ void main() {
         },
       ),
     );
-    expect(spots(report), ['$loginApi:3: suspect']);
+    expect(spots(report), ['$loginApi:4: suspect']);
     expect(
       report.findings.single.toJson(),
       allOf(
@@ -191,7 +191,7 @@ void main() {
     expect(
       finding.textLine,
       startsWith(
-        '$loginFr:3: unconfirmed: S2 has no confirmed entry: current ${fp(loginScenario2)}',
+        '$loginFr:4: unconfirmed: S2 has no confirmed entry: current ${fp(loginScenario2)}',
       ),
     );
     expect(finding.toJson().containsKey('recorded'), isFalse);
@@ -260,14 +260,14 @@ void main() {
     final nfr = checkOf(
       await writeCheckProject(extra: doc(gnfrDoc, '$loginNfrStatement\n', '')),
     );
-    expect(spots(nfr), ['$loginNf:6: suspect']);
+    expect(spots(nfr), ['$loginNf:7: suspect']);
     expect(nfr.findings.single.toJson(), containsPair('fingerprint', empty));
     final noStatement = checkOf(
       await writeCheckProject(
         extra: doc(loginFr, '## Statement\n\n$checkPasswordStatement\n\n', ''),
       ),
     );
-    expect(spots(noStatement, FindingKind.suspect), ['$loginApi:3: suspect']);
+    expect(spots(noStatement, FindingKind.suspect), ['$loginApi:4: suspect']);
     expect(
       noStatement.findings
           .firstWhere((f) => f.kind == FindingKind.suspect)
@@ -324,7 +324,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.confirmedEntryMalformed), [
-        '$loginFr:7: confirmed_entry_malformed',
+        '$loginFr:8: confirmed_entry_malformed',
       ]);
       expect(
         report.findings
@@ -348,7 +348,7 @@ void main() {
           ]),
         ),
       );
-      final line = draft.isEmpty ? 8 : 9;
+      const line = 9;
       expect(spots(report, FindingKind.confirmedEntryStale), [
         '$loginFr:$line: confirmed_entry_stale',
       ]);
@@ -372,7 +372,7 @@ void main() {
           ]),
         ),
       );
-      expect(spots(report), ['$loginNf:5: confirmed_entry_stale']);
+      expect(spots(report), ['$loginNf:6: confirmed_entry_stale']);
     },
   );
 
@@ -401,7 +401,7 @@ void main() {
           ),
         ),
       );
-      expect(spots(report), ['$loginApi:4: confirmed_entry_stale']);
+      expect(spots(report), ['$loginApi:5: confirmed_entry_stale']);
     },
   );
 
@@ -428,7 +428,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
-    expect(spots(report), ['$loginFr:3: unconfirmed']);
+    expect(spots(report), ['$loginFr:4: unconfirmed']);
   });
 
   test('f04/us04/fr01, cc-s03/inv6: a scenario with a fenced example heading keeps its whole block, and the example is no scenario', () async {
@@ -451,7 +451,7 @@ void main() {
         },
       ),
     );
-    expect(spots(report), ['$loginFr:3: scenario_trace_unresolved']);
+    expect(spots(report), ['$loginFr:4: scenario_trace_unresolved']);
   });
 
   test('f04/us04/fr03/e10: an api entry naming a nested FR by three segments is well-formed', () async {
@@ -525,7 +525,7 @@ void main() {
       expect(
         missing.findings.single.textLine,
         startsWith(
-          '$journeyPath:16: unconfirmed: $label1 has no confirmed entry: current ${fp(loginScenario1)}',
+          '$journeyPath:17: unconfirmed: $label1 has no confirmed entry: current ${fp(loginScenario1)}',
         ),
       );
 
@@ -730,7 +730,7 @@ void main() {
       );
 
       expect(spots(report, FindingKind.confirmedEntryMalformed), [
-        '$loginFr:7: confirmed_entry_malformed',
+        '$loginFr:8: confirmed_entry_malformed',
       ]);
     });
   });

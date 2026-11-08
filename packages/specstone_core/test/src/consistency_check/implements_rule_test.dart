@@ -33,7 +33,7 @@ void main() {
     final finding = report.findings.single;
     expect(
       finding.textLine,
-      '$loginFr:9: implements_symbol_unresolved: checkPassword occurs nowhere in app/lib/login.dart',
+      '$loginFr:10: implements_symbol_unresolved: checkPassword occurs nowhere in app/lib/login.dart',
     );
     expect(
       finding.toJson(),
@@ -58,7 +58,7 @@ void main() {
           without: {'app/lib/login.dart'},
         ),
       );
-      expect(spots(report), ['$loginFr:9: implements_path_unresolved']);
+      expect(spots(report), ['$loginFr:10: implements_path_unresolved']);
       expect(
         report.findings.single.toJson(),
         containsPair('entry', 'app/lib/b.dart'),
@@ -67,7 +67,7 @@ void main() {
   );
 
   test('code_root: a folder outside the project root holds the code', () async {
-    final files = checkProjectFiles();
+    final files = withApprovalHashes(checkProjectFiles());
     final config = '${shippedPinsConfig()}code_root: ../outside\n';
     final workspace = await writeTree({
       for (final MapEntry(:key, :value) in files.entries)
@@ -88,11 +88,11 @@ void main() {
     final folder = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib')),
     );
-    expect(spots(folder), ['$loginFr:9: implements_path_unresolved']);
+    expect(spots(folder), ['$loginFr:10: implements_path_unresolved']);
     final gone = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib/gone.dart:X')),
     );
-    expect(spots(gone), ['$loginFr:9: implements_path_unresolved']);
+    expect(spots(gone), ['$loginFr:10: implements_path_unresolved']);
   });
 
   test(
@@ -144,7 +144,7 @@ void main() {
         },
       ),
     );
-    expect(spots(part), ['$loginFr:9: implements_symbol_unresolved']);
+    expect(spots(part), ['$loginFr:10: implements_symbol_unresolved']);
     final comment = checkOf(
       await writeCheckProject(
         extra: {
@@ -186,7 +186,7 @@ void main() {
       Process.runSync('chmod', ['000', path]);
       addTearDown(() => Process.runSync('chmod', ['644', path]));
       final report = checkOf(project);
-      expect(spots(report), ['$loginStory:6: implements_symbol_unresolved']);
+      expect(spots(report), ['$loginStory:7: implements_symbol_unresolved']);
       expect(report.warnings, [
         'app/lib/login.dart: cannot read the file; implements Symbols in it are not checked',
       ]);

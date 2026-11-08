@@ -293,6 +293,8 @@ void main() {
               '### 1. Sign in\nstep: login/email_login S1\n\n'
               '### 2. Next\nstep: login/email_login S2\nafter: 1\n',
         },
+        // The stamp would give the journey the frontmatter the test lacks.
+        unstamped: {'docs/$_journeyPath'},
       );
       _rename(root, 'user_story:login/email_login', 'password_login');
       expect(

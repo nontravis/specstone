@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/journeys/first_confirmations.dart';
@@ -120,7 +121,12 @@ void main() {
       expect(waiting, hasLength(5));
       expect(waiting.map((f) => f.kind), everyElement(FindingKind.unconfirmed));
 
-      _file(root).writeAsStringSync(text.replaceFirst('draft: true\n', ''));
+      _file(root).writeAsStringSync(
+        withApprovalHash(
+          text.replaceFirst('draft: true\n', ''),
+          fixtureDocTypeOf(_journeyDoc),
+        ),
+      );
       expect(_check(root), isEmpty);
     },
   );

@@ -29,7 +29,7 @@ void main() {
         await writeCheckProject(extra: fr('  - S2\n', '  - $entry\n')),
       );
       expect(spots(report, FindingKind.scenarioTraceUnresolved), [
-        '$loginFr:3: scenario_trace_unresolved',
+        '$loginFr:4: scenario_trace_unresolved',
       ]);
       expect(
         report.findings
@@ -54,7 +54,7 @@ void main() {
       await writeCheckProject(extra: doc(loginNf, 'overrides: NFR-P01\n', '')),
     );
     expect(spots(noOverride, FindingKind.overrideKindMismatch), [
-      '$loginNf:2: override_kind_mismatch',
+      '$loginNf:3: override_kind_mismatch',
     ]);
     final addWithOne = checkOf(
       await writeCheckProject(
@@ -62,7 +62,7 @@ void main() {
       ),
     );
     expect(spots(addWithOne, FindingKind.overrideKindMismatch), [
-      '$loginNf:2: override_kind_mismatch',
+      '$loginNf:3: override_kind_mismatch',
     ]);
   });
 
@@ -73,7 +73,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.overrideUnresolved), [
-      '$loginNf:3: override_unresolved',
+      '$loginNf:4: override_unresolved',
     ]);
   });
 
@@ -94,7 +94,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.overrideUnresolved), [
-        '$loginNf:3: override_unresolved',
+        '$loginNf:4: override_unresolved',
       ]);
     },
   );
@@ -140,7 +140,7 @@ void main() {
     expect(unresolved.values, [
       isEmpty,
       isEmpty,
-      ['$loginNf:3: override_unresolved'],
+      ['$loginNf:4: override_unresolved'],
     ]);
   });
 
@@ -197,8 +197,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:13: role_unresolved',
-      'prds/personas/buyer/PERSONA.md:2: role_unresolved',
+      '$loginStory:14: role_unresolved',
+      'prds/personas/buyer/PERSONA.md:3: role_unresolved',
     ]);
     expect(
       report.findings
@@ -221,7 +221,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.roleUnresolved), [
-        '$loginStory:13: role_unresolved',
+        '$loginStory:14: role_unresolved',
       ]);
       expect(
         report.findings
@@ -255,7 +255,7 @@ void main() {
         },
       ),
     );
-    expect(spots(report), ['$loginStory:3: vision_goal_widened']);
+    expect(spots(report), ['$loginStory:4: vision_goal_widened']);
     expect(report.findings.single.toJson()['id'], 'PG-03');
     expect(
       report.findings.single.message,
@@ -270,8 +270,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$loginStory:3: vision_goal_unresolved',
-      '$loginStory:3: vision_goal_widened',
+      '$loginStory:4: vision_goal_unresolved',
+      '$loginStory:4: vision_goal_widened',
     ]);
   });
 
@@ -285,12 +285,12 @@ void main() {
       await writeCheckProject(without: {'docs/$projectDoc'}),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:13: role_unresolved',
+      '$loginStory:14: role_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginFeature:2: vision_goal_unresolved',
-      '$loginFeature:4: vision_goal_unresolved',
-      '$loginStory:3: vision_goal_unresolved',
+      '$loginFeature:3: vision_goal_unresolved',
+      '$loginFeature:5: vision_goal_unresolved',
+      '$loginStory:4: vision_goal_unresolved',
     ]);
   });
 
@@ -318,8 +318,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginFeature:2: vision_goal_unresolved',
-      '$loginFeature:4: vision_goal_unresolved',
+      '$loginFeature:3: vision_goal_unresolved',
+      '$loginFeature:5: vision_goal_unresolved',
     ]);
     expect(
       report.findings
@@ -336,7 +336,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.goalServesMissing), [
-      '$projectDoc:19: goal_serves_missing',
+      '$projectDoc:20: goal_serves_missing',
     ]);
     expect(
       report.findings
@@ -384,8 +384,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$projectDoc:21: vision_goal_unresolved',
-      '$projectDoc:21: vision_goal_unresolved',
+      '$projectDoc:22: vision_goal_unresolved',
+      '$projectDoc:22: vision_goal_unresolved',
     ]);
     expect(
       report.findings
@@ -454,7 +454,7 @@ void main() {
           ),
         );
         expect(spots(report, FindingKind.goalServesMissing), [
-          '$projectDoc:19: goal_serves_missing',
+          '$projectDoc:20: goal_serves_missing',
         ]);
         expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
       }
@@ -474,7 +474,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.goalServesMissing), [
-        '$projectDoc:19: goal_serves_missing',
+        '$projectDoc:20: goal_serves_missing',
       ]);
     },
   );
@@ -520,7 +520,7 @@ void main() {
       ),
     );
     expect(spots(extra, FindingKind.frTraceUnresolved), [
-      '$loginApi:13: fr_trace_unresolved',
+      '$loginApi:14: fr_trace_unresolved',
     ]);
     expect(
       extra.findings
@@ -538,7 +538,7 @@ void main() {
       ),
     );
     expect(spots(withSlug, FindingKind.frTraceUnresolved), [
-      '$loginApi:12: fr_trace_unresolved',
+      '$loginApi:13: fr_trace_unresolved',
     ]);
   });
 
@@ -562,7 +562,7 @@ void main() {
     );
 
     expect(spots(report, FindingKind.frTraceUnresolved), [
-      '$shopApi:11: fr_trace_unresolved',
+      '$shopApi:12: fr_trace_unresolved',
     ]);
     expect(
       report.findings
@@ -719,10 +719,10 @@ void main() {
     );
     expect(spots(report, FindingKind.roleUnresolved), isEmpty);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginStory:3: vision_goal_unresolved',
+      '$loginStory:4: vision_goal_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalWidened), [
-      '$loginStory:3: vision_goal_widened',
+      '$loginStory:4: vision_goal_widened',
     ]);
     final unresolvedReviewer = checkOf(
       await writeCheckProject(
@@ -742,7 +742,7 @@ void main() {
       ),
     );
     expect(spots(unresolvedReviewer, FindingKind.roleUnresolved), [
-      '$loginStory:13: role_unresolved',
+      '$loginStory:14: role_unresolved',
     ]);
   });
 
@@ -782,7 +782,7 @@ void main() {
       );
 
       expect(spots(report, FindingKind.visionGoalWidened), [
-        '$cartFeature:4: vision_goal_widened',
+        '$cartFeature:5: vision_goal_widened',
       ]);
       final finding = report.findings.firstWhere(
         (f) => f.kind == FindingKind.visionGoalWidened,
@@ -815,7 +815,7 @@ void main() {
       );
 
       expect(spots(report, FindingKind.visionGoalWidened), [
-        '$deepFeature:4: vision_goal_widened',
+        '$deepFeature:5: vision_goal_widened',
       ]);
     });
 
@@ -866,24 +866,24 @@ void main() {
 
     test('f04/us03/fr01/e09: a story of another feature is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/pay/card#S1'), [
-        '$cartAddFr:3 shop/pay/card#S1',
+        '$cartAddFr:4 shop/pay/card#S1',
       ]);
     });
 
     test('f04/us03/fr01/e10: a sibling story with no such scenario is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/cart/drop_item#S9'), [
-        '$cartAddFr:3 shop/cart/drop_item#S9',
+        '$cartAddFr:4 shop/cart/drop_item#S9',
       ]);
     });
 
     test('f04/us03/fr01/e04: a story that no doc carries is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/cart/nothing#S1'), [
-        '$cartAddFr:3 shop/cart/nothing#S1',
+        '$cartAddFr:4 shop/cart/nothing#S1',
       ]);
     });
 
     test('f04/us03/fr01/e04: a lettered scenario number is scenario_trace_unresolved', () async {
-      expect(await unresolvedWith('S6a'), ['$cartAddFr:3 S6a']);
+      expect(await unresolvedWith('S6a'), ['$cartAddFr:4 S6a']);
     });
 
     test('f04/us03/fr01/e09: two stories whose feature doc is gone are no siblings', () async {
@@ -899,7 +899,7 @@ void main() {
         docPath: loginFr,
       );
       expect(spots(report, FindingKind.scenarioTraceUnresolved), [
-        '$loginFr:3: scenario_trace_unresolved',
+        '$loginFr:4: scenario_trace_unresolved',
       ]);
     });
   });

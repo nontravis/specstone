@@ -70,11 +70,14 @@ void main() {
     const loginDomain = 'specs/f01_login/DOMAIN.md';
     // The index counts the laid-out text: a blank line under the title and a
     // final line break.
+    // A draft takes no approval stamp, so the character count stays exact.
+    const draft = '---\ndraft: true\n---\n\n';
     const title = '# Login domain\n';
     final report = checkOf(
       await writeCheckProject(
         extra: {
-          'docs/$loginDomain': '$title${'x' * (60001 - title.length - 2)}',
+          'docs/$loginDomain':
+              '$draft$title${'x' * (60001 - draft.length - title.length - 2)}',
         },
       ),
     );

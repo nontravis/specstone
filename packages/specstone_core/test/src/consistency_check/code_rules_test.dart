@@ -27,8 +27,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$techStack:3: code_uncovered',
-      '$techStack:3: code_uncovered',
+      '$techStack:4: code_uncovered',
+      '$techStack:4: code_uncovered',
     ]);
     expect(
       report.findings.last.message,
@@ -55,8 +55,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$techStack:3: code_uncovered',
-      '$techStack:3: code_uncovered',
+      '$techStack:4: code_uncovered',
+      '$techStack:4: code_uncovered',
     ]);
     expect(
       [for (final f in report.findings) f.toJson()['path']],
@@ -130,8 +130,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$techStack:3: code_uncovered',
-      '$techStack:4: code_root_missing',
+      '$techStack:4: code_uncovered',
+      '$techStack:5: code_root_missing',
     ]);
   });
 
@@ -150,13 +150,13 @@ void main() {
       await writeCheckProject(extra: narrow('app/lib/login/')),
     );
     expect(spots(moved, FindingKind.coversPathMissing), [
-      '$loginArchitecture:3: covers_path_missing',
+      '$loginArchitecture:4: covers_path_missing',
     ]);
     expect(
       moved.findings
           .firstWhere((f) => f.kind == FindingKind.coversPathMissing)
           .textLine,
-      '$loginArchitecture:3: covers_path_missing: app/lib/login/ names nothing on disk',
+      '$loginArchitecture:4: covers_path_missing: app/lib/login/ names nothing on disk',
     );
   });
 
@@ -171,7 +171,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.codeUncovered), [
-      '$techStack:3: code_uncovered',
+      '$techStack:4: code_uncovered',
     ]);
   });
 
@@ -191,7 +191,7 @@ void main() {
       addTearDown(() => Process.runSync('chmod', ['755', path]));
       final report = checkOf(project);
       expect(spots(report, FindingKind.codeUncovered), [
-        '$techStack:3: code_uncovered',
+        '$techStack:4: code_uncovered',
       ]);
       expect(report.warnings, [
         'app/lib/sealed: cannot list the folder; files under it are not checked for covers',

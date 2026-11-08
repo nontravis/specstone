@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/agent_block_rules.dart';
+import 'package:specstone_core/src/consistency_check/approval_rules.dart';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -65,6 +66,7 @@ CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
     }
     findings
       ..addAll(checkFrontmatter(context, doc))
+      ..addAll(staleApproval(context, doc))
       ..addAll(checkNesting(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkFormatDrift(context, doc))

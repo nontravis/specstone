@@ -29,7 +29,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or demonstration',
+      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or demonstration',
     );
     expect(report.findings.single.toJson()['value'], 'maybe');
   });
@@ -44,8 +44,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.fieldValueMismatch), [
-      '$loginFr:3: field_value_mismatch',
-      'prds/personas/buyer/PERSONA.md:5: field_value_mismatch',
+      '$loginFr:4: field_value_mismatch',
+      'prds/personas/buyer/PERSONA.md:6: field_value_mismatch',
     ]);
   });
 
@@ -57,7 +57,7 @@ void main() {
           extra: fr('checkPassword\n---', 'checkPassword\npriority: high\n---'),
         ),
       );
-      expect(spots(report), ['$loginFr:10: field_undeclared']);
+      expect(spots(report), ['$loginFr:11: field_undeclared']);
     },
   );
 
@@ -73,7 +73,7 @@ void main() {
         .any((f) => f.id == 'approved');
     expect(
       spots(runCheck(session), FindingKind.fieldUndeclared),
-      builtIn ? isEmpty : ['$loginFr:10: field_undeclared'],
+      builtIn ? isEmpty : ['$loginFr:11: field_undeclared'],
     );
   });
 
@@ -152,7 +152,7 @@ void main() {
         extra: fr('checkPassword\n---', 'checkPassword\npriority:\n---'),
       ),
     );
-    expect(spots(report), ['$loginFr:10: field_undeclared']);
+    expect(spots(report), ['$loginFr:11: field_undeclared']);
   });
 
   group('f04/us01/fr03/e09: a required field group', () {

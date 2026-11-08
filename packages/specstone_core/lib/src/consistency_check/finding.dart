@@ -69,7 +69,8 @@ enum FindingKind {
   confirmedEntryMalformed('confirmed_entry_malformed'),
   confirmedEntryStale('confirmed_entry_stale'),
   formatDrift('format_drift'),
-  agentBlockStale('agent_block_stale');
+  agentBlockStale('agent_block_stale'),
+  approvalStale('approval_stale');
 
   new(this.wire);
 

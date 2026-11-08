@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/journeys/journey_generators.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -186,6 +187,9 @@ void main() {
     String withFront(String text, String frontMatter) =>
         '$frontMatter${text.substring(text.indexOf('# Sign in'))}';
 
+    String approved(String text) =>
+        withApprovalHash(text, fixtureDocTypeOf(journeyDocPath));
+
     test('f04/us04/s9, f04/us04/fr01/e10: format re-pastes an edited '
         'scenario and the journey stays suspect', () async {
       final root = await _project(
@@ -215,7 +219,10 @@ void main() {
       expect(waiting.kind, FindingKind.unconfirmed);
       expect(waiting.message, contains("waits for the Owner's approve"));
 
-      rewrite(root, (text) => withFront(text, front(['$label1 $recorded'])));
+      rewrite(
+        root,
+        (text) => approved(withFront(text, front(['$label1 $recorded']))),
+      );
       expect(check(root), isEmpty);
     });
 
@@ -235,9 +242,13 @@ void main() {
 
       _format(root);
 
-      final added = check(root).single;
-      expect(added.kind, FindingKind.unconfirmed);
-      expect(added.toJson(), containsPair('link', label2));
+      // A step typed in an editor also leaves the approved doc changed.
+      final found = check(root);
+      expect(found.map((f) => f.kind), [
+        FindingKind.approvalStale,
+        FindingKind.unconfirmed,
+      ]);
+      expect(found.last.toJson(), containsPair('link', label2));
 
       final both = ['$label1 $scenario1', '$label2 $scenario2'];
       rewrite(root, (text) => withFront(text, front(both, draft: true)));
@@ -247,7 +258,7 @@ void main() {
       );
       expect(check(root), isNotEmpty);
 
-      rewrite(root, (text) => withFront(text, front(both)));
+      rewrite(root, (text) => approved(withFront(text, front(both))));
       expect(check(root), isEmpty);
     });
   });

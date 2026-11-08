@@ -172,10 +172,10 @@ void main() {
     );
     const missing = FindingKind.linkTargetMissing;
     expect(spots(checkOf(project, target: 'architecture:login'), missing), [
-      '$loginArchitecture:10: link_target_missing',
+      '$loginArchitecture:11: link_target_missing',
     ]);
     expect(spots(checkOf(project, target: 'api:login'), missing), [
-      '$loginApi:18: link_target_missing',
+      '$loginApi:19: link_target_missing',
     ]);
   });
 
@@ -195,7 +195,7 @@ void main() {
     );
     final report = checkOf(project, target: 'feature:login');
     expect(spots(report, FindingKind.linkTargetMissing), [
-      '$loginApi:18: link_target_missing',
+      '$loginApi:19: link_target_missing',
     ]);
     expect(spots(report, FindingKind.untypedDoc), [
       'prds/features/f01_login/notes.md:1: untyped_doc',
@@ -230,7 +230,7 @@ void main() {
         checkOf(project, target: 'fr:login/email_login/check_password'),
         FindingKind.fieldUndeclared,
       ),
-      ['$loginFr:5: field_undeclared'],
+      ['$loginFr:6: field_undeclared'],
     );
   });
 

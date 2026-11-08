@@ -71,7 +71,7 @@ void main() {
     );
     expect(spots(report, FindingKind.requiredSectionMissing), isEmpty);
     expect(spots(report, FindingKind.sectionUndeclared), [
-      '$loginStory:11: section_undeclared',
+      '$loginStory:12: section_undeclared',
     ]);
     expect(
       report.findings
@@ -86,7 +86,7 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/$loginFr':
-              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 384}',
+              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 383}',
         },
       ),
     );
@@ -114,7 +114,7 @@ void main() {
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
-    expect(finding.line, 14);
+    expect(finding.line, 15);
     expect(
       finding.toJson(),
       allOf(
@@ -165,7 +165,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionQuoteMissing), [
-      '$projectDoc:17: vision_quote_missing',
+      '$projectDoc:18: vision_quote_missing',
     ]);
   });
 

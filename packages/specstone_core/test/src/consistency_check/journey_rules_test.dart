@@ -7,11 +7,13 @@ import '../../helpers/check_fixture.dart';
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
 const _story = 'login/email_login';
 
-// The first step heading sits on line 11; its step: line two below.
-const _firstStepLine = 11;
+// The first step heading sits on line 15, below the four lines the approval
+// stamp opens a doc with; its step: line two below.
+const _firstStepLine = 15;
 
-// A journey with a scenario 1 step opens with a five-line front matter.
-const _entryLines = 5;
+// A journey with a scenario 1 step has a front matter of its own, so the stamp
+// adds one line to its five.
+const _entryLines = 2;
 
 String _journey(List<String> stepLines, {String frontmatter = ''}) =>
     '$frontmatter# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n## Steps\n\n'

@@ -40,7 +40,7 @@ void main() {
     expect(await runner.run(['check']), 1);
     expect(
       out.toString(),
-      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
+      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
       'demonstration\n1 finding\n',
     );
   });
@@ -111,7 +111,7 @@ void main() {
       'kind': 'field_value_mismatch',
       'docPath': loginFr,
       'name': 'login/email_login/check_password',
-      'line': 5,
+      'line': 6,
       'message': 'verify_method is maybe; it takes test, analysis, inspection, or demonstration',
       'field': 'verify_method',
       'value': 'maybe',
@@ -250,6 +250,57 @@ void main() {
     expect(clean.out.toString(), '0 findings\n');
   });
 
+  test('consistency_check/find_template_breaks: check names an approved story edited outside the commands; padded table cells draw format_drift only', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+        ...editedAfterApproval(loginApi, [
+          (
+            '| FR | Operation |\n|---|---|\n',
+            '| FR   | Operation |\n|------|-----------|\n',
+          ),
+        ]),
+      },
+    );
+    final stale = readRunner(project);
+    expect(await stale.runner.run(['check']), 1);
+    expect(
+      stale.out.toString(),
+      "$loginStory:3: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve\n"
+      '$loginApi:1: format_drift: the file differs from what `specstone format` writes; run '
+      '`specstone format docs/$loginApi`\n'
+      '2 findings\n',
+    );
+  });
+
+  test('consistency_check/find_template_breaks: check names a doc made outside the commands in a project upgraded to 1.2.0', () async {
+    final project = await writeCheckProject(
+      extra: {'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!},
+      unstamped: {'docs/$loginFr'},
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      "$loginFr:1: approval_stale: the doc carries no approval; it waits for the Owner's specstone approve\n"
+      '1 finding\n',
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final findings =
+        (jsonDecode(json.out.toString()) as Map)['findings']! as List;
+    expect(findings, [
+      {
+        'kind': 'approval_stale',
+        'docPath': loginFr,
+        'name': 'login/email_login/check_password',
+        'line': 1,
+        'message': "the doc carries no approval; it waits for the Owner's specstone approve",
+      },
+    ]);
+  });
+
   test('consistency_check/find_broken_pointers S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
       'prints the anchor, self, malformed, and doc_ref findings with their keys', () async {
     final project = await writeCheckProject(
@@ -265,13 +316,13 @@ void main() {
     expect(await text.runner.run(['check']), 1);
     expect(
       text.out.toString(),
-      '$loginFeature:7: doc_ref_self: depends_on value login names the doc that holds it\n'
-      '$loginFeature:8: doc_ref_duplicate: depends_on holds login a second time\n'
       '$loginFeature:8: doc_ref_self: depends_on value login names the doc that holds it\n'
-      '$loginFeature:15: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
+      '$loginFeature:9: doc_ref_duplicate: depends_on holds login a second time\n'
+      '$loginFeature:9: doc_ref_self: depends_on value login names the doc that holds it\n'
+      '$loginFeature:16: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
       '$gnfrDoc does not hold\n'
-      '$loginFeature:15: link_self: link target FEATURE.md names the doc that holds it\n'
-      '$loginFeature:15: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
+      '$loginFeature:16: link_self: link target FEATURE.md names the doc that holds it\n'
+      '$loginFeature:16: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
       'parser fails on it\n'
       '6 findings\n',
     );
@@ -354,8 +405,8 @@ void main() {
     expect(await text.runner.run(['check']), 1);
     expect(
       text.out.toString(),
-      '$loginFeature:12: number_label: $run is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
-      '$loginFeature:12: number_label: us01/fr02_x is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
+      '$loginFeature:13: number_label: $run is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
+      '$loginFeature:13: number_label: us01/fr02_x is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
       '2 findings\n',
     );
 

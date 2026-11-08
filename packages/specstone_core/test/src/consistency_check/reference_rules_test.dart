@@ -52,8 +52,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$rules:5: listed_file_missing',
-      '$loginArchitecture:19: concerns_target_unresolved',
+      '$rules:6: listed_file_missing',
+      '$loginArchitecture:20: concerns_target_unresolved',
     ]);
     expect(report.findings.last.toJson()['target'], 'AUTH.md');
   });
@@ -304,7 +304,7 @@ void main() {
     final headerLink = await reportOf('- C: see [x](Components)\n');
     expect(targetsIn(headerLink), ['[x](Components)']);
     expect(spots(headerLink, FindingKind.linkTargetMissing), [
-      '$loginArchitecture:18: link_target_missing',
+      '$loginArchitecture:19: link_target_missing',
     ]);
 
     expect(

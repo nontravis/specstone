@@ -12,7 +12,7 @@ const _name = 'consistency_check/find_broken_pointers/report_number_labels';
 const _line = 'Users forget passwords.';
 
 /// The file line of [_line] in the login feature.
-const _lineNumber = 12;
+const _lineNumber = 13;
 
 String f(int n) => 'F-$n';
 String us(int n) => 'US-$n';
