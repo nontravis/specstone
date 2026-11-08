@@ -79,6 +79,28 @@ LabelTree _tree() => LabelTree.of([
 ], docTypes: _typesOf(_baseDocs().keys));
 
 void main() {
+  test('$_fr E26: a label among many features finds its one doc by lookup', () {
+    final docs = [
+      for (var f = 1; f <= 300; f++) ...[
+        (
+          docPath: 'prds/features/f${'$f'.padLeft(2, '0')}_f$f/FEATURE.md',
+          lf: '# F\n',
+        ),
+        (
+          docPath:
+              'prds/features/f${'$f'.padLeft(2, '0')}_f$f/us01_s/USER_STORY.md',
+          lf: '# S\n',
+        ),
+      ],
+      (docPath: _topic, lf: '# R\n\nSee F-299 US-01 and F-301 US-01.\n'),
+    ];
+
+    final pass = LabelPass.plan(docs, const []);
+
+    expect(pass.apply(_topic, docs.last.lf), contains('See `f299/s` and'));
+    expect(pass.planLine, contains('left: $_topic:3 F-301 US-01'));
+  });
+
   group('$_fr E26 LabelTree.resolve', () {
     test('a full label names the feature, story, or FR doc under it', () {
       final tree = _tree();

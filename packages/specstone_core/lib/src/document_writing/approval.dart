@@ -34,20 +34,23 @@ bool stampsHaveRun(Map<String, PackVersion> pins) =>
 /// A frontmatter left empty hashes as an absent one, so the doc hashes the
 /// same before and after [withApprovalHash] adds a fence.
 String approvalHashOf(String lfText, MergedDocType? docType) {
-  var covered = _withoutGeneratedBlocks(
+  final stripped = _withoutGeneratedBlocks(
     lfText,
     docType?.listedGenerators.toSet() ?? const {},
   );
-  for (final key in [
+  final (:text, :doc) = _withoutKeys(stripped, {
     _approvedKey,
     'draft',
     for (final field in docType?.fields ?? const <MergedField>[])
       if (field.type == FieldType.outputRef) field.id,
-  ]) {
-    covered = withKeyBlock(covered, key, null);
-  }
-  covered = layOutDoc(_withoutEmptyFrontmatter(covered), docType);
-  return baseHashOf(covered).substring(0, _hashLength);
+  });
+  final laidOut = docType == null
+      ? text
+      : switch (formatDoc(doc ?? Doc.parse(text), docType)) {
+          Formatted(:final text) => text,
+          Refused() => text,
+        };
+  return baseHashOf(laidOut).substring(0, _hashLength);
 }
 
 // Strips before the layout, so a block a `format` run inserts leaves no
@@ -62,16 +65,44 @@ String _withoutGeneratedBlocks(String text, Set<String> kinds) {
   ].join('\n');
 }
 
-// A doc with no frontmatter gains `---\n---\n` and a blank line from
-// `withApprovalHash`; both leave the hash, with any leading blank lines.
-String _withoutEmptyFrontmatter(String text) {
+/// Returns [text] less the first frontmatter key block of each of [keys],
+/// read from one parse, every other block kept in place byte for byte, and
+/// the parse when the text is unchanged.
+///
+/// A frontmatter left empty, or absent, is dropped with the blank lines at
+/// the top of the body: a doc with no frontmatter gains `---\n---\n` and a
+/// blank line from [withApprovalHash], and both leave the hash.
+({String text, Doc? doc}) _withoutKeys(String text, Set<String> keys) {
   final doc = Doc.parse(text);
   final blocks = doc.frontmatter;
-  if (blocks != null && blocks.any((b) => b.text.trim().isNotEmpty)) {
-    return text;
+  if (blocks == null) {
+    final body = text.replaceFirst(_leadingBlankLines, '');
+    return (text: body, doc: body == text ? doc : null);
   }
-  final body = blocks == null ? text : doc.afterFrontmatter;
-  return body.replaceFirst(_leadingBlankLines, '');
+  final dropped = <String>{};
+  final kept = [
+    for (final block in blocks)
+      if (!keys.contains(block.name) || !dropped.add(block.name)) block,
+  ];
+  if (!kept.any((block) => block.text.trim().isNotEmpty)) {
+    return (
+      text: doc.afterFrontmatter.replaceFirst(_leadingBlankLines, ''),
+      doc: null,
+    );
+  }
+  if (dropped.isEmpty) return (text: text, doc: doc);
+  final start = text.indexOf('\n') + 1;
+  var end = start;
+  for (final block in blocks) {
+    end += block.text.length;
+  }
+  return (
+    text:
+        text.substring(0, start) +
+        kept.map((block) => block.text).join() +
+        text.substring(end),
+    doc: null,
+  );
 }
 
 final _leadingBlankLines = RegExp(r'^\n+');
@@ -295,7 +326,31 @@ final class ApprovalHistory {
     try {
       final copy = source.copySync('${scratch.path}/index');
       final env = {'GIT_INDEX_FILE': copy.path};
-      _git(root, ['add', '-A', '--', docsRoot], environment: env);
+      // Rename pairing needs only the paths a move adds or removes, so a
+      // tracked doc whose stat is stale is never hashed again.
+      final moved = _git(root, [
+        'ls-files',
+        '-z',
+        '--others',
+        '--deleted',
+        '--exclude-standard',
+        '--',
+        docsRoot,
+      ], environment: env).split('\x00').where((path) => path.isNotEmpty);
+      if (moved.isNotEmpty) {
+        final pathspecs = File('${scratch.path}/pathspecs')
+          ..writeAsStringSync(moved.toSet().join('\x00'));
+        _git(
+          root,
+          [
+            'add',
+            '-A',
+            '--pathspec-from-file=${pathspecs.path}',
+            '--pathspec-file-nul',
+          ],
+          environment: {...env, 'GIT_LITERAL_PATHSPECS': '1'},
+        );
+      }
       return _git(root, [
         'diff',
         '--cached',

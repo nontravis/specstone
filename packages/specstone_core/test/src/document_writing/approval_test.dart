@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -84,6 +85,39 @@ Future<Directory> _repo(
   expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
   expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
   return root;
+}
+
+/// The ApprovalHash recipe as it stood before the one-parse rewrite: every
+/// key block spliced by its own parse, the empty frontmatter dropped, then
+/// the layout; the persisted hash must never drift from it.
+String _referenceHashOf(String lfText, MergedDocType? docType) {
+  final kinds = docType?.listedGenerators.toSet() ?? const <String>{};
+  var covered = lfText;
+  if (kinds.isNotEmpty) {
+    final lines = covered.split('\n');
+    final generated = generatedBlockLines(lines, kinds);
+    covered = [
+      for (final (i, line) in lines.indexed)
+        if (!generated[i]) line,
+    ].join('\n');
+  }
+  for (final key in [
+    'approved',
+    'draft',
+    for (final field in docType?.fields ?? const <MergedField>[])
+      if (field.type == FieldType.outputRef) field.id,
+  ]) {
+    covered = withKeyBlock(covered, key, null);
+  }
+  final doc = Doc.parse(covered);
+  final blocks = doc.frontmatter;
+  if (blocks == null || !blocks.any((b) => b.text.trim().isNotEmpty)) {
+    covered = (blocks == null ? covered : doc.afterFrontmatter).replaceFirst(
+      RegExp(r'^\n+'),
+      '',
+    );
+  }
+  return baseHashOf(layOutDoc(covered, docType)).substring(0, 12);
 }
 
 void main() {
@@ -301,6 +335,47 @@ void main() {
       );
     });
   });
+
+  test(
+    'domain:document_writing INV-5: the one-parse ApprovalHash equals '
+    'the key-by-key recipe on every fixture doc and each frontmatter edge',
+    () async {
+      final matcher = DocTypeMatcher(
+        openProject(await writeWriteProject()).set,
+      );
+      final texts = <String, String>{
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          if (key.startsWith('docs/') && key.endsWith('.md'))
+            key.substring(5): toLf(value),
+      };
+      final edges = [
+        '# A\n',
+        '\n\n# A\n',
+        '---\n---\n\n# A\n',
+        '---\napproved: "0123456789ab"\n---\n\n# A\n',
+        '---\ndraft: true\napproved: true\nstatus: planned\n---\n# A\n',
+        '---\napproved: x\napproved: y\n---\n# A\n',
+        '---\n# a comment\napproved: x\n---\n# A\n',
+        '---\nstatus: [planned\n---\n# A\n',
+      ];
+      var compared = 0;
+      for (final MapEntry(key: docPath, value: lf) in texts.entries) {
+        final type = switch (matcher.match(docPath)) {
+          MatchedDocType(:final docType) => docType,
+          _ => null,
+        };
+        for (final text in [lf, ...edges]) {
+          expect(
+            approvalHashOf(text, type),
+            _referenceHashOf(text, type),
+            reason: '$docPath: $text',
+          );
+          compared++;
+        }
+      }
+      expect(compared, greaterThan(100));
+    },
+  );
 
   group('approval rules', () {
     const hash = '5d1e0c4b7a92';
@@ -819,11 +894,37 @@ void main() {
           history.lastApproved(repo, path, docType: _docType);
         }
 
-        // One `add` and one `diff` for the whole run.
-        expect(indexCommands, 2);
+        // One listing, one `add`, and one `diff` for the whole run.
+        expect(indexCommands, 3);
       },
       skip: skipGit,
     );
+
+    test('the temp index stages only the paths a move added or removed, never '
+        'a tracked doc', () async {
+      final repo = await movedRepo(staged: false);
+      final staged = <String>[];
+      ApprovalHistory(
+        runGit: (arguments, {required workingDirectory, environment}) {
+          if (environment?['GIT_INDEX_FILE'] != null &&
+              arguments.first == 'add') {
+            final file = arguments
+                .firstWhere((a) => a.startsWith('--pathspec-from-file='))
+                .substring('--pathspec-from-file='.length);
+            staged.addAll(File(file).readAsStringSync().split('\x00'));
+          }
+          return runRealGit(
+            arguments,
+            workingDirectory: workingDirectory,
+            environment: environment,
+          );
+        },
+      ).lastApproved(repo, newPath, docType: _docType);
+
+      expect(staged, isNotEmpty);
+      expect(staged, isNot(contains('docs/$story1')));
+      expect(staged, contains(newPath));
+    }, skip: skipGit);
 
     test(
       'a temp index that cannot be set up makes the history unknown',

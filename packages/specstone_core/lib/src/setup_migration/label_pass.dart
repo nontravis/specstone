@@ -119,6 +119,35 @@ final class LabelTree {
   final _Located? Function(String docPath) _placeOf;
   final _declarations = <String, RegExp>{};
 
+  // Each label is a lookup, not a scan of every doc, so the pass grows with
+  // its labels plus its docs rather than their product.
+  late final Map<String, _TreeDoc> _byPath = {
+    for (final doc in _docs) doc.path: doc,
+  };
+  late final Map<int, List<_TreeDoc>> _byFeature = _grouped(
+    (doc) => [doc.feature],
+  );
+
+  /// The docs under each legacy feature folder, by its whole name and by its
+  /// whole folder ID, the two names a legacy ID's first folder points at.
+  late final Map<String, List<_TreeDoc>> _byLegacyFolder = _grouped((doc) {
+    final folder = doc.legacyFolder;
+    if (folder == null) return const [];
+    final id = legacyFolderIdOf(folder);
+    return [folder, if (id != null && id != folder) id];
+  });
+
+  /// Returns [_docs] grouped under each key [keysOf] gives, in tree order.
+  Map<K, List<_TreeDoc>> _grouped<K>(List<K> Function(_TreeDoc doc) keysOf) {
+    final groups = <K, List<_TreeDoc>>{};
+    for (final doc in _docs) {
+      for (final key in keysOf(doc)) {
+        (groups[key] ??= []).add(doc);
+      }
+    }
+    return groups;
+  }
+
   // MARK: - Resolving
 
   /// The one DocPath [label], read relative to [citingDocPath], names; null
@@ -136,12 +165,7 @@ final class LabelTree {
 
   /// The name of the doc at [docPath], or null for a doc the tree does not
   /// number.
-  String? nameOf(String docPath) {
-    for (final doc in _docs) {
-      if (doc.path == docPath) return doc.name;
-    }
-    return null;
-  }
+  String? nameOf(String docPath) => _byPath[docPath]?.name;
 
   /// Whether the doc at [docPath] is the `api` doc of a feature.
   bool isApi(String docPath) =>
@@ -154,9 +178,9 @@ final class LabelTree {
     final located = _locate(apiDocPath);
     if (located == null) return null;
     final name = '${located.featureSlug}/$cell';
-    for (final doc in _docs) {
-      if (doc.kind == _DocKind.fr && doc.feature == located.feature) {
-        if (doc.name == name) return (story: doc.story!, fr: doc.fr!);
+    for (final doc in _byFeature[located.feature] ?? const <_TreeDoc>[]) {
+      if (doc.kind == _DocKind.fr && doc.name == name) {
+        return (story: doc.story!, fr: doc.fr!);
       }
     }
     return null;
@@ -182,11 +206,11 @@ final class LabelTree {
     final isStoryLess = label.feature != null && parts.story == null;
     if (parts.fr != null && isStoryLess) return const [];
     final legacyId = _legacyIdOf(label);
-    final inScope = _docs.where(
+    final inFeature = legacyId == null
+        ? _byFeature[feature]
+        : _byLegacyFolder[legacyId];
+    final inScope = (inFeature ?? const <_TreeDoc>[]).where(
       (doc) =>
-          (legacyId == null
-              ? doc.feature == feature
-              : _isNamedFolder(doc.legacyFolder, legacyId)) &&
           (parts.story == null || doc.story == parts.story) &&
           (parts.fr == null || doc.fr == parts.fr),
     );
@@ -233,11 +257,6 @@ String? _legacyFolderOf(String legacyPath) {
   final segments = legacyPath.split('/');
   return segments.length < 4 ? null : segments[2];
 }
-
-/// Whether [folder] is the feature folder that the legacy ID's first folder
-/// [named] points at: its whole name, or its whole folder ID.
-bool _isNamedFolder(String? folder, String named) =>
-    folder != null && (folder == named || legacyFolderIdOf(folder) == named);
 
 /// [docPath] with its legacy feature folder replaced by the FeaturePath that
 /// [featurePaths] gives it, else [docPath] as it is.

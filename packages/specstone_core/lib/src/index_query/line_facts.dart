@@ -77,6 +77,7 @@ final class LineFacts {
     required this.selfLinks,
     required this.unreadableLinks,
     required this.nameMentions,
+    required this.numberLabels,
     required this.anchors,
     required this.sectionLines,
     required this.sectionCounts,
@@ -92,10 +93,11 @@ final class LineFacts {
   /// [lfText] is the file text with LF line ends; every line number comes from
   /// it, while [lineCount] and [charCount] measure [countedText].
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
-  /// frontmatter. A body whose parse fails has no links and an unknown anchor
-  /// set; [markdownUnparsedWarning] joins [warnings] only when the body holds
-  /// link syntax, as at base — a body with no link syntax is never parsed for
-  /// links, so it never warns. [linkWarningOf] gives the warning.
+  /// frontmatter. [bodyNumberLabels] are the number labels of the body, by
+  /// 0-based body line. A body whose parse fails has no links and an unknown
+  /// anchor set; [markdownUnparsedWarning] joins [warnings] only when the body
+  /// holds link syntax, as at base — a body with no link syntax is never
+  /// parsed for links, so it never warns. [linkWarningOf] gives the warning.
   factory of({
     required String lfText,
     required String countedText,
@@ -103,6 +105,7 @@ final class LineFacts {
     required Doc doc,
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
+    required List<({int line, String written})> bodyNumberLabels,
     required List<String> warnings,
   }) {
     final prefix = doc.frontmatter == null
@@ -137,6 +140,10 @@ final class LineFacts {
       selfLinks: links?.selfLinks ?? const [],
       unreadableLinks: links?.unreadableLinks ?? const [],
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
+      numberLabels: [
+        for (final (:line, :written) in bodyNumberLabels)
+          (line: bodyStart + line + 1, written: written),
+      ],
       anchors: anchorNodes == null ? null : anchorsOf(anchorNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
@@ -164,6 +171,7 @@ final class LineFacts {
       selfLinks: const [],
       unreadableLinks: const [],
       nameMentions: const [],
+      numberLabels: const [],
       anchors: null,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: const [],
@@ -188,6 +196,11 @@ final class LineFacts {
       selfLinks: _placesOfJson(json['self_links']!),
       unreadableLinks: _placesOfJson(json['unreadable_links']!),
       nameMentions: _mentionsOfJson(json['name_mentions']!),
+      numberLabels: [
+        for (final label
+            in (json['number_labels']! as List<Object?>).cast<List<Object?>>())
+          (line: label[0]! as int, written: label[1]! as String),
+      ],
       anchors: anchors == null
           ? null
           : DocAnchors(
@@ -228,6 +241,10 @@ final class LineFacts {
   /// The doc-name mentions of the body, in source order (RULE-11); `line` is
   /// the file line.
   final List<NameMention> nameMentions;
+
+  /// The number labels of the body as `number_label` reads them (R82), in
+  /// source order; `line` is the file line.
+  final List<LabelPlace> numberLabels;
 
   /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
   /// be computed, never a stand-in for an empty one.
@@ -287,6 +304,9 @@ final class LineFacts {
     'name_mentions': [
       for (final m in nameMentions) [m.line, m.column, m.text],
     ],
+    'number_labels': [
+      for (final label in numberLabels) [label.line, label.written],
+    ],
     'anchors': anchors?.toJson(),
     'sections': sectionLines,
     'fenced': [
@@ -297,6 +317,9 @@ final class LineFacts {
     'yaml_error': frontmatterErrorLine,
   };
 }
+
+/// A number label at its file line, as it is written.
+typedef LabelPlace = ({int line, String written});
 
 /// Returns the mentions of [body], whose lines start at file line
 /// `bodyStart + 1`.

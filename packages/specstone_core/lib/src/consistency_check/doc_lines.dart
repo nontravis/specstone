@@ -55,6 +55,9 @@ final class DocLines {
   /// The relative links that are no doc link, in source order.
   List<LinkPlace> get fileLinks => _facts.fileLinks;
 
+  /// The number labels of the body at their file lines, in source order.
+  List<LabelPlace> get numberLabels => _facts.numberLabels;
+
   /// The header line of each section, in the order of `Doc.sections`.
   List<int> get sectionLines => _facts.sectionLines;
 

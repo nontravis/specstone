@@ -89,6 +89,24 @@ List<NumberLabel> numberLabelsIn(String line, {bool legacyIds = false}) {
   return labels;
 }
 
+/// Returns each label of [numberLabelsInMarkdown] over [lfText] with the
+/// 0-based line of [lfText] it starts on, as it is written.
+List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
+  final labels = <({int line, String written})>[];
+  var line = 0;
+  var from = 0;
+  for (final label in numberLabelsInMarkdown(lfText)) {
+    for (var i = from; i < label.start; i++) {
+      if (lfText.codeUnitAt(i) == _lineFeed) line++;
+    }
+    from = label.start;
+    labels.add((line: line, written: label.written));
+  }
+  return labels;
+}
+
+const _lineFeed = 0x0A;
+
 /// The number labels of [lfText], LF text without frontmatter, with offsets
 /// into the whole text.
 ///

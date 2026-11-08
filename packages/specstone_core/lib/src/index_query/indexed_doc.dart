@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/number_label.dart'
+    show numberLabelLinesInMarkdown;
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
@@ -259,6 +261,7 @@ ParsedDoc parseIndexedDoc({
     doc: doc,
     sectionCounts: _countsOf(doc, sections, laid, templates),
     frontmatterErrorLine: yaml?.errorLine,
+    bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
     warnings: warnings,
   );
   final content = DocContent(

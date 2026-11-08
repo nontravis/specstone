@@ -36,6 +36,26 @@ void main() {
       'héllo \u{1F600}\n'; // 14
 
   group('LineFacts.of', () {
+    test('consistency_check/find_broken_pointers/report_number_labels: the '
+        'body labels are found once at index time, at their file lines, and '
+        'stored', () {
+      const labelled =
+          '---\nnote: FR-01\n---\n# T\n\nSee F-01 US-02 and `FR-03`.\n'
+          '```dart\n// FR-04\n```\n';
+      final facts = _factsOf(labelled);
+      expect(facts.numberLabels, [
+        (line: 6, written: 'F-01 US-02'),
+        (line: 6, written: 'FR-03'),
+      ]);
+      expect(
+        LineFacts.fromJson(
+          jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+          sectionCounts: facts.sectionCounts,
+        ).numberLabels,
+        facts.numberLabels,
+      );
+    });
+
     test('f04/nfr-p03: a doc with frontmatter, title, sections, and a fence hiding a ## has 1-based file lines', () {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
@@ -311,6 +331,7 @@ void main() {
         doc: Doc.parse(disk),
         sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
         frontmatterErrorLine: null,
+        bodyNumberLabels: const [],
         warnings: [],
       );
       expect(facts.sectionLines, [3, 7]);
