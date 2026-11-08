@@ -270,11 +270,19 @@ bool _readsLabels(String text) => text.contains('number_label.dart');
 
 final String _approvalFile = _lib('document_writing/approval.dart');
 
+/// A `RegExp` literal that reads a number label: `F-`, `US-`, or `FR-` as
+/// literal text or a group (`(F|US|FR)-`, `[FU]S?-`), or `us`/`fr` before a
+/// digit class, a capture group included (`us(\d+)`), in a raw string or
+/// not.
+final RegExp _labelRead = _regExpLiteralWith(
+  r'\b(?:F|US|FR)\b[|)\]?]*-|\[FU\]S\?-|[Uu][Ss]\(?\\{1,2}d|[Ff][Rr]\(?\\{1,2}d',
+);
+
 final _rules = <_Rule>[
   (
     name: 'a number label is read only by number_label',
     remedy: 'Read the label through doc_model/number_label.dart.',
-    pattern: _regExpLiteralWith(r'(?:F|US|FR)-|[Uu][Ss]\\d|[Ff][Rr]\\d'),
+    pattern: _labelRead,
     exempt: {_lib('doc_model/number_label.dart')},
     allowed: [
       (
@@ -286,6 +294,26 @@ final _rules = <_Rule>[
         file: _lib('setup_migration/legacy_plan.dart'),
         snippet: r"""RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$'""",
         reason: 'Legacy FR file name in a legacy tree path, no label text.',
+      ),
+      (
+        file: _lib('setup_migration/first_fingerprints.dart'),
+        snippet: r"""RegExp( r'^us(\d+)(?:_([a-z0-9_]+))?/fr(\d+)(?:_([a-z0-9_]+))?$'""",
+        reason: 'Legacy story and FR folder names in a 1.1.0 entry, no label.',
+      ),
+      (
+        file: _lib('setup_migration/first_fingerprints.dart'),
+        snippet: r"""RegExp( r'^.*/us(\d+)_([^/]+)/functional_requirements/fr(\d+)_(.+)\.md$'""",
+        reason: 'Legacy FR file path in a legacy tree, no label text.',
+      ),
+      (
+        file: _lib('setup_migration/label_pass.dart'),
+        snippet: r"""RegExp(r'^us(\d+)_([a-z0-9_]+)$'""",
+        reason: 'Story folder name of a doc path, no label text.',
+      ),
+      (
+        file: _lib('setup_migration/label_pass.dart'),
+        snippet: r"""RegExp(r'^fr(\d+)_([a-z0-9_]+)\.md$'""",
+        reason: 'FR file name of a doc path, no label text.',
       ),
     ],
     appliesTo: _everySource,
@@ -404,6 +432,21 @@ void main() {
       }
     });
   }
+
+  test('the label rule catches a label read in each spelling, groups '
+      'included', () {
+    for (final source in [
+      r"RegExp(r'FR-\d')",
+      r"RegExp(r'^(F|US|FR)-(\d+)')",
+      r"RegExp(r'[FU]S?-\d')",
+      r"RegExp(r'^us(\d+)_')",
+      r"RegExp(r'fr(\d+)')",
+      r"RegExp('us\\d')",
+    ]) {
+      expect(_labelRead.hasMatch(source), isTrue, reason: source);
+    }
+    expect(_labelRead.hasMatch(r"RegExp(r'^[a-z]+-\d')"), isFalse);
+  });
 
   test('no hand-written reference parser sits outside reference_grammar', () {
     final unlisted = <String>[];
