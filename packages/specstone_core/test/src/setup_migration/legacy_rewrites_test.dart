@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
@@ -618,6 +619,111 @@ name: login
       expect(original.bom, isFalse);
       expect(original.ending, LineEnding.lf);
       expect(writtenText(original, '# x\n'), '# x\n');
+    });
+  });
+
+  group('convertLegacyLabels', () {
+    const rewrite =
+        'setup_migration/migrate_legacy_docs/'
+        'rewrite_titles_keys_and_links';
+    const base = 'prds/features/ai01_login';
+    const frFolder = '$base/us01_email_login/functional_requirements';
+    const newBase = 'prds/features/f01_login';
+    const frLegacy = '$frFolder/fr01_validate_credentials.md';
+
+    final tree = LabelTree.legacy([
+      for (final docPath in [
+        '$newBase/FEATURE.md',
+        '$newBase/us01_email_login/USER_STORY.md',
+        '$newBase/us01_email_login/fr01_validate_credentials.md',
+        '$newBase/us01_email_login/fr02_lock_account.md',
+        'prds/features/f01_other/us01_x/fr01_y.md',
+      ])
+        (docPath: docPath, lf: ''),
+    ]);
+
+    ({String lf, List<({int line, String label})> kept}) convert(
+      String lf, {
+      String citedFrom = '$base/FEATURE.md',
+    }) => convertLegacyLabels(tree, legacyPath: citedFrom, lf: lf);
+
+    test('$rewrite E18: a legacy ID the move list maps to one FR becomes its '
+        'name in a code span, plain or in a code span', () {
+      final result = convert(
+        'Built by ai01/us02/fr09 and `ai01/us01/fr02`.\n'
+        'See ai01/us01/fr02.\n',
+      );
+
+      expect(
+        result.lf,
+        'Built by ai01/us02/fr09 and `login/email_login/lock_account`.\n'
+        'See `login/email_login/lock_account`.\n',
+      );
+      expect(result.kept, [(line: 1, label: 'ai01/us02/fr09')]);
+    });
+
+    test('$rewrite E18: a legacy ID whose folders map to no moved doc stays '
+        'as written and is listed', () {
+      final result = convert('Nothing at ai09/us01/fr01 here.\n');
+
+      expect(result.lf, 'Nothing at ai09/us01/fr01 here.\n');
+      expect(result.kept, [(line: 1, label: 'ai09/us01/fr01')]);
+    });
+
+    test('$rewrite E18: a legacy ID the move list maps to 2 FRs stays as '
+        'written and is listed', () {
+      final result = convert('Both ai01/us01/fr01 and ui01/us01/fr01.\n');
+
+      expect(result.lf, 'Both ai01/us01/fr01 and ui01/us01/fr01.\n');
+      expect(result.kept.map((k) => k.label), [
+        'ai01/us01/fr01',
+        'ui01/us01/fr01',
+      ]);
+    });
+
+    test('$rewrite E19: a full label names the story by its legacy folder '
+        'numbers; a feature alone names the typed feature', () {
+      final result = convert('See F-01 US-01 and F-01 for the feature.\n');
+
+      expect(
+        result.lf,
+        'See `login/email_login` and `feature:login` for the feature.\n',
+      );
+      expect(result.kept, isEmpty);
+    });
+
+    test("$rewrite E19: a partial label reads against the citing doc's own "
+        'story before the move', () {
+      final result = convert(
+        'After FR-02 and US-01 FR-02, not FR-07.\n',
+        citedFrom: frLegacy,
+      );
+
+      expect(
+        result.lf,
+        'After `login/email_login/lock_account` and '
+        '`login/email_login/lock_account`, not FR-07.\n',
+      );
+      expect(result.kept, [(line: 1, label: 'FR-07')]);
+    });
+
+    test('$rewrite E19: a partial label in a doc with no feature place '
+        'before the move stays as written, though the doc lands in one', () {
+      final result = convert(
+        'After FR-02.\n',
+        citedFrom: 'specs/api/auth/s02_api_login.md',
+      );
+
+      expect(result.lf, 'After FR-02.\n');
+      expect(result.kept, [(line: 1, label: 'FR-02')]);
+    });
+
+    test('$rewrite E19: a label in a link destination or under the '
+        'frontmatter is no label to convert', () {
+      final result = convert('---\nname: FR-02\n---\n\n[x](FR-02.md)\n');
+
+      expect(result.lf, '---\nname: FR-02\n---\n\n[x](FR-02.md)\n');
+      expect(result.kept, isEmpty);
     });
   });
 }

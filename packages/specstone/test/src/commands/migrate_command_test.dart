@@ -229,6 +229,24 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: '
+      'migrate --yes --plan leaves the typed docs stamped and no stale '
+      'approval for check', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
+
+    final feature = File('${root.path}/docs/prds/features/f01_login/FEATURE.md')
+        .readAsStringSync();
+    final (runner: checker, out: checkOut, err: _) = writeRunner(root);
+    await checker.run(['check']);
+
+    expect(feature, startsWith('---\napproved: "'));
+    expect(feature, isNot(contains('draft:')));
+    expect(checkOut.toString(), isNot(contains('approval_stale')));
+  }, skip: hasGit ? null : 'git is not available');
+
   test("f06/us01/s1: the Owner's y at a terminal makes two commits", () async {
     final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(

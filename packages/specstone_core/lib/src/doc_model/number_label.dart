@@ -58,11 +58,14 @@ final class NumberLabel {
 ///
 /// This is the one reader of the label boundary. Every other reader of a
 /// label goes through it, [numberLabelsInMarkdown] for a whole text.
-List<NumberLabel> numberLabelsIn(String line) {
+///
+/// With [legacyIds] a folder path may open with any lowercase prefix before
+/// its digits, as a legacy feature folder does.
+List<NumberLabel> numberLabelsIn(String line, {bool legacyIds = false}) {
   final labels = <NumberLabel>[];
   var at = 0;
   while (at < line.length) {
-    final label = _beginsLabel(line, at) ? _labelAt(line, at) : null;
+    final label = _beginsLabel(line, at) ? _labelAt(line, at, legacyIds) : null;
     if (label == null) {
       at++;
     } else {
@@ -77,14 +80,20 @@ List<NumberLabel> numberLabelsIn(String line) {
 /// into the whole text.
 ///
 /// Prose, code spans, and `mermaid` blocks are read; other fenced code and
-/// link destinations are skipped (R82).
-List<NumberLabel> numberLabelsInMarkdown(String lfText) {
+/// link destinations are skipped (R82). [legacyIds] reads as [numberLabelsIn]
+/// reads it.
+List<NumberLabel> numberLabelsInMarkdown(
+  String lfText, {
+  bool legacyIds = false,
+}) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
   final labels = <NumberLabel>[];
   var lineStart = 0;
   for (var i = 0; i < lines.length; i++) {
-    if (readable[i]) labels.addAll(_labelsOutsideLinks(lines[i], lineStart));
+    if (readable[i]) {
+      labels.addAll(_labelsOutsideLinks(lines[i], lineStart, legacyIds));
+    }
     lineStart += lines[i].length + 1;
   }
   return labels;
@@ -103,8 +112,8 @@ const _frRank = 2;
 /// One part of a label: its rank (feature, story, FR), number, and end.
 typedef _Part = ({int rank, int number, String? slug, int end});
 
-NumberLabel? _labelAt(String line, int at) =>
-    _dashRunAt(line, at) ?? _folderRunAt(line, at);
+NumberLabel? _labelAt(String line, int at, bool legacyIds) =>
+    _dashRunAt(line, at) ?? _folderRunAt(line, at, legacyIds);
 
 /// Whether a label may begin at [at] (> 0): no letter, digit, or `-` before.
 bool _beginsLabel(String line, int at) {
@@ -155,11 +164,11 @@ _Part? _dashPartAt(String line, int at) {
   return null;
 }
 
-NumberLabel? _folderRunAt(String line, int at) {
+NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
   final parts = <_Part>[];
   var cursor = at;
   while (true) {
-    final part = _folderAt(line, cursor);
+    final part = _folderAt(line, cursor, legacyIds: legacyIds);
     if (part == null) break;
     if (parts.isNotEmpty && part.rank <= parts.last.rank) break;
     parts.add(part);
@@ -185,15 +194,10 @@ NumberLabel? _folderRunAt(String line, int at) {
 }
 
 /// Reads a folder name `f<digits>`, `us<digits>`, or `fr<digits>`, with an
-/// optional `_<slug>`, at [at].
-_Part? _folderAt(String line, int at) {
-  final (rank, prefixLength) = line.startsWith('fr', at)
-      ? (_frRank, 2)
-      : line.startsWith('us', at)
-      ? (_storyRank, 2)
-      : line.startsWith('f', at)
-      ? (_featureRank, 1)
-      : (-1, 0);
+/// optional `_<slug>`, at [at]; with [legacyIds] a feature folder may open
+/// with any lowercase prefix.
+_Part? _folderAt(String line, int at, {required bool legacyIds}) {
+  final (rank, prefixLength) = _folderPrefixAt(line, at, legacyIds: legacyIds);
   if (rank < 0) return null;
   final digits = at + prefixLength;
   final digitsEnd = _digitsEnd(line, digits);
@@ -208,6 +212,26 @@ _Part? _folderAt(String line, int at) {
     slug: slugEnd == null ? null : line.substring(digitsEnd + 1, slugEnd),
     end: slugEnd ?? digitsEnd,
   );
+}
+
+/// Returns the rank and length of the folder prefix at [at], or rank -1.
+(int, int) _folderPrefixAt(String line, int at, {required bool legacyIds}) {
+  if (legacyIds) {
+    var end = at;
+    while (end < line.length && _isLower(line.codeUnitAt(end))) {
+      end++;
+    }
+    final prefix = line.substring(at, end);
+    if (prefix.isEmpty) return (-1, 0);
+    return switch (prefix) {
+      'fr' => (_frRank, 2),
+      'us' => (_storyRank, 2),
+      _ => (_featureRank, prefix.length),
+    };
+  }
+  if (line.startsWith('fr', at)) return (_frRank, 2);
+  if (line.startsWith('us', at)) return (_storyRank, 2);
+  return line.startsWith('f', at) ? (_featureRank, 1) : (-1, 0);
 }
 
 /// Returns the end of the `_<slug>` that starts at [at], or null without one.
@@ -301,8 +325,12 @@ List<bool> _readableLines(List<String> lines) {
 
 /// Returns the labels of [line] that lie outside a link destination, their
 /// offsets shifted by [lineStart].
-List<NumberLabel> _labelsOutsideLinks(String line, int lineStart) {
-  final labels = numberLabelsIn(line);
+List<NumberLabel> _labelsOutsideLinks(
+  String line,
+  int lineStart,
+  bool legacyIds,
+) {
+  final labels = numberLabelsIn(line, legacyIds: legacyIds);
   if (labels.isEmpty) return labels;
   final destinations = _destinationsIn(line);
   return [

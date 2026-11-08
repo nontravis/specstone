@@ -433,6 +433,29 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: '
+      'init on a legacy tree stamps each typed doc it leaves and keeps the '
+      'created draft', () async {
+    final root = await gitFixture(acmeLegacy);
+
+    final (status, _) = _run(
+      root,
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+      runGit: runRealGit,
+    );
+
+    expect(status, 0);
+    expect(
+      _read(root, 'docs/prds/features/f01_login/FEATURE.md'),
+      startsWith('---\napproved: "'),
+    );
+    expect(
+      _read(root, 'docs/specs/TECH_STACK.md'),
+      startsWith('---\ndraft: true'),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
   test('setup_migration/set_up_new_project/write_agent_files E08: init on a '
       'legacy tree writes the agent files in commit 2', () async {
     final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});

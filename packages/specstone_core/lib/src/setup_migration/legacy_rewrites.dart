@@ -14,6 +14,7 @@ import 'package:specstone_core/src/document_writing/write_session.dart'
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 
 final _numberedTitle = RegExp(r'^[A-Z][A-Z0-9]*-\d+ — ');
@@ -82,7 +83,7 @@ File docFileOf(Directory docsRoot, String docPath) {
 /// bytes are not UTF-8 text.
 ///
 /// A run moves a doc it gets null for untouched and rewrites none of it, as
-/// it does a file that is not `.md` (`setup_migration/migrate_legacy_docs/move_legacy_files` E13).
+/// it does a file that is not `.md` (`setup_migration/migrate_legacy_docs/move_legacy_files` E15).
 ///
 /// Throws [RenderFault] `output_not_writable` naming [docPath] when the file
 /// cannot be read.
@@ -299,3 +300,19 @@ String _withCoversKey(String lf) {
   );
   return withKeyBlock(lf, 'applies_to', covers);
 }
+
+/// Returns [lf], the doc that [legacyPath] held before the move, with each
+/// legacy ID and number label that [tree] maps to one doc converted to that
+/// doc's name, and the ones it keeps as `<line>` and label as written
+/// (`rewrite_titles_keys_and_links` E18, E19).
+///
+/// A label reads against the place [legacyPath] gives; the lines are those of
+/// [lf].
+({String lf, List<({int line, String label})> kept}) convertLegacyLabels(
+  LabelTree tree, {
+  required String legacyPath,
+  required String lf,
+}) => convertLabelsIn(lf, (label, before) {
+  final target = tree.resolve(label, citingDocPath: legacyPath, before: before);
+  return target == null ? null : tree.nameOf(target);
+}, legacyIds: true);

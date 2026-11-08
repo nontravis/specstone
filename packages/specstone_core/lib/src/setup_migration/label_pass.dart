@@ -7,6 +7,8 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
+import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
+    show featurePathOf;
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -87,9 +89,26 @@ final class LabelTree {
   }) : _docs = [
          for (final (:docPath, :lf) in docs)
            ?_TreeDoc.parse(docPath, lf, docTypes[docPath]),
-       ];
+       ],
+       _placeOf = _locate;
+
+  /// Reads the docs of a legacy tree at the final path the move list gives
+  /// each, as [LabelTree.of] reads them.
+  ///
+  /// A doc is named by its final path, but a label it cites reads against its
+  /// place before the move: [resolve] takes the legacy path as the citing doc
+  /// (`ai<nn>` feature folders included).
+  new legacy(
+    Iterable<({String docPath, String lf})> docs, {
+    Map<String, MergedDocType> docTypes = const {},
+  }) : _docs = [
+         for (final (:docPath, :lf) in docs)
+           ?_TreeDoc.parse(docPath, lf, docTypes[docPath]),
+       ],
+       _placeOf = _locateLegacy;
 
   final List<_TreeDoc> _docs;
+  final _Located? Function(String docPath) _placeOf;
   final _declarations = <String, RegExp>{};
 
   // MARK: - Resolving
@@ -105,7 +124,7 @@ final class LabelTree {
     NumberLabel label, {
     required String citingDocPath,
     NumberLabel? before,
-  }) => _resolveFrom(label, _baseOf(citingDocPath), before);
+  }) => _resolveFrom(label, _baseOf(_placeOf(citingDocPath)), before);
 
   /// The name of the doc at [docPath], or null for a doc the tree does not
   /// number.
@@ -204,8 +223,7 @@ _Parts _partsOf(NumberLabel label, _Base base) {
   return (feature: base.feature, story: base.story, fr: label.fr);
 }
 
-_Base _baseOf(String docPath) {
-  final located = _locate(docPath);
+_Base _baseOf(_Located? located) {
   return located == null
       ? _noPlace
       : (feature: located.feature, story: located.story);
@@ -213,15 +231,31 @@ _Base _baseOf(String docPath) {
 
 /// Reads the feature and story a doc path sits under, or null for a path
 /// under neither `prds/features/` nor `specs/`.
-_Located? _locate(String docPath) {
+_Located? _locate(String docPath) =>
+    _locateUnder(docPath, _featureFolder.firstMatch);
+
+/// Reads the place of a doc of a legacy tree: its feature folder is
+/// `<prefix><nn>[_<nn>]*_<slug>`, the last number the feature's, and a legacy
+/// spec doc has no feature place.
+_Located? _locateLegacy(String docPath) => _locateUnder(docPath, (folder) {
+  final featurePath = featurePathOf(folder);
+  return featurePath == null ? null : _featureFolder.firstMatch(featurePath);
+}, allowsSpec: false);
+
+_Located? _locateUnder(
+  String docPath,
+  RegExpMatch? Function(String folderName) readFeature, {
+  bool allowsSpec = true,
+}) {
   final segments = docPath.split('/');
-  final isSpec = segments.length == 3 && segments.first == 'specs';
+  final isSpec =
+      allowsSpec && segments.length == 3 && segments.first == 'specs';
   final isPrd =
       segments.length >= 4 &&
       segments[0] == 'prds' &&
       segments[1] == 'features';
   if (!isSpec && !isPrd) return null;
-  final folder = _featureFolder.firstMatch(segments[isSpec ? 1 : 2]);
+  final folder = readFeature(segments[isSpec ? 1 : 2]);
   final feature = folder == null ? null : int.tryParse(folder.group(1)!);
   if (folder == null || feature == null) return null;
   var rest = segments.sublist(isSpec ? 2 : 3);
@@ -542,8 +576,22 @@ _Resolve _codeResolverOf(LabelTree tree) => (label, _) {
 
 /// Returns [lf], a doc or a markdown file, with the labels [resolve] names
 /// converted, and the labels it keeps.
-({String lf, List<_Kept> kept}) _convertMarkdown(String lf, _Resolve resolve) {
-  final (:edits, :kept) = _markdownEdits(lf, resolve);
+///
+/// [resolve] gives the name of the one doc a label names, or null; its second
+/// argument is the label that puts one just before in a list.
+/// With [legacyIds] the legacy IDs of a pre-`f<nn>` tree read as labels.
+({String lf, List<({int line, String label})> kept}) convertLabelsIn(
+  String lf,
+  String? Function(NumberLabel label, NumberLabel? before) resolve, {
+  bool legacyIds = false,
+}) => _convertMarkdown(lf, resolve, legacyIds: legacyIds);
+
+({String lf, List<_Kept> kept}) _convertMarkdown(
+  String lf,
+  _Resolve resolve, {
+  bool legacyIds = false,
+}) {
+  final (:edits, :kept) = _markdownEdits(lf, resolve, legacyIds: legacyIds);
   return (lf: _applyLineEdits(lf, edits), kept: kept);
 }
 
@@ -552,9 +600,13 @@ _Resolve _codeResolverOf(LabelTree tree) => (label, _) {
 ///
 /// Labels are read as `numberLabelsInMarkdown` reads them, after the
 /// frontmatter.
-_Converted _markdownEdits(String lf, _Resolve resolve) {
+_Converted _markdownEdits(
+  String lf,
+  _Resolve resolve, {
+  bool legacyIds = false,
+}) {
   final body = Doc.parse(lf).afterFrontmatter;
-  final labels = numberLabelsInMarkdown(body);
+  final labels = numberLabelsInMarkdown(body, legacyIds: legacyIds);
   if (labels.isEmpty) return (edits: const [], kept: const []);
   final prefixLength = lf.length - body.length;
   final firstLine = '\n'.allMatches(lf.substring(0, prefixLength)).length;

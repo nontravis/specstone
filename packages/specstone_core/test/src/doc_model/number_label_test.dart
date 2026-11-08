@@ -323,4 +323,45 @@ void main() {
       expect(numberLabelsInMarkdown(''), isEmpty);
     });
   });
+
+  group('numberLabelsInMarkdown, legacy IDs', () {
+    const legacyId = 'ai02/us13/fr01';
+
+    test('a legacy ID reads only from its story folder unless the caller '
+        'asks for it', () {
+      final label = numberLabelsInMarkdown('See $legacyId.\n').single;
+
+      expect(label.written, 'us13/fr01');
+    });
+
+    test('a legacy ID reads as a folder path with its numbers', () {
+      final label = numberLabelsInMarkdown(
+        'See $legacyId.\n',
+        legacyIds: true,
+      ).single;
+
+      expect(label.written, legacyId);
+      expect(label.shape, LabelShape.folderPath);
+      expect((label.feature, label.story, label.fr), (2, 13, 1));
+    });
+
+    test('a legacy ID with a slug in every folder is no label', () {
+      expect(
+        numberLabelsInMarkdown(
+          'ai02_chat/us13_pay/fr01_charge.md\n',
+          legacyIds: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a story and an FR folder name keep their own ranks', () {
+      final label = numberLabelsInMarkdown(
+        'us13/fr01\n',
+        legacyIds: true,
+      ).single;
+
+      expect((label.feature, label.story, label.fr), (null, 13, 1));
+    });
+  });
 }

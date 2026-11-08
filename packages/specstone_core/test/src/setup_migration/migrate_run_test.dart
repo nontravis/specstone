@@ -229,6 +229,32 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
+  test(
+    'setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: the '
+    'applied run leaves each typed doc stamped with the hash of its text, and '
+    'the created draft keeps draft: true',
+    () async {
+      final root = await gitFixture(acmeLegacy);
+
+      expect(_run(root, StringBuffer(), answers: ['y']), 0);
+
+      final files = _bytesUnder(root);
+      for (final path in [
+        'docs/prds/PROJECT.md',
+        'docs/prds/FEATURES.md',
+        'docs/prds/features/f01_login/FEATURE.md',
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
+        'docs/specs/f01_login/ARCHITECTURE.md',
+        'docs/specs/f01_login/DOMAIN.md',
+      ]) {
+        expect(files[path], startsWith('---\napproved: "'), reason: path);
+      }
+      expect(files['docs/specs/TECH_STACK.md'], startsWith('---\ndraft: true'));
+      expect(files['docs/specs/INDEX.md'], isNot(contains('approved:')));
+    },
+    skip: hasGit ? null : 'git is not available',
+  );
+
   test('f06/us01/fr07/e08: INDEX.md, the untyped files, and the container doc '
       'stay after both commits', () async {
     const indexText = '# Spec index\n';

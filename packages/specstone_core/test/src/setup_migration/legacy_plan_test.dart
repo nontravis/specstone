@@ -2,11 +2,15 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -54,6 +58,36 @@ PlannedRewrite _rewrite(RunPlan plan, String docPath) =>
     plan.rewrites.singleWhere((r) => r.path == 'docs/$docPath');
 
 Iterable<String> _createdPaths(RunPlan plan) => plan.creates.map((c) => c.path);
+
+/// The merged type of the doc at [docPath] in the carried packs, or null.
+MergedDocType? _typeOf(String docPath) {
+  final set = TemplateResolver().resolveCarried(
+    packNames: carriedPacks,
+    homeDirectory: null,
+  );
+  final match = DocTypeMatcher(set).match(docPath);
+  return match is MatchedDocType ? match.docType : null;
+}
+
+/// A legacy tree whose features carry `ai<nn>` folder numbers and whose docs
+/// cite each other by legacy ID and by number label.
+const _citingLegacy = <String, String>{
+  'docs/prds/d01_context.md': '# D-01 — Project context\n',
+  'docs/prds/features/ai01_login/FEATURE.md': '''
+# F-01 — Login
+
+Built by ai01/us01/fr02 and `ai01/us01/fr01`; ai09/us01/fr01 names no FR.
+The story is F-01 US-01 and the feature F-01.
+''',
+  'docs/prds/features/ai01_login/us01_email_login/USER_STORY.md':
+      '# US-01 — Email login\n',
+  'docs/prds/features/ai01_login/us01_email_login/functional_requirements/'
+          'fr01_validate_credentials.md':
+      '# FR-01 — Validate credentials\n\nAfter FR-02 and not FR-09.\n',
+  'docs/prds/features/ai01_login/us01_email_login/functional_requirements/'
+          'fr02_lock_account.md':
+      '# FR-02 — Lock account\n',
+};
 
 const _legacySpec = 'docs/specs/shared/s01_architecture.md';
 
@@ -707,10 +741,13 @@ Text.
 ''',
     });
 
+    final domain = _rewrite(plan, 'specs/f01_login/DOMAIN.md');
     expect(
-      plan.rewrites.where((r) => r.path == 'docs/specs/f01_login/DOMAIN.md'),
-      isEmpty,
+      domain.text.replaceFirst(RegExp(r'approved: "[0-9a-f]{12}"\n'), ''),
+      contains('name: Login domain\n---\n\n# Login domain\n\n## Entities\n'),
     );
+    expect(domain.text, contains('## Not in the template\n\nText.\n'));
+    expect(domain.text, contains('| Session | Aggregate root | token    |'));
     expect(plan.toText(), isNot(contains('format layout:')));
   });
 
@@ -1098,4 +1135,128 @@ name: NFR
       );
     },
   );
+
+  group(
+    'setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links',
+    () {
+      const featurePath = 'prds/features/f01_login/FEATURE.md';
+      const frPath =
+          'prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+
+      test('E18: a legacy ID the move list maps to one FR becomes its name, '
+          'another is kept and listed in the plan', () async {
+        final plan = await _plan(_citingLegacy);
+
+        final text = _rewrite(plan, featurePath).text;
+
+        expect(
+          text,
+          contains(
+            'Built by `login/email_login/lock_account` and '
+            '`login/email_login/validate_credentials`; ai09/us01/fr01 names',
+          ),
+        );
+        expect(
+          plan.toText(),
+          contains('prds/features/f01_login/FEATURE.md:3 ai09/us01/fr01'),
+        );
+      });
+
+      test('E19: a full label and a feature label name their doc; a partial '
+          "label reads against the citing doc's story", () async {
+        final plan = await _plan(_citingLegacy);
+
+        expect(
+          _rewrite(plan, featurePath).text,
+          contains(
+            'The story is `login/email_login` and the feature '
+            '`feature:login`.',
+          ),
+        );
+        expect(
+          _rewrite(plan, frPath).text,
+          contains('After `login/email_login/lock_account` and not FR-09.'),
+        );
+        expect(plan.toText(), contains('$frPath:3 FR-09'));
+      });
+
+      test('E19: a plan with no id or label to keep lists none', () async {
+        final plan = await _plan(acmeLegacy);
+
+        expect(plan.toText(), isNot(contains('left as written')));
+      });
+    },
+  );
+
+  group('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes', () {
+    test('E07: each typed doc the run leaves carries the hash of its final '
+        'text and no draft key; a created draft keeps draft: true', () async {
+      final plan = await _plan(acmeLegacy);
+
+      final typed = [
+        for (final rewrite in plan.rewrites)
+          if (rewrite.path.startsWith('docs/'))
+            (
+              path: rewrite.path,
+              text: rewrite.text,
+              type: _typeOf(rewrite.path.substring('docs/'.length)),
+            ),
+      ].where((doc) => doc.type != null).toList();
+
+      expect(typed, isNotEmpty);
+      for (final (:path, :text, :type) in typed) {
+        expect(text, contains('approved: "'), reason: path);
+        expect(text, isNot(contains('draft:')), reason: path);
+        expect(withApprovalHash(text, type), text, reason: path);
+      }
+      final tech = plan.creates.singleWhere(
+        (c) => c.path == 'docs/specs/TECH_STACK.md',
+      );
+      expect(tech.text, startsWith('---\ndraft: true\n'));
+    });
+
+    test('E07: a typed doc the run neither moves nor edits is stamped and '
+        'written, and an untyped doc stays as it is', () async {
+      final plan = await _plan(acmeLegacy);
+
+      final domain = _rewrite(plan, 'specs/f01_login/DOMAIN.md');
+
+      expect(domain.text, contains('approved: "'));
+      expect(
+        plan.rewrites.map((r) => r.path),
+        isNot(contains('docs/specs/INDEX.md')),
+      );
+    });
+
+    test(
+      'E07: the stamp comes after the confirmed entries the run writes',
+      () async {
+        final tree = Map.of(acmeLegacy)
+          ..remove('docs/specs/api/auth/s02_api_session.md')
+          ..['docs/specs/api/auth/s02_api_login.md'] = '''
+---
+name: Login API
+---
+
+# S-02 — Login API
+
+## FR trace
+
+| FR id | Method |
+|-------|--------|
+| `us01_email_login/fr01_validate_credentials` | CLI |
+''';
+
+        final plan = await _plan(tree);
+
+        final api = _rewrite(plan, 'specs/f01_login/API.md');
+        expect(api.text, contains('confirmed:\n  - email_login/'));
+        expect(
+          withApprovalHash(api.text, _typeOf('specs/f01_login/API.md')),
+          api.text,
+        );
+      },
+    );
+  });
 }

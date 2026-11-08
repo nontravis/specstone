@@ -4,6 +4,8 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
@@ -17,6 +19,8 @@ import 'package:specstone_core/src/rendering/formatter.dart'
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart'
+    show LabelTree;
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
@@ -24,6 +28,8 @@ import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show MergedDocType;
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -34,6 +40,7 @@ const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
+const _keptLabelsLabel = 'left as written: ';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -138,6 +145,8 @@ RunPlan planLegacyRun(
       for (final rewrite in rewrites.planned)
         if (rewrite.changes.isNotEmpty) _rewriteLineOf(rewrite),
       ?formatLayoutLine(rewrites.layoutOnly),
+      if (rewrites.keptLabels.isNotEmpty)
+        '$_keptLabelsLabel${rewrites.keptLabels.join(', ')}',
       if (configRewrite != null) _rewriteLineOf(configRewrite),
     ],
     creates: [
@@ -220,7 +229,14 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 
 /// The planned rewrites, and the DocPaths of the typed docs whose only change
 /// is their layout.
-typedef _Rewrites = ({List<PlannedRewrite> planned, List<String> layoutOnly});
+///
+/// `keptLabels` are the legacy IDs and number labels no single doc answers
+/// to, each as `<DocPath>:<line> <label>`.
+typedef _Rewrites = ({
+  List<PlannedRewrite> planned,
+  List<String> layoutOnly,
+  List<String> keptLabels,
+});
 
 /// One markdown doc on its way to commit 2.
 final class _Work {
@@ -232,6 +248,9 @@ final class _Work {
   final LegacyKind? kind;
   final DocText original;
   String lf;
+
+  /// The text before the approval stamp, the last write of the doc.
+  String laidOut = '';
   final List<String> changes = [];
   String note = '';
 
@@ -354,14 +373,22 @@ _Rewrites _rewritesOf(
   required bool Function(String path) exists,
 }) {
   final matcher = DocTypeMatcher(projectSet);
+  MergedDocType? typeOf(_Work work) => switch (matcher.match(work.newPath)) {
+    MatchedDocType(:final docType) => docType,
+    _ => null,
+  };
+  // The stamp is the last write of a doc, so the hash covers its final text
+  // (`show_plan_and_apply_on_yes` E07).
   void layOut(_Work work) {
-    final match = matcher.match(work.newPath);
-    work.lf = layOutDoc(
-      work.lf,
-      match is MatchedDocType ? match.docType : null,
-    );
+    final type = typeOf(work);
+    work.lf = layOutDoc(work.lf, type);
+    work.laidOut = work.lf;
+    if (type != null) {
+      work.lf = withApprovalHash(withKeyBlock(work.lf, 'draft', null), type);
+    }
   }
 
+  final keptLabels = _convertLabels(works, typeOf);
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
@@ -397,9 +424,41 @@ _Rewrites _rewritesOf(
     ],
     layoutOnly: [
       for (final work in written)
-        if (work.changes.isEmpty) work.newPath,
+        if (work.changes.isEmpty && work.laidOut != work.original.lf)
+          work.newPath,
     ],
+    keptLabels: keptLabels,
   );
+}
+
+/// Converts the legacy IDs and number labels of [works] that name one moved
+/// doc to its name, and returns the ones it keeps as
+/// `<DocPath>:<line> <label>` (`rewrite_titles_keys_and_links` E18, E19).
+///
+/// The tree is read before any conversion, from the texts the title and key
+/// rewrites left; a doc cites from its legacy path.
+List<String> _convertLabels(
+  List<_Work> works,
+  MergedDocType? Function(_Work work) typeOf,
+) {
+  final tree = LabelTree.legacy(
+    [for (final work in works) (docPath: work.newPath, lf: work.lf)],
+    docTypes: {for (final work in works) work.newPath: ?typeOf(work)},
+  );
+  final kept = <String>[];
+  for (final work in works) {
+    final converted = convertLegacyLabels(
+      tree,
+      legacyPath: work.legacyPath,
+      lf: work.lf,
+    );
+    work.lf = converted.lf;
+    kept.addAll([
+      for (final (:line, :label) in converted.kept)
+        '${work.newPath}:$line $label',
+    ]);
+  }
+  return kept;
 }
 
 /// Points the links and path mentions of [work] at the paths [moves] leave
