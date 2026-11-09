@@ -707,7 +707,7 @@ final class MoveJournal {
   ///
   /// Throws [RenderFault] `output_not_writable` before any step when the
   /// journal is not one a run on this machine recorded or a step path leaves
-  /// the project, docs, and code roots; when a step fails, the journal stays,
+  /// the project and docs roots; when a step fails, the journal stays,
   /// so the next replay resumes; or when the journal or its cursor cannot be
   /// read or parsed.
   static void replay(JournalTarget target) {
@@ -813,9 +813,7 @@ void _requireInside(JournalTarget target, Iterable<String> paths) {
   final bounds = JournalBounds(target.projectRoot, target._bounds);
   for (final path in paths) {
     if (!bounds.holds(path)) {
-      throw _untrusted(
-        'its step path $path leaves the project, docs, and code roots',
-      );
+      throw _untrusted('its step path $path leaves the project and docs roots');
     }
   }
 }

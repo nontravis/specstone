@@ -126,7 +126,7 @@ void main() {
     expect(
       () => _runWrite(root, testHome()),
       _refusedWith(
-        'its step path $path leaves the project, docs, and code roots; '
+        'its step path $path leaves the project and docs roots; '
         'check .specstone/trash/ and delete it to go on',
       ),
     );
@@ -146,8 +146,8 @@ void main() {
     expect(
       () => _runWrite(root, testHome()),
       _refusedWith(
-        'its step path .git/hooks/post-commit leaves the project, docs, and '
-        'code roots; check .specstone/trash/ and delete it to go on',
+        'its step path .git/hooks/post-commit leaves the project and docs '
+        'roots; check .specstone/trash/ and delete it to go on',
       ),
     );
 
@@ -168,8 +168,8 @@ void main() {
     expect(
       () => _runWrite(root, testHome()),
       _refusedWith(
-        'its step path docs/escape/victim.txt leaves the project, docs, and '
-        'code roots; check .specstone/trash/ and delete it to go on',
+        'its step path docs/escape/victim.txt leaves the project and docs '
+        'roots; check .specstone/trash/ and delete it to go on',
       ),
     );
 

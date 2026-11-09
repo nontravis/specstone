@@ -40,7 +40,7 @@ Matcher _leaves(String path) => throwsA(
       .having(
         (f) => f.message,
         'message',
-        'its step path $path leaves the project, docs, and code roots; '
+        'its step path $path leaves the project and docs roots; '
             'check .specstone/trash/ and delete it to go on',
       ),
 );
@@ -241,6 +241,59 @@ void main() {
       expect(fault.code, RenderFaultCode.outputNotWritable);
       expect(fault.file, MoveJournal.journalPath);
       expect(_snapshot(base), before);
+    }, skip: _linksUnavailable);
+
+    group('a .specstone/trash link out of the project', () {
+      late Directory root;
+      late Directory outside;
+
+      setUp(() async {
+        root = await writeWriteProject();
+        outside = await writeTree({'keep.txt': 'mine\n', 'stage/x.md': 'x\n'});
+        // Builds the index first, so the snapshots below cover it too.
+        writeIn(root, (session) => session.project);
+        Link('${root.path}/.specstone/trash').createSync(outside.path);
+      });
+
+      void expectRefusedUnchanged(void Function() run) {
+        final rootBefore = _snapshot(root);
+        final outsideBefore = _snapshot(outside);
+
+        expect(run, _leaves(MoveJournal.journalPath));
+
+        expect(_snapshot(root), rootBefore);
+        expect(_snapshot(outside), outsideBefore);
+      }
+
+      test('is refused by a replay', () {
+        expectRefusedUnchanged(
+          () => MoveJournal.replay(
+            JournalTarget.of(openProject(root), homeDirectory: testHome()),
+          ),
+        );
+      });
+
+      test('is refused by a write command', () {
+        expectRefusedUnchanged(
+          () => writeIn(root, (session) => session.project),
+        );
+      });
+
+      test('is refused by a bare migrate', () {
+        expectRefusedUnchanged(
+          () => runMigrate(
+            MigrateRequest(
+              workingDirectory: root,
+              homeDirectory: testHome(),
+              templates: TemplateResolver(),
+              dryRun: false,
+              confirmation: OwnerConfirmation.prompt,
+              readLine: () => throw StateError('must not ask'),
+              out: StringBuffer(),
+            ),
+          ),
+        );
+      });
     }, skip: _linksUnavailable);
 
     test('a run refuses before it creates anything when .specstone is a link '
