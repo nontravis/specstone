@@ -26,14 +26,14 @@ const _trustHint = 'run specstone trust at a terminal to allow it';
 ///
 /// A committed `docs` link can lead a clone's writes out of the project: the
 /// docs root may lie outside the project root, and the project root may be
-/// another project the link names. Such roots are trusted only when a record
-/// under `<home>/.specstone/trusted/` holds both, keyed by the canonical
-/// [folder] the walk found the project from. A git clone cannot carry the
-/// record: a home folder that is not absolute, or that lies inside [folder],
-/// the project root, or the docs root, holds none.
+/// another project the link names, outside [folder]. Such roots are trusted
+/// only when a record under `<home>/.specstone/trusted/` holds both, keyed by
+/// the canonical [folder] the walk found the project from. A git clone cannot
+/// carry the record: a home folder that is not absolute, or that lies inside
+/// [folder], the project root, or the docs root, holds none.
 ///
 /// A layout whose docs root lies inside its project root, with the project
-/// root the [folder] itself, needs no record.
+/// root the [folder] itself or below it, needs no record.
 final class RootTrust {
   new _({
     required this.folder,
@@ -103,8 +103,8 @@ final class RootTrust {
   final Directory? homeDirectory;
 
   /// Whether the roots are trusted only on the Owner's record: the docs root
-  /// lies outside the project root, or the project root was reached through a
-  /// `docs` link that leaves [folder].
+  /// lies outside the project root, or the project root lies outside [folder],
+  /// as a `docs` link that leaves it makes it.
   bool get needsRecord => _isDocsOutside || _isRootLinked;
 
   /// Whether the roots may be written: they need no record, or the Owner
@@ -169,7 +169,16 @@ final class RootTrust {
   bool get _isDocsOutside =>
       !docsRoot.path.startsWith('${projectRoot.path}${Platform.pathSeparator}');
 
-  bool get _isRootLinked => projectRoot.path != folder.path;
+  bool get _isRootLinked => !_isInside(projectRoot.path, folder.path);
+
+  /// Whether [path] is [folder] or lies below it, cut at whole names.
+  static bool _isInside(String path, String folder) {
+    if (path == folder) return true;
+    final prefix = folder.endsWith(Platform.pathSeparator)
+        ? folder
+        : '$folder${Platform.pathSeparator}';
+    return path.startsWith(prefix);
+  }
 
   late final bool _isRecorded = _readRecord();
 

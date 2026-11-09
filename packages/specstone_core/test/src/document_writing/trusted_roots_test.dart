@@ -289,6 +289,48 @@ void main() {
     );
   });
 
+  group('every journal command refuses first, before it plans a rewrite', () {
+    final commands = <String, ReadAnswer Function(WriteSession)>{
+      'reorder': (s) =>
+          answerReorder(s, 'user_story:login/reset_password', place: '1'),
+      'rename': (s) =>
+          answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+      'move': (s) =>
+          answerMove(s, ['user_story:login/reset_password'], under: 'signup'),
+    };
+
+    for (final MapEntry(:key, :value) in commands.entries) {
+      test('$key names the journal and the folder keeps its bytes', () async {
+        final (:clone, :ext, base: _) = await _fallThroughClone();
+        final before = treeBytes(ext);
+
+        expect(
+          () => writeIn(clone, value),
+          _refusesOutside('.specstone/trash/journal.json'),
+        );
+
+        expect(treeBytes(ext), before);
+        expect(
+          File('${clone.path}/.specstone/trash/journal.json').existsSync(),
+          isFalse,
+        );
+      }, skip: _linksUnavailable);
+
+      test('$key in the other project the docs link names refuses the same '
+          'way', () async {
+        final (:clone, :victim, base: _) = await _linkedClone();
+        final before = treeBytes(Directory('${victim.path}/docs'));
+
+        expect(
+          () => writeIn(clone, value),
+          _refusesOutside('.specstone/trash/journal.json'),
+        );
+
+        expect(treeBytes(Directory('${victim.path}/docs')), before);
+      }, skip: _linksUnavailable);
+    }
+  });
+
   group('a pending journal under roots the Owner has not recorded', () {
     test('a replay refuses with the trust text, not the step path, and keeps '
         'the journal', () async {
@@ -498,6 +540,52 @@ void main() {
       writeIn(code, (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf));
 
       expect(readDoc(ws, story2), contains('Changed'));
+    }, skip: _linksUnavailable);
+
+    test('a docs link to a project below the folder holding it needs no record '
+        'for new, set, or a rename', () async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          'outer/below/$key': value,
+        'outer/keep.txt': '',
+      });
+      createRelativeLink('${base.path}/outer/docs', 'below/docs');
+      final outer = Directory('${base.path}/outer');
+      final below = Directory('${base.path}/outer/below');
+
+      expect(RootTrust.locate(outer, homeDirectory: null).needsRecord, isFalse);
+      writeIn(outer, (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf));
+      writeIn(outer, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
+      writeIn(
+        outer,
+        (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+      );
+
+      expect(readDoc(below, story2), contains('Changed'));
+      expect(hasDoc(below, 'prds/personas/team/PERSONA.md'), isTrue);
+      expect(
+        Directory('${below.path}/docs/prds/features/f01_login/us03_x')
+            .existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
+
+    test('a docs link to a project that is not below the folder, even one '
+        'sharing its name prefix, still needs one', () async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          'clone-extra/$key': value,
+        'clone/keep.txt': '',
+      });
+      createRelativeLink('${base.path}/clone/docs', '../clone-extra/docs');
+
+      expect(
+        RootTrust.locate(
+          Directory('${base.path}/clone'),
+          homeDirectory: null,
+        ).needsRecord,
+        isTrue,
+      );
     }, skip: _linksUnavailable);
 
     test('a trust of the linked folder does not carry to a run from the '

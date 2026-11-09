@@ -147,6 +147,26 @@ void main() {
       expect(_bytesUnder(base), before);
     }, skip: _linksUnavailable);
 
+    test('runs with no record when the link names a project below the folder '
+        'holding it', () async {
+      final base = Directory(
+        (await writeTree({
+          'outer/below/docs/prds/keep.md': '# Keep\n',
+          'outer/keep.txt': '',
+        })).resolveSymbolicLinksSync(),
+      );
+      createRelativeLink('${base.path}/outer/docs', 'below/docs');
+      final outer = Directory('${base.path}/outer');
+
+      expect(locateSetupTrust(outer, homeDirectory: null).needsRecord, isFalse);
+      expect(_init(outer), 0);
+
+      expect(
+        File('${base.path}/outer/below/.specstone/config.yaml').existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
+
     test('in a plain folder needs no record', () async {
       final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -225,6 +245,26 @@ void main() {
       expect(_migrate(code), 0);
 
       expect(File('${ws.path}/.specstone/config.yaml').existsSync(), isTrue);
+    }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
+
+    test('with a link to a project below the folder holding it needs no '
+        'record', () async {
+      final tree = Directory(
+        (await writeTree({
+          for (final MapEntry(:key, :value) in acmeLegacy.entries)
+            'outer/below/$key': value,
+          'outer/keep.txt': '',
+        })).resolveSymbolicLinksSync(),
+      );
+      createRelativeLink('${tree.path}/outer/docs', 'below/docs');
+      final below = Directory('${tree.path}/outer/below');
+      commitRepo(below);
+      final outer = Directory('${tree.path}/outer');
+
+      expect(locateSetupTrust(outer, homeDirectory: null).needsRecord, isFalse);
+      expect(_migrate(outer), 0);
+
+      expect(File('${below.path}/.specstone/config.yaml').existsSync(), isTrue);
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('with no link needs no record', () async {

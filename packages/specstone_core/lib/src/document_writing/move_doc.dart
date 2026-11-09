@@ -46,7 +46,8 @@ int parsePlace(String? value) {
 /// doc and `position_out_of_range` for a place outside 1 to the sibling
 /// count; an `IndexFault` for a bad address or [place], or `doc_not_found`
 /// when the doc is gone from disk; `index_busy` when another call holds the
-/// lock.
+/// lock; `RenderFault` `output_not_writable` for roots the Owner has not
+/// recorded, naming the journal, before any rewrite is planned.
 ReadAnswer answerReorder(
   WriteSession session,
   String address, {
@@ -74,6 +75,7 @@ ReadAnswer answerReorder(
       wanted: wanted,
     );
     if (moves.isEmpty) return _answerFor(session, moves, const []);
+    session.journalTarget.requireTrusted();
     final rewrites = planRewrites(session, moves);
     MoveJournal([..._stageSteps(session, moves), ...rewrites])
         .run(session.journalTarget);
@@ -93,7 +95,8 @@ ReadAnswer answerReorder(
 /// [slug] or a path on disk is where the renamed segment would land; an
 /// `IndexFault` for a missing or bad [slug] or a bad address, or
 /// `doc_not_found` when the doc is gone from disk; `index_busy` when another
-/// call holds the lock.
+/// call holds the lock; `RenderFault` `output_not_writable` for roots the
+/// Owner has not recorded, naming the journal, before any rewrite is planned.
 ReadAnswer answerRename(
   WriteSession session,
   String address, {
@@ -118,6 +121,7 @@ ReadAnswer answerRename(
   return session.locked(() {
     final moves = _renameMoves(session, target, docType, shape, slug);
     if (moves.isEmpty) return _answerFor(session, moves, const []);
+    session.journalTarget.requireTrusted();
     final renamed = _renamedNames(session, moves);
     final skipped = <String>[];
     final rewrites = planRewrites(
@@ -149,7 +153,8 @@ const _storyType = 'user_story';
 /// `doc_exists` for a clash, among the targets too; an `IndexFault` for no
 /// target, a missing or unknown [under] or a feature that holds sub-features;
 /// a `TemplateFault` `doc_type_unknown` when [under] names a doc type id the
-/// set lacks.
+/// set lacks; `RenderFault` `output_not_writable` for roots the Owner has not
+/// recorded, naming the journal, before any rewrite is planned.
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
@@ -195,6 +200,7 @@ ReadAnswer answerMove(
   _storyMoves(session, stories, docType, newParent);
   return session.locked(() {
     final moves = _storyMoves(session, stories, docType, newParent);
+    session.journalTarget.requireTrusted();
     final renamed = _renamedNames(session, moves);
     final skipped = <String>[];
     final rewrites = planRewrites(

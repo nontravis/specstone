@@ -41,7 +41,7 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// while its file list hashes to [planHash], the plan line of the dry run the
 /// Owner saw ([answerDeleteDryRun]). Emptied folders go up to the docs root.
 ///
-/// [targets] is non-empty.
+/// [targets] is non-empty. [runGit] replaces the real `git` process, for tests.
 /// Throws [WriteFault] `doc_referenced` for a referred doc,
 /// `owner_terminal_required` for a guarded unit the Owner cannot confirm,
 /// and `plan_mismatch` under `--yes` for a list that changed since the dry
@@ -54,13 +54,14 @@ ReadAnswer answerDelete(
   required String? Function() readLine,
   required StringSink prompts,
   String? planHash,
+  RunGit runGit = runRealGit,
 }) {
   var unit = _resolveTargets(session, targets);
   var dangling = _checkReferrers(session, unit);
   while (true) {
     final shown = _readUnit(session, unit.roots);
     if (confirmation == OwnerConfirmation.given &&
-        planHash != _planHashOf(session, shown)) {
+        planHash != _planHashOf(session, shown, runGit)) {
       throw WriteFault(
         WriteFaultCode.planMismatch,
         'the delete list is not the one the Owner saw in the dry run; run '
@@ -105,13 +106,17 @@ ReadAnswer answerDelete(
 /// is removed. The text ends with the `plan <hash>` line and
 /// `dry run: nothing removed`; the JSON holds `files` and `plan`.
 /// Warns of each link left to dangle, and throws, as [answerDelete] does
-/// before its prompt.
-ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
+/// before its prompt. [runGit] replaces the real `git` process, for tests.
+ReadAnswer answerDeleteDryRun(
+  WriteSession session,
+  List<String> targets, {
+  RunGit runGit = runRealGit,
+}) {
   final unit = _resolveTargets(session, targets);
   final dangling = _checkReferrers(session, unit);
   final unitFiles = _readUnit(session, unit.roots);
   final files = unitFiles.keys.toList();
-  final hash = _planHashOf(session, unitFiles);
+  final hash = _planHashOf(session, unitFiles, runGit);
   return ReadAnswer(
     text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
     json: {'files': files, 'plan': hash},
@@ -123,14 +128,15 @@ ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
 ///
 /// It covers each listed path with the hash of its text, as `bases.doc` hashes
 /// a doc, so an uncommitted edit to a listed file changes it too.
-String _planHashOf(WriteSession session, _UnitFiles files) => planHashOf(
-  [
-    for (final MapEntry(key: docPath, value: bytes) in files.entries)
-      '$docPath ${_textHashOf(bytes)}\n',
-  ].join(),
-  session.project.docsRoot,
-  runRealGit,
-);
+String _planHashOf(WriteSession session, _UnitFiles files, RunGit runGit) =>
+    planHashOf(
+      [
+        for (final MapEntry(key: docPath, value: bytes) in files.entries)
+          '$docPath ${_textHashOf(bytes)}\n',
+      ].join(),
+      session.project.docsRoot,
+      runGit,
+    );
 
 /// Returns the `bases.doc` hash of [bytes]; a byte that is not UTF-8 decodes
 /// to U+FFFD, so any file of a unit hashes the same way each time.
