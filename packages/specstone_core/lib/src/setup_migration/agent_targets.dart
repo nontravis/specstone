@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -184,7 +186,9 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
   final survey = _Survey.of(inputs);
   final root = _canonicalOf(inputs.projectRoot);
   final drifts = <AgentDrift>[];
-  if (survey.agentMd.exists && !survey.agentMd.matches) {
+  if (survey.agentMd.exists &&
+      !survey.agentMd.matches &&
+      _isWritable(root, survey.agentMd.realPath)) {
     drifts.add((
       path: _agentMdPath,
       line: 1,
@@ -192,10 +196,10 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
     ));
   }
   for (final folder in survey.folders) {
-    // A top outside the project root takes no file (R99), so it has no drift
-    // a run could fix.
-    if (_isOutside(folder.path)) continue;
-    if (folder.isUnlisted) {
+    // A top outside the project root is never listed (R99), and a file no run
+    // may write (outside the root or under `.git`) has no drift a run could
+    // fix; a file that links into the project still has.
+    if (folder.isUnlisted && !_isOutside(folder.path)) {
       drifts.add((
         path: folder.path,
         line: 1,
@@ -203,7 +207,7 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
       ));
     }
     for (final file in folder.files.where(
-      (file) => file.exists && _isInside(root, file.realPath),
+      (file) => file.exists && _isWritable(root, file.realPath),
     )) {
       drifts.addAll(
         file.drifts(
@@ -311,7 +315,7 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
     for (final file in folder.files) {
       final isUpsert = survey.isUpsert(folder, file, full: full);
       final text = file.nextText(isUpsert: isUpsert);
-      if (!_isInside(root, file.realPath)) {
+      if (!_isWritable(root, file.realPath)) {
         if (text != null) skipped.add(file.path);
         continue;
       }
@@ -332,17 +336,21 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
   }
   final agentMd = survey.agentMd;
   if (!agentMd.matches && (full || agentMd.exists || hasImport)) {
-    writeSet.add(_fileIn(root, _agentMdPath).path);
-    rootWrites.insert(
-      0,
-      AgentWrite(
-        path: _agentMdPath,
-        text: agentMdText,
-        isNew: !agentMd.exists,
-        before: agentMd.before,
-        isAtTop: false,
-      ),
-    );
+    if (_isWritable(root, agentMd.realPath)) {
+      writeSet.add(agentMd.realPath);
+      rootWrites.insert(
+        0,
+        AgentWrite(
+          path: _agentMdPath,
+          text: agentMdText,
+          isNew: !agentMd.exists,
+          before: agentMd.before,
+          isAtTop: false,
+        ),
+      );
+    } else {
+      skipped.insert(0, _agentMdPath);
+    }
   }
   return AgentWritePlan(
     rootWrites: rootWrites,
@@ -356,7 +364,15 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
 
 /// The state of `.specstone/AGENT.md`.
 final class _AgentMd {
-  const new({required this.exists, required this.matches, this.before});
+  const new({
+    required this.realPath,
+    required this.exists,
+    required this.matches,
+    this.before,
+  });
+
+  /// The canonical path of the file the run writes, every link resolved.
+  final String realPath;
 
   final bool exists;
   final bool matches;
@@ -610,9 +626,10 @@ Map<String, Directory> _qualifyingTops(
 /// Whether the relative [path] leaves its start folder.
 bool _isOutside(String path) => path == '..' || path.startsWith('../');
 
-/// Whether [path], canonical, lies below the canonical folder [root].
-bool _isInside(Directory root, String path) =>
-    path.startsWith('${root.path}${Platform.pathSeparator}');
+/// Whether a run may write the file at the canonical [path]: it lies inside
+/// the canonical project [root] and below no `.git` entry (R99).
+bool _isWritable(Directory root, String path) =>
+    writeRefusalOf(path, projectRoot: root) == null;
 
 /// Returns the agent files of [folder], an existing file once per real file,
 /// and the file a full upsert would create.
@@ -694,9 +711,13 @@ List<_AgentFile> _filesIn(
 
 _AgentMd _agentMdOf(Directory root) {
   final file = _fileIn(root, _agentMdPath);
-  if (!file.existsSync()) return const _AgentMd(exists: false, matches: false);
+  final realPath = _realPathOf(file);
+  if (!file.existsSync()) {
+    return _AgentMd(realPath: realPath, exists: false, matches: false);
+  }
   final bytes = file.readAsBytesSync();
   return _AgentMd(
+    realPath: realPath,
     exists: true,
     matches: _sameBytes(bytes, utf8.encode(agentMdText)),
     before: textHashOf(utf8.decode(bytes, allowMalformed: true)),

@@ -1168,6 +1168,60 @@ void main() {
         skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
       );
 
+      test('R99: a linked .specstone/AGENT.md leading outside the project is '
+          'named and left, and the file outside keeps its bytes', () async {
+        final base = await _twoRepositories(
+          {
+            'proj/.specstone/config.yaml': _belowSince,
+            'victim.txt': 'mine\n',
+            'shared/keep.txt': '',
+          },
+          other: 'shared',
+          links: {'proj/.specstone/AGENT.md': '../../victim.txt'},
+        );
+        final project = Directory('${base.path}/proj');
+        final warnings = <String>[];
+
+        expect(
+          _run(project, StringBuffer(), answers: ['y'], warnings: warnings),
+          0,
+        );
+
+        expect(warnings, [
+          '.specstone/AGENT.md reaches outside the project root; left as it is',
+        ]);
+        expect(File('${base.path}/victim.txt').readAsStringSync(), 'mine\n');
+        expect(MoveJournal.pending(project), isFalse);
+      }, skip: Platform.isWindows ? 'links need a privilege' : skipGit);
+
+      test(
+        'R99: a CLAUDE.md linked into .git is named and left, and '
+        '.git/config keeps its bytes',
+        () async {
+          final base = await _twoRepositories(
+            {'proj/.specstone/config.yaml': _belowSince, 'shared/keep.txt': ''},
+            other: 'shared',
+            links: {'proj/CLAUDE.md': '.git/config'},
+          );
+          final project = Directory('${base.path}/proj');
+          final config = File('${project.path}/.git/config');
+          final before = config.readAsStringSync();
+          final warnings = <String>[];
+
+          expect(
+            _run(project, StringBuffer(), answers: ['y'], warnings: warnings),
+            0,
+          );
+
+          expect(warnings, [
+            'CLAUDE.md reaches outside the project root; left as it is',
+          ]);
+          expect(config.readAsStringSync(), before);
+          expect(MoveJournal.pending(project), isFalse);
+        },
+        skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
+      );
+
       test(
         'E22: to the CLAUDE.md of the project takes one block and the '
         'link stays',

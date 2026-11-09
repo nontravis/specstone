@@ -935,9 +935,7 @@ void main() {
 
         expect(
           () => MoveJournal.replay(target()),
-          untrusted(
-            'its step path $path leaves the project, docs, and code roots',
-          ),
+          untrusted('its step path $path leaves the project and docs roots'),
         );
         expect(journalExists(), isTrue);
       });
@@ -955,8 +953,7 @@ void main() {
       expect(
         () => MoveJournal.replay(target()),
         untrusted(
-          'its step path docs/out/victim.txt leaves the project, docs, and '
-          'code roots',
+          'its step path docs/out/victim.txt leaves the project and docs roots',
         ),
       );
       expect(File('${outside.path}/victim.txt').readAsStringSync(), 'mine\n');
@@ -999,8 +996,7 @@ void main() {
           JournalTarget.of(openProject(project), homeDirectory: testHome()),
         ),
         untrusted(
-          'its step path ../lib/a.dart leaves the project, docs, and code '
-          'roots',
+          'its step path ../lib/a.dart leaves the project and docs roots',
         ),
       );
       expect(File('${base.path}/lib/a.dart').readAsStringSync(), '// old\n');
@@ -1030,9 +1026,7 @@ void main() {
         ], agentFiles: agentFiles);
         expect(
           () => MoveJournal.replay(target),
-          untrusted(
-            'its step path $path leaves the project, docs, and code roots',
-          ),
+          untrusted('its step path $path leaves the project and docs roots'),
         );
       }
 

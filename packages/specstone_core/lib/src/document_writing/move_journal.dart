@@ -893,9 +893,7 @@ void _requireInside(
 }) {
   final bad = _firstOutside(target, paths, agentFiles: agentFiles);
   if (bad == null) return;
-  throw _untrusted(
-    'its step path $bad leaves the project, docs, and code roots',
-  );
+  throw _untrusted('its step path $bad leaves the project and docs roots');
 }
 
 /// Throws [RenderFault] `output_not_writable` unless each of [paths], a file

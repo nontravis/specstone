@@ -4,6 +4,8 @@ import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart' as approval;
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show requireWritableTarget;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -98,6 +100,13 @@ final class DocsProject {
   /// Canonical when it exists; otherwise the joined path with its existing
   /// part canonical and `..` applied, so a docs-only checkout still opens.
   final Directory codeRoot;
+
+  /// Throws `output_not_writable` unless a write to [path] lands inside the
+  /// project or docs root and below no `.git` entry, as the disk stands now.
+  ///
+  /// The gate of every write outside the journal; see [requireWritableTarget].
+  void requireWritablePath(String path) =>
+      requireWritableTarget(path, projectRoot: projectRoot, docsRoot: docsRoot);
 
   /// Finds the doc type of a DocPath.
   final DocTypeMatcher matcher;

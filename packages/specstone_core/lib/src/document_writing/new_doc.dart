@@ -310,6 +310,7 @@ String _docPathOfSibling(
     );
     final docPath = shape.build([...parentValues, ...own]);
     final file = session.fileOf(docPath);
+    session.project.requireWritablePath(file.path);
     try {
       _createFolders(file.parent, created);
       file.createSync(exclusive: true);

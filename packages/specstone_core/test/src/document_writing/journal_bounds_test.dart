@@ -40,7 +40,7 @@ Matcher _leaves(String path) => throwsA(
       .having(
         (f) => f.message,
         'message',
-        'its step path $path leaves the project, docs, and code roots; '
+        'its step path $path leaves the project and docs roots; '
             'check .specstone/trash/ and delete it to go on',
       ),
 );

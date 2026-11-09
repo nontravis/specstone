@@ -430,19 +430,6 @@ void main() {
           return Directory('${base.path}/project')..createSync();
         }
 
-        test('write_agent_files E22: a link to a file outside the project '
-            'joins no commit', () {
-          final project = projectBeside({'CLAUDE.md': 'x\n'});
-          Link('${project.path}/CLAUDE.md').createSync('../shared/CLAUDE.md');
-
-          final paths = commit2Of(
-            project,
-            rootWrites: [_agentWrite('CLAUDE.md', isNew: false)],
-          );
-
-          expect(paths, [specstoneGitignorePath]);
-        }, skip: Platform.isWindows ? skipLinks : null);
-
         test('write_agent_files E15: a repository top nested in the project '
             'joins no commit', () {
           final project = projectBeside({});
@@ -476,21 +463,6 @@ void main() {
             'rules/copilot-instructions.md',
             specstoneGitignorePath,
           ]);
-        }, skip: Platform.isWindows ? skipLinks : null);
-
-        test('R49: a linked folder outside the project holds its file out of '
-            'every commit', () {
-          final project = projectBeside({'copilot-instructions.md': 'x\n'});
-          Link('${project.path}/.github').createSync('../shared');
-
-          final paths = commit2Of(
-            project,
-            rootWrites: [
-              _agentWrite('.github/copilot-instructions.md', isNew: false),
-            ],
-          );
-
-          expect(paths, [specstoneGitignorePath]);
         }, skip: Platform.isWindows ? skipLinks : null);
 
         test('R49: a new file below a linked folder is placed by the '

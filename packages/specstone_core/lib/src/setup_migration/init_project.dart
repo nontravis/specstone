@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show skippedOutsideLine, warnOnStderr;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
@@ -142,11 +144,12 @@ int _scaffold(Directory root, InitRequest request) {
       request.out.writeln('kept docs/$path: exists');
       continue;
     }
-    _writeNew(file, skeletonOf(docType, docType.id), shown: 'docs/$path');
+    _writeNew(root, file, skeletonOf(docType, docType.id), shown: 'docs/$path');
     request.out.writeln('created docs/$path (draft)');
   }
   _writeAgentFiles(root, agentPlan, request.out);
   _writeNew(
+    root,
     File.fromUri(root.uri.resolve(projectConfigPath)),
     configText(pins, agentFileRoots: agentPlan.agentFileRoots),
     shown: projectConfigPath,
@@ -180,6 +183,7 @@ AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
 void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
   for (final write in [...plan.rootWrites, ...plan.topWrites]) {
     _writeNew(
+      root,
       docFileOf(root, write.path),
       write.text,
       shown: write.path,
@@ -189,22 +193,29 @@ void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
   }
 }
 
-/// Writes [text] to [file], creating its folders.
+/// Writes [text] to [file] of the project at [root], creating its folders.
 ///
-/// Writes through a symbolic link when [followLink]. Throws [RenderFault]
-/// `output_not_writable` naming [shown], the file's ProjectPath, when the disk
-/// refuses.
+/// Writes through a symbolic link when [followLink]. A file that leads outside
+/// the project or docs root, or into `.git`, is refused before any folder is
+/// made. Throws [RenderFault] `output_not_writable` naming [shown], the file's
+/// ProjectPath, when the disk refuses.
 void _writeNew(
+  Directory root,
   File file,
   String text, {
   required String shown,
   bool followLink = false,
 }) {
+  final target = followLink && _isLink(file)
+      ? File(file.resolveSymbolicLinksSync())
+      : file;
+  requireWritableTarget(
+    target.path,
+    projectRoot: root,
+    docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
+  );
   try {
     file.parent.createSync(recursive: true);
-    final target = followLink && _isLink(file)
-        ? File(file.resolveSymbolicLinksSync())
-        : file;
     writeFileAtomic(target, utf8.encode(text));
   } on FileSystemException catch (error) {
     throw RenderFault(

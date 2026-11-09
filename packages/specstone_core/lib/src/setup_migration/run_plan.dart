@@ -195,7 +195,7 @@ final class RunPlan {
       for (final rewrite in rewrites) rewrite.path,
       for (final create in creates) create.path,
       for (final (:write, :path) in agentWrites)
-        if (!write.isAtTop && !path.startsWith('../')) path,
+        if (!write.isAtTop) path,
       specstoneGitignorePath,
     };
     return [

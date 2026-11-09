@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show requireWritableTarget;
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -163,7 +165,10 @@ final class IndexStore {
   /// then holds [damagedIndexWarning]. A new index also gets its
   /// `.specstone/.gitignore` lines.
   ///
-  /// Throws [IndexFault] when the index is busy or cannot be written.
+  /// Throws [IndexFault] when the index is busy or cannot be written, and
+  /// `RenderFault` `output_not_writable` when the index, a file SQLite makes
+  /// beside it, or `.specstone/.gitignore` leads outside the project or into
+  /// `.git`.
   static IndexStore open(
     Directory projectRoot, {
     Duration busyTimeout = indexBusyTimeout,
@@ -195,6 +200,9 @@ final class IndexStore {
     required bool discard,
   }) {
     final file = File.fromUri(projectRoot.uri.resolve(indexFilePath));
+    for (final suffix in _indexFileSuffixes) {
+      requireWritableTarget('${file.path}$suffix', projectRoot: projectRoot);
+    }
     final warnings = <String>[];
     try {
       if (!discard) {
@@ -659,6 +667,9 @@ Set<String> _tableNames(Database db) => {
     row['name'] as String,
 };
 
+/// The names SQLite makes beside the index file, by their suffix.
+const _indexFileSuffixes = ['', '-wal', '-shm', '-journal'];
+
 void _deleteFiles(File file) {
   for (final suffix in ['', '-wal', '-shm']) {
     final sibling = File('${file.path}$suffix');
@@ -687,6 +698,7 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
 /// read-only: a rename would replace it whatever its mode.
 void ensureSpecstoneGitignore(Directory specstoneFolder) {
   final target = File.fromUri(specstoneFolder.uri.resolve('.gitignore'));
+  requireWritableTarget(target.path, projectRoot: specstoneFolder.parent);
   final text = target.existsSync() ? target.readAsStringSync() : '';
   final present = const LineSplitter().convert(text).toSet();
   final missing = [

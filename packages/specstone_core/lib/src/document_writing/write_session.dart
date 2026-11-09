@@ -246,12 +246,14 @@ final class WriteSession {
     return bytes;
   }
 
-  /// Refuses a write to [docPath] when the file is read-only.
+  /// Refuses a write to [docPath] when the file leads outside the project or
+  /// into `.git`, or is read-only.
   ///
   /// A rename replaces a read-only file whatever its mode, so the check is the
   /// caller's.
   /// Throws [RenderFault] `output_not_writable`.
   void requireWritable(String docPath) {
+    project.requireWritablePath(fileOf(docPath).path);
     if (!isReadOnly(fileOf(docPath))) return;
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
@@ -327,7 +329,15 @@ void _refuseMigratePending(
 }) {
   var folder = workingDirectory.absolute;
   while (true) {
-    if (MoveJournal.pendingMigrate(folder)) {
+    // A journal behind a linked `.specstone` is never read; the project open
+    // refuses such a folder when it holds the config.
+    final isRealFolder =
+        FileSystemEntity.typeSync(
+          '${folder.path}${Platform.pathSeparator}.specstone',
+          followLinks: false,
+        ) ==
+        FileSystemEntityType.directory;
+    if (isRealFolder && MoveJournal.pendingMigrate(folder)) {
       MoveJournal.requireRecorded(folder, homeDirectory: homeDirectory);
       throw WriteFault(
         WriteFaultCode.migratePending,

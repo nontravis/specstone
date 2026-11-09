@@ -103,6 +103,7 @@ class BuildCommand extends SpecstoneCommand {
         output,
         utf8.encode(build.html),
         displayPath: displayPath,
+        within: outputOption == null ? project : null,
       );
       result = BuildResult(output: displayPath, warnings: warnings);
     } on SpecstoneFault catch (fault) {

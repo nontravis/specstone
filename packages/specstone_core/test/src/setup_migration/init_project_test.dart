@@ -324,6 +324,86 @@ void main() {
     );
   });
 
+  group('setup_migration/set_up_new_project/write_agent_files: a link that '
+      'leads out of the write bounds', () {
+    final skipLinks = Platform.isWindows
+        ? 'symbolic links need a privilege'
+        : null;
+
+    test('a linked .specstone/AGENT.md leading outside the project is named '
+        'and left, and the file outside keeps its bytes', () async {
+      final base = await writeTree({
+        'victim.txt': 'mine\n',
+        'proj/.specstone/keep.txt': '',
+      });
+      Link('${base.path}/proj/.specstone/AGENT.md')
+          .createSync('../../victim.txt');
+      final warnings = <String>[];
+
+      final (status, lines) = _run(
+        Directory('${base.path}/proj'),
+        warnings: warnings,
+      );
+
+      expect(status, 0);
+      expect(warnings, [
+        '.specstone/AGENT.md reaches outside the project root; left as it is',
+      ]);
+      expect(lines, isNot(contains(contains('AGENT.md'))));
+      expect(File('${base.path}/victim.txt').readAsStringSync(), 'mine\n');
+    }, skip: skipLinks);
+
+    test('a CLAUDE.md linked into .git is named and left, and .git/config '
+        'keeps its bytes', () async {
+      final base = await writeTree({
+        'proj/.git/config': '[core]\n\tbare = false\n',
+        'proj/keep.txt': '',
+      });
+      Link('${base.path}/proj/CLAUDE.md').createSync('.git/config');
+      final warnings = <String>[];
+
+      final (status, lines) = _run(
+        Directory('${base.path}/proj'),
+        warnings: warnings,
+      );
+
+      expect(status, 0);
+      expect(warnings, [
+        'CLAUDE.md reaches outside the project root; left as it is',
+      ]);
+      expect(lines, isNot(contains('updated CLAUDE.md')));
+      expect(
+        File('${base.path}/proj/.git/config').readAsStringSync(),
+        '[core]\n\tbare = false\n',
+      );
+    }, skip: skipLinks);
+
+    test('a docs folder linked outside the project refuses a draft written '
+        'through it, and the folder outside is unchanged', () async {
+      final base = await writeTree({
+        'outside/keep.txt': 'mine\n',
+        'proj/docs/keep.md': '',
+      });
+      Link('${base.path}/proj/docs/prds').createSync('../../outside');
+
+      expect(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', isNotNull),
+        ),
+      );
+
+      expect(
+        Directory('${base.path}/outside')
+            .listSync()
+            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty)),
+        ['keep.txt'],
+      );
+    }, skip: skipLinks);
+  });
+
   test('setup_migration/set_up_new_project/write_agent_files: a repository '
       'top folder named with a # gets its agent file at that folder, not at '
       'a URI fragment', () async {

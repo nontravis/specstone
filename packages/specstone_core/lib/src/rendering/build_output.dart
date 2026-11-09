@@ -49,15 +49,21 @@ File defaultOutputFile(
 
 /// Writes [bytes] to [output], creating missing parent folders.
 ///
-/// The write is atomic, so a reader never sees a partial file.
+/// The write is atomic, so a reader never sees a partial file. With a
+/// [within] project, the default output under `.specstone/build/`, [output]
+/// must land inside that project and below no `.git` entry; a path the Owner
+/// names with `--output` is not judged.
 ///
 /// Throws `output_not_writable` carrying [displayPath] when a folder cannot be
-/// created or the file cannot be written.
+/// created or the file cannot be written, and for a [within] output that
+/// leads outside the project.
 void writeBuildOutput(
   File output,
   List<int> bytes, {
   required String displayPath,
+  DocsProject? within,
 }) {
+  within?.requireWritablePath(output.path);
   try {
     output.parent.createSync(recursive: true);
     writeFileAtomic(output, bytes);
