@@ -209,38 +209,98 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
-  test('a migrate run with no home folder to record its journal refuses before '
-      'its first change', () async {
-    final root = await gitFixture(acmeLegacy);
-    final before = treeBytes(root);
+  group('a migrate run with no home folder to record its journal', () {
+    final skipGit = hasGit ? null : 'git is not available';
 
-    expect(
-      () => runMigrate(
-        MigrateRequest(
-          workingDirectory: root,
-          homeDirectory: null,
-          templates: TemplateResolver(),
-          dryRun: false,
-          confirmation: OwnerConfirmation.prompt,
-          readLine: () => 'y',
-          out: StringBuffer(),
-        ),
-      ),
-      throwsA(
-        isA<RenderFault>()
-            .having((f) => f.exitStatus, 'exit', 73)
-            .having((f) => f.file, 'file', MoveJournal.journalPath)
-            .having(
-              (f) => f.message,
-              'message',
-              'cannot write .specstone/trash/journal.json: no home folder '
-                  'to record it in',
-            ),
+    Matcher refusesHomeless() => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.exitStatus, 'exit', 73)
+          .having((f) => f.file, 'file', MoveJournal.journalPath)
+          .having(
+            (f) => f.message,
+            'message',
+            'cannot write .specstone/trash/journal.json: no home folder '
+                'to record it in',
+          ),
+    );
+
+    int runHomeless(
+      Directory root,
+      StringBuffer out, {
+      OwnerConfirmation confirmation = OwnerConfirmation.prompt,
+      String? planHash,
+    }) => runMigrate(
+      MigrateRequest(
+        workingDirectory: root,
+        homeDirectory: null,
+        templates: TemplateResolver(),
+        dryRun: false,
+        confirmation: confirmation,
+        planHash: planHash,
+        readLine: () => 'y',
+        out: out,
       ),
     );
 
-    expect(treeBytes(root), before);
-  }, skip: hasGit ? null : 'git is not available');
+    test(
+      'outside a git work tree refuses git_work_tree_required first',
+      () async {
+        final root = await writeTree(acmeLegacy);
+
+        expect(
+          () => runHomeless(root, StringBuffer()),
+          throwsA(
+            isA<MigrateFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  MigrateFaultCode.gitWorkTreeRequired,
+                )
+                .having((f) => f.exitStatus, 'exit', 78),
+          ),
+        );
+      },
+      skip: skipGit,
+    );
+
+    test(
+      'at a terminal prints the plan, never asks, and changes nothing',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+        final before = treeBytes(root);
+        final out = StringBuffer();
+
+        expect(() => runHomeless(root, out), refusesHomeless());
+
+        expect(out.toString(), startsWith('legacy migration: '));
+        expect(out.toString(), isNot(contains('apply?')));
+        expect(treeBytes(root), before);
+      },
+      skip: skipGit,
+    );
+
+    test(
+      'under --yes with the seen plan refuses and changes nothing',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+        final hash = _dryRunPlanHash(root);
+        final before = treeBytes(root);
+
+        expect(
+          () => runHomeless(
+            root,
+            StringBuffer(),
+            confirmation: OwnerConfirmation.given,
+            planHash: hash,
+          ),
+          refusesHomeless(),
+        );
+
+        expect(treeBytes(root), before);
+      },
+      skip: skipGit,
+    );
+  });
 
   test('f06/us01/fr07/e02: one git reset undoes the run', () async {
     final root = await gitFixture(acmeLegacy);

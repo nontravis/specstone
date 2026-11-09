@@ -172,7 +172,6 @@ int _plannedRun(
     );
     return 0;
   }
-  MoveJournal.requireHomeFolder(request.homeDirectory);
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
@@ -181,6 +180,7 @@ int _plannedRun(
   request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
+    MoveJournal.requireHomeFolder(request.homeDirectory);
     request.out.write('apply? [y/N] ');
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;
