@@ -74,7 +74,10 @@ ReadAnswer answerDelete(
       );
     }
     if (guarded && confirmation.prompts) {
-      MoveJournal.requireHomeFolder(session.journalTarget.homeDirectory);
+      MoveJournal.requireHomeFolder(
+        session.journalTarget.homeDirectory,
+        session.project.projectRoot,
+      );
       prompts
         ..writeln(shown.keys.join('\n'))
         ..write('delete ${shown.length} files? [y/N] ');

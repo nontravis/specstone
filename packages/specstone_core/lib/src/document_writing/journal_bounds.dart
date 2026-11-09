@@ -100,8 +100,11 @@ final class JournalBounds {
 }
 
 /// Whether [segment] names a `.git` entry, as a case-folding or Windows file
-/// system reads it.
+/// system reads it, an NTFS alternate-stream suffix included.
 bool _isGitEntry(String segment) {
-  final name = segment.toLowerCase().replaceFirst(_windowsDroppedEnd, '');
+  // NTFS reads `.git:stream` and `.git::$INDEX_ALLOCATION` as `.git`.
+  final stream = segment.indexOf(':');
+  final base = stream < 0 ? segment : segment.substring(0, stream);
+  final name = base.toLowerCase().replaceFirst(_windowsDroppedEnd, '');
   return name == _gitEntry || name == _gitShortName;
 }

@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -13,6 +14,7 @@ import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/failing_rename.dart';
@@ -597,6 +599,37 @@ void main() {
       expect(treeBytes(root), before);
     },
   );
+
+  test('a guarded delete with a relative home folder refuses before its '
+      'prompt', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    getDoc(root, 'user_story:login/sign_out');
+    final before = treeBytes(root);
+    final prompts = StringBuffer();
+
+    expect(
+      () => WriteSession.run(
+        (s) => answerDelete(
+          s,
+          ['user_story:login/sign_out'],
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          prompts: prompts,
+        ),
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: Directory('relative_home'),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having((f) => f.file, 'file', MoveJournal.journalPath),
+      ),
+    );
+
+    expect(prompts.toString(), isEmpty);
+    expect(treeBytes(root), before);
+  });
 
   test('f02/us04/fr02/e06: the Owner deleting a never-approved unit sees no prompt', () async {
     final root = await writeWriteProject(extra: withoutLink);

@@ -70,6 +70,7 @@ final class InitRequest {
 /// refused run, `output_not_writable` naming the file the disk refuses.
 int runInit(InitRequest request) {
   final root = rootThroughDocsLink(request.workingDirectory);
+  requireSpecstoneFolder(root);
   if (File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
     throw MigrateFault(
       MigrateFaultCode.configExists,

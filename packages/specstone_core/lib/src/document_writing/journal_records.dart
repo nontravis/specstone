@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 // MARK: - Constants
@@ -24,7 +25,9 @@ const _agentFilesKey = 'agentFiles';
 /// and the agent files its run writes outside the roots.
 final class JournalRecords {
   /// Returns the records under [homeDirectory]; null keeps none, so no
-  /// journal is trusted and none is written.
+  /// journal is trusted and none is written. A home folder that is not
+  /// absolute, or that lies inside the project root a record is asked for,
+  /// counts as none: a clone could carry the record.
   const new(this.homeDirectory);
 
   /// The user's home folder, or null when the environment names none.
@@ -34,14 +37,14 @@ final class JournalRecords {
   /// with [agentFiles]: the canonical paths of the agent files its run writes
   /// outside the project, docs, and code roots.
   ///
-  /// Throws [FileSystemException] when there is no home folder or the record
-  /// cannot be written.
+  /// Throws [FileSystemException] when there is no usable home folder or the
+  /// record cannot be written.
   void record(
     Directory projectRoot,
     List<int> journal, {
     Set<String> agentFiles = const {},
   }) {
-    requireHome();
+    requireHome(projectRoot);
     final file = _fileOf(projectRoot)!;
     final folder = file.parent..createSync(recursive: true);
     restrictToOwner(folder);
@@ -53,9 +56,9 @@ final class JournalRecords {
   }
 
   /// Throws [FileSystemException] when there is no home folder to keep a
-  /// record in.
-  void requireHome() {
-    if (homeDirectory == null) {
+  /// record of [projectRoot] in.
+  void requireHome(Directory projectRoot) {
+    if (_fileOf(projectRoot) == null) {
       throw const FileSystemException('no home folder to record it in');
     }
   }
@@ -96,8 +99,14 @@ final class JournalRecords {
 
   File? _fileOf(Directory projectRoot) {
     final home = homeDirectory;
-    if (home == null) return null;
-    final key = _digestOf(utf8.encode(projectRoot.resolveSymbolicLinksSync()));
+    if (home == null || !home.isAbsolute) return null;
+    final root = projectRoot.resolveSymbolicLinksSync();
+    final canonicalHome = canonicalPath(home.path);
+    if (canonicalHome == root ||
+        canonicalHome.startsWith('$root${Platform.pathSeparator}')) {
+      return null;
+    }
+    final key = _digestOf(utf8.encode(root));
     return File(
       [
         home.path,

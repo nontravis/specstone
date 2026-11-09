@@ -107,6 +107,7 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
 
 int _migrate(MigrateRequest request) {
   final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
+  requireSpecstoneFolder(root);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
     final target = _targetOf(root, request);
     if (request.dryRun) {
@@ -180,7 +181,7 @@ int _plannedRun(
   request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
-    MoveJournal.requireHomeFolder(request.homeDirectory);
+    MoveJournal.requireHomeFolder(request.homeDirectory, root);
     request.out.write('apply? [y/N] ');
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;

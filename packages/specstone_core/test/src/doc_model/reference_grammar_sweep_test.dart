@@ -98,6 +98,12 @@ final _allowed = <_Allowed>[
     r"""RegExp(r'(?::\d+)+$'""",
     'Mention reader: `:12:5` line suffix of a prose path.',
   ),
+  // A file-system path segment, not a doc reference.
+  _core(
+    'document_writing/journal_bounds.dart',
+    """.indexOf(':'""",
+    'Cuts an NTFS alternate-stream suffix off a path segment.',
+  ),
   // A code path with a line, not a doc reference.
   _core(
     'index_query/code_bundle.dart',

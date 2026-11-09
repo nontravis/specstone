@@ -8,6 +8,8 @@ import 'package:yaml/yaml.dart';
 /// The project config path, relative to the project root.
 const projectConfigPath = '.specstone/config.yaml';
 
+const _specstoneFolder = '.specstone';
+
 const _coreName = 'prd-core';
 const _codeRootKey = 'code_root';
 const _agentFileRootsKey = 'agent_file_roots';
@@ -101,17 +103,19 @@ final class ProjectConfig {
 
   /// Reads `.specstone/config.yaml` under the project [root].
   ///
-  /// Throws `unknown_key` for a key other than `packs`, `code_root`, and
-  /// `agent_file_roots` or a `packs` key that is not kebab-case, `missing_key`
-  /// when `packs` is absent, `pack_version_invalid` for a bad pin,
-  /// `prd_core_missing` when `packs` pins no `prd-core`, and `unknown_value`
-  /// for a `code_root` that is not a string, is empty, is absolute, or holds a
-  /// backslash, and for an `agent_file_roots` that is not a list of such
-  /// strings.
+  /// Throws `unknown_value` first when `.specstone` is a link or a file, since
+  /// no byte is read through it, then `unknown_key` for a key other than
+  /// `packs`, `code_root`, and `agent_file_roots` or a `packs` key that is not
+  /// kebab-case, `missing_key` when `packs` is absent, `pack_version_invalid`
+  /// for a bad pin, `prd_core_missing` when `packs` pins no `prd-core`, and
+  /// `unknown_value` for a `code_root` that is not a string, is empty, is
+  /// absolute, or holds a backslash, and for an `agent_file_roots` that is not
+  /// a list of such strings.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
   static ProjectConfig read(Directory root) {
+    requireSpecstoneFolder(root);
     final text = decodeYamlBytes(
       File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
       file: projectConfigPath,
@@ -173,6 +177,27 @@ final class ProjectConfig {
 
   /// The config path, relative to the project root.
   String get file => projectConfigPath;
+}
+
+/// Throws `unknown_value` unless `.specstone` under [root] is absent or a real
+/// folder.
+///
+/// A link or a file there leads a read or a write of the index, the config, or
+/// the trash outside the project, so every command that opens or sets up a
+/// project calls this before it touches the folder.
+void requireSpecstoneFolder(Directory root) {
+  final folder = '${root.path}${Platform.pathSeparator}$_specstoneFolder';
+  final type = FileSystemEntity.typeSync(folder, followLinks: false);
+  if (type == FileSystemEntityType.notFound ||
+      type == FileSystemEntityType.directory) {
+    return;
+  }
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    '$_specstoneFolder must be a real folder inside the project root, '
+    'not a link or a file',
+    file: _specstoneFolder,
+  );
 }
 
 String _readCodeRoot(YamlMap map) {
