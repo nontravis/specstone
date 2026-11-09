@@ -67,8 +67,10 @@ final class MigrateRequest {
 /// again.
 ///
 /// A pending journal is finished first: an F-02 journal is replayed before the
-/// git checks, and a migrate journal is resumed with no second `y`. A dry run
-/// replays nothing, but refuses a journal the replay would refuse.
+/// git checks, and a migrate journal is resumed with no second `y`; a journal
+/// no run on this machine recorded is refused before any step. A dry run
+/// replays nothing, but refuses a journal the replay would refuse. A run with
+/// no home folder refuses before its prompt, as it cannot record its journal.
 ///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal, the git checks
@@ -177,6 +179,7 @@ int _plannedRun(
   request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
+    MoveJournal.requireHomeFolder(request.homeDirectory, root);
     request.out.write('apply? [y/N] ');
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;
@@ -239,7 +242,7 @@ int _resume(MigrateRequest request, Directory root) {
   final out = request.out..write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (!request.confirmation.prompts) _requireSeenPlan(request, root, planText);
-  final commits = MoveJournal.read(root)!.whereType<CommitStep>().toList();
+  final commits = MoveJournal.read(target)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
   if (commits.last.message == legacyCommit2Message) {
@@ -274,6 +277,7 @@ JournalTarget _targetOf(Directory root, MigrateRequest request) =>
     JournalTarget(
       projectRoot: root,
       docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
+      homeDirectory: request.homeDirectory,
       runGit: request.runGit,
     );
 

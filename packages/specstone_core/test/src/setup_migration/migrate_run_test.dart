@@ -106,7 +106,7 @@ int _run(
   return runMigrate(
     MigrateRequest(
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: testHome(),
       templates: TemplateResolver(),
       dryRun: dryRun,
       confirmation: confirmation,
@@ -314,7 +314,7 @@ void main() {
     }) => runMigrate(
       MigrateRequest(
         workingDirectory: root,
-        homeDirectory: home,
+        homeDirectory: home ?? testHome(),
         templates: TemplateResolver(),
         dryRun: false,
         confirmation: OwnerConfirmation.prompt,
@@ -433,6 +433,7 @@ void main() {
     File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{');
+    recordJournalFile(root);
 
     Matcher refusal() => throwsA(
       isA<RenderFault>()
@@ -506,7 +507,7 @@ void main() {
     final status = runMigrate(
       MigrateRequest(
         workingDirectory: root,
-        homeDirectory: null,
+        homeDirectory: testHome(),
         templates: TemplateResolver(),
         dryRun: false,
         confirmation: OwnerConfirmation.given,
@@ -701,7 +702,7 @@ void main() {
       final status = runMigrate(
         MigrateRequest(
           workingDirectory: root,
-          homeDirectory: null,
+          homeDirectory: testHome(),
           templates: TemplateResolver(),
           dryRun: false,
           confirmation: OwnerConfirmation.prompt,
@@ -960,7 +961,7 @@ void main() {
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
-            homeDirectory: null,
+            homeDirectory: testHome(),
             templates: TemplateResolver(),
             dryRun: false,
             confirmation: OwnerConfirmation.prompt,
@@ -990,7 +991,7 @@ void main() {
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
-            homeDirectory: null,
+            homeDirectory: testHome(),
             templates: TemplateResolver(),
             dryRun: false,
             confirmation: OwnerConfirmation.prompt,
@@ -1022,7 +1023,7 @@ void main() {
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
-            homeDirectory: null,
+            homeDirectory: testHome(),
             templates: TemplateResolver(),
             dryRun: false,
             confirmation: OwnerConfirmation.prompt,
@@ -1056,6 +1057,139 @@ void main() {
       expect(MoveJournal.pendingMigrate(root), isTrue);
     }, skip: skipGit);
   });
+
+  group('document_writing/delete_doc_subtree/finish_interrupted_move: '
+      'a journal this machine recorded', () {
+    final skipGit = hasGit ? null : 'git is not available';
+    const noHome =
+        'cannot write .specstone/trash/journal.json: '
+        'no home folder to record it in';
+    const notRecorded =
+        'no Specstone run on this machine wrote it; '
+        'check .specstone/trash/ and delete it to go on';
+
+    Matcher refusedWith(String message) => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.file, 'file', MoveJournal.journalPath)
+          .having((f) => f.message, 'message', message),
+    );
+
+    int migrateWith(
+      Directory root, {
+      required Directory? home,
+      required StringBuffer out,
+      OwnerConfirmation confirmation = OwnerConfirmation.prompt,
+      bool dryRun = false,
+      String? planHash,
+    }) => runMigrate(
+      MigrateRequest(
+        workingDirectory: root,
+        homeDirectory: home,
+        templates: TemplateResolver(),
+        dryRun: dryRun,
+        confirmation: confirmation,
+        planHash: planHash,
+        readLine: () => throw StateError('must not ask'),
+        out: out,
+      ),
+    );
+
+    test('E10: a bare migrate with no home folder prints its plan, then '
+        'refuses before apply? [y/N] and writes nothing', () async {
+      final root = await gitFixture(acmeLegacy);
+      final before = _bytesUnder(root);
+      final out = StringBuffer();
+
+      expect(
+        () => migrateWith(root, home: null, out: out),
+        refusedWith(noHome),
+      );
+
+      expect(out.toString(), startsWith('legacy migration: '));
+      expect(out.toString(), isNot(contains('apply?')));
+      expect(_bytesUnder(root), before);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('E10: --yes with no home folder refuses before the first change '
+        'and writes no journal', () async {
+      final root = await gitFixture(acmeLegacy);
+      final hash = _dryRunPlanHash(root);
+      final before = _bytesUnder(root);
+
+      expect(
+        () => migrateWith(
+          root,
+          home: null,
+          out: StringBuffer(),
+          confirmation: OwnerConfirmation.given,
+          planHash: hash,
+        ),
+        refusedWith(noHome),
+      );
+
+      expect(_bytesUnder(root), before);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('E10: a dry run with no home folder is unaffected', () async {
+      final root = await gitFixture(acmeLegacy);
+      final out = StringBuffer();
+
+      expect(migrateWith(root, home: null, out: out, dryRun: true), 0);
+
+      expect(out.toString(), contains('dry run: nothing written'));
+    }, skip: skipGit);
+
+    test('E08: a migrate journal no run recorded is refused by a bare '
+        'migrate and by a dry run, before any step', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      Directory('${testHome().path}/.specstone/journals')
+          .deleteSync(recursive: true);
+      final before = _bytesUnder(root);
+
+      expect(
+        () => migrateWith(root, home: testHome(), out: StringBuffer()),
+        refusedWith(notRecorded),
+      );
+      expect(
+        () => migrateWith(
+          root,
+          home: testHome(),
+          out: StringBuffer(),
+          dryRun: true,
+        ),
+        refusedWith(notRecorded),
+      );
+
+      expect(_bytesUnder(root), before);
+      expect(MoveJournal.pendingMigrate(root), isTrue);
+    }, skip: skipGit);
+
+    test('E08: a journal from a clone that names a file outside the project '
+        'is refused by migrate and the file stays', () async {
+      final root = await gitFixture(acmeLegacy);
+      final victim = File(
+        '${Directory.systemTemp.path}/specstone_victim_migrate_'
+        '${DateTime.now().microsecondsSinceEpoch}.txt',
+      )..writeAsStringSync('original');
+      addTearDown(() {
+        if (victim.existsSync()) victim.deleteSync();
+      });
+      writeJournal(root, [
+        WriteStep('../${victim.uri.pathSegments.last}', 'overwritten'),
+      ], recorded: false);
+
+      expect(
+        () => migrateWith(root, home: testHome(), out: StringBuffer()),
+        refusedWith(notRecorded),
+      );
+
+      expect(victim.readAsStringSync(), 'original');
+    }, skip: skipGit);
+  });
 }
 
 /// Returns the full sha HEAD of [root] points at.
@@ -1078,6 +1212,7 @@ void _stopAfterCommit1(Directory root) {
   final target = JournalTarget(
     projectRoot: root,
     docsRoot: Directory('${root.path}/docs'),
+    homeDirectory: testHome(),
   );
   for (final step in steps) {
     step.apply(target);

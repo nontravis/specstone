@@ -199,7 +199,7 @@ void main() {
       out: out,
       err: err,
       workingDirectory: await writeWriteProject(),
-      homeDirectory: null,
+      homeDirectory: testHome(),
       console: SystemConsole(input: Stream.value([0xff, 0xfe])),
     );
     expect(

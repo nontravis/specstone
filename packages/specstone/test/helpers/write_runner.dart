@@ -4,6 +4,8 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
 import 'package:specstone_core/specstone_core.dart';
 
+import '../../../specstone_core/test/helpers/write_fixture.dart' show testHome;
+
 /// A [Console] with scripted input and terminal facts.
 final class FakeConsole implements Console {
   /// Creates a console that reads [input] whole and answers each
@@ -63,7 +65,7 @@ writeRunner(Directory root, {FakeConsole? console}) {
     err: err,
     templates: TemplateResolver(),
     workingDirectory: root,
-    homeDirectory: null,
+    homeDirectory: testHome(),
     console: console ?? FakeConsole(),
   );
   return (runner: runner, out: out, err: err);

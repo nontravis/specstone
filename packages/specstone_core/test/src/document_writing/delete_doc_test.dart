@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -13,6 +14,7 @@ import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/failing_rename.dart';
@@ -204,6 +206,42 @@ void main() {
     'prds/features/f01_login/us02_sign_out/fr01_end_session.md',
     'prds/features/f01_login/us02_sign_out/fr02_clear_cookies.md',
   ];
+
+  test('document_writing/delete_doc_subtree/finish_interrupted_move E10: a '
+      'guarded delete with no home folder refuses before it lists the files '
+      'or asks, and removes nothing', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final prompts = StringBuffer();
+
+    expect(
+      () => WriteSession.run(
+        (s) => answerDelete(
+          s,
+          ['user_story:login/sign_out'],
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => throw StateError('must not ask'),
+          prompts: prompts,
+        ),
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.file, 'file', MoveJournal.journalPath)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write .specstone/trash/journal.json: '
+                  'no home folder to record it in',
+            ),
+      ),
+    );
+
+    expect(prompts.toString(), isEmpty);
+    expect(hasDoc(root, story2), isTrue);
+  });
 
   test('ms-r11: a dry run lists every file the unit removes and its plan '
       'line, and removes nothing', () async {

@@ -19,6 +19,7 @@ import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart' show testHome;
 
 const _draftPaths = [
   'docs/prds/PROJECT.md',
@@ -40,7 +41,7 @@ const _draftPaths = [
   final status = runInit(
     InitRequest(
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: testHome(),
       templates: TemplateResolver(),
       confirmation: confirmation,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
@@ -251,7 +252,7 @@ void main() {
     runMigrate(
       MigrateRequest(
         workingDirectory: root,
-        homeDirectory: null,
+        homeDirectory: testHome(),
         templates: TemplateResolver(),
         dryRun: true,
         confirmation: OwnerConfirmation.missing,
@@ -489,5 +490,62 @@ void main() {
       Directory('${tree.path}/repo/code/.specstone').existsSync(),
       isFalse,
     );
+  });
+
+  group('setup_migration/set_up_new_project: a link that '
+      'leads out of the write bounds', () {
+    final skipLinks = Platform.isWindows
+        ? 'symbolic links need a privilege'
+        : null;
+
+    test('a docs folder linked outside the project refuses a draft written '
+        'through it, and the folder outside is unchanged', () async {
+      final base = await writeTree({
+        'outside/keep.txt': 'mine\n',
+        'proj/docs/keep.md': '',
+      });
+      Link('${base.path}/proj/docs/prds').createSync('../../outside');
+
+      expect(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', startsWith('docs/prds/')),
+        ),
+      );
+
+      expect(
+        Directory('${base.path}/outside')
+            .listSync()
+            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty)),
+        ['keep.txt'],
+      );
+    }, skip: skipLinks);
+
+    test('a .specstone folder linked outside the project refuses the config '
+        'written through it, and the folder outside is unchanged', () async {
+      final base = await writeTree({
+        'outside/keep.txt': 'mine\n',
+        'proj/keep.txt': '',
+      });
+      Link('${base.path}/proj/.specstone').createSync('../outside');
+
+      expect(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', '.specstone/config.yaml'),
+        ),
+      );
+
+      expect(
+        Directory('${base.path}/outside')
+            .listSync()
+            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty)),
+        ['keep.txt'],
+      );
+    }, skip: skipLinks);
   });
 }

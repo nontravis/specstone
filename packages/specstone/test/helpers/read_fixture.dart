@@ -8,6 +8,7 @@ import 'package:specstone_core/specstone_core.dart';
 
 import '../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../specstone_core/test/helpers/write_fixture.dart' show testHome;
 import 'temp_tree.dart';
 
 // The entries mirror `loginProject` in specstone_core's test/helpers/index_fixture.dart.
@@ -57,7 +58,7 @@ readRunner(
     err: err,
     templates: TemplateResolver(),
     workingDirectory: workingDirectory,
-    homeDirectory: null,
+    homeDirectory: testHome(),
     busyTimeout: busyTimeout,
   );
   return (runner: runner, out: out, err: err);

@@ -7,13 +7,22 @@ typedef RunGit = ProcessResult Function(
   required String workingDirectory,
 });
 
+/// The config that keeps `git` from taking a bare repository it finds by
+/// walking up as the repository of the folder it runs in.
+///
+/// A committed folder laid out as a git dir would otherwise supply the
+/// repository config (`core.fsmonitor`, `core.hooksPath`, filter drivers) and
+/// have git run a command from it. A git before 2.38 ignores the key; the
+/// migrate gate checks the git dir itself for those.
+const _explicitBareRepository = ['-c', 'safe.bareRepository=explicit'];
+
 /// Starts the real `git` program; the only code that does.
 ProcessResult runRealGit(
   List<String> arguments, {
   required String workingDirectory,
 }) => Process.runSync(
   'git',
-  arguments,
+  [..._explicitBareRepository, ...arguments],
   workingDirectory: workingDirectory,
   stdoutEncoding: utf8,
 );

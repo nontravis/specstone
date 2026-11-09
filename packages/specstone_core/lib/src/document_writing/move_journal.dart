@@ -2,13 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart';
+import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
-/// What a [JournalStep] acts on: the two roots and the `git` runner.
+/// What a [JournalStep] acts on: the roots, the home folder that keeps the
+/// journal records, and the `git` runner.
 ///
 /// A legacy tree has no `.specstone/config.yaml`, so no [DocsProject]; every
 /// step needs only these.
@@ -16,14 +19,18 @@ final class JournalTarget {
   const new({
     required this.projectRoot,
     required this.docsRoot,
+    required this.homeDirectory,
     this.runGit = runRealGit,
   });
 
-  /// Returns the target of an opened [project].
-  factory of(DocsProject project) => JournalTarget(
-    projectRoot: project.projectRoot,
-    docsRoot: project.docsRoot,
-  );
+  /// Returns the target of an opened [project], its records under
+  /// [homeDirectory].
+  factory of(DocsProject project, {required Directory? homeDirectory}) =>
+      JournalTarget(
+        projectRoot: project.projectRoot,
+        docsRoot: project.docsRoot,
+        homeDirectory: homeDirectory,
+      );
 
   /// The folder every step path is relative to.
   final Directory projectRoot;
@@ -31,8 +38,22 @@ final class JournalTarget {
   /// The folder of the docs, in the form the steps compare paths against.
   final Directory docsRoot;
 
+  /// The user's home folder, under which [JournalRecords] keeps the digest of
+  /// each journal a run writes; null keeps none, so a run that writes a
+  /// journal is refused and no journal replays.
+  final Directory? homeDirectory;
+
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
+
+  JournalRecords get _records => JournalRecords(homeDirectory);
+
+  /// The folders a step path must land in: the project and docs roots, each
+  /// at its canonical path. No step of this release writes a code file.
+  List<String> get _bounds => [
+    for (final folder in [projectRoot, docsRoot])
+      if (folder.existsSync()) folder.resolveSymbolicLinksSync(),
+  ];
 }
 
 /// One idempotent step of a [MoveJournal].
@@ -47,6 +68,9 @@ sealed class JournalStep {
 
   /// Returns one line that tells what the step does.
   String describe();
+
+  /// The paths the step acts on, each relative to the project root.
+  List<String> get _paths;
 
   /// Whether the step's effect is already in place on [target].
   ///
@@ -151,6 +175,9 @@ final class MoveStep extends JournalStep {
   String describe() => 'move $from -> $to';
 
   @override
+  List<String> get _paths => [from, to];
+
+  @override
   bool isDone(JournalTarget target) =>
       FileSystemEntity.typeSync(_absolute(target, from), followLinks: false) ==
       FileSystemEntityType.notFound;
@@ -191,6 +218,9 @@ final class PruneStep extends JournalStep {
 
   @override
   String describe() => 'prune $folder';
+
+  @override
+  List<String> get _paths => [folder];
 
   /// Whether [folder] is gone.
   ///
@@ -237,6 +267,9 @@ final class WriteStep extends JournalStep {
   String describe() => 'write $path';
 
   @override
+  List<String> get _paths => [path];
+
+  @override
   bool isDone(JournalTarget target) {
     final file = File(_absolute(target, path));
     return !file.existsSync() || file.readAsStringSync() == text;
@@ -273,6 +306,9 @@ final class CreateStep extends JournalStep {
 
   @override
   String describe() => 'create $path';
+
+  @override
+  List<String> get _paths => [path];
 
   @override
   bool isDone(JournalTarget target) =>
@@ -334,6 +370,12 @@ final class CommitStep extends JournalStep {
 
   @override
   String describe() => 'commit "$message"';
+
+  @override
+  List<String> get _paths => [
+    ...paths,
+    for (final move in moves) ...[move.from, move.to],
+  ];
 
   @override
   bool isDone(JournalTarget target) {
@@ -466,6 +508,7 @@ final class CommitStep extends JournalStep {
   /// Throws [RenderFault] `output_not_writable` when the file cannot be
   /// written.
   List<String> _pathspecFile(JournalTarget target, Iterable<String> pathspecs) {
+    _requireInside(target, const [_pathspecPath]);
     final file = File(_absolute(target, _pathspecPath));
     try {
       file.parent.createSync(recursive: true);
@@ -516,7 +559,8 @@ String _decisiveLine(ProcessResult result) {
 /// the count of steps finished under [cursorPath] before the first and after
 /// each, so [replay]
 /// finishes a run a crash stopped on the next command from where it stopped
-/// (F6-D35).
+/// (F6-D35). It records the journal's digest under the home folder first, and
+/// [replay] runs only a journal so recorded.
 final class MoveJournal {
   const new(this.steps);
 
@@ -555,20 +599,53 @@ final class MoveJournal {
   /// replay refuses it as before.
   static bool pendingMigrate(Directory projectRoot) {
     try {
-      final steps = _pendingSteps(projectRoot);
+      final steps = _parsedSteps(projectRoot);
       return steps?.any((step) => step is CommitStep) ?? false;
     } on RenderFault {
       return false;
     }
   }
 
-  /// Returns every step of the pending journal under [projectRoot], the
-  /// finished ones included, or null when there is none or it does not parse.
-  static List<JournalStep>? read(Directory projectRoot) {
+  /// Returns every step of the pending journal of [target], the finished ones
+  /// included, or null when there is none, it does not parse, or a replay
+  /// would refuse it.
+  static List<JournalStep>? read(JournalTarget target) {
     try {
-      return _pendingSteps(projectRoot);
+      return _trustedSteps(target);
     } on RenderFault {
       return null;
+    }
+  }
+
+  /// Throws [RenderFault] `output_not_writable`, naming [journalPath], when
+  /// the journal under [projectRoot] is not one a run on this machine wrote:
+  /// its digest is not recorded under [homeDirectory].
+  ///
+  /// Does nothing when there is no journal.
+  static void requireRecorded(
+    Directory projectRoot, {
+    required Directory? homeDirectory,
+  }) => _recordedBytes(projectRoot, JournalRecords(homeDirectory));
+
+  /// Throws [RenderFault] `output_not_writable`, naming [journalPath], when
+  /// [homeDirectory] is null, is not absolute, or lies inside [projectRoot]:
+  /// such a run cannot record the journal it would write where a clone cannot
+  /// forge the record.
+  ///
+  /// A command that writes a journal calls it before any prompt or change;
+  /// [run] calls it again as the backstop.
+  static void requireHomeFolder(
+    Directory? homeDirectory,
+    Directory projectRoot,
+  ) {
+    try {
+      JournalRecords(homeDirectory).requireHome(projectRoot);
+    } on FileSystemException catch (error) {
+      throw RenderFault(
+        RenderFaultCode.outputNotWritable,
+        _notWritable('write', journalPath, error).message,
+        file: journalPath,
+      );
     }
   }
 
@@ -581,11 +658,14 @@ final class MoveJournal {
   /// reads an unpark whose slot is still empty as done.
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
-  /// cannot be written, and [RenderFault] `output_not_writable` when a
+  /// cannot be written, and [RenderFault] `output_not_writable` before any
+  /// change when there is no home folder to record the journal in, when a
   /// folder a file moves out of sits on another volume than the trash (before
   /// any file moves), when cursor 0 or the journal cannot be written, or when
   /// a step or a later cursor write fails; the journal stays in the last case.
   void run(JournalTarget target) {
+    requireHomeFolder(target.homeDirectory, target.projectRoot);
+    _requireInside(target, const ['.specstone/.gitignore', journalPath]);
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);
@@ -598,12 +678,15 @@ final class MoveJournal {
       );
     }
     if (steps.any(_movesToTrash)) _requireSameVolume(target, steps);
+    final journal = utf8.encode(jsonEncode(toJson()));
     try {
       Directory(_join(target.projectRoot.path, trashPath)).createSync();
       _saveCursor(target, 0);
+      // Recorded first: a journal never sits on disk without its record.
+      target._records.record(target.projectRoot, journal);
       writeFileAtomic(
         File(_join(target.projectRoot.path, journalPath)),
-        utf8.encode(jsonEncode(toJson())),
+        journal,
       );
     } on FileSystemException catch (error) {
       throw _notWritable('write', journalPath, error);
@@ -622,11 +705,13 @@ final class MoveJournal {
   /// may be the only record of where the files went. Does nothing when no
   /// trash folder exists.
   ///
-  /// Throws [RenderFault] `output_not_writable` when a step fails, the journal
-  /// stays, so the next replay resumes, or when the journal or its cursor
-  /// cannot be read or parsed.
+  /// Throws [RenderFault] `output_not_writable` before any step when the
+  /// journal is not one a run on this machine recorded or a step path leaves
+  /// the project and docs roots; when a step fails, the journal stays,
+  /// so the next replay resumes; or when the journal or its cursor cannot be
+  /// read or parsed.
   static void replay(JournalTarget target) {
-    final steps = _pendingSteps(target.projectRoot);
+    final steps = _trustedSteps(target);
     if (steps == null) {
       _removeTrash(target);
       return;
@@ -640,10 +725,11 @@ final class MoveJournal {
   ///
   /// A journal with no cursor file lists each of its steps not done.
   ///
-  /// Throws [RenderFault] `output_not_writable` when the journal or its cursor
-  /// cannot be read or parsed.
+  /// Throws [RenderFault] `output_not_writable` when the journal is one a
+  /// replay refuses, or when the journal or its cursor cannot be read or
+  /// parsed.
   static List<JournalStep> remaining(JournalTarget target) {
-    final steps = _pendingSteps(target.projectRoot);
+    final steps = _trustedSteps(target);
     if (steps == null) return const [];
     final cursor = _cursorOf(target.projectRoot, steps);
     if (cursor == null) {
@@ -660,21 +746,98 @@ final class MoveJournal {
 }
 
 /// Returns the steps of the journal file, or null when there is none.
-List<JournalStep>? _pendingSteps(Directory projectRoot) {
+///
+/// Reads the structure only: whether the journal is trusted is
+/// [_trustedSteps]'s question.
+List<JournalStep>? _parsedSteps(Directory projectRoot) {
+  final bytes = _journalBytes(projectRoot);
+  return bytes == null ? null : _stepsIn(bytes);
+}
+
+/// Returns the bytes of the journal file under [projectRoot], or null when
+/// there is none.
+///
+/// Throws [RenderFault] `output_not_writable` when the file cannot be read.
+List<int>? _journalBytes(Directory projectRoot) {
   final journal = File(_join(projectRoot.path, MoveJournal.journalPath));
   if (!journal.existsSync()) return null;
   try {
-    return _stepsOf(jsonDecode(journal.readAsStringSync()));
+    return journal.readAsBytesSync();
+  } on FileSystemException catch (error) {
+    throw _notWritable('read', MoveJournal.journalPath, error);
+  }
+}
+
+/// Returns the steps of the journal [bytes].
+///
+/// Throws [RenderFault] `output_not_writable` when they do not parse.
+List<JournalStep> _stepsIn(List<int> bytes) {
+  try {
+    return _stepsOf(jsonDecode(utf8.decode(bytes)));
   } on FormatException catch (error) {
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
       'cannot replay ${MoveJournal.journalPath}: ${error.message}; '
       'fix or remove it',
     );
-  } on FileSystemException catch (error) {
-    throw _notWritable('read', MoveJournal.journalPath, error);
   }
 }
+
+/// Returns the steps of the journal of [target] a replay may run, or null
+/// when there is none.
+///
+/// A journal a clone can carry is untrusted input: it runs only when its
+/// digest is recorded under the home folder and every path of every step
+/// lands inside the project or docs root, on no `.git` entry and through no
+/// link out of them.
+///
+/// Throws [RenderFault] `output_not_writable` when the journal is unrecorded,
+/// a path leaves those roots, or the journal cannot be read or parsed.
+List<JournalStep>? _trustedSteps(JournalTarget target) {
+  final bytes = _recordedBytes(target.projectRoot, target._records);
+  if (bytes == null) return null;
+  final steps = _stepsIn(bytes);
+  for (final step in steps) {
+    _requireInside(target, step._paths);
+  }
+  return steps;
+}
+
+/// Throws [RenderFault] `output_not_writable` unless each of [paths] lands
+/// inside the project or docs root as the disk stands now, below no `.git`
+/// entry and through no link out of them.
+///
+/// Judged afresh at every use: a step that ran earlier may have put a link in
+/// place that the up-front check could not see.
+void _requireInside(JournalTarget target, Iterable<String> paths) {
+  final bounds = JournalBounds(target.projectRoot, target._bounds);
+  for (final path in paths) {
+    if (!bounds.holds(path)) {
+      throw _untrusted('its step path $path leaves the project and docs roots');
+    }
+  }
+}
+
+/// Returns the bytes of the journal under [projectRoot], or null when there is
+/// none.
+///
+/// Throws [RenderFault] `output_not_writable` when [records] holds no digest
+/// of them, or the file cannot be read.
+List<int>? _recordedBytes(Directory projectRoot, JournalRecords records) {
+  final bytes = _journalBytes(projectRoot);
+  if (bytes == null) return null;
+  if (!records.holds(projectRoot, bytes)) {
+    throw _untrusted('no Specstone run on this machine wrote it');
+  }
+  return bytes;
+}
+
+/// Returns the refusal of an untrusted journal for [reason].
+RenderFault _untrusted(String reason) => RenderFault(
+  RenderFaultCode.outputNotWritable,
+  '$reason; check ${MoveJournal.trashPath}/ and delete it to go on',
+  file: MoveJournal.journalPath,
+);
 
 /// Returns [path] as the kind of entity it is, never following a link.
 FileSystemEntity _entityAt(String path) =>
@@ -793,6 +956,7 @@ int? _cursorOf(Directory projectRoot, List<JournalStep> steps) {
 ///
 /// Throws [RenderFault] `output_not_writable` when the disk refuses.
 void _saveCursor(JournalTarget target, int cursor) {
+  _requireInside(target, const [MoveJournal.cursorPath]);
   try {
     writeFileAtomic(
       File(_join(target.projectRoot.path, MoveJournal.cursorPath)),
@@ -814,11 +978,13 @@ void _finish(
   required int cursor,
 }) {
   for (var index = cursor; index < steps.length; index++) {
+    _requireInside(target, steps[index]._paths);
     steps[index].apply(target);
     _saveCursor(target, index + 1);
   }
   // The journal goes first: a cursor left alone is ignored, while a journal
   // left without its cursor would replay every step.
+  _requireInside(target, const [MoveJournal.journalPath]);
   for (final path in [MoveJournal.journalPath, MoveJournal.cursorPath]) {
     try {
       _deleteIfPresent(File(_join(target.projectRoot.path, path)));
@@ -833,7 +999,9 @@ void _deleteIfPresent(File file) {
   if (file.existsSync()) file.deleteSync();
 }
 
+/// Removes the trash folder, then the journal's record.
 void _removeTrash(JournalTarget target) {
+  _requireInside(target, const [MoveJournal.journalPath]);
   final trash = Directory(
     _join(target.projectRoot.path, MoveJournal.trashPath),
   );
@@ -842,6 +1010,7 @@ void _removeTrash(JournalTarget target) {
   } on FileSystemException catch (error) {
     throw _notWritable('remove', MoveJournal.trashPath, error);
   }
+  target._records.clear(target.projectRoot);
 }
 
 /// Joins [root] and the `/`-separated [relative] with the platform separator,

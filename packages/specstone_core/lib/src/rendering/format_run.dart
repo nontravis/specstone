@@ -171,6 +171,7 @@ FormatReport runFormat<R>(
   final opened = run != null && needsResolver ? run.open() : null;
   try {
     return _formatReads(
+      project,
       reads,
       check: check,
       blocks: run == null || opened == null
@@ -183,6 +184,7 @@ FormatReport runFormat<R>(
 }
 
 FormatReport _formatReads<R>(
+  DocsProject project,
   List<DocRead> reads, {
   required bool check,
   required ({GeneratorRun<R> run, R resolver})? blocks,
@@ -212,13 +214,14 @@ FormatReport _formatReads<R>(
           ),
         );
       case final ReadableDoc read:
-        files.add(_formatReadable(read, check: check, blocks: blocks));
+        files.add(_formatReadable(project, read, check: check, blocks: blocks));
     }
   }
   return FormatReport(check: check, files: files, warnings: warnings);
 }
 
 FileResult _formatReadable<R>(
+  DocsProject project,
   ReadableDoc read, {
   required bool check,
   required ({GeneratorRun<R> run, R resolver})? blocks,
@@ -260,12 +263,13 @@ FileResult _formatReadable<R>(
       if (finalText == toLf(read.text)) {
         return FileResult(path: read.path, status: FileStatus.unchanged);
       }
-      if (!check) _write(read, finalText);
+      if (!check) _write(project, read, finalText);
       return FileResult(path: read.path, status: FileStatus.formatted);
   }
 }
 
-void _write(ReadableDoc read, String text) {
+void _write(DocsProject project, ReadableDoc read, String text) {
+  project.requireWritablePath(read.file.path);
   if (isReadOnly(read.file)) {
     throw RenderFault(
       RenderFaultCode.outputNotWritable,

@@ -193,6 +193,7 @@ final class _CreatedFiles extends IOOverrides {
 JournalTarget _target(Directory root) => JournalTarget(
   projectRoot: root,
   docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+  homeDirectory: testHome(),
 );
 
 /// Writes [files] as a git work tree with one commit.
@@ -257,7 +258,7 @@ void main() {
       () => const MoveStep(
         'docs/$story3',
         '$_trashDocs/$story3',
-      ).apply(JournalTarget.of(openProject(root))),
+      ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome())),
     );
 
     expect(File('${root.path}/$_trashDocs/$story3').existsSync(), isTrue);
@@ -272,7 +273,7 @@ void main() {
       () => const MoveStep(
         'docs/$_login/us02_sign_out',
         '${MoveJournal.stagePath}/us02_sign_out',
-      ).apply(JournalTarget.of(openProject(root))),
+      ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome())),
     );
 
     expect(
@@ -297,10 +298,9 @@ void main() {
         () {
           clock.start();
           try {
-            const MoveStep(
-              'docs/$story3',
-              '$_trashDocs/$story3',
-            ).apply(JournalTarget.of(openProject(root)));
+            const MoveStep('docs/$story3', '$_trashDocs/$story3').apply(
+              JournalTarget.of(openProject(root), homeDirectory: testHome()),
+            );
           } on RenderFault catch (error) {
             thrown = error;
           } finally {
@@ -330,7 +330,7 @@ void main() {
       MoveStep('docs/$fr32', '$_trashDocs/$fr32'),
       MoveStep('docs/$story3', '$_trashDocs/$story3'),
       PruneStep('docs/$_login/us03_reset_password'),
-    ]).run(JournalTarget.of(openProject(root)));
+    ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome()));
     expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
     expect(dirExists(MoveJournal.trashPath), isFalse);
     expect(hasDoc(root, story1), isTrue);
@@ -350,7 +350,9 @@ void main() {
     ]);
     moveToTrash(story3);
     moveToTrash(fr31);
-    MoveJournal.replay(JournalTarget.of(openProject(root)));
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
     for (final path in files) {
       expect(hasDoc(root, path), isFalse, reason: path);
     }
@@ -376,7 +378,9 @@ void main() {
         .renameSync('${root.path}/docs/$renamed');
     expect(readDoc(root, fr12), contains('us03_reset_password'));
 
-    MoveJournal.replay(JournalTarget.of(openProject(root)));
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
 
     expect(readDoc(root, fr12), rewritten);
     expect(hasDoc(root, '$renamed/USER_STORY.md'), isTrue);
@@ -400,7 +404,9 @@ void main() {
     Directory('${root.path}/$stage/0')
         .renameSync('${root.path}/docs/$_login/us03_email_login');
 
-    MoveJournal.replay(JournalTarget.of(openProject(root)));
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
 
     expect(hasDoc(root, '$_login/us03_email_login/USER_STORY.md'), isTrue);
     expect(hasDoc(root, '$_login/us01_reset_password/USER_STORY.md'), isTrue);
@@ -422,7 +428,9 @@ void main() {
     addTearDown(() => Process.runSync('chmod', ['755', locked.path]));
 
     expect(
-      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
       throwsA(
         isA<RenderFault>()
             .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -437,7 +445,9 @@ void main() {
     expect(locked.existsSync(), isTrue);
 
     Process.runSync('chmod', ['755', locked.path]);
-    MoveJournal.replay(JournalTarget.of(openProject(root)));
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
 
     expect(journalExists(), isFalse);
     expect(locked.existsSync(), isFalse);
@@ -448,7 +458,9 @@ void main() {
     final before = readDoc(root, story1);
     expect(MoveJournal.pending(root), isFalse);
 
-    MoveJournal.replay(JournalTarget.of(openProject(root)));
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
 
     expect(readDoc(root, story1), before);
     expect(dirExists(MoveJournal.trashPath), isFalse);
@@ -472,13 +484,16 @@ void main() {
     final journal = File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"steps": [');
+    recordJournalFile(root);
     final leftover = File('${root.path}/$_trashDocs/leftover.md')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('x');
     final before = readDoc(root, story1);
 
     expect(
-      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
       throwsA(
         isA<RenderFault>()
             .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
@@ -508,9 +523,12 @@ void main() {
           ],
         }),
       );
+    recordJournalFile(root);
 
     expect(
-      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
       notReplayable('not a journal step'),
     );
 
@@ -526,7 +544,9 @@ void main() {
       ..writeAsStringSync('staged');
     writeJournal(root, const [MoveStep(us01, '$stage/0')]);
 
-    MoveJournal.replay(JournalTarget.of(openProject(root)));
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
 
     expect(hasDoc(root, story1), isTrue);
     expect(journalExists(), isFalse);
@@ -540,7 +560,10 @@ void main() {
     });
     Directory('${bare.path}/docs/a/b').createSync(recursive: true);
     Directory('${bare.path}/docs/keep/inner').createSync();
-    final project = JournalTarget.of(openProject(bare));
+    final project = JournalTarget.of(
+      openProject(bare),
+      homeDirectory: testHome(),
+    );
 
     const PruneStep('docs/keep/inner').apply(project);
     const PruneStep('docs/a/b').apply(project);
@@ -552,7 +575,10 @@ void main() {
   });
 
   test('f02/us04/fr03: a WriteStep writes only a file that exists and differs, and a MoveStep skips a missing source', () {
-    final project = JournalTarget.of(openProject(root));
+    final project = JournalTarget.of(
+      openProject(root),
+      homeDirectory: testHome(),
+    );
     final before = readDoc(root, story1);
 
     const WriteStep('docs/prds/missing.md', 'x').apply(project);
@@ -572,9 +598,8 @@ void main() {
     addTearDown(() => Process.runSync('chmod', ['644', ignore.path]));
 
     expect(
-      () =>
-          const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
-              .run(JournalTarget.of(openProject(root))),
+      () => const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+          .run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
       throwsA(
         isA<IndexFault>().having(
           (e) => e.code,
@@ -594,7 +619,7 @@ void main() {
       () => const WriteStep(
         'docs/$story1',
         'x',
-      ).apply(JournalTarget.of(openProject(root))),
+      ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome())),
       throwsA(
         isA<RenderFault>()
             .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -614,7 +639,9 @@ void main() {
     addTearDown(() => Process.runSync('chmod', ['644', journal.path]));
 
     expect(
-      () => MoveJournal.replay(JournalTarget.of(openProject(root))),
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
       throwsA(
         isA<RenderFault>()
             .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -729,7 +756,7 @@ void main() {
             'docs/prds/elsewhere/note.md',
             '$_trashDocs/prds/elsewhere/note.md',
           ),
-        ]).run(JournalTarget.of(openProject(root))),
+        ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
         throwsA(
           isA<RenderFault>()
               .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
@@ -757,9 +784,8 @@ void main() {
 
   test('f02/us04/fr03, dw-s03/inv9, HD1: a probe folder that cannot be removed does not hide the move', () {
     IOOverrides.runWithIOOverrides(
-      () =>
-          const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
-              .run(JournalTarget.of(openProject(root))),
+      () => const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+          .run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
       _StuckProbeHook(),
     );
 
@@ -773,9 +799,9 @@ void main() {
 
     expect(
       () => IOOverrides.runWithIOOverrides(
-        () =>
-            const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
-                .run(JournalTarget.of(openProject(root))),
+        () => const MoveJournal([
+          MoveStep('docs/$story3', '$_trashDocs/$story3'),
+        ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
         _StuckProbeHook(),
       ),
       throwsA(
@@ -801,7 +827,7 @@ void main() {
     const MoveStep(
       'docs/prds/shortcut',
       '$_trashDocs/prds/shortcut',
-    ).apply(JournalTarget.of(openProject(root)));
+    ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome()));
 
     final landed = Link('${root.path}/$_trashDocs/prds/shortcut');
     expect(landed.existsSync(), isTrue);
@@ -882,6 +908,7 @@ void main() {
       final target = JournalTarget(
         projectRoot: root,
         docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+        homeDirectory: testHome(),
         runGit: (arguments, {required workingDirectory}) {
           calls.add(arguments);
           return runRealGit(arguments, workingDirectory: workingDirectory);
@@ -1112,9 +1139,7 @@ void main() {
       final specstone = Directory('${root.path}/.specstone')
         ..createSync(recursive: true);
       ensureSpecstoneGitignore(specstone);
-      File('${root.path}/${MoveJournal.journalPath}')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      writeJournal(root, steps);
       steps[0].apply(_target(root));
       steps[1].apply(_target(root));
       expect(_log(root), ['move', 'initial']);
@@ -1150,9 +1175,7 @@ void main() {
         ),
       ];
       expect(MoveJournal.remaining(_target(root)), isEmpty);
-      File('${root.path}/${MoveJournal.journalPath}')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      writeJournal(root, steps);
       expect(steps.map((s) => s.describe()), [
         'move docs/prds/d01_context.md -> docs/prds/PROJECT.md',
         'commit "move"',
@@ -1196,9 +1219,7 @@ void main() {
           base: base,
         ),
       ];
-      File('${root.path}/${MoveJournal.journalPath}')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      writeJournal(root, steps);
       steps[0].apply(_target(root));
       steps[1].apply(_target(root));
       expect(_log(root), ['[X] move', 'initial']);
@@ -1227,20 +1248,14 @@ void main() {
     test('f06/us01/fr07/e03: read returns the pending steps, null when none or '
         'unparsable', () async {
       final root = await writeTree({'docs/prds/PROJECT.md': 'x\n'});
-      expect(MoveJournal.read(root), isNull);
-      final journal = File('${root.path}/${MoveJournal.journalPath}')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(
-          jsonEncode(
-            const MoveJournal([WriteStep('docs/prds/PROJECT.md', 'y\n')])
-                .toJson(),
-          ),
-        );
-      expect(MoveJournal.read(root)!.map((s) => s.describe()), [
+      expect(MoveJournal.read(_target(root)), isNull);
+      writeJournal(root, const [WriteStep('docs/prds/PROJECT.md', 'y\n')]);
+      expect(MoveJournal.read(_target(root))!.map((s) => s.describe()), [
         'write docs/prds/PROJECT.md',
       ]);
-      journal.writeAsStringSync('{not json');
-      expect(MoveJournal.read(root), isNull);
+      File('${root.path}/${MoveJournal.journalPath}')
+          .writeAsStringSync('{not json');
+      expect(MoveJournal.read(_target(root)), isNull);
     });
 
     test(
@@ -1281,6 +1296,7 @@ void main() {
             JournalTarget(
               projectRoot: root,
               docsRoot: root,
+              homeDirectory: testHome(),
               runGit: (arguments, {required workingDirectory}) =>
                   arguments.first == 'log'
                   ? ProcessResult(0, 0, '', '')
@@ -1309,6 +1325,7 @@ void main() {
       JournalTarget target() => JournalTarget(
         projectRoot: root,
         docsRoot: root,
+        homeDirectory: testHome(),
         runGit: (arguments, {required workingDirectory}) =>
             arguments.first == 'log'
             ? ProcessResult(0, 0, '', '')

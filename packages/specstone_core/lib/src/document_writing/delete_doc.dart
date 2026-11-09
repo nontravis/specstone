@@ -74,6 +74,10 @@ ReadAnswer answerDelete(
       );
     }
     if (approved && confirmation.prompts) {
+      MoveJournal.requireHomeFolder(
+        session.journalTarget.homeDirectory,
+        session.project.projectRoot,
+      );
       prompts
         ..writeln(shown.keys.join('\n'))
         ..write('delete ${shown.length} files? [y/N] ');
@@ -87,7 +91,7 @@ ReadAnswer answerDelete(
       final current = _readUnit(session, roots);
       if (!_sameFiles(current, shown)) return null;
       MoveJournal(_stepsFor(session, roots, current.keys))
-          .run(JournalTarget.of(session.project));
+          .run(session.journalTarget);
       return current.keys.toList();
     });
     if (removed != null) return _answerFor(removed, warnings: dangling);

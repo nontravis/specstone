@@ -4,12 +4,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:test/test.dart';
 
 import 'index_fixture.dart';
 import 'shipped_pins.dart';
@@ -113,14 +115,47 @@ String readDoc(Directory root, String docPath) =>
 bool hasDoc(Directory root, String docPath) =>
     docFile(root, docPath).existsSync();
 
-/// Writes [steps] as the unfinished move journal of [root].
-void writeJournal(Directory root, List<JournalStep> steps) {
-  final file = File('${root.path}/${MoveJournal.journalPath}');
-  file.parent.createSync(recursive: true);
-  file.writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+Directory? _testHome;
+
+/// Returns the home folder of the current test, empty but for the journal
+/// records its runs keep; one per test, removed after it.
+Directory testHome() {
+  final existing = _testHome;
+  if (existing != null) return existing;
+  final home = Directory.systemTemp.createTempSync('specstone_home_');
+  _testHome = home;
+  addTearDown(() {
+    _testHome = null;
+    home.deleteSync(recursive: true);
+  });
+  return home;
 }
 
-/// Runs [body] in a [WriteSession] on [root] with the shipped packs.
+/// Writes [steps] as the unfinished move journal of [root], recorded under
+/// [home], else under [testHome], as a stopped run on this machine leaves it;
+/// [recorded] false leaves it unrecorded, as a clone carries one.
+void writeJournal(
+  Directory root,
+  List<JournalStep> steps, {
+  Directory? home,
+  bool recorded = true,
+}) {
+  final file = File('${root.path}/${MoveJournal.journalPath}');
+  file.parent.createSync(recursive: true);
+  final bytes = utf8.encode(jsonEncode(MoveJournal(steps).toJson()));
+  file.writeAsBytesSync(bytes);
+  if (recorded) JournalRecords(home ?? testHome()).record(root, bytes);
+}
+
+/// Records the journal file of [root] as it stands under [testHome], as the
+/// run that wrote it would have.
+void recordJournalFile(Directory root) => JournalRecords(testHome()).record(
+  root,
+  File('${root.path}/${MoveJournal.journalPath}').readAsBytesSync(),
+);
+
+/// Runs [body] in a [WriteSession] on [root] with the shipped packs, its
+/// journal records under [testHome].
 T writeIn<T>(
   Directory root,
   T Function(WriteSession session) body, {
@@ -129,7 +164,7 @@ T writeIn<T>(
   body,
   templates: TemplateResolver(),
   workingDirectory: root,
-  homeDirectory: null,
+  homeDirectory: testHome(),
   busyTimeout: busyTimeout,
 );
 
