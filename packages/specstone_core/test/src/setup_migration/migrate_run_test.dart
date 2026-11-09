@@ -8,6 +8,8 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_files.dart'
+    show inlineBlock;
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
@@ -86,6 +88,22 @@ sections:
     'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nRun it.\n',
   });
   return (project: project, home: home);
+}
+
+/// Writes [files] under a new canonical folder, makes each key of [links] a
+/// link to its value, then commits `proj/` and [other] as two repositories.
+Future<Directory> _twoRepositories(
+  Map<String, String> files, {
+  required String other,
+  Map<String, String> links = const {},
+}) async {
+  final base = Directory((await writeTree(files)).resolveSymbolicLinksSync());
+  for (final MapEntry(key: path, value: target) in links.entries) {
+    Link('${base.path}/$path').createSync(target);
+  }
+  commitRepo(Directory('${base.path}/$other'));
+  commitRepo(Directory('${base.path}/proj'));
+  return base;
 }
 
 /// Returns the hash on the `plan <hash>` line a dry run of [root] prints.
@@ -762,14 +780,18 @@ void main() {
       });
       final project = Directory('${base.path}/specs');
       final head = (git(base, ['rev-parse', 'HEAD']).stdout as String).trim();
-      writeJournal(project, [
-        WriteStep(
-          '../CLAUDE.md',
-          'Owner\nblock\n',
-          before: textHashOf('Owner\n'),
-        ),
-        CommitStep(message: 'agent files', paths: const [], base: head),
-      ]);
+      writeJournal(
+        project,
+        [
+          WriteStep(
+            '../CLAUDE.md',
+            'Owner\nblock\n',
+            before: textHashOf('Owner\n'),
+          ),
+          CommitStep(message: 'agent files', paths: const [], base: head),
+        ],
+        agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
+      );
 
       final status = runMigrate(
         MigrateRequest(
@@ -790,6 +812,136 @@ void main() {
       );
       expect(MoveJournal.pending(project), isFalse);
     }, skip: skipGit);
+
+    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+        'migrate stopped at commit 2 resumes the agent file it wrote at the '
+        "top of its code root's repository", () async {
+      final base = await _twoRepositories({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: ../mono/services/api\n',
+        'mono/services/api/main.dart': 'void main() {}\n',
+      }, other: 'mono');
+      final project = Directory('${base.path}/proj');
+      final hook = File('${project.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final topFile = File('${base.path}/mono/AGENTS.md');
+
+      expect(
+        () => _run(project, StringBuffer(), answers: ['y']),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitFailed,
+          ),
+        ),
+      );
+      expect(
+        topFile.readAsStringSync(),
+        inlineBlock(cliVersion: specstoneVersion),
+      );
+      expect(MoveJournal.pending(project), isTrue);
+
+      hook.deleteSync();
+      expect(_run(project, StringBuffer()), 0);
+
+      expect(MoveJournal.pending(project), isFalse);
+      expect(
+        topFile.readAsStringSync(),
+        inlineBlock(cliVersion: specstoneVersion),
+      );
+      expect(
+        File('${project.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('agent_file_roots:\n  - ../mono\n'),
+      );
+      expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+        'legacy migrate stopped at commit 1, before its config exists, '
+        "resumes the agent file at the top of its code root's "
+        'repository', () async {
+      final base = await _twoRepositories(
+        {
+          for (final MapEntry(:key, :value) in acmeLegacy.entries)
+            'proj/$key': value,
+          'proj/$legacyFrPath': implementingDoc('Validate credentials', [
+            'lib/a.dart',
+          ]),
+          'app/lib/a.dart': 'class A {}\n',
+        },
+        other: 'app',
+        links: {'app/docs': '../proj/docs'},
+      );
+      final project = Directory('${base.path}/proj');
+      final app = Directory('${base.path}/app');
+      final hook = File('${project.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+
+      expect(
+        () => _run(app, StringBuffer(), answers: ['y']),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitFailed,
+          ),
+        ),
+      );
+      expect(
+        File('${project.path}/.specstone/config.yaml').existsSync(),
+        isFalse,
+      );
+
+      hook.deleteSync();
+      expect(_run(app, StringBuffer()), 0);
+
+      expect(MoveJournal.pending(project), isFalse);
+      expect(
+        File('${app.path}/AGENTS.md').readAsStringSync(),
+        inlineBlock(cliVersion: specstoneVersion),
+      );
+      expect(
+        File('${project.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('code_root: ../app\n'),
+      );
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit);
+
+    test('setup_migration/set_up_new_project/write_agent_files E27: a root '
+        'AGENTS.md linked to the AGENTS.md of a qualifying top migrates to '
+        'its end with one write', () async {
+      final base = await _twoRepositories(
+        {
+          'proj/.specstone/config.yaml':
+              '${shippedPinsConfig()}code_root: ../app\n',
+          'app/AGENTS.md':
+              'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
+              '<!-- END specstone -->\n',
+        },
+        other: 'app',
+        links: {'proj/AGENTS.md': '../app/AGENTS.md'},
+      );
+      final project = Directory('${base.path}/proj');
+      final out = StringBuffer();
+
+      expect(_run(project, out, answers: ['y']), 0);
+
+      expect(out.toString(), contains('  agent files: AGENTS.md\n'));
+      expect(
+        File('${base.path}/app/AGENTS.md').readAsStringSync(),
+        'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+      );
+      expect(
+        Link('${project.path}/AGENTS.md').targetSync(),
+        '../app/AGENTS.md',
+      );
+      expect(MoveJournal.pending(project), isFalse);
+      expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit);
 
     test('f06/us01/fr07/e03, f06/us01/fr01/e07, f06/us01/s9: a run stopped '
         'after commit 1 finishes with no second y', () async {

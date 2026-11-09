@@ -638,6 +638,7 @@ _LabelPlan _planLabelPass(
       topWrites: [for (final w in agentWrites.topWrites) withComposed(w)],
       agentFileRoots: agentWrites.agentFileRoots,
       addedRoots: agentWrites.addedRoots,
+      writeSet: agentWrites.writeSet,
     ),
   );
 }

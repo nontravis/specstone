@@ -5,8 +5,6 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/plan_hash.dart';
-import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    show repositoryTopOf;
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -197,7 +195,8 @@ int _plannedRun(
     );
   }
   final steps = plan.journalSteps(base: base, projectRoot: root);
-  MoveJournal(steps).run(_targetOf(root, request));
+  MoveJournal(steps)
+      .run(_targetOf(root, request, agentFiles: plan.agentFiles?.writeSet));
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
   final closingLine = plan.closingLine;
   if (closingLine != null) request.out.writeln(closingLine);
@@ -278,17 +277,22 @@ void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
 
 /// Returns the journal target of the migrate run at [root]: its code root is
 /// the config's `code_root`, or the root itself before a legacy run writes
-/// the config, and its repository top holds the agent files the run writes
-/// there (R49).
-JournalTarget _targetOf(Directory root, MigrateRequest request) =>
-    JournalTarget(
-      projectRoot: root,
-      docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
-      homeDirectory: request.homeDirectory,
-      codeRoot: _configuredCodeRoot(root),
-      repositoryTop: repositoryTopOf(root),
-      runGit: request.runGit,
-    );
+/// the config.
+///
+/// A run passes its plan's `AgentWritePlan.writeSet` as [agentFiles], which
+/// the journal record keeps, so a replay admits them (R49).
+JournalTarget _targetOf(
+  Directory root,
+  MigrateRequest request, {
+  Set<String>? agentFiles,
+}) => JournalTarget(
+  projectRoot: root,
+  docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
+  homeDirectory: request.homeDirectory,
+  codeRoot: _configuredCodeRoot(root),
+  agentFiles: agentFiles ?? const {},
+  runGit: request.runGit,
+);
 
 Directory? _configuredCodeRoot(Directory root) {
   if (!File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {

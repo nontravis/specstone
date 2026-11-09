@@ -979,8 +979,8 @@ void main() {
       expect(File('${base.path}/lib/a.dart').readAsStringSync(), '// new\n');
     });
 
-    test('a migrate target admits the agent files at its repository top, '
-        'and no other file there', () async {
+    test('a journal admits the agent files recorded with it outside the '
+        'roots, and no other file there', () async {
       final base = await writeTree({
         'CLAUDE.md': 'Owner\n',
         'notes.md': 'mine\n',
@@ -989,17 +989,20 @@ void main() {
         'specs/docs/prds/PROJECT.md': 'x\n',
       });
       final project = Directory('${base.path}/specs');
-      JournalTarget migrateTarget() => JournalTarget(
+      final top = base.resolveSymbolicLinksSync();
+      final agentFiles = {'$top/CLAUDE.md', '$top/.git/config'};
+      final target = JournalTarget(
         projectRoot: project,
         docsRoot: Directory('${project.path}/docs'),
         homeDirectory: testHome(),
-        repositoryTop: base,
       );
 
       for (final path in ['../notes.md', '../.git/config']) {
-        writeJournal(project, [WriteStep.unguarded(path, 'payload\n')]);
+        writeJournal(project, [
+          WriteStep.unguarded(path, 'payload\n'),
+        ], agentFiles: agentFiles);
         expect(
-          () => MoveJournal.replay(migrateTarget()),
+          () => MoveJournal.replay(target),
           untrusted(
             'its step path $path leaves the project, docs, and code roots',
           ),
@@ -1008,7 +1011,16 @@ void main() {
       writeJournal(project, const [
         WriteStep.unguarded('../CLAUDE.md', 'Owner\nblock\n'),
       ]);
-      MoveJournal.replay(migrateTarget());
+      expect(
+        () => MoveJournal.replay(target),
+        untrusted(
+          'its step path ../CLAUDE.md leaves the project, docs, and code roots',
+        ),
+      );
+      writeJournal(project, const [
+        WriteStep.unguarded('../CLAUDE.md', 'Owner\nblock\n'),
+      ], agentFiles: agentFiles);
+      MoveJournal.replay(target);
 
       expect(
         File('${base.path}/CLAUDE.md').readAsStringSync(),
@@ -1128,6 +1140,30 @@ void main() {
         'M app/s/page.ts',
       );
     }, skip: skipGit);
+
+    test("$_finish: a commit hook's own glob still matches", () async {
+      final root = await _gitTree({'app/[slug]/page.ts': '// a\n'});
+      final base = _head(root);
+      File('${root.path}/app/[slug]/page.ts').writeAsStringSync('// a2\n');
+      final hook = File('${root.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          "git diff --cached --name-only -- '*.ts' > .git/hook.out\n",
+        );
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+
+      CommitStep(
+        message: 'labels',
+        paths: const ['app/[slug]/page.ts'],
+        base: base,
+      ).apply(_target(root));
+
+      expect(
+        File('${root.path}/.git/hook.out').readAsStringSync(),
+        'app/[slug]/page.ts\n',
+      );
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
     test('f06/us01/fr07: a create step writes an absent file and never overwrites one', () async {
       final root = await writeTree({'docs/prds/PROJECT.md': 'old\n'});

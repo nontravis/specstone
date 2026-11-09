@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/setup_migration/agent_files.dart'
-    show agentFilePaths;
 import 'package:specstone_core/src/templates/project_config.dart'
     show isCodeRootValue;
 
@@ -25,21 +23,22 @@ final _windowsDroppedEnd = RegExp(r'[. ]+$');
 /// whose files git runs or reads as its own.
 final class JournalBounds {
   /// Judges paths from a project root against its roots, canonical folders,
-  /// and, when given, the agent files at the canonical repository top.
-  new(this._projectRoot, this._roots, {String? repositoryTop})
-    : _repositoryTop = repositoryTop;
+  /// and [agentFiles]: the canonical paths of the agent files a migrate
+  /// writes outside them.
+  new(this._projectRoot, this._roots, {Set<String> agentFiles = const {}})
+    : _agentFiles = agentFiles;
 
   final Directory _projectRoot;
   final List<String> _roots;
-  final String? _repositoryTop;
+  final Set<String> _agentFiles;
 
   /// The real folder of each folder path asked, by its path from the project
   /// root; null when it cannot be resolved.
   final _realFolders = <String, String?>{};
 
   /// Whether [path], `/`-separated from the project root, lands inside a root
-  /// with no `.git` entry between that root and it, or is an agent file at
-  /// the repository top (R49).
+  /// with no `.git` entry between that root and it, or on one of the agent
+  /// files (R49).
   ///
   /// The last segment is not followed, since a step moves or replaces a link
   /// as itself. A folder on the way that does not exist yet may hold no `.`
@@ -55,17 +54,7 @@ final class JournalBounds {
     final folder = _realFolder(segments);
     if (folder == null) return false;
     final real = '$folder${Platform.pathSeparator}$name';
-    return _isInsideRoots(real) || _isAgentFileAtTop(real);
-  }
-
-  /// Whether [real] is one of [agentFilePaths] under the repository top.
-  bool _isAgentFileAtTop(String real) {
-    final top = _repositoryTop;
-    if (top == null) return false;
-    final separator = Platform.pathSeparator;
-    if (!real.startsWith('$top$separator')) return false;
-    final inside = real.substring(top.length + 1).split(separator).join('/');
-    return agentFilePaths.contains(inside);
+    return _isInsideRoots(real) || _agentFiles.contains(real);
   }
 
   /// Returns the real path of the folder [segments] name from the project

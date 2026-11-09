@@ -181,19 +181,23 @@ Directory testHome() {
 }
 
 /// Writes [steps] as the unfinished move journal of [root], recorded under
-/// [home], else under [testHome], as a stopped run on this machine leaves it;
-/// [recorded] false leaves it unrecorded, as a clone carries one.
+/// [home], else under [testHome], with [agentFiles], as a stopped run on this
+/// machine leaves it; [recorded] false leaves it unrecorded, as a clone
+/// carries one.
 void writeJournal(
   Directory root,
   List<JournalStep> steps, {
   Directory? home,
   bool recorded = true,
+  Set<String> agentFiles = const {},
 }) {
   final file = File('${root.path}/${MoveJournal.journalPath}');
   file.parent.createSync(recursive: true);
   final bytes = utf8.encode(jsonEncode(MoveJournal(steps).toJson()));
   file.writeAsBytesSync(bytes);
-  if (recorded) JournalRecords(home ?? testHome()).record(root, bytes);
+  if (!recorded) return;
+  JournalRecords(home ?? testHome())
+      .record(root, bytes, agentFiles: agentFiles);
 }
 
 /// Records the journal file of [root] as it stands under [testHome], as the

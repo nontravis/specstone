@@ -139,6 +139,38 @@ void main() {
     );
   });
 
+  group('AgentWritePlan.writeSet', () {
+    test('$_write E15: the agent files at the own repository top and at each '
+        'qualifying top, and no others', () async {
+      final base = await _base({
+        'mono/.git/HEAD': 'ref\n',
+        'mono/proj/.keep': '',
+        'other/.git/HEAD': 'ref\n',
+        'free/lib/a.dart': '',
+      });
+
+      final plan = planAgentWrites(
+        AgentFileInputs(
+          projectRoot: _at(base, 'mono/proj/'),
+          cliVersion: specstoneVersion,
+          codeRootFolders: [
+            _at(base, 'mono/lib/'),
+            _at(base, 'other/lib/'),
+            _at(base, 'free/lib/'),
+          ],
+          agentFileRoots: const [],
+        ),
+        full: false,
+      );
+
+      expect(plan.writeSet, {
+        for (final top in ['mono/', 'other/'])
+          for (final path in agentFilePaths)
+            File.fromUri(_at(base, top).uri.resolve(path)).path,
+      });
+    });
+  });
+
   group('codeRootFolders', () {
     test('$_write E15: the code root and each entry under it, once', () async {
       final base = await _base({'proj/lib/a.dart': ''});
@@ -708,6 +740,49 @@ void main() {
 
       expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n${_imports('')}');
       expect(_paths(plan), isNot(contains('AGENTS.md')));
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    group('$_write E27: a root file linked to a file at a top', () {
+      const stale =
+          'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
+          '<!-- END specstone -->\n';
+
+      Future<Directory> linkedBase(String topText) async {
+        final base = await _base({
+          'other/.git/HEAD': 'ref\n',
+          'other/AGENTS.md': topText,
+          'proj/.keep': '',
+        });
+        Link(_at(base, 'proj/').uri.resolve('AGENTS.md').toFilePath())
+            .createSync('../other/AGENTS.md');
+        return base;
+      }
+
+      test('gives one write, the root one, and one drift', () async {
+        final base = await linkedBase(stale);
+        final inputs = _inputs(base, code: ['other/'], roots: ['../other']);
+
+        final plan = planAgentWrites(inputs, full: false);
+
+        expect(_paths(plan), ['AGENTS.md']);
+        expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n${_inline()}');
+        expect(agentFileDrifts(inputs), [
+          (path: 'AGENTS.md', line: 2, kind: AgentDriftKind.blockStale),
+        ]);
+      });
+
+      test('takes the full upsert of the unlisted top', () async {
+        final base = await linkedBase('Owner\n');
+
+        final plan = planAgentWrites(
+          _inputs(base, code: ['other/']),
+          full: false,
+        );
+
+        expect(_paths(plan), ['AGENTS.md']);
+        expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n${_inline()}');
+        expect(plan.addedRoots, ['../other']);
+      });
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test(

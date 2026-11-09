@@ -22,7 +22,7 @@ final class JournalTarget {
     required this.docsRoot,
     required this.homeDirectory,
     this.codeRoot,
-    this.repositoryTop,
+    this.agentFiles = const {},
     this.runGit = runRealGit,
     this.warn = _warnOnStderr,
   });
@@ -43,17 +43,19 @@ final class JournalTarget {
   /// The folder of the docs, in the form the steps compare paths against.
   final Directory docsRoot;
 
-  /// The user's home folder, under which [JournalRecords] keeps the digest of
-  /// each journal a run writes; null keeps none, so no journal replays.
+  /// The user's home folder, under which [JournalRecords] keeps the digest and
+  /// the agent files of each journal a run writes; null keeps none, so no
+  /// journal replays.
   final Directory? homeDirectory;
 
   /// The folder of the code files a step may rewrite; null for the project
   /// root.
   final Directory? codeRoot;
 
-  /// The repository top whose agent files a migrate writes (R49), so a
-  /// stopped migrate still replays them; null admits none.
-  final Directory? repositoryTop;
+  /// The canonical paths of the agent files a migrate writes outside the
+  /// roots (R49); [MoveJournal.run] records them with the journal, so its
+  /// replay admits them.
+  final Set<String> agentFiles;
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
@@ -511,10 +513,14 @@ final class CommitStep extends JournalStep {
         'add',
         '-A',
         ..._pathspecFile(target, stageable),
-      ]);
+      ], environment: _literalPathspecs);
     }
     if (forced.isNotEmpty) {
-      _runWrite(target, 'add', ['add', '-f', ..._pathspecFile(target, forced)]);
+      _runWrite(target, 'add', [
+        'add',
+        '-f',
+        ..._pathspecFile(target, forced),
+      ], environment: _literalPathspecs);
     }
     final committable = [
       for (final path in paths)
@@ -539,7 +545,7 @@ final class CommitStep extends JournalStep {
       '-q',
       '-m',
       message,
-      ..._pathspecFile(target, committable),
+      ..._pathspecFile(target, committable.map(_literalPathspec)),
     ]);
   }
 
@@ -582,18 +588,27 @@ final class CommitStep extends JournalStep {
 /// project root; the trash folder takes it away with the journal.
 const _pathspecPath = '${MoveJournal.trashPath}/commit.pathspec';
 
-/// Makes git read every path a [CommitStep] passes as itself, never as a
-/// glob, so `app/[slug]/page.ts` stages no other file.
+/// Makes git read every path a [CommitStep] adds or lists as itself, never
+/// as a glob, so `app/[slug]/page.ts` stages no other file.
 const _literalPathspecs = {'GIT_LITERAL_PATHSPECS': '1'};
 
-/// Runs the `git` write [arguments] for [verb], each path read literally.
+/// Returns [path] as a pathspec git reads as itself, so the commit needs no
+/// [_literalPathspecs], which its hooks would inherit.
+String _literalPathspec(String path) => ':(literal)$path';
+
+/// Runs the `git` write [arguments] for [verb], with [environment] added.
 ///
 /// Throws [GitCommandFailed] when git exits non-zero.
-void _runWrite(JournalTarget target, String verb, List<String> arguments) {
+void _runWrite(
+  JournalTarget target,
+  String verb,
+  List<String> arguments, {
+  Map<String, String>? environment,
+}) {
   final result = target.runGit(
     arguments,
     workingDirectory: target.projectRoot.path,
-    environment: _literalPathspecs,
+    environment: environment,
   );
   if (result.exitCode != 0) {
     throw GitCommandFailed(verb, _decisiveLine(result));
@@ -687,7 +702,7 @@ final class MoveJournal {
   static void requireRecorded(
     Directory projectRoot, {
     required Directory? homeDirectory,
-  }) => _recordedBytes(projectRoot, JournalRecords(homeDirectory));
+  }) => _recorded(projectRoot, JournalRecords(homeDirectory));
 
   /// Saves cursor 0 and then the journal, applies each step and saves the
   /// cursor after it, then removes the journal, the cursor, and the trash
@@ -722,7 +737,11 @@ final class MoveJournal {
       restrictToOwner(trash);
       _saveCursor(target, 0);
       // Recorded first: a journal never sits on disk without its record.
-      target._records.record(target.projectRoot, journal);
+      target._records.record(
+        target.projectRoot,
+        journal,
+        agentFiles: target.agentFiles,
+      );
       writeFileAtomic(
         File(_join(target.projectRoot.path, journalPath)),
         journal,
@@ -800,20 +819,20 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
 ///
 /// A journal clones and other tools can carry is untrusted input: it runs
 /// only when its digest is recorded under the home folder and every path of
-/// every step lands inside the project, docs, or code root, or is an agent
-/// file at the target's repository top, on no `.git` entry and through no
-/// link out of them.
+/// every step lands inside the project, docs, or code root, or on one of the
+/// agent files recorded with it, on no `.git` entry and through no link out
+/// of them.
 ///
 /// Throws [RenderFault] `output_not_writable` when the journal is unrecorded,
 /// a path leaves those roots, or the journal cannot be read or parsed.
 List<JournalStep>? _trustedSteps(JournalTarget target) {
-  final bytes = _recordedBytes(target.projectRoot, target._records);
-  if (bytes == null) return null;
-  final steps = _stepsIn(bytes);
+  final recorded = _recorded(target.projectRoot, target._records);
+  if (recorded == null) return null;
+  final steps = _stepsIn(recorded.bytes);
   final bounds = JournalBounds(
     target.projectRoot,
     target._bounds,
-    repositoryTop: target.repositoryTop?.resolveSymbolicLinksSync(),
+    agentFiles: recorded.agentFiles,
   );
   for (final step in steps) {
     for (final path in step._paths) {
@@ -827,12 +846,15 @@ List<JournalStep>? _trustedSteps(JournalTarget target) {
   return steps;
 }
 
-/// Returns the bytes of the journal under [projectRoot], or null when there
-/// is none.
+/// Returns the bytes of the journal under [projectRoot] and the agent files
+/// recorded with it, or null when there is no journal.
 ///
 /// Throws [RenderFault] `output_not_writable` when [records] holds no digest
 /// of them, or the file cannot be read.
-List<int>? _recordedBytes(Directory projectRoot, JournalRecords records) {
+({List<int> bytes, Set<String> agentFiles})? _recorded(
+  Directory projectRoot,
+  JournalRecords records,
+) {
   final journal = File(_join(projectRoot.path, MoveJournal.journalPath));
   if (!journal.existsSync()) return null;
   final List<int> bytes;
@@ -841,10 +863,11 @@ List<int>? _recordedBytes(Directory projectRoot, JournalRecords records) {
   } on FileSystemException catch (error) {
     throw _notWritable('read', MoveJournal.journalPath, error);
   }
-  if (!records.holds(projectRoot, bytes)) {
+  final agentFiles = records.agentFilesOf(projectRoot, bytes);
+  if (agentFiles == null) {
     throw _untrusted('no Specstone run on this machine wrote it');
   }
-  return bytes;
+  return (bytes: bytes, agentFiles: agentFiles);
 }
 
 /// Returns the steps of the journal [bytes].

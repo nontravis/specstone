@@ -243,6 +243,7 @@ final class AgentWritePlan {
     required this.topWrites,
     required this.agentFileRoots,
     required this.addedRoots,
+    required this.writeSet,
   });
 
   /// The writes at the project root, `.specstone/AGENT.md` first.
@@ -256,6 +257,14 @@ final class AgentWritePlan {
 
   /// The tops this run lists for the first time, in [agentFileRoots] order.
   final List<String> addedRoots;
+
+  /// The canonical path of every agent file the run may write outside the
+  /// project root: at its own repository top, which a root file reaches
+  /// through a link, and at each qualifying top.
+  ///
+  /// A migrate records it with its journal, so a replay admits these paths
+  /// outside the roots and no others.
+  final Set<String> writeSet;
 
   /// The plan's `agent files:` line, empty when no file is written.
   String get line {
@@ -285,8 +294,8 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
   final added = <String>[];
   var hasImport = false;
   for (final folder in survey.folders) {
-    final isUpsert = folder.isUpsert(full: full);
     for (final file in folder.files) {
+      final isUpsert = survey.isUpsert(folder, file, full: full);
       hasImport = hasImport || file.importsAfter(isUpsert: isUpsert);
       final text = file.nextText(isUpsert: isUpsert);
       if (text == null) continue;
@@ -320,6 +329,7 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
     topWrites: topWrites,
     agentFileRoots: [...inputs.agentFileRoots, ...added],
     addedRoots: added,
+    writeSet: survey.writeSet,
   );
 }
 
@@ -338,6 +348,7 @@ final class _AgentMd {
 final class _AgentFile {
   new({
     required this.path,
+    required this.realPath,
     required this.block,
     required this.expected,
     required this.current,
@@ -347,6 +358,9 @@ final class _AgentFile {
 
   /// The path from the project root.
   final String path;
+
+  /// The canonical path of the file the run writes, every link resolved.
+  final String realPath;
 
   /// The block the CLI writes into this file.
   final String block;
@@ -454,12 +468,17 @@ final class _Folder {
   /// The root follows [full]; a listed top only refreshes; an unlisted top
   /// takes the full upsert once.
   bool isUpsert({required bool full}) => isTop ? !isListed : full;
+
+  _Folder withFiles(List<_AgentFile> files) =>
+      _Folder(path: path, isTop: isTop, isListed: isListed, files: files);
 }
 
-/// The agent files of a run, read once.
+/// The agent files of a run, read once, each real file once.
 final class _Survey {
-  const new(this.folders, this.agentMd);
+  const new(this.folders, this.agentMd, this.writeSet, this._topUpserted);
 
+  /// Reads the root first, then each qualifying top; a real file two folders
+  /// reach keeps its first name only, so no two writes land on it.
   factory of(AgentFileInputs inputs) {
     final root = _canonicalOf(inputs.projectRoot);
     final listed = {
@@ -469,7 +488,7 @@ final class _Survey {
         ).path,
     };
     final tops = _qualifyingTops(root, inputs.codeRootFolders);
-    final folders = [
+    final (:folders, :topUpserted) = _eachFileOnce([
       _Folder(
         path: '',
         isTop: false,
@@ -483,12 +502,24 @@ final class _Survey {
           isListed: listed.contains(top.path),
           files: _filesIn(top, path, root: root, cliVersion: inputs.cliVersion),
         ),
-    ];
-    return _Survey(folders, _agentMdOf(root));
+    ]);
+    final writeSet = _agentFilesAt([?repositoryTopOf(root), ...tops.values]);
+    return _Survey(folders, _agentMdOf(root), writeSet, topUpserted);
   }
 
   final List<_Folder> folders;
   final _AgentMd agentMd;
+
+  /// The [AgentWritePlan.writeSet] of the run.
+  final Set<String> writeSet;
+
+  /// The real paths of the kept files an unlisted top also names.
+  final Set<String> _topUpserted;
+
+  /// Whether the run may create [file] in [folder] or give it a block: by
+  /// the folder's rule, or because an unlisted top names it too.
+  bool isUpsert(_Folder folder, _AgentFile file, {required bool full}) =>
+      folder.isUpsert(full: full) || _topUpserted.contains(file.realPath);
 
   /// Throws the `agent_block_malformed` fault when any file is malformed.
   void throwIfMalformed() {
@@ -515,6 +546,35 @@ final class _Survey {
     );
   }
 }
+
+/// Returns [folders] with each real file in the first folder that names it,
+/// and the real paths of the kept files a later unlisted top names too.
+({List<_Folder> folders, Set<String> topUpserted}) _eachFileOnce(
+  List<_Folder> folders,
+) {
+  final seen = <String>{};
+  final topUpserted = <String>{};
+  final kept = <_Folder>[];
+  for (final folder in folders) {
+    final files = <_AgentFile>[];
+    for (final file in folder.files) {
+      if (seen.add(file.realPath)) {
+        files.add(file);
+      } else if (folder.isUnlisted) {
+        topUpserted.add(file.realPath);
+      }
+    }
+    kept.add(folder.withFiles(files));
+  }
+  return (folders: kept, topUpserted: topUpserted);
+}
+
+/// Returns the path of each of [agentFilePaths] in each of the canonical
+/// [tops].
+Set<String> _agentFilesAt(List<Directory> tops) => {
+  for (final top in tops)
+    for (final path in agentFilePaths) _fileIn(top, path).path,
+};
 
 /// Returns the qualifying repository tops of [folders], by their path from
 /// [root], in code point order, each once.
@@ -566,7 +626,7 @@ List<_AgentFile> _filesIn(
   }
   String pathOf(String name) => prefix.isEmpty ? name : '$prefix/$name';
   final files = <_AgentFile>[];
-  for (final names in namesByFile.values) {
+  for (final MapEntry(key: realPath, value: names) in namesByFile.entries) {
     final text = _readAgentText(_fileIn(folder, names.first));
     if (text == null) continue;
     final isImport = names.every(agentImportNames.contains);
@@ -574,6 +634,7 @@ List<_AgentFile> _filesIn(
     files.add(
       _AgentFile(
         path: pathOf(names.first),
+        realPath: realPath,
         block: block,
         expected: block,
         current: text,
@@ -590,6 +651,7 @@ List<_AgentFile> _filesIn(
     files.add(
       _AgentFile(
         path: pathOf(_defaultInstructionName),
+        realPath: _realPathOf(_fileIn(folder, _defaultInstructionName)),
         block: inlineBlockText,
         expected: inlineBlockText,
         current: null,
@@ -604,6 +666,7 @@ List<_AgentFile> _filesIn(
     files.add(
       _AgentFile(
         path: pathOf(agentCursorPath),
+        realPath: _realPathOf(cursor),
         block: inlineBlockText,
         expected: cursorRulesText(cliVersion: cliVersion),
         current: cursorText,
@@ -636,6 +699,12 @@ bool _sameBytes(List<int> left, List<int> right) {
 
 File _fileIn(Directory folder, String relative) =>
     File.fromUri(folder.uri.resolve(relative));
+
+/// Returns the real path of [file], every link on it resolved; a missing
+/// file keeps its name under its folder's canonical path.
+String _realPathOf(File file) => file.existsSync()
+    ? file.resolveSymbolicLinksSync()
+    : _fileIn(_canonicalOf(file.parent), file.uri.pathSegments.last).path;
 
 /// Returns the canonical [folder], or its absolute normalized path when it
 /// does not exist.

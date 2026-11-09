@@ -54,6 +54,7 @@ AgentWritePlan _agentPlan() => AgentWritePlan(
   ],
   agentFileRoots: const ['../code'],
   addedRoots: const ['../code'],
+  writeSet: const {},
 );
 
 RunPlan _planWithAgents({List<String>? rewriteLines}) => RunPlan(
@@ -361,6 +362,7 @@ void main() {
             topWrites: const [],
             agentFileRoots: const [],
             addedRoots: const [],
+            writeSet: const {},
           ),
         );
 
@@ -405,6 +407,7 @@ void main() {
               topWrites: topWrites,
               agentFileRoots: const [],
               addedRoots: const [],
+              writeSet: const {},
             ),
           );
           return plan

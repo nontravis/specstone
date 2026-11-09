@@ -3,11 +3,15 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 
 // MARK: - Constants
 
 /// The folder of the records under the home folder, `/`-separated.
 const _recordsFolder = '.specstone/journals';
+
+const _journalKey = 'journal';
+const _agentFilesKey = 'agentFiles';
 
 // MARK: - JournalRecords
 
@@ -16,7 +20,8 @@ const _recordsFolder = '.specstone/journals';
 /// A journal a git clone carries is not one of them, so a replay trusts only
 /// a journal whose SHA-256 is recorded here, outside every work tree. Each
 /// record is one file under `<home>/.specstone/journals/`, named by the
-/// SHA-256 of the canonical project root and holding the journal's digest.
+/// SHA-256 of the canonical project root and holding the journal's digest
+/// and the agent files its run writes outside the roots.
 final class JournalRecords {
   /// Returns the records under [homeDirectory]; null keeps none, so no
   /// journal is trusted.
@@ -25,28 +30,50 @@ final class JournalRecords {
   /// The user's home folder, or null when the environment names none.
   final Directory? homeDirectory;
 
-  /// Records [journal], the bytes of the journal file, for [projectRoot].
+  /// Records [journal], the bytes of the journal file, for [projectRoot],
+  /// with [agentFiles]: the canonical paths of the agent files its run writes
+  /// outside the project, docs, and code roots.
   ///
   /// Records nothing when there is no home folder.
   ///
   /// Throws [FileSystemException] when the record cannot be written.
-  void record(Directory projectRoot, List<int> journal) {
+  void record(
+    Directory projectRoot,
+    List<int> journal, {
+    Set<String> agentFiles = const {},
+  }) {
     final file = _fileOf(projectRoot);
     if (file == null) return;
     final folder = file.parent..createSync(recursive: true);
     restrictToOwner(folder);
-    writeFileAtomic(file, ascii.encode(_digestOf(journal)));
+    final record = {
+      _journalKey: _digestOf(journal),
+      _agentFilesKey: agentFiles.toList()..sort(compareCodePoints),
+    };
+    writeFileAtomic(file, utf8.encode(jsonEncode(record)));
   }
 
-  /// Whether [journal], the bytes of the journal file, is the one recorded
-  /// for [projectRoot].
-  bool holds(Directory projectRoot, List<int> journal) {
+  /// Returns the agent files recorded with [journal], the bytes of the
+  /// journal file, for [projectRoot]; null when the record holds another
+  /// journal or none, so [journal] is not trusted.
+  Set<String>? agentFilesOf(Directory projectRoot, List<int> journal) {
     final file = _fileOf(projectRoot);
-    if (file == null) return false;
+    if (file == null) return null;
     try {
-      return file.readAsStringSync() == _digestOf(journal);
+      return switch (jsonDecode(file.readAsStringSync())) {
+        {
+          _journalKey: final String digest,
+          _agentFilesKey: final List<Object?> paths,
+        }
+            when digest == _digestOf(journal) &&
+                paths.every((path) => path is String) =>
+          {...paths.cast<String>()},
+        _ => null,
+      };
     } on FileSystemException {
-      return false;
+      return null;
+    } on FormatException {
+      return null;
     }
   }
 
