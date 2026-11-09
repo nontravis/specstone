@@ -1,7 +1,10 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show requireWritableTarget;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -68,10 +71,10 @@ final class DocsProject {
     return DocsProject._(
       projectRoot: projectRoot,
       docsRoot: Directory(
-        _canonicalPath('${projectRoot.path}$_separator$docsFolderName'),
+        canonicalPath('${projectRoot.path}$_separator$docsFolderName'),
       ),
       codeRoot: Directory(
-        _canonicalPath('${projectRoot.path}$_separator$codeRoot'),
+        canonicalPath('${projectRoot.path}$_separator$codeRoot'),
       ),
       matcher: DocTypeMatcher(set),
       set: set,
@@ -90,6 +93,13 @@ final class DocsProject {
   /// Canonical when it exists; otherwise the joined path with its existing
   /// part canonical and `..` applied, so a docs-only checkout still opens.
   final Directory codeRoot;
+
+  /// Throws `output_not_writable` unless a write to [path] lands inside the
+  /// project or docs root and below no `.git` entry, as the disk stands now.
+  ///
+  /// The gate of every write outside the journal; see [requireWritableTarget].
+  void requireWritablePath(String path) =>
+      requireWritableTarget(path, projectRoot: projectRoot, docsRoot: docsRoot);
 
   /// Finds the doc type of a DocPath.
   final DocTypeMatcher matcher;
@@ -138,7 +148,7 @@ final class DocsProject {
   /// to a folder outside the project. [entity] may not exist yet; its nearest
   /// existing ancestor is made canonical first.
   String displayPath(FileSystemEntity entity) {
-    final path = _canonicalPath(entity.absolute.path);
+    final path = canonicalPath(entity.absolute.path);
     final docPath = _docPathOf(path);
     if (docPath != null) {
       return docPath.isEmpty ? docsFolderName : '$docsFolderName/$docPath';
@@ -155,7 +165,7 @@ final class DocsProject {
   /// [entity] may not exist yet. Symbolic links and `..` segments are resolved
   /// first, so no spelling of a path inside the docs root compares as outside.
   bool isInsideDocsRoot(FileSystemEntity entity) =>
-      _docPathOf(_canonicalPath(entity.absolute.path)) != null;
+      _docPathOf(canonicalPath(entity.absolute.path)) != null;
 
   Target _targetAt(String path, {required String asGiven}) {
     final type = FileSystemEntity.typeSync(path);
@@ -192,79 +202,4 @@ final class DocsProject {
 String _absolute(String path, Directory workingDirectory) {
   if (File(path).isAbsolute) return path;
   return '${workingDirectory.absolute.path}$_separator$path';
-}
-
-/// Returns [path] with every `/` changed to `\` on Windows, else unchanged.
-///
-/// Windows accepts both separators and Dart keeps whichever was written, so a
-/// path that is cut at `\` alone mis-splits when it holds a `/`. Elsewhere `\`
-/// is an ordinary file name character, so nothing changes. [isWindows] picks
-/// the style; it defaults to the running platform.
-String withNativeSeparators(String path, {bool? isWindows}) =>
-    (isWindows ?? Platform.isWindows) ? path.replaceAll('/', r'\') : path;
-
-/// Returns the folder that holds [path], keeping a root as a root.
-///
-/// A path cut at its first separator is the root: `/` on POSIX, and on Windows
-/// the drive root `C:\`, never the bare drive `C:`, which Windows resolves to
-/// that drive's current folder. [isWindows] picks the style; it defaults to
-/// the running platform.
-String parentOf(String path, {bool? isWindows}) {
-  final windows = isWindows ?? Platform.isWindows;
-  final separator = windows ? r'\' : '/';
-  final cut = path.lastIndexOf(separator);
-  if (cut <= 0) return separator;
-  final parent = path.substring(0, cut);
-  return windows && _isBareDrive(parent) ? '$parent$separator' : parent;
-}
-
-bool _isBareDrive(String path) =>
-    path.length == 2 && path[1] == ':' && RegExp('[A-Za-z]').hasMatch(path[0]);
-
-/// Returns [path] with symbolic links resolved.
-///
-/// The path may not exist: the nearest existing ancestor is resolved and the
-/// missing names are appended, so a build output file that is not written yet
-/// still compares against canonical roots. A `..` or `.` among the missing
-/// names is applied, because nothing missing can be a symbolic link.
-String _canonicalPath(String path) {
-  final missing = <String>[];
-  var existing = withoutTrailingSeparator(
-    withNativeSeparators(File(path).absolute.path),
-  );
-  while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
-    missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
-    // An absolute path always reaches the file-system root, which exists.
-    existing = parentOf(existing);
-  }
-  var resolved = File(existing).resolveSymbolicLinksSync();
-  for (final name in missing.reversed) {
-    if (name == '.') continue;
-    if (name == '..') {
-      resolved = parentOf(resolved);
-      continue;
-    }
-    resolved = resolved.endsWith(_separator)
-        ? '$resolved$name'
-        : '$resolved$_separator$name';
-  }
-  return resolved;
-}
-
-/// Returns [path] without trailing separators, keeping a root as a root.
-///
-/// On Windows both `\` and `/` count as separators and the drive root stays
-/// `C:\`, never the bare drive `C:`. Elsewhere only `/` counts. [isWindows]
-/// picks the style; it defaults to the running platform.
-String withoutTrailingSeparator(String path, {bool? isWindows}) {
-  final windows = isWindows ?? Platform.isWindows;
-  var end = path.length;
-  while (end > 1 &&
-      (path[end - 1] == '/' || windows && path[end - 1] == r'\')) {
-    end--;
-  }
-  final trimmed = path.substring(0, end);
-  return windows && _isBareDrive(trimmed) && end < path.length
-      ? '$trimmed\\'
-      : trimmed;
 }

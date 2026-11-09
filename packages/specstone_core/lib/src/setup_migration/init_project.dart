@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -122,6 +124,7 @@ int _scaffold(Directory root, InitRequest request) {
       continue;
     }
     _writeNew(
+      root,
       file,
       skeletonOf(docType, docType.id),
       shown: 'docs/${docType.path}',
@@ -129,6 +132,7 @@ int _scaffold(Directory root, InitRequest request) {
     request.out.writeln('created docs/${docType.path} (draft)');
   }
   _writeNew(
+    root,
     File.fromUri(root.uri.resolve(projectConfigPath)),
     configText(pins),
     shown: projectConfigPath,
@@ -141,11 +145,23 @@ int _scaffold(Directory root, InitRequest request) {
   return 0;
 }
 
-/// Writes [text] to [file], creating its folders.
+/// Writes [text] to [file] of the project at [root], creating its folders.
 ///
-/// Throws [RenderFault] `output_not_writable` naming [shown], the file's
-/// ProjectPath, when the disk refuses.
-void _writeNew(File file, String text, {required String shown}) {
+/// A file that leads outside the project or docs root, or into `.git`, is
+/// refused before any folder is made. Throws [RenderFault]
+/// `output_not_writable` naming [shown], the file's ProjectPath, when the
+/// disk refuses.
+void _writeNew(
+  Directory root,
+  File file,
+  String text, {
+  required String shown,
+}) {
+  requireWritableTarget(
+    file.path,
+    projectRoot: root,
+    docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
+  );
   try {
     file.parent.createSync(recursive: true);
     writeFileAtomic(file, utf8.encode(text));
