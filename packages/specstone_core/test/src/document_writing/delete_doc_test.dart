@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -106,6 +107,7 @@ void main() {
         if (key.startsWith('docs/')) key.substring(5): value,
     });
     Link('${root.path}/docs').createSync(outside.path);
+    RootTrust.locate(root, homeDirectory: testHome()).record();
     del(root, ['user_story:login/reset_password']);
     expect(
       Directory('${outside.path}/prds/features/f01_login/us03_reset_password')

@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart' as approval;
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -38,8 +39,7 @@ final class Target {
 /// docs root" must hold through it.
 final class DocsProject {
   new _({
-    required this.projectRoot,
-    required this.docsRoot,
+    required this.trust,
     required this.codeRoot,
     required this.stampsHaveRun,
     required this.matcher,
@@ -56,25 +56,18 @@ final class DocsProject {
     required Directory workingDirectory,
     required Directory? homeDirectory,
   }) {
-    final found = findProjectRoot(workingDirectory);
-    if (found == null) {
-      throw RenderFault(
-        RenderFaultCode.projectNotFound,
-        'no Specstone project: no folder from the working directory upward '
-        'holds $projectConfigPath',
-      );
-    }
+    final trust = RootTrust.locate(
+      workingDirectory,
+      homeDirectory: homeDirectory,
+    );
     final set = templates.resolve(
       workingDirectory: workingDirectory,
       homeDirectory: homeDirectory,
     );
-    final projectRoot = Directory(found.resolveSymbolicLinksSync());
+    final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
     return DocsProject._(
-      projectRoot: projectRoot,
-      docsRoot: Directory(
-        canonicalPath('${projectRoot.path}$_separator$docsFolderName'),
-      ),
+      trust: trust,
       codeRoot: Directory(
         canonicalPath('${projectRoot.path}$_separator${config.codeRoot}'),
       ),
@@ -88,11 +81,14 @@ final class DocsProject {
   /// stamps every doc; read once at open.
   final bool stampsHaveRun;
 
+  /// The roots and whether this machine's Owner trusts them for writes.
+  final RootTrust trust;
+
   /// The canonical project root.
-  final Directory projectRoot;
+  Directory get projectRoot => trust.projectRoot;
 
   /// The canonical `<project root>/docs/`, which may not exist.
-  final Directory docsRoot;
+  Directory get docsRoot => trust.docsRoot;
 
   /// The folder code paths are written from: the project root joined with
   /// `code_root`.
@@ -101,12 +97,17 @@ final class DocsProject {
   /// part canonical and `..` applied, so a docs-only checkout still opens.
   final Directory codeRoot;
 
-  /// Throws `output_not_writable` unless a write to [path] lands inside the
-  /// project or docs root and below no `.git` entry, as the disk stands now.
+  /// Throws `output_not_writable` unless the Owner trusts the roots and a
+  /// write to [path] lands inside the project or docs root and below no `.git`
+  /// entry, as the disk stands now.
   ///
   /// The gate of every write outside the journal; see [requireWritableTarget].
-  void requireWritablePath(String path) =>
-      requireWritableTarget(path, projectRoot: projectRoot, docsRoot: docsRoot);
+  void requireWritablePath(String path) => requireWritableTarget(
+    path,
+    projectRoot: projectRoot,
+    docsRoot: docsRoot,
+    trust: trust,
+  );
 
   /// Finds the doc type of a DocPath.
   final DocTypeMatcher matcher;

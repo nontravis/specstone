@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
-import 'package:specstone_core/src/canonical_path.dart';
+import 'package:specstone_core/src/document_writing/home_record.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 // MARK: - Constants
@@ -49,7 +48,7 @@ final class JournalRecords {
     final folder = file.parent..createSync(recursive: true);
     restrictToOwner(folder);
     final record = {
-      _journalKey: _digestOf(journal),
+      _journalKey: digestOf(journal),
       _agentFilesKey: agentFiles.toList()..sort(compareCodePoints),
     };
     writeFileAtomic(file, utf8.encode(jsonEncode(record)));
@@ -75,7 +74,7 @@ final class JournalRecords {
           _journalKey: final String digest,
           _agentFilesKey: final List<Object?> paths,
         }
-            when digest == _digestOf(journal) &&
+            when digest == digestOf(journal) &&
                 paths.every((path) => path is String) =>
           {...paths.cast<String>()},
         _ => null,
@@ -98,23 +97,12 @@ final class JournalRecords {
   }
 
   File? _fileOf(Directory projectRoot) {
-    final home = homeDirectory;
-    if (home == null || !home.isAbsolute) return null;
-    final root = projectRoot.resolveSymbolicLinksSync();
-    final canonicalHome = canonicalPath(home.path);
-    if (canonicalHome == root ||
-        canonicalHome.startsWith('$root${Platform.pathSeparator}')) {
-      return null;
-    }
-    final key = _digestOf(utf8.encode(root));
-    return File(
-      [
-        home.path,
-        ..._recordsFolder.split('/'),
-        key,
-      ].join(Platform.pathSeparator),
+    String root() => projectRoot.resolveSymbolicLinksSync();
+    return homeRecordFile(
+      homeDirectory,
+      folder: _recordsFolder,
+      key: root,
+      keepOut: () => [root()],
     );
   }
 }
-
-String _digestOf(List<int> bytes) => sha256.convert(bytes).toString();

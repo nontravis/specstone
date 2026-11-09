@@ -74,6 +74,7 @@ ReadAnswer answerDelete(
       );
     }
     if (guarded && confirmation.prompts) {
+      session.journalTarget.requireTrusted();
       MoveJournal.requireHomeFolder(
         session.journalTarget.homeDirectory,
         session.project.projectRoot,

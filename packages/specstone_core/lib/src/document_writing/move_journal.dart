@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/journal_records.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -21,6 +22,7 @@ final class JournalTarget {
     required this.projectRoot,
     required this.docsRoot,
     required this.homeDirectory,
+    this.trust,
     this.agentFiles = const {},
     this.runGit = runRealGit,
     this.warn = warnOnStderr,
@@ -33,6 +35,7 @@ final class JournalTarget {
         projectRoot: project.projectRoot,
         docsRoot: project.docsRoot,
         homeDirectory: homeDirectory,
+        trust: project.trust,
       );
 
   /// The folder every step path is relative to.
@@ -47,6 +50,13 @@ final class JournalTarget {
   /// refused and no journal replays.
   final Directory? homeDirectory;
 
+  /// The roots of an opened project and whether the Owner trusts them; null
+  /// for a legacy tree, whose roots are its own folder.
+  ///
+  /// Roots the Owner has not recorded bound no step: [requireTrusted] refuses
+  /// first, and a replay finds every step path outside them.
+  final RootTrust? trust;
+
   /// The canonical paths of the agent files a migrate writes inside the
   /// project root; [MoveJournal.run] records them with the journal, so its
   /// replay admits them.
@@ -60,12 +70,28 @@ final class JournalTarget {
 
   JournalRecords get _records => JournalRecords(homeDirectory);
 
+  /// Throws [RenderFault] `output_not_writable`, naming
+  /// [MoveJournal.journalPath], unless the Owner trusts the roots.
+  ///
+  /// A command that writes a journal calls it before any prompt or change;
+  /// [MoveJournal.run] calls it again as the backstop.
+  void requireTrusted() {
+    final refusal = trust?.refusal;
+    if (refusal == null) return;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write ${MoveJournal.journalPath}: $refusal',
+      file: MoveJournal.journalPath,
+    );
+  }
+
   /// The folders a step path must land in: the project and docs roots, each
-  /// at its canonical path. A code root outside the project is read, never
-  /// written (R99).
+  /// at its canonical path, none while the roots are untrusted. A code root
+  /// outside the project is read, never written (R99).
   List<String> get _bounds => [
-    for (final folder in [projectRoot, docsRoot])
-      if (folder.existsSync()) folder.resolveSymbolicLinksSync(),
+    if (trust?.refusal == null)
+      for (final folder in [projectRoot, docsRoot])
+        if (folder.existsSync()) folder.resolveSymbolicLinksSync(),
   ];
 }
 
@@ -745,6 +771,7 @@ final class MoveJournal {
   /// or a step or a later cursor write fails; the journal stays in the last
   /// case.
   void run(JournalTarget target) {
+    target.requireTrusted();
     requireHomeFolder(target.homeDirectory, target.projectRoot);
     _requireFoldersInside(target, const ['.specstone/.gitignore', journalPath]);
     _requireInside(target, [

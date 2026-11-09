@@ -85,11 +85,19 @@ Directory _canonicalOr(Directory Function() resolve, Directory fallback) {
 ///
 /// The root is the first [findRootUpward] candidate holding
 /// `.specstone/config.yaml`, canonical. Never throws.
-Directory? findProjectRoot(Directory start) => findRootUpward(
-  start,
-  (candidate) =>
-      File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
-);
+Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
+
+/// Returns the project root holding [start] and the folder the walk stood in
+/// when it found it, as [matchRootUpward] does; null outside a project.
+///
+/// The root is the first candidate holding `.specstone/config.yaml`. Never
+/// throws.
+({Directory folder, Directory root})? matchProjectRoot(Directory start) =>
+    matchRootUpward(
+      start,
+      (candidate) =>
+          File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
+    );
 
 /// The project config: the pack version each pack is pinned to, the folder
 /// code paths are written from, and the repository tops already offered agent

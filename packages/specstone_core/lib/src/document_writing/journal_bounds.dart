@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show isCodeRootValue;
@@ -173,21 +174,23 @@ String skippedLineOf(String path, [String? reason]) {
   return '$path reaches outside the project root; left as it is';
 }
 
-/// Throws [RenderFault] `output_not_writable` unless [writeRefusalOf] finds
-/// [path] writable; the fault's `file` is [path] from the project root.
+/// Throws [RenderFault] `output_not_writable` unless [trust], when given, holds
+/// the roots trusted and [writeRefusalOf] finds [path] writable; the fault's
+/// `file` is [path] from the project root.
 ///
 /// Call it before every write, create, rename, or delete a command makes in a
-/// project outside the journal, which checks its own steps.
+/// project outside the journal, which checks its own steps. Pass the [trust]
+/// of an opened project: its roots may lead out of the project by a committed
+/// `docs` link, and only the Owner's record lets a write follow.
 void requireWritableTarget(
   String path, {
   required Directory projectRoot,
   Directory? docsRoot,
+  RootTrust? trust,
 }) {
-  final reason = writeRefusalOf(
-    path,
-    projectRoot: projectRoot,
-    docsRoot: docsRoot,
-  );
+  final reason =
+      trust?.refusal ??
+      writeRefusalOf(path, projectRoot: projectRoot, docsRoot: docsRoot);
   if (reason == null) return;
   final shown = pathFromProjectRoot(path, projectRoot, docsRoot);
   throw RenderFault(

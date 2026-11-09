@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
@@ -638,10 +639,13 @@ void main() {
     });
     final root = await fixtureProject({});
     Link('${root.path}/docs').createSync(outside.path);
+    // A docs folder outside the project is writable once the Owner trusts it.
+    final home = await writeTree({});
+    RootTrust.locate(root, homeDirectory: home).record();
     final project = DocsProject.open(
       templates: TemplateResolver(shippedFiles: fixturePackFiles()),
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: home,
     );
 
     final report = _run((root: root, project: project));

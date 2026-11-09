@@ -24,6 +24,7 @@ import 'package:specstone/src/commands/reorder_command.dart';
 import 'package:specstone/src/commands/search_command.dart';
 import 'package:specstone/src/commands/set_command.dart';
 import 'package:specstone/src/commands/structure_command.dart';
+import 'package:specstone/src/commands/trust_command.dart';
 import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:specstone/src/console.dart';
 import 'package:specstone_core/specstone_core.dart';
@@ -122,6 +123,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(MoveCommand());
     addCommand(MigrateCommand());
     addCommand(InitCommand());
+    addCommand(TrustCommand());
     addCommand(HookCommand());
     addCommand(upgrade ?? UpgradeCommand());
   }

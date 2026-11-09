@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/build_output.dart';
@@ -513,6 +514,8 @@ void main() {
       final root = await projectWithoutDocs();
       final outside = await writeTree({'keep.txt': 'mine\n'});
       Link('${root.path}/docs').createSync('${outside.path}/made/here');
+      // The Owner's record lifts the trust refusal, so the gate itself judges.
+      RootTrust.locate(root, homeDirectory: testHome()).record();
       final before = _snapshot(outside);
 
       expect(
@@ -544,7 +547,8 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_gate: the layouts that lead out by design still write', () {
+  group('$_gate: the layouts that lead out by design write once the Owner '
+      'trusts them', () {
     test('a project reached through a docs link, with a .specstone link '
         'beside the docs link, writes into the real project', () async {
       final base = await writeTree({
@@ -555,6 +559,7 @@ void main() {
       createRelativeLink('${base.path}/ws/code/docs', '../docs');
       createRelativeLink('${base.path}/ws/code/.specstone', '../.specstone');
       final code = Directory('${base.path}/ws/code');
+      RootTrust.locate(code, homeDirectory: testHome()).record();
 
       writeIn(code, (session) {
         session.writeDoc(story2, '# Changed\n', LineEnding.lf);
@@ -582,6 +587,7 @@ void main() {
       });
       createRelativeLink('${base.path}/proj/docs', '../ext');
       final project = Directory('${base.path}/proj');
+      RootTrust.locate(project, homeDirectory: testHome()).record();
 
       writeIn(project, (session) {
         session.writeDoc(story2, '# Changed\n', LineEnding.lf);
