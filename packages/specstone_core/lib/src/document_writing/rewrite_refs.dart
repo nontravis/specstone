@@ -9,6 +9,8 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show skippedLineOf;
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -319,7 +321,7 @@ WriteStep? _codeFileStep(
   final text = rewriteNameMentions(raw, extension, renamed);
   if (text == null) return null;
   if (_leavesProject(projectPath)) {
-    onSkipped?.call(skippedOutsideLine(projectPath));
+    onSkipped?.call(skippedLineOf(projectPath));
     return null;
   }
   if (isReadOnly(file)) {

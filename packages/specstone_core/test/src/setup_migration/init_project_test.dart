@@ -368,14 +368,30 @@ void main() {
       );
 
       expect(status, 0);
-      expect(warnings, [
-        'CLAUDE.md reaches outside the project root; left as it is',
-      ]);
+      expect(warnings, ['CLAUDE.md lies under .git; left as it is']);
       expect(lines, isNot(contains('updated CLAUDE.md')));
       expect(
         File('${base.path}/proj/.git/config').readAsStringSync(),
         '[core]\n\tbare = false\n',
       );
+    }, skip: skipLinks);
+
+    test('a dangling AGENTS.md link refuses output_not_writable, not a raw '
+        'exception', () async {
+      final base = await writeTree({'proj/keep.txt': ''});
+      Link('${base.path}/proj/AGENTS.md').createSync('missing.md');
+
+      expect(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.message, 'message', startsWith('cannot write')),
+        ),
+      );
+
+      expect(File('${base.path}/proj/missing.md').existsSync(), isFalse);
     }, skip: skipLinks);
 
     test('a docs folder linked outside the project refuses a draft written '

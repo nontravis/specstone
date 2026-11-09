@@ -72,11 +72,6 @@ final class JournalTarget {
 /// Writes [line] to stderr; the default of every `warn` hook.
 void warnOnStderr(String line) => stderr.writeln(line);
 
-/// Returns the warning line for [path], a file a run leaves as it is because
-/// its real path lies outside the project root (R99).
-String skippedOutsideLine(String path) =>
-    '$path reaches outside the project root; left as it is';
-
 /// Returns the hash of [text], read as a file's text without a byte-order
 /// mark; a [WriteStep] records it for the text it replaces.
 String textHashOf(String text) {

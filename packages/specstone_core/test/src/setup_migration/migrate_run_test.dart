@@ -1213,9 +1213,7 @@ void main() {
             0,
           );
 
-          expect(warnings, [
-            'CLAUDE.md reaches outside the project root; left as it is',
-          ]);
+          expect(warnings, ['CLAUDE.md lies under .git; left as it is']);
           expect(config.readAsStringSync(), before);
           expect(MoveJournal.pending(project), isFalse);
         },

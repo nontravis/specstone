@@ -758,7 +758,9 @@ void main() {
       final plan = planAgentWrites(inputs, full: true);
 
       expect(_paths(plan), [_agentMd, 'AGENTS.md']);
-      expect(plan.skipped, ['../other/CLAUDE.md']);
+      expect(plan.skipped, [
+        '../other/CLAUDE.md reaches outside the project root; left as it is',
+      ]);
       expect(plan.agentFileRoots, isEmpty);
       expect(plan.addedRoots, isEmpty);
       expect(plan.writeSet, isNot(contains(contains('other'))));
@@ -779,10 +781,36 @@ void main() {
       final plan = planAgentWrites(inputs, full: true);
 
       expect(_paths(plan), [_agentMd]);
-      expect(plan.skipped, ['CLAUDE.md']);
+      expect(plan.skipped, [
+        'CLAUDE.md reaches outside the project root; left as it is',
+      ]);
       expect(plan.writeSet, {
         File.fromUri(_at(base, 'proj/').uri.resolve(_agentMd)).path,
       });
+      expect(agentFileDrifts(inputs), isEmpty);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('$_write R99: an instruction file linked into .git and an AGENT.md '
+        'linked outside the project are named by their own reasons', () async {
+      final base = await _base({
+        'victim.txt': 'mine\n',
+        'proj/.git/config': '[core]\n',
+        'proj/.specstone/keep': '',
+      });
+      Link(_at(base, 'proj/').uri.resolve('CLAUDE.md').toFilePath())
+          .createSync('.git/config');
+      Link(_at(base, 'proj/').uri.resolve(_agentMd).toFilePath())
+          .createSync('../../victim.txt');
+      final inputs = _inputs(base);
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(plan.skipped, [
+        '.specstone/AGENT.md reaches outside the project root; left as it is',
+        'CLAUDE.md lies under .git; left as it is',
+      ]);
+      expect(_paths(plan), isEmpty);
+      expect(plan.writeSet, isEmpty);
       expect(agentFileDrifts(inputs), isEmpty);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 

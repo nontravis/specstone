@@ -5,7 +5,7 @@ import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show skippedOutsideLine, warnOnStderr;
+    show warnOnStderr;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -134,7 +134,7 @@ int _scaffold(Directory root, InitRequest request) {
     homeDirectory: request.homeDirectory,
   );
   final agentPlan = _planAgentFiles(root, set);
-  agentPlan.skipped.map(skippedOutsideLine).forEach(request.warn);
+  agentPlan.skipped.forEach(request.warn);
   final docsRoot = Directory.fromUri(root.uri.resolve('docs/'));
   for (final docType in singularDocTypes(set)) {
     final path = docType.path;
@@ -206,15 +206,15 @@ void _writeNew(
   required String shown,
   bool followLink = false,
 }) {
-  final target = followLink && _isLink(file)
-      ? File(file.resolveSymbolicLinksSync())
-      : file;
-  requireWritableTarget(
-    target.path,
-    projectRoot: root,
-    docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
-  );
   try {
+    final target = followLink && _isLink(file)
+        ? File(file.resolveSymbolicLinksSync())
+        : file;
+    requireWritableTarget(
+      target.path,
+      projectRoot: root,
+      docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
+    );
     file.parent.createSync(recursive: true);
     writeFileAtomic(target, utf8.encode(text));
   } on FileSystemException catch (error) {

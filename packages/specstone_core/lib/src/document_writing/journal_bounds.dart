@@ -119,6 +119,9 @@ const _leavesProject = 'it leads outside the project';
 /// Why a write below a `.git` entry is refused.
 const _underGit = 'it lies under .git';
 
+/// Opens the reason of a path the disk cannot resolve.
+const _unresolved = 'it cannot be resolved';
+
 /// Returns why a write to [path] must be refused, or null when it may go on.
 ///
 /// The one gate every write outside the journal passes: [path] is resolved as
@@ -127,16 +130,25 @@ const _underGit = 'it lies under .git';
 /// entry between that root and it. The `.git` rule is [JournalBounds]'s: case
 /// folding, Windows dots, spaces, the 8.3 name, and an NTFS stream suffix cut
 /// at its first `:`.
+///
+/// A path the disk cannot resolve (a link loop, a folder it may not enter) is
+/// refused with its reason, never thrown.
 String? writeRefusalOf(
   String path, {
   required Directory projectRoot,
   Directory? docsRoot,
 }) {
-  final real = canonicalPath(path);
+  final String real;
+  final List<String> roots;
+  try {
+    real = canonicalPath(path);
+    roots = [
+      for (final root in [projectRoot, ?docsRoot]) canonicalPath(root.path),
+    ];
+  } on FileSystemException catch (error) {
+    return '$_unresolved: ${error.osError?.message ?? error.message}';
+  }
   final separator = Platform.pathSeparator;
-  final roots = [
-    for (final root in [projectRoot, ?docsRoot]) canonicalPath(root.path),
-  ];
   final inside = [
     for (final root in roots)
       if (real.startsWith('$root$separator'))
@@ -144,6 +156,17 @@ String? writeRefusalOf(
   ];
   if (inside.isEmpty) return _leavesProject;
   return inside.any((below) => below.any(_isGitEntry)) ? _underGit : null;
+}
+
+/// Returns the warning line for [path], a file a run leaves as it is because
+/// [writeRefusalOf] gave [reason]; without one, because its real path lies
+/// outside the project root (R99).
+String skippedLineOf(String path, [String? reason]) {
+  if (reason == _underGit) return '$path lies under .git; left as it is';
+  if (reason != null && reason.startsWith(_unresolved)) {
+    return '$path cannot be resolved; left as it is';
+  }
+  return '$path reaches outside the project root; left as it is';
 }
 
 /// Throws [RenderFault] `output_not_writable` unless [writeRefusalOf] finds

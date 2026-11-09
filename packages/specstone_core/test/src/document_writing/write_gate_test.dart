@@ -165,6 +165,27 @@ void main() {
     });
   });
 
+  group('$_gate: skippedLineOf', () {
+    test('names the reason a file is left', () {
+      expect(
+        skippedLineOf('../a/AGENTS.md'),
+        '../a/AGENTS.md reaches outside the project root; left as it is',
+      );
+      expect(
+        skippedLineOf('CLAUDE.md', _leaves),
+        'CLAUDE.md reaches outside the project root; left as it is',
+      );
+      expect(
+        skippedLineOf('CLAUDE.md', _underGit),
+        'CLAUDE.md lies under .git; left as it is',
+      );
+      expect(
+        skippedLineOf('CLAUDE.md', 'it cannot be resolved: loop'),
+        'CLAUDE.md cannot be resolved; left as it is',
+      );
+    });
+  });
+
   group('$_gate: a write outside the journal that leads out is refused', () {
     late Directory outside;
     late Directory root;

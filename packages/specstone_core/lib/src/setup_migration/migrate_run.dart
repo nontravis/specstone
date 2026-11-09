@@ -212,9 +212,7 @@ int _plannedRun(
 /// Names on [request]'s warnings each agent file [plan] leaves because its
 /// real path lies outside the project root (R99), one line per file.
 void _nameSkipped(MigrateRequest request, RunPlan plan) {
-  for (final path in plan.agentFiles?.skipped ?? const <String>[]) {
-    request.warn(skippedOutsideLine(path));
-  }
+  plan.agentFiles?.skipped.forEach(request.warn);
 }
 
 RunPlan _planOf(

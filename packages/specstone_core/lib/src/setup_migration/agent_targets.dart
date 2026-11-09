@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show writeRefusalOf;
+    show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -277,8 +277,9 @@ final class AgentWritePlan {
   /// and no others.
   final Set<String> writeSet;
 
-  /// The path of each agent file the run would write but leaves, because its
-  /// real path lies outside the project root (R99), as written in the plan.
+  /// The warning line for each agent file the run would write but leaves,
+  /// because its real path lies outside the project root or under `.git`
+  /// (R99).
   final List<String> skipped;
 
   /// The plan's `agent files:` line, empty when no file is written.
@@ -315,8 +316,9 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
     for (final file in folder.files) {
       final isUpsert = survey.isUpsert(folder, file, full: full);
       final text = file.nextText(isUpsert: isUpsert);
-      if (!_isWritable(root, file.realPath)) {
-        if (text != null) skipped.add(file.path);
+      final refusal = writeRefusalOf(file.realPath, projectRoot: root);
+      if (refusal != null) {
+        if (text != null) skipped.add(skippedLineOf(file.path, refusal));
         continue;
       }
       hasImport = hasImport || file.importsAfter(isUpsert: isUpsert);
@@ -336,7 +338,8 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
   }
   final agentMd = survey.agentMd;
   if (!agentMd.matches && (full || agentMd.exists || hasImport)) {
-    if (_isWritable(root, agentMd.realPath)) {
+    final refusal = writeRefusalOf(agentMd.realPath, projectRoot: root);
+    if (refusal == null) {
       writeSet.add(agentMd.realPath);
       rootWrites.insert(
         0,
@@ -349,7 +352,7 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
         ),
       );
     } else {
-      skipped.insert(0, _agentMdPath);
+      skipped.insert(0, skippedLineOf(_agentMdPath, refusal));
     }
   }
   return AgentWritePlan(
