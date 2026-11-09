@@ -202,6 +202,50 @@ void main() {
     });
   });
 
+  group('$_gate: pathFromProjectRoot', () {
+    test('on Windows a path joined with / is named from the root it lies '
+        'under', () {
+      final project = Directory(r'C:\proj');
+      final docs = Directory(r'C:\ext');
+
+      expect(
+        pathFromProjectRoot(
+          r'C:\proj/.specstone/index.sqlite',
+          project,
+          docs,
+          isWindows: true,
+        ),
+        '.specstone/index.sqlite',
+      );
+      expect(
+        pathFromProjectRoot(
+          r'C:/ext\prds/b.md',
+          project,
+          docs,
+          isWindows: true,
+        ),
+        'docs/prds/b.md',
+      );
+      expect(
+        pathFromProjectRoot('D:/other/x.md', project, docs, isWindows: true),
+        'D:/other/x.md',
+      );
+    });
+
+    test('off Windows only / separates, and a path under neither stays', () {
+      final project = Directory('/p/proj');
+
+      expect(
+        pathFromProjectRoot('/p/proj/a/b.md', project, null, isWindows: false),
+        'a/b.md',
+      );
+      expect(
+        pathFromProjectRoot('/p/other/b.md', project, null, isWindows: false),
+        '/p/other/b.md',
+      );
+    });
+  });
+
   group('$_gate: skippedLineOf', () {
     test('names the reason a file is left', () {
       expect(

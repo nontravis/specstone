@@ -189,7 +189,7 @@ void requireWritableTarget(
     docsRoot: docsRoot,
   );
   if (reason == null) return;
-  final shown = _projectPathOf(path, projectRoot, docsRoot);
+  final shown = pathFromProjectRoot(path, projectRoot, docsRoot);
   throw RenderFault(
     RenderFaultCode.outputNotWritable,
     'cannot write $shown: $reason',
@@ -199,16 +199,27 @@ void requireWritableTarget(
 
 /// Returns [path] from the project root, `/`-separated, as `docs/...` under
 /// the docs root; a path under neither stays as given.
-String _projectPathOf(String path, Directory projectRoot, Directory? docsRoot) {
-  final separator = Platform.pathSeparator;
-  final native = withNativeSeparators(path);
+///
+/// [path] and the roots are compared with native separators, so a path joined
+/// with `/` on Windows still matches. [isWindows] picks the style; it defaults
+/// to the running platform.
+String pathFromProjectRoot(
+  String path,
+  Directory projectRoot,
+  Directory? docsRoot, {
+  bool? isWindows,
+}) {
+  final windows = isWindows ?? Platform.isWindows;
+  final separator = windows ? r'\' : '/';
+  final native = withNativeSeparators(path, isWindows: windows);
   String below(String root) =>
       native.substring(root.length + 1).split(separator).join('/');
-  bool isBelow(Directory root) =>
-      native.startsWith('${withNativeSeparators(root.path)}$separator');
-  if (isBelow(projectRoot)) return below(projectRoot.path);
-  if (docsRoot != null && isBelow(docsRoot)) {
-    return 'docs/${below(docsRoot.path)}';
-  }
+  bool isBelow(String root) => native.startsWith('$root$separator');
+  final project = withNativeSeparators(projectRoot.path, isWindows: windows);
+  if (isBelow(project)) return below(project);
+  final docs = docsRoot == null
+      ? null
+      : withNativeSeparators(docsRoot.path, isWindows: windows);
+  if (docs != null && isBelow(docs)) return 'docs/${below(docs)}';
   return path;
 }
