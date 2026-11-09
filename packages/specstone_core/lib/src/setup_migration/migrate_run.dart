@@ -179,7 +179,7 @@ int _plannedRun(
   request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
-    MoveJournal.requireHomeFolder(request.homeDirectory);
+    MoveJournal.requireHomeFolder(request.homeDirectory, root);
     request.out.write('apply? [y/N] ');
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;

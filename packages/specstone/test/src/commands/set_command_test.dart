@@ -231,7 +231,7 @@ void main() {
       out: out,
       err: err,
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: testHome(),
       console: SystemConsole(input: Stream.value([0xff, 0xfe])),
     );
     expect(

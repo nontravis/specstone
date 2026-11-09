@@ -20,7 +20,6 @@ final class JournalTarget {
     required this.projectRoot,
     required this.docsRoot,
     required this.homeDirectory,
-    this.codeRoot,
     this.runGit = runRealGit,
   });
 
@@ -31,7 +30,6 @@ final class JournalTarget {
         projectRoot: project.projectRoot,
         docsRoot: project.docsRoot,
         homeDirectory: homeDirectory,
-        codeRoot: project.codeRoot,
       );
 
   /// The folder every step path is relative to.
@@ -45,18 +43,15 @@ final class JournalTarget {
   /// journal is refused and no journal replays.
   final Directory? homeDirectory;
 
-  /// The folder of the code files; null when the tree has no config yet.
-  final Directory? codeRoot;
-
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
 
   JournalRecords get _records => JournalRecords(homeDirectory);
 
-  /// The folders a replayed step path must land in: the project, docs, and
-  /// code roots, each at its canonical path.
+  /// The folders a step path must land in: the project and docs roots, each
+  /// at its canonical path. No step of this release writes a code file.
   List<String> get _bounds => [
-    for (final folder in [projectRoot, docsRoot, ?codeRoot])
+    for (final folder in [projectRoot, docsRoot])
       if (folder.existsSync()) folder.resolveSymbolicLinksSync(),
   ];
 }
@@ -513,6 +508,7 @@ final class CommitStep extends JournalStep {
   /// Throws [RenderFault] `output_not_writable` when the file cannot be
   /// written.
   List<String> _pathspecFile(JournalTarget target, Iterable<String> pathspecs) {
+    _requireInside(target, const [_pathspecPath]);
     final file = File(_absolute(target, _pathspecPath));
     try {
       file.parent.createSync(recursive: true);
@@ -632,14 +628,18 @@ final class MoveJournal {
   }) => _recordedBytes(projectRoot, JournalRecords(homeDirectory));
 
   /// Throws [RenderFault] `output_not_writable`, naming [journalPath], when
-  /// [homeDirectory] is null: a run with no home folder cannot record the
-  /// journal it would write.
+  /// [homeDirectory] is null, is not absolute, or lies inside [projectRoot]:
+  /// such a run cannot record the journal it would write where a clone cannot
+  /// forge the record.
   ///
   /// A command that writes a journal calls it before any prompt or change;
   /// [run] calls it again as the backstop.
-  static void requireHomeFolder(Directory? homeDirectory) {
+  static void requireHomeFolder(
+    Directory? homeDirectory,
+    Directory projectRoot,
+  ) {
     try {
-      JournalRecords(homeDirectory).requireHome();
+      JournalRecords(homeDirectory).requireHome(projectRoot);
     } on FileSystemException catch (error) {
       throw RenderFault(
         RenderFaultCode.outputNotWritable,
@@ -664,7 +664,8 @@ final class MoveJournal {
   /// any file moves), when cursor 0 or the journal cannot be written, or when
   /// a step or a later cursor write fails; the journal stays in the last case.
   void run(JournalTarget target) {
-    requireHomeFolder(target.homeDirectory);
+    requireHomeFolder(target.homeDirectory, target.projectRoot);
+    _requireInside(target, const ['.specstone/.gitignore', journalPath]);
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);
@@ -787,8 +788,8 @@ List<JournalStep> _stepsIn(List<int> bytes) {
 ///
 /// A journal a clone can carry is untrusted input: it runs only when its
 /// digest is recorded under the home folder and every path of every step
-/// lands inside the project, docs, or code root, on no `.git` entry and
-/// through no link out of them.
+/// lands inside the project or docs root, on no `.git` entry and through no
+/// link out of them.
 ///
 /// Throws [RenderFault] `output_not_writable` when the journal is unrecorded,
 /// a path leaves those roots, or the journal cannot be read or parsed.
@@ -796,17 +797,27 @@ List<JournalStep>? _trustedSteps(JournalTarget target) {
   final bytes = _recordedBytes(target.projectRoot, target._records);
   if (bytes == null) return null;
   final steps = _stepsIn(bytes);
-  final bounds = JournalBounds(target.projectRoot, target._bounds);
   for (final step in steps) {
-    for (final path in step._paths) {
-      if (!bounds.holds(path)) {
-        throw _untrusted(
-          'its step path $path leaves the project, docs, and code roots',
-        );
-      }
-    }
+    _requireInside(target, step._paths);
   }
   return steps;
+}
+
+/// Throws [RenderFault] `output_not_writable` unless each of [paths] lands
+/// inside the project or docs root as the disk stands now, below no `.git`
+/// entry and through no link out of them.
+///
+/// Judged afresh at every use: a step that ran earlier may have put a link in
+/// place that the up-front check could not see.
+void _requireInside(JournalTarget target, Iterable<String> paths) {
+  final bounds = JournalBounds(target.projectRoot, target._bounds);
+  for (final path in paths) {
+    if (!bounds.holds(path)) {
+      throw _untrusted(
+        'its step path $path leaves the project, docs, and code roots',
+      );
+    }
+  }
 }
 
 /// Returns the bytes of the journal under [projectRoot], or null when there is
@@ -947,6 +958,7 @@ int? _cursorOf(Directory projectRoot, List<JournalStep> steps) {
 ///
 /// Throws [RenderFault] `output_not_writable` when the disk refuses.
 void _saveCursor(JournalTarget target, int cursor) {
+  _requireInside(target, const [MoveJournal.cursorPath]);
   try {
     writeFileAtomic(
       File(_join(target.projectRoot.path, MoveJournal.cursorPath)),
@@ -968,11 +980,13 @@ void _finish(
   required int cursor,
 }) {
   for (var index = cursor; index < steps.length; index++) {
+    _requireInside(target, steps[index]._paths);
     steps[index].apply(target);
     _saveCursor(target, index + 1);
   }
   // The journal goes first: a cursor left alone is ignored, while a journal
   // left without its cursor would replay every step.
+  _requireInside(target, const [MoveJournal.journalPath]);
   for (final path in [MoveJournal.journalPath, MoveJournal.cursorPath]) {
     try {
       _deleteIfPresent(File(_join(target.projectRoot.path, path)));
@@ -989,6 +1003,7 @@ void _deleteIfPresent(File file) {
 
 /// Removes the trash folder, then the journal's record.
 void _removeTrash(JournalTarget target) {
+  _requireInside(target, const [MoveJournal.journalPath]);
   final trash = Directory(
     _join(target.projectRoot.path, MoveJournal.trashPath),
   );

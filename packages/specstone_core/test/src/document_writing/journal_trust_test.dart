@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -234,6 +235,68 @@ void main() {
 
     expect(hasDoc(root, story3), isTrue);
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+  });
+
+  for (final (name, home) in [
+    ('relative', (Directory root) => Directory('relative_home')),
+    ('inside the project', (Directory root) => Directory('${root.path}/h')),
+    ('the project itself', (Directory root) => root),
+  ]) {
+    test('$_finish E10: a home folder that is $name counts as none, so a '
+        'run that writes a journal is refused and writes nothing', () async {
+      final root = await writeWriteProject();
+      Directory('${root.path}/h').createSync();
+      final before = hasDoc(root, story3);
+
+      expect(
+        () => WriteSession.run(
+          (session) => answerRename(
+            session,
+            'user_story:login/reset_password',
+            slug: 'recover_password',
+          ),
+          templates: TemplateResolver(),
+          workingDirectory: root,
+          homeDirectory: home(root),
+        ),
+        _refusedWith(
+          'cannot write .specstone/trash/journal.json: '
+          'no home folder to record it in',
+        ),
+      );
+
+      expect(hasDoc(root, story3), before);
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+      expect(Directory('${root.path}/h/.specstone').existsSync(), isFalse);
+    });
+  }
+
+  test('$_finish E08: a journal recorded under a home folder inside the '
+      'project is not trusted', () async {
+    final root = await writeWriteProject();
+    final home = Directory('${root.path}/h')..createSync();
+    final victim = _victim();
+    final bytes = utf8.encode(
+      jsonEncode(
+        MoveJournal([
+          WriteStep('../${victim.uri.pathSegments.last}', 'overwritten'),
+        ]).toJson(),
+      ),
+    );
+    _journalOf(root)
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(bytes);
+    Directory('${home.path}/.specstone/journals').createSync(recursive: true);
+    final key = sha256.convert(utf8.encode(root.resolveSymbolicLinksSync()));
+    File('${home.path}/.specstone/journals/$key').writeAsStringSync(
+      jsonEncode({
+        'journal': sha256.convert(bytes).toString(),
+        'agentFiles': <String>[],
+      }),
+    );
+
+    expect(() => _runWrite(root, home), _refusedWith(_noRun));
+    expect(victim.readAsStringSync(), 'original');
   });
 
   test('$_finish E10: a run that writes no journal is unaffected by a '

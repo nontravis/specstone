@@ -25,7 +25,9 @@ const _agentFilesKey = 'agentFiles';
 /// SHA-256 of the canonical project root and holding the journal's digest.
 final class JournalRecords {
   /// Returns the records under [homeDirectory]; null keeps none, so no
-  /// journal is trusted and none is written.
+  /// journal is trusted and none is written. A home folder that is not
+  /// absolute, or that lies inside the project root a record is asked for,
+  /// counts as none: a clone could carry the record.
   const new(this.homeDirectory);
 
   /// The user's home folder, or null when the environment names none.
@@ -33,10 +35,10 @@ final class JournalRecords {
 
   /// Records [journal], the bytes of the journal file, for [projectRoot].
   ///
-  /// Throws [FileSystemException] when there is no home folder or the record
-  /// cannot be written.
+  /// Throws [FileSystemException] when there is no usable home folder or the
+  /// record cannot be written.
   void record(Directory projectRoot, List<int> journal) {
-    requireHome();
+    requireHome(projectRoot);
     final file = _fileOf(projectRoot)!;
     file.parent.createSync(recursive: true);
     final record = {
@@ -47,9 +49,9 @@ final class JournalRecords {
   }
 
   /// Throws [FileSystemException] when there is no home folder to keep a
-  /// record in.
-  void requireHome() {
-    if (homeDirectory == null) {
+  /// record of [projectRoot] in.
+  void requireHome(Directory projectRoot) {
+    if (_fileOf(projectRoot) == null) {
       throw const FileSystemException('no home folder to record it in');
     }
   }
@@ -83,7 +85,13 @@ final class JournalRecords {
 
   File? _fileOf(Directory projectRoot) {
     final home = homeDirectory;
-    if (home == null) return null;
+    if (home == null || !home.isAbsolute) return null;
+    final root = projectRoot.resolveSymbolicLinksSync();
+    final canonicalHome = _canonical(home);
+    if (canonicalHome == root ||
+        canonicalHome.startsWith('$root${Platform.pathSeparator}')) {
+      return null;
+    }
     final key = _digestOf(utf8.encode(projectRoot.resolveSymbolicLinksSync()));
     return File(
       [
@@ -93,6 +101,21 @@ final class JournalRecords {
       ].join(Platform.pathSeparator),
     );
   }
+}
+
+/// Returns the canonical path of [folder], resolving its nearest folder that
+/// exists and appending the rest, since a home folder may not exist yet.
+String _canonical(Directory folder) {
+  final missing = <String>[];
+  var existing = folder.absolute;
+  while (!existing.existsSync() && existing.parent.path != existing.path) {
+    missing.insert(0, existing.uri.pathSegments.lastWhere((s) => s.isNotEmpty));
+    existing = existing.parent;
+  }
+  return [
+    existing.resolveSymbolicLinksSync(),
+    ...missing,
+  ].join(Platform.pathSeparator);
 }
 
 String _digestOf(List<int> bytes) => sha256.convert(bytes).toString();
