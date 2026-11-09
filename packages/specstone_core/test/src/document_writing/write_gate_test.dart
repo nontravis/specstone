@@ -452,6 +452,54 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
+  group('$_gate: a docs link to a folder not made yet', () {
+    Future<Directory> projectWithoutDocs() => writeWriteProject(
+      without: {
+        for (final key in writeProject.keys)
+          if (key.startsWith('docs/')) key,
+      },
+    );
+
+    test('a dangling docs link to a missing folder outside the project '
+        'refuses new, and nothing is created', () async {
+      final root = await projectWithoutDocs();
+      final outside = await writeTree({'keep.txt': 'mine\n'});
+      Link('${root.path}/docs').createSync('${outside.path}/made/here');
+      final before = _snapshot(outside);
+
+      expect(
+        () =>
+            writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having(
+                (f) => f.message,
+                'message',
+                endsWith('it leads outside the project'),
+              ),
+        ),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('a dangling docs link to a missing folder inside the project '
+        'still writes there', () async {
+      final root = await projectWithoutDocs();
+      Link('${root.path}/docs').createSync('inner/missing');
+
+      writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x'));
+
+      expect(
+        File('${root.path}/inner/missing/prds/personas/x/PERSONA.md')
+            .existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
+  });
+
   group('$_gate: the layouts that lead out by design still write', () {
     test('a project whose docs link leads to a folder outside it writes into '
         'that docs folder', () async {

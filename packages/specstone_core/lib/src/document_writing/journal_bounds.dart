@@ -119,8 +119,9 @@ const _underGit = 'it lies under .git';
 /// the disk stands, through every link on the way and the file itself, a link
 /// to a target not made yet included, and must land inside the canonical
 /// [projectRoot] or [docsRoot], below no `.git` entry between that root and
-/// it. A path the disk cannot resolve counts as leading outside. The `.git`
-/// rule is
+/// it. A root counts only when it exists as a folder, as in [JournalBounds]'s
+/// roots: a docs link to a folder not made yet is no root. A path the disk
+/// cannot resolve counts as leading outside. The `.git` rule is
 /// [JournalBounds]'s: case folding, Windows dots, spaces, the 8.3 name, and an
 /// NTFS stream suffix cut at its first `:`.
 String? writeRefusalOf(
@@ -129,15 +130,17 @@ String? writeRefusalOf(
   Directory? docsRoot,
 }) {
   final String real;
+  final List<String> roots;
   try {
     real = canonicalPath(path);
+    roots = [
+      for (final root in [projectRoot, ?docsRoot])
+        if (root.existsSync()) root.resolveSymbolicLinksSync(),
+    ];
   } on FileSystemException {
     return _leavesProject;
   }
   final separator = Platform.pathSeparator;
-  final roots = [
-    for (final root in [projectRoot, ?docsRoot]) canonicalPath(root.path),
-  ];
   final inside = [
     for (final root in roots)
       if (real.startsWith('$root$separator'))
