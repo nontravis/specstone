@@ -11,6 +11,7 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -710,6 +711,10 @@ void main() {
     if (!linkCodeDocs(tree)) return;
     commitRepo(Directory('${tree.path}/ws'));
     final out = StringBuffer();
+    locateSetupTrust(
+      Directory('${tree.path}/ws/code'),
+      homeDirectory: testHome(),
+    ).record();
 
     expect(
       () => runInit(
@@ -838,6 +843,7 @@ void main() {
       return;
     }
     final code = Directory('${tree.path}/repo/code');
+    locateSetupTrust(code, homeDirectory: testHome()).record();
 
     final (status, lines) = _run(code);
 

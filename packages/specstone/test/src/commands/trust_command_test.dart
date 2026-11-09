@@ -125,13 +125,53 @@ void main() {
       expect(_records.existsSync(), isFalse);
     });
 
-    test('outside a project is project_not_found', () async {
-      final root = await writeTree({'keep.txt': ''});
+    test(
+      'outside a project asks nothing, since init there needs no record',
+      () async {
+        final root = await writeTree({'keep.txt': ''});
 
-      final run = await _run(root, ['trust']);
+        final run = await _run(root, ['trust']);
 
-      expect(run.status, 78, reason: run.err);
-    });
+        expect(run.status, 0, reason: run.err);
+        expect(run.out, startsWith('no record needed: '));
+      },
+    );
+
+    test('before a config exists records the roots init would write into, so '
+        'init then runs', () async {
+      final base = Directory(
+        (await writeTree({
+          'victim/docs/prds/keep.md': '# Keep\n',
+          'clone/keep.txt': '',
+        })).resolveSymbolicLinksSync(),
+      );
+      createRelativeLink('${base.path}/clone/docs', '../victim/docs');
+      final clone = Directory('${base.path}/clone');
+
+      final refused = await _run(clone, ['init']);
+      final trusted = await _run(
+        clone,
+        ['trust'],
+        terminal: true,
+        answers: ['y'],
+      );
+      final init = await _run(clone, ['init']);
+
+      expect(refused.status, 73, reason: refused.err);
+      expect(refused.err, contains('run specstone trust at a terminal'));
+      expect(
+        trusted.out,
+        startsWith(
+          'project root: ${base.path}/victim\n'
+          'docs root: ${base.path}/victim/docs\n',
+        ),
+      );
+      expect(init.status, 0, reason: init.err);
+      expect(
+        File('${base.path}/victim/.specstone/config.yaml').existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
   });
 
   group('a write command after trust', () {

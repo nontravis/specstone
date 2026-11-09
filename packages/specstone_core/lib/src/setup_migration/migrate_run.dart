@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
@@ -112,14 +113,16 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
 
 int _migrate(MigrateRequest request) {
   final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
+  final trust = _trustOf(root, linkFolder, request);
   requireSpecstoneFolder(root);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
-    final target = _targetOf(root, request);
+    final target = _targetOf(root, request, trust);
     if (request.dryRun) {
       // Reads the journal and its cursor only, so a dry run refuses one that
       // does not parse as the replay does, and writes nothing.
       MoveJournal.remaining(target);
     } else {
+      target.requireTrusted();
       MoveJournal.replay(target);
       requireGitWorkTree(root, request.runGit);
       requireCleanWorkTree(root, request.runGit);
@@ -138,7 +141,7 @@ int _migrate(MigrateRequest request) {
     case RunKind.upgrade:
       return _plannedRun(request, root, kind, linkFolder: linkFolder);
     case RunKind.resume:
-      return _resume(request, root);
+      return _resume(request, root, trust);
   }
 }
 
@@ -154,6 +157,18 @@ int runLegacyAt(
   Directory? linkFolder,
 }) => _mappingGitFailures(
   () => _plannedRun(request, root, RunKind.legacy, linkFolder: linkFolder),
+);
+
+/// Returns the trust of [root], reached through the `docs` link of
+/// [linkFolder], or found itself when that is null.
+RootTrust _trustOf(
+  Directory root,
+  Directory? linkFolder,
+  MigrateRequest request,
+) => RootTrust.at(
+  folder: linkFolder ?? root,
+  root: root,
+  homeDirectory: request.homeDirectory,
 );
 
 /// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
@@ -176,6 +191,8 @@ int _plannedRun(
     _printDryRun(request, root, plan.toText());
     return 0;
   }
+  final trust = _trustOf(root, linkFolder, request)
+    ..requireTrusted(MoveJournal.journalPath);
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
@@ -201,8 +218,9 @@ int _plannedRun(
     );
   }
   final steps = plan.journalSteps(base: base, projectRoot: root);
-  MoveJournal(steps)
-      .run(_targetOf(root, request, agentFiles: plan.agentFiles?.writeSet));
+  MoveJournal(
+    steps,
+  ).run(_targetOf(root, request, trust, agentFiles: plan.agentFiles?.writeSet));
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
   final closingLine = plan.closingLine;
   if (closingLine != null) request.out.writeln(closingLine);
@@ -239,9 +257,12 @@ RunPlan _planOf(
 ///
 /// A bare resume checks the git work tree and version first, as its commits
 /// need them; the stopped run leaves the tree dirty, so it is not checked.
-int _resume(MigrateRequest request, Directory root) {
-  if (!request.dryRun) requireGitWorkTree(root, request.runGit);
-  final target = _targetOf(root, request);
+int _resume(MigrateRequest request, Directory root, RootTrust trust) {
+  if (!request.dryRun) {
+    trust.requireTrusted(MoveJournal.journalPath);
+    requireGitWorkTree(root, request.runGit);
+  }
+  final target = _targetOf(root, request, trust);
   final listing = StringBuffer()
     ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')
     ..writeln('remaining steps:');
@@ -293,12 +314,14 @@ void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
 /// the journal record keeps, so a replay admits them (R49).
 JournalTarget _targetOf(
   Directory root,
-  MigrateRequest request, {
+  MigrateRequest request,
+  RootTrust trust, {
   Set<String>? agentFiles,
 }) => JournalTarget(
   projectRoot: root,
   docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
   homeDirectory: request.homeDirectory,
+  trust: trust,
   agentFiles: agentFiles ?? const {},
   runGit: request.runGit,
   warn: request.warn,

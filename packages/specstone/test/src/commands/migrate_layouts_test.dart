@@ -439,6 +439,12 @@ name: Login API
     expect(_bytesUnder(code), before);
     expect(_bytesUnder(docsRepo), docsBefore);
 
+    final refused = await _run(code, ['migrate'], console: _owner());
+    expect(refused.status, 73, reason: refused.err);
+    expect(_bytesUnder(docsRepo), docsBefore);
+    final trusted = await _run(code, ['trust'], console: _owner());
+    expect(trusted.status, 0, reason: trusted.err);
+
     final run = await _run(code, ['migrate'], console: _owner());
 
     expect(run.status, 0, reason: run.err);

@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart'
     show warnOnStderr;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -75,7 +76,10 @@ final class InitRequest {
 /// so a nested project stays possible (INV-1). A root holding the config
 /// refuses `config_exists`; a root holding the legacy context doc enters the
 /// legacy migrate run at its git checks (F6-D15); otherwise the drafts are
-/// written and the config last (F6-D23). Throws a `SpecstoneFault` for a
+/// written and the config last (F6-D23). A root reached through a `docs` link
+/// that leaves the folder, or whose docs folder lies outside it, is written
+/// only once the Owner trusted it: the scaffold refuses `output_not_writable`
+/// naming the config before any write. Throws a `SpecstoneFault` for a
 /// refused run, `output_not_writable` naming the file the disk refuses.
 int runInit(InitRequest request) {
   final root = rootThroughDocsLink(request.workingDirectory);
@@ -95,6 +99,11 @@ int runInit(InitRequest request) {
       linkFolder: _linkFolderOf(request.workingDirectory, root),
     );
   }
+  RootTrust.at(
+    folder: _linkFolderOf(request.workingDirectory, root) ?? root,
+    root: root,
+    homeDirectory: request.homeDirectory,
+  ).requireTrusted(projectConfigPath);
   return _scaffold(root, request);
 }
 

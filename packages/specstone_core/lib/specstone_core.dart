@@ -17,7 +17,6 @@ export 'src/document_writing/move_doc.dart'
 export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
 export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;
-export 'src/document_writing/trust_roots.dart' show TrustRequest, runTrust;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
 export 'src/document_writing/write_session.dart' show WriteSession;
@@ -69,6 +68,7 @@ export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
     show MigrateFault, MigrateFaultCode;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
+export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
 export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';

@@ -75,15 +75,7 @@ final class JournalTarget {
   ///
   /// A command that writes a journal calls it before any prompt or change;
   /// [MoveJournal.run] calls it again as the backstop.
-  void requireTrusted() {
-    final refusal = trust?.refusal;
-    if (refusal == null) return;
-    throw RenderFault(
-      RenderFaultCode.outputNotWritable,
-      'cannot write ${MoveJournal.journalPath}: $refusal',
-      file: MoveJournal.journalPath,
-    );
-  }
+  void requireTrusted() => trust?.requireTrusted(MoveJournal.journalPath);
 
   /// The folders a step path must land in: the project and docs roots, each
   /// at its canonical path, none while the roots are untrusted. A code root

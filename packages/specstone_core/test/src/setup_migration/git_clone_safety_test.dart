@@ -7,6 +7,7 @@ import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -80,6 +81,8 @@ Future<Directory> _evilClone(List<(String, String)> configLines) async {
     );
   }
   createRelativeLink('${clone.path}/docs', 'evil/docs');
+  // The Owner trusted the layout, so the git checks are what refuse it.
+  locateSetupTrust(clone, homeDirectory: testHome()).record();
   return clone;
 }
 

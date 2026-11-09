@@ -59,9 +59,26 @@ final class RootTrust {
         'holds $projectConfigPath',
       );
     }
-    final projectRoot = Directory(match.root.resolveSymbolicLinksSync());
-    return RootTrust._(
+    return RootTrust.at(
       folder: match.folder,
+      root: match.root,
+      homeDirectory: homeDirectory,
+    );
+  }
+
+  /// Returns the trust of the project root [root], found from [folder].
+  ///
+  /// [folder] is where a `docs` link led to [root], or [root] itself; both
+  /// are canonical. Setup commands, which run before a config exists, use it
+  /// with the roots they would write into.
+  factory at({
+    required Directory folder,
+    required Directory root,
+    required Directory? homeDirectory,
+  }) {
+    final projectRoot = Directory(root.resolveSymbolicLinksSync());
+    return RootTrust._(
+      folder: folder,
       projectRoot: projectRoot,
       docsRoot: Directory(
         canonicalPath(
@@ -103,6 +120,20 @@ final class RootTrust {
         ? 'the docs folder ${docsRoot.path} lies outside the project'
         : 'the project folder ${projectRoot.path} lies outside ${folder.path}';
     return '$what; $_trustHint';
+  }
+
+  /// Throws [RenderFault] `output_not_writable`, naming [file], unless
+  /// [isTrusted].
+  ///
+  /// [file] is the first target of the refused write, from the project root.
+  void requireTrusted(String file) {
+    final reason = refusal;
+    if (reason == null) return;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $file: $reason',
+      file: file,
+    );
   }
 
   /// Throws [RenderFault] `output_not_writable` when there is no usable home

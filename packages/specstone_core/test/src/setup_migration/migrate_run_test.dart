@@ -13,6 +13,7 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart'
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -1059,6 +1060,7 @@ void main() {
       );
       final project = Directory('${base.path}/proj');
       final app = Directory('${base.path}/app');
+      locateSetupTrust(app, homeDirectory: testHome()).record();
       final hook = File('${project.path}/.git/hooks/pre-commit')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');

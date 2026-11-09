@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart';
 
 /// What `specstone trust` runs on.
 final class TrustRequest {
@@ -31,16 +32,18 @@ final class TrustRequest {
 
 /// Runs `specstone trust` and returns its exit status.
 ///
-/// Prints the project root and docs root it would trust. A project whose
+/// Prints the project root and docs root it would trust, found as the write
+/// commands, `migrate`, and `init` find them, so the Owner can trust before a
+/// config exists ([locateSetupTrust]). A project whose
 /// roots need no record (see [RootTrust.needsRecord]) is told so and the run
 /// ends with 0. Otherwise it asks `trust these folders for writes? [y/N]` and,
 /// on `y`, writes the record under the home folder.
 ///
 /// Throws `owner_terminal_required` unless the Owner answers at a terminal,
-/// `project_not_found` outside a project, and `output_not_writable` when there
-/// is no home folder to keep the record in.
+/// and `output_not_writable` when there is no home folder to keep the record
+/// in.
 int runTrust(TrustRequest request) {
-  final trust = RootTrust.locate(
+  final trust = locateSetupTrust(
     request.workingDirectory,
     homeDirectory: request.homeDirectory,
   );
