@@ -24,7 +24,7 @@ const _agentFilesKey = 'agentFiles';
 /// and the agent files its run writes outside the roots.
 final class JournalRecords {
   /// Returns the records under [homeDirectory]; null keeps none, so no
-  /// journal is trusted.
+  /// journal is trusted and none is written.
   const new(this.homeDirectory);
 
   /// The user's home folder, or null when the environment names none.
@@ -34,16 +34,15 @@ final class JournalRecords {
   /// with [agentFiles]: the canonical paths of the agent files its run writes
   /// outside the project, docs, and code roots.
   ///
-  /// Records nothing when there is no home folder.
-  ///
-  /// Throws [FileSystemException] when the record cannot be written.
+  /// Throws [FileSystemException] when there is no home folder or the record
+  /// cannot be written.
   void record(
     Directory projectRoot,
     List<int> journal, {
     Set<String> agentFiles = const {},
   }) {
-    final file = _fileOf(projectRoot);
-    if (file == null) return;
+    requireHome();
+    final file = _fileOf(projectRoot)!;
     final folder = file.parent..createSync(recursive: true);
     restrictToOwner(folder);
     final record = {
@@ -51,6 +50,14 @@ final class JournalRecords {
       _agentFilesKey: agentFiles.toList()..sort(compareCodePoints),
     };
     writeFileAtomic(file, utf8.encode(jsonEncode(record)));
+  }
+
+  /// Throws [FileSystemException] when there is no home folder to keep a
+  /// record in.
+  void requireHome() {
+    if (homeDirectory == null) {
+      throw const FileSystemException('no home folder to record it in');
+    }
   }
 
   /// Returns the agent files recorded with [journal], the bytes of the

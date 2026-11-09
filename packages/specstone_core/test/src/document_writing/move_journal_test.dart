@@ -5,8 +5,10 @@ import 'dart:io';
 import 'dart:mirrors';
 
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
+import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -15,6 +17,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/hold_open.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -2045,5 +2048,72 @@ void main() {
         expect(fileAt(x).readAsStringSync(), 'x body\n', reason: cursor);
       }
     });
+  });
+
+  group('a run with no home folder to record its journal', () {
+    final refusal = throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.exitStatus, 'exit', 73)
+          .having((f) => f.file, 'file', MoveJournal.journalPath)
+          .having(
+            (f) => f.message,
+            'message',
+            'cannot write .specstone/trash/journal.json: no home folder to '
+                'record it in',
+          ),
+    );
+
+    /// Runs [command] with no home folder and expects the refusal, the tree
+    /// as it stood after the first read unchanged.
+    void refuses(String command, void Function(WriteSession session) body) {
+      test('$command refuses before its first change', () async {
+        dropLinkIntoStory3();
+        getDoc(root, 'user_story:login/reset_password');
+        final before = treeBytes(root);
+
+        expect(() => writeInNoHome(root, body), refusal);
+
+        expect(treeBytes(root), before);
+        expect(dirExists('.specstone/trash'), isFalse);
+      });
+    }
+
+    test('move refuses before its first change', () async {
+      final nested = await writeNestedProject();
+      getDoc(nested, 'user_story:shop/cart/add_item');
+      final before = treeBytes(nested);
+
+      expect(
+        () => writeInNoHome(
+          nested,
+          (s) => answerMove(s, [
+            'user_story:shop/cart/add_item',
+          ], under: 'shop/pay'),
+        ),
+        refusal,
+      );
+
+      expect(treeBytes(nested), before);
+    });
+
+    refuses(
+      'delete',
+      (s) => answerDelete(
+        s,
+        ['user_story:login/reset_password'],
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () => 'y',
+        prompts: StringBuffer(),
+      ),
+    );
+    refuses(
+      'reorder',
+      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+    );
+    refuses(
+      'rename',
+      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'other'),
+    );
   });
 }

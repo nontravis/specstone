@@ -44,8 +44,8 @@ final class JournalTarget {
   final Directory docsRoot;
 
   /// The user's home folder, under which [JournalRecords] keeps the digest and
-  /// the agent files of each journal a run writes; null keeps none, so no
-  /// journal replays.
+  /// the agent files of each journal a run writes; null keeps none, so a run
+  /// that writes a journal is refused and no journal replays.
   final Directory? homeDirectory;
 
   /// The folder of the code files a step may rewrite; null for the project
@@ -713,11 +713,21 @@ final class MoveJournal {
   /// reads an unpark whose slot is still empty as done.
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
-  /// cannot be written, and [RenderFault] `output_not_writable` when a
+  /// cannot be written, and [RenderFault] `output_not_writable` before any
+  /// change when there is no home folder to record the journal in, when a
   /// folder a file moves out of sits on another volume than the trash (before
   /// any file moves), when cursor 0 or the journal cannot be written, or when
   /// a step or a later cursor write fails; the journal stays in the last case.
   void run(JournalTarget target) {
+    try {
+      target._records.requireHome();
+    } on FileSystemException catch (error) {
+      throw RenderFault(
+        RenderFaultCode.outputNotWritable,
+        _notWritable('write', journalPath, error).message,
+        file: journalPath,
+      );
+    }
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);

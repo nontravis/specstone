@@ -209,6 +209,39 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
+  test('a migrate run with no home folder to record its journal refuses before '
+      'its first change', () async {
+    final root = await gitFixture(acmeLegacy);
+    final before = treeBytes(root);
+
+    expect(
+      () => runMigrate(
+        MigrateRequest(
+          workingDirectory: root,
+          homeDirectory: null,
+          templates: TemplateResolver(),
+          dryRun: false,
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: StringBuffer(),
+        ),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having((f) => f.file, 'file', MoveJournal.journalPath)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write .specstone/trash/journal.json: no home folder '
+                  'to record it in',
+            ),
+      ),
+    );
+
+    expect(treeBytes(root), before);
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us01/fr07/e02: one git reset undoes the run', () async {
     final root = await gitFixture(acmeLegacy);
     final legacy = _bytesUnder(root);

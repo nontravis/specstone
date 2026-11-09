@@ -221,6 +221,32 @@ T writeIn<T>(
   busyTimeout: busyTimeout,
 );
 
+/// Runs [body] in a [WriteSession] on [root] with the shipped packs and no
+/// home folder, so a run cannot record a journal.
+T writeInNoHome<T>(Directory root, T Function(WriteSession session) body) =>
+    WriteSession.run(
+      body,
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: null,
+    );
+
+/// Returns every file under [root], outside `.git`, as its bytes keyed by its
+/// `/`-separated relative path, and every folder as an empty list, so a
+/// created or removed folder shows too.
+Map<String, List<int>> treeBytes(Directory root) {
+  final prefix = '${root.path}${Platform.pathSeparator}';
+  return {
+    for (final entity in root.listSync(recursive: true, followLinks: false))
+      entity.path
+          .substring(prefix.length)
+          .replaceAll(Platform.pathSeparator, '/'): switch (entity) {
+        File() => entity.readAsBytesSync(),
+        _ => const <int>[],
+      },
+  }..removeWhere((path, _) => path == '.git' || path.startsWith('.git/'));
+}
+
 /// Returns the first doc object `get` prints for [address], as an Agent reads
 /// a base.
 Map<String, Object?> getDoc(Directory root, String address) {
