@@ -192,8 +192,8 @@ void main() {
         'upgrade', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml':
-            '${shippedPinsConfig()}code_root: ../other\n',
-        'other/.git/HEAD': 'ref\n',
+            '${shippedPinsConfig()}code_root: other\n',
+        'proj/other/.git/HEAD': 'ref\n',
       });
 
       expect(
@@ -202,13 +202,27 @@ void main() {
       );
     });
 
+    test('$_findRoot R99: a repository top outside the project root, which '
+        'no run writes, is none', () async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: ../other\n',
+        'other/.git/HEAD': 'ref\n',
+      });
+
+      expect(
+        _choose(Directory.fromUri(base.uri.resolve('proj/'))),
+        RunKind.none,
+      );
+    });
+
     test('$_findRoot E10: a repository top a code entry reaches, found in a '
         'tech stack doc, is an upgrade', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml': shippedPinsConfig(),
         'proj/docs/specs/TECH_STACK.md':
-            '---\ncode:\n  - ../other/\n---\n# Tech stack\n',
-        'other/.git/HEAD': 'ref\n',
+            '---\ncode:\n  - other/\n---\n# Tech stack\n',
+        'proj/other/.git/HEAD': 'ref\n',
       });
 
       expect(
@@ -220,9 +234,9 @@ void main() {
     test('$_findRoot E11: a repository top the config lists is none', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml':
-            '${shippedPinsConfig()}code_root: ../other\n'
-            'agent_file_roots:\n  - ../other\n',
-        'other/.git/HEAD': 'ref\n',
+            '${shippedPinsConfig()}code_root: other\n'
+            'agent_file_roots:\n  - other\n',
+        'proj/other/.git/HEAD': 'ref\n',
       });
 
       expect(

@@ -119,13 +119,19 @@ ReadAnswer answerRename(
     final moves = _renameMoves(session, target, docType, shape, slug);
     if (moves.isEmpty) return _answerFor(session, moves, const []);
     final renamed = _renamedNames(session, moves);
-    final rewrites = planRewrites(session, moves, renamed: renamed);
+    final skipped = <String>[];
+    final rewrites = planRewrites(
+      session,
+      moves,
+      renamed: renamed,
+      onSkipped: skipped.add,
+    );
     MoveJournal([
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
     ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites);
+    return _answerFor(session, moves, rewrites, warnings: skipped);
   });
 }
 
@@ -190,13 +196,19 @@ ReadAnswer answerMove(
   return session.locked(() {
     final moves = _storyMoves(session, stories, docType, newParent);
     final renamed = _renamedNames(session, moves);
-    final rewrites = planRewrites(session, moves, renamed: renamed);
+    final skipped = <String>[];
+    final rewrites = planRewrites(
+      session,
+      moves,
+      renamed: renamed,
+      onSkipped: skipped.add,
+    );
     MoveJournal([
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
     ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites);
+    return _answerFor(session, moves, rewrites, warnings: skipped);
   });
 }
 
@@ -557,8 +569,9 @@ String _stepPath(WriteSession session, String docPath) {
 ReadAnswer _answerFor(
   WriteSession session,
   List<PathMove> moves,
-  List<WriteStep> rewrites,
-) {
+  List<WriteStep> rewrites, {
+  List<String> warnings = const [],
+}) {
   final rewritten = [
     for (final step in rewrites) session.listedPathOf(step.path),
   ];
@@ -573,5 +586,6 @@ ReadAnswer _answerFor(
       ],
       'rewritten': rewritten,
     },
+    warnings: warnings,
   );
 }

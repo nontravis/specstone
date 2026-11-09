@@ -62,6 +62,10 @@ Future<Directory> _spacedFixture(Map<String, String> files) async {
   return root;
 }
 
+/// Pack pins below the versions that write the agent files, so a run is an
+/// upgrade that plans them.
+const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
+
 /// A committed project pinning pack `acme` at 1.0.0, whose 1.1.0 in the
 /// returned home renames the runbook's `Steps` section, with one runbook.
 Future<({Directory project, Directory home})> _upgradeFixture() async {
@@ -121,6 +125,7 @@ int _run(
   List<String?> answers = const [],
   bool dryRun = false,
   String? planHash,
+  List<String>? warnings,
 }) {
   var call = 0;
   return runMigrate(
@@ -133,6 +138,7 @@ int _run(
       planHash: planHash,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
+      warn: (warnings ?? <String>[]).add,
     ),
   );
 }
@@ -863,9 +869,9 @@ void main() {
   group('f06/us01/fr07: resume and replay', () {
     final skipGit = hasGit ? null : 'git is not available';
 
-    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
-        'stopped migrate one folder below its repository top replays the '
-        'repository-top CLAUDE.md to its end', () async {
+    test('document_writing/delete_doc_subtree/finish_interrupted_move R99: a '
+        'stopped migrate whose journal writes the CLAUDE.md of the repository '
+        'top above the project refuses and leaves the file', () async {
       final base = await gitFixture({
         'CLAUDE.md': 'Owner\n',
         'specs/.specstone/config.yaml': shippedPinsConfig(),
@@ -886,9 +892,55 @@ void main() {
         agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
       );
 
+      expect(
+        () => runMigrate(
+          MigrateRequest(
+            workingDirectory: project,
+            homeDirectory: testHome(),
+            templates: TemplateResolver(),
+            dryRun: false,
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => throw StateError('resume must not ask'),
+            out: StringBuffer(),
+          ),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', MoveJournal.journalPath),
+        ),
+      );
+
+      expect(File('${base.path}/CLAUDE.md').readAsStringSync(), 'Owner\n');
+      expect(MoveJournal.pending(project), isTrue);
+    }, skip: skipGit);
+
+    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+        'stopped migrate replays the CLAUDE.md of the project it wrote, whose '
+        'real path is recorded', () async {
+      final base = await gitFixture({
+        'CLAUDE.md': 'Owner\n',
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/prds/PROJECT.md': '# Project\n',
+      });
+      final head = (git(base, ['rev-parse', 'HEAD']).stdout as String).trim();
+      writeJournal(
+        base,
+        [
+          WriteStep(
+            'CLAUDE.md',
+            'Owner\nblock\n',
+            before: textHashOf('Owner\n'),
+          ),
+          CommitStep(message: 'agent files', paths: const [], base: head),
+        ],
+        agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
+      );
+
       final status = runMigrate(
         MigrateRequest(
-          workingDirectory: project,
+          workingDirectory: base,
           homeDirectory: testHome(),
           templates: TemplateResolver(),
           dryRun: false,
@@ -903,23 +955,24 @@ void main() {
         File('${base.path}/CLAUDE.md').readAsStringSync(),
         'Owner\nblock\n',
       );
-      expect(MoveJournal.pending(project), isFalse);
+      expect(MoveJournal.pending(base), isFalse);
     }, skip: skipGit);
 
     test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
         'migrate stopped at commit 2 resumes the agent file it wrote at the '
-        "top of its code root's repository", () async {
+        "top of a repository nested in the project's code root", () async {
       final base = await _twoRepositories({
         'proj/.specstone/config.yaml':
-            '${shippedPinsConfig()}code_root: ../mono/services/api\n',
-        'mono/services/api/main.dart': 'void main() {}\n',
-      }, other: 'mono');
+            '${shippedPinsConfig()}code_root: mono/services/api\n',
+        'proj/.gitignore': 'mono/\n',
+        'proj/mono/services/api/main.dart': 'void main() {}\n',
+      }, other: 'proj/mono');
       final project = Directory('${base.path}/proj');
       final hook = File('${project.path}/.git/hooks/pre-commit')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
       expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
-      final topFile = File('${base.path}/mono/AGENTS.md');
+      final topFile = File('${project.path}/mono/AGENTS.md');
 
       expect(
         () => _run(project, StringBuffer(), answers: ['y']),
@@ -947,15 +1000,51 @@ void main() {
       );
       expect(
         File('${project.path}/.specstone/config.yaml').readAsStringSync(),
-        contains('agent_file_roots:\n  - ../mono\n'),
+        contains('agent_file_roots:\n  - mono\n'),
       );
       expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
+    test(
+      'setup_migration/set_up_new_project/write_agent_files R99: a '
+      'migrate whose code root sits in a repository outside the project '
+      'plans and writes no agent file there, names it, and finishes',
+      () async {
+        final base = await _twoRepositories({
+          'proj/.specstone/config.yaml':
+              '${_belowSince}code_root: ../mono/services/api\n',
+          'mono/services/api/main.dart': 'void main() {}\n',
+        }, other: 'mono');
+        final project = Directory('${base.path}/proj');
+        final topFile = File('${base.path}/mono/AGENTS.md');
+        final dryOut = StringBuffer();
+        final dryWarnings = <String>[];
+        final out = StringBuffer();
+        final warnings = <String>[];
+        const skipLine =
+            '../mono/AGENTS.md reaches outside the project root; left as it is';
+
+        expect(_run(project, dryOut, dryRun: true, warnings: dryWarnings), 0);
+        expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
+
+        expect(dryOut.toString(), isNot(contains('mono')));
+        expect(out.toString(), isNot(contains('mono/AGENTS.md')));
+        expect(dryWarnings, [skipLine]);
+        expect(warnings, [skipLine]);
+        expect(topFile.existsSync(), isFalse);
+        expect(
+          File('${project.path}/.specstone/config.yaml').readAsStringSync(),
+          isNot(contains('agent_file_roots')),
+        );
+        expect(MoveJournal.pending(project), isFalse);
+      },
+      skip: skipGit,
+    );
+
     test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
         'legacy migrate stopped at commit 1, before its config exists, '
-        "resumes the agent file at the top of its code root's "
-        'repository', () async {
+        'resumes and still writes no agent file at the top of a repository '
+        'outside the project', () async {
       final base = await _twoRepositories(
         {
           for (final MapEntry(:key, :value) in acmeLegacy.entries)
@@ -974,9 +1063,10 @@ void main() {
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
       expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final warnings = <String>[];
 
       expect(
-        () => _run(app, StringBuffer(), answers: ['y']),
+        () => _run(app, StringBuffer(), answers: ['y'], warnings: warnings),
         throwsA(
           isA<MigrateFault>().having(
             (f) => f.code,
@@ -994,47 +1084,122 @@ void main() {
       expect(_run(app, StringBuffer()), 0);
 
       expect(MoveJournal.pending(project), isFalse);
-      expect(
-        File('${app.path}/AGENTS.md').readAsStringSync(),
-        inlineBlock(cliVersion: specstoneVersion),
-      );
+      expect(warnings, [
+        '../app/AGENTS.md reaches outside the project root; left as it is',
+      ]);
+      expect(File('${app.path}/AGENTS.md').existsSync(), isFalse);
       expect(
         File('${project.path}/.specstone/config.yaml').readAsStringSync(),
         contains('code_root: ../app\n'),
       );
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit);
 
-    test('setup_migration/set_up_new_project/write_agent_files E27: a root '
-        'AGENTS.md linked to the AGENTS.md of a qualifying top migrates to '
-        'its end with one write', () async {
-      final base = await _twoRepositories(
-        {
-          'proj/.specstone/config.yaml':
-              '${shippedPinsConfig()}code_root: ../app\n',
-          'app/AGENTS.md':
-              'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
-              '<!-- END specstone -->\n',
+    group('setup_migration/set_up_new_project/write_agent_files: a root '
+        'AGENTS.md that is a link', () {
+      test(
+        'R99: to the AGENTS.md of a top outside the project is named and '
+        'left, and the run finishes with no agent write',
+        () async {
+          final base = await _twoRepositories(
+            {
+              'proj/.specstone/config.yaml':
+                  '${_belowSince}code_root: ../app\n',
+              'app/AGENTS.md':
+                  'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
+                  '<!-- END specstone -->\n',
+            },
+            other: 'app',
+            links: {'proj/AGENTS.md': '../app/AGENTS.md'},
+          );
+          final project = Directory('${base.path}/proj');
+          final before = File('${base.path}/app/AGENTS.md').readAsStringSync();
+          final out = StringBuffer();
+          final warnings = <String>[];
+
+          final status = _run(project, out, answers: ['y'], warnings: warnings);
+
+          expect(status, 0);
+          expect(out.toString(), isNot(contains('agent files: AGENTS.md')));
+          expect(warnings, [
+            'AGENTS.md reaches outside the project root; left as it is',
+          ]);
+          expect(File('${base.path}/app/AGENTS.md').readAsStringSync(), before);
+          expect(
+            Link('${project.path}/AGENTS.md').targetSync(),
+            '../app/AGENTS.md',
+          );
+          expect(MoveJournal.pending(project), isFalse);
         },
-        other: 'app',
-        links: {'proj/AGENTS.md': '../app/AGENTS.md'},
+        skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
       );
-      final project = Directory('${base.path}/proj');
-      final out = StringBuffer();
 
-      expect(_run(project, out, answers: ['y']), 0);
+      test(
+        'R99: a root CLAUDE.md linked to a file outside the project is '
+        'named and left, and the journal clears',
+        () async {
+          final base = await _twoRepositories(
+            {
+              'proj/.specstone/config.yaml': _belowSince,
+              'shared/CLAUDE.md': 'Shared\n',
+            },
+            other: 'shared',
+            links: {'proj/CLAUDE.md': '../shared/CLAUDE.md'},
+          );
+          final project = Directory('${base.path}/proj');
+          final out = StringBuffer();
+          final warnings = <String>[];
 
-      expect(out.toString(), contains('  agent files: AGENTS.md\n'));
-      expect(
-        File('${base.path}/app/AGENTS.md').readAsStringSync(),
-        'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+          expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
+
+          expect(warnings, [
+            'CLAUDE.md reaches outside the project root; left as it is',
+          ]);
+          expect(out.toString(), isNot(contains('agent files: CLAUDE.md')));
+          expect(
+            File('${base.path}/shared/CLAUDE.md').readAsStringSync(),
+            'Shared\n',
+          );
+          expect(
+            Link('${project.path}/CLAUDE.md').targetSync(),
+            '../shared/CLAUDE.md',
+          );
+          expect(MoveJournal.pending(project), isFalse);
+        },
+        skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
       );
-      expect(
-        Link('${project.path}/AGENTS.md').targetSync(),
-        '../app/AGENTS.md',
+
+      test(
+        'E22: to the CLAUDE.md of the project takes one block and the '
+        'link stays',
+        () async {
+          final base = await _twoRepositories(
+            {
+              'proj/.specstone/config.yaml': shippedPinsConfig(),
+              'proj/CLAUDE.md':
+                  'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
+                  '<!-- END specstone -->\n',
+              'app/.keep': '',
+            },
+            other: 'app',
+            links: {'proj/AGENTS.md': 'CLAUDE.md'},
+          );
+          final project = Directory('${base.path}/proj');
+          final out = StringBuffer();
+          final warnings = <String>[];
+
+          expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
+
+          expect(warnings, isEmpty);
+          expect(
+            File('${project.path}/CLAUDE.md').readAsStringSync(),
+            'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+          );
+          expect(Link('${project.path}/AGENTS.md').targetSync(), 'CLAUDE.md');
+          expect(MoveJournal.pending(project), isFalse);
+        },
+        skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
       );
-      expect(MoveJournal.pending(project), isFalse);
-      expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
-    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit);
+    });
 
     test('f06/us01/fr07/e03, f06/us01/fr01/e07, f06/us01/s9: a run stopped '
         'after commit 1 finishes with no second y', () async {

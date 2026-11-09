@@ -639,6 +639,7 @@ _LabelPlan _planLabelPass(
       agentFileRoots: agentWrites.agentFileRoots,
       addedRoots: agentWrites.addedRoots,
       writeSet: agentWrites.writeSet,
+      skipped: agentWrites.skipped,
     ),
   );
 }

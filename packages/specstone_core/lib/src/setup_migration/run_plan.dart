@@ -152,7 +152,8 @@ final class RunPlan {
   ///
   /// An agent file reached through a symbolic link, of the file or of a folder
   /// above it, gets its step on the real path from [projectRoot], so the link
-  /// stays a link. A real path outside the project joins no commit (R49).
+  /// stays a link. The plan lists no agent file whose real path lies outside
+  /// the project (R99), so each step lands inside the project root.
   ///
   /// Throws [StateError] when two text steps land on one path: both would
   /// carry one `before` text, so the first would make the second skip.

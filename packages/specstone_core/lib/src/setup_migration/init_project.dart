@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show skippedOutsideLine, warnOnStderr;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -31,6 +33,7 @@ final class InitRequest {
     required this.out,
     this.planHash,
     this.runGit = runRealGit,
+    this.warn = warnOnStderr,
   });
 
   /// The folder the new project root is taken from.
@@ -58,6 +61,10 @@ final class InitRequest {
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
+
+  /// Reports one warning line, such as an agent file the run leaves outside
+  /// the project root; writes it to stderr unless replaced.
+  final void Function(String line) warn;
 }
 
 /// Runs `specstone init` and returns its exit status.
@@ -101,6 +108,7 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
       out: request.out,
       planHash: request.planHash,
       runGit: request.runGit,
+      warn: request.warn,
     );
 
 /// Returns [folder], canonical, when it is not [root], else null.
@@ -124,6 +132,7 @@ int _scaffold(Directory root, InitRequest request) {
     homeDirectory: request.homeDirectory,
   );
   final agentPlan = _planAgentFiles(root, set);
+  agentPlan.skipped.map(skippedOutsideLine).forEach(request.warn);
   final docsRoot = Directory.fromUri(root.uri.resolve('docs/'));
   for (final docType in singularDocTypes(set)) {
     final path = docType.path;

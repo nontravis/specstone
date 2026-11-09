@@ -21,10 +21,9 @@ final class JournalTarget {
     required this.projectRoot,
     required this.docsRoot,
     required this.homeDirectory,
-    this.codeRoot,
     this.agentFiles = const {},
     this.runGit = runRealGit,
-    this.warn = _warnOnStderr,
+    this.warn = warnOnStderr,
   });
 
   /// Returns the target of an opened [project], its records under
@@ -34,7 +33,6 @@ final class JournalTarget {
         projectRoot: project.projectRoot,
         docsRoot: project.docsRoot,
         homeDirectory: homeDirectory,
-        codeRoot: project.codeRoot,
       );
 
   /// The folder every step path is relative to.
@@ -49,12 +47,8 @@ final class JournalTarget {
   /// refused and no journal replays.
   final Directory? homeDirectory;
 
-  /// The folder of the code files a step may rewrite; null for the project
-  /// root.
-  final Directory? codeRoot;
-
-  /// The canonical paths of the agent files a migrate writes outside the
-  /// roots (R49); [MoveJournal.run] records them with the journal, so its
+  /// The canonical paths of the agent files a migrate writes inside the
+  /// project root; [MoveJournal.run] records them with the journal, so its
   /// replay admits them.
   final Set<String> agentFiles;
 
@@ -66,15 +60,22 @@ final class JournalTarget {
 
   JournalRecords get _records => JournalRecords(homeDirectory);
 
-  /// The folders a replayed step path must land in: the project, docs, and
-  /// code roots, each at its canonical path.
+  /// The folders a step path must land in: the project and docs roots, each
+  /// at its canonical path. A code root outside the project is read, never
+  /// written (R99).
   List<String> get _bounds => [
-    for (final folder in [projectRoot, docsRoot, ?codeRoot])
+    for (final folder in [projectRoot, docsRoot])
       if (folder.existsSync()) folder.resolveSymbolicLinksSync(),
   ];
 }
 
-void _warnOnStderr(String line) => stderr.writeln(line);
+/// Writes [line] to stderr; the default of every `warn` hook.
+void warnOnStderr(String line) => stderr.writeln(line);
+
+/// Returns the warning line for [path], a file a run leaves as it is because
+/// its real path lies outside the project root (R99).
+String skippedOutsideLine(String path) =>
+    '$path reaches outside the project root; left as it is';
 
 /// Returns the hash of [text], read as a file's text without a byte-order
 /// mark; a [WriteStep] records it for the text it replaces.
@@ -574,7 +575,7 @@ final class CommitStep extends JournalStep {
   /// Throws [RenderFault] `output_not_writable` when the file cannot be
   /// written.
   List<String> _pathspecFile(JournalTarget target, Iterable<String> pathspecs) {
-    _requireInside(target, const [_pathspecPath]);
+    _requireFoldersInside(target, const [_pathspecPath]);
     final file = File(_absolute(target, _pathspecPath));
     try {
       file.parent.createSync(recursive: true);
@@ -650,9 +651,12 @@ final class MoveJournal {
   /// as decimal ASCII text, relative to the project root.
   static const cursorPath = '.specstone/trash/journal.cursor';
 
+  /// The folder of the project's own files, relative to the project root.
+  static const specstoneFolder = '.specstone';
+
   /// The folder holding the journal and the deleted files, relative to the
   /// project root.
-  static const trashPath = '.specstone/trash';
+  static const trashPath = '$specstoneFolder/trash';
 
   /// The folder a reorder parks its docs in between its two phases, relative
   /// to the project root.
@@ -739,14 +743,18 @@ final class MoveJournal {
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
   /// cannot be written, and [RenderFault] `output_not_writable` before any
   /// change when there is no usable home folder to record the journal in, when
-  /// `.specstone` or its trash folder leads outside the roots, when a folder a
-  /// file moves out of sits on another volume than the trash (before any file
-  /// moves), when cursor 0 or the journal cannot be written, or when a step
-  /// leaves the roots as the disk stands when it runs or a step or a later
-  /// cursor write fails; the journal stays in the last case.
+  /// `.specstone` or its trash folder leads outside the roots, when a step path
+  /// leaves them, when a folder a file moves out of sits on another volume than
+  /// the trash (before any file moves), when cursor 0 or the journal cannot be
+  /// written, or when a step leaves the roots as the disk stands when it runs
+  /// or a step or a later cursor write fails; the journal stays in the last
+  /// case.
   void run(JournalTarget target) {
     requireHomeFolder(target.homeDirectory, target.projectRoot);
-    _requireInside(target, const ['.specstone/.gitignore', journalPath]);
+    _requireFoldersInside(target, const ['.specstone/.gitignore', journalPath]);
+    _requireInside(target, [
+      for (final step in steps) ...step._paths,
+    ], agentFiles: target.agentFiles);
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);
@@ -871,10 +879,11 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
   return (steps: steps, agentFiles: recorded.agentFiles);
 }
 
-/// Throws [RenderFault] `output_not_writable` unless each of [paths] lands
-/// inside the project, docs, or code root, or on one of [agentFiles], as the
-/// disk stands now, below no `.git` entry and through no link out of them.
+/// Throws [RenderFault] `output_not_writable` unless each of [paths], the step
+/// paths of a journal, lands inside the project or docs root, as the disk
+/// stands now, below no `.git` entry and through no link out of them.
 ///
+/// A path in [agentFiles] that lies inside the project root also passes.
 /// Judged afresh at every use: a step that ran earlier may have put a link in
 /// place that the up-front check could not see.
 void _requireInside(
@@ -882,18 +891,49 @@ void _requireInside(
   Iterable<String> paths, {
   Set<String> agentFiles = const {},
 }) {
+  final bad = _firstOutside(target, paths, agentFiles: agentFiles);
+  if (bad == null) return;
+  throw _untrusted(
+    'its step path $bad leaves the project, docs, and code roots',
+  );
+}
+
+/// Throws [RenderFault] `output_not_writable` unless each of [paths], a file
+/// or folder the journal machinery itself writes, lands inside the project or
+/// docs root as the disk stands now.
+///
+/// The refusal names the path, not a step: a link in `.specstone` leads the
+/// machinery out, and no journal need exist.
+void _requireFoldersInside(JournalTarget target, Iterable<String> paths) {
+  final bad = _firstOutside(target, paths);
+  if (bad == null) return;
+  throw RenderFault(
+    RenderFaultCode.outputNotWritable,
+    '$bad leads outside the project and docs roots; remove the link on its '
+    'way in ${MoveJournal.specstoneFolder}/ to go on',
+    file: MoveJournal.journalPath,
+  );
+}
+
+/// Returns the first of [paths] outside the bounds, or null when all are in.
+String? _firstOutside(
+  JournalTarget target,
+  Iterable<String> paths, {
+  Set<String> agentFiles = const {},
+}) {
+  final project = target.projectRoot.resolveSymbolicLinksSync();
   final bounds = JournalBounds(
     target.projectRoot,
     target._bounds,
-    agentFiles: agentFiles,
+    agentFiles: {
+      for (final file in agentFiles)
+        if (_isInside(project, file)) file,
+    },
   );
   for (final path in paths) {
-    if (!bounds.holds(path)) {
-      throw _untrusted(
-        'its step path $path leaves the project, docs, and code roots',
-      );
-    }
+    if (!bounds.holds(path)) return path;
   }
+  return null;
 }
 
 /// Returns the bytes of the journal under [projectRoot] and the agent files
@@ -969,10 +1009,6 @@ void _requireSameVolume(JournalTarget target, List<JournalStep> steps) {
   final trash = Directory(
     _join(target.projectRoot.path, MoveJournal.trashPath),
   );
-  _requireInside(target, [
-    for (final step in steps)
-      if (_movesToTrash(step)) ...step._paths,
-  ], agentFiles: target.agentFiles);
   final trashExisted = trash.existsSync();
   final sources = {
     for (final step in steps)
@@ -1063,7 +1099,7 @@ int? _cursorOf(Directory projectRoot, List<JournalStep> steps) {
 ///
 /// Throws [RenderFault] `output_not_writable` when the disk refuses.
 void _saveCursor(JournalTarget target, int cursor) {
-  _requireInside(target, const [MoveJournal.cursorPath]);
+  _requireFoldersInside(target, const [MoveJournal.cursorPath]);
   try {
     writeFileAtomic(
       File(_join(target.projectRoot.path, MoveJournal.cursorPath)),
@@ -1092,7 +1128,7 @@ void _finish(
   }
   // The journal goes first: a cursor left alone is ignored, while a journal
   // left without its cursor would replay every step.
-  _requireInside(target, const [MoveJournal.journalPath]);
+  _requireFoldersInside(target, const [MoveJournal.journalPath]);
   for (final path in [MoveJournal.journalPath, MoveJournal.cursorPath]) {
     try {
       _deleteIfPresent(File(_join(target.projectRoot.path, path)));
@@ -1109,7 +1145,7 @@ void _deleteIfPresent(File file) {
 
 /// Removes the trash folder, then the journal's record.
 void _removeTrash(JournalTarget target) {
-  _requireInside(target, const [MoveJournal.journalPath]);
+  _requireFoldersInside(target, const [MoveJournal.journalPath]);
   final trash = Directory(
     _join(target.projectRoot.path, MoveJournal.trashPath),
   );

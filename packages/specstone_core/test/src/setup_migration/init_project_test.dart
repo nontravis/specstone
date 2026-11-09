@@ -39,6 +39,7 @@ const _draftPaths = [
   List<String?> answers = const [],
   RunGit runGit = _noGit,
   String? planHash,
+  List<String>? warnings,
 }) {
   final out = StringBuffer();
   var call = 0;
@@ -52,6 +53,7 @@ const _draftPaths = [
       out: out,
       planHash: planHash,
       runGit: runGit,
+      warn: (warnings ?? <String>[]).add,
     ),
   );
   return (status, out.toString().split('\n')..removeLast());
@@ -270,8 +272,35 @@ void main() {
   });
 
   test('setup_migration/set_up_new_project/write_agent_files E18: a repository '
-      'top a code entry reaches is upserted, printed, and listed in the '
-      'config', () async {
+      'top inside the project that a code entry reaches is upserted, printed, '
+      'and listed in the config', () async {
+    final base = await writeTree({
+      'project/docs/specs/TECH_STACK.md':
+          '---\ncode:\n  - other/\n---\n# Tech stack\n',
+      'project/other/.git/HEAD': 'ref\n',
+      'project/other/AGENTS.md': 'Owner\n',
+    });
+    final project = Directory('${base.path}/project');
+
+    final (status, lines) = _run(project);
+
+    expect(status, 0);
+    final topLine = lines.indexOf('updated other/AGENTS.md');
+    expect(topLine, isNonNegative);
+    expect(lines.indexOf(_configLine()), greaterThan(topLine));
+    expect(
+      File('${base.path}/project/other/AGENTS.md').readAsStringSync(),
+      'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+    );
+    expect(
+      _read(project, '.specstone/config.yaml'),
+      contains('agent_file_roots:\n  - other\n'),
+    );
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files R99: a '
+      'repository top outside the project root is named, never written, and '
+      'not listed', () async {
     final base = await writeTree({
       'project/docs/specs/TECH_STACK.md':
           '---\ncode:\n  - ../other/\n---\n# Tech stack\n',
@@ -279,20 +308,19 @@ void main() {
       'other/AGENTS.md': 'Owner\n',
     });
     final project = Directory('${base.path}/project');
+    final warnings = <String>[];
 
-    final (status, lines) = _run(project);
+    final (status, lines) = _run(project, warnings: warnings);
 
     expect(status, 0);
-    final topLine = lines.indexOf('updated ../other/AGENTS.md');
-    expect(topLine, isNonNegative);
-    expect(lines.indexOf(_configLine()), greaterThan(topLine));
-    expect(
-      File('${base.path}/other/AGENTS.md').readAsStringSync(),
-      'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
-    );
+    expect(warnings, [
+      '../other/AGENTS.md reaches outside the project root; left as it is',
+    ]);
+    expect(lines, isNot(contains(contains('other'))));
+    expect(File('${base.path}/other/AGENTS.md').readAsStringSync(), 'Owner\n');
     expect(
       _read(project, '.specstone/config.yaml'),
-      contains('agent_file_roots:\n  - ../other\n'),
+      isNot(contains('agent_file_roots')),
     );
   });
 
@@ -301,15 +329,15 @@ void main() {
       'a URI fragment', () async {
     final base = await writeTree({
       'project/docs/specs/TECH_STACK.md':
-          '---\ncode:\n  - ../other#1/\n---\n# Tech stack\n',
-      'other#1/.git/HEAD': 'ref\n',
+          '---\ncode:\n  - other#1/\n---\n# Tech stack\n',
+      'project/other#1/.git/HEAD': 'ref\n',
     });
     final project = Directory('${base.path}/project');
 
     final (status, _) = _run(project);
 
     expect(status, 0);
-    expect(File('${base.path}/other#1/AGENTS.md').existsSync(), isTrue);
+    expect(File('${base.path}/project/other#1/AGENTS.md').existsSync(), isTrue);
   });
 
   for (final (:real, :link) in [

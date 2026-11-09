@@ -1902,43 +1902,70 @@ void main() {
         folder = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
       });
 
-      Future<Directory> project() async {
+      String config() => '${shippedPinsConfig()}code_root: ../$folder\n';
+
+      List<String> skipLines(String path) => [
+        '$path reaches outside the project root; left as it is',
+      ];
+
+      Map<String, List<int>> outsideBytes() => {
+        for (final entity in outside.listSync(recursive: true))
+          if (entity is File) entity.path: entity.readAsBytesSync(),
+      };
+
+      test('document_writing/rename_doc/rewrite_name_references: rename leaves a code file outside the project as it is, names it, and applies the rename', () async {
         File('${outside.path}/app/lib/doc.dart')
           ..createSync(recursive: true)
           ..writeAsStringSync('// `login/email_login`\n');
-        return writeCheckProject(
-          extra: {
-            '.specstone/config.yaml':
-                '${shippedPinsConfig()}code_root: ../$folder\n',
-          },
+        final root = await writeCheckProject(
+          extra: {'.specstone/config.yaml': config()},
         );
-      }
+        final before = outsideBytes();
 
-      test('document_writing/rename_doc/rewrite_name_references: rename rewrites its file and lists it by a ../ path', () async {
-        final root = await project();
         final answer = renameLogin(root);
-        expect(
-          File('${outside.path}/app/lib/doc.dart').readAsStringSync(),
-          '// `signin/email_login`\n',
-        );
-        expect(answer.json['rewritten'], ['../$folder/app/lib/doc.dart']);
+
+        expect(outsideBytes(), before);
+        expect(answer.warnings, skipLines('../$folder/app/lib/doc.dart'));
+        expect(answer.json['rewritten'], isNot(contains(contains(folder))));
+        expect(hasDoc(root, 'prds/features/f01_signin/FEATURE.md'), isTrue);
+        expect(hasDoc(root, 'prds/features/f01_login/FEATURE.md'), isFalse);
       });
 
-      test('document_writing/rename_doc/rewrite_name_references: a stopped run replays its write to the same file', () async {
-        final root = await project();
-        writeJournal(root, [
-          WriteStep(
-            '../$folder/app/lib/doc.dart',
-            '// `signin/email_login`\n',
-            before: textHashOf('// `login/email_login`\n'),
-          ),
-        ]);
-        writeIn(root, (s) => s.index.docs.length);
-        expect(
-          File('${outside.path}/app/lib/doc.dart').readAsStringSync(),
-          '// `signin/email_login`\n',
+      test('document_writing/rename_doc/rewrite_name_references: a code file outside the project with no mention is not named', () async {
+        File('${outside.path}/app/lib/doc.dart')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('// nothing renamed here\n');
+        final root = await writeCheckProject(
+          extra: {'.specstone/config.yaml': config()},
         );
-        expect(MoveJournal.pending(root), isFalse);
+
+        final answer = renameLogin(root);
+
+        expect(answer.warnings, isEmpty);
+      });
+
+      test('document_writing/move_story/rewrite_moved_story_references: move leaves a code file outside the project as it is, names it, and applies the move', () async {
+        File('${outside.path}/app/lib/cart.dart')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('// Adds `shop/cart/add_item`.\n');
+        final root = await writeNestedProject(
+          extra: {
+            '.specstone/config.yaml': config(),
+            'docs/notes.md': 'See `shop/cart/add_item`.\n',
+          },
+        );
+        final before = outsideBytes();
+
+        final answer = writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:shop/cart/add_item',
+          ], under: 'shop/pay'),
+        );
+
+        expect(outsideBytes(), before);
+        expect(answer.warnings, skipLines('../$folder/app/lib/cart.dart'));
+        expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
       });
     });
 

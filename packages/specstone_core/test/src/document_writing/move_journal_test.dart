@@ -962,8 +962,27 @@ void main() {
       expect(File('${outside.path}/victim.txt').readAsStringSync(), 'mine\n');
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
-    test('a recorded journal naming a code file under the code root '
-        'replays', () async {
+    test('a recorded journal naming a code file under a code root inside the '
+        'project replays', () async {
+      final project = await writeTree({
+        'src/a.dart': '// old\n',
+        '.specstone/config.yaml':
+            '${writeProject['.specstone/config.yaml']!}code_root: src\n',
+        'docs/prds/PROJECT.md': 'x\n',
+      });
+      writeJournal(project, const [
+        WriteStep.unguarded('src/a.dart', '// new\n'),
+      ]);
+
+      MoveJournal.replay(
+        JournalTarget.of(openProject(project), homeDirectory: testHome()),
+      );
+
+      expect(File('${project.path}/src/a.dart').readAsStringSync(), '// new\n');
+    });
+
+    test('a recorded journal naming a code file under a code root outside the '
+        'project is refused, and the file keeps its text', () async {
       final base = await writeTree({
         'lib/a.dart': '// old\n',
         'proj/.specstone/config.yaml':
@@ -975,15 +994,20 @@ void main() {
         WriteStep.unguarded('../lib/a.dart', '// new\n'),
       ]);
 
-      MoveJournal.replay(
-        JournalTarget.of(openProject(project), homeDirectory: testHome()),
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(project), homeDirectory: testHome()),
+        ),
+        untrusted(
+          'its step path ../lib/a.dart leaves the project, docs, and code '
+          'roots',
+        ),
       );
-
-      expect(File('${base.path}/lib/a.dart').readAsStringSync(), '// new\n');
+      expect(File('${base.path}/lib/a.dart').readAsStringSync(), '// old\n');
     });
 
-    test('a journal admits the agent files recorded with it outside the '
-        'roots, and no other file there', () async {
+    test('an agent file recorded outside the project root is refused like '
+        'any other path outside it, and the file keeps its text', () async {
       final base = await writeTree({
         'CLAUDE.md': 'Owner\n',
         'notes.md': 'mine\n',
@@ -1000,7 +1024,7 @@ void main() {
         homeDirectory: testHome(),
       );
 
-      for (final path in ['../notes.md', '../.git/config']) {
+      for (final path in ['../notes.md', '../.git/config', '../CLAUDE.md']) {
         writeJournal(project, [
           WriteStep.unguarded(path, 'payload\n'),
         ], agentFiles: agentFiles);
@@ -1011,26 +1035,36 @@ void main() {
           ),
         );
       }
-      writeJournal(project, const [
-        WriteStep.unguarded('../CLAUDE.md', 'Owner\nblock\n'),
-      ]);
-      expect(
-        () => MoveJournal.replay(target),
-        untrusted(
-          'its step path ../CLAUDE.md leaves the project, docs, and code roots',
-        ),
+
+      expect(File('${base.path}/CLAUDE.md').readAsStringSync(), 'Owner\n');
+      expect(File('${base.path}/notes.md').readAsStringSync(), 'mine\n');
+      expect(File('${base.path}/.git/config').readAsStringSync(), '[core]\n');
+    });
+
+    test('a journal admits the agent files recorded with it inside the '
+        'project root', () async {
+      final base = await writeTree({
+        'CLAUDE.md': 'Owner\n',
+        '.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'docs/prds/PROJECT.md': 'x\n',
+      });
+      final target = JournalTarget(
+        projectRoot: base,
+        docsRoot: Directory('${base.path}/docs'),
+        homeDirectory: testHome(),
       );
-      writeJournal(project, const [
-        WriteStep.unguarded('../CLAUDE.md', 'Owner\nblock\n'),
-      ], agentFiles: agentFiles);
+      writeJournal(
+        base,
+        const [WriteStep.unguarded('CLAUDE.md', 'Owner\nblock\n')],
+        agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
+      );
+
       MoveJournal.replay(target);
 
       expect(
         File('${base.path}/CLAUDE.md').readAsStringSync(),
         'Owner\nblock\n',
       );
-      expect(File('${base.path}/notes.md').readAsStringSync(), 'mine\n');
-      expect(File('${base.path}/.git/config').readAsStringSync(), '[core]\n');
     });
 
     test('a stopped run replays on the next command, and its record goes '

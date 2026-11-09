@@ -179,7 +179,7 @@ RunPlan planLegacyRun(
 }
 
 /// Plans the agent files of the legacy run: the full upsert at the root and at
-/// each unlisted repository top.
+/// each unlisted repository top inside the project root.
 ///
 /// The legacy tree holds no `code:` entry, so the code roots are the config's
 /// `code_root` alone.

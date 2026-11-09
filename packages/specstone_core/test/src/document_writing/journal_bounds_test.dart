@@ -45,6 +45,19 @@ Matcher _leaves(String path) => throwsA(
       ),
 );
 
+Matcher _leadsOutside(String path) => throwsA(
+  isA<RenderFault>()
+      .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+      .having((f) => f.exitStatus, 'exit', 73)
+      .having((f) => f.file, 'file', MoveJournal.journalPath)
+      .having(
+        (f) => f.message,
+        'message',
+        '$path leads outside the project and docs roots; remove the link on '
+            'its way in .specstone/ to go on',
+      ),
+);
+
 void main() {
   group('$_finish E08: JournalBounds', () {
     late Directory root;
@@ -229,7 +242,7 @@ void main() {
             homeDirectory: testHome(),
           ),
         ),
-        _leaves(MoveJournal.journalPath),
+        _leadsOutside(MoveJournal.journalPath),
       );
 
       expect(_snapshot(base), before);
@@ -251,7 +264,7 @@ void main() {
         final rootBefore = _snapshot(root);
         final outsideBefore = _snapshot(outside);
 
-        expect(run, _leaves(MoveJournal.journalPath));
+        expect(run, _leadsOutside(MoveJournal.journalPath));
 
         expect(_snapshot(root), rootBefore);
         expect(_snapshot(outside), outsideBefore);
@@ -296,6 +309,56 @@ void main() {
       });
     }, skip: _linksUnavailable);
 
+    test('a run refuses a step path outside the project before its first '
+        'change, and writes no journal', () async {
+      final root = await writeWriteProject();
+      final outside = await writeTree({'victim.txt': 'mine\n'});
+      writeIn(root, (session) => session.project);
+      final before = _snapshot(root);
+      final outsideBefore = _snapshot(outside);
+      final victim =
+          '../${outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty)}'
+          '/victim.txt';
+
+      expect(
+        () => MoveJournal([
+          const MoveStep('docs/$story3', 'docs/$story3.moved'),
+          WriteStep.unguarded(victim, 'payload\n'),
+        ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+        _leaves(victim),
+      );
+
+      expect(_snapshot(root), before);
+      expect(_snapshot(outside), outsideBefore);
+    });
+
+    test('a run refuses an agent file outside the project even when its '
+        'target lists it', () async {
+      final root = await writeWriteProject();
+      final outside = await writeTree({'CLAUDE.md': 'Owner\n'});
+      writeIn(root, (session) => session.project);
+      final before = _snapshot(root);
+      final outsideBefore = _snapshot(outside);
+      final folder = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+      final path = '../$folder/CLAUDE.md';
+      final project = openProject(root);
+
+      expect(
+        () => MoveJournal([WriteStep.unguarded(path, 'Owner\nblock\n')]).run(
+          JournalTarget(
+            projectRoot: project.projectRoot,
+            docsRoot: project.docsRoot,
+            homeDirectory: testHome(),
+            agentFiles: {'${outside.resolveSymbolicLinksSync()}/CLAUDE.md'},
+          ),
+        ),
+        _leaves(path),
+      );
+
+      expect(_snapshot(root), before);
+      expect(_snapshot(outside), outsideBefore);
+    });
+
     test('a run refuses before it creates anything when .specstone is a link '
         'out of the project', () async {
       final base = await writeTree({
@@ -314,7 +377,7 @@ void main() {
             homeDirectory: testHome(),
           ),
         ),
-        _leaves('.specstone/.gitignore'),
+        _leadsOutside('.specstone/.gitignore'),
       );
 
       expect(_snapshot(base), before);

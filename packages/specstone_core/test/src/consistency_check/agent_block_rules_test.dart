@@ -33,25 +33,28 @@ Future<List<Finding>> _staleOf(Map<String, String> extra) async => [
 ];
 
 /// Returns the `agent_block_stale` findings of a check over the fixture
-/// project at `project/`, beside a repository top at `other/`.
+/// project at `project/`, with a repository top at `project/other/`, or at
+/// `other/` beside the project when [outside].
 ///
 /// [config] is the text after the pins of `.specstone/config.yaml`.
 Future<List<Finding>> _staleBeside({
   String config = '',
   Map<String, String> otherFiles = const {},
   bool codeEntry = true,
+  bool outside = false,
 }) async {
+  final top = outside ? 'other' : 'project/other';
+  final entry = outside ? '../other/' : 'other/';
   final project = {
     ...checkProjectFiles(),
     '.specstone/config.yaml': '${shippedPinsConfig()}$config',
     if (codeEntry)
-      ...edit(techStack, [('  - app/lib/\n', '  - app/lib/\n  - ../other/\n')]),
+      ...edit(techStack, [('  - app/lib/\n', '  - app/lib/\n  - $entry\n')]),
   };
   final base = await writeTree({
     for (final MapEntry(:key, :value) in project.entries) 'project/$key': value,
-    'other/.git/HEAD': 'ref\n',
-    for (final MapEntry(:key, :value) in otherFiles.entries)
-      'other/$key': value,
+    '$top/.git/HEAD': 'ref\n',
+    for (final MapEntry(:key, :value) in otherFiles.entries) '$top/$key': value,
   });
   return [
     for (final f in checkOf(Directory('${base.path}/project')).findings)
@@ -221,7 +224,7 @@ void main() {
         final found = await _staleBeside();
 
         expect(found, hasLength(1));
-        expect(found.single.path, '../other');
+        expect(found.single.path, 'other');
         expect(found.single.line, 1);
         expect(
           found.single.message,
@@ -234,23 +237,44 @@ void main() {
       '$_stale E13: a top that code_root reaches is also unlisted',
       () async {
         final found = await _staleBeside(
-          config: 'code_root: ../other\n',
+          config: 'code_root: other\n',
           codeEntry: false,
         );
 
-        expect([for (final f in found) f.path], ['../other']);
+        expect([for (final f in found) f.path], ['other']);
       },
     );
+
+    test('$_stale R99: a top outside the project root, which no run writes, '
+        'is no finding, listed or not', () async {
+      expect(await _staleBeside(outside: true), isEmpty);
+      expect(
+        await _staleBeside(
+          config: 'code_root: ../other\n',
+          codeEntry: false,
+          outside: true,
+        ),
+        isEmpty,
+      );
+      expect(
+        await _staleBeside(
+          config: 'agent_file_roots:\n  - ../other\n',
+          otherFiles: {'AGENTS.md': _inline().replaceFirst('Rules', 'Rule')},
+          outside: true,
+        ),
+        isEmpty,
+      );
+    });
 
     test('$_stale E12: a listed top with a hand-edited block is one finding on '
         'its file', () async {
       final found = await _staleBeside(
-        config: 'agent_file_roots:\n  - ../other\n',
+        config: 'agent_file_roots:\n  - other\n',
         otherFiles: {'AGENTS.md': _inline().replaceFirst('Rules', 'Rule')},
       );
 
       expect(found, hasLength(1));
-      expect(found.single.path, '../other/AGENTS.md');
+      expect(found.single.path, 'other/AGENTS.md');
       expect(found.single.line, 1);
       expect(
         found.single.message,
@@ -263,7 +287,7 @@ void main() {
       '$_stale E12: a listed top whose block is as written has no finding',
       () async {
         final found = await _staleBeside(
-          config: 'agent_file_roots:\n  - ../other\n',
+          config: 'agent_file_roots:\n  - other\n',
           otherFiles: {'AGENTS.md': _inline()},
         );
 

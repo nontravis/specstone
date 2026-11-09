@@ -30,6 +30,7 @@ final class MigrateRequest {
     required this.out,
     this.planHash,
     this.runGit = runRealGit,
+    this.warn = warnOnStderr,
   });
 
   /// The folder the project root is searched from.
@@ -59,6 +60,10 @@ final class MigrateRequest {
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
+
+  /// Reports one warning line, such as an agent file the run leaves outside
+  /// the project root; writes it to stderr unless replaced.
+  final void Function(String line) warn;
 }
 
 /// Runs `specstone migrate` and returns its exit status.
@@ -166,17 +171,16 @@ int _plannedRun(
   required Directory? linkFolder,
 }) {
   if (request.dryRun) {
-    _printDryRun(
-      request,
-      root,
-      _planOf(request, root, kind, linkFolder).toText(),
-    );
+    final plan = _planOf(request, root, kind, linkFolder);
+    _nameSkipped(request, plan);
+    _printDryRun(request, root, plan.toText());
     return 0;
   }
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
   final plan = _planOf(request, root, kind, linkFolder);
+  _nameSkipped(request, plan);
   final planText = plan.toText();
   request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
@@ -203,6 +207,14 @@ int _plannedRun(
   final closingLine = plan.closingLine;
   if (closingLine != null) request.out.writeln(closingLine);
   return 0;
+}
+
+/// Names on [request]'s warnings each agent file [plan] leaves because its
+/// real path lies outside the project root (R99), one line per file.
+void _nameSkipped(MigrateRequest request, RunPlan plan) {
+  for (final path in plan.agentFiles?.skipped ?? const <String>[]) {
+    request.warn(skippedOutsideLine(path));
+  }
 }
 
 RunPlan _planOf(
@@ -277,9 +289,7 @@ void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
   );
 }
 
-/// Returns the journal target of the migrate run at [root]: its code root is
-/// the config's `code_root`, or the root itself before a legacy run writes
-/// the config.
+/// Returns the journal target of the migrate run at [root].
 ///
 /// A run passes its plan's `AgentWritePlan.writeSet` as [agentFiles], which
 /// the journal record keeps, so a replay admits them (R49).
@@ -291,19 +301,10 @@ JournalTarget _targetOf(
   projectRoot: root,
   docsRoot: Directory.fromUri(root.uri.resolve(docsFolderName)),
   homeDirectory: request.homeDirectory,
-  codeRoot: _configuredCodeRoot(root),
   agentFiles: agentFiles ?? const {},
   runGit: request.runGit,
+  warn: request.warn,
 );
-
-Directory? _configuredCodeRoot(Directory root) {
-  if (!File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
-    return null;
-  }
-  return Directory.fromUri(
-    root.uri.resolveUri(Uri(path: '${ProjectConfig.read(root).codeRoot}/')),
-  );
-}
 
 /// Prints a `commit <n> <sha>: <subject>` line per commit of the [steps] since
 /// the first one's base, where `n` is the step's place in a two-commit run.

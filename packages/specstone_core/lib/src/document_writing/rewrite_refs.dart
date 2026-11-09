@@ -225,12 +225,17 @@ String? rewriteDocRefs(
 /// A non-UTF-8 code file is skipped, as a doc naming nothing renamed is; a
 /// doc whose hash matched its `approved:` value is re-stamped, a code file
 /// never. Draft marks stay untouched.
+///
+/// A code file whose path leaves the project root is never written (R99):
+/// when it holds a mention to rewrite, its path from the project root goes to
+/// [onSkipped] as the warning line, and no step is planned for it.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
   Map<(String, String), String> renamed = const {},
+  void Function(String line)? onSkipped,
 }) {
   final index = session.index;
   final candidates = <String, IndexedDoc>{};
@@ -254,7 +259,7 @@ List<WriteStep> planRewrites(
   final steps = [
     for (final doc in candidates.values)
       ?_stepFor(session, doc, moves, renamed),
-    ..._codeFileSteps(session, renamed),
+    ..._codeFileSteps(session, renamed, onSkipped),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
 }
@@ -268,6 +273,7 @@ List<WriteStep> planRewrites(
 List<WriteStep> _codeFileSteps(
   WriteSession session,
   Map<(String, String), String> renamed,
+  void Function(String line)? onSkipped,
 ) {
   if (renamed.isEmpty) return const [];
   final project = session.project;
@@ -275,13 +281,16 @@ List<WriteStep> _codeFileSteps(
     project.codeRoot,
     codeEntriesOnDisk(project.projectRoot, project.set),
   );
-  return [for (final path in paths) ?_codeFileStep(session, path, renamed)];
+  return [
+    for (final path in paths) ?_codeFileStep(session, path, renamed, onSkipped),
+  ];
 }
 
 WriteStep? _codeFileStep(
   WriteSession session,
   String codePath,
   Map<(String, String), String> renamed,
+  void Function(String line)? onSkipped,
 ) {
   final extension = _extensionOf(codePath);
   if (!readsNameMentions(extension)) return null;
@@ -309,6 +318,10 @@ WriteStep? _codeFileStep(
   }
   final text = rewriteNameMentions(raw, extension, renamed);
   if (text == null) return null;
+  if (_leavesProject(projectPath)) {
+    onSkipped?.call(skippedOutsideLine(projectPath));
+    return null;
+  }
   if (isReadOnly(file)) {
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
@@ -318,6 +331,9 @@ WriteStep? _codeFileStep(
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
   return WriteStep(projectPath, '$bom$text', before: textHashOf(raw));
 }
+
+/// Whether the ProjectPath [path] leaves the project root.
+bool _leavesProject(String path) => path == '..' || path.startsWith('../');
 
 /// Returns the extension of [path], a `.` and the letters after its last
 /// one, or an empty string for a name with none.

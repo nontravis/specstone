@@ -140,33 +140,24 @@ void main() {
   });
 
   group('AgentWritePlan.writeSet', () {
-    test('$_write E15: the agent files at the own repository top and at each '
-        'qualifying top, and no others', () async {
+    test('$_write E15: the canonical path of each write the plan lists, all '
+        'inside the project root, and none of a top outside it', () async {
       final base = await _base({
-        'mono/.git/HEAD': 'ref\n',
-        'mono/proj/.keep': '',
+        'proj/vendor/.git/HEAD': 'ref\n',
+        'proj/vendor/lib/a': '',
         'other/.git/HEAD': 'ref\n',
-        'free/lib/a.dart': '',
+        'other/lib/a': '',
       });
 
       final plan = planAgentWrites(
-        AgentFileInputs(
-          projectRoot: _at(base, 'mono/proj/'),
-          cliVersion: specstoneVersion,
-          codeRootFolders: [
-            _at(base, 'mono/lib/'),
-            _at(base, 'other/lib/'),
-            _at(base, 'free/lib/'),
-          ],
-          agentFileRoots: const [],
-        ),
-        full: false,
+        _inputs(base, code: ['proj/vendor/lib/', 'other/lib/']),
+        full: true,
       );
 
       expect(plan.writeSet, {
-        for (final top in ['mono/', 'other/'])
-          for (final path in agentFilePaths)
-            File.fromUri(_at(base, top).uri.resolve(path)).path,
+        File.fromUri(_at(base, 'proj/').uri.resolve(_agentMd)).path,
+        File.fromUri(_at(base, 'proj/').uri.resolve('AGENTS.md')).path,
+        File.fromUri(_at(base, 'proj/vendor/').uri.resolve('AGENTS.md')).path,
       });
     });
   });
@@ -483,68 +474,75 @@ void main() {
     test('$_write E15: an unlisted top in another repository is written and '
         'listed once; its imports run to the project root', () async {
       final base = await _base({
-        'other/.git/HEAD': 'ref\n',
-        'other/CLAUDE.md': 'Owner\n',
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/CLAUDE.md': 'Owner\n',
       });
 
       final plan = planAgentWrites(
-        _inputs(base, code: ['other/', 'other/']),
+        _inputs(base, code: ['proj/other/', 'proj/other/']),
         full: true,
       );
 
-      expect(_paths(plan), [_agentMd, 'AGENTS.md', '../other/CLAUDE.md']);
-      final write = _writeAt(plan, '../other/CLAUDE.md');
-      expect(write.text, 'Owner\n${_imports('../proj/')}');
+      expect(_paths(plan), [_agentMd, 'AGENTS.md', 'other/CLAUDE.md']);
+      final write = _writeAt(plan, 'other/CLAUDE.md');
+      expect(write.text, 'Owner\n${_imports('../')}');
       expect(write.isAtTop, isTrue);
-      expect(plan.agentFileRoots, ['../other']);
+      expect(plan.agentFileRoots, ['other']);
     });
 
     test('$_write E16: a top reached by two code roots and by a link is '
         'written once', () async {
-      final base = await _base({'other/.git/HEAD': 'ref\n', 'other/lib/a': ''});
-      Link(_at(base, 'viaLink').path).createSync(_at(base, 'other/lib').path);
+      final base = await _base({
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/lib/a': '',
+      });
+      Link(_at(base, 'viaLink').path)
+          .createSync(_at(base, 'proj/other/lib').path);
 
       final plan = planAgentWrites(
-        _inputs(base, code: ['other/lib/', 'viaLink/', 'other/']),
+        _inputs(base, code: ['proj/other/lib/', 'viaLink/', 'proj/other/']),
         full: true,
       );
 
-      expect(plan.topWrites.map((w) => w.path), ['../other/AGENTS.md']);
-      expect(plan.agentFileRoots, ['../other']);
+      expect(plan.topWrites.map((w) => w.path), ['other/AGENTS.md']);
+      expect(plan.agentFileRoots, ['other']);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('$_write E16: a missing code folder under a link to another '
         'repository finds that repository top', () async {
-      final base = await _base({'other/.git/HEAD': 'ref\n', 'proj/.keep': ''});
-      Link(_at(base, 'viaLink').path).createSync(_at(base, 'other').path);
+      final base = await _base({
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/.keep': '',
+      });
+      Link(_at(base, 'viaLink').path).createSync(_at(base, 'proj/other').path);
 
       expect(
         repositoryTopOf(_at(base, 'viaLink/not/there'))?.path,
-        _at(base, 'other').path,
+        _at(base, 'proj/other').path,
       );
       final plan = planAgentWrites(
         _inputs(base, code: ['viaLink/not/there/']),
         full: true,
       );
 
-      expect(plan.agentFileRoots, ['../other']);
-      expect(plan.topWrites.map((w) => w.path), ['../other/AGENTS.md']);
+      expect(plan.agentFileRoots, ['other']);
+      expect(plan.topWrites.map((w) => w.path), ['other/AGENTS.md']);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('R48: a listed top that no code root reaches is neither refreshed '
         'nor checked, and stays listed', () async {
       final base = await _base({
-        'other/.git/HEAD': 'ref\n',
-        'other/AGENTS.md': 'x\n<!-- END specstone -->\n',
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/AGENTS.md': 'x\n<!-- END specstone -->\n',
         'proj/.specstone/AGENT.md': agentMdText,
         'proj/AGENTS.md': _inline(),
       });
-      final inputs = _inputs(base, roots: ['../other']);
+      final inputs = _inputs(base, roots: ['other']);
 
       final plan = planAgentWrites(inputs, full: false);
 
       expect(plan.isEmpty, isTrue);
-      expect(plan.agentFileRoots, ['../other']);
+      expect(plan.agentFileRoots, ['other']);
       expect(agentFileDrifts(inputs), isEmpty);
     });
 
@@ -577,14 +575,17 @@ void main() {
     });
 
     test('$_write E16: a .git file at the top qualifies it', () async {
-      final base = await _base({'other/.git': _gitFile, 'other/lib/a': ''});
+      final base = await _base({
+        'proj/other/.git': _gitFile,
+        'proj/other/lib/a': '',
+      });
 
       final plan = planAgentWrites(
-        _inputs(base, code: ['other/lib/']),
+        _inputs(base, code: ['proj/other/lib/']),
         full: true,
       );
 
-      expect(plan.agentFileRoots, ['../other']);
+      expect(plan.agentFileRoots, ['other']);
     });
 
     test(
@@ -625,29 +626,32 @@ void main() {
         const stale =
             '<!-- BEGIN specstone v0.0.1 -->\nold\n<!-- END specstone -->\n';
         final base = await _base({
-          'other/.git/HEAD': 'ref\n',
-          'other/AGENTS.md': stale,
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/AGENTS.md': stale,
           'proj/.keep': '',
         });
 
         final plan = planAgentWrites(
-          _inputs(base, code: ['other/'], roots: ['../other']),
+          _inputs(base, code: ['proj/other/'], roots: ['other']),
           full: false,
         );
 
         expect(plan.rootWrites, isEmpty);
-        expect(plan.topWrites.single.path, '../other/AGENTS.md');
-        expect(plan.agentFileRoots, ['../other']);
+        expect(plan.topWrites.single.path, 'other/AGENTS.md');
+        expect(plan.agentFileRoots, ['other']);
       },
     );
 
     test('$_write E19: a listed top whose files the Owner deleted stays '
         'empty', () async {
-      final base = await _base({'other/.git/HEAD': 'ref\n', 'proj/.keep': ''});
+      final base = await _base({
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/.keep': '',
+      });
 
       for (final full in [true, false]) {
         final plan = planAgentWrites(
-          _inputs(base, code: ['other/'], roots: ['../other']),
+          _inputs(base, code: ['proj/other/'], roots: ['other']),
           full: full,
         );
 
@@ -658,19 +662,19 @@ void main() {
     test('$_write E18: an unlisted top whose files already match is listed '
         'with 0 bytes written', () async {
       final base = await _base({
-        'other/.git/HEAD': 'ref\n',
-        'other/AGENTS.md': _inline(),
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/AGENTS.md': _inline(),
         'proj/AGENTS.md': _inline(),
         'proj/.specstone/AGENT.md': agentMdText,
       });
 
       final plan = planAgentWrites(
-        _inputs(base, code: ['other/']),
+        _inputs(base, code: ['proj/other/']),
         full: false,
       );
 
       expect(plan.topWrites, isEmpty);
-      expect(plan.agentFileRoots, ['../other']);
+      expect(plan.agentFileRoots, ['other']);
       expect(plan.isEmpty, isFalse);
       expect(plan.line, isEmpty);
     });
@@ -702,17 +706,17 @@ void main() {
     test('$_write E11: the unlisted-top trigger brings AGENT.md back for an '
         'import block it writes', () async {
       final base = await _base({
-        'other/.git/HEAD': 'ref\n',
-        'other/GEMINI.md': 'Owner\n',
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/GEMINI.md': 'Owner\n',
         'proj/.keep': '',
       });
 
       final plan = planAgentWrites(
-        _inputs(base, code: ['other/']),
+        _inputs(base, code: ['proj/other/']),
         full: false,
       );
 
-      expect(_paths(plan), [_agentMd, '../other/GEMINI.md']);
+      expect(_paths(plan), [_agentMd, 'other/GEMINI.md']);
     });
 
     test('$_write E22: two names for one file give one inline write', () async {
@@ -729,17 +733,57 @@ void main() {
     test('review focus: a symbolic-link instruction file plans a write from '
         'its target and keeps its own path', () async {
       final base = await _base({
-        'shared/CLAUDE.md': 'Shared\n',
+        'proj/shared/CLAUDE.md': 'Shared\n',
         'proj/.keep': '',
       });
       Link(_at(base, 'proj/').uri.resolve('CLAUDE.md').toFilePath()).createSync(
-        _at(base, 'shared/CLAUDE.md').path.replaceAll(RegExp(r'/$'), ''),
+        _at(base, 'proj/shared/CLAUDE.md').path.replaceAll(RegExp(r'/$'), ''),
       );
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
       expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n${_imports('')}');
       expect(_paths(plan), isNot(contains('AGENTS.md')));
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('$_write R99: a top in another repository, outside the project '
+        'root, is named and left: no write, not listed', () async {
+      final base = await _base({
+        'other/.git/HEAD': 'ref\n',
+        'other/CLAUDE.md': 'Owner\n',
+        'proj/.keep': '',
+      });
+      final inputs = _inputs(base, code: ['other/']);
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(_paths(plan), [_agentMd, 'AGENTS.md']);
+      expect(plan.skipped, ['../other/CLAUDE.md']);
+      expect(plan.agentFileRoots, isEmpty);
+      expect(plan.addedRoots, isEmpty);
+      expect(plan.writeSet, isNot(contains(contains('other'))));
+      expect(agentFileDrifts(inputs), isEmpty);
+    });
+
+    test('$_write R99: a root file linked to a file outside the project root '
+        'is named and left, and the plan lists no write for it', () async {
+      final base = await _base({
+        'shared/CLAUDE.md': 'Shared\n',
+        'proj/.keep': '',
+      });
+      Link(_at(base, 'proj/').uri.resolve('CLAUDE.md').toFilePath()).createSync(
+        _at(base, 'shared/CLAUDE.md').path.replaceAll(RegExp(r'/$'), ''),
+      );
+      final inputs = _inputs(base);
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(_paths(plan), [_agentMd]);
+      expect(plan.skipped, ['CLAUDE.md']);
+      expect(plan.writeSet, {
+        File.fromUri(_at(base, 'proj/').uri.resolve(_agentMd)).path,
+      });
+      expect(agentFileDrifts(inputs), isEmpty);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     group('$_write E27: a root file linked to a file at a top', () {
@@ -749,18 +793,18 @@ void main() {
 
       Future<Directory> linkedBase(String topText) async {
         final base = await _base({
-          'other/.git/HEAD': 'ref\n',
-          'other/AGENTS.md': topText,
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/AGENTS.md': topText,
           'proj/.keep': '',
         });
         Link(_at(base, 'proj/').uri.resolve('AGENTS.md').toFilePath())
-            .createSync('../other/AGENTS.md');
+            .createSync('other/AGENTS.md');
         return base;
       }
 
       test('gives one write, the root one, and one drift', () async {
         final base = await linkedBase(stale);
-        final inputs = _inputs(base, code: ['other/'], roots: ['../other']);
+        final inputs = _inputs(base, code: ['proj/other/'], roots: ['other']);
 
         final plan = planAgentWrites(inputs, full: false);
 
@@ -775,13 +819,13 @@ void main() {
         final base = await linkedBase('Owner\n');
 
         final plan = planAgentWrites(
-          _inputs(base, code: ['other/']),
+          _inputs(base, code: ['proj/other/']),
           full: false,
         );
 
         expect(_paths(plan), ['AGENTS.md']);
         expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n${_inline()}');
-        expect(plan.addedRoots, ['../other']);
+        expect(plan.addedRoots, ['other']);
       });
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
@@ -789,19 +833,19 @@ void main() {
       '$_write E09: writing twice changes 0 bytes the second time',
       () async {
         final base = await _base({
-          'other/.git/HEAD': 'ref\n',
-          'other/CLAUDE.md': 'Owner\n',
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/CLAUDE.md': 'Owner\n',
           'proj/GEMINI.md': 'Mine\n',
           'proj/.cursor/x': '',
         });
         final first = planAgentWrites(
-          _inputs(base, code: ['other/']),
+          _inputs(base, code: ['proj/other/']),
           full: true,
         );
         _apply(base, first);
 
         final second = planAgentWrites(
-          _inputs(base, code: ['other/'], roots: first.agentFileRoots),
+          _inputs(base, code: ['proj/other/'], roots: first.agentFileRoots),
           full: true,
         );
 
@@ -933,20 +977,16 @@ void main() {
       '$_stale E12: a stale block at a listed top names that path',
       () async {
         final base = await _base({
-          'other/.git/HEAD': 'ref\n',
-          'other/AGENTS.md': _inline().replaceFirst('Rules', 'Rule'),
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/AGENTS.md': _inline().replaceFirst('Rules', 'Rule'),
           'proj/.keep': '',
         });
 
         expect(
-          agentFileDrifts(_inputs(base, code: ['other/'], roots: ['../other'])),
-          [
-            (
-              path: '../other/AGENTS.md',
-              line: 1,
-              kind: AgentDriftKind.blockStale,
-            ),
-          ],
+          agentFileDrifts(
+            _inputs(base, code: ['proj/other/'], roots: ['other']),
+          ),
+          [(path: 'other/AGENTS.md', line: 1, kind: AgentDriftKind.blockStale)],
         );
       },
     );
@@ -954,26 +994,29 @@ void main() {
     test('$_stale E13: an unlisted top is one topUnlisted on line 1, whatever '
         'its files hold', () async {
       final base = await _base({
-        'other/.git/HEAD': 'ref\n',
-        'other/AGENTS.md': _inline().replaceFirst('Rules', 'Rule'),
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/AGENTS.md': _inline().replaceFirst('Rules', 'Rule'),
         'proj/.keep': '',
       });
 
-      expect(agentFileDrifts(_inputs(base, code: ['other/', 'other/'])), [
-        (path: '../other', line: 1, kind: AgentDriftKind.topUnlisted),
-      ]);
+      expect(
+        agentFileDrifts(_inputs(base, code: ['proj/other/', 'proj/other/'])),
+        [(path: 'other', line: 1, kind: AgentDriftKind.topUnlisted)],
+      );
     });
 
     test(
       '$_stale E14: a listed top whose files were deleted is no drift',
       () async {
         final base = await _base({
-          'other/.git/HEAD': 'ref\n',
+          'proj/other/.git/HEAD': 'ref\n',
           'proj/.keep': '',
         });
 
         expect(
-          agentFileDrifts(_inputs(base, code: ['other/'], roots: ['../other'])),
+          agentFileDrifts(
+            _inputs(base, code: ['proj/other/'], roots: ['other']),
+          ),
           isEmpty,
         );
       },
@@ -1040,18 +1083,18 @@ void main() {
         final shared = {
           'proj/.specstone/AGENT.md': agentMdText,
           'proj/AGENTS.md': _inline(),
-          'other/.git/HEAD': 'ref\n',
+          'proj/other/.git/HEAD': 'ref\n',
         };
         final cases = <(Map<String, String>, List<String>)>[
           ({...shared}, []),
-          ({...shared, 'other/AGENTS.md': _inline()}, []),
-          ({...shared, 'other/AGENTS.md': _inline()}, ['../other']),
-          ({...shared, 'other/AGENTS.md': 'x\n'}, ['../other']),
-          ({...shared, 'other/CLAUDE.md': _imports('../proj/')}, ['../other']),
+          ({...shared, 'proj/other/AGENTS.md': _inline()}, []),
+          ({...shared, 'proj/other/AGENTS.md': _inline()}, ['other']),
+          ({...shared, 'proj/other/AGENTS.md': 'x\n'}, ['other']),
+          ({...shared, 'proj/other/CLAUDE.md': _imports('../')}, ['other']),
         ];
         for (final (files, roots) in cases) {
           final base = await _base(files);
-          final inputs = _inputs(base, code: ['other/'], roots: roots);
+          final inputs = _inputs(base, code: ['proj/other/'], roots: roots);
 
           expect(
             agentFileDrifts(inputs).isEmpty,

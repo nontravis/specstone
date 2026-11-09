@@ -178,9 +178,11 @@ typedef AgentDrift = ({String path, int line, AgentDriftKind kind});
 ///
 /// The one predicate `check` and `migrate` call: it is empty exactly when
 /// [planAgentWrites] with `full: false` has nothing to do, bar a malformed
-/// file.
+/// file. A file whose real path lies outside the project root is no drift,
+/// since no run writes it (R99).
 List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
   final survey = _Survey.of(inputs);
+  final root = _canonicalOf(inputs.projectRoot);
   final drifts = <AgentDrift>[];
   if (survey.agentMd.exists && !survey.agentMd.matches) {
     drifts.add((
@@ -190,6 +192,9 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
     ));
   }
   for (final folder in survey.folders) {
+    // A top outside the project root takes no file (R99), so it has no drift
+    // a run could fix.
+    if (_isOutside(folder.path)) continue;
     if (folder.isUnlisted) {
       drifts.add((
         path: folder.path,
@@ -197,7 +202,9 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
         kind: AgentDriftKind.topUnlisted,
       ));
     }
-    for (final file in folder.files.where((file) => file.exists)) {
+    for (final file in folder.files.where(
+      (file) => file.exists && _isInside(root, file.realPath),
+    )) {
       drifts.addAll(
         file.drifts(
           isAgentMdMissing: !survey.agentMd.exists,
@@ -244,6 +251,7 @@ final class AgentWritePlan {
     required this.agentFileRoots,
     required this.addedRoots,
     required this.writeSet,
+    this.skipped = const [],
   });
 
   /// The writes at the project root, `.specstone/AGENT.md` first.
@@ -258,13 +266,16 @@ final class AgentWritePlan {
   /// The tops this run lists for the first time, in [agentFileRoots] order.
   final List<String> addedRoots;
 
-  /// The canonical path of every agent file the run may write outside the
-  /// project root: at its own repository top, which a root file reaches
-  /// through a link, and at each qualifying top.
+  /// The canonical path of every agent file the plan lists, each inside the
+  /// project root.
   ///
   /// A migrate records it with its journal, so a replay admits these paths
-  /// outside the roots and no others.
+  /// and no others.
   final Set<String> writeSet;
+
+  /// The path of each agent file the run would write but leaves, because its
+  /// real path lies outside the project root (R99), as written in the plan.
+  final List<String> skipped;
 
   /// The plan's `agent files:` line, empty when no file is written.
   String get line {
@@ -289,16 +300,24 @@ final class AgentWritePlan {
 /// with its first marker line, before it returns.
 AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
   final survey = _Survey.of(inputs)..throwIfMalformed();
+  final root = _canonicalOf(inputs.projectRoot);
   final rootWrites = <AgentWrite>[];
   final topWrites = <AgentWrite>[];
   final added = <String>[];
+  final skipped = <String>[];
+  final writeSet = <String>{};
   var hasImport = false;
   for (final folder in survey.folders) {
     for (final file in folder.files) {
       final isUpsert = survey.isUpsert(folder, file, full: full);
-      hasImport = hasImport || file.importsAfter(isUpsert: isUpsert);
       final text = file.nextText(isUpsert: isUpsert);
+      if (!_isInside(root, file.realPath)) {
+        if (text != null) skipped.add(file.path);
+        continue;
+      }
+      hasImport = hasImport || file.importsAfter(isUpsert: isUpsert);
       if (text == null) continue;
+      writeSet.add(file.realPath);
       (folder.isTop ? topWrites : rootWrites).add(
         AgentWrite(
           path: file.path,
@@ -309,10 +328,11 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
         ),
       );
     }
-    if (folder.isUnlisted) added.add(folder.path);
+    if (folder.isUnlisted && !_isOutside(folder.path)) added.add(folder.path);
   }
   final agentMd = survey.agentMd;
   if (!agentMd.matches && (full || agentMd.exists || hasImport)) {
+    writeSet.add(_fileIn(root, _agentMdPath).path);
     rootWrites.insert(
       0,
       AgentWrite(
@@ -329,7 +349,8 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
     topWrites: topWrites,
     agentFileRoots: [...inputs.agentFileRoots, ...added],
     addedRoots: added,
-    writeSet: survey.writeSet,
+    writeSet: writeSet,
+    skipped: skipped,
   );
 }
 
@@ -475,7 +496,7 @@ final class _Folder {
 
 /// The agent files of a run, read once, each real file once.
 final class _Survey {
-  const new(this.folders, this.agentMd, this.writeSet, this._topUpserted);
+  const new(this.folders, this.agentMd, this._topUpserted);
 
   /// Reads the root first, then each qualifying top; a real file two folders
   /// reach keeps its first name only, so no two writes land on it.
@@ -503,15 +524,11 @@ final class _Survey {
           files: _filesIn(top, path, root: root, cliVersion: inputs.cliVersion),
         ),
     ]);
-    final writeSet = _agentFilesAt([?repositoryTopOf(root), ...tops.values]);
-    return _Survey(folders, _agentMdOf(root), writeSet, topUpserted);
+    return _Survey(folders, _agentMdOf(root), topUpserted);
   }
 
   final List<_Folder> folders;
   final _AgentMd agentMd;
-
-  /// The [AgentWritePlan.writeSet] of the run.
-  final Set<String> writeSet;
 
   /// The real paths of the kept files an unlisted top also names.
   final Set<String> _topUpserted;
@@ -569,13 +586,6 @@ final class _Survey {
   return (folders: kept, topUpserted: topUpserted);
 }
 
-/// Returns the path of each of [agentFilePaths] in each of the canonical
-/// [tops].
-Set<String> _agentFilesAt(List<Directory> tops) => {
-  for (final top in tops)
-    for (final path in agentFilePaths) _fileIn(top, path).path,
-};
-
 /// Returns the qualifying repository tops of [folders], by their path from
 /// [root], in code point order, each once.
 ///
@@ -599,6 +609,10 @@ Map<String, Directory> _qualifyingTops(
 
 /// Whether the relative [path] leaves its start folder.
 bool _isOutside(String path) => path == '..' || path.startsWith('../');
+
+/// Whether [path], canonical, lies below the canonical folder [root].
+bool _isInside(Directory root, String path) =>
+    path.startsWith('${root.path}${Platform.pathSeparator}');
 
 /// Returns the agent files of [folder], an existing file once per real file,
 /// and the file a full upsert would create.
