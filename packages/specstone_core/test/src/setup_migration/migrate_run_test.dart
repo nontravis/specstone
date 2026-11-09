@@ -396,7 +396,7 @@ void main() {
     }) => runMigrate(
       MigrateRequest(
         workingDirectory: root,
-        homeDirectory: home,
+        homeDirectory: home ?? testHome(),
         templates: TemplateResolver(),
         dryRun: false,
         confirmation: OwnerConfirmation.prompt,

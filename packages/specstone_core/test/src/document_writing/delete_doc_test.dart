@@ -567,6 +567,37 @@ void main() {
     expect(answer.json['removed'], hasLength(3));
   });
 
+  test(
+    'a guarded delete with no home folder refuses before its prompt',
+    () async {
+      final root = await writeWriteProject(extra: approvedSignOut);
+      getDoc(root, 'user_story:login/sign_out');
+      final before = treeBytes(root);
+      final prompts = StringBuffer();
+
+      expect(
+        () => writeInNoHome(
+          root,
+          (s) => answerDelete(
+            s,
+            ['user_story:login/sign_out'],
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => 'y',
+            prompts: prompts,
+          ),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', MoveJournal.journalPath),
+        ),
+      );
+
+      expect(prompts.toString(), isEmpty);
+      expect(treeBytes(root), before);
+    },
+  );
+
   test('f02/us04/fr02/e06: the Owner deleting a never-approved unit sees no prompt', () async {
     final root = await writeWriteProject(extra: withoutLink);
     final prompts = StringBuffer();

@@ -704,6 +704,24 @@ final class MoveJournal {
     required Directory? homeDirectory,
   }) => _recorded(projectRoot, JournalRecords(homeDirectory));
 
+  /// Throws [RenderFault] `output_not_writable`, naming [journalPath], when
+  /// [homeDirectory] is null: a run with no home folder cannot record the
+  /// journal it would write.
+  ///
+  /// A command that writes a journal calls it before any prompt or change;
+  /// [run] calls it again as the backstop.
+  static void requireHomeFolder(Directory? homeDirectory) {
+    try {
+      JournalRecords(homeDirectory).requireHome();
+    } on FileSystemException catch (error) {
+      throw RenderFault(
+        RenderFaultCode.outputNotWritable,
+        _notWritable('write', journalPath, error).message,
+        file: journalPath,
+      );
+    }
+  }
+
   /// Saves cursor 0 and then the journal, applies each step and saves the
   /// cursor after it, then removes the journal, the cursor, and the trash
   /// folder.
@@ -719,15 +737,7 @@ final class MoveJournal {
   /// any file moves), when cursor 0 or the journal cannot be written, or when
   /// a step or a later cursor write fails; the journal stays in the last case.
   void run(JournalTarget target) {
-    try {
-      target._records.requireHome();
-    } on FileSystemException catch (error) {
-      throw RenderFault(
-        RenderFaultCode.outputNotWritable,
-        _notWritable('write', journalPath, error).message,
-        file: journalPath,
-      );
-    }
+    requireHomeFolder(target.homeDirectory);
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);

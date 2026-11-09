@@ -172,6 +172,7 @@ int _plannedRun(
     );
     return 0;
   }
+  MoveJournal.requireHomeFolder(request.homeDirectory);
   requireGitWorkTree(root, request.runGit);
   requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);

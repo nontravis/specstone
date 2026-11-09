@@ -2079,6 +2079,30 @@ void main() {
       });
     }
 
+    test('a reorder to the same place writes no journal and is unaffected', () {
+      final answer = writeInNoHome(
+        root,
+        (s) => answerReorder(s, 'user_story:login/email_login', place: '1'),
+      );
+
+      expect(answer.text, isEmpty);
+      expect(dirExists('.specstone/trash'), isFalse);
+    });
+
+    test('a rename to the same slug writes no journal and is unaffected', () {
+      final answer = writeInNoHome(
+        root,
+        (s) => answerRename(
+          s,
+          'user_story:login/email_login',
+          slug: 'email_login',
+        ),
+      );
+
+      expect(answer.text, isEmpty);
+      expect(dirExists('.specstone/trash'), isFalse);
+    });
+
     test('move refuses before its first change', () async {
       final nested = await writeNestedProject();
       getDoc(nested, 'user_story:shop/cart/add_item');
