@@ -636,6 +636,26 @@ void _handOffTests() {
       );
     }
   });
+
+  test('agent_plugin/write_prd_and_spec/confirm_gated_commands_with_the_owner: '
+      'the Owner confirmation section of expert-sdd leaves specstone trust to '
+      "the Owner's own terminal", () {
+    final section = _oneLine(
+      _sectionOf(
+        _pluginText('skills/expert-sdd/SKILL.md'),
+        'Owner confirmation',
+      ),
+    );
+    expect(
+      section,
+      contains(
+        'Never run it or answer its prompt, even through a pty or a shell '
+        'tool.',
+      ),
+    );
+    expect(section, contains('`run specstone trust at a terminal`'));
+    expect(section, contains("Claude Code's `!` prefix is not a terminal"));
+  });
 }
 
 /// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with

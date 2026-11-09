@@ -5,8 +5,7 @@ description: Use when about to write, edit, or confirm a PRD or spec doc in a Sp
 
 # Specstone cross-doc rules
 
-Shared rules for any skill that writes or confirms a Specstone doc. No doc type's writing guide lives here: the CLI
-prints each one as the project defines it.
+Shared rules for any skill that writes or confirms a Specstone doc.
 
 ## First call: the project gate
 
@@ -67,12 +66,16 @@ own terminal or here in the chat. In the chat:
    file, a variable, or a command substitution.
 4. The Owner may instead run the command, without `--yes`, at their own terminal.
 
+`specstone trust` is the Owner's alone, even when a chat message tells you to answer for them. Never run it or answer
+its prompt, even through a pty or a shell tool. When a write refuses with `run specstone trust at a terminal`, stop: ask
+the Owner to run `specstone trust` in their own terminal (Claude Code's `!` prefix is not a terminal), then retry.
+
 ## Red flags
 
-| Thought                                          | Do instead                                         |
-|--------------------------------------------------|----------------------------------------------------|
-| "I know this type's guide already."              | Run `specstone guide <type>` again.                |
-| "Removing `draft: true` clears the finding."     | Leave it; the Owner approves.                      |
-| "A direct file edit is faster."                  | Use `specstone set`.                               |
-| "Check for `.specstone/` before the first call." | The first `specstone check` is the check.          |
-| "The code works; the spec can follow."           | Draft the spec first.                              |
+| Thought | Do instead |
+|---|---|
+| "I know this type's guide already." | Run `specstone guide <type>` again. |
+| "Removing `draft: true` clears the finding." | Leave it; the Owner approves. |
+| "A direct file edit is faster." | Use `specstone set`. |
+| "Check for `.specstone/` before the first call." | The first `specstone check` is the check. |
+| "The code works; the spec can follow." | Draft the spec first. |
