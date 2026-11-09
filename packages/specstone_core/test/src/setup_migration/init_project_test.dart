@@ -19,6 +19,7 @@ import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart' show testHome;
 
 const _draftPaths = [
   'docs/prds/PROJECT.md',
@@ -40,7 +41,7 @@ const _draftPaths = [
   final status = runInit(
     InitRequest(
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: testHome(),
       templates: TemplateResolver(),
       confirmation: confirmation,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
@@ -251,7 +252,7 @@ void main() {
     runMigrate(
       MigrateRequest(
         workingDirectory: root,
-        homeDirectory: null,
+        homeDirectory: testHome(),
         templates: TemplateResolver(),
         dryRun: true,
         confirmation: OwnerConfirmation.missing,

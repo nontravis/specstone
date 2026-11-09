@@ -76,7 +76,7 @@ ReadAnswer answerReorder(
     if (moves.isEmpty) return _answerFor(session, moves, const []);
     final rewrites = planRewrites(session, moves);
     MoveJournal([..._stageSteps(session, moves), ...rewrites])
-        .run(JournalTarget.of(session.project));
+        .run(session.journalTarget);
     return _answerFor(session, moves, rewrites);
   });
 }
@@ -124,7 +124,7 @@ ReadAnswer answerRename(
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
-    ]).run(JournalTarget.of(session.project));
+    ]).run(session.journalTarget);
     return _answerFor(session, moves, rewrites);
   });
 }
@@ -175,7 +175,7 @@ ReadAnswer answerMove(
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
-    ]).run(JournalTarget.of(session.project));
+    ]).run(session.journalTarget);
     return _answerFor(session, moves, rewrites);
   });
 }

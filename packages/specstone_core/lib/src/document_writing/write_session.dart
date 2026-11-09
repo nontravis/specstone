@@ -42,7 +42,9 @@ final class WriteSession {
   /// move journal, runs [body], and closes the index.
   ///
   /// The journal replays inside the write lock before any name resolves, so
-  /// [body] sees the tree the interrupted command meant to leave.
+  /// [body] sees the tree the interrupted command meant to leave. Only a
+  /// journal recorded under [homeDirectory] by a run on this machine replays;
+  /// any other is refused with `output_not_writable`.
   /// [homeDirectory] is where user-level doc types are read from; null reads
   /// none. A fault from the project, the templates, the replay, or [body]
   /// propagates unchanged.
@@ -53,7 +55,7 @@ final class WriteSession {
     required Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
   }) {
-    _refuseMigratePending(workingDirectory);
+    _refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
     final session = WriteSession._(
       _openReplayed(
         templates: templates,
@@ -90,7 +92,7 @@ final class WriteSession {
   /// Call it outside the write lock, after a wait that let another command
   /// write; [index] and [project] are new objects afterwards.
   void refresh() {
-    _refuseMigratePending(_workingDirectory);
+    _refuseMigratePending(_workingDirectory, homeDirectory: _homeDirectory);
     _close();
     _read = _openReplayed(
       templates: _templates,
@@ -105,6 +107,10 @@ final class WriteSession {
 
   /// The project the session writes.
   DocsProject get project => _read.project;
+
+  /// The target a move journal of the session runs on.
+  JournalTarget get journalTarget =>
+      JournalTarget.of(project, homeDirectory: _homeDirectory);
 
   /// The docs of the session's snapshot, with their names and parent tree.
   DocIndex get index => _read.index;
@@ -280,11 +286,16 @@ final class WriteSession {
 ///
 /// The walk ends at the first folder holding the project config or at the
 /// filesystem root. It needs no config, so a legacy tree is refused too.
-/// Nothing is replayed.
-void _refuseMigratePending(Directory workingDirectory) {
+/// Nothing is replayed. A journal no run on this machine wrote, its digest
+/// absent under [homeDirectory], is refused as untrusted first.
+void _refuseMigratePending(
+  Directory workingDirectory, {
+  required Directory? homeDirectory,
+}) {
   var folder = workingDirectory.absolute;
   while (true) {
     if (MoveJournal.pendingMigrate(folder)) {
+      MoveJournal.requireRecorded(folder, homeDirectory: homeDirectory);
       throw WriteFault(
         WriteFaultCode.migratePending,
         'a migration is unfinished; run specstone migrate '
@@ -320,7 +331,11 @@ ReadSession _openReplayed({
   if (!MoveJournal.pending(read.project.projectRoot)) return read;
   try {
     read.store.endSnapshot();
-    read.store.write(() => MoveJournal.replay(JournalTarget.of(read.project)));
+    read.store.write(
+      () => MoveJournal.replay(
+        JournalTarget.of(read.project, homeDirectory: homeDirectory),
+      ),
+    );
   } finally {
     read.store.close();
   }

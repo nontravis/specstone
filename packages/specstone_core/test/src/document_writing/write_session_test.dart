@@ -443,7 +443,7 @@ void main() {
           (session) => null,
           templates: TemplateResolver(),
           workingDirectory: nested,
-          homeDirectory: null,
+          homeDirectory: testHome(),
         ),
         throwsA(
           isA<WriteFault>()
