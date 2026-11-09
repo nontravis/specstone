@@ -201,12 +201,13 @@ void requireWritableTarget(
 /// the docs root; a path under neither stays as given.
 String _projectPathOf(String path, Directory projectRoot, Directory? docsRoot) {
   final separator = Platform.pathSeparator;
+  final native = withNativeSeparators(path);
   String below(String root) =>
-      path.substring(root.length + 1).split(separator).join('/');
-  if (path.startsWith('${projectRoot.path}$separator')) {
-    return below(projectRoot.path);
-  }
-  if (docsRoot != null && path.startsWith('${docsRoot.path}$separator')) {
+      native.substring(root.length + 1).split(separator).join('/');
+  bool isBelow(Directory root) =>
+      native.startsWith('${withNativeSeparators(root.path)}$separator');
+  if (isBelow(projectRoot)) return below(projectRoot.path);
+  if (docsRoot != null && isBelow(docsRoot)) {
     return 'docs/${below(docsRoot.path)}';
   }
   return path;
