@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/home_record.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
@@ -284,6 +285,60 @@ void main() {
       },
       skip: _linksUnavailable,
     );
+  });
+
+  group('a pending journal under roots the Owner has not recorded', () {
+    test('a replay refuses with the trust text, not the step path, and keeps '
+        'the journal', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      writeJournal(clone, [
+        const WriteStep.unguarded('docs/prds/x.md', 'text'),
+      ]);
+      final journal = File('${clone.path}/.specstone/trash/journal.json');
+      final before = journal.readAsBytesSync();
+      final extBefore = treeBytes(ext);
+
+      expect(
+        () => writeIn(clone, (session) {}),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.file, 'file', '.specstone/trash/journal.json')
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write .specstone/trash/journal.json: the docs folder '
+                    '${ext.resolveSymbolicLinksSync()} lies outside the '
+                    'project; run specstone trust at a terminal to allow it',
+              ),
+        ),
+      );
+
+      expect(journal.readAsBytesSync(), before);
+      expect(treeBytes(ext), extBefore);
+    }, skip: _linksUnavailable);
+
+    test('a journal step that leaves roots the Owner trusts still names the '
+        'step path', () async {
+      final (:clone, base: _, ext: _) = await _fallThroughClone();
+      _trust(clone);
+      writeJournal(clone, [
+        const WriteStep.unguarded('../outside.txt', 'text'),
+      ]);
+
+      expect(
+        () => writeIn(clone, (session) {}),
+        throwsA(
+          isA<RenderFault>().having(
+            (f) => f.message,
+            'message',
+            startsWith(
+              'its step path ../outside.txt leaves the project and '
+              'docs roots; check .specstone/trash/',
+            ),
+          ),
+        ),
+      );
+    }, skip: _linksUnavailable);
   });
 
   group('a record that no longer fits', () {

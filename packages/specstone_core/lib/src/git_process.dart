@@ -61,15 +61,40 @@ ProcessResult runRealGit(
   environment: environment,
 );
 
-final RunGit _realGit = guardedGit(
-  (arguments, {required workingDirectory, environment}) => Process.runSync(
-    'git',
-    [..._explicitBareRepository, ...arguments],
-    workingDirectory: workingDirectory,
-    environment: environment,
-    stdoutEncoding: utf8,
-  ),
+final RunGit _realGit = guardedGit(_startGit);
+
+/// Starts the real `git` program like [runRealGit], with the refusal of the
+/// git dir check closing on `specstone migrate`, the command it refuses.
+ProcessResult runMigrateGit(
+  List<String> arguments, {
+  required String workingDirectory,
+  Map<String, String>? environment,
+}) => _migrateGit(
+  arguments,
+  workingDirectory: workingDirectory,
+  environment: environment,
 );
+
+final RunGit _migrateGit = guardedGit(_startGit, command: migrateCommand);
+
+ProcessResult _startGit(
+  List<String> arguments, {
+  required String workingDirectory,
+  Map<String, String>? environment,
+}) => Process.runSync(
+  'git',
+  [..._explicitBareRepository, ...arguments],
+  workingDirectory: workingDirectory,
+  environment: environment,
+  stdoutEncoding: utf8,
+);
+
+/// The command a refusal tells the user to run again, when `migrate` is the one
+/// that refused.
+const migrateCommand = 'specstone migrate';
+
+/// What a refusal tells the user to run again when no command name is known.
+const _anyCommand = 'the command';
 
 /// Returns a [RunGit] that starts git through [start] and, on a git before
 /// 2.38, first checks that the repository git finds in the folder is that
@@ -85,16 +110,17 @@ final RunGit _realGit = guardedGit(
 /// nothing and is left to the verb, which fails on its own; one in a bare
 /// repository prints a git dir and no top level, and is refused.
 ///
-/// Throws `MigrateFault` `git_work_tree_required` when the check refuses.
-/// `--version` runs unchecked, since it reads no repository. A version line
-/// it cannot read counts as a git before 2.38.
-RunGit guardedGit(RunGit start) {
+/// Throws `MigrateFault` `git_work_tree_required` when the check refuses; its
+/// text closes on `then run [command] again`, and [command] is `the command`
+/// unless the caller names its own. `--version` runs unchecked, since it reads
+/// no repository. A version line it cannot read counts as a git before 2.38.
+RunGit guardedGit(RunGit start, {String command = _anyCommand}) {
   bool? checksGitDir;
   return (arguments, {required workingDirectory, environment}) {
     if (arguments.first != '--version') {
       checksGitDir ??= _isBefore238(start, workingDirectory, environment);
       if (checksGitDir!) {
-        _requireOwnGitDir(start, workingDirectory, environment);
+        _requireOwnGitDir(start, workingDirectory, environment, command);
       }
     }
     return start(
@@ -123,6 +149,7 @@ void _requireOwnGitDir(
   RunGit start,
   String workingDirectory,
   Map<String, String>? environment,
+  String command,
 ) {
   final result = start(
     ['rev-parse', '--absolute-git-dir', '--show-toplevel'],
@@ -132,13 +159,13 @@ void _requireOwnGitDir(
   final printed = (result.stdout as String).trim();
   if (result.exitCode != 0) {
     if (printed.isEmpty) return;
-    throw workTreeRequiredFault();
+    throw workTreeRequiredFault(command);
   }
   final lines = printed.split('\n');
-  if (lines.length != 2) throw workTreeRequiredFault();
+  if (lines.length != 2) throw workTreeRequiredFault(command);
   final (gitDir, topLevel) = (lines[0].trim(), lines[1].trim());
   if (gitDir == '$topLevel/.git' || _isNestedGitDir(gitDir)) return;
-  throw workTreeRequiredFault();
+  throw workTreeRequiredFault(command);
 }
 
 /// Whether the `/`-separated [gitDir] lies below a `.git/worktrees` or
@@ -155,12 +182,12 @@ bool _isNestedGitDir(String gitDir) {
 }
 
 /// Returns the fault for a project outside a git work tree with a first
-/// commit, or whose `git` cannot run.
-MigrateFault workTreeRequiredFault() => MigrateFault(
+/// commit, or whose `git` cannot run; it tells the user to run [command]
+/// again.
+MigrateFault workTreeRequiredFault(String command) => MigrateFault(
   MigrateFaultCode.gitWorkTreeRequired,
   'the project is not in a git work tree with a first commit; put the '
-  'project under git, git init and a first commit, then run specstone '
-  'migrate again',
+  'project under git, git init and a first commit, then run $command again',
 );
 
 /// A `git add` or `git commit` that exited non-zero.

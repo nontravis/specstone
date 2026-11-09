@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
@@ -14,7 +15,7 @@ import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
-import '../../helpers/write_fixture.dart' show testHome;
+import '../../helpers/write_fixture.dart' show testHome, writeJournal;
 
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
@@ -197,6 +198,24 @@ void main() {
       },
       skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'),
     );
+
+    test('a dry run on a pending journal refuses with the trust text, not the '
+        'step path, and writes nothing', () async {
+      final ws = await linkedTree();
+      final code = Directory('${ws.path}/code');
+      writeJournal(ws, [const WriteStep.unguarded('docs/prds/x.md', 'text')]);
+      final before = _bytesUnder(ws);
+
+      expect(
+        () => _migrate(code, dryRun: true),
+        _refuses(
+          '.specstone/trash/journal.json',
+          'the project folder ${ws.path} lies outside ${code.path}',
+        ),
+      );
+
+      expect(_bytesUnder(ws), before);
+    }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('applies after the Owner trusts the roots', () async {
       final ws = await linkedTree();

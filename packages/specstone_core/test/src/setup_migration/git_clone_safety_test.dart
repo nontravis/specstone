@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/plan_hash.dart';
@@ -40,8 +41,14 @@ RunGit _olderGit(String version) =>
           );
 
 /// What [guardedGit] makes of a git before 2.38.
-RunGit _guardedOlderGit([String version = 'git version 2.37.0']) =>
-    guardedGit(_olderGit(version));
+RunGit _guardedOlderGit([
+  String version = 'git version 2.37.0',
+  String command = 'the command',
+]) => guardedGit(_olderGit(version), command: command);
+
+/// What [guardedGit] makes of a git before 2.38 when `migrate` runs it.
+RunGit _migrateOlderGit([String version = 'git version 2.37.0']) =>
+    _guardedOlderGit(version, migrateCommand);
 
 /// Builds a clone whose `evil/` folder is a committed git dir laid out as a
 /// work tree's `.git`, holding a legacy project, with `config` set to
@@ -99,7 +106,7 @@ int _migrate(Directory root, StringBuffer out, {RunGit? runGit}) => runMigrate(
   ),
 );
 
-Matcher _refusesAsNoWorkTree() => throwsA(
+Matcher _refusesAsNoWorkTree({String again = 'specstone migrate'}) => throwsA(
   isA<MigrateFault>()
       .having((f) => f.code, 'code', MigrateFaultCode.gitWorkTreeRequired)
       .having((f) => f.exitStatus, 'exit', 78)
@@ -108,7 +115,7 @@ Matcher _refusesAsNoWorkTree() => throwsA(
         'message',
         'the project is not in a git work tree with a first commit; put the '
             'project under git, git init and a first commit, then run '
-            'specstone migrate again',
+            '$again again',
       ),
 );
 
@@ -150,7 +157,7 @@ void main() {
       final clone = await _evilClone(value(marker));
 
       expect(
-        () => _migrate(clone, StringBuffer(), runGit: _guardedOlderGit()),
+        () => _migrate(clone, StringBuffer(), runGit: _migrateOlderGit()),
         _refusesAsNoWorkTree(),
       );
 
@@ -164,14 +171,20 @@ void main() {
 
       expect(
         () => planHashOf('plan\n', evil, _guardedOlderGit()),
-        _refusesAsNoWorkTree(),
+        _refusesAsNoWorkTree(again: 'the command'),
       );
       expect(
         () => _guardedOlderGit()([
           'status',
           '--porcelain',
         ], workingDirectory: evil.path),
-        _refusesAsNoWorkTree(),
+        _refusesAsNoWorkTree(again: 'the command'),
+      );
+      expect(
+        () => ApprovalHistory(
+          runGit: _guardedOlderGit(),
+        ).lastApproved(evil, 'docs/prds/personas/x/PERSONA.md', docType: null),
+        _refusesAsNoWorkTree(again: 'the command'),
       );
 
       expect(marker.existsSync(), isFalse);
@@ -185,7 +198,7 @@ void main() {
         () => _migrate(
           clone,
           StringBuffer(),
-          runGit: _guardedOlderGit('not a version line'),
+          runGit: _migrateOlderGit('not a version line'),
         ),
         _refusesAsNoWorkTree(),
       );
@@ -199,7 +212,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
 
       expect(
-        () => requireGitWorkTree(root, _guardedOlderGit()),
+        () => requireGitWorkTree(root, _migrateOlderGit()),
         returnsNormally,
       );
       expect(() => requireGitWorkTree(root, runRealGit), returnsNormally);
@@ -291,7 +304,7 @@ void main() {
           'rev-parse',
           'HEAD',
         ], workingDirectory: bare.path),
-        _refusesAsNoWorkTree(),
+        _refusesAsNoWorkTree(again: 'the command'),
       );
     }, skip: _skip);
 

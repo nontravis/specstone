@@ -41,9 +41,9 @@ void requireGitWorkTree(Directory root, RunGit runGit) {
             ], workingDirectory: root.path).exitCode ==
             0;
   } on ProcessException {
-    throw workTreeRequiredFault();
+    throw workTreeRequiredFault(migrateCommand);
   }
-  if (!inside || !hasHead) throw workTreeRequiredFault();
+  if (!inside || !hasHead) throw workTreeRequiredFault(migrateCommand);
 }
 
 /// Throws `git_work_tree_required` when `git --version` names a version
@@ -74,9 +74,9 @@ void requireCleanWorkTree(Directory root, RunGit runGit) {
       '--untracked-files=normal',
     ], workingDirectory: root.path);
   } on ProcessException {
-    throw workTreeRequiredFault();
+    throw workTreeRequiredFault(migrateCommand);
   }
-  if (status.exitCode != 0) throw workTreeRequiredFault();
+  if (status.exitCode != 0) throw workTreeRequiredFault(migrateCommand);
   if ((status.stdout as String).trim().isNotEmpty) {
     throw MigrateFault(
       MigrateFaultCode.workingTreeDirty,

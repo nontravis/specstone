@@ -30,7 +30,7 @@ final class MigrateRequest {
     required this.readLine,
     required this.out,
     this.planHash,
-    this.runGit = runRealGit,
+    this.runGit = runMigrateGit,
     this.warn = warnOnStderr,
   });
 

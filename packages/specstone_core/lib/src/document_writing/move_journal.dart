@@ -928,11 +928,16 @@ void _requireFoldersInside(JournalTarget target, Iterable<String> paths) {
 }
 
 /// Returns the first of [paths] outside the bounds, or null when all are in.
+///
+/// Throws [RenderFault] `output_not_writable` when the Owner does not trust
+/// the roots: the bounds are then empty, and no path is outside for its own
+/// fault.
 String? _firstOutside(
   JournalTarget target,
   Iterable<String> paths, {
   Set<String> agentFiles = const {},
 }) {
+  target.requireTrusted();
   final project = target.projectRoot.resolveSymbolicLinksSync();
   final bounds = JournalBounds(
     target.projectRoot,
