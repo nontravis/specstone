@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/home_record.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
@@ -8,11 +10,13 @@ import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/git_repo.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -89,6 +93,46 @@ Matcher _refusesOutside(String path) => throwsA(
           endsWith('run specstone trust at a terminal to allow it'),
         ),
       ),
+);
+
+/// Makes [project] a git repository holding its files, then adds one draft
+/// that no commit holds, so `approve` asks git to pair it with a moved doc.
+void _gitWithUntrackedDraft(Directory project) {
+  expect(git(project, ['init', '-q']).exitCode, 0);
+  commitAll(project, 'docs');
+  File('${project.path}/docs/prds/personas/y/PERSONA.md')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('---\ndraft: true\n---\n\n# Y\n');
+}
+
+/// The loose object files under the git folder of [project].
+int _looseObjects(Directory project) =>
+    Directory('${project.path}/.git/objects')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where(
+          (file) =>
+              !file.path.contains('/pack/') && !file.path.contains('/info/'),
+        )
+        .length;
+
+/// A history whose git runs count in [calls].
+ApprovalHistory _countingHistory(List<List<String>> calls) => ApprovalHistory(
+  runGit: (arguments, {required workingDirectory, environment}) {
+    calls.add(arguments);
+    return runRealGit(
+      arguments,
+      workingDirectory: workingDirectory,
+      environment: environment,
+    );
+  },
+);
+
+final Matcher _refusesBeforeGit = throwsA(
+  isA<RenderFault>()
+      .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+      .having((f) => f.exitStatus, 'exit', 73)
+      .having((f) => f.message, 'message', startsWith('cannot write docs/')),
 );
 
 void main() {
@@ -409,5 +453,61 @@ void main() {
         isFalse,
       );
     }, skip: _linksUnavailable);
+  });
+
+  group('approve in a layout the Owner has not recorded', () {
+    test('refuses before any git call and any view, and the other project '
+        'keeps its objects', () async {
+      final (:clone, :victim, base: _) = await _linkedClone();
+      _gitWithUntrackedDraft(victim);
+      final objects = _looseObjects(victim);
+
+      for (final dryRun in [true, false]) {
+        final calls = <List<String>>[];
+        final out = StringBuffer();
+        expect(
+          () => writeIn(
+            clone,
+            (s) => dryRun
+                ? approveDryRun(s, history: _countingHistory(calls))
+                : approveDrafts(
+                    s,
+                    readLine: () => fail('the Owner was asked'),
+                    out: out,
+                    history: _countingHistory(calls),
+                  ),
+          ),
+          _refusesBeforeGit,
+        );
+        expect(calls, isEmpty);
+        expect(out.toString(), isEmpty);
+      }
+      expect(_looseObjects(victim), objects);
+    }, skip: _linksUnavailable ?? (hasGit ? null : 'needs git'));
+  });
+
+  group('approve writes no object into the repository', () {
+    test('after the Owner records a linked project', () async {
+      final (:clone, :victim, base: _) = await _linkedClone();
+      _gitWithUntrackedDraft(victim);
+      _trust(clone);
+      final objects = _looseObjects(victim);
+
+      final text = writeIn(clone, (s) => approveDryRun(s).text);
+
+      expect(text, contains('docs/prds/personas/y/PERSONA.md'));
+      expect(_looseObjects(victim), objects);
+    }, skip: _linksUnavailable ?? (hasGit ? null : 'needs git'));
+
+    test('in a project that needs no record', () async {
+      final root = await writeWriteProject();
+      _gitWithUntrackedDraft(root);
+      final objects = _looseObjects(root);
+
+      final text = writeIn(root, (s) => approveDryRun(s).text);
+
+      expect(text, contains('docs/prds/personas/y/PERSONA.md'));
+      expect(_looseObjects(root), objects);
+    }, skip: hasGit ? null : 'needs git');
   });
 }

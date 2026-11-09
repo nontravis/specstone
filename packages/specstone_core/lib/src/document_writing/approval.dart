@@ -308,8 +308,9 @@ final class ApprovalHistory {
   /// Returns the top-level path [projectPath] held in `HEAD` before an
   /// uncommitted move, or null when git pairs it with no deleted path.
   ///
-  /// Git detects the rename in a temporary copy of the index, so the user's
-  /// index is never written.
+  /// Git detects the rename in a temporary copy of the index and writes the
+  /// blobs it adds into a temporary object folder, so neither the user's index
+  /// nor the repository's objects are written.
   String? _pathBeforeMove(Directory root, String projectPath, String prefix) {
     final docsRoot = projectPath.split('/').first;
     final status = _moves[root.path + docsRoot] ??= _movesIn(root, docsRoot);
@@ -322,10 +323,22 @@ final class ApprovalHistory {
     final named = File(index);
     final source = named.isAbsolute ? named : File('${root.path}/$index');
     if (!source.existsSync()) return null;
+    final objects = _git(root, ['rev-parse', '--git-path', 'objects']).trim();
+    final namedObjects = Directory(objects);
+    final repositoryObjects = namedObjects.isAbsolute
+        ? namedObjects
+        : Directory('${root.path}/$objects');
     final scratch = Directory.systemTemp.createTempSync('specstone_index_');
     try {
       final copy = source.copySync('${scratch.path}/index');
-      final env = {'GIT_INDEX_FILE': copy.path};
+      final scratchObjects = Directory('${scratch.path}/objects')..createSync();
+      // New blobs land in the scratch folder, so the repository's own object
+      // store is only read, through the alternate.
+      final env = {
+        'GIT_INDEX_FILE': copy.path,
+        'GIT_OBJECT_DIRECTORY': scratchObjects.path,
+        'GIT_ALTERNATE_OBJECT_DIRECTORIES': repositoryObjects.path,
+      };
       // Rename pairing needs only the paths a move adds or removes, so a
       // tracked doc whose stat is stale is never hashed again.
       final moved = _git(root, [

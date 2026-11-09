@@ -27,8 +27,9 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// Reads every selected draft before the first view shows.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries,
 /// `RenderFault` `output_not_writable` for a draft that cannot be read or is
-/// not UTF-8, both before any draft shows, and `index_busy` when another call
-/// holds the lock; approvals already written stay.
+/// not UTF-8, both before any draft shows, `output_not_writable` for roots the
+/// Owner has not recorded, before git runs or a draft shows, and `index_busy`
+/// when another call holds the lock; approvals already written stay.
 void approveDrafts(
   WriteSession session, {
   List<String> names = const [],
@@ -43,6 +44,7 @@ void approveDrafts(
     out.write(_nothingWaits);
     return;
   }
+  _requireTrusted(session, drafts);
   final lookup = history ?? ApprovalHistory();
   for (final (at, (:doc, bytes: _)) in drafts.indexed) {
     String viewOf(List<int> bytes) => _viewOf(
@@ -66,7 +68,8 @@ void approveDrafts(
 /// waits for approval`; the JSON is `{}`. It takes no lock.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
 /// `RenderFault` `output_not_writable` for a draft that cannot be read or is
-/// not UTF-8, both before any view prints.
+/// not UTF-8, both before any view prints, and `output_not_writable` for roots
+/// the Owner has not recorded, before git runs.
 ReadAnswer approveDryRun(
   WriteSession session, {
   List<String> names = const [],
@@ -75,6 +78,7 @@ ReadAnswer approveDryRun(
   ApprovalHistory? history,
 }) {
   final drafts = _shownDraftsUnder(session, names);
+  if (drafts.isNotEmpty) _requireTrusted(session, drafts);
   final lookup = history ?? ApprovalHistory();
   final views = [
     for (final (at, (:doc, :bytes)) in drafts.indexed)
@@ -200,6 +204,13 @@ bool _waitsForApproval(WriteSession session, IndexedDoc doc) => awaitsApproval(
   doc.approvalHash,
   stampsHaveRun: session.project.stampsHaveRun,
 );
+
+/// Throws `output_not_writable` unless the Owner trusts the roots, before git
+/// runs or a view shows: an approval written there would be refused anyway.
+void _requireTrusted(WriteSession session, List<_ShownDraft> drafts) => session
+    .project
+    .trust
+    .requireTrusted(session.projectPathOf(drafts.first.doc.docPath));
 
 /// A draft and the bytes of its file at selection.
 typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
