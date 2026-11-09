@@ -616,9 +616,25 @@ void _handOffTests() {
       _pluginText('skills/brainstorming-sdd/SKILL.md'),
       '4. Write the drafts, then audit them',
     );
-    final move = drafts.indexOf("Run the author's `Move:` command");
+    final move = drafts.indexOf("Run the author's `Move:` commands");
     expect(move, isNonNegative);
     expect(move, lessThan(drafts.indexOf('`mode: audit`')));
+  });
+
+  test('agent_plugin/write_prd_and_spec/confirm_gated_commands_with_the_owner: '
+      'the Rules and Owner confirmation sections of expert-sdd gate the '
+      'delete of a guarded doc', () {
+    final skill = _pluginText('skills/expert-sdd/SKILL.md');
+    for (final heading in ['Rules', 'Owner confirmation']) {
+      expect(
+        _sectionOf(skill, heading).replaceAll(RegExp(r'\s+'), ' '),
+        contains(
+          '`approve`, `delete` of a guarded doc, `migrate`, and `init` on a '
+          'legacy tree',
+        ),
+        reason: heading,
+      );
+    }
   });
 }
 

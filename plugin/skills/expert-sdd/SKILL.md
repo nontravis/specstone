@@ -27,7 +27,7 @@ working directory alone misses a project root above it, and spends a tool call t
 2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
    edit a doc file by hand, through a file tool or a shell command. Each write leaves its doc a draft, a pointer
    write (`implements`, `covers`) excepted: never remove `draft: true`, and never run `specstone approve` without
-   `--yes`. Run `--yes` only as Owner confirmation below says; it binds `approve`, `delete` of an approved doc,
+   `--yes`. Run `--yes` only as Owner confirmation below says; it binds `approve`, `delete` of a guarded doc,
    `migrate`, and `init` on a legacy tree alike.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
    `specstone guide <type> --json` for its fields, even for a type you wrote earlier in the session. A project may
@@ -46,7 +46,7 @@ working directory alone misses a project root above it, and spends a tool call t
 
 ## Owner confirmation
 
-`approve`, `delete` of an approved doc, `migrate`, and `init` on a legacy tree need the Owner's word, given at their
+`approve`, `delete` of a guarded doc, `migrate`, and `init` on a legacy tree need the Owner's word, given at their
 own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
