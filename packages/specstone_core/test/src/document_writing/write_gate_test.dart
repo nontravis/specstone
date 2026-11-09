@@ -137,6 +137,43 @@ void main() {
       expect(refusal('../ext/.git/config', docsRoot: docsRoot), _underGit);
     });
 
+    test('a link to a path outside the project that does not exist yet leads '
+        'outside, for the link and for a file below it', () {
+      createRelativeLink('${project.path}/gone', '../outside/made/here');
+
+      expect(refusal('gone'), _leaves);
+      expect(refusal('gone/x.txt'), _leaves);
+    }, skip: _linksUnavailable);
+
+    test('a link to a path inside the project that does not exist yet may '
+        'be written through', () {
+      createRelativeLink('${project.path}/gone', 'inner/missing');
+
+      expect(refusal('gone'), isNull);
+      expect(refusal('gone/x.txt'), isNull);
+    }, skip: _linksUnavailable);
+
+    test('a chain of dangling links is followed to where it leads', () {
+      createRelativeLink('${project.path}/a', 'b');
+      createRelativeLink('${project.path}/b', '../outside/gone');
+
+      expect(refusal('a'), _leaves);
+    }, skip: _linksUnavailable);
+
+    test('a link loop is refused as unresolved, never thrown', () {
+      createRelativeLink('${project.path}/a', 'b');
+      createRelativeLink('${project.path}/b', 'a');
+
+      expect(refusal('a'), startsWith('it cannot be resolved'));
+      expect(refusal('a/x.txt'), startsWith('it cannot be resolved'));
+    }, skip: _linksUnavailable);
+
+    test('a docs root that does not exist is no root', () {
+      final docsRoot = Directory('${base.path}/not-made');
+
+      expect(refusal('../not-made/prds/b.md', docsRoot: docsRoot), _leaves);
+    });
+
     test('requireWritableTarget names the path from the project root, and a '
         'docs path as docs/...', () {
       expect(
@@ -350,6 +387,115 @@ void main() {
         File('${root.path}/docs/prds/elsewhere/USER_STORY.md')
             .readAsStringSync(),
         contains('Changed'),
+      );
+    }, skip: _linksUnavailable);
+  });
+
+  group('$_gate: a dangling link at an index name', () {
+    late Directory outside;
+    late Directory root;
+
+    setUp(() async {
+      root = await writeWriteProject();
+      outside = await writeTree({'keep.txt': 'mine\n'});
+    });
+
+    test('a link to a missing path outside the project refuses a read '
+        'session, and nothing is created there', () {
+      final target = File('${outside.path}/not-yet.sqlite');
+      Link('${root.path}/.specstone/index.sqlite').createSync(target.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => ReadSession.open(
+          templates: TemplateResolver(),
+          workingDirectory: root,
+          homeDirectory: null,
+        ),
+        _refuses('.specstone/index.sqlite', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+      expect(target.existsSync(), isFalse);
+    }, skip: _linksUnavailable);
+
+    test('a link to a missing path outside the project refuses new, and '
+        'nothing is created there', () {
+      final target = File('${outside.path}/not-yet.sqlite');
+      Link('${root.path}/.specstone/index.sqlite').createSync(target.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'forgot_email',
+          ),
+        ),
+        _refuses('.specstone/index.sqlite', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+      expect(target.existsSync(), isFalse);
+    }, skip: _linksUnavailable);
+
+    test('a link to a missing path inside the project opens the index '
+        'there', () {
+      Link('${root.path}/.specstone/index.sqlite').createSync('made.sqlite');
+
+      ReadSession.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      ).close();
+
+      expect(File('${root.path}/.specstone/made.sqlite').existsSync(), isTrue);
+    }, skip: _linksUnavailable);
+  });
+
+  group('$_gate: a docs link to a folder not made yet', () {
+    Future<Directory> projectWithoutDocs() => writeWriteProject(
+      without: {
+        for (final key in writeProject.keys)
+          if (key.startsWith('docs/')) key,
+      },
+    );
+
+    test('a dangling docs link to a missing folder outside the project '
+        'refuses new, and nothing is created', () async {
+      final root = await projectWithoutDocs();
+      final outside = await writeTree({'keep.txt': 'mine\n'});
+      Link('${root.path}/docs').createSync('${outside.path}/made/here');
+      final before = _snapshot(outside);
+
+      expect(
+        () =>
+            writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.message, 'message', endsWith(_leaves)),
+        ),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('a dangling docs link to a missing folder inside the project still '
+        'writes there', () async {
+      final root = await projectWithoutDocs();
+      Link('${root.path}/docs').createSync('inner/missing');
+
+      writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x'));
+
+      expect(
+        File('${root.path}/inner/missing/prds/personas/x/PERSONA.md')
+            .existsSync(),
+        isTrue,
       );
     }, skip: _linksUnavailable);
   });

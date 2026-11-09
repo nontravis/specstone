@@ -125,14 +125,17 @@ const _unresolved = 'it cannot be resolved';
 /// Returns why a write to [path] must be refused, or null when it may go on.
 ///
 /// The one gate every write outside the journal passes: [path] is resolved as
-/// the disk stands, through every link on the way and the file itself, and
-/// must land inside the canonical [projectRoot] or [docsRoot], below no `.git`
-/// entry between that root and it. The `.git` rule is [JournalBounds]'s: case
-/// folding, Windows dots, spaces, the 8.3 name, and an NTFS stream suffix cut
-/// at its first `:`.
+/// the disk stands, through every link on the way and the file itself, a link
+/// to a target not made yet included, and must land inside the canonical
+/// [projectRoot] or [docsRoot], below no `.git` entry between that root and
+/// it. A root counts only when it exists as a folder, as in [JournalBounds]'s
+/// roots: a docs link to a folder not made yet is no root. The `.git` rule is
+/// [JournalBounds]'s: case folding, Windows dots, spaces, the 8.3 name, and an
+/// NTFS stream suffix cut at its first `:`.
 ///
-/// A path the disk cannot resolve (a link loop, a folder it may not enter) is
-/// refused with its reason, never thrown.
+/// A path the disk cannot resolve (a link loop, a dangling chain longer than
+/// the OS follows, a folder it may not enter) is refused with its reason,
+/// never thrown.
 String? writeRefusalOf(
   String path, {
   required Directory projectRoot,
@@ -141,9 +144,10 @@ String? writeRefusalOf(
   final String real;
   final List<String> roots;
   try {
-    real = canonicalPath(path);
+    real = canonicalPath(path, strict: true);
     roots = [
-      for (final root in [projectRoot, ?docsRoot]) canonicalPath(root.path),
+      for (final root in [projectRoot, ?docsRoot])
+        if (root.existsSync()) root.resolveSymbolicLinksSync(),
     ];
   } on FileSystemException catch (error) {
     return '$_unresolved: ${error.osError?.message ?? error.message}';

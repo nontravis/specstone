@@ -2,6 +2,10 @@ import 'dart:io';
 
 final String _separator = Platform.pathSeparator;
 
+/// The most dangling links one path may pass through before it counts as a
+/// loop.
+const _maxLinkHops = 40;
+
 /// Returns [path] with every `/` changed to `\` on Windows, else unchanged.
 ///
 /// Windows accepts both separators and Dart keeps whichever was written, so a
@@ -26,24 +30,55 @@ String parentOf(String path, {bool? isWindows}) {
   return windows && _isBareDrive(parent) ? '$parent$separator' : parent;
 }
 
-bool _isBareDrive(String path) =>
-    path.length == 2 && path[1] == ':' && RegExp('[A-Za-z]').hasMatch(path[0]);
+bool _isBareDrive(String path) => path.length == 2 && _hasDrive(path);
+
+bool _hasDrive(String path) =>
+    path.length >= 2 && path[1] == ':' && RegExp('[A-Za-z]').hasMatch(path[0]);
 
 /// Returns [path] with symbolic links resolved.
 ///
 /// The path may not exist: the nearest existing ancestor is resolved and the
 /// missing names are appended, so a build output file that is not written yet
 /// still compares against canonical roots. A `..` or `.` among the missing
-/// names is applied, because nothing missing can be a symbolic link.
-String canonicalPath(String path) {
+/// names is applied, because nothing missing can be a symbolic link. A link
+/// whose target does not exist is followed to where the target would be made,
+/// since a write through it creates the target.
+///
+/// Links that loop, or a chain of dangling links longer than the OS follows,
+/// stay as named, so a write through them fails at the disk. With [strict]
+/// they throw a [FileSystemException] instead. A link whose target Windows
+/// reads against a drive the link does not name (`X:name`) throws too, since
+/// the place it leads to depends on that drive's current folder.
+String canonicalPath(String path, {bool strict = false}) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(
     withNativeSeparators(File(path).absolute.path),
   );
-  while (FileSystemEntity.typeSync(existing) == FileSystemEntityType.notFound) {
-    missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
-    // An absolute path always reaches the file-system root, which exists.
-    existing = parentOf(existing);
+  for (var hops = 0; ; hops++) {
+    while (FileSystemEntity.typeSync(existing, followLinks: false) ==
+        FileSystemEntityType.notFound) {
+      missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
+      // An absolute path always reaches the file-system root, which exists.
+      existing = parentOf(existing);
+    }
+    if (FileSystemEntity.typeSync(existing) != FileSystemEntityType.notFound) {
+      break;
+    }
+    // A link that exists as itself but leads nowhere yet.
+    if (hops >= _maxLinkHops) {
+      if (strict) {
+        throw FileSystemException(
+          'too many levels of symbolic links',
+          existing,
+        );
+      }
+      missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
+      existing = parentOf(existing);
+      continue;
+    }
+    existing = withoutTrailingSeparator(
+      linkTargetPath(existing, Link(existing).targetSync()),
+    );
   }
   var resolved = File(existing).resolveSymbolicLinksSync();
   for (final name in missing.reversed) {
@@ -58,6 +93,55 @@ String canonicalPath(String path) {
   }
   return resolved;
 }
+
+/// Returns the absolute path the link at [linkPath] names with [target], read
+/// from the folder of the link.
+///
+/// On Windows a target that starts with one separator (what git for Windows
+/// makes of a committed `/dir/x`) is rooted at the drive or share of the
+/// link, not read from the link's folder. A drive-relative target `X:name`
+/// throws a [FileSystemException], since it leads wherever drive `X:` is
+/// currently set. [isWindows] picks the style; it defaults to the running
+/// platform.
+String linkTargetPath(String linkPath, String target, {bool? isWindows}) {
+  final windows = isWindows ?? Platform.isWindows;
+  if (!windows) {
+    return target.startsWith('/')
+        ? target
+        : _joined(parentOf(linkPath, isWindows: false), target, '/');
+  }
+  final native = withNativeSeparators(target, isWindows: true);
+  if (native.startsWith(r'\\')) return native;
+  if (_hasDrive(native)) {
+    if (native.length > 2 && native[2] == r'\') return native;
+    throw FileSystemException(
+      'a link target that names a drive without a root cannot be followed',
+      linkPath,
+    );
+  }
+  if (native.startsWith(r'\')) {
+    final volume = _windowsVolumeOf(linkPath);
+    if (volume == null) {
+      throw FileSystemException('the drive of the link is unknown', linkPath);
+    }
+    return '$volume$native';
+  }
+  return _joined(parentOf(linkPath, isWindows: true), native, r'\');
+}
+
+/// Returns the drive (`C:`) or network share (`\\server\share`) that starts
+/// the Windows [path], or null when it starts with neither.
+String? _windowsVolumeOf(String path) {
+  if (_hasDrive(path)) return path.substring(0, 2);
+  if (!path.startsWith(r'\\')) return null;
+  final names = path.substring(2).split(r'\');
+  if (names.length < 2 || names[0].isEmpty || names[1].isEmpty) return null;
+  return r'\\'
+      '${names[0]}\\${names[1]}';
+}
+
+String _joined(String folder, String name, String separator) =>
+    folder.endsWith(separator) ? '$folder$name' : '$folder$separator$name';
 
 /// Returns [path] without trailing separators, keeping a root as a root.
 ///
