@@ -118,7 +118,8 @@ final class RootTrust {
     if (isTrusted) return null;
     final what = _isDocsOutside
         ? 'the docs folder ${docsRoot.path} lies outside the project'
-        : 'the project folder ${projectRoot.path} lies outside ${folder.path}';
+        : 'the project folder ${projectRoot.path} was reached through the docs '
+              'link in ${folder.path}';
     return '$what; $_trustHint';
   }
 

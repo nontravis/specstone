@@ -34,10 +34,11 @@ final class TrustRequest {
 ///
 /// Prints the project root and docs root it would trust, found as the write
 /// commands, `migrate`, and `init` find them, so the Owner can trust before a
-/// config exists ([locateSetupTrust]). A project whose
-/// roots need no record (see [RootTrust.needsRecord]) is told so and the run
-/// ends with 0. Otherwise it asks `trust these folders for writes? [y/N]` and,
-/// on `y`, writes the record under the home folder.
+/// config exists ([locateSetupTrust]). A project whose roots need no record
+/// (see [RootTrust.needsRecord]) is told so, and one whose record already
+/// matches is told it is trusted, with no terminal needed; both end with 0.
+/// Otherwise it asks `trust these folders for writes? [y/N]` and, on `y`,
+/// writes the record under the home folder.
 ///
 /// Throws `owner_terminal_required` unless the Owner answers at a terminal,
 /// and `output_not_writable` when there is no home folder to keep the record
@@ -51,6 +52,13 @@ int runTrust(TrustRequest request) {
     request.out.writeln(
       'no record needed: the docs folder ${trust.docsRoot.path} lies inside '
       'the project folder ${trust.projectRoot.path}',
+    );
+    return 0;
+  }
+  if (trust.isTrusted) {
+    request.out.writeln(
+      'already trusted: the project folder ${trust.projectRoot.path} and the '
+      'docs folder ${trust.docsRoot.path}',
     );
     return 0;
   }

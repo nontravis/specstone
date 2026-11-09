@@ -114,6 +114,23 @@ void main() {
       expect(_records.existsSync(), isFalse);
     }, skip: _linksUnavailable);
 
+    test('a layout the Owner already trusted says so and exits 0, even with '
+        'no terminal', () async {
+      final (:clone, :ext) = await _clone();
+      await _run(clone, ['trust'], terminal: true, answers: ['y']);
+
+      final run = await _run(clone, ['trust']);
+
+      expect(run.status, 0, reason: run.err);
+      expect(
+        run.out,
+        'already trusted: the project folder '
+        '${clone.resolveSymbolicLinksSync()} and the docs folder '
+        '${ext.resolveSymbolicLinksSync()}\n',
+      );
+      expect(run.err, isEmpty);
+    }, skip: _linksUnavailable);
+
     test('a project whose docs folder lies inside it needs no record, even '
         'with no terminal', () async {
       final root = await writeWriteProject();

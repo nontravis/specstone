@@ -110,7 +110,8 @@ void main() {
         () => _init(clone),
         _refuses(
           '.specstone/config.yaml',
-          'the project folder ${victim.path} lies outside ${clone.path}',
+          'the project folder ${victim.path} was reached through the docs '
+              'link in ${clone.path}',
         ),
       );
 
@@ -194,7 +195,8 @@ void main() {
         () => _migrate(code),
         _refuses(
           '.specstone/trash/journal.json',
-          'the project folder ${ws.path} lies outside ${code.path}',
+          'the project folder ${ws.path} was reached through the docs '
+              'link in ${code.path}',
         ),
       );
 
@@ -230,7 +232,8 @@ void main() {
         () => _migrate(code, dryRun: true),
         _refuses(
           '.specstone/trash/journal.json',
-          'the project folder ${ws.path} lies outside ${code.path}',
+          'the project folder ${ws.path} was reached through the docs '
+              'link in ${code.path}',
         ),
       );
 

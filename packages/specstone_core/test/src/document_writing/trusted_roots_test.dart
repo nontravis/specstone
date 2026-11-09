@@ -194,6 +194,27 @@ void main() {
 
       expect(treeBytes(Directory('${victim.path}/docs')), before);
     }, skip: _linksUnavailable);
+
+    test('the refusal names the docs link, not the code folder', () async {
+      final (:clone, :victim, base: _) = await _linkedClone();
+
+      expect(
+        () => writeIn(
+          clone,
+          (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf),
+        ),
+        throwsA(
+          isA<RenderFault>().having(
+            (f) => f.message,
+            'message',
+            'cannot write docs/$story2: the project folder '
+                '${victim.resolveSymbolicLinksSync()} was reached through the '
+                'docs link in ${clone.resolveSymbolicLinksSync()}; run '
+                'specstone trust at a terminal to allow it',
+          ),
+        ),
+      );
+    }, skip: _linksUnavailable);
   });
 
   group('after the Owner records the roots', () {
