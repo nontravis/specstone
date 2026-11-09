@@ -106,16 +106,18 @@ void _gitWithUntrackedDraft(Directory project) {
     ..writeAsStringSync('---\ndraft: true\n---\n\n# Y\n');
 }
 
-/// The loose object files under the git folder of [project].
-int _looseObjects(Directory project) =>
+final RegExp _looseObjectPath = RegExp(r'/objects/[0-9a-f]{2}/[0-9a-f]+$');
+
+/// The loose object files under the git folder of [project], by path.
+///
+/// Compared as a set, so a run that swaps one object for another shows too.
+Set<String> _looseObjects(Directory project) =>
     Directory('${project.path}/.git/objects')
         .listSync(recursive: true)
         .whereType<File>()
-        .where(
-          (file) =>
-              !file.path.contains('/pack/') && !file.path.contains('/info/'),
-        )
-        .length;
+        .map((file) => file.path.replaceAll(r'\', '/'))
+        .where(_looseObjectPath.hasMatch)
+        .toSet();
 
 /// A history whose git runs count in [calls].
 ApprovalHistory _countingHistory(List<List<String>> calls) => ApprovalHistory(

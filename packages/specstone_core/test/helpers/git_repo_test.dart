@@ -19,6 +19,19 @@ void main() {
     expect(cleaned, {'PATH': '/bin', 'HOME': '/home/t'});
   });
 
+  test('a fixture git never starts background maintenance', () async {
+    final root = await writeTree({'a.txt': 'a\n'});
+    expect(git(root, ['init', '-q']).exitCode, 0);
+
+    // `git commit` detaches `git maintenance run --auto`, which holds
+    // .git/objects/maintenance.lock for a moment after the commit returns.
+    expect(
+      git(root, ['config', '--get', 'maintenance.auto']).stdout,
+      'false\n',
+    );
+    expect(git(root, ['config', '--get', 'gc.auto']).stdout, '0\n');
+  }, skip: hasGit ? false : 'git missing');
+
   test('a fixture never writes the repository a GIT_DIR points at', () async {
     final outer = await writeTree({});
     expect(git(outer, ['init', '-q']).exitCode, 0);

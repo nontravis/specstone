@@ -234,17 +234,22 @@ T writeInNoHome<T>(Directory root, T Function(WriteSession session) body) =>
 /// Returns every file under [root], outside `.git`, as its bytes keyed by its
 /// `/`-separated relative path, and every folder as an empty list, so a
 /// created or removed folder shows too.
+///
+/// Reads nothing under `.git`, where git may add or drop files as it runs.
 Map<String, List<int>> treeBytes(Directory root) {
   final prefix = '${root.path}${Platform.pathSeparator}';
-  return {
-    for (final entity in root.listSync(recursive: true, followLinks: false))
-      entity.path
-          .substring(prefix.length)
-          .replaceAll(Platform.pathSeparator, '/'): switch (entity) {
-        File() => entity.readAsBytesSync(),
-        _ => const <int>[],
-      },
-  }..removeWhere((path, _) => path == '.git' || path.startsWith('.git/'));
+  final entries = <String, List<int>>{};
+  for (final entity in root.listSync(recursive: true, followLinks: false)) {
+    final path = entity.path
+        .substring(prefix.length)
+        .replaceAll(Platform.pathSeparator, '/');
+    if (path == '.git' || path.startsWith('.git/')) continue;
+    entries[path] = switch (entity) {
+      File() => entity.readAsBytesSync(),
+      _ => const <int>[],
+    };
+  }
+  return entries;
 }
 
 /// Returns the first doc object `get` prints for [address], as an Agent reads

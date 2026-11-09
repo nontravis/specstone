@@ -23,10 +23,30 @@ Map<String, String> cleanGitEnvironment([Map<String, String>? source]) => {
     if (!_gitLocationKeys.contains(key.toUpperCase())) key: value,
 };
 
-/// Runs `git` with [args] in [dir] as a fixed test author.
+/// Git settings that keep `git commit` from detaching auto-maintenance.
+///
+/// That background run holds `.git/objects/maintenance.lock` for a moment
+/// after the commit returns, so a test that lists `.git` sees a file come
+/// and go.
+const _noBackgroundMaintenance = [
+  '-c',
+  'maintenance.auto=false',
+  '-c',
+  'gc.auto=0',
+];
+
+/// Runs `git` with [args] in [dir] as a fixed test author, with no background
+/// maintenance.
 ProcessResult git(Directory dir, List<String> args) => Process.runSync(
   'git',
-  ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args],
+  [
+    '-c',
+    'user.name=t',
+    '-c',
+    'user.email=t@t',
+    ..._noBackgroundMaintenance,
+    ...args,
+  ],
   workingDirectory: dir.path,
   environment: cleanGitEnvironment(),
   includeParentEnvironment: false,
