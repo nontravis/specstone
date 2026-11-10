@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show isThematicBreak;
 import 'package:yaml/yaml.dart';
 
 /// One frontmatter key kept as its original text, comments included.
@@ -363,7 +365,6 @@ const _lessThan = 0x3C;
 const _equals = 0x3D;
 const _quoteMarker = 0x3E;
 const _hash = 0x23;
-const _underscore = 0x5F;
 const _backtick = 0x60;
 const _tilde = 0x7E;
 
@@ -372,7 +373,6 @@ const _tabStop = 4;
 /// The columns a block may sit past its container's content column (GFM).
 const _maxIndent = 3;
 const _minFenceRun = 3;
-const _minThematicRun = 3;
 const _maxHeadingLevel = 6;
 const _maxOrderedDigits = 9;
 
@@ -629,7 +629,7 @@ int? _listItemColumn(String text, int column, {required bool paragraphOpen}) {
   final start = _indentEnd(text, column);
   if (start - column > _maxIndent || start >= text.length) return null;
   final markerEnd = _listMarkerEnd(text, start);
-  if (markerEnd == null || _isThematicBreak(text, start)) return null;
+  if (markerEnd == null || isThematicBreak(text.substring(start))) return null;
   final contentStart = _indentEnd(text, markerEnd);
   final isEmpty = contentStart >= text.length;
   if (paragraphOpen && (isEmpty || !_startsAtOne(text, start, markerEnd))) {
@@ -677,7 +677,7 @@ bool _isLazyLine(String text, int column) {
 /// an ATX heading, a thematic break, or an HTML block start.
 bool _interruptsParagraph(String text, int start) =>
     _isAtxHeading(text, start) ||
-    _isThematicBreak(text, start) ||
+    isThematicBreak(text.substring(start)) ||
     (text.codeUnitAt(start) == _lessThan &&
         _htmlBlockStart.matchAsPrefix(text, start) != null);
 
@@ -707,25 +707,6 @@ bool _isAtxHeading(String text, int start) {
   return level >= 1 &&
       level <= _maxHeadingLevel &&
       (end >= text.length || text.codeUnitAt(end) == _space);
-}
-
-/// Whether [text] from [start] is three or more `-`, `*`, or `_` of one kind,
-/// with only spaces between and after them.
-bool _isThematicBreak(String text, int start) {
-  final marker = text.codeUnitAt(start);
-  if (marker != _dash && marker != _star && marker != _underscore) {
-    return false;
-  }
-  var count = 0;
-  for (var i = start; i < text.length; i++) {
-    final unit = text.codeUnitAt(i);
-    if (unit == marker) {
-      count++;
-    } else if (unit != _space) {
-      return false;
-    }
-  }
-  return count >= _minThematicRun;
 }
 
 /// Returns the first index at or after [from] that holds no space.

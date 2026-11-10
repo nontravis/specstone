@@ -1,3 +1,4 @@
+import 'package:markdown/markdown.dart' show markdownToHtml;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:test/test.dart';
 
@@ -267,6 +268,21 @@ void main() {
         false,
         true,
       ]);
+    });
+
+    test('doc_model/doc: blockScan reads a thematic break with tabs between '
+        'its marks as markdown does, one that ends the paragraph above it', () {
+      for (final rule in ['*\t*\t*', '- -\t-', '_\t_ _\t', '---\t']) {
+        expect(
+          markdownToHtml('> quote\n$rule\n'),
+          contains('<hr />'),
+          reason: rule,
+        );
+        expect(blockScan(['> quote', rule]).continuesParagraph, [
+          false,
+          false,
+        ], reason: rule);
+      }
     });
 
     test('f05/us01/fr04: hasUnclosedFence is true when the text ends inside '
