@@ -742,6 +742,62 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us03/fr01/e02: the legacy entry refuses untrusted roots before any '
+      'git call', () async {
+    final tree = await writeTree(linkedAcme({}));
+    if (!linkCodeDocs(tree)) return;
+    final calls = <List<String>>[];
+
+    expect(
+      () => _run(
+        Directory('${tree.path}/ws/code'),
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        runGit: (arguments, {required workingDirectory, environment}) {
+          calls.add(arguments);
+          return runRealGit(arguments, workingDirectory: workingDirectory);
+        },
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (f) => f.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      ),
+    );
+    expect(calls, isEmpty);
+  });
+
+  test('f06/us03/fr01/e02: the legacy entry refuses a dirty tree before the '
+      'plan prints', () async {
+    final root = await gitFixture(acmeLegacy);
+    File('${root.path}/notes.txt').writeAsStringSync('x\n');
+    final out = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: root,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: out,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.workingTreeDirty,
+        ),
+      ),
+    );
+    expect(out.toString(), isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
       'exit 75, and the journal stays', () async {
     final root = await gitFixture(acmeLegacy);

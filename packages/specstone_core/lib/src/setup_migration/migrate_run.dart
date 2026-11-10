@@ -69,14 +69,14 @@ final class MigrateRequest {
 
 /// Runs `specstone migrate` and returns its exit status.
 ///
-/// A bare legacy or upgrade run checks git first, prints the plan, and applies
-/// it on the Owner's `y`, or under `--yes` with no prompt, after checking git
-/// again.
+/// A legacy or upgrade run, with or without `--dry-run`, checks trust and git
+/// first, then prints the plan; bare `migrate` applies it on the Owner's `y`,
+/// or under `--yes` with no prompt, after checking git again.
 ///
 /// A pending journal is finished first: a `document_writing` journal is
 /// replayed before the git checks, and a migrate journal is resumed with no
 /// second `y`. A dry run replays nothing, but refuses a journal the replay
-/// would refuse.
+/// would refuse, then checks git on the tree as it stands.
 ///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal, the git checks
@@ -116,17 +116,16 @@ int _migrate(MigrateRequest request) {
   final trust = _trustOf(root, linkFolder, request);
   requireSpecstoneFolder(root);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
-    final target = _targetOf(root, request, trust);
+    final target = _targetOf(root, request, trust)..requireTrusted();
     if (request.dryRun) {
       // Reads the journal and its cursor only, so a dry run refuses one that
       // does not parse as the replay does, and writes nothing.
       MoveJournal.remaining(target);
     } else {
-      target.requireTrusted();
       MoveJournal.replay(target);
-      requireGitWorkTree(root, request.runGit);
-      requireCleanWorkTree(root, request.runGit);
     }
+    requireGitWorkTree(root, request.runGit);
+    requireCleanWorkTree(root, request.runGit);
   }
   final kind = chooseRun(
     root,
@@ -171,8 +170,8 @@ RootTrust _trustOf(
   homeDirectory: request.homeDirectory,
 );
 
-/// Prints the plan of a legacy or upgrade run, and applies it on the Owner's
-/// `y`, or under `--yes` with no prompt.
+/// Prints the plan of a legacy or upgrade run after the preflight, and applies
+/// it on the Owner's `y`, or under `--yes` with no prompt.
 ///
 /// The git checks run again after the `y`, since the Owner may read the plan
 /// for minutes: a change to the tree or a new commit in that time refuses
@@ -185,16 +184,14 @@ int _plannedRun(
   RunKind kind, {
   required Directory? linkFolder,
 }) {
+  final trust = _trustOf(root, linkFolder, request);
+  _preflight(request, root, trust, checksCleanTree: true);
   if (request.dryRun) {
     final plan = _planOf(request, root, kind, linkFolder);
     _nameSkipped(request, plan);
     _printDryRun(request, root, plan.toText());
     return 0;
   }
-  final trust = _trustOf(root, linkFolder, request)
-    ..requireTrusted(MoveJournal.journalPath);
-  requireGitWorkTree(root, request.runGit);
-  requireCleanWorkTree(root, request.runGit);
   final base = headSha(root, request.runGit);
   final plan = _planOf(request, root, kind, linkFolder);
   _nameSkipped(request, plan);
@@ -227,6 +224,24 @@ int _plannedRun(
   return 0;
 }
 
+/// Refuses, in order and before any plan, roots that wait for the Owner's
+/// trust record, a [root] outside a git work tree, and, when [checksCleanTree],
+/// a dirty work tree.
+///
+/// The dry run and the apply of a legacy run, an upgrade, and a resume share
+/// it; a resume leaves the clean-tree check off, since its stopped run left
+/// the tree dirty.
+void _preflight(
+  MigrateRequest request,
+  Directory root,
+  RootTrust trust, {
+  required bool checksCleanTree,
+}) {
+  trust.requireTrusted(MoveJournal.journalPath);
+  requireGitWorkTree(root, request.runGit);
+  if (checksCleanTree) requireCleanWorkTree(root, request.runGit);
+}
+
 /// Names on [request]'s warnings each agent file [plan] leaves because its
 /// real path lies outside the project root (R99), one line per file.
 void _nameSkipped(MigrateRequest request, RunPlan plan) {
@@ -255,13 +270,11 @@ RunPlan _planOf(
 /// Finishes the migrate journal a stopped run left, with no second `y`: the
 /// Owner's first `y` approved its steps.
 ///
-/// A bare resume checks the git work tree and version first, as its commits
-/// need them; the stopped run leaves the tree dirty, so it is not checked.
+/// A resume, bare or dry, checks trust, the git work tree, and the version
+/// first, as its commits need them; the stopped run leaves the tree dirty, so
+/// it is not checked.
 int _resume(MigrateRequest request, Directory root, RootTrust trust) {
-  if (!request.dryRun) {
-    trust.requireTrusted(MoveJournal.journalPath);
-    requireGitWorkTree(root, request.runGit);
-  }
+  _preflight(request, root, trust, checksCleanTree: false);
   final target = _targetOf(root, request, trust);
   final listing = StringBuffer()
     ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')

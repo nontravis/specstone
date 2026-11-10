@@ -11,7 +11,11 @@ import '../../helpers/write_runner.dart';
 
 Map<String, String> _bytesUnder(Directory root) => {
   for (final entity in root.listSync(recursive: true, followLinks: false))
-    if (entity is File) entity.path: entity.readAsStringSync(),
+    if (entity is File &&
+        !entity.path.contains(
+          '${Platform.pathSeparator}.git${Platform.pathSeparator}',
+        ))
+      entity.path: entity.readAsStringSync(),
 };
 
 /// Returns the hash on the `plan <hash>` line `migrate --dry-run` prints in
@@ -26,7 +30,7 @@ Future<String> _dryRunPlanHash(Directory root) async {
 void main() {
   test('f06/us01/s2: migrate --dry-run prints the plan, writes nothing, and '
       'exits 0', () async {
-    final root = await writeTree(acmeLegacy);
+    final root = await gitFixture(acmeLegacy);
     final before = _bytesUnder(root);
     final (:runner, :out, :err) = writeRunner(root);
 
@@ -42,7 +46,7 @@ void main() {
 
   test('a docs-root file named with # is read as a file name, not a URI '
       'fragment', () async {
-    final root = await writeTree({
+    final root = await gitFixture({
       ...acmeLegacy,
       'docs/prds/notes#draft.md': '# Notes\n',
     });
@@ -78,7 +82,7 @@ void main() {
 
   test('f06/us01/fr04/e16: migrate --dry-run labels a doc changed by a path '
       'mention', () async {
-    final root = await writeTree({
+    final root = await gitFixture({
       ...acmeLegacy,
       'docs/prds/d04_glossary.md': [
         '# Glossary\n\nSee features/f01_login/us01_email_login/',
@@ -117,7 +121,7 @@ void main() {
   test(
     'f06/us01/s14: two groups with one name refuse in the dry run',
     () async {
-      final root = await writeTree({
+      final root = await gitFixture({
         ...duplicateGroupLegacy,
         'docs/prds/d01_context.md': '# D-01 — Context\n',
       });
@@ -158,7 +162,7 @@ void main() {
 
   test('ms-r11: migrate --dry-run prints plan <hash> above its last '
       'line', () async {
-    final root = await writeTree(acmeLegacy);
+    final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(root);
 
     expect(await runner.run(['migrate', '--dry-run']), 0);

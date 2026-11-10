@@ -127,6 +127,7 @@ int _run(
   bool dryRun = false,
   String? planHash,
   List<String>? warnings,
+  RunGit runGit = runMigrateGit,
 }) {
   var call = 0;
   return runMigrate(
@@ -137,6 +138,7 @@ int _run(
       dryRun: dryRun,
       confirmation: confirmation,
       planHash: planHash,
+      runGit: runGit,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
       warn: (warnings ?? <String>[]).add,
@@ -590,18 +592,23 @@ void main() {
       linkedAcme({
         legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
         'code/lib/a.dart': 'class A {}\n',
+        // Git for Windows may store a link as a file; the plan needs none.
+        '.gitignore': 'code/docs\n',
       }),
     );
     if (!linkCodeDocs(tree)) return;
+    commitRepo(Directory('${tree.path}/ws'));
+    final code = Directory('${tree.path}/ws/code');
+    locateSetupTrust(code, homeDirectory: testHome()).record();
     final out = StringBuffer();
 
-    expect(_run(Directory('${tree.path}/ws/code'), out, dryRun: true), 0);
+    expect(_run(code, out, dryRun: true), 0);
 
     expect(
       out.toString(),
       matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
     );
-  });
+  }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us01/fr07/e04, final M7: a dry run over a journal that does not '
       'parse refuses as bare migrate does', () async {
@@ -1455,7 +1462,17 @@ void main() {
 
       final dry = await gitFixture(files);
       writeJournal(dry, [const MoveStep('docs/prds/a.md', 'docs/prds/b.md')]);
-      _run(dry, StringBuffer(), dryRun: true);
+      // The journal file is untracked, so the tree as it stands is dirty.
+      expect(
+        () => _run(dry, StringBuffer(), dryRun: true),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
       expect(hasDoc(dry, 'prds/a.md'), isTrue);
       expect(hasDoc(dry, 'prds/b.md'), isFalse);
     }, skip: skipGit);
@@ -1660,7 +1677,205 @@ void main() {
       expect(MoveJournal.pendingMigrate(root), isTrue);
     }, skip: skipGit);
   });
+
+  group('f06/us01/fr02: the dry run and apply share one preflight', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    Matcher gitRefusal() => throwsA(
+      isA<MigrateFault>().having(
+        (f) => f.code,
+        'code',
+        MigrateFaultCode.gitWorkTreeRequired,
+      ),
+    );
+
+    Matcher trustRefusal() => throwsA(
+      isA<RenderFault>().having(
+        (f) => f.code,
+        'code',
+        RenderFaultCode.outputNotWritable,
+      ),
+    );
+
+    test('f06/us01/fr02/e04: a dry run over a dirty tree refuses and prints '
+        'no plan', () async {
+      final root = await gitFixture(acmeLegacy);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+      expect(out.toString(), isEmpty);
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e03: a dry run outside a work tree, or under git '
+        '2.24, refuses git_work_tree_required, as does a resume dry run '
+        'outside one', () async {
+      final root = await gitFixture(acmeLegacy);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(
+          root,
+          out,
+          dryRun: true,
+          runGit: _fakeGit([], outsideWorkTree: true),
+        ),
+        gitRefusal(),
+      );
+      expect(
+        () => _run(
+          root,
+          out,
+          dryRun: true,
+          runGit: _fakeGit([], version: '2.24.0'),
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.gitWorkTreeRequired,
+              )
+              .having((f) => f.message, 'message', contains('2.25')),
+        ),
+      );
+      expect(out.toString(), isEmpty);
+
+      _stopAfterCommit1(root);
+      expect(
+        () => _run(
+          root,
+          out,
+          dryRun: true,
+          runGit: _fakeGit([], outsideWorkTree: true),
+        ),
+        gitRefusal(),
+      );
+      expect(out.toString(), isEmpty);
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e14, f06/us01/fr08/e10: a dry run over untrusted '
+        'roots refuses output_not_writable before any git call', () async {
+      final tree = await writeTree(linkedAcme({}));
+      if (!linkCodeDocs(tree)) return;
+      final calls = <List<String>>[];
+      final out = StringBuffer();
+
+      expect(
+        () => _run(
+          Directory('${tree.path}/ws/code'),
+          out,
+          dryRun: true,
+          runGit: _fakeGit(calls),
+        ),
+        trustRefusal(),
+      );
+      expect(calls, isEmpty);
+      expect(out.toString(), isEmpty);
+    });
+
+    test('f06/us01/fr07/e04: a resume dry run over a dirty tree prints the '
+        'remaining steps and a plan line', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true), 0);
+
+      expect(out.toString(), contains('remaining steps:'));
+      expect(out.toString(), contains('\nplan '));
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal refuses '
+        'untrusted roots first and replays nothing', () async {
+      final tree = await writeTree(linkedAcme({}));
+      if (!linkCodeDocs(tree)) return;
+      final project = Directory('${tree.path}/ws');
+      final calls = <List<String>>[];
+      _writeF02Journal(project);
+      final journal = File('${project.path}/${MoveJournal.journalPath}');
+      final before = journal.readAsStringSync();
+
+      expect(
+        () => _run(
+          Directory('${tree.path}/ws/code'),
+          StringBuffer(),
+          dryRun: true,
+          runGit: _fakeGit(calls),
+        ),
+        trustRefusal(),
+      );
+
+      expect(calls, isEmpty);
+      expect(journal.readAsStringSync(), before);
+    });
+
+    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal replays '
+        'nothing, then refuses the tree as it stands', () async {
+      final root = await gitFixture(acmeLegacy);
+      _writeF02Journal(root);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      final before = journal.readAsStringSync();
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(journal.readAsStringSync(), before);
+      expect(
+        File('${root.path}/docs/prds/d01_context.md').readAsStringSync(),
+        acmeLegacy['docs/prds/d01_context.md'],
+      );
+    }, skip: skipGit);
+  });
 }
+
+/// Writes a pending F-02 journal, one write step and no commit, at [root].
+void _writeF02Journal(Directory root) => writeJournal(root, [
+  WriteStep(
+    'docs/prds/d01_context.md',
+    'replaced\n',
+    before: textHashOf(acmeLegacy['docs/prds/d01_context.md']!),
+  ),
+]);
+
+/// Starts real git like [runMigrateGit], records each argument list in
+/// [calls], and answers `--version` with [version] or the work-tree query
+/// with `false` when asked.
+RunGit _fakeGit(
+  List<List<String>> calls, {
+  String? version,
+  bool outsideWorkTree = false,
+}) => (arguments, {required workingDirectory, environment}) {
+  calls.add(arguments);
+  if (version != null && arguments.first == '--version') {
+    return ProcessResult(0, 0, 'git version $version\n', '');
+  }
+  if (outsideWorkTree && arguments.contains('--is-inside-work-tree')) {
+    return ProcessResult(0, 0, 'false\n', '');
+  }
+  return runRealGit(arguments, workingDirectory: workingDirectory);
+};
 
 /// Returns the full sha HEAD of [root] points at.
 String headOf(Directory root) =>
