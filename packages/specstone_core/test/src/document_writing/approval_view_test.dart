@@ -34,6 +34,7 @@ DraftView _draft({
   String? status = 'planned',
   String name = 'fr01_t',
   String projectPath = _path,
+  String? docPath,
   MergedDocType? mergedType,
   SentenceChanges sentences = _noSentences,
 }) => DraftView(
@@ -42,7 +43,7 @@ DraftView _draft({
   mergedType: mergedType,
   title: title,
   status: status,
-  docPath: projectPath,
+  docPath: docPath ?? projectPath,
   projectPath: projectPath,
   text: text,
   lookup: lookup ?? _copy(_old),
@@ -133,6 +134,61 @@ void main() {
         expect(view, contains('-| Name | Role |'));
       },
     );
+  });
+
+  group('draftViewJson', () {
+    String feature(String flow, {String extra = ''}) =>
+        '---\nvision:\n  - V\n---\n\n# F\n\n## Feature name\nN.\n\n'
+        '## Feature goal\n- **why:** W.\n\n## Feature flow\n$flow\n$extra';
+    late MergedDocType featureType;
+
+    setUp(() async {
+      featureType = (await fixtureDocTypes()).lookup('feature')!;
+    });
+
+    test('a section the template names by an id other than its header key '
+        'prints as that id', () {
+      final json = draftViewJson(
+        _draft(
+          text: feature('New flow.'),
+          lookup: _copy(feature('Old flow.')),
+          mergedType: featureType,
+        ),
+      );
+
+      expect(json['changes'], 'flow');
+    });
+
+    test('a section the template does not name prints as the key its header '
+        'derives', () {
+      final json = draftViewJson(
+        _draft(
+          text: feature('Flow.', extra: '\n## Open Notes\nNew.\n'),
+          lookup: _copy(feature('Flow.', extra: '\n## Open Notes\nOld.\n')),
+          mergedType: featureType,
+        ),
+      );
+
+      expect(json['changes'], 'open_notes');
+    });
+
+    test('renamedFrom is relative to the docs root, as docPath is, and a '
+        'path outside the docs root stays as git reported it', () {
+      Map<String, Object> jsonFor(String copyPath) => draftViewJson(
+        _draft(
+          projectPath: 'docs/prds/b.md',
+          docPath: 'prds/b.md',
+          lookup: _copy(_old, path: copyPath),
+        ),
+      );
+
+      expect(
+        jsonFor('docs/prds/a.md'),
+        containsPair('renamedFrom', 'prds/a.md'),
+      );
+      expect(jsonFor('top/a.md'), containsPair('renamedFrom', 'top/a.md'));
+      expect(jsonFor('docs/prds/b.md'), isNot(contains('renamedFrom')));
+    });
   });
 
   group('renderApprovalView', () {

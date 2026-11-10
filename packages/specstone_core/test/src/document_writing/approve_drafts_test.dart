@@ -1701,6 +1701,40 @@ void main() {
       expect((drafts.first as Map)['changes'], 'title, problem');
     }, skip: skipGit);
 
+    test(
+      'a moved draft names its old path relative to the docs root, as docPath '
+      'is',
+      () async {
+        const body =
+            '# Signup\n\n## Problem\n\nUsers create an account.\n'
+            'They confirm the email.\nThey pick a plan.\nThey land on a start '
+            'page.\n';
+        const movedPath = 'prds/features/f02_signup_flow/FEATURE.md';
+        final root = await writeWriteProject(
+          extra: {'docs/$signupFeature': '---\napproved: true\n---\n\n$body'},
+        );
+        expect(git(root, ['init', '-q']).exitCode, 0);
+        expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+        commitAll(root, 'approved');
+        docFile(root, signupFeature).deleteSync();
+        docFile(root, movedPath).createSync(recursive: true);
+        docFile(
+          root,
+          movedPath,
+        ).writeAsStringSync('---\ndraft: true\n---\n\n${body}One more line.\n');
+        commitAll(root, 'moved and drafted');
+
+        final answer = writeIn(root, approveDryRun);
+
+        final drafts = (answer.json['drafts']! as List)
+            .cast<Map<String, Object?>>();
+        final moved = drafts.singleWhere((d) => d['docPath'] == movedPath);
+        expect(moved, containsPair('renamedFrom', signupFeature));
+        expect(answer.text, contains('renamed from `docs/$signupFeature`'));
+      },
+      skip: skipGit,
+    );
+
     test('a draft with no approved copy is a whole doc and has no '
         'renamedFrom', () async {
       final root = await writeWriteProject();

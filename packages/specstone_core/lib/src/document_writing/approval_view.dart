@@ -83,7 +83,7 @@ String renderApprovalView(
   final newText = comparableTextOf(draft.text, draft.mergedType);
   final oldText = _approvedTextOf(draft);
   final diff = approvalDiff(oldText ?? '', newText, context: context);
-  final hasDiff = oldText == null || diff.isNotEmpty;
+  final hasDiff = _hasDiff(oldText, diff);
   final changes = _changeCells(
     oldText,
     newText,
@@ -131,7 +131,8 @@ String renderApprovalView(
 ///
 /// The keys are `name` (`<doc type>:<name>`), `docPath`, `title` and `status`
 /// when [draft] has them, `hash`, `lookup` (`found`, `none`, or `unknown`),
-/// `renamedFrom` when the approved copy sits under another path, `changes`
+/// `renamedFrom` when the approved copy sits under another path (relative to
+/// the docs root, as `docPath` is), `changes`
 /// (the view's `changes` cells in order, joined by `, `, a section by its key),
 /// and `dropped` and `new`.
 Map<String, Object> draftViewJson(DraftView draft) {
@@ -141,7 +142,7 @@ Map<String, Object> draftViewJson(DraftView draft) {
   final changes = _changeCells(
     oldText,
     newText,
-    hasDiff: oldText == null || approvalDiff(oldText, newText).isNotEmpty,
+    hasDiff: _hasDiff(oldText, approvalDiff(oldText ?? '', newText)),
     plain: true,
     docType: draft.mergedType,
   );
@@ -157,7 +158,7 @@ Map<String, Object> draftViewJson(DraftView draft) {
       UnknownHistory() => 'unknown',
     },
     if (lookup case ApprovedCopy(:final path) when path != draft.projectPath)
-      'renamedFrom': path,
+      'renamedFrom': _onDocPathBase(path, draft),
     'changes': changes.join(', '),
     'dropped': draft.sentences.dropped,
     'new': draft.sentences.added,
@@ -168,6 +169,26 @@ Map<String, Object> draftViewJson(DraftView draft) {
 /// the text the view compares and reads sentences from.
 String comparableTextOf(String text, MergedDocType? docType) =>
     withoutApprovalMarks(layOutDoc(toLf(text), docType));
+
+/// Returns whether the view shows a diff: a draft with no approved copy shows
+/// whole, any other only when [diff] holds a hunk.
+bool _hasDiff(String? oldText, String diff) =>
+    oldText == null || diff.isNotEmpty;
+
+/// Returns [projectPath], a path of [draft]'s approved copy, relative to the
+/// docs root as `docPath` is.
+///
+/// A path outside the docs root, as git reports one left of the project,
+/// stays as it is.
+String _onDocPathBase(String projectPath, DraftView draft) {
+  final docsPrefix = draft.projectPath.substring(
+    0,
+    draft.projectPath.length - draft.docPath.length,
+  );
+  return projectPath.startsWith(docsPrefix)
+      ? projectPath.substring(docsPrefix.length)
+      : projectPath;
+}
 
 /// Returns the laid-out approved copy of [draft], or null when git found none.
 String? _approvedTextOf(DraftView draft) => switch (draft.lookup) {
