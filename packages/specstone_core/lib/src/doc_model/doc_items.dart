@@ -25,24 +25,16 @@ typedef DocItem = ({int line, int chars, String text, bool heading});
 /// table row below the delimiter row, a paragraph, or a `###` heading with
 /// the paragraph right under it and never its bullets, inside a blockquote
 /// as anywhere else. A fenced code block and a table's header and delimiter
-/// rows are no item. A line scan, no markdown parse.
+/// rows are no item. A list item ends at a blank line or a fence, and the
+/// text after it is its own item. A line scan, no markdown parse.
 List<DocItem> itemsOf(List<BodyLine> body) {
   final lines = [for (final line in body) _Line.of(line)];
   final items = <DocItem>[];
-  var tableQuote = -1;
   var i = 0;
   while (i < lines.length) {
     final line = lines[i];
-    if (tableQuote >= 0 &&
-        !(line.kind == _Kind.text && line.quote == tableQuote)) {
-      tableQuote = -1;
-    }
-    if (tableQuote >= 0) {
-      items.add(_itemOf(body, lines, i, i));
-      i++;
-    } else if (line.kind == _Kind.text && _startsTable(lines, i)) {
-      tableQuote = line.quote;
-      i += 2;
+    if (line.kind == _Kind.text && _startsTable(lines, i)) {
+      i = _addTableRows(items, body, lines, i);
     } else if (line.kind == _Kind.blank || line.kind == _Kind.fence) {
       i++;
     } else {
@@ -107,6 +99,24 @@ bool _startsTable(List<_Line> lines, int i) {
       next.quote == lines[i].quote &&
       next.inner.contains(_pipe) &&
       isTableDelimiterRow(next.inner);
+}
+
+/// Adds one item per row below the delimiter row of the table at [i] to
+/// [items] and returns the index of the line after the table.
+int _addTableRows(
+  List<DocItem> items,
+  List<BodyLine> body,
+  List<_Line> lines,
+  int i,
+) {
+  var next = i + 2;
+  while (next < lines.length &&
+      lines[next].kind == _Kind.text &&
+      lines[next].quote == lines[i].quote) {
+    items.add(_itemOf(body, lines, next, next));
+    next++;
+  }
+  return next;
 }
 
 /// Returns the last line of the paragraph or list item that starts at [i].

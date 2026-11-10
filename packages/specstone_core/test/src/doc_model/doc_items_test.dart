@@ -149,6 +149,48 @@ void main() {
       ]);
     });
 
+    test('index_query/view_docs_tree/print_docs_tree E09: a fence inside '
+        'a list item ends the item and the text after it is its own '
+        'item', () {
+      final items = itemsOf([
+        (text: '- item', line: 20, fenced: false),
+        (text: '  ```', line: 21, fenced: true),
+        (text: '  - code', line: 22, fenced: true),
+        (text: '  ```', line: 23, fenced: true),
+        (text: '  more', line: 24, fenced: false),
+      ]);
+
+      expect(items, [
+        (line: 20, chars: 6, text: 'item', heading: false),
+        (line: 24, chars: 6, text: 'more', heading: false),
+      ]);
+    });
+
+    test('index_query/view_docs_tree/print_docs_tree E09: a fence inside '
+        'a blockquote is no item', () {
+      final items = itemsOf([
+        (text: '> ```', line: 20, fenced: true),
+        (text: '> - code', line: 21, fenced: true),
+        (text: '> ```', line: 22, fenced: true),
+      ]);
+
+      expect(items, isEmpty);
+    });
+
+    test('index_query/view_docs_tree/print_docs_tree E09: rows with no '
+        'delimiter row are one paragraph', () {
+      expect(_items('| a | b |\n| c | d |'), [
+        (line: 20, chars: 19, text: '| a | b |', heading: false),
+      ]);
+    });
+
+    test('index_query/view_docs_tree/print_docs_tree E09: a #### line '
+        'reads as paragraph text', () {
+      expect(_items('#### Deep\nparagraph'), [
+        (line: 20, chars: 19, text: '#### Deep', heading: false),
+      ]);
+    });
+
     test('index_query/view_docs_tree/print_docs_tree E09: an empty body '
         'holds no item', () {
       expect(_items(''), isEmpty);
