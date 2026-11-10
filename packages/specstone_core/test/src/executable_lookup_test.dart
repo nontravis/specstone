@@ -138,6 +138,84 @@ void main() {
       expect(found, '\\\\server\\share${_sep}git.exe');
     });
 
+    test('a rooted entry without a drive is skipped, since it follows the '
+        'current drive', () {
+      final asked = <String>[];
+
+      final found = findExecutable(
+        'git',
+        {'PATH': r'\foo;/foo'},
+        isWindows: true,
+        isFile: (path) {
+          asked.add(path);
+          return true;
+        },
+      );
+
+      expect(found, isNull);
+      expect(asked, isEmpty);
+    });
+
+    test('a device-path and a forward-slash drive entry are searched', () {
+      expect(
+        findExecutable(
+          'git',
+          {'PATH': r'\\?\C:\x'},
+          isWindows: true,
+          isFile: (_) => true,
+        ),
+        '\\\\?\\C:\\x${_sep}git.exe',
+      );
+      expect(
+        findExecutable(
+          'git',
+          {'PATH': 'C:/x'},
+          isWindows: true,
+          isFile: (_) => true,
+        ),
+        'C:/x${_sep}git.exe',
+      );
+    });
+
+    test('a quoted entry loses its quotes and is searched', () {
+      final found = findExecutable(
+        'git',
+        {'PATH': r'"C:\Program Files\Git\cmd"'},
+        isWindows: true,
+        isFile: _only({'C:\\Program Files\\Git\\cmd${_sep}git.exe'}),
+      );
+
+      expect(found, 'C:\\Program Files\\Git\\cmd${_sep}git.exe');
+    });
+
+    test('a ";" inside quotes does not split the entry', () {
+      final asked = <String>[];
+
+      final found = findExecutable(
+        'git',
+        {'PATH': r'"C:\a;b";D:\ok'},
+        isWindows: true,
+        isFile: (path) {
+          asked.add(path);
+          return false;
+        },
+      );
+
+      expect(found, isNull);
+      expect(asked, ['C:\\a;b${_sep}git.exe', 'D:\\ok${_sep}git.exe']);
+    });
+
+    test('a quoted relative entry is still skipped', () {
+      final found = findExecutable(
+        'git',
+        {'PATH': '"bin";"."'},
+        isWindows: true,
+        isFile: (_) => true,
+      );
+
+      expect(found, isNull);
+    });
+
     test('the extensions are tried in order inside one folder', () {
       final found = findExecutable(
         'claude',

@@ -18,6 +18,16 @@ const List<String> _pluginUpdateArguments = [
   'specstone@specstone',
 ];
 
+/// The program, arguments, and environment of one `claude plugin update`.
+typedef _ClaudeStart = ({
+  String program,
+  List<String> arguments,
+  Map<String, String> environment,
+});
+
+/// The Windows variable that keeps a program lookup out of the current folder.
+const String _noCurrentFolderLookup = 'NoDefaultCurrentDirectoryInExePath';
+
 /// How long a connection may take to open.
 const Duration _connectTimeout = Duration(seconds: 30);
 
@@ -284,19 +294,14 @@ class UpgradeCommand extends SpecstoneCommand {
   Future<void> _updatePlugin() async {
     final out = specstoneRunner.out;
     final command = 'claude ${_pluginUpdateArguments.join(' ')}';
-    final claude = findExecutable(
-      'claude',
-      environment,
-      isWindows: windows,
-      windowsExtensions: const ['.exe', '.cmd'],
-    );
-    if (claude == null) {
+    final start = _claudeStart();
+    if (start == null) {
       out
         ..writeln('To update the Specstone plugin, run:')
         ..writeln(command);
       return;
     }
-    final failure = await _runClaude(claude, out);
+    final failure = await _runClaude(start, out);
     if (failure != null) {
       specstoneRunner.err.writeln(
         'specstone: $command failed: $failure; run it by hand',
@@ -304,16 +309,43 @@ class UpgradeCommand extends SpecstoneCommand {
     }
   }
 
+  // Returns the absolute program that runs `claude plugin update`, or null when
+  // there is none. A `claude.cmd` runs through the absolute `cmd.exe`: a bare
+  // name starts from the current folder on Windows, and so does the `node` a
+  // `.cmd` shim names, which `NoDefaultCurrentDirectoryInExePath` stops.
+  _ClaudeStart? _claudeStart() {
+    final claude = findExecutable(
+      'claude',
+      environment,
+      isWindows: windows,
+      windowsExtensions: const ['.exe', '.cmd'],
+    );
+    if (claude == null) return null;
+    if (!claude.endsWith('.cmd')) {
+      return (
+        program: claude,
+        arguments: _pluginUpdateArguments,
+        environment: environment,
+      );
+    }
+    final shell = findExecutable('cmd', environment, isWindows: true);
+    if (shell == null) return null;
+    return (
+      program: shell,
+      arguments: ['/c', claude, ..._pluginUpdateArguments],
+      environment: {...environment, _noCurrentFolderLookup: '1'},
+    );
+  }
+
   // Returns the first non-blank, trimmed stderr line of a failed run,
   // `exit <status>` when it wrote none, or null on success.
-  Future<String?> _runClaude(String claude, StringSink out) async {
+  Future<String?> _runClaude(_ClaudeStart start, StringSink out) async {
     try {
       final process = await Process.start(
-        claude,
-        _pluginUpdateArguments,
-        environment: environment,
+        start.program,
+        start.arguments,
+        environment: start.environment,
         includeParentEnvironment: false,
-        runInShell: claude.endsWith('.cmd'),
       );
       const decoder = Utf8Decoder(allowMalformed: true);
       final stderrText = process.stderr.transform(decoder).join();

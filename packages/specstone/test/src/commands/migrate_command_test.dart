@@ -565,6 +565,28 @@ void main() {
           : null,
     );
 
+    // CreateProcessW looks in the current folder before any PATH entry, so a
+    // start of the bare name `git` would run this copy of the Specstone binary.
+    test(
+      'f06/us01/fr02/g8-r8: migrate --dry-run never starts a git.exe found in '
+      'its own folder',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+        File(binary).copySync('${root.path}/git.exe');
+        File('${root.path}/.git/info/exclude')
+            .writeAsStringSync('/git.exe\n', mode: FileMode.append);
+
+        final shown = await Process.run(binary, [
+          'migrate',
+          '--dry-run',
+        ], workingDirectory: root.path);
+
+        expect(shown.exitCode, 0, reason: '${shown.stderr}');
+        expect(shown.stdout, startsWith('legacy migration: '));
+      },
+      skip: Platform.isWindows ? null : 'CreateProcessW searches the folder',
+    );
+
     test(
       'migrate --dry-run refuses git_work_tree_required, exit 78, when git '
       'cannot list its repository variables',

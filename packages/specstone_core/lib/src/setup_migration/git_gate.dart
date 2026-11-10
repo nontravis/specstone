@@ -40,10 +40,20 @@ void requireGitWorkTree(Directory root, RunGit runGit) {
               'HEAD',
             ], workingDirectory: root.path).exitCode ==
             0;
-  } on ProcessException {
-    throw workTreeRequiredFault(migrateCommand);
+  } on ProcessException catch (e) {
+    throw _gitCannotStartFault(e);
   }
   if (!inside || !hasHead) throw workTreeRequiredFault(migrateCommand);
+}
+
+/// Returns the work-tree fault with [error]'s reason added, so a user whose git
+/// runs in their shell learns why Specstone could not start it.
+MigrateFault _gitCannotStartFault(ProcessException error) {
+  final fault = workTreeRequiredFault(migrateCommand);
+  return MigrateFault(
+    fault.code,
+    '${fault.message}; git cannot start: ${error.message}',
+  );
 }
 
 /// Throws `git_work_tree_required` when `git --version` names a version
@@ -73,8 +83,8 @@ void requireCleanWorkTree(Directory root, RunGit runGit) {
       '--porcelain',
       '--untracked-files=normal',
     ], workingDirectory: root.path);
-  } on ProcessException {
-    throw workTreeRequiredFault(migrateCommand);
+  } on ProcessException catch (e) {
+    throw _gitCannotStartFault(e);
   }
   if (status.exitCode != 0) throw workTreeRequiredFault(migrateCommand);
   if ((status.stdout as String).trim().isNotEmpty) {

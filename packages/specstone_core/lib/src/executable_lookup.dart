@@ -7,9 +7,9 @@ import 'dart:io';
 /// would run a program the current folder supplies, and a Windows
 /// `CreateProcessW` searches the current folder before any `PATH` entry. On
 /// [isWindows] the name gets each of [windowsExtensions] in turn inside one
-/// entry, and `PATH` is read without case. [isFile] decides whether a
-/// candidate is a program; it defaults to a regular file, and on POSIX one
-/// with an execute bit.
+/// entry, `PATH` is read without case, and an entry may be double-quoted.
+/// [isFile] decides whether a candidate is a program; it defaults to a regular
+/// file, and on POSIX one with an execute bit.
 String? findExecutable(
   String name,
   Map<String, String> environment, {
@@ -26,7 +26,7 @@ String? findExecutable(
   final fileNames = isWindows
       ? [for (final extension in windowsExtensions) '$name$extension']
       : [name];
-  for (final entry in path.split(isWindows ? ';' : ':')) {
+  for (final entry in isWindows ? _windowsEntries(path) : path.split(':')) {
     if (!_isAbsolute(entry, isWindows: isWindows)) continue;
     final folder = entry.endsWith(Platform.pathSeparator)
         ? entry
@@ -37,6 +37,25 @@ String? findExecutable(
     }
   }
   return null;
+}
+
+/// Splits a Windows `PATH` on each `;` outside double quotes and drops the
+/// quotes, as `cmd.exe` and Go do.
+List<String> _windowsEntries(String path) {
+  final entries = <String>[];
+  final entry = StringBuffer();
+  var isQuoted = false;
+  for (final character in path.split('')) {
+    if (character == '"') {
+      isQuoted = !isQuoted;
+    } else if (character == ';' && !isQuoted) {
+      entries.add('$entry');
+      entry.clear();
+    } else {
+      entry.write(character);
+    }
+  }
+  return entries..add('$entry');
 }
 
 /// A Windows drive root such as `C:\` or `C:/`, or a UNC path.
