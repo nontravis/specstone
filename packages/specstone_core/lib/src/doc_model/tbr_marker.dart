@@ -1,8 +1,11 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show fenceScan;
 
-/// The one TBR marker: `TBR`, a space, an em dash (U+2014), a space.
-const _marker = 'TBR — ';
+/// The one TBR marker: `TBR`, a space, an em dash (U+2014), then a space or
+/// the end of the line; a write strips a trailing space, so `TBR — ` is stored
+/// as `TBR —`.
+const _marker = 'TBR —';
+const _space = 0x20;
 
 /// Returns each TBR marker of [lfBody], the text after the frontmatter, with
 /// its 0-based body line and the text after it on that line, up to the next
@@ -26,13 +29,13 @@ List<({int line, String rest})> tbrMarkerLinesIn(String lfBody) {
 /// Returns the markers of [line], read as body line [number], outside its code
 /// spans.
 List<({int line, String rest})> _markersOf(String line, int number) {
-  var at = line.indexOf(_marker);
+  var at = _markerAt(line, 0);
   if (at < 0) return const [];
   final spans = codeSpansOf(line);
   final markers = <({int line, String rest})>[];
   while (at >= 0) {
     final textStart = at + _marker.length;
-    final next = line.indexOf(_marker, textStart);
+    final next = _markerAt(line, textStart);
     if (!spans.any((s) => at >= s.start && at < s.end)) {
       markers.add((
         line: number,
@@ -42,4 +45,15 @@ List<({int line, String rest})> _markersOf(String line, int number) {
     at = next;
   }
   return markers;
+}
+
+/// Returns the index of the first marker of [line] at or after [from], or -1.
+int _markerAt(String line, int from) {
+  var at = line.indexOf(_marker, from);
+  while (at >= 0) {
+    final end = at + _marker.length;
+    if (end == line.length || line.codeUnitAt(end) == _space) return at;
+    at = line.indexOf(_marker, end);
+  }
+  return -1;
 }

@@ -89,6 +89,26 @@ void main() {
       expect(tbrMarkerLinesIn(body), isEmpty);
     });
 
+    test('consistency_check/find_template_breaks/report_open_tbrs E02: a '
+        'marker at the end of its line has an empty text', () {
+      expect(tbrMarkerLinesIn('TBR —\nTBR — \nA gap TBR —\n'), [
+        (line: 0, rest: ''),
+        (line: 1, rest: ''),
+        (line: 2, rest: ''),
+      ]);
+      expect(tbrMarkerLinesIn('TBR — a TBR —\n'), [
+        (line: 0, rest: 'a'),
+        (line: 0, rest: ''),
+      ]);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs E07: a '
+        'dash with no space after it, or a hyphen, is no marker even at a '
+        'line end', () {
+      expect(tbrMarkerLinesIn('TBR—x\nTBR -\nTBR —x TBR - y\n'), isEmpty);
+      expect(tbrMarkerLinesIn('TBR —x TBR — y\n'), [(line: 0, rest: 'y')]);
+    });
+
     test('consistency_check/find_template_breaks/report_open_tbrs: a marker '
         'at the start of a line and after a bold label is read', () {
       const body =

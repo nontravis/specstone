@@ -227,6 +227,17 @@ void main() {
     expect(found.single.message, _openNoValue);
   });
 
+  test('$_name E01: a marker at the end of its line, as a write stores it, '
+      'is open with no value', () async {
+    final (:found, project: _) = await _run(
+      _frWith('Cite ${_marker.trimRight()}'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'marker'});
+    expect(found.single.message, _openNoValue);
+  });
+
   test('$_name E05: a bullet label inside fenced code of a gnfr gives no '
       'finding', () async {
     final (:found, project: _) = await _run(

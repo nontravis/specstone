@@ -261,7 +261,7 @@ final class LineFacts {
   /// source order; `line` is the file line.
   final List<LabelPlace> numberLabels;
 
-  /// The `TBR — ` markers of the body outside fenced code and code spans, in
+  /// The `TBR —` markers of the body outside fenced code and code spans, in
   /// source order; `line` is the file line and `rest` the line's text after
   /// the marker, trimmed.
   final List<TbrMarkerPlace> tbrMarkers;
