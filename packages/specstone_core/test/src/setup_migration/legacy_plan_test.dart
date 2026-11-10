@@ -109,6 +109,13 @@ RunPlan _planFromLink(Directory tree, {String linkName = 'code'}) {
   );
 }
 
+/// Plans the `ws/` folder of [tree] with no link folder.
+RunPlan _planOf(Directory tree) => planLegacyRun(
+  Directory('${tree.resolveSymbolicLinksSync()}${Platform.pathSeparator}ws'),
+  templates: TemplateResolver(),
+  homeDirectory: null,
+);
+
 PlannedCreate _configCreate(RunPlan plan) =>
     plan.creates.singleWhere((c) => c.path == '.specstone/config.yaml');
 
@@ -130,7 +137,8 @@ void main() {
       plan.toText().substring(example.length),
       matches(
         RegExp(
-          r'^  \.specstone/config\.yaml: prd-core \S+, software-tech \S+\n'
+          r'^  \.specstone/config\.yaml: prd-core \S+, software-tech \S+; '
+          r'code_root \. \(0 of 1 paths\)\n'
           r'  \.specstone/\.gitignore\n'
           r'  \.specstone/templates/gnfr\.yaml\n'
           r'  specs/TECH_STACK\.md \(draft\)\n'
@@ -857,7 +865,10 @@ name: NFR
       '  software-tech: ${versions['software-tech']}\n',
     );
     expect(_createdPaths(plan), isNot(contains('.specstone/config.yaml')));
-    expect(plan.toText(), contains('  .specstone/config.yaml: pins\n'));
+    expect(
+      plan.toText(),
+      contains('  .specstone/config.yaml: pins; code_root . (0 of 1 paths)\n'),
+    );
   });
 
   group('agent files', () {
@@ -1005,13 +1016,13 @@ name: NFR
       final create = _configCreate(plan);
       expect(create.text, startsWith('packs:\n'));
       expect(create.text, endsWith('\ncode_root: code\n'));
-      expect(create.note, endsWith('; code_root code'));
+      expect(create.note, endsWith('; code_root code (2 of 3 paths)'));
       expect(
         plan.toText(),
         matches(
           RegExp(
             r'\n  \.specstone/config\.yaml: prd-core \S+, software-tech \S+; '
-            r'code_root code\n',
+            r'code_root code \(2 of 3 paths\)\n',
           ),
         ),
       );
@@ -1027,7 +1038,7 @@ name: NFR
 
       final create = _configCreate(plan);
       expect(create.text, isNot(contains('code_root')));
-      expect(create.note, isNot(contains('code_root')));
+      expect(create.note, endsWith('; code_root . (1 of 2 paths)'));
     });
 
     test('skips implements items that are not strings', () async {
@@ -1072,23 +1083,41 @@ name: NFR
       );
     }
 
-    test('keeps the default on a tie or no entries', () async {
-      final tie = await _linkedPlan({
-        legacyFrPath: implementingDoc('Validate credentials', [
-          'lib/a.dart',
-          'lib/',
-        ]),
-        _legacySpec: implementingDoc('Shared architecture', [
-          'code/lib/b.dart',
-        ]),
-        'code/lib/a.dart': 'class A {}\n',
-        'code/lib/b.dart': 'class B {}\n',
-      });
-      final none = await _linkedPlan({'code/lib/a.dart': 'class A {}\n'});
+    test(
+      'a tie goes to the deeper folder; no entry keeps the default',
+      () async {
+        final tie = await _linkedPlan({
+          legacyFrPath: implementingDoc('Validate credentials', [
+            'lib/a.dart',
+            'lib/',
+          ]),
+          _legacySpec: implementingDoc('Shared architecture', [
+            'code/lib/b.dart',
+          ]),
+          'code/lib/a.dart': 'class A {}\n',
+          'code/lib/b.dart': 'class B {}\n',
+        });
+        final none = await _linkedPlan({'code/lib/a.dart': 'class A {}\n'});
 
-      for (final plan in [tie, none]) {
-        expect(_configCreate(plan).text, isNot(contains('code_root')));
-      }
+        expect(_configCreate(tie).text, endsWith('\ncode_root: code\n'));
+        expect(
+          _configCreate(tie).note,
+          endsWith('; code_root code (1 of 4 paths)'),
+        );
+        expect(_configCreate(none).text, isNot(contains('code_root')));
+        expect(
+          _configCreate(none).note,
+          endsWith('; code_root . (0 of 1 paths)'),
+        );
+      },
+    );
+
+    test('f06/us01/fr05/e12: no cited entry leaves the config line with no '
+        'code_root part', () async {
+      final plan = await _plan(_citingLegacy);
+
+      expect(_configCreate(plan).text, isNot(contains('code_root')));
+      expect(_configCreate(plan).note, isNot(contains('code_root')));
     });
 
     test('an existing config keeps its code_root on rewrite', () async {
@@ -1115,8 +1144,71 @@ name: NFR
         absent.rewrites
             .singleWhere((r) => r.path == '.specstone/config.yaml')
             .text,
-        isNot(contains('code_root')),
+        endsWith('\ncode_root: code\n'),
       );
+    });
+
+    test('f06/us01/fr05/e11: the create line names the count of the folder '
+        'above the root', () async {
+      final tree = await writeTree({
+        ...linkedAcme({
+          legacyFrPath: implementingDoc('Validate credentials', [
+            for (var i = 1; i <= 39; i++) 'lib/f$i.dart',
+          ]),
+        }),
+        '.git/HEAD': '',
+        for (var i = 1; i <= 39; i++) 'lib/f$i.dart': '',
+      });
+
+      final plan = _planOf(tree);
+
+      final create = _configCreate(plan);
+      expect(create.text, contains('\ncode_root: ..\n'));
+      expect(create.note, endsWith('; code_root .. (39 of 40 paths)'));
+    });
+
+    test('f06/us01/fr05/e10: a config with no code_root key gains the key '
+        'in its rewrite, and the line names it', () async {
+      final tree = await writeTree({
+        ...linkedAcme({
+          '.specstone/config.yaml': 'packs:\n  prd-core: 0.0.1\n',
+          legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        }),
+        '.git/HEAD': '',
+        'lib/a.dart': 'class A {}\n',
+      });
+
+      final plan = _planOf(tree);
+
+      final rewrite = plan.rewrites.singleWhere(
+        (r) => r.path == '.specstone/config.yaml',
+      );
+      expect(rewrite.text, contains('\ncode_root: ..\n'));
+      expect(
+        plan.rewriteLines,
+        contains('.specstone/config.yaml: pins; code_root .. (1 of 2 paths)'),
+      );
+    });
+
+    test('f06/us01/fr05/e10: a config with a code_root key keeps it and its '
+        'line has no code_root part', () async {
+      final tree = await writeTree({
+        ...linkedAcme({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 0.0.1\ncode_root: ../code\n',
+          legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        }),
+        '.git/HEAD': '',
+        'lib/a.dart': 'class A {}\n',
+      });
+
+      final plan = _planOf(tree);
+
+      final rewrite = plan.rewrites.singleWhere(
+        (r) => r.path == '.specstone/config.yaml',
+      );
+      expect(rewrite.text, contains('\ncode_root: ../code\n'));
+      expect(plan.rewriteLines, contains('.specstone/config.yaml: pins'));
     });
   });
 

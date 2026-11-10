@@ -136,6 +136,18 @@ void main() {
       expect(ProjectConfig.read(root).codeRoot, '.');
     });
 
+    test('f06/us01/fr05/e10: hasCodeRoot is true for code_root: . and false '
+        'with no key', () async {
+      final written = await _withConfig(
+        'packs:\n  prd-core: 1.0.0\ncode_root: .\n',
+      );
+      final absent = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+      expect(ProjectConfig.read(written).hasCodeRoot, isTrue);
+      expect(ProjectConfig.read(written).codeRoot, '.');
+      expect(ProjectConfig.read(absent).hasCodeRoot, isFalse);
+    });
+
     for (final value in ['stratum_ui', '../stratum_ui/example']) {
       test('reads code_root: $value', () async {
         final root = await _withConfig(

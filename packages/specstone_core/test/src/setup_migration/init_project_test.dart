@@ -738,7 +738,68 @@ void main() {
     );
     expect(
       out.toString(),
-      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+      matches(
+        RegExp(
+          r'\n  \.specstone/config\.yaml: .*; code_root code \(1 of 2 paths\)\n',
+        ),
+      ),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e05: init on a legacy root reached through a docs link '
+      'infers the same code_root as migrate run from that folder', () async {
+    final tree = await writeTree({
+      ...linkedAcme({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        '.gitignore': 'code/docs\n',
+      }),
+      // The code sits above the project root, at the repository top.
+      'lib/a.dart': 'class A {}\n',
+    });
+    if (!linkCodeDocs(tree)) return;
+    commitRepo(tree);
+    final code = Directory('${tree.path}/ws/code');
+    locateSetupTrust(code, homeDirectory: testHome()).record();
+    final initOut = StringBuffer();
+    final migrateOut = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: code,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: initOut,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(isA<WriteFault>()),
+    );
+    expect(
+      runMigrate(
+        MigrateRequest(
+          workingDirectory: code,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: true,
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: migrateOut,
+          runGit: runRealGit,
+        ),
+      ),
+      0,
+    );
+
+    final line = RegExp(
+      r'\n  \.specstone/config\.yaml: .*; code_root (\S+) \(1 of 2 paths\)\n',
+    );
+    expect(line.firstMatch(initOut.toString())?.group(1), '..');
+    expect(
+      line.firstMatch(migrateOut.toString())?.group(1),
+      line.firstMatch(initOut.toString())?.group(1),
     );
   }, skip: hasGit ? null : 'git is not available');
 

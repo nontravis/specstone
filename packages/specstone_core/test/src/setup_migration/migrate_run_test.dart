@@ -658,7 +658,11 @@ void main() {
 
     expect(
       out.toString(),
-      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+      matches(
+        RegExp(
+          r'\n  \.specstone/config\.yaml: .*; code_root code \(1 of 2 paths\)\n',
+        ),
+      ),
     );
   }, skip: hasGit ? null : 'git is not available');
 

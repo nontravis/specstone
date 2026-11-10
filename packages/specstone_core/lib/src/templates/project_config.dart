@@ -107,6 +107,7 @@ final class ProjectConfig {
   new _({
     required this.pins,
     required this.codeRoot,
+    required this.hasCodeRoot,
     required this.agentFileRoots,
   });
 
@@ -165,6 +166,7 @@ final class ProjectConfig {
     return ProjectConfig._(
       pins: Map.unmodifiable(pins),
       codeRoot: _readCodeRoot(map),
+      hasCodeRoot: map.containsKey(_codeRootKey),
       agentFileRoots: _readAgentFileRoots(map),
     );
   }
@@ -177,6 +179,10 @@ final class ProjectConfig {
   /// `/`-separated and possibly outside the project root (`../code`); `.` when
   /// the config has no `code_root`.
   final String codeRoot;
+
+  /// Whether the file holds a `code_root:` key; [codeRoot] reads `.` for an
+  /// absent key and for `code_root: .` alike.
+  final bool hasCodeRoot;
 
   /// The repository tops already offered agent files, each as written.
   ///
