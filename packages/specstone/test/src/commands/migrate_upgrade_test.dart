@@ -1224,16 +1224,17 @@ void main() {
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0, reason: result.err);
-        final invariants = _read(
-          root,
-          domainPath,
-        ).split('\n').where((line) => line.startsWith('- **INV-')).toList();
-        expect(invariants, [invariant]);
+        expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
+        final lines = _read(root, domainPath).split('\n');
+        expect(lines.where((line) => line.startsWith('- **INV-')), [invariant]);
+        expect(lines, contains('  - **Enforcer:** Account'));
+        expect(lines, contains('  - **Consistency:** immediate'));
         final after = await overLimit(root, home);
         expect(after, hasLength(1));
         expect(after.single, containsPair('section', 'invariants'));
         expect(after.single, containsPair('id', 'INV-1'));
         expect(after.single, containsPair('waitsFor', 'owner'));
+        expect(after.single, containsPair('limit', 600));
         expect(after.single, containsPair('actual', invariant.length));
       });
     });
