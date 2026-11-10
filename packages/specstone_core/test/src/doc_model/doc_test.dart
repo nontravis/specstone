@@ -93,6 +93,21 @@ void main() {
       },
     );
 
+    test('doc_model: indentedValueText keeps the indent of a list and '
+        'drops comment lines and trailing blank lines', () {
+      final doc = Doc.parse(
+        '---\n# note\nvision:\n  - PV-01\n  # inner\n  - PV-02\n\n'
+        'date: 2026-10-23 # c\nempty:\n"q k": [a, b]\n---\n',
+      );
+      final values = [for (final b in doc.frontmatter!) b.indentedValueText];
+
+      expect(values, ['  - PV-01\n  - PV-02', '2026-10-23 # c', '', '[a, b]']);
+      expect(
+        Doc.parse('---\n# note\n---\n').frontmatter!.single.indentedValueText,
+        '',
+      );
+    });
+
     test('doc_model/s03/inv6: blank lines above a key join that key and '
         'the blocks cover every line', () {
       const inner = 'a: 1\n\n# about b\n\nb: 2\n  more\nc:\n\n';

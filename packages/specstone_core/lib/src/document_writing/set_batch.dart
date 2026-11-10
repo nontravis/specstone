@@ -490,7 +490,7 @@ List<String> _checkFields(_Planned block, Doc held, Doc proposed) {
   final changed = <String>[];
   for (final MapEntry(key: fieldId, value: next) in after.entries) {
     if (before[fieldId]?.text == next.text) continue;
-    check(fieldId, _valueOf(next), isHeld: before.containsKey(fieldId));
+    check(fieldId, next.indentedValueText, isHeld: before.containsKey(fieldId));
     changed.add(fieldId);
   }
   for (final fieldId in before.keys.where((id) => !after.containsKey(id))) {
@@ -508,26 +508,6 @@ Map<String, KeyBlock> _fieldBlocks(Doc doc) {
     if (block.name.isNotEmpty) blocks.putIfAbsent(block.name, () => block);
   }
   return blocks;
-}
-
-/// Returns the YAML of [block] as `set --field` takes it on stdin: what follows
-/// the key, comment lines dropped, with the indent of a list kept.
-String _valueOf(KeyBlock block) {
-  final lines = block.text.split('\n');
-  final keyAt = lines.indexWhere(
-    (line) => line.trim().isNotEmpty && !line.trimLeft().startsWith('#'),
-  );
-  if (keyAt < 0) return '';
-  final colon = lines[keyAt].indexOf(':', block.key.length);
-  if (colon < 0) return '';
-  final rest = lines[keyAt].substring(colon + 1).trim();
-  final following = [
-    for (final line in lines.skip(keyAt + 1))
-      if (!line.trimLeft().startsWith('#')) line,
-  ];
-  return withoutTrailingBlankLines(
-    [if (rest.isNotEmpty) rest, ...following].join('\n'),
-  );
 }
 
 /// Runs the removal of each section of [disk] that [lfText] lacks through

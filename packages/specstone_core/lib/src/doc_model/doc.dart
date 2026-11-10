@@ -47,6 +47,25 @@ final class KeyBlock {
     }
     return buffer.toString().trim();
   }
+
+  /// The YAML after `<key>:` as `set --field` takes it, comment lines dropped.
+  ///
+  /// Unlike [valueText] it keeps the indent of a list and drops only trailing
+  /// white space. Empty for the keyless block.
+  String get indentedValueText {
+    if (key.isEmpty) return '';
+    final lines = _splitLines(text);
+    final keyIndex = lines.indexWhere((line) => !_isTrivia(line));
+    if (keyIndex < 0) return '';
+    final keyMatch = _keyLine.firstMatch(lines[keyIndex]);
+    if (keyMatch == null) return '';
+    final rest = lines[keyIndex].substring(keyMatch.end).trim();
+    return [
+      if (rest.isNotEmpty) rest,
+      for (final line in lines.skip(keyIndex + 1))
+        if (!line.trimLeft().startsWith('#')) _withoutNewline(line),
+    ].join('\n').trimRight();
+  }
 }
 
 /// One `##` section of a doc.
