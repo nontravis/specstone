@@ -1,11 +1,21 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_splice.dart' show baseHashOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
 import '../../specstone_core/test/helpers/check_fixture.dart';
 import '../../specstone_core/test/helpers/write_fixture.dart'
-    show testHome, writeJournal;
+    show
+        docFile,
+        fr31,
+        readDoc,
+        story1,
+        story3,
+        testHome,
+        writeJournal,
+        writeWriteProject;
 import 'helpers/built_cli.dart';
 
 void main() {
@@ -47,4 +57,74 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     },
   );
+
+  test('document_writing/edit_one_section_or_field/write_a_batch E14: the next '
+      'write command finishes a stopped batch and keeps a doc edited after the '
+      'stop', () async {
+    final twin = await writeWriteProject();
+    final root = await writeWriteProject();
+    final environment = {
+      'HOME': testHome().path,
+      'USERPROFILE': testHome().path,
+    };
+    final read = await Process.run(
+      binary,
+      ['get', story1, story3, fr31],
+      workingDirectory: twin.path,
+      environment: environment,
+    );
+    final folder = await Directory.systemTemp.createTemp('specstone_batch_');
+    addTearDown(() => folder.delete(recursive: true));
+    final batch = File('${folder.path}/batch.md')
+      ..writeAsStringSync(
+        (read.stdout as String)
+            .replaceFirst('Sign in with an email.', 'Sign in with a passkey.')
+            .replaceFirst('Reset a password.', 'Reset the password.')
+            .replaceFirst('send a link', 'send a reset link'),
+      );
+    final written = await Process.run(
+      binary,
+      ['set', '--batch', batch.path],
+      workingDirectory: twin.path,
+      environment: environment,
+    );
+    expect(written.exitCode, 0, reason: '${written.stderr}');
+    const docs = [story1, story3, fr31];
+    writeJournal(root, [
+      for (final docPath in docs)
+        WriteStep(
+          'docs/$docPath',
+          readDoc(twin, docPath),
+          before: textHashOf(readDoc(root, docPath)),
+        ),
+    ]);
+    docFile(root, story1).writeAsStringSync(readDoc(twin, story1));
+    final edited = readDoc(
+      root,
+      fr31,
+    ).replaceFirst('send a link', 'send a link by mail');
+    docFile(root, fr31).writeAsStringSync(edited);
+
+    final next = await Process.start(
+      binary,
+      [
+        'set',
+        'user_story:login/sign_out#use_case',
+        '--base',
+        baseHashOf('\nSign out.\n'),
+      ],
+      workingDirectory: root.path,
+      environment: environment,
+    );
+    next.stdin.write('Sign out everywhere.\n');
+    await next.stdin.close();
+    final stderr = await next.stderr.transform(utf8.decoder).join();
+    await next.stdout.drain<void>();
+
+    expect(await next.exitCode, 0, reason: stderr);
+    expect(readDoc(root, story1), readDoc(twin, story1));
+    expect(readDoc(root, story3), readDoc(twin, story3));
+    expect(readDoc(root, fr31), edited);
+    expect(MoveJournal.pending(root), isFalse);
+  });
 }
