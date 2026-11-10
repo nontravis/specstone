@@ -24,7 +24,8 @@ const _agentMd =
     '- Cite a doc by its name (`<feature>/<story>`), never by a number label '
     '(`F-<nn> US-<nn>`).\n'
     '- Before reporting work done, run `specstone check <doc>` on each doc you '
-    'changed until every finding it reports says it waits for the Owner.\n'
+    'changed until every finding ends `(waits for the Owner)` '
+    '(`--json`: `waitsFor` is `owner`).\n'
     '- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.\n';
 
 const _projectRule = '- Run `specstone get project` before any task.';
@@ -47,6 +48,14 @@ void main() {
   group('texts', () {
     test('$_fr: agentMdText equals the FR AGENT.md text byte for byte', () {
       expect(agentMdText, _agentMd);
+    });
+
+    test('$_fr: the check rule names the tag and waitsFor, no prose rule', () {
+      expect(agentMdText, contains('`(waits for the Owner)`'));
+      expect(agentMdText, contains('`waitsFor`'));
+      expect(agentMdText, isNot(contains('says it waits')));
+      expect(_inlineBlock(), contains('`(waits for the Owner)`'));
+      expect(_inlineBlock(), contains('`waitsFor`'));
     });
 
     test(
