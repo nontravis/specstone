@@ -139,6 +139,16 @@ void main() {
       final read = readNamingLine('${namingLine(typed, base: hash)} \t ');
       expect(read!.base, hash);
     });
+    test('a base tail holding a space is dropped from the path, base null', () {
+      final spaced = readNamingLine('==> a (feature) · p.md · base $hash  <==');
+      expect(spaced!.path, 'p.md');
+      expect(spaced.base, isNull);
+      final words = readNamingLine(
+        '==> a (feature) · p.md · base two words <==',
+      );
+      expect(words!.path, 'p.md');
+      expect(words.base, isNull);
+    });
     test('an indented line and a line with no closing arrow read as none', () {
       expect(readNamingLine(' ${namingLine(typed, base: hash)}'), isNull);
       expect(readNamingLine('==> login (feature) · $typedPath'), isNull);

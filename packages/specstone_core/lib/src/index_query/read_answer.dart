@@ -113,9 +113,9 @@ final class NamingLine {
 /// It opens `==> ` at column 0 and closes ` <==`; the known tails come off the
 /// right end first, then `path` is what follows the name part, so a path
 /// holding ` · ` reads whole. A guide's `==> <type> <==` has the text between
-/// the arrows as its path. `base` is set only when ` · base ` and 12 lowercase
-/// hex characters are the last part, so an ` · unchanged` or ` · summary` tail
-/// leaves it null.
+/// the arrows as its path. Everything from the last ` · base ` to the end is
+/// the base tail, and `base` is set only when that tail is 12 lowercase hex
+/// characters, so an ` · unchanged` or ` · summary` tail leaves it null.
 NamingLine? readNamingLine(String line) {
   final text = line.replaceFirst(_lineEndBlanks, '');
   if (text.length < _namingOpen.length + _namingClose.length ||
@@ -137,8 +137,7 @@ NamingLine? readNamingLine(String line) {
   }
   String? hash;
   final baseAt = head.lastIndexOf(_namingBaseSeparator);
-  if (baseAt >= 0 &&
-      !head.substring(baseAt + _namingBaseSeparator.length).contains(' ')) {
+  if (baseAt >= 0) {
     hash = head.substring(baseAt + _namingBaseSeparator.length);
     head = head.substring(0, baseAt);
   }
