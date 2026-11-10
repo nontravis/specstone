@@ -208,5 +208,18 @@ void main() {
       ]);
       expect(_items('* * *\n- - -\n> ---\n_ _ _'), isEmpty);
     });
+
+    test(
+      'doc_model/doc_items E09: a table starts by the column rule of markdown, '
+      'with or without a pipe in the header',
+      () {
+        expect(_items('abc\n|---|\nrow'), [
+          (line: 22, chars: 3, text: 'row', heading: false),
+        ]);
+        expect(_items('a | b | c\n--- | ---\nx | y | z'), [
+          (line: 20, chars: 29, text: 'a | b | c', heading: false),
+        ]);
+      },
+    );
   });
 }

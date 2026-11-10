@@ -11,7 +11,6 @@ const _firstTextHeadingLevel = 3;
 
 final _quotePrefix = RegExp(r'^[ \t]*>[ \t]?');
 final _listMarker = RegExp(r'^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)');
-final _tableRow = RegExp(r'^ {0,3}\|');
 final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 const _tab = 0x09;
@@ -183,7 +182,7 @@ List<String> sentencesOf(String lfText) {
   final lines = _linesOf(Doc.parse(lfText).afterFrontmatter);
   final scan = blockScan(lines);
   final reader = _BlockReader();
-  String? textAt(int i) => i < lines.length && !scan.fenced[i]
+  _Stripped? textAt(int i) => i < lines.length && !scan.fenced[i]
       ? _withoutContainers(lines[i], scan.continuesParagraph[i])
       : null;
   for (var i = 0; i < lines.length; i++) {
@@ -214,8 +213,7 @@ final class _BlockReader {
 
   final _open = <String>[];
 
-  /// Whether the rows being read belong to a table whose header had no edge
-  /// pipe.
+  /// Whether the lines being read are the rows of a table that started.
   var _inTable = false;
 
   /// Ends the open block and any table: every other block starts anew.
@@ -230,27 +228,39 @@ final class _BlockReader {
     _open.clear();
   }
 
-  /// Reads [text], a line without its containers or null for a thematic
-  /// break, with [below] the next line's text.
+  /// The block quote depth of the table being read.
+  var _tableQuotes = 0;
+
+  /// Reads [line], a line without its containers or null for a thematic
+  /// break, with [below] the next line.
   void read(
-    String? text, {
-    required String? below,
+    _Stripped? line, {
+    required _Stripped? below,
     required bool continuesParagraph,
   }) {
-    if (text == null || text.trim().isEmpty) return close();
+    if (line == null || line.text.trim().isEmpty) return close();
+    final text = line.text;
     final heading = atxHeadingOf(text);
     if (heading != null) {
       close();
       if (heading.level >= _firstTextHeadingLevel) _add(heading.text);
       return;
     }
-    if (_tableRow.hasMatch(text) || _inTable) {
-      _closeBlock();
-      return _readTableRow(text);
+    if (_inTable) {
+      if (line.quotes == _tableQuotes && !line.isListItem) {
+        _closeBlock();
+        return _readTableRow(text);
+      }
+      close();
     }
-    if (below != null && startsTable(text, below)) {
+    if (!line.isListItem &&
+        below != null &&
+        !below.isListItem &&
+        below.quotes == line.quotes &&
+        startsTable(text, below.text)) {
       _closeBlock();
       _inTable = true;
+      _tableQuotes = line.quotes;
       return _readTableRow(text);
     }
     if (!continuesParagraph) close();
@@ -276,16 +286,31 @@ String _trimPipes(String row) {
   return text;
 }
 
+/// A line read past its containers: its `text`, the count of block quote
+/// marks it opened with, and whether a list marker opened it.
+typedef _Stripped = ({String text, int quotes, bool isListItem});
+
 /// Returns [line] past the block quote marks it opens with, and past its list
 /// marker unless it continues a paragraph, or null for a thematic break.
-String? _withoutContainers(String line, bool continuesParagraph) {
+_Stripped? _withoutContainers(String line, bool continuesParagraph) {
   var text = line;
+  var quotes = 0;
+  var isListItem = false;
   while (true) {
     if (isThematicBreak(text)) return null;
-    final prefix =
-        _quotePrefix.matchAsPrefix(text) ??
-        (continuesParagraph ? null : _listMarker.matchAsPrefix(text));
-    if (prefix == null) return text;
+    final quote = _quotePrefix.matchAsPrefix(text);
+    final marker = quote == null && !continuesParagraph
+        ? _listMarker.matchAsPrefix(text)
+        : null;
+    final prefix = quote ?? marker;
+    if (prefix == null) {
+      return (text: text, quotes: quotes, isListItem: isListItem);
+    }
+    if (quote != null) {
+      quotes++;
+    } else {
+      isListItem = true;
+    }
     text = text.substring(prefix.end);
   }
 }

@@ -18,7 +18,12 @@ import 'package:markdown/markdown.dart'
         SetextHeaderSyntax,
         UnorderedListSyntax;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show isTableDelimiterRow;
+    show
+        CellRange,
+        isTableDelimiterRow,
+        tableCellRanges,
+        tableColumnCount,
+        tableHeadCells;
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
 
 /// The inline text of a body and the definitions its links resolve against.
@@ -105,7 +110,6 @@ const _greaterThan = 0x3E;
 const _openBracket = 0x5B;
 const _backslash = 0x5C;
 const _closeBracket = 0x5D;
-const _pipe = 0x7C;
 
 /// Returns the [LeafText] of [lfBody], a doc text with LF line ends.
 ///
@@ -774,102 +778,22 @@ final class _BlockPass {
   /// line after it, or null when the head row has more or fewer cells than the
   /// delimiter row has columns (`TableSyntax.parse`).
   int? _readTable(int i) {
-    final columns = _columnCount(_lines[i + 1]);
-    final head = _cellsOf(_lines[i]);
-    if (head.length != columns) return null;
+    final head = tableHeadCells(_lines[i], _lines[i + 1]);
+    if (head == null) return null;
+    final columns = tableColumnCount(_lines[i + 1]);
     _addCells(i, head, columns);
     var j = i + 2;
     while (j < _lines.length && !_endsBlockAt(j)) {
-      _addCells(j, _cellsOf(_lines[j]), columns);
+      _addCells(j, tableCellRanges(_lines[j]), columns);
       j++;
     }
     return j;
   }
 
-  void _addCells(int line, List<({int start, int end})> cells, int columns) {
+  void _addCells(int line, List<CellRange> cells, int columns) {
     for (var c = 0; c < cells.length && c < columns; c++) {
       _addLeaf(line, cells[c].start, cells[c].end);
     }
-  }
-
-  /// Returns the number of columns of the delimiter [row]
-  /// (`TableSyntax._parseAlignments`).
-  int _columnCount(String row) {
-    var columns = 0;
-    var started = false;
-    var hitDash = false;
-    for (var i = 0; i < row.length; i++) {
-      final unit = row.codeUnitAt(i);
-      if (unit == _space || unit == _tab || (!started && unit == _pipe)) {
-        continue;
-      }
-      started = true;
-      if (unit == _pipe) {
-        columns++;
-        hitDash = false;
-      } else {
-        hitDash = true;
-      }
-    }
-    return hitDash ? columns + 1 : columns;
-  }
-
-  /// Returns the line ranges of the cells of the table [row], split at an
-  /// unescaped pipe (`TableSyntax._parseRow`).
-  List<({int start, int end})> _cellsOf(String row) {
-    final cells = <({int start, int end})>[];
-    void add(int start, int end) {
-      cells.add((
-        start: start,
-        end: start + row.substring(start, end).trimRight().length,
-      ));
-    }
-
-    var index = _pastOpeningPipe(row);
-    var start = index;
-    while (true) {
-      if (index >= row.length) {
-        add(start, row.length);
-        break;
-      }
-      final unit = row.codeUnitAt(index);
-      if (unit == _backslash) {
-        if (index == row.length - 1) {
-          add(start, row.length);
-          break;
-        }
-        index += 2;
-      } else if (unit == _pipe) {
-        add(start, index);
-        index = _pastBlanks(row, index + 1);
-        start = index;
-        if (index >= row.length) break;
-      } else {
-        index++;
-      }
-    }
-    return cells;
-  }
-
-  int _pastBlanks(String row, int from) {
-    var index = from;
-    while (index < row.length) {
-      final unit = row.codeUnitAt(index);
-      if (unit != _space && unit != _tab) break;
-      index++;
-    }
-    return index;
-  }
-
-  int _pastOpeningPipe(String row) {
-    var index = 0;
-    while (index < row.length) {
-      final unit = row.codeUnitAt(index);
-      if (unit == _pipe) index = _pastBlanks(row, index + 1);
-      if (unit != _space && unit != _tab) break;
-      index++;
-    }
-    return index;
   }
 
   /// Reads the definition that starts at line [first] as

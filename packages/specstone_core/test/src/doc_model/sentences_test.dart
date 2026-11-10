@@ -179,6 +179,33 @@ void main() {
       ]);
     });
 
+    test('$_story: a table starts by the column rule of markdown: a one-column '
+        'table has no header pipe, and unequal counts make no table', () {
+      expect(sentencesOf('abc\n|---|\nrow\n'), ['abc', 'row']);
+      expect(sentencesOf('a | b | c\n--- | ---\nx | y | z\n'), [
+        'a | b | c --- | --- x | y | z',
+      ]);
+    });
+
+    test('$_story: a table ends at a list item or a change of quote depth', () {
+      const text =
+          'a | b\n'
+          '--- | ---\n'
+          'c | d\n'
+          '- item that\n'
+          '  wraps.\n';
+      expect(sentencesOf(text), ['a', 'b', 'c', 'd', 'item that wraps.']);
+    });
+
+    test('$_story: a line that opens with a pipe is a row only inside a '
+        'table', () {
+      expect(sentencesOf('| one. two.\n| three.\n'), [
+        '| one.',
+        'two.',
+        '| three.',
+      ]);
+    });
+
     test('$_story: a table with no outer pipes below a paragraph line '
         'ends that paragraph', () {
       const text =

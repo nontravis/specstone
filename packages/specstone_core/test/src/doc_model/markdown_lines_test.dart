@@ -3,6 +3,7 @@ import 'dart:math';
 
 // The pin reads the pattern of the pinned `markdown` itself, which its public
 // library does not export.
+import 'package:markdown/markdown.dart' show ExtensionSet, markdownToHtml;
 import 'package:markdown/src/patterns.dart' show tablePattern;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -150,12 +151,68 @@ void main() {
   });
 
   group('startsTable', () {
-    test('needs a pipe in the header and a delimiter row below it', () {
+    test('needs a delimiter row below the header and as many header cells as '
+        'the delimiter row has columns, edge pipes optional', () {
       expect(startsTable('a | b', '--- | ---'), isTrue);
       expect(startsTable('| a | b |', '|---|---|'), isTrue);
-      expect(startsTable('a b', '---|---'), isFalse);
+      expect(startsTable('abc', '|---|'), isTrue);
+      expect(startsTable('a | b | c', '--- | ---'), isFalse);
       expect(startsTable('a | b', 'c | d'), isFalse);
       expect(startsTable('a | b', '---'), isFalse);
+    });
+
+    test('agrees with markdown 7.3.1 on whether a header and a delimiter row '
+        'make a table', () {
+      const headers = [
+        'a',
+        'abc',
+        'a | b',
+        '| a | b |',
+        'a | b | c',
+        'a |',
+        '| a',
+        '|',
+        r'a \| b',
+        r'a \| b | c',
+        '`a | b`',
+        'a || b',
+        ' a | b ',
+        r'a \',
+        r'a | \',
+      ];
+      const delimiters = [
+        '---',
+        '|---|',
+        '--- | ---',
+        '|---|---|',
+        '|:--|--:|',
+        '---|---|---',
+        ':-:|:-:',
+        '|---',
+        '---|',
+        '| - |  - |',
+        '|---|---|---|',
+        'x | y',
+        '| --- | --- |',
+        ' |-|-| ',
+      ];
+      var tables = 0;
+      for (final header in headers) {
+        for (final delimiter in delimiters) {
+          final html = markdownToHtml(
+            '$header\n$delimiter\nrow\n',
+            extensionSet: ExtensionSet.gitHubFlavored,
+          );
+          final isTable = html.contains('<table>');
+          if (isTable) tables++;
+          expect(
+            startsTable(header, delimiter),
+            isTable,
+            reason: 'header "$header", delimiter "$delimiter"',
+          );
+        }
+      }
+      expect(tables, greaterThan(20));
     });
   });
 }

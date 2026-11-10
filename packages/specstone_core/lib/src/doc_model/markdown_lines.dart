@@ -9,6 +9,7 @@ const _tab = 0x09;
 const _pipe = 0x7C;
 const _dash = 0x2D;
 const _colon = 0x3A;
+const _backslash = 0x5C;
 
 /// The most spaces `markdown` lets precede the leading pipe of a table row.
 const _maxIndent = 3;
@@ -97,12 +98,94 @@ int _skipDelimiterCell(String line, int from) {
 /// Whether [line] is a thematic break, such as `---`, `* * *`, or `___`.
 bool isThematicBreak(String line) => _thematicBreak.hasMatch(line);
 
-/// Whether the line [header] with [delimiter] below it opens a table.
+/// The range of one table cell in its row: `start` to `end`, the cell's text
+/// without the blanks after it.
+typedef CellRange = ({int start, int end});
+
+/// Returns the cells of [header] when it opens a table with [delimiter] below
+/// it, else null.
 ///
-/// Both hold a pipe and [delimiter] is a delimiter row; the edge pipes are
-/// optional, as in `markdown`. Both are text with their block quote marks
+/// It follows `markdown`'s `TableSyntax`: [delimiter] is a delimiter row, and
+/// [header] has as many cells as [delimiter] has columns; the edge pipes of
+/// either are optional. Both are non-blank text with their block quote marks
 /// stripped.
+List<CellRange>? tableHeadCells(String header, String delimiter) {
+  if (!isTableDelimiterRow(delimiter)) return null;
+  final cells = tableCellRanges(header);
+  return cells.length == tableColumnCount(delimiter) ? cells : null;
+}
+
+/// Whether the line [header] with [delimiter] below it opens a table; see
+/// [tableHeadCells].
 bool startsTable(String header, String delimiter) =>
-    header.contains('|') &&
-    delimiter.contains('|') &&
-    isTableDelimiterRow(delimiter);
+    tableHeadCells(header, delimiter) != null;
+
+/// Returns the number of columns of the delimiter [row]
+/// (`TableSyntax._parseAlignments`).
+int tableColumnCount(String row) {
+  var columns = 0;
+  var started = false;
+  var hitDash = false;
+  for (var i = 0; i < row.length; i++) {
+    final unit = row.codeUnitAt(i);
+    if (unit == _space || unit == _tab || (!started && unit == _pipe)) {
+      continue;
+    }
+    started = true;
+    if (unit == _pipe) {
+      columns++;
+      hitDash = false;
+    } else {
+      hitDash = true;
+    }
+  }
+  return hitDash ? columns + 1 : columns;
+}
+
+/// Returns the ranges of the cells of the table [row], split at an unescaped
+/// pipe (`TableSyntax._parseRow`).
+List<CellRange> tableCellRanges(String row) {
+  final cells = <CellRange>[];
+  void add(int start, int end) {
+    cells.add((
+      start: start,
+      end: start + row.substring(start, end).trimRight().length,
+    ));
+  }
+
+  var index = _pastOpeningPipe(row);
+  var start = index;
+  while (true) {
+    if (index >= row.length) {
+      add(start, row.length);
+      break;
+    }
+    final unit = row.codeUnitAt(index);
+    if (unit == _backslash) {
+      if (index == row.length - 1) {
+        add(start, row.length);
+        break;
+      }
+      index += 2;
+    } else if (unit == _pipe) {
+      add(start, index);
+      index = _skipBlanks(row, index + 1);
+      start = index;
+      if (index >= row.length) break;
+    } else {
+      index++;
+    }
+  }
+  return cells;
+}
+
+int _pastOpeningPipe(String row) {
+  var index = 0;
+  while (index < row.length) {
+    final unit = row.codeUnitAt(index);
+    if (unit == _pipe) index = _skipBlanks(row, index + 1);
+    if (unit != _space && unit != _tab) break;
+    index++;
+  }
+  return index;
+}
