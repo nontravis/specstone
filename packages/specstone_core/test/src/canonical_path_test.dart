@@ -101,18 +101,21 @@ void main() {
       );
     });
 
-    for (final (relative, applied) in [
+    for (final (relative, appliedTo) in [
       ('proj/missing/../x.txt', 'proj/x.txt'),
       ('proj/missing/./x.txt', 'proj/missing/x.txt'),
       ('proj/missing/..', 'proj'),
     ]) {
       test('$relative is applied as written, and strict mode throws', () {
         final path = '${base.path}/$relative';
+        final applied = withNativeSeparators('${base.path}/$appliedTo');
 
-        expect(
-          canonicalPath(path),
-          withNativeSeparators('${base.path}/$applied'),
-        );
+        expect(canonicalPath(path), applied);
+        // Windows collapses a `..` before the disk sees it, so none is left.
+        if (Platform.isWindows && relative.contains('..')) {
+          expect(canonicalPath(path, strict: true), applied);
+          return;
+        }
         expect(
           () => canonicalPath(path, strict: true),
           throwsA(isA<FileSystemException>()),

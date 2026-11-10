@@ -50,7 +50,8 @@ bool _hasDrive(String path) =>
 /// they throw a [FileSystemException] instead. A link whose target Windows
 /// reads against a drive the link does not name (`X:name`) throws too, since
 /// the place it leads to depends on that drive's current folder. A `.` or `..`
-/// after a missing name throws too, since that name may become a link.
+/// after a missing name throws too, since that name may become a link. Windows
+/// collapses a `..` before the disk sees it, so none is left to throw on.
 String canonicalPath(String path, {bool strict = false}) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(

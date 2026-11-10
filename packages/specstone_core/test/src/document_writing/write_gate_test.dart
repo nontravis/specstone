@@ -106,6 +106,11 @@ void main() {
       'missing/./x.txt',
     ]) {
       test('$path is refused: a . or .. after a missing name', () {
+        // Windows collapses a `..` before the disk sees it, so none is left.
+        if (Platform.isWindows && path.contains('..')) {
+          expect(refusal(path), isNull);
+          return;
+        }
         expect(refusal(path), startsWith('it cannot be resolved'));
       });
     }
