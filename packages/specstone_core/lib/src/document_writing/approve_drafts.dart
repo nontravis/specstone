@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/sentences.dart' show heldTextOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
@@ -28,12 +29,14 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// [readLine] end the walk; any other answer asks again. An approval removes
 /// `draft` and writes the doc's ApprovalHash as `approved:`.
 /// Reads every selected draft, the approved copy of each, and every doc of the
-/// tree once, before the first view shows.
+/// tree once, before the first view shows; with no draft waiting it reads none
+/// of them.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries,
-/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
-/// not UTF-8, both before any draft shows, `output_not_writable` for roots the
-/// Owner has not recorded, before git runs or a draft shows, and `index_busy`
-/// when another call holds the lock; approvals already written stay.
+/// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
+/// cannot be read, or a draft that is not UTF-8, all before any draft shows,
+/// `output_not_writable` for roots the Owner has not recorded, before git runs
+/// or a draft shows, and `index_busy` when another call holds the lock;
+/// approvals already written stay.
 void approveDrafts(
   WriteSession session, {
   List<String> names = const [],
@@ -69,11 +72,13 @@ void approveDrafts(
 ///
 /// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks for
 /// [names]. The text is their views joined by a blank line, else `no draft
-/// waits for approval`; the JSON is `{}`. It takes no lock.
+/// waits for approval`; the JSON is `{}`. It takes no lock, and with no draft
+/// waiting it reads no doc of the tree.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
-/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
-/// not UTF-8, both before any view prints, and `output_not_writable` for roots
-/// the Owner has not recorded, before git runs.
+/// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
+/// cannot be read, or a draft that is not UTF-8, all before any view prints,
+/// and `output_not_writable` for roots the Owner has not recorded, before git
+/// runs.
 ReadAnswer approveDryRun(
   WriteSession session, {
   List<String> names = const [],
@@ -82,7 +87,8 @@ ReadAnswer approveDryRun(
   ApprovalHistory? history,
 }) {
   final drafts = _shownDraftsUnder(session, names);
-  if (drafts.isNotEmpty) _requireTrusted(session, drafts);
+  if (drafts.isEmpty) return const ReadAnswer(text: _nothingWaits, json: {});
+  _requireTrusted(session, drafts);
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
     for (final (at, (:doc, :bytes)) in drafts.indexed)
@@ -97,10 +103,7 @@ ReadAnswer approveDryRun(
         color: color,
       ),
   ];
-  return ReadAnswer(
-    text: views.isEmpty ? _nothingWaits : views.join('\n'),
-    json: const {},
-  );
+  return ReadAnswer(text: views.join('\n'), json: const {});
 }
 
 /// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
@@ -272,8 +275,8 @@ String? _answer(String? Function() readLine, StringSink out) {
 ///
 /// A re-shown draft reads its new bytes, and nothing else is read again.
 final class _RunReads {
-  new _(this._lookups, this._approved, this._treeTexts)
-    : _tree = heldTextsOf(_treeTexts.values),
+  new _(this._lookups, this._approved, this._treeHeld)
+    : _tree = joinHeldTexts(_treeHeld.values),
       _runCopies = heldTextsOf(_approved.values);
 
   /// Reads the approved copy of each of [drafts] through [history], then the
@@ -303,7 +306,7 @@ final class _RunReads {
     }
     return _RunReads._(lookups, approved, {
       for (final doc in session.index.docs)
-        doc.docPath: _textOnDisk(session, doc.docPath),
+        doc.docPath: heldTextOf(_textOnDisk(session, doc.docPath)),
     });
   }
 
@@ -312,8 +315,8 @@ final class _RunReads {
   /// The laid-out approved copy of each draft whose lookup found one.
   final Map<String, String> _approved;
 
-  /// The LF text of each doc of the tree, by DocPath.
-  final Map<String, String> _treeTexts;
+  /// The held text of each doc of the tree, by DocPath.
+  final Map<String, String> _treeHeld;
 
   final String _tree;
   final String _runCopies;
@@ -324,13 +327,13 @@ final class _RunReads {
   /// Returns the sentences [doc] dropped and added, [text] being its draft as
   /// shown now.
   SentenceChanges changesOf(IndexedDoc doc, String text, MergedDocType? type) {
-    final lfText = toLf(text);
+    final held = heldTextOf(toLf(text));
     return sentenceChangesOf(
       draft: comparableTextOf(text, type),
       approved: _approved[doc.docPath],
-      tree: lfText == _treeTexts[doc.docPath]
+      tree: held == _treeHeld[doc.docPath]
           ? _tree
-          : heldTextsOf({..._treeTexts, doc.docPath: lfText}.values),
+          : joinHeldTexts({..._treeHeld, doc.docPath: held}.values),
       runCopies: _runCopies,
     );
   }

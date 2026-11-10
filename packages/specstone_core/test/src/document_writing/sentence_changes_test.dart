@@ -89,7 +89,8 @@ void main() {
         'one repeated lists once', () {
       final changes = _changes(
         approved: '## Statement\nUse a tool, e.g. a pen. Gone. Gone.\n',
-        draft: '## Statement\nUse a tool, e.g. a pen.\n',
+        draft: '## Statement\nNothing here.\n',
+        tree: ['## Statement\nUse a tool, e.g. a pen.\n'],
       );
 
       expect(changes.dropped, ['Gone.']);

@@ -7,10 +7,13 @@ typedef SentenceChanges = ({List<String> dropped, List<String> added});
 /// Separates the docs of a held text, so no sentence reads across two docs.
 const _docBreak = '\u0000';
 
-/// Returns [lfTexts], each read as [heldTextOf] reads it, as one text for
+/// Returns [heldTexts], each a [heldTextOf] result, as one text for
 /// [sentenceChangesOf], with no sentence able to span two of them.
+String joinHeldTexts(Iterable<String> heldTexts) => heldTexts.join(_docBreak);
+
+/// Returns [lfTexts], each read by [heldTextOf], joined by [joinHeldTexts].
 String heldTextsOf(Iterable<String> lfTexts) =>
-    lfTexts.map(heldTextOf).join(_docBreak);
+    joinHeldTexts(lfTexts.map(heldTextOf));
 
 /// Returns the sentences [approved] lost and [draft] gained.
 ///
@@ -20,7 +23,8 @@ String heldTextsOf(Iterable<String> lfTexts) =>
 /// [draft] and [approved] are LF texts; [tree] is every doc under the docs
 /// root and [runCopies] the approved copy of each draft the run shows, each
 /// built by [heldTextsOf]. A null [approved] has no sentence to drop. A
-/// sentence repeated in a doc lists once.
+/// sentence a doc repeats lists and counts once: held is by text, so the same
+/// text twice tells the Owner nothing new.
 SentenceChanges sentenceChangesOf({
   required String draft,
   required String? approved,

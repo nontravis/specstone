@@ -1633,4 +1633,124 @@ void main() {
       expect(view, endsWith('New sentences:\n- Users create an account.\n\n'));
     });
   });
+
+  group('document_writing/approve_drafts/print_drafts_for_chat E24', () {
+    const dropped = 'Dropped sentence.';
+    const moved = 'Moved sentence.';
+
+    /// Makes the untyped `d01_context.md` unreadable by putting a folder in
+    /// its place; the session has indexed it already.
+    void makeUnreadable(Directory root) {
+      final file = docFile(root, 'prds/d01_context.md')..deleteSync();
+      Directory(file.path).createSync();
+    }
+
+    Future<Directory> repoWithMovedSentence() async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature':
+              '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\n'
+              'Kept sentence. $dropped $moved\n',
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      docFile(root, signupFeature).writeAsStringSync(
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\n\nKept sentence.\n',
+      );
+      docFile(
+        root,
+        'prds/d01_context.md',
+      ).writeAsStringSync('# Context\n\n## Features\n$moved\n');
+      commitAll(root, 'edited as a draft');
+      return root;
+    }
+
+    test('a dry run with no draft waiting reads no tree doc', () async {
+      final root = await writeWriteProject();
+
+      final text = writeIn(root, (s) {
+        makeUnreadable(root);
+        return approveDryRun(s, names: ['user_story:login/sign_out']).text;
+      });
+
+      expect(text, 'no draft waits for approval\n');
+    });
+
+    test('a walk with no draft waiting reads no tree doc', () async {
+      final root = await writeWriteProject();
+      final out = StringBuffer();
+
+      writeIn(root, (s) {
+        makeUnreadable(root);
+        approveDrafts(
+          s,
+          names: ['user_story:login/sign_out'],
+          readLine: answers(['q']),
+          out: out,
+        );
+      });
+
+      expect(out.toString(), 'no draft waits for approval\n');
+    });
+
+    test('a tree doc deleted after indexing reads empty, so what it held '
+        'shows dropped', () async {
+      final root = await repoWithMovedSentence();
+
+      final view = writeIn(root, (s) {
+        docFile(root, 'prds/d01_context.md').deleteSync();
+        return approveDryRun(s, names: ['feature:signup']).text;
+      });
+
+      expect(view, contains('Dropped sentences:\n- $dropped\n- $moved\n'));
+    }, skip: skipGit);
+
+    test(
+      'an unreadable tree doc refuses the dry run before any view',
+      () async {
+        final root = await writeWriteProject();
+
+        expect(
+          () => writeIn(root, (s) {
+            makeUnreadable(root);
+            return approveDryRun(s, names: ['feature:signup']);
+          }),
+          throwsA(
+            isA<RenderFault>().having(
+              (fault) => fault.code,
+              'code',
+              RenderFaultCode.outputNotWritable,
+            ),
+          ),
+        );
+      },
+    );
+
+    test('an unreadable tree doc refuses the walk before any view', () async {
+      final root = await writeWriteProject();
+      final out = StringBuffer();
+
+      expect(
+        () => writeIn(root, (s) {
+          makeUnreadable(root);
+          approveDrafts(
+            s,
+            names: ['feature:signup'],
+            readLine: answers(['q']),
+            out: out,
+          );
+        }),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.outputNotWritable,
+          ),
+        ),
+      );
+      expect(out.toString(), isEmpty);
+    });
+  });
 }
