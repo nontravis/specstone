@@ -54,4 +54,14 @@ void main() {
       'four sources', () {
     expectSpecLint(error);
   });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one catalog row per '
+      'code as its item shape', () {
+    expectItemShape(
+      error,
+      'Write one rule per ID: one catalog row per code, each rule one '
+      'sentence.',
+    );
+  });
 }

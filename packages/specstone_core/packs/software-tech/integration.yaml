@@ -5,6 +5,7 @@ description: |-
   Write this doc only when the feature calls an outside system.
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
   Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Write one rule per ID: one `###` per system, each rule one sentence.
 path: specs/f{nn}_{slug}/INTEGRATION.md
 parent: feature
 sections:

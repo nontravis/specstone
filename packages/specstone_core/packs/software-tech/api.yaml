@@ -5,6 +5,7 @@ description: |-
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
   Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
   Copy no request or response schema; the source of truth owns it.
+  Write one rule per ID: one `###` per operation, each rule one sentence.
 path: specs/f{nn}_{slug}/API.md
 parent: feature
 fields:

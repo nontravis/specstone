@@ -114,6 +114,21 @@ void main() {
       },
     );
 
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'ship_software_tech_pack: guide domain prints Known limits right '
+        'after Invariants', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'domain']), 0);
+      final guide = out.toString();
+      final invariants = guide.indexOf('## Invariants\n\n');
+      final knownLimits = guide.indexOf('## Known limits\n\n');
+      final lifecycle = guide.indexOf('## Lifecycle\n\n');
+      expect(invariants, greaterThan(0));
+      expect(knownLimits, greaterThan(invariants));
+      expect(lifecycle, greaterThan(knownLimits));
+      expect(err.toString(), isEmpty);
+    });
+
     test('f03/us07/s3, f03/us07/fr01: guide architecture --json gives the '
         'specs path, the parent feature, covers, and the sections', () async {
       final runner = await runnerFor(_bothPacks);

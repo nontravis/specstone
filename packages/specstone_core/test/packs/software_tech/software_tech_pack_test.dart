@@ -144,6 +144,29 @@ void main() {
       }
     });
 
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'set_spec_lint_and_sources: no software-tech doc type sets '
+        'max_item_chars, so each takes the default', () {
+      for (final id in softwareTechIds) {
+        expect(prdCoreDocType(set, id).lint.maxItemChars, isNull, reason: id);
+      }
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides: every section description stays within '
+        'five lines', () {
+      for (final id in softwareTechIds) {
+        for (final section in prdCoreDocType(set, id).sections) {
+          final lines = const LineSplitter().convert(section.description ?? '');
+          expect(
+            lines.length,
+            lessThanOrEqualTo(5),
+            reason: '$id.${section.id}',
+          );
+        }
+      }
+    });
+
     test('f03/us06/fr01, f03/us07/fr01: no other doc type sets bundle, and no '
         'other section sets query', () {
       expect(

@@ -5,6 +5,7 @@ description: |-
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
   Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
   Put no stack trace or internals in any error body.
+  Write one rule per ID: one catalog row per code, each rule one sentence.
 path: specs/f{nn}_{slug}/ERROR.md
 parent: feature
 sections:

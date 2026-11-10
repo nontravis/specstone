@@ -76,4 +76,14 @@ void main() {
       'sources', () {
     expectSpecLint(api);
   });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one ### per operation '
+      'as its item shape', () {
+    expectItemShape(
+      api,
+      'Write one rule per ID: one `###` per operation, each rule one '
+      'sentence.',
+    );
+  });
 }

@@ -68,4 +68,14 @@ void main() {
     final set = await resolveSoftwareTech();
     expect(set.lookup('tech_stack')!.bundle, ['implement', 'design']);
   });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one Stack row per slot '
+      'as its item shape', () {
+    expectItemShape(
+      techStack,
+      'Write one rule per ID: one Stack row per slot, each rule one '
+      'sentence.',
+    );
+  });
 }
