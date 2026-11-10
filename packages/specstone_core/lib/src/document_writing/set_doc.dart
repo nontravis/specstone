@@ -256,9 +256,9 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// [splicePart]: a first line that may be the section's own header, a held
 /// key, a stale base, and the section lookup. Throws [IndexFault]
 /// `argument_invalid` for an open fence, a `## ` line after a section body's
-/// first line, a lead that holds a `# ` or `## ` line, a section, lead, or
-/// field value that holds a naming line (see [refuseNamingLine]), and a title
-/// that is not one line, and the faults of [checkFieldWrite] for a field.
+/// first line, a lead that holds a `# ` or `## ` line, a section or lead
+/// that holds a naming line (see [refuseNamingLine]), and a title that is not
+/// one line, and the faults of [checkFieldWrite] for a field.
 void checkPartText({
   required IndexedDoc doc,
   required MergedDocType docType,
@@ -274,7 +274,6 @@ void checkPartText({
     case TitleTarget():
       _titleOf(lf);
     case FieldTarget(:final fieldId):
-      refuseNamingLine(lf, 'the value');
       // The held key decides only an emptied key the type does not declare;
       // `splicePart` checks it against the doc's text.
       checkFieldWrite(

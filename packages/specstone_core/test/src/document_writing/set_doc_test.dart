@@ -3078,20 +3078,31 @@ void main() {
       expect(readDoc(root, story1), before);
     });
 
-    test('checkPartText refuses it in a lead and a field value, with no lock and no doc text', () async {
+    test(
+      'checkPartText refuses it in a lead, with no lock and no doc text',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () =>
+              checkPartIn(root, req('$story1#_lead', 'x'), 'Lead.\n$naming\n'),
+          refusesNamingLine(naming),
+        );
+      },
+    );
+
+    test('a field value is not refused for a naming line: it never lands at column 0', () async {
       final root = await writeWriteProject();
-      expect(
-        () => checkPartIn(root, req('$story1#_lead', 'x'), 'Lead.\n$naming\n'),
-        refusesNamingLine(naming),
-      );
-      expect(
-        () => checkPartIn(
+      try {
+        checkPartIn(
           root,
           fieldReq(story1, 'vision', 'x'),
           '- PV-01\n$naming\n',
-        ),
-        refusesNamingLine(naming),
-      );
+        );
+      } on IndexFault catch (fault) {
+        expect(fault.message, isNot(contains('naming line')));
+      } on WriteFault {
+        // The field's own value checks may still refuse it.
+      }
     });
 
     test('a fenced line and an indented line pass', () async {
