@@ -778,7 +778,50 @@ void _handOffTests() {
     expect(section, contains('`run specstone trust at a terminal`'));
     expect(section, contains("Claude Code's `!` prefix is not a terminal"));
   });
+
+  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E08, E09: '
+      'the Rules section of expert-sdd holds the one-owner rule and its '
+      'citation form and points to confirm-links.md, which alone holds the '
+      'steps that confirm a traced link', () {
+    final skill = _pluginText('skills/expert-sdd/SKILL.md');
+    final rules = _oneLine(_sectionOf(skill, 'Rules'));
+    for (final point in _oneOwnerPoints) {
+      expect(rules, contains(point), reason: point);
+    }
+    expect(rules, contains('`references/confirm-links.md`'));
+    expect(_oneLine(_pluginText(_confirmLinks)), contains(_confirmLinkSteps));
+    for (final step in ['bases.fields.confirmed', '--field confirmed']) {
+      expect(skill, isNot(contains(step)), reason: step);
+    }
+  });
 }
+
+/// Each point of `follow_cross_doc_rules`' one-owner clause, E08, and E09, as
+/// the Rules section of expert-sdd words it.
+const _oneOwnerPoints = [
+  'A rule has one owner doc.',
+  'Every other doc cites it by name, `<type>:<name>` or',
+  '`<type>:<name>` or `<type>:<name>#<section>` and the item ID inside it',
+  '`domain:document_writing#invariants` INV-9',
+  'states nothing of the rule',
+  '`specstone refs <owner>` lists each citing doc',
+  'a citation pins no hash: it never turns `suspect` when the owner changes',
+];
+
+/// The one home of expert-sdd's steps for confirming a traced link.
+const _confirmLinks = 'skills/expert-sdd/references/confirm-links.md';
+
+/// Rule 4 of expert-sdd as it read before its steps moved to [_confirmLinks].
+const _confirmLinkSteps =
+    'When you write an FR (`fr`), an nf (`nf`), or an API row (`api`), record '
+    'its `confirmed` entries: run `specstone check <target>` to print each '
+    'link it traces, its upstream block, then its fingerprint; read the '
+    'block, then write the entries with `specstone set <target> --field '
+    'confirmed --base <hash>`. Take `<hash>` from `bases.fields.confirmed` in '
+    '`specstone get <target> --json`, never from a fingerprint `check` '
+    "prints. A `suspect` link's upstream block moved on since the entry was "
+    'recorded: re-read it and confirm again the same way. Your approval '
+    'request to the Owner then says what changed upstream.';
 
 /// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
 /// its steps in the skill's `references/<mode>.md`.

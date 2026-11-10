@@ -30,12 +30,7 @@ working directory alone misses a project root above it.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
    `specstone guide <type> --json` for its fields, even for a type you wrote earlier in the session. A project may
    customize its templates; the CLI prints the guide it has now, and this skill keeps none.
-4. **Confirm traced links.** When you write an FR (`fr`), an nf (`nf`), or an API row (`api`), record its
-   `confirmed` entries: run `specstone check <target>` to print each link it traces, its upstream block, then its
-   fingerprint; read the block, then write the entries with `specstone set <target> --field confirmed --base <hash>`.
-   Take `<hash>` from `bases.fields.confirmed` in `specstone get <target> --json`, never from a fingerprint `check`
-   prints. A `suspect` link's upstream block moved on since the entry was recorded: re-read it and confirm
-   again the same way. Your approval request to the Owner then says what changed upstream.
+4. **Confirm traced links.** When you write an FR, an nf, or an API row, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
    its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `specstone check` prints it.
    Steps: `references/size-fix.md`.
@@ -43,6 +38,10 @@ working directory alone misses a project root above it.
    touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is `owner`, its line
    ending `(waits for the Owner)`. The post-edit hook does not replace this run: it checks one doc, and a shell
    rewrite triggers no hook.
+7. **Cite, never restate.** A rule has one owner doc. Every other doc cites it by name, `<type>:<name>` or
+   `<type>:<name>#<section>` and the item ID inside it (`domain:document_writing#invariants` INV-9), and states
+   nothing of the rule. `specstone refs <owner>` lists each citing doc, but a citation pins no hash: it never turns
+   `suspect` when the owner changes.
 
 ## Owner confirmation
 
