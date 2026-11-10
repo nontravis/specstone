@@ -318,16 +318,16 @@ void main() {
       },
     );
   });
-  test('f01/us04/s9, f01/us04/fr02/e09: a template section the doc lacks prints empty with the base of empty text', () async {
+  test('index_query/read_doc_section/print_doc_or_section E09: a template section the doc lacks prints its naming line alone with the base of empty text', () async {
     expect(
       answerGet(index, ['login/email_login#rules']).text,
-      '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#rules · base e3b0c44298fc <==\n## Rules\n',
+      '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#rules · base e3b0c44298fc <==\n',
     );
     final doc =
         (answerGet(index, ['login/email_login#rules']).json['docs']! as List)
                 .single
             as Map;
-    expect(doc['text'], '## Rules\n');
+    expect(doc['text'], '');
     expect(doc['base'], emptyBaseHash);
   });
   test('f01/us04/fr02/e10: --json bases list the title, every section, and every field, absent ones empty', () async {

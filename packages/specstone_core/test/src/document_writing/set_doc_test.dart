@@ -3110,4 +3110,15 @@ void main() {
       expect(text, contains('\n    $naming\n'));
     });
   });
+
+  test('document_writing/edit_one_section_or_field/write_one_section E15: header-only stdin on a section the doc lacks still writes it empty', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#open_questions';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, emptyBaseHash), '## Open questions\n'),
+    );
+    expect(readDoc(root, story1), endsWith('## Open questions\n'));
+    expect('## Open questions'.allMatches(readDoc(root, story1)), hasLength(1));
+  });
 }

@@ -13,7 +13,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart'
-    show basesOf, sectionBaseOf;
+    show basesOf, printedPart, sectionBaseOf;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -375,6 +375,16 @@ Map<_Planned, _Checked> _checkBlocks(
   final onDisk = layOutDoc(disk.lfText, docType);
   final results = <_Planned, _Checked>{};
   for (final block in blocks) {
+    // Unedited means what `get` prints now, decided before any check of the
+    // part: an absent section's empty block is unchanged even when required.
+    if (_isUneditedPart(block, disk)) {
+      results[block] = (
+        lfText: disk.lfText,
+        marksDraft: false,
+        isChanged: false,
+      );
+      continue;
+    }
     try {
       final spliced = _splice(block, disk);
       results[block] = (
@@ -393,6 +403,23 @@ Map<_Planned, _Checked> _checkBlocks(
     }
   }
   return results;
+}
+
+/// Whether [block] names a section or the lead with the base and the text
+/// `get` prints for it now.
+bool _isUneditedPart(_Planned block, _Disk disk) {
+  if (block.target is! SectionTarget && block.target is! LeadTarget) {
+    return false;
+  }
+  final printed = printedPart(
+    block.doc,
+    disk.parsed.content,
+    block.docType,
+    block.key,
+  );
+  return printed != null &&
+      printed.base == block.base &&
+      printed.text == block.block.text;
 }
 
 ({String lfText, bool marksDraft}) _splice(_Planned block, _Disk disk) =>

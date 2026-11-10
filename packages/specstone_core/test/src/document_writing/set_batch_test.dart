@@ -1378,4 +1378,43 @@ void main() {
       expect(readDoc(root, story1), contains('\n    $shaped\n'));
     },
   );
+
+  test(
+    '$_wb E11: an unedited block for a template section the doc lacks, optional or required, is unchanged, and an approved doc stays approved',
+    () async {
+      final root = await writeWriteProject();
+      final noUseCase = readDoc(
+        root,
+        story1,
+      ).replaceFirst('## Use Case\n\nSign in with an email.\n\n', '');
+      docFile(root, story1).writeAsStringSync(noUseCase);
+      final names = <String>[];
+      for (final docPath in [story1, story2, fr11, loginFeature, loginArch]) {
+        final sections =
+            (getDoc(root, docPath)['bases']! as Map)['sections']! as Map;
+        names.addAll([
+          for (final MapEntry(:key, :value) in sections.entries)
+            if (value == emptyBaseHash) '$docPath#$key',
+        ]);
+      }
+      expect(names.length, greaterThan(4));
+      expect(names, contains('$story1#use_case'));
+      final before = docBytes(root);
+      final text = getText(root, names);
+      expect(text, isNot(contains('\n## ')));
+
+      final answer = writeInNoHome(
+        root,
+        (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+      );
+
+      expect(docBytes(root), before);
+      final lines = answer.text.trimRight().split('\n');
+      expect(lines, hasLength(names.length));
+      for (final line in lines) {
+        expect(line, endsWith(' · unchanged <=='));
+      }
+      expect(File(journalPathOf(root)).existsSync(), isFalse);
+    },
+  );
 }
