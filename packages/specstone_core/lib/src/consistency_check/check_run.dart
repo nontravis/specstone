@@ -17,6 +17,7 @@ import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
 import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
+import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
@@ -78,6 +79,7 @@ CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
+      ..addAll(checkOpenTbrs(context, doc))
       ..addAll(checkReferenceEntries(context, doc));
   }
   if (scope.isProject) {

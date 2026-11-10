@@ -75,6 +75,7 @@ void main() {
       'confirmed_entry_stale',
       'format_drift',
       'agent_block_stale',
+      'tbr_open',
       'approval_stale',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
@@ -121,6 +122,7 @@ void main() {
       FindingKind.approvalStale,
       FindingKind.charsOverLimit,
       FindingKind.linesOverLimit,
+      FindingKind.tbrOpen,
     };
     for (final kind in FindingKind.values) {
       expect(

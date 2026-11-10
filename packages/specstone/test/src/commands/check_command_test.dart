@@ -194,6 +194,64 @@ void main() {
     expect(finding['message'], isNot(contains('waits for the Owner)')));
   });
 
+  group('user_story:consistency_check/find_template_breaks S16', () {
+    const reason = 'legacy states none';
+    // The marker is built from parts so this file holds none outside a value.
+    const marker = 'TBR \u2014 ';
+
+    Future<Directory> project() => writeCheckProject(
+      extra: fr(
+        'A wrong password must not sign in.',
+        'A wrong password must not sign in.\n\n- **Consistency:** $marker$reason',
+      ),
+    );
+
+    test('text prints one tbr_open line at the marker with the tag', () async {
+      final dir = await project();
+      final line = File('${dir.path}/docs/$loginFr')
+          .readAsLinesSync()
+          .indexWhere((l) => l.contains(marker));
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginFr:${line + 1}: tbr_open: the value is still to be resolved: '
+        '$reason (waits for the Owner)\n1 finding\n',
+      );
+    });
+
+    test('--json gives form marker and waitsFor owner, no tag', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map;
+      expect(finding['kind'], 'tbr_open');
+      expect(finding['waitsFor'], 'owner');
+      expect(finding['form'], 'marker');
+      expect(finding['message'], 'the value is still to be resolved: $reason');
+    });
+
+    test(
+      'after the Owner writes the value, the check reports nothing',
+      () async {
+        final (:runner, :out, :err) = readRunner(
+          await writeCheckProject(
+            extra: fr(
+              'A wrong password must not sign in.',
+              'A wrong password must not sign in.\n\n- **Consistency:** immediate',
+            ),
+          ),
+        );
+
+        expect(await runner.run(['check']), 0);
+        expect(out.toString(), '0 findings\n');
+      },
+    );
+  });
+
   group('consistency_check/find_template_breaks/print_findings upstream block', () {
     final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
     final fingerprint = fingerprintFor(edited);

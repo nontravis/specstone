@@ -433,4 +433,37 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('consistency_check/find_template_breaks/report_open_tbrs: the run '
+      'reports an open TBR of each typed doc in scope, counted and exit 1, '
+      'and none outside the target', () async {
+    const open = 'TBR \u2014 2 s';
+    final project = await writeCheckProject(
+      extra: {
+        ...fr(checkPasswordStatement, '$checkPasswordStatement $open'),
+        'docs/prds/features/f02_signup/FEATURE.md': '# Sign up\n',
+      },
+    );
+    final whole = checkOf(project);
+    final tbr = [
+      for (final f in whole.findings)
+        if (f.kind == FindingKind.tbrOpen) f,
+    ];
+
+    expect(tbr, hasLength(1));
+    expect(tbr.single.path, loginFr);
+    expect(tbr.single.waitsFor, WaitsFor.owner);
+    expect(whole.exitStatus, 1);
+    expect(
+      whole.text,
+      contains('${tbr.single.textLine} (waits for the Owner)\n'),
+    );
+    expect(spots(checkOf(project, target: 'login'), FindingKind.tbrOpen), [
+      '$loginFr:${tbr.single.line}: tbr_open',
+    ]);
+    expect(
+      spots(checkOf(project, target: 'feature:signup'), FindingKind.tbrOpen),
+      isEmpty,
+    );
+  });
 }

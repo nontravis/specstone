@@ -92,6 +92,7 @@ enum FindingKind {
   confirmedEntryStale('confirmed_entry_stale'),
   formatDrift('format_drift'),
   agentBlockStale('agent_block_stale'),
+  tbrOpen('tbr_open'),
   approvalStale('approval_stale');
 
   new(this.wire);
@@ -101,7 +102,10 @@ enum FindingKind {
 
   /// Who clears a finding of this kind, unless its rule says otherwise.
   WaitsFor get waitsFor => switch (this) {
-    approvalStale || charsOverLimit || linesOverLimit => WaitsFor.owner,
+    approvalStale ||
+    charsOverLimit ||
+    linesOverLimit ||
+    tbrOpen => WaitsFor.owner,
     _ => WaitsFor.agent,
   };
 
