@@ -1905,14 +1905,84 @@ void main() {
       final journal = File('${root.path}/${MoveJournal.journalPath}');
       final before = journal.readAsStringSync();
       final out = StringBuffer();
+      final calls = <List<String>>[];
 
       expect(
-        () => _run(root, out, dryRun: true),
+        () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
         refusesWith(MigrateFaultCode.workingTreeDirty),
       );
 
+      expect(
+        calls,
+        isNotEmpty,
+        reason: 'the git check refused, not the journal',
+      );
       expect(out.toString(), isEmpty);
       expect(journal.readAsStringSync(), before);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal with no '
+        'step left and a clean tree passes the git checks and plans', () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        'docs/prds/d01_context.md': 'replaced\n',
+        '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+      });
+      _writeF02Journal(root);
+      final out = StringBuffer();
+      final calls = <List<String>>[];
+
+      expect(_run(root, out, dryRun: true, runGit: _fakeGit(calls)), 0);
+
+      expect(calls, isNotEmpty);
+      expect(out.toString(), contains('\nplan '));
+      expect(out.toString(), endsWith('dry run: nothing written\n'));
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e07: a dry run over a two-step F-02 journal goes by '
+        'the cursor: a step left refuses, none left passes', () async {
+      const replaced = 'replaced\n';
+      const first = 'docs/prds/d01_context.md';
+      const second = 'docs/prds/d02_features.md';
+      for (final (:cursor, :secondDone, :refuses) in [
+        (cursor: 1, secondDone: false, refuses: true),
+        (cursor: 1, secondDone: true, refuses: false),
+        (cursor: 2, secondDone: false, refuses: false),
+      ]) {
+        final root = await gitFixture({
+          ...acmeLegacy,
+          first: replaced,
+          if (secondDone) second: replaced,
+          '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+        });
+        writeJournal(root, [
+          WriteStep(first, replaced, before: textHashOf(acmeLegacy[first]!)),
+          WriteStep(second, replaced, before: textHashOf(acmeLegacy[second]!)),
+        ]);
+        File('${root.path}/${MoveJournal.cursorPath}')
+            .writeAsStringSync('$cursor');
+        final out = StringBuffer();
+        final calls = <List<String>>[];
+        final reason = 'cursor $cursor, second step done: $secondDone';
+
+        if (refuses) {
+          expect(
+            () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
+            refusesWith(MigrateFaultCode.workingTreeDirty),
+            reason: reason,
+          );
+          expect(calls, isEmpty, reason: reason);
+          expect(out.toString(), isEmpty, reason: reason);
+        } else {
+          expect(
+            _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
+            0,
+            reason: reason,
+          );
+          expect(calls, isNotEmpty, reason: reason);
+          expect(out.toString(), contains('\nplan '), reason: reason);
+        }
+      }
     }, skip: skipGit);
 
     test('f06/us01/fr07/e04, f06/us01/fr08/e10: a resume dry run over '
