@@ -20,6 +20,22 @@ void main() {
       ]);
     });
 
+    test('consistency_check/find_template_breaks/report_open_tbrs E02: the '
+        'text of a marker ends at the next marker on its line', () {
+      expect(tbrMarkerLinesIn('TBR — pick one TBR — and two\n'), [
+        (line: 0, rest: 'pick one'),
+        (line: 0, rest: 'and two'),
+      ]);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs E02: a '
+        'line of 5,000 markers stores no text between them', () {
+      final found = tbrMarkerLinesIn('${'TBR — ' * 5000}\n');
+
+      expect(found, hasLength(5000));
+      expect(found.every((marker) => marker.rest.isEmpty), isTrue);
+    });
+
     test('consistency_check/find_template_breaks/report_open_tbrs E03: a '
         'marker inside a code span is no marker', () {
       expect(tbrMarkerLinesIn('The form is `TBR — <why>` here.\n'), isEmpty);
@@ -87,7 +103,7 @@ void main() {
     test('consistency_check/find_template_breaks/report_open_tbrs: two '
         'markers on one line give two places at that line', () {
       expect(tbrMarkerLinesIn('TBR — a and TBR — b\n'), [
-        (line: 0, rest: 'a and TBR — b'),
+        (line: 0, rest: 'a and'),
         (line: 0, rest: 'b'),
       ]);
     });

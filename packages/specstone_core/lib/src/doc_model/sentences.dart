@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show atxHeadingOf, isTableDelimiterRow;
+    show atxHeadingOf, isTableDelimiterRow, isThematicBreak, startsTable;
 
 const _space = 0x20;
 const _terminators = {0x2E, 0x3F, 0x21}; // . ? !
@@ -12,7 +12,6 @@ const _firstTextHeadingLevel = 3;
 final _whitespaceRun = RegExp(r'\s+');
 final _quotePrefix = RegExp(r'^[ \t]*>[ \t]?');
 final _listMarker = RegExp(r'^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)');
-final _thematicBreak = RegExp(r'^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$');
 final _tableRow = RegExp(r'^ {0,3}\|');
 final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
@@ -53,11 +52,18 @@ List<String> sentencesOf(String lfText) {
   final lines = _linesOf(Doc.parse(lfText).afterFrontmatter);
   final scan = blockScan(lines);
   final reader = _BlockReader();
+  String? textAt(int i) => i < lines.length && !scan.fenced[i]
+      ? _withoutContainers(lines[i], scan.continuesParagraph[i])
+      : null;
   for (var i = 0; i < lines.length; i++) {
     if (scan.fenced[i]) {
       reader.close();
     } else {
-      reader.read(lines[i], continuesParagraph: scan.continuesParagraph[i]);
+      reader.read(
+        textAt(i),
+        below: textAt(i + 1),
+        continuesParagraph: scan.continuesParagraph[i],
+      );
     }
   }
   reader.close();
@@ -83,17 +89,35 @@ final class _BlockReader {
     _open.clear();
   }
 
-  void read(String line, {required bool continuesParagraph}) {
-    final text = _withoutContainers(line, continuesParagraph);
-    if (text == null || text.trim().isEmpty) return close();
+  /// Whether the rows being read belong to a table whose header had no edge
+  /// pipe.
+  var _inTable = false;
+
+  /// Reads [text], a line without its containers or null for a thematic
+  /// break, with [below] the next line's text.
+  void read(
+    String? text, {
+    required String? below,
+    required bool continuesParagraph,
+  }) {
+    if (text == null || text.trim().isEmpty) {
+      _inTable = false;
+      return close();
+    }
     final heading = atxHeadingOf(text);
     if (heading != null) {
+      _inTable = false;
       close();
       if (heading.level >= _firstTextHeadingLevel) _add(heading.text);
       return;
     }
-    if (_tableRow.hasMatch(text)) {
+    if (_tableRow.hasMatch(text) || _inTable) {
       close();
+      return _readTableRow(text);
+    }
+    if (below != null && startsTable(text, below)) {
+      close();
+      _inTable = true;
       return _readTableRow(text);
     }
     if (!continuesParagraph) close();
@@ -111,7 +135,8 @@ final class _BlockReader {
 }
 
 String _trimPipes(String row) {
-  var text = row.trim().substring(1);
+  var text = row.trim();
+  if (text.startsWith('|')) text = text.substring(1);
   if (text.endsWith('|') && !text.endsWith(r'\|')) {
     text = text.substring(0, text.length - 1);
   }
@@ -123,7 +148,7 @@ String _trimPipes(String row) {
 String? _withoutContainers(String line, bool continuesParagraph) {
   var text = line;
   while (true) {
-    if (_thematicBreak.hasMatch(text)) return null;
+    if (isThematicBreak(text)) return null;
     final prefix =
         _quotePrefix.matchAsPrefix(text) ??
         (continuesParagraph ? null : _listMarker.matchAsPrefix(text));

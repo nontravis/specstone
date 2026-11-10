@@ -134,4 +134,28 @@ void main() {
       expect(watch.elapsedMilliseconds, lessThan(50));
     });
   });
+
+  group('isThematicBreak', () {
+    test('accepts three or more of one mark, spaced or not', () {
+      for (final line in ['---', '***', '___', '* * *', ' - - - -', '----  ']) {
+        expect(isThematicBreak(line), isTrue, reason: line);
+      }
+    });
+
+    test('rejects two marks, mixed marks, text, and a 4-space indent', () {
+      for (final line in ['--', '-*-', '--- x', '    ---', 'a---', '']) {
+        expect(isThematicBreak(line), isFalse, reason: line);
+      }
+    });
+  });
+
+  group('startsTable', () {
+    test('needs a pipe in the header and a delimiter row below it', () {
+      expect(startsTable('a | b', '--- | ---'), isTrue);
+      expect(startsTable('| a | b |', '|---|---|'), isTrue);
+      expect(startsTable('a b', '---|---'), isFalse);
+      expect(startsTable('a | b', 'c | d'), isFalse);
+      expect(startsTable('a | b', '---'), isFalse);
+    });
+  });
 }

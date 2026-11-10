@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show itemHeadingMarker;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -9,7 +11,6 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _indent = '  ';
-const _headingMarker = '### ';
 
 typedef _ItemSize = ({String? id, int line, int chars});
 typedef _SectionSize = ({String key, int chars, List<_ItemSize> items});
@@ -170,7 +171,7 @@ List<_ItemSize> _itemSizesOf(
 /// Returns the key `check` holds [item] by, or null when it reads none.
 String? _itemIdOf(DocItem item, MergedSection? template) {
   if (item.heading && template?.id == acceptanceSectionId) {
-    final scenario = readScenarioHeading('$_headingMarker${item.text}');
+    final scenario = readScenarioHeading('$itemHeadingMarker${item.text}');
     if (scenario != null) return itemKeyOf(scenario, isScenario: true);
   }
   final prefix = template?.prefixId;

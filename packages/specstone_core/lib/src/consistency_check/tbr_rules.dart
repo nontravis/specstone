@@ -15,9 +15,18 @@ const _markerForm = 'marker';
 const _sectionForm = 'section';
 const _bulletForm = 'bullet';
 
-/// Returns the message of an open value; an empty [value] names none.
-String _valueMessage(String value) =>
-    value.isEmpty ? _openValue : '$_openValue: $value';
+/// The most characters of a value a message shows; the rest is cut off.
+const tbrValueLimit = 80;
+
+/// Returns the message of an open value; an empty [value] names none, and a
+/// value past [tbrValueLimit] characters shows its first ones and an ellipsis.
+String _valueMessage(String value) {
+  if (value.isEmpty) return _openValue;
+  final shown = value.runes.length > tbrValueLimit
+      ? '${String.fromCharCodes(value.runes.take(tbrValueLimit))}\u2026'
+      : value;
+  return '$_openValue: $shown';
+}
 
 /// Returns one `tbr_open` finding per open TBR of [doc], a typed doc.
 ///

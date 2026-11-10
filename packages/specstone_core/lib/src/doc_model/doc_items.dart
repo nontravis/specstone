@@ -1,11 +1,9 @@
 import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show isTableDelimiterRow;
+    show isThematicBreak, itemHeadingMarker, startsTable;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 
-const _headingMarker = '### ';
 const _lineFeedChars = 1;
-const _pipe = '|';
 
 final _quotePrefix = RegExp('^ {0,3}> ?');
 final _listMarker = RegExp(r'^\s*(?:[-*+]|\d+[.)])(?:\s+|$)');
@@ -24,9 +22,10 @@ typedef DocItem = ({int line, int chars, String text, bool heading});
 /// An item is a list item without its nested items, a nested item alone, a
 /// table row below the delimiter row, a paragraph, or a `###` heading with
 /// the paragraph right under it and never its bullets, inside a blockquote
-/// as anywhere else. A fenced code block and a table's header and delimiter
-/// rows are no item. A list item ends at a blank line or a fence, and the
-/// text after it is its own item. A line scan, no markdown parse.
+/// as anywhere else. A fenced code block, a thematic break, and a table's
+/// header and delimiter rows are no item. A list item ends at a blank line or
+/// a fence, and the text after it is its own item. A line scan, no markdown
+/// parse.
 List<DocItem> itemsOf(List<BodyLine> body) {
   final lines = [for (final line in body) _Line.of(line)];
   final items = <DocItem>[];
@@ -35,7 +34,9 @@ List<DocItem> itemsOf(List<BodyLine> body) {
     final line = lines[i];
     if (line.kind == _Kind.text && _startsTable(lines, i)) {
       i = _addTableRows(items, body, lines, i);
-    } else if (line.kind == _Kind.blank || line.kind == _Kind.fence) {
+    } else if (line.kind == _Kind.blank ||
+        line.kind == _Kind.fence ||
+        line.kind == _Kind.rule) {
       i++;
     } else {
       final end = line.kind == _Kind.heading
@@ -48,7 +49,7 @@ List<DocItem> itemsOf(List<BodyLine> body) {
   return items;
 }
 
-enum _Kind { blank, fence, heading, list, text }
+enum _Kind { blank, fence, rule, heading, list, text }
 
 /// One body line split into its blockquote depth and the text after it.
 final class _Line {
@@ -65,16 +66,19 @@ final class _Line {
       inner = inner.substring(mark.end);
       quote++;
     }
-    final kind = line.fenced
-        ? _Kind.fence
-        : inner.trim().isEmpty
-        ? _Kind.blank
-        : inner.startsWith(_headingMarker)
-        ? _Kind.heading
-        : _listMarker.hasMatch(inner)
-        ? _Kind.list
-        : _Kind.text;
-    return _Line(kind, quote, inner);
+    return _Line(_kindOf(line, inner), quote, inner);
+  }
+
+  static _Kind _kindOf(BodyLine line, String inner) {
+    if (line.fenced) return _Kind.fence;
+    if (inner.trim().isEmpty) return _Kind.blank;
+    if (isThematicBreak(inner)) return _Kind.rule;
+    if (inner.startsWith(itemHeadingMarker)) return _Kind.heading;
+    final marker = _listMarker.firstMatch(inner);
+    if (marker == null) return _Kind.text;
+    return isThematicBreak(inner.substring(marker.end))
+        ? _Kind.rule
+        : _Kind.list;
   }
 
   final _Kind kind;
@@ -85,7 +89,7 @@ final class _Line {
 
   /// The first line of an item that starts here, marker stripped.
   String get itemText => switch (kind) {
-    _Kind.heading => inner.substring(_headingMarker.length),
+    _Kind.heading => inner.substring(itemHeadingMarker.length),
     _Kind.list => inner.substring(_listMarker.firstMatch(inner)!.end),
     _ => inner.trimLeft(),
   };
@@ -93,12 +97,11 @@ final class _Line {
 
 /// Whether line [i] is a table header, the delimiter row under it.
 bool _startsTable(List<_Line> lines, int i) {
-  if (i + 1 >= lines.length || !lines[i].inner.contains(_pipe)) return false;
+  if (i + 1 >= lines.length) return false;
   final next = lines[i + 1];
   return next.kind == _Kind.text &&
       next.quote == lines[i].quote &&
-      next.inner.contains(_pipe) &&
-      isTableDelimiterRow(next.inner);
+      startsTable(lines[i].inner, next.inner);
 }
 
 /// Adds one item per row below the delimiter row of the table at [i] to

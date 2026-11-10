@@ -195,5 +195,18 @@ void main() {
         'holds no item', () {
       expect(_items(''), isEmpty);
     });
+
+    test('doc_model/doc_items E09: a thematic break is no item and ends the '
+        'paragraph above it', () {
+      expect(_items('first\n***\nsecond'), [
+        (line: 20, chars: 5, text: 'first', heading: false),
+        (line: 22, chars: 6, text: 'second', heading: false),
+      ]);
+      expect(_items('one\n\n---\n\ntwo'), [
+        (line: 20, chars: 3, text: 'one', heading: false),
+        (line: 24, chars: 3, text: 'two', heading: false),
+      ]);
+      expect(_items('* * *\n- - -\n> ---\n_ _ _'), isEmpty);
+    });
   });
 }

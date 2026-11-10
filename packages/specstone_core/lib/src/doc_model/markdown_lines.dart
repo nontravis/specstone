@@ -13,6 +13,11 @@ const _colon = 0x3A;
 /// The most spaces `markdown` lets precede the leading pipe of a table row.
 const _maxIndent = 3;
 
+/// The opening of an item heading, a level 3 ATX heading.
+const itemHeadingMarker = '### ';
+
+final RegExp _thematicBreak = RegExp(r'^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$');
+
 /// An ATX heading line: its level, 1 to 6, and its text without the marks.
 typedef AtxHeading = ({int level, String text});
 
@@ -88,3 +93,16 @@ int _skipDelimiterCell(String line, int from) {
   if (at < line.length && line.codeUnitAt(at) == _colon) at++;
   return at;
 }
+
+/// Whether [line] is a thematic break, such as `---`, `* * *`, or `___`.
+bool isThematicBreak(String line) => _thematicBreak.hasMatch(line);
+
+/// Whether the line [header] with [delimiter] below it opens a table.
+///
+/// Both hold a pipe and [delimiter] is a delimiter row; the edge pipes are
+/// optional, as in `markdown`. Both are text with their block quote marks
+/// stripped.
+bool startsTable(String header, String delimiter) =>
+    header.contains('|') &&
+    delimiter.contains('|') &&
+    isTableDelimiterRow(delimiter);

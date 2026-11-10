@@ -5,7 +5,8 @@ import 'package:specstone_core/src/doc_model/doc.dart' show fenceScan;
 const _marker = 'TBR — ';
 
 /// Returns each TBR marker of [lfBody], the text after the frontmatter, with
-/// its 0-based body line and the text after it on that line, trimmed.
+/// its 0-based body line and the text after it on that line, up to the next
+/// marker and trimmed.
 ///
 /// Fenced code and code spans hold no marker. A line with two markers gives
 /// two places. Spans are read per line, so a marker inside a span wrapped over
@@ -30,13 +31,15 @@ List<({int line, String rest})> _markersOf(String line, int number) {
   final spans = codeSpansOf(line);
   final markers = <({int line, String rest})>[];
   while (at >= 0) {
+    final textStart = at + _marker.length;
+    final next = line.indexOf(_marker, textStart);
     if (!spans.any((s) => at >= s.start && at < s.end)) {
       markers.add((
         line: number,
-        rest: line.substring(at + _marker.length).trim(),
+        rest: line.substring(textStart, next < 0 ? line.length : next).trim(),
       ));
     }
-    at = line.indexOf(_marker, at + _marker.length);
+    at = next;
   }
   return markers;
 }

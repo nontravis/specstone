@@ -322,36 +322,33 @@ void main() {
       expect((statement.single as Map)['chars'], 165);
     });
 
-    test(
-      'INV-14: a doc the formatter refuses counts its text as on disk',
-      () async {
-        final refused = _e09Fr.replaceFirst(
-          '## Edge cases',
-          '## Mystery\nx\n\n## Edge cases',
-        );
-        final index = await indexWith({_frKey: refused});
-        final doc = index.resolve(_frTarget).single;
-        final disk = refused.split('\n');
-        final content = index.contentOf(doc);
-        final sections =
-            (answerStructure(index, target: _frTarget).json['docs']! as List)
-                    .cast<Map<String, Object?>>()
-                    .single['sections']!
-                as List;
+    test('domain:consistency_check INV-14: a doc the formatter refuses counts its text as on disk', () async {
+      final refused = _e09Fr.replaceFirst(
+        '## Edge cases',
+        '## Mystery\nx\n\n## Edge cases',
+      );
+      final index = await indexWith({_frKey: refused});
+      final doc = index.resolve(_frTarget).single;
+      final disk = refused.split('\n');
+      final content = index.contentOf(doc);
+      final sections =
+          (answerStructure(index, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
 
-        expect(layOutDoc(refused, index.typeOf(doc)), refused);
-        expect(
-          [for (final s in sections) (s as Map)['key']],
-          ['statement', 'mystery', 'edge_cases'],
-        );
-        expect(
-          [for (final s in sections) (s as Map)['chars']],
-          [for (final c in content.lineFacts.sectionCounts) c.chars],
-        );
-        final first = ((sections.last as Map)['items']! as List).first as Map;
-        expect(disk[(first['line']! as int) - 1], startsWith('1. E01'));
-      },
-    );
+      expect(layOutDoc(refused, index.typeOf(doc)), refused);
+      expect(
+        [for (final s in sections) (s as Map)['key']],
+        ['statement', 'mystery', 'edge_cases'],
+      );
+      expect(
+        [for (final s in sections) (s as Map)['chars']],
+        [for (final c in content.lineFacts.sectionCounts) c.chars],
+      );
+      final first = ((sections.last as Map)['items']! as List).first as Map;
+      expect(disk[(first['line']! as int) - 1], startsWith('1. E01'));
+    });
 
     test('domain:consistency_check INV-14: a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
       const before =

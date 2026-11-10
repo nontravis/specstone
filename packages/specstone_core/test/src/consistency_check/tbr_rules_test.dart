@@ -3,6 +3,8 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/tbr_rules.dart'
+    show tbrValueLimit;
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -196,6 +198,22 @@ void main() {
     expect(found, hasLength(1));
     expect(found.single.keys, {'form': 'bullet'});
     expect(found.single.message, _openNoValue);
+  });
+
+  test('$_name E01: a long text after a marker shows its first '
+      '$tbrValueLimit characters and an ellipsis', () async {
+    final text = 'x' * (tbrValueLimit * 2);
+    final (:found, project: _) = await _run(
+      _frWith('Cite $_marker$text TBR $_dash second.'),
+    );
+
+    expect(
+      [for (final f in found) f.message],
+      unorderedEquals([
+        '$_stillOpen${text.substring(0, tbrValueLimit)}\u2026',
+        '${_stillOpen}second.',
+      ]),
+    );
   });
 
   test('$_name E01: a marker with nothing after it names no value after '

@@ -63,6 +63,34 @@ void main() {
       expect(sentencesOf(text), ['The first line and the second.', 'Next.']);
     });
 
+    test('$_story: a table with no outer pipes reads its cells, not one '
+        'paragraph', () {
+      const text =
+          'Field | Note\n'
+          '---|---\n'
+          'limit | Pick a value. Then stop.\n'
+          '\n'
+          'After.\n';
+      expect(sentencesOf(text), [
+        'Field',
+        'Note',
+        'limit',
+        'Pick a value.',
+        'Then stop.',
+        'After.',
+      ]);
+    });
+
+    test('$_story: a table with no outer pipes below a paragraph line '
+        'ends that paragraph', () {
+      const text =
+          'Intro line\n'
+          'a | b\n'
+          ':-: | :-:\n'
+          'c | d\n';
+      expect(sentencesOf(text), ['Intro line', 'a', 'b', 'c', 'd']);
+    });
+
     test('$_story: a table cell is read without pipes, a delimiter row is '
         'none', () {
       const text =

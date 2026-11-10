@@ -1,14 +1,17 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show itemHeadingMarker;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-const _headingMarker = '### ';
 const _notApplicable = 'N/A';
 const _itemIdForm = 'item_id';
+// Unlike doc_items, an item that carries an ID starts at a top-level marker
+// with text after it.
 final _listMarker = RegExp(r'^(?:[-*+]|\d+[.)])\s+');
 
 /// One item of a doc, or one story scenario heading, in document order.
@@ -209,10 +212,10 @@ List<_Start> _itemStartsOf(List<BodyLine> body) {
   final listItems = <_Start>[];
   for (final (i, line) in body.indexed) {
     if (line.fenced) continue;
-    if (line.text.startsWith(_headingMarker)) {
+    if (line.text.startsWith(itemHeadingMarker)) {
       headings.add((
         index: i,
-        text: line.text.substring(_headingMarker.length),
+        text: line.text.substring(itemHeadingMarker.length),
       ));
     } else if (_listMarker.firstMatch(line.text) case final marker?) {
       listItems.add((index: i, text: line.text.substring(marker.end)));
