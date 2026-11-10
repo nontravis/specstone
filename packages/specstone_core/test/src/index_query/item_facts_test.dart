@@ -6,6 +6,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -13,6 +14,7 @@ import '../../helpers/software_tech.dart';
 
 const _frPath =
     'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+const _journeyPath = 'prds/journeys/shop/JOURNEY.md';
 const _storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 
 void main() {
@@ -320,6 +322,47 @@ void main() {
       expect(parsed.content.itemFacts.sectionItems.single, [
         (id: null, line: 5, chars: 'The system shall.'.length),
       ]);
+    });
+  });
+
+  group('index_query/read_current_docs/index_each_doc generated blocks', () {
+    final open = generatedOpenMarker('scenario_copy');
+    final copied = '- **Given** ${'x' * 40}';
+
+    test('the lines of a closed generated block in a section are no item, '
+        'and the section still counts them', () {
+      final text =
+          '# Shop\n\n## Steps\n\n### 1. Start\nstep: a/b S1\n'
+          '$open\n$copied\n- **When** go\n$generatedEndMarker\n';
+
+      final parsed = parse(_journeyPath, text);
+      final steps = parsed.content.itemFacts.sectionItems.single;
+
+      expect(steps.map((item) => item.line), [5]);
+      expect(
+        parsed.content.lineFacts.sectionCounts.single.chars,
+        greaterThan(copied.length),
+      );
+    });
+
+    test('the lines of a closed generated block in the lead are no item, '
+        'and the lead still counts them', () {
+      final text =
+          '# Shop\n\nLead.\n\n$open\n$copied\n$generatedEndMarker\n\n'
+          '## Goal\nx\n';
+
+      final facts = factsOf(_journeyPath, text);
+
+      expect(facts.leadItems.map((item) => item.line), [3]);
+      expect(facts.lead!.chars, greaterThan(copied.length));
+    });
+
+    test('an opening marker with no end marker changes no item', () {
+      final text = '# Shop\n\n## Steps\n\n$open\n$copied\n';
+
+      final facts = factsOf(_journeyPath, text);
+
+      expect(facts.sectionItems.single.map((item) => item.line), [5, 6]);
     });
   });
 

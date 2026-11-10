@@ -7,6 +7,7 @@ import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -465,6 +466,27 @@ void main() {
       );
       const raised = 'lint:\n  max_item_chars: 900\n';
       expect(itemFindings(await withEdgeItem(900, template: raised)), isEmpty);
+    });
+
+    test('a scenario over the limit is item_over_limit on its story and not '
+        'on the copy a journey holds in a generated block', () async {
+      final given = '- **Given** ${'x' * 710}';
+      final project = await writeCheckProject(
+        extra: {
+          ...doc(
+            loginStory,
+            '- **Given** an account\n- **When** the Agent signs in',
+            '$given\n- **When** the Agent signs in',
+          ),
+          'docs/prds/journeys/login/JOURNEY.md':
+              '# Sign in\n\n## Goal\n\nAn Agent reaches the home page.\n\n'
+              '## Steps\n\n### 1. Start\n\nstep: email_login S1\n'
+              '${generatedOpenMarker('scenario_copy')}\n$given\n'
+              '- **When** the Agent signs in\n$generatedEndMarker\n',
+        },
+      );
+
+      expect(itemFindings(project).map((f) => f.path), [loginStory]);
     });
 
     test('E15: a lead paragraph over the limit is item_over_limit in section _lead', () async {

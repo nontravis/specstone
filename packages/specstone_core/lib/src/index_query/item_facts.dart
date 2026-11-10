@@ -11,6 +11,8 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
 import 'package:specstone_core/src/rendering/formatter.dart' show Formatted;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show generatedBlockLines;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One item of a doc: the key `check` holds it by when it reads one, its
@@ -84,19 +86,60 @@ ItemFacts itemFactsOf({
       : LineFacts.structureOf(lfText: countedText, doc: counted);
   final held = indexedSectionsOf(counted, type);
   final templates = heldTemplatesOf(held, type);
-  final (:counts, :items) = _leadOf(counted, countedText, lines);
+  final isGenerated = _generatedLineTest(
+    counted,
+    countedText,
+    type?.listedGenerators.toSet() ?? const {},
+  );
+  final (:counts, :items) = _leadOf(counted, countedText, lines, isGenerated);
   return ItemFacts(
     lead: counts,
     leadItems: items,
     sectionItems: [
       for (var i = 0; i < doc.sections.length; i++)
         _itemFactsIn(
-          sectionBodyLines(held, lines, laid?.twinOf[i] ?? i),
+          _withGeneratedFenced(
+            sectionBodyLines(held, lines, laid?.twinOf[i] ?? i),
+            isGenerated,
+          ),
           templates[laid?.twinOf[i] ?? i],
         ),
     ],
   );
 }
+
+/// Returns a test of whether a file line of [text] is a marker line or inner
+/// line of a closed generated block of one of [kinds].
+///
+/// The block finder `format` protects blocks with; no generator runs, so the
+/// lines are those on disk.
+bool Function(int line) _generatedLineTest(
+  Doc doc,
+  String text,
+  Set<String> kinds,
+) {
+  if (kinds.isEmpty) return (_) => false;
+  final first = linesBeforeBodyOf(doc, text) + 1;
+  final marked = generatedBlockLines(lfLinesOf(doc.afterFrontmatter), kinds);
+  return (line) {
+    final at = line - first;
+    return at >= 0 && at < marked.length && marked[at];
+  };
+}
+
+/// Returns [body] with each line [isGenerated] marks fenced, so it is no item
+/// and still a line of its section.
+List<BodyLine> _withGeneratedFenced(
+  List<BodyLine> body,
+  bool Function(int line) isGenerated,
+) => [
+  for (final line in body)
+    (
+      text: line.text,
+      line: line.line,
+      fenced: line.fenced || isGenerated(line.line),
+    ),
+];
 
 /// Returns the lead of [doc]: its counts, from its first line of text to its
 /// last with the line feeds between, and its items.
@@ -106,6 +149,7 @@ ItemFacts itemFactsOf({
   Doc doc,
   String text,
   LineFacts lines,
+  bool Function(int line) isGenerated,
 ) {
   final firstBodyLine = linesBeforeBodyOf(doc, text) + 1;
   final skip = switch (doc.titleLineIndex) {
@@ -118,7 +162,8 @@ ItemFacts itemFactsOf({
       (
         text: head[k],
         line: firstBodyLine + k,
-        fenced: lines.isFenced(firstBodyLine + k),
+        fenced:
+            lines.isFenced(firstBodyLine + k) || isGenerated(firstBodyLine + k),
       ),
   ];
   bool holdsText(BodyLine line) => line.text.trim().isNotEmpty;
