@@ -1,11 +1,10 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
-When you run as `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the
-Owner goes into your report instead.
+As `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the Owner goes
+into your report.
 
 This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
 `code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
-`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write: each leaves a draft, a pointer write
-(`implements`, `covers`) excepted.
+`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write.
 
 ## 2. One finding at a time
 
@@ -15,7 +14,7 @@ goes to `specstone:bootstrap-spec`, clears with no write, or is tagged `(waits f
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
 the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
-of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key: never edit the file.
+of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key.
 The text between the title and the first `##` section is `#_lead`. Exit 75 `base_mismatch`: read again, merge,
 retry.
 
@@ -65,7 +64,7 @@ mention in a section kept unchanged.
    repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). On a batch, the set holds only
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
    Leave any other untyped file (a plan, a ledger) as history. Repoint each other link or mention to the doc holding
-   the content, or drop a mention nothing replaces, through `specstone set` on that section.
+   the content, or drop a mention nothing replaces.
 3. Name the set in one `specstone delete` line, quoting each path with a space:
 
 ```
@@ -73,7 +72,7 @@ specstone delete <path> <path> …
 ```
 
 On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4, which joins the round's lines.
-With no batch, run it once the Owner confirms it per `specstone:expert-sdd`. Without the Owner's word the CLI refuses
+With no batch, run it once the Owner confirms it per `specstone:expert-sdd`. Without that ok the CLI refuses
 (exit 77). Never run `git rm`: it deletes while links still point in. On `doc_referenced` (exit 64), repoint the
 referrers it lists, then ask again.
 
@@ -82,8 +81,9 @@ referrers it lists, then ask again.
 `specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (`project:project`,
 `features:features`, `gnfr:gnfr`): read each with `specstone get` and fill it with the Owner.
 
-Last, name each change per draft, proposal, moved pointer, dropped key, and finding that clears with no write, then
-get each draft approved as step 5's Owner confirmation says.
+Last, take your drafts and every count from one `specstone approve --dry-run --json` after your last write,
+naming each other draft, never counted. Name per draft each change, proposal, moved pointer, dropped key, and finding
+that clears with no write; then get each draft approved as step 5's Owner confirmation says.
 
 ## Red flags
 

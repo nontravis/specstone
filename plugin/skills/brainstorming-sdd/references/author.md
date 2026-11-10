@@ -50,7 +50,8 @@ Not landed: <decision>: <why no doc took it>
 |----------|------------------|
 | <ID or label> | <type>:<name>#<key>, or NOT LANDED |
 Rulings swept: <ruling>: <type>:<name>#<key>, ..., or none
-Drafts for the Owner's specstone approve <type>:<name>: <type>:<name>, ...
+Drafts for the Owner's specstone approve <type>:<name> (<count>): <type>:<name> (<d> dropped, <n> new), ...
+Other drafts: <type>:<name>, ..., or none
 Move: specstone move <story> … --under <feature>
 Move: specstone move <story> … --under <other feature>
 Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
@@ -61,5 +62,9 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 - **Drafts**: every doc you wrote or confirmed again; in a fix round, the first author report's drafts plus each doc
   a fix round added, this one's included. The audit and plan modes take this list. Name each draft a `Move:` line
   moves, the story and its FRs, by the name it holds after the move.
+- **Counts**: take every count, of drafts and of sentences dropped and new, from one
+  `specstone approve --dry-run --json` after your last write, never your own tally; it lists a moved draft by its
+  name before the move. Count only the drafts your list names; name each other draft it lists under
+  `Other drafts:`, never counted; a doc of your list it shows as no draft goes under `Findings:`.
 - **Move**: only when the design moves stories, one line per target feature; copy each into the relay block. Run no
   `move`: the runner of `specstone:brainstorming-sdd` runs each line's command before the audit.

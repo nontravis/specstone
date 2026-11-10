@@ -25,9 +25,9 @@ working directory alone misses a project root above it, and spends a tool call t
    PRD omits. Code behavior that no spec covers gets a spec draft first, before any more code changes.
 2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
    edit a doc file by hand, through a file tool or a shell command. Each write leaves its doc a draft, a pointer
-   write (`implements`, `covers`) excepted: never remove `draft: true`, and never run `specstone approve` without
-   `--yes`. Run `--yes` only as Owner confirmation below says; it binds `approve`, `delete` of a guarded doc,
-   `migrate`, and `init` on a legacy tree alike.
+   write (`implements`, `covers`) excepted: never remove `draft: true`. Run `specstone approve` only with `--dry-run`,
+   or with `--yes` as Owner confirmation below says; it binds `approve`, `delete` of a guarded doc, `migrate`, and
+   `init` on a legacy tree alike.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
    `specstone guide <type> --json` for its fields, even for a type you wrote earlier in the session. A project may
    customize its templates; the CLI prints the guide the project has now, and this skill keeps none that could fall

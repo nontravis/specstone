@@ -73,14 +73,19 @@ input, a gate stop, a failed load), writes the file and replies `Report: <path>`
 its relay block. A later round to the same agent (a fix round, the Owner's answers) appends its report to the same
 file under `## Round <n>` and replies with that round's relay block.
 
+In author, sync, and bootstrap mode, take the drafts list and every count, of drafts and of sentences dropped and new,
+from one `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs
+your own list names; name each other draft it lists, never counted; a doc of your list it shows as no draft is a
+finding.
+
 - **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Findings:` line.
 - **Design**: the `Design document:` line, `Open questions:` with its items, the `Findings:` line.
 - **Audit**: `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is `owner`), and
   `Outside the drafts:`, each with its items.
 - **Plan**: the `Plan:` line, each `NOT PLANNED` row, `Open questions:` with its items, the `Findings:` line.
-- **Sync**: the drafts, one `<type>:<name>` line each with one sentence on why it changed, never their text;
-  each pointer fixed; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an
-  approval; open questions; then `Findings:`.
+- **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
+  one sentence on why it changed, never their text; each other draft; each pointer fixed; each behavior handed to
+  `specstone:brainstorming-sdd`; each pointer that waits on an approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; open questions; one `specstone delete …` line;
   findings outside `batch`; then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
@@ -94,6 +99,6 @@ file under `## Round <n>` and replies with that round's relay block.
 
 **DON'T:**
 
-- Run `specstone approve` (the Owner's), `delete`, `rename`, `reorder`, or `move`.
+- Run `specstone approve` without `--dry-run` (approving is the Owner's), `delete`, `rename`, `reorder`, or `move`.
 - Write a file by shell redirect, or a PRD or spec doc with `Write` or `Edit`.
 - Ask the user anything, or commit.

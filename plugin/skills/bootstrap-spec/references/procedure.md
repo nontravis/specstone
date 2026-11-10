@@ -1,10 +1,10 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
-When you run as `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the
-Owner goes into your report instead.
+As `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the Owner goes
+into your report.
 
 This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
 Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
-`specstone:expert-sdd` for every write: each leaves a draft, a pointer write (`implements`, `covers`) excepted.
+`specstone:expert-sdd` for every write.
 
 ## 2. One finding at a time
 
@@ -15,8 +15,8 @@ omits `code_uncovered`). Stop when each finding left is under `prds/`, clears wi
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
 `--title` in place of `#<key>`); a section body leaves out its `## ` line, a list field takes its whole list, and
-empty text drops the section or key: never edit the file. The text between the title and the first `##` section is
-`#_lead`. Exit 75 `base_mismatch`: read again, merge, retry.
+empty text drops the section or key. The text between the title and the first `##` section is `#_lead`. Exit 75
+`base_mismatch`: read again, merge, retry.
 
 Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
 `#quot;`.
@@ -68,9 +68,9 @@ the doc held its content.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
    repoints it; merge it first (`specstone:bootstrap-prd` takes one under `prds/`). On a batch, the set holds only
    files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
-   Leave any other untyped file, such as a plan or a ledger, as history. Repoint each other link or mention to the doc
+   Leave any other untyped file (a plan, a ledger) as history. Repoint each other link or mention to the doc
    holding the content, or drop a mention nothing replaces.
-3. Name the set in one `specstone delete` line, every path in it, quoting each path with a space:
+3. Name the set in one `specstone delete` line, quoting each path with a space:
 
 ```
 specstone delete <path> <path> …
@@ -89,8 +89,9 @@ PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization`
 section. Fill each doc step 3 or 4 made the same way. Then rerun `specstone check`: new roots can raise
 `code_uncovered`.
 
-Last, name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then
-get each draft approved through step 5's Owner confirmation.
+Last, take your drafts and every count from one `specstone approve --dry-run --json` after your last write,
+naming each other draft, never counted. Name per draft each change, moved pointer, dropped key or section, and
+finding that clears with no write; then get each draft approved through step 5's Owner confirmation.
 
 ## Red flags
 

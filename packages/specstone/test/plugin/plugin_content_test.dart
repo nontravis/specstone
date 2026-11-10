@@ -665,6 +665,41 @@ void _handOffTests() {
     expect(move, lessThan(drafts.indexOf('`mode: audit`')));
   });
 
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E10, '
+      'domain:agent_plugin INV-4: the drafts list and every count come from '
+      'one approve --dry-run --json after the last write, other drafts '
+      'named and never counted', () {
+    for (final (file, section) in _draftCountReaders) {
+      final text = _oneLine(_sectionOf(_pluginText(file), section))
+          .toLowerCase();
+      final where = '$file#$section';
+      expect(
+        text,
+        contains('`specstone approve --dry-run --json`'),
+        reason: where,
+      );
+      expect(text, contains('after your last write'), reason: where);
+      expect(text, contains('every count'), reason: where);
+      expect(text, contains('never counted'), reason: where);
+    }
+    for (final (file, section) in [
+      ('agents/sdd-engineer.md', 'Output Format'),
+      ('skills/brainstorming-sdd/references/author.md', '5. Report'),
+    ]) {
+      final text = _oneLine(_sectionOf(_pluginText(file), section));
+      final where = '$file#$section';
+      expect(text, contains('never your own tally'), reason: where);
+      expect(text, contains('shows as no draft'), reason: where);
+    }
+    expect(
+      _oneLine(_sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules')),
+      contains(
+        'Run `specstone approve` only with `--dry-run`, or with `--yes` as '
+        'Owner confirmation below says',
+      ),
+    );
+  });
+
   test('agent_plugin/write_prd_and_spec/confirm_gated_commands_with_the_owner: '
       'the Rules and Owner confirmation sections of expert-sdd gate the '
       'delete of a guarded doc', () {
@@ -719,6 +754,23 @@ const _ownerFindingReaders = [
   ('skills/bootstrap-spec/SKILL.md', '3. After the reports'),
   ('agents/sdd-engineer.md', 'Workflow'),
   ('agents/sdd-engineer.md', 'Output Format'),
+];
+
+/// Each plugin file and `## ` section that says where a writing mode's drafts
+/// list and counts come from
+/// (`agent_plugin/write_prd_and_spec/write_drafts_with_coverage` E10).
+const _draftCountReaders = [
+  ('agents/sdd-engineer.md', 'Output Format'),
+  ('skills/brainstorming-sdd/references/author.md', '5. Report'),
+  ('skills/sync-sdd/references/procedure.md', 'Report to the Owner'),
+  (
+    'skills/bootstrap-prd/references/procedure.md',
+    '6. Fill the skeletons, then ask for approval',
+  ),
+  (
+    'skills/bootstrap-spec/references/procedure.md',
+    '6. Fill the tech stack, then ask for approval',
+  ),
 ];
 
 /// The relay line the report file replaced; no shipped file may hold it.
@@ -870,13 +922,15 @@ void _agentTests() {
     );
   });
 
-  test('f08/us02/fr02/e02, sf-r3: sdd-engineer runs no approve, delete, '
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E02, '
+      'sf-r3: sdd-engineer runs approve only with --dry-run, and no delete, '
       'rename, reorder, or move', () {
     expect(
       _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Scope Boundaries'),
       contains(
-        "**DON'T:**\n\n- Run `specstone approve` (the Owner's), `delete`, "
-        '`rename`, `reorder`, or `move`.\n',
+        "**DON'T:**\n\n- Run `specstone approve` without `--dry-run` "
+        "(approving is the Owner's), `delete`, `rename`, `reorder`, or "
+        '`move`.\n',
       ),
     );
   });
