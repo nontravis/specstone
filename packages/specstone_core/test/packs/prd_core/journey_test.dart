@@ -53,4 +53,19 @@ void main() {
     expectNoNasaLint(journey);
     expectSources(journey, []);
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        journey,
+        'Write one rule per ID; in a section with no IDs, one '
+        'rule per item, with mechanics left to the spec docs.\n'
+        'Keep a bound in the step it limits, and any trace in its '
+        'own field, never in the prose.',
+      );
+    },
+  );
 }

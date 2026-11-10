@@ -5,6 +5,8 @@ description: |-
   The folder holds the original files; the card sits beside them.
   `source:` says where the source came from, and `files:` lists the file names in the folder.
   Write the card so that an agent reads it instead of the original: every fact the project relies on is on the card.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits, and the trace to the source in `source:` and `files:`, never in the summary.
   Add a new card for a new edition, and mark the older one superseded; do not edit a card to hide its history.
 path: prds/references/{slug}/REFERENCE.md
 fields:

@@ -2,6 +2,8 @@ id: project
 description: |-
   The project-wide context doc: name, vision, goals, roles, scope limits, and glossary.
   Title it `# Project context`, with no number. A project has exactly one PROJECT.
+  Write one rule per ID in each `PV-*` and `PG-*` entry, and leave mechanics to the spec docs.
+  Keep a goal's bound in its own `**Metric:**` and `**By:**` lines, and its trace in its `**Serves:**` line.
   State the present truth; history lives in git.
 path: prds/PROJECT.md
 bundle: [query, implement, design]

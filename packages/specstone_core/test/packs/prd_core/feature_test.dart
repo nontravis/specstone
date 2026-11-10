@@ -193,4 +193,19 @@ void main() {
     addTearDown(session.close);
     expect(session.index.at(cartFeature)!.name, 'shop/cart');
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        feature,
+        'Write one rule per ID; in a section with no IDs, one '
+        'rule per item, with mechanics left to the spec docs.\n'
+        'Keep a bound in the item it limits, and the trace in '
+        '`vision:` and `goals:`, never in the prose.',
+      );
+    },
+  );
 }

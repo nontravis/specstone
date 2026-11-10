@@ -4,6 +4,8 @@ description: |-
   Title it `# Project-wide non-functional requirements`, with no number.
   A category holds `### NFR-<cat><NN> — <name>` blocks, or `N/A — <reason>` when it has none.
   Write each statement with one "shall" and a quantified value; avoid the listed words and other -ly and -ize words.
+  Write one rule per `NFR-*` ID, keep its bound in its Statement, and leave mechanics to the spec docs.
+  Keep the trace in the entry's `**Traced from:**` bullet, never in the Statement.
   A project adds a missing category, such as Availability, as a project-layer section that keeps its IDs.
   State the present truth; history lives in git.
 path: prds/GNFR.md

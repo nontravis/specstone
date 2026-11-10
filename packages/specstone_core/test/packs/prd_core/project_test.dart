@@ -87,4 +87,20 @@ void main() {
       ['roles', 'out_of_scope', 'glossary'],
     );
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        project,
+        'Write one rule per ID in each `PV-*` and `PG-*` entry, '
+        'and leave mechanics to the spec docs.\n'
+        "Keep a goal's bound in its own `**Metric:**` and "
+        '`**By:**` lines, and its trace in its `**Serves:**` '
+        'line.',
+      );
+    },
+  );
 }

@@ -7,6 +7,8 @@ description: |-
   A non-target fills only Snapshot, Goal, and Sources; the Goal states who the product does not serve and why.
   Write a misuser only when the likelihood or consequence of misuse justifies the effort.
   A doc or spec that guards against an anti-persona cites it in `reference:`.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits, and the research trace in `basis:` and the Sources section, never in the prose.
   State the present truth; history lives in git.
 path: prds/personas/{slug}/ANTI_PERSONA.md
 fields:

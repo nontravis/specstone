@@ -5,6 +5,8 @@ description: |-
   Write one NFR in each file, and never restate a GNFR item that stays unchanged: every GNFR item applies to every story.
   Write the statement in fr's form, with one "shall" and a quantified value.
   Avoid the listed words and other -ly and -ize words.
+  Write one rule per ID, keep its bound in that sentence, and leave mechanics to the spec docs.
+  Keep the trace in `traced_from` alone, never in the Statement.
   Name the GNFR item in `overrides` and write only what differs; the entry controls for this story.
   When several stories need the same `add`, move it to GNFR.
   State the present truth; history lives in git.

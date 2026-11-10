@@ -140,6 +140,23 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
+    test('template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+        'E06: guide fr prints the item shape', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains('with a quantified value kept in it, such as `within 2 s`.'),
+          contains('leave mechanics to the spec docs'),
+          contains('Write one Edge cases item per case;'),
+          contains('with what happens then.'),
+          contains('Keep the trace in `traced_from` alone'),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('f03/us06/s3, f03/us06/fr01: guide fr --json gives the prds path, '
         'the parent, the fields, and the sections', () async {
       final runner = await runnerIn(await prdCoreProject());

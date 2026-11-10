@@ -6,6 +6,8 @@ description: |-
   Check INVEST: independent, negotiable, valuable, estimable, small, and testable.
   Split a story that needs more than five or six scenarios, along business behavior and never along technical layers.
   Keep team-wide quality checks in the Definition of Done, never in a story's criteria.
+  Write one rule per ID: each `BR-*` rule states one thing, with mechanics left to the spec docs.
+  Keep a bound in the rule it limits, and the trace in `vision:` and `goals:`, never in the prose.
   Mark the story ready only when no open question can still change its scope.
   Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
   State the present truth; history lives in git.

@@ -88,6 +88,17 @@ void main() {
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
     });
 
+    test(
+      'template_packs/write_prd_docs_from_prd_core/set_shared_lint_and_sources: '
+      'no prd-core doc type sets max_item_chars, so each takes the default',
+      () async {
+        final set = await resolvePrdCore();
+        for (final docType in set.docTypes) {
+          expect(docType.lint.maxItemChars, isNull, reason: docType.id);
+        }
+      },
+    );
+
     test('f03/us06/fr01/e03: a project that groups features overrides the '
         'four paths in its layer', () async {
       const story = 'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}';

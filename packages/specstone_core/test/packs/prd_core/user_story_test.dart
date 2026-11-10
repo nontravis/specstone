@@ -110,4 +110,19 @@ void main() {
       );
     },
   );
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        story,
+        'Write one rule per ID: each `BR-*` rule states one '
+        'thing, with mechanics left to the spec docs.\n'
+        'Keep a bound in the rule it limits, and the trace in '
+        '`vision:` and `goals:`, never in the prose.',
+      );
+    },
+  );
 }

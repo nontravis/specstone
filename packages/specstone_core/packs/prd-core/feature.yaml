@@ -13,6 +13,8 @@ description: |-
   Keep the document lean; never specify everything before work starts.
   Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
   State the present truth; history lives in git.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits, and the trace in `vision:` and `goals:`, never in the prose.
   Place a new requirement by three questions, and state the answer to each when you propose its place:
   1. Does it use an entity, invariant, or rule an existing feature owns (in its domain doc, where the project has one)? No: a new top feature.
   2. Yes: how many stories does it yield? One: a new story in the deepest such feature that holds stories.
