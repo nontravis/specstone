@@ -7,11 +7,14 @@ import 'dart:isolate';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -33,6 +36,55 @@ String sectionBase(Directory root, String target) =>
 
 String fieldBase(Directory root, String target, String id) =>
     ((getDoc(root, target)['bases']! as Map)['fields']! as Map)[id]! as String;
+
+/// Runs [splicePart] for [request] against the doc as it stands on disk, with
+/// the arguments `answerSet` gives it under the lock.
+({String lfText, bool marksDraft}) spliceIn(
+  Directory root,
+  SetRequest request,
+  String text,
+) => writeIn(root, (s) {
+  final doc = s.target(request.address);
+  final docType = s.index.typeOf(doc)!;
+  final read = parseIndexedDoc(
+    docPath: doc.docPath,
+    bytes: s.readDocBytes(doc.docPath)!,
+    match: MatchedDocType(docType),
+  );
+  return splicePart(
+    doc: doc,
+    docType: docType,
+    lfText: toLf(read.content.text),
+    sections: read.content.sections,
+    target: request.target,
+    base: request.base,
+    text: text,
+  );
+});
+
+/// Runs [checkFieldWrite] for [fieldId] of [address] with [value] and [held].
+void checkFieldIn(
+  Directory root,
+  String address,
+  String fieldId,
+  String? value, {
+  bool held = false,
+}) => writeIn(root, (s) {
+  final doc = s.target(address);
+  checkFieldWrite(
+    doc: doc,
+    docType: s.index.typeOf(doc)!,
+    fieldId: fieldId,
+    value: value,
+    held: held,
+  );
+});
+
+Matcher throwsIndexFault(IndexFaultCode code) =>
+    throwsA(isA<IndexFault>().having((f) => f.code, 'code', code));
+
+Matcher throwsWriteFault(WriteFaultCode code) =>
+    throwsA(isA<WriteFault>().having((f) => f.code, 'code', code));
 
 void main() {
   test('f01/us04/fr01/e14: set reads the address through the reference grammar and keeps gnfr# as no section key', () {
@@ -2468,6 +2520,290 @@ void main() {
           '# Signup architecture\nLead.\n',
         ),
       );
+    });
+  });
+  group('document_writing/edit_one_section_or_field: splicePart checks and splices one part', () {
+    const address = 'user_story:login/email_login';
+    final withLead = writeProject['docs/$story1']!.replaceFirst(
+      '# Sign in with email\n',
+      '# Sign in with email\n\nOld lead.\n',
+    );
+
+    String titleBase(Directory root) =>
+        (getDoc(root, address)['bases']! as Map)['title']! as String;
+
+    // Each row: the request on a fresh project, and its stdin.
+    final cases = <String, (SetRequest Function(Directory), String, bool)>{
+      'a section': (
+        (root) => req(
+          '$address#acceptance_criteria',
+          sectionBase(root, '$address#acceptance_criteria'),
+        ),
+        '\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email and its password\n',
+        true,
+      ),
+      'a section the doc lacks': (
+        (root) => req('$address#rules', emptyBaseHash),
+        '- BR-01 One account per email.\n',
+        true,
+      ),
+      'the lead': (
+        (root) => req('$address#_lead', sectionBase(root, '$address#_lead')),
+        'New lead.\n',
+        true,
+      ),
+      'a field': (
+        (root) => fieldReq(address, 'goals', emptyBaseHash),
+        '- PG-01\n',
+        true,
+      ),
+      'the title': (
+        (root) => SetRequest.parse(address, title: true, base: titleBase(root)),
+        'Sign in fast\n',
+        true,
+      ),
+    };
+
+    for (final MapEntry(key: name, value: row) in cases.entries) {
+      test(
+        '$name: returns the text answerSet writes for the same input',
+        () async {
+          final (requestOf, text, marksDraft) = row;
+          final spliced = await writeWriteProject(
+            extra: {'docs/$story1': withLead},
+          );
+          final written = await writeWriteProject(
+            extra: {'docs/$story1': withLead},
+          );
+
+          final part = spliceIn(spliced, requestOf(spliced), text);
+          writeIn(written, (s) => answerSet(s, requestOf(written), text));
+
+          expect(part.marksDraft, marksDraft);
+          expect(readDoc(spliced, story1), withLead);
+          // The write lays the spliced text out, as answerSet's write does.
+          writeIn(
+            spliced,
+            (s) => s.locked(() {
+              final doc = s.target(address);
+              return s.writeDoc(
+                doc.docPath,
+                markDraft(part.lfText, s.index.typeOf(doc)!),
+                LineEnding.lf,
+              );
+            }),
+          );
+          expect(readDoc(spliced, story1), readDoc(written, story1));
+        },
+      );
+    }
+
+    test('an output_ref field marks no draft', () async {
+      final root = await writeWriteProject();
+      const fr = 'fr:login/reset_password/expire_reset_link';
+      final part = spliceIn(
+        root,
+        fieldReq(fr, 'implements', fieldBase(root, fr, 'implements')),
+        '- a.dart\n',
+      );
+      expect(part.marksDraft, isFalse);
+    });
+
+    test('a section the template lacks and the doc lacks is section_not_found', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => spliceIn(root, req('$address#notes', emptyBaseHash), 'x\n'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                '$address holds no section with the key notes, and its template defines none',
+              ),
+        ),
+      );
+    });
+
+    test('a body with another ## line, an open fence, or an open fence in a lead is argument_invalid', () async {
+      final root = await writeWriteProject();
+      final section = req(
+        '$address#acceptance_criteria',
+        sectionBase(root, '$address#acceptance_criteria'),
+      );
+      expect(
+        () => spliceIn(root, section, 'a\n## Sub\nb\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      expect(
+        () => spliceIn(root, section, '```\ncode\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      final lead = req('$address#_lead', sectionBase(root, '$address#_lead'));
+      expect(
+        () => spliceIn(root, lead, '## Sub\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      expect(
+        () => spliceIn(
+          root,
+          SetRequest.parse(address, title: true, base: titleBase(root)),
+          'one\ntwo\n',
+        ),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+    });
+
+    test(
+      'a stale base is base_mismatch carrying the current text, for each part',
+      () async {
+        final root = await writeWriteProject();
+        for (final target in ['$address#use_case', '$address#_lead']) {
+          expect(
+            () => spliceIn(root, req(target, 'stale'), 'x\n'),
+            throwsA(
+              isA<WriteFault>()
+                  .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+                  .having((f) => f.current, 'current', isNotNull),
+            ),
+            reason: target,
+          );
+        }
+        expect(
+          () =>
+              spliceIn(root, fieldReq(address, 'goals', 'stale'), '- PG-01\n'),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.current?.text,
+              'current.text',
+              '',
+            ),
+          ),
+        );
+        expect(
+          () => spliceIn(
+            root,
+            SetRequest.parse(address, title: true, base: 'stale'),
+            'T\n',
+          ),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.current?.text,
+              'current.text',
+              '# Sign in with email\n',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'empty stdin on a required section or field is required_target',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => spliceIn(
+            root,
+            req('$address#use_case', sectionBase(root, '$address#use_case')),
+            '',
+          ),
+          throwsWriteFault(WriteFaultCode.requiredTarget),
+        );
+        const fr = 'fr:login/reset_password/expire_reset_link';
+        expect(
+          () => spliceIn(
+            root,
+            fieldReq(fr, 'traced_from', fieldBase(root, fr, 'traced_from')),
+            '\n',
+          ),
+          throwsWriteFault(WriteFaultCode.requiredTarget),
+        );
+      },
+    );
+
+    test('a field write that checkFieldWrite refuses is refused', () async {
+      final root = await writeWriteProject();
+      expect(
+        () =>
+            spliceIn(root, fieldReq(address, 'draft', emptyBaseHash), 'true\n'),
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      );
+    });
+  });
+
+  group('document_writing/edit_one_section_or_field/write_one_field: checkFieldWrite refuses a write', () {
+    const story = 'user_story:login/email_login';
+
+    test(
+      'E04: draft and approved are field_not_writable, whatever the value',
+      () async {
+        final root = await writeWriteProject();
+        for (final id in ['draft', 'approved']) {
+          expect(
+            () => checkFieldIn(root, story, id, 'true'),
+            throwsWriteFault(WriteFaultCode.fieldNotWritable),
+          );
+          expect(
+            () => checkFieldIn(root, story, id, null, held: true),
+            throwsWriteFault(WriteFaultCode.fieldNotWritable),
+          );
+        }
+      },
+    );
+
+    test('E05: a value for a feature status is field_not_writable', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkFieldIn(root, 'feature:login', 'status', 'implemented'),
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      );
+    });
+
+    test('E06, E07: a value outside the type, the enum, or the list shape is field_value_invalid', () async {
+      final root = await writeWriteProject();
+      const fr = 'fr:login/reset_password/expire_reset_link';
+      expect(
+        () => checkFieldIn(root, fr, 'verify_method', 'maybe'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'vision', 'PV-01'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'status', '- planned'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'status', 'a: [b'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      checkFieldIn(root, story, 'vision', '- PV-01');
+      checkFieldIn(root, fr, 'verify_method', 'test');
+    });
+
+    test('E08: removing a required field is required_target', () async {
+      final root = await writeWriteProject();
+      const fr = 'fr:login/reset_password/expire_reset_link';
+      expect(
+        () => checkFieldIn(root, fr, 'traced_from', null, held: true),
+        throwsWriteFault(WriteFaultCode.requiredTarget),
+      );
+      checkFieldIn(root, story, 'goals', null);
+    });
+
+    test('E10, E13: an undeclared id refuses with a value or when not held, and passes removal when held', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkFieldIn(root, story, 'size', '1'),
+        throwsWriteFault(WriteFaultCode.fieldUnknown),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'size', null),
+        throwsWriteFault(WriteFaultCode.fieldUnknown),
+      );
+      checkFieldIn(root, story, 'size', null, held: true);
+      checkFieldIn(root, 'feature:login', 'status', null, held: true);
     });
   });
 }

@@ -160,29 +160,107 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// `## ` line, a lead that holds a `# ` line, a doc, section, or field that is
 /// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
 /// `required_target`, or a refused field.
-ReadAnswer answerSet(WriteSession session, SetRequest request, String text) =>
-    switch (request.target) {
-      SectionTarget(:final key) => _setSection(session, request, key, text),
-      FieldTarget(:final fieldId) => _setField(session, request, fieldId, text),
-      TitleTarget() => _setTitle(session, request, text),
-      LeadTarget() => _setLead(session, request, text),
-    };
-
-/// The one ComputedField (PD17): a feature's status, computed from stories.
-const _computedStatusType = 'feature';
-
-ReadAnswer _setField(
-  WriteSession session,
-  SetRequest request,
-  String fieldId,
-  String stdin,
-) {
+ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   final doc = session.target(request.address);
-  final docType = session.index.typeOf(doc);
-  if (docType == null) {
-    throw StateError('${doc.docPath} is typed but its type is gone');
-  }
+  final docType =
+      session.index.typeOf(doc) ??
+      (throw StateError('${doc.docPath} is typed but its type is gone'));
   final match = MatchedDocType(docType);
+
+  return session.locked(() {
+    final read = _readLocked(session, doc, match);
+    final part = splicePart(
+      doc: doc,
+      docType: docType,
+      lfText: toLf(read.content.text),
+      sections: read.content.sections,
+      target: request.target,
+      base: request.base,
+      text: text,
+    );
+    final written = session.writeDoc(
+      doc.docPath,
+      part.marksDraft ? markDraft(part.lfText, docType) : part.lfText,
+      LineEnding.of(read.content.text),
+    );
+
+    final after = parseIndexedDoc(
+      docPath: doc.docPath,
+      bytes: utf8.encode(written),
+      match: match,
+    );
+    final base = _baseAfter(after, request.target, docType);
+    return ReadAnswer(
+      text: '${_namingLineOf(doc, request.target, base)}\n',
+      json: {
+        'name': doc.name,
+        'docType': ?doc.docTypeId,
+        'path': doc.docPath,
+        'base': base,
+        'draft': after.doc.isDraft,
+      },
+    );
+  });
+}
+
+/// Checks [text] against the part [target] names in [lfText] and splices it
+/// in, as a single `set` does.
+///
+/// [lfText] is the doc's text with LF line ends as read under the write lock,
+/// [sections] its sections, and [base] the hash of the part the caller read.
+/// `lfText` of the result is the spliced text and `marksDraft` tells whether
+/// the write marks the doc a draft: false only for an `output_ref` field.
+/// Touches no disk and takes no lock. Throws what [answerSet] throws for the
+/// part, [WriteFault] `base_mismatch` with the part's current text included.
+({String lfText, bool marksDraft}) splicePart({
+  required IndexedDoc doc,
+  required MergedDocType docType,
+  required String lfText,
+  required List<IndexedSection> sections,
+  required SetTarget target,
+  required String base,
+  required String text,
+}) {
+  final stdin = toLf(text);
+  return switch (target) {
+    SectionTarget(:final key) => _spliceSection(
+      doc: doc,
+      docType: docType,
+      lfText: lfText,
+      sections: sections,
+      key: key,
+      base: base,
+      stdin: stdin,
+    ),
+    FieldTarget(:final fieldId) => _spliceField(
+      doc: doc,
+      docType: docType,
+      lfText: lfText,
+      fieldId: fieldId,
+      base: base,
+      stdin: stdin,
+    ),
+    TitleTarget() => _spliceTitle(doc, lfText, base, stdin),
+    LeadTarget() => _spliceLead(doc, docType, lfText, base, stdin),
+  };
+}
+
+/// Checks that [doc] may take [value] as the YAML of [fieldId], throwing the
+/// fault `set` refuses it with.
+///
+/// A null [value] removes the key; [held] tells whether the doc holds the key
+/// now. Throws [WriteFault] `field_not_writable` for `draft`, `approved`, or a
+/// value for a feature's computed status, `field_unknown` for an id the doc
+/// type does not declare unless the write removes a held key,
+/// `field_value_invalid` for a value its field does not take, and
+/// `required_target` for removing a required field.
+void checkFieldWrite({
+  required IndexedDoc doc,
+  required MergedDocType docType,
+  required String fieldId,
+  required String? value,
+  required bool held,
+}) {
   if (fieldId == 'draft' || fieldId == 'approved') {
     throw WriteFault(
       WriteFaultCode.fieldNotWritable,
@@ -193,13 +271,10 @@ ReadAnswer _setField(
       key: fieldId,
     );
   }
-
-  final lf = toLf(stdin);
-  final stripped = withoutTrailingBlankLines(lf);
-  final empty = stripped.trim().isEmpty;
-  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
   // Empty stdin on a feature's status removes the written key (`document_writing/edit_one_section_or_field/write_one_field` E05, E13).
-  if (!empty && fieldId == 'status' && doc.docTypeId == _computedStatusType) {
+  if (value != null &&
+      fieldId == 'status' &&
+      doc.docTypeId == _computedStatusType) {
     throw WriteFault(
       WriteFaultCode.fieldNotWritable,
       'the status of a feature is computed from its stories',
@@ -207,79 +282,98 @@ ReadAnswer _setField(
       key: fieldId,
     );
   }
-  if (field == null && !empty) {
-    throw _fieldUnknown(doc, fieldId);
+  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
+  if (field == null) {
+    // Removing a held key the type does not declare passes; an unheld one
+    // still refuses field_unknown.
+    if (value != null || !held) throw _fieldUnknown(doc, fieldId);
+    return;
   }
-  if (field != null && !empty) {
-    _checkedValue(doc, field, stripped);
+  if (value != null) {
+    _checkedValue(doc, field, value);
+  } else if (field.required) {
+    throw WriteFault(
+      WriteFaultCode.requiredTarget,
+      '${doc.docTypeId} requires the field $fieldId',
+      file: doc.docPath,
+      key: fieldId,
+    );
   }
+}
 
-  return session.locked(() {
-    final read = _readLocked(session, doc, match);
-    final lfText = toLf(read.content.text);
-    final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
-    final held = blocks.where((b) => b.name == fieldId).firstOrNull;
-    // Empty stdin removes a held key the type does not declare; an unheld
-    // one still refuses field_unknown.
-    if (field == null && held == null) {
-      throw _fieldUnknown(doc, fieldId);
-    }
-    final currentText = held?.text ?? '';
-    final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
-    if (currentBase != request.base) {
-      throw _staleBase(
+/// The one ComputedField (PD17): a feature's status, computed from stories.
+const _computedStatusType = 'feature';
+
+/// Returns the base hash of the part [target] names in [after].
+String _baseAfter(ParsedDoc after, SetTarget target, MergedDocType docType) {
+  final doc = Doc.parse(toLf(after.content.text));
+  return switch (target) {
+    SectionTarget(:final key) =>
+      after.content.sections
+              .where((section) => section.key == key)
+              .map((section) => sectionBaseOf(section.body, docType))
+              .firstOrNull ??
+          emptyBaseHash,
+    FieldTarget(:final fieldId) =>
+      (doc.frontmatter ?? const <KeyBlock>[])
+              .where((b) => b.name == fieldId)
+              .map((b) => baseHashOf(b.text))
+              .firstOrNull ??
+          emptyBaseHash,
+    TitleTarget() => titleBaseOf(doc.title),
+    LeadTarget() => leadBaseOf(doc, docType),
+  };
+}
+
+/// Returns the naming line of the part [target] names in [doc], ending at
+/// [base].
+String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
+    switch (target) {
+      SectionTarget(:final key) => namingLine(doc, sectionKey: key, base: base),
+      FieldTarget(:final fieldId) => namingLine(
         doc,
-        target: 'field',
-        key: fieldId,
-        sinceBase: request.base,
-        currentText: currentText,
-        currentBase: currentBase,
-      );
-    }
-    if (empty && (field?.required ?? false)) {
-      throw WriteFault(
-        WriteFaultCode.requiredTarget,
-        '${doc.docTypeId} requires the field $fieldId',
-        file: doc.docPath,
-        key: fieldId,
-      );
-    }
+        fieldId: fieldId,
+        base: base,
+      ),
+      TitleTarget() => namingLine(doc, title: true, base: base),
+      LeadTarget() => namingLine(doc, sectionKey: leadKey, base: base),
+    };
 
-    var spliced = empty
-        ? withKeyBlock(lfText, fieldId, null)
-        : withKeyBlock(lfText, fieldId, _blockOf(fieldId, stripped));
-    if (field?.type != FieldType.outputRef) {
-      spliced = markDraft(spliced, docType);
-    }
-    final written = session.writeDoc(
-      doc.docPath,
-      spliced,
-      LineEnding.of(read.content.text),
+({String lfText, bool marksDraft}) _spliceField({
+  required IndexedDoc doc,
+  required MergedDocType docType,
+  required String lfText,
+  required String fieldId,
+  required String base,
+  required String stdin,
+}) {
+  final stripped = withoutTrailingBlankLines(stdin);
+  final empty = stripped.trim().isEmpty;
+  final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
+  final held = blocks.where((b) => b.name == fieldId).firstOrNull;
+  checkFieldWrite(
+    doc: doc,
+    docType: docType,
+    fieldId: fieldId,
+    value: empty ? null : stripped,
+    held: held != null,
+  );
+  final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
+  if (currentBase != base) {
+    throw _staleBase(
+      doc,
+      target: 'field',
+      key: fieldId,
+      sinceBase: base,
+      currentText: held?.text ?? '',
+      currentBase: currentBase,
     );
-
-    final after = parseIndexedDoc(
-      docPath: doc.docPath,
-      bytes: utf8.encode(written),
-      match: match,
-    );
-    final afterBlock =
-        (Doc.parse(toLf(after.content.text)).frontmatter ?? const <KeyBlock>[])
-            .where((b) => b.name == fieldId)
-            .firstOrNull;
-    final base = afterBlock == null
-        ? emptyBaseHash
-        : baseHashOf(afterBlock.text);
-    return ReadAnswer(
-      text: '${namingLine(doc, fieldId: fieldId, base: base)}\n',
-      json: {
-        'name': doc.name,
-        'docType': ?doc.docTypeId,
-        'path': doc.docPath,
-        'base': base,
-        'draft': after.doc.isDraft,
-      },
-    );
-  });
+  }
+  final spliced = empty
+      ? withKeyBlock(lfText, fieldId, null)
+      : withKeyBlock(lfText, fieldId, _blockOf(fieldId, stripped));
+  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
+  return (lfText: spliced, marksDraft: field?.type != FieldType.outputRef);
 }
 
 /// Checks the YAML value of [stdin] against [field], throwing the fault.
@@ -355,9 +449,15 @@ String _blockOf(String fieldId, String stdin) {
   return buffer.toString();
 }
 
-ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
-  final lf = toLf(stdin);
-  final dropped = lf.endsWith('\n') ? lf.substring(0, lf.length - 1) : lf;
+({String lfText, bool marksDraft}) _spliceTitle(
+  IndexedDoc doc,
+  String lfText,
+  String base,
+  String stdin,
+) {
+  final dropped = stdin.endsWith('\n')
+      ? stdin.substring(0, stdin.length - 1)
+      : stdin;
   final count = dropped.trim().isEmpty ? 0 : dropped.split('\n').length;
   if (count != 1) {
     throw IndexFault(
@@ -365,54 +465,19 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
       'a title is one line; stdin held $count lines',
     );
   }
-  final title = dropped.trim();
-
-  final doc = session.target(request.address);
-  final docType =
-      session.index.typeOf(doc) ??
-      (throw StateError('${doc.docPath} is typed but its type is gone'));
-  final match = MatchedDocType(docType);
-
-  return session.locked(() {
-    final read = _readLocked(session, doc, match);
-    final lfText = toLf(read.content.text);
-    final currentTitle = Doc.parse(lfText).title ?? '';
-    final currentText = currentTitle.isEmpty ? '' : '# $currentTitle\n';
-    final currentBase = titleBaseOf(currentTitle);
-    if (currentBase != request.base) {
-      throw _staleBase(
-        doc,
-        target: 'title',
-        key: 'title',
-        sinceBase: request.base,
-        currentText: currentText,
-        currentBase: currentBase,
-      );
-    }
-
-    final written = session.writeDoc(
-      doc.docPath,
-      markDraft(withTitle(lfText, title), docType),
-      LineEnding.of(read.content.text),
+  final currentTitle = Doc.parse(lfText).title ?? '';
+  final currentBase = titleBaseOf(currentTitle);
+  if (currentBase != base) {
+    throw _staleBase(
+      doc,
+      target: 'title',
+      key: 'title',
+      sinceBase: base,
+      currentText: currentTitle.isEmpty ? '' : '# $currentTitle\n',
+      currentBase: currentBase,
     );
-
-    final after = parseIndexedDoc(
-      docPath: doc.docPath,
-      bytes: utf8.encode(written),
-      match: match,
-    );
-    final base = titleBaseOf(Doc.parse(written).title);
-    return ReadAnswer(
-      text: '${namingLine(doc, title: true, base: base)}\n',
-      json: {
-        'name': doc.name,
-        'docType': ?doc.docTypeId,
-        'path': doc.docPath,
-        'base': base,
-        'draft': after.doc.isDraft,
-      },
-    );
-  });
+  }
+  return (lfText: withTitle(lfText, dropped.trim()), marksDraft: true);
 }
 
 /// Reads [lf] as [Doc.parse] would, from outside any fence.
@@ -435,10 +500,15 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
   return (refused: refused, openFence: scan.openFence);
 }
 
-ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
-  final lf = toLf(stdin);
+({String lfText, bool marksDraft}) _spliceLead(
+  IndexedDoc doc,
+  MergedDocType docType,
+  String lfText,
+  String base,
+  String stdin,
+) {
   final scan = _scanStdin(
-    lf,
+    stdin,
     (line) => isTitleLine(line) || isSectionHeaderLine(line),
   );
   if (scan.refused case final refused?) {
@@ -453,54 +523,19 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
       'the lead leaves the fence "$fence" open; close it',
     );
   }
-  final body = _pipedBodyOf(lf);
-
-  final doc = session.target(request.address);
-  final docType =
-      session.index.typeOf(doc) ??
-      (throw StateError('${doc.docPath} is typed but its type is gone'));
-  final match = MatchedDocType(docType);
-
-  return session.locked(() {
-    final read = _readLocked(session, doc, match);
-    final lfText = toLf(read.content.text);
-    final currentDoc = Doc.parse(lfText);
-    final currentLead = currentDoc.lead;
-    final currentBase = leadBaseOf(currentDoc, docType);
-    if (currentBase != request.base) {
-      throw _staleBase(
-        doc,
-        target: 'lead',
-        key: leadKey,
-        sinceBase: request.base,
-        currentText: currentLead,
-        currentBase: currentBase,
-      );
-    }
-
-    final written = session.writeDoc(
-      doc.docPath,
-      markDraft(withLead(lfText, body), docType),
-      LineEnding.of(read.content.text),
+  final currentDoc = Doc.parse(lfText);
+  final currentBase = leadBaseOf(currentDoc, docType);
+  if (currentBase != base) {
+    throw _staleBase(
+      doc,
+      target: 'lead',
+      key: leadKey,
+      sinceBase: base,
+      currentText: currentDoc.lead,
+      currentBase: currentBase,
     );
-
-    final after = parseIndexedDoc(
-      docPath: doc.docPath,
-      bytes: utf8.encode(written),
-      match: match,
-    );
-    final base = leadBaseOf(Doc.parse(written), docType);
-    return ReadAnswer(
-      text: '${namingLine(doc, sectionKey: leadKey, base: base)}\n',
-      json: {
-        'name': doc.name,
-        'docType': ?doc.docTypeId,
-        'path': doc.docPath,
-        'base': base,
-        'draft': after.doc.isDraft,
-      },
-    );
-  });
+  }
+  return (lfText: withLead(lfText, _pipedBodyOf(stdin)), marksDraft: true);
 }
 
 /// Returns [lf] less its first line after leading blank lines when that line
@@ -517,109 +552,73 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
   return (text: (lines..removeAt(first)).join('\n'), dropped: true);
 }
 
-ReadAnswer _setSection(
-  WriteSession session,
-  SetRequest request,
-  String key,
-  String stdin,
-) {
-  final lf = toLf(stdin);
-  if (blockScan(lf.split('\n')).openFence case final fence?) {
+({String lfText, bool marksDraft}) _spliceSection({
+  required IndexedDoc doc,
+  required MergedDocType docType,
+  required String lfText,
+  required List<IndexedSection> sections,
+  required String key,
+  required String base,
+  required String stdin,
+}) {
+  if (blockScan(stdin.split('\n')).openFence case final fence?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'the body leaves the fence "$fence" open; close it',
     );
   }
-
-  final doc = session.target(request.address);
-  final docType =
-      session.index.typeOf(doc) ??
-      (throw StateError('${doc.docPath} is typed but its type is gone'));
-  final match = MatchedDocType(docType);
-
-  return session.locked(() {
-    final read = _readLocked(session, doc, match);
-    final sections = read.content.sections;
-    final held = sections.indexWhere((section) => section.key == key);
-    final template = docType.sections.where((s) => s.id == key).firstOrNull;
-    if (held < 0 && template == null) {
-      throw IndexFault(
-        IndexFaultCode.sectionNotFound,
-        '${request.address} holds no section with the key $key, '
-        'and its template defines none',
-      );
-    }
-    final unwrapped = _withoutOwnHeader(
-      lf,
-      held < 0 ? '## ${template!.header}' : sections[held].headerLine,
+  final held = sections.indexWhere((section) => section.key == key);
+  final template = docType.sections.where((s) => s.id == key).firstOrNull;
+  if (held < 0 && template == null) {
+    throw IndexFault(
+      IndexFaultCode.sectionNotFound,
+      '${doc.docTypeId}:${doc.name} holds no section with the key $key, '
+      'and its template defines none',
     );
-    final body = _pipedBodyOf(unwrapped.text);
-    final removesSection = body.isEmpty && !unwrapped.dropped;
-    if (_scanStdin(body, isSectionHeaderLine).refused case final header?) {
-      throw IndexFault(
-        IndexFaultCode.argumentInvalid,
-        'the body holds the header line "$header"; send the body only',
-      );
-    }
-    final currentText = held < 0 ? '' : '${sections[held].text}\n';
-    final currentBase = held < 0
-        ? emptyBaseHash
-        : sectionBaseOf(sections[held].body, docType);
-    if (currentBase != request.base) {
-      throw _staleBase(
-        doc,
-        target: 'section',
-        key: key,
-        sinceBase: request.base,
-        currentText: currentText,
-        currentBase: currentBase,
-      );
-    }
-    if (removesSection && (template?.required ?? false)) {
-      throw WriteFault(
-        WriteFaultCode.requiredTarget,
-        '${doc.docTypeId} requires the section $key',
-        file: doc.docPath,
-        key: key,
-      );
-    }
+  }
+  final unwrapped = _withoutOwnHeader(
+    stdin,
+    held < 0 ? '## ${template!.header}' : sections[held].headerLine,
+  );
+  final body = _pipedBodyOf(unwrapped.text);
+  final removesSection = body.isEmpty && !unwrapped.dropped;
+  if (_scanStdin(body, isSectionHeaderLine).refused case final header?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the body holds the header line "$header"; send the body only',
+    );
+  }
+  final currentBase = held < 0
+      ? emptyBaseHash
+      : sectionBaseOf(sections[held].body, docType);
+  if (currentBase != base) {
+    throw _staleBase(
+      doc,
+      target: 'section',
+      key: key,
+      sinceBase: base,
+      currentText: held < 0 ? '' : '${sections[held].text}\n',
+      currentBase: currentBase,
+    );
+  }
+  if (removesSection && (template?.required ?? false)) {
+    throw WriteFault(
+      WriteFaultCode.requiredTarget,
+      '${doc.docTypeId} requires the section $key',
+      file: doc.docPath,
+      key: key,
+    );
+  }
 
-    final lfText = toLf(read.content.text);
-    final String spliced;
-    if (removesSection) {
-      spliced = held < 0 ? lfText : withoutSection(lfText, held);
-    } else if (held >= 0) {
-      spliced = withSectionBody(lfText, held, body);
-    } else {
-      spliced = _withTemplateSection(lfText, docType, key, sections, body);
-    }
-    final written = session.writeDoc(
-      doc.docPath,
-      markDraft(spliced, docType),
-      LineEnding.of(read.content.text),
-    );
-
-    final after = parseIndexedDoc(
-      docPath: doc.docPath,
-      bytes: utf8.encode(written),
-      match: match,
-    );
-    final newBase = after.content.sections
-        .where((section) => section.key == key)
-        .map((section) => sectionBaseOf(section.body, docType))
-        .firstOrNull;
-    final base = newBase ?? emptyBaseHash;
-    return ReadAnswer(
-      text: '${namingLine(doc, sectionKey: key, base: base)}\n',
-      json: {
-        'name': doc.name,
-        'docType': ?doc.docTypeId,
-        'path': doc.docPath,
-        'base': base,
-        'draft': after.doc.isDraft,
-      },
-    );
-  });
+  final String spliced;
+  if (removesSection) {
+    spliced = held < 0 ? lfText : withoutSection(lfText, held);
+  } else if (held >= 0) {
+    spliced = withSectionBody(lfText, held, body);
+  } else {
+    spliced = _withTemplateSection(lfText, docType, key, sections, body);
+  }
+  return (lfText: spliced, marksDraft: true);
 }
 
 /// Returns piped [lf] as a section body, its leading blank lines kept; empty
