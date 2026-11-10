@@ -332,12 +332,12 @@ const _procedures = <_Procedure>[
   (
     file: 'skills/brainstorming-sdd/references/design.md',
     tags: 'f08/us02/fr01, f08/us02/fr06',
-    commands: ['context'],
+    commands: ['context', 'refs', 'search'],
   ),
   (
     file: 'skills/brainstorming-sdd/references/audit.md',
     tags: 'f08/us02/fr01, f08/us02/fr07',
-    commands: ['context', 'list', 'check'],
+    commands: ['get', 'context', 'list', 'check'],
   ),
   (
     file: 'skills/brainstorming-sdd/references/plan.md',
@@ -1063,7 +1063,119 @@ void _agentTests() {
       ),
     );
   });
+
+  test('agent_plugin/write_prd_and_spec/write_design_and_plan E09-E12, '
+      'agent_plugin/write_prd_and_spec/audit_drafts_by_reading E10-E13: '
+      "design mode searches each decision's dependents, and the audit hashes "
+      'its targets in one get and tags behavior findings', () {
+    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    final write = _oneLine(_sectionOf(design, '3. Write the document'));
+    for (final point in _dependentsSearchPoints) {
+      expect(write, contains(point), reason: point);
+    }
+    final audit = _pluginText('skills/brainstorming-sdd/references/audit.md');
+    final read = _oneLine(_sectionOf(audit, '1. Read'));
+    for (final point in _auditReadPoints) {
+      expect(read, contains(point), reason: point);
+    }
+    final compare = _oneLine(_sectionOf(audit, '2. Compare'));
+    for (final point in _restatementGapPoints) {
+      expect(compare, contains(point), reason: point);
+    }
+    final report = _sectionOf(audit, '3. Report');
+    expect(report, contains('\nAudited: <type>:<name>@<hash>\nFindings:\n'));
+    for (final point in _auditReportPoints) {
+      expect(_oneLine(report), contains(point), reason: point);
+    }
+    for (final restated in _ownedElsewhere) {
+      expect(
+        _oneLine('$design\n$audit'),
+        isNot(contains(restated)),
+        reason: restated,
+      );
+    }
+    expect(
+      _oneLine(
+        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+      ),
+      contains('- **Audit**: the `Audited:` lines, `Findings:`,'),
+    );
+  });
 }
+
+/// Each point of `write_design_and_plan`'s dependents search and state-table
+/// clauses, E09-E12, as step 3 of design.md words it, cut at line width.
+const _dependentsSearchPoints = [
+  "its rule's owner doc, and the terms you searched for it.",
+  'A decision whose rule has states, such as a refusal set or a set of name',
+  'forms, also gets a table of each state against each command or skill',
+  "Before the Docs to change table closes, search each decision's dependents:",
+  "Name the owner doc of the decision's rule (`specstone:expert-sdd` rule 7).",
+  'Run `specstone refs <owner>` for the docs that cite it, and',
+  "`specstone search` on the decision's terms and on the wording it supersedes",
+  'Each doc found that restates the rule instead of citing its owner gets a',
+  'Docs to change row: its change cites the owner by name, or rewrites the',
+  "doc when that doc owns a rule that reads the decision's rule.",
+  'When `refs` lists no typed citer, as in a tree that still cites by number',
+  'labels, the search carries the decision, as it does for the limit of',
+  '`refs` that rule 7 names.',
+  'Record the searched terms either way, so the audit sees what was searched.',
+  'An amend for an Owner decision that adds or changes behavior, as',
+  '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E12 defines it,',
+  "runs the same search on that decision's terms and adds its rows and",
+  'searched terms before the author writes it.',
+];
+
+/// Each point of `audit_drafts_by_reading`'s one `get` call, E11, and E12, as
+/// step 1 of audit.md words it, cut at line width.
+const _auditReadPoints = [
+  'An audit after a fix round, or after the author pass that follows an',
+  'amend, takes the drafts',
+  '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E13 names, each',
+  'read whole and audited again.',
+  'run one `specstone get <targets> --json` on every target and keep each',
+  "doc's `bases.doc` for its `Audited:` line.",
+  'When it refuses with `doc_not_found`',
+  'drop each name the refusal names, run it again on the rest, and list each',
+  'dropped name under `Outside the drafts:`, with no `Audited:` line.',
+];
+
+/// The restatement gap of `audit_drafts_by_reading` E10, as step 2 of
+/// audit.md words it, cut at line width.
+const _restatementGapPoints = [
+  '| Rule restated | a draft stating a rule another doc owns instead of',
+  'citing it (`specstone:expert-sdd` rule 7) |',
+  '**Rule restated:** name the owner doc and the item; its fix is a citation',
+  'in the draft.',
+];
+
+/// The `Audited:` lines, E11's lists, and E13's `[behavior]` tag of
+/// `audit_drafts_by_reading`, as step 3 of audit.md words them, cut at line
+/// width.
+const _auditReportPoints = [
+  '- <type>:<name>#<section>: <gap> [behavior]',
+  '- <type>:<name>: no draft',
+  '- <name>: names no doc',
+  '**`Audited:`**: one line per target that names a doc, a draft or not, its',
+  "hash that doc's `bases.doc` from the `get` of step 1; each replaces the",
+  'line an earlier audit wrote for that draft.',
+  'End a `Findings:` line with `[behavior]` when its fix needs behavior the',
+  'design does not state, behavior as',
+  '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E12 defines it;',
+  'a line whose fix only corrects text against the design stays untagged.',
+  'each target that is no draft, and each name dropped from the `get` call;',
+  'A fix round takes only the untagged `Findings:` lines; a `[behavior]` line',
+  'goes to a design-mode amend.',
+];
+
+/// Text that `specstone:expert-sdd` rule 7 or `run_brainstorm_to_design` E13
+/// owns, which design.md and audit.md cite and never restate.
+const _ownedElsewhere = [
+  'A rule has one owner doc',
+  'pins no hash',
+  'differs from their last',
+  'each doc the round or pass added',
+];
 
 /// The one home of the size-fix rule, under the plugin folder.
 const _sizeFix = 'skills/expert-sdd/references/size-fix.md';

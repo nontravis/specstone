@@ -82,8 +82,8 @@ finding.
 - **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Counts:` line, the
   `Findings:` line.
 - **Design**: the `Design document:` line, `Open questions:` with its items, the `Findings:` line.
-- **Audit**: `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is `owner`), and
-  `Outside the drafts:`, each with its items.
+- **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
+  `owner`), and `Outside the drafts:`, each with its items.
 - **Plan**: the `Plan:` line, each `NOT PLANNED` row, `Open questions:` with its items, the `Findings:` line.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
   one sentence on why it changed, never their text; each other draft; each pointer fixed; each behavior handed to
