@@ -10,12 +10,15 @@ export 'src/doc_model/reference_grammar.dart' show DocAddress, readDocAddress;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
     show SeenDraft, approveDrafts, approveDryRun, approveNamed;
+export 'src/document_writing/batch_fault.dart' show BatchEntry, BatchFault;
+export 'src/document_writing/batch_file.dart' show readBatchFile;
 export 'src/document_writing/delete_doc.dart'
     show answerDelete, answerDeleteDryRun;
 export 'src/document_writing/move_doc.dart'
     show answerMove, answerRename, answerReorder;
 export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
+export 'src/document_writing/set_batch.dart' show answerSetBatch;
 export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
