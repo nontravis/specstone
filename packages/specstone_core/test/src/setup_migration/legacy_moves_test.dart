@@ -867,7 +867,7 @@ void main() {
         for (final rows in [
           ['auth/', 'lib/auth/'],
           ['a/x/', 'b/x/'],
-          ['specs/', 'x/specs/'],
+          ['x/specs/', 'y/specs/'],
         ]) {
           final tree = {
             'docs/prds/d01_context.md': '# D\n',
@@ -882,6 +882,24 @@ void main() {
           ]);
           _expectNoDrop(tree, plan);
         }
+      });
+
+      test('f06/us01/fr03/e12: a cross-cutting row of specs/ moves its files '
+          'to specs/topics/specs/, beside a row of x/specs/ that plans', () {
+        final tree = {
+          'docs/specs/INDEX.md': _specIndex([
+            '| `c/` | `specs/` | — |',
+            '| `x/` | `x/specs/` | — |',
+          ]),
+          'docs/specs/s01_notes.md': '# N\n',
+        };
+        final plan = _plan(tree);
+
+        expect(
+          _movedTo(plan, 'specs/s01_notes.md'),
+          'specs/topics/specs/s01_notes.md',
+        );
+        _expectNoDrop(tree, plan);
       });
 
       test('f06/us01/fr03/e12: a cross-cutting row with no file does not '

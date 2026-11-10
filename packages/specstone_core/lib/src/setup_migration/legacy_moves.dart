@@ -259,9 +259,11 @@ Map<String, Set<String>> _specFoldersOf(List<SpecMapRow> specMap) {
 /// The `specs/topics/` subfolder name of each cross-cutting spec folder that
 /// can place a file.
 ///
-/// Such a folder is a subfolder of `specs/` that holds one of [paths]. One
-/// whose last segment no other shares (ignoring letter case) keeps it; the
-/// folders that share one take [trailingRunNames] among them (E12).
+/// Such a folder is `specs/` or a subfolder of it that holds one of [paths].
+/// One whose last segment no other shares (ignoring letter case) keeps it; the
+/// folders that share one take [trailingRunNames] among them (E12). `specs/`
+/// keeps its own last segment, `specs`, and joins no sharing set, since it has
+/// no trailing run.
 Map<String, String> _topicFolderNames(
   Map<String, Set<String>> specFolders,
   List<String> paths,
@@ -274,16 +276,19 @@ Map<String, String> _topicFolderNames(
     for (final MapEntry(key: folder, value: ids) in specFolders.entries)
       if (ids.length == 1 && ids.single == _crossCutting) folder,
   ]..sort(compareCodePoints);
+  final names = <String, String>{};
   for (final folder in folders) {
     final canPlace =
         folder.startsWith(_specsFolder) &&
-        folder.length > _specsFolder.length &&
         folder != _architectureFolder &&
         holding.contains(folder);
     if (!canPlace) continue;
+    if (folder == _specsFolder) {
+      names[folder] = _lastSegmentOf(folder);
+      continue;
+    }
     (byLastSegment[caseBlindPath(_lastSegmentOf(folder))] ??= []).add(folder);
   }
-  final names = <String, String>{};
   for (final sharing in byLastSegment.values) {
     final runs = sharing.length == 1
         ? [_lastSegmentOf(sharing.single)]
