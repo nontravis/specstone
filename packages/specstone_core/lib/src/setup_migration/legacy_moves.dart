@@ -22,20 +22,23 @@ final _storyFile = RegExp(
   r'|functional_requirements/(fr\d+_[^/]+\.md)'
   r'|non_functional_requirements/(nf\d+_[^/]+\.md))$',
 );
-const _architectureKind = 'architecture';
-const _apiKind = 'api';
-const _domainKind = 'domain';
-const _integrationKind = 'integration';
-const _errorsKind = 'errors';
-const _authKind = 'auth';
+
+/// The doc file name and doc type of each legacy spec kind, by kind name.
+const _specKinds = <String, (String, LegacyKind)>{
+  'architecture': ('ARCHITECTURE', LegacyKind.architecture),
+  'api': ('API', LegacyKind.api),
+  'domain': ('DOMAIN', LegacyKind.domain),
+  'integration': ('INTEGRATION', LegacyKind.integration),
+  'errors': ('ERROR', LegacyKind.error),
+  'auth': ('AUTH', LegacyKind.auth),
+};
 
 /// A legacy spec file `s<NN>_<kind>.md` or `s<NN>_<kind>_<suffix>.md`.
 ///
 /// Group 1 is the kind, which ends at the `_` or at the `.md`.
 final _specFile = RegExp(
   r'^s\d+_('
-  '$_architectureKind|$_apiKind|$_domainKind|$_integrationKind|$_errorsKind'
-  '|$_authKind'
+  '${_specKinds.keys.join('|')}'
   r')(?:_[^/]+)?\.md$',
 );
 
@@ -284,7 +287,7 @@ _SpecFile? _readSpecFile(
   final match = _specFile.firstMatch(name);
   final featurePath = _featurePathOfId(ids.single, features);
   if (match == null || featurePath == null) return null;
-  final (docName, kind) = _specDocOf(match.group(1)!);
+  final (docName, kind) = _specKinds[match.group(1)]!;
   return _FeatureSpecFile(
     from: path,
     featurePath: featurePath,
@@ -301,16 +304,6 @@ String? _featurePathOfId(String featureId, LegacyFeatures features) {
   ];
   return carriers.length == 1 ? carriers.single.featurePath : null;
 }
-
-(String, LegacyKind) _specDocOf(String name) => switch (name) {
-  _architectureKind => ('ARCHITECTURE', LegacyKind.architecture),
-  _apiKind => ('API', LegacyKind.api),
-  _domainKind => ('DOMAIN', LegacyKind.domain),
-  _integrationKind => ('INTEGRATION', LegacyKind.integration),
-  _errorsKind => ('ERROR', LegacyKind.error),
-  _authKind => ('AUTH', LegacyKind.auth),
-  _ => throw ArgumentError.value(name, 'name', 'not a legacy spec kind'),
-};
 
 /// Rule 6: places the spec files of each feature by the doc file they map to.
 Map<String, _Placement> _resolveFeatureSpecs(List<_FeatureSpecFile> files) {

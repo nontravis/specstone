@@ -276,6 +276,62 @@ void main() {
         expect(_movedTo(plan, 'specs/ui/slot/s04_authentication.md'), isNull);
       });
 
+      test('f06/us01/fr03/e08: a bare file of each other kind maps to its '
+          'doc file', () {
+        final plan = _plan(
+          slotTree([
+            's01_architecture.md',
+            's03_domain.md',
+            's04_integration.md',
+            's05_errors.md',
+            's06_auth.md',
+          ]),
+        );
+
+        expect(plan.kindOf, {
+          'prds/features/utilities/f01_slot/FEATURE.md': LegacyKind.feature,
+          'prds/features/components/f07_navigation/FEATURE.md':
+              LegacyKind.feature,
+          'specs/utilities/f01_slot/ARCHITECTURE.md': LegacyKind.architecture,
+          'specs/utilities/f01_slot/DOMAIN.md': LegacyKind.domain,
+          'specs/utilities/f01_slot/INTEGRATION.md': LegacyKind.integration,
+          'specs/utilities/f01_slot/ERROR.md': LegacyKind.error,
+          'specs/utilities/f01_slot/AUTH.md': LegacyKind.auth,
+        });
+      });
+
+      test('f06/us01/fr03/e13: an empty suffix or a kind that does not end at '
+          '_ or .md stays', () {
+        final plan = _plan(slotTree(['s02_api_.md', 's02_error.md']));
+
+        expect(
+          plan.left,
+          containsAll([
+            'specs/ui/slot/s02_api_.md',
+            'specs/ui/slot/s02_error.md',
+          ]),
+        );
+        expect(plan.moves.where((m) => m.from.startsWith('specs/')), isEmpty);
+      });
+
+      test('f06/us01/fr03/e10: s02_errors.md beside s02_errors_v2.md keeps '
+          'both old names', () {
+        final plan = _plan(slotTree(['s02_errors.md', 's02_errors_v2.md']));
+
+        expect(
+          _movedTo(plan, 'specs/ui/slot/s02_errors.md'),
+          'specs/utilities/f01_slot/s02_errors.md',
+        );
+        expect(
+          _movedTo(plan, 'specs/ui/slot/s02_errors_v2.md'),
+          'specs/utilities/f01_slot/s02_errors_v2.md',
+        );
+        expect(
+          plan.kindOf,
+          isNot(contains('specs/utilities/f01_slot/ERROR.md')),
+        );
+      });
+
       test('f06/us01/fr03/e10: s02_api.md beside s02_api_login.md keeps both '
           'old names', () {
         final plan = _plan(slotTree(['s02_api.md', 's02_api_login.md']));
