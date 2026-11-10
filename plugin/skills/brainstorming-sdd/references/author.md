@@ -44,7 +44,7 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
     fence: close it.
   - Any other refusal a single `set` of that part makes, such as `field_unknown` or a section block's stray `##`
     line: fix that part as the refusal names.
-  - Refused path or line: rebuild the file from `get` text output alone; pass its path, nothing on stdin.
+  - Refused path or line: rebuild the file from `get` text output alone.
 
 ## 3. Sweep each ruling
 

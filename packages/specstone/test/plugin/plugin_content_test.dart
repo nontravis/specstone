@@ -1423,7 +1423,7 @@ const _authorBatchPoints = [
   "`field_unknown` or a section block's stray `##` line: fix that part as",
   'line: fix that part as the refusal names.',
   '- Refused path or line: rebuild the file from `get` text output',
-  'alone; pass its path, nothing on stdin.',
+  'alone.',
 ];
 
 /// Text of `write_a_batch`'s fault table, which author.md handles through
