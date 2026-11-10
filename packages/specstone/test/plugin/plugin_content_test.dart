@@ -1034,7 +1034,8 @@ const _sizeFindings = [
 const _sizeAnswerRule =
     'Answer each `chars_over_limit` or `lines_over_limit` finding once in your '
     'report, though `check` tags it `(waits for the Owner)`: a split '
-    'proposal, or why none applies. Give `item_over_limit` neither';
+    'proposal, or why none applies. Give `item_over_limit` neither: it needs '
+    'no answer';
 
 /// Each point of `fill_check_findings` E13's item rewrite, held only by
 /// size-fix.md.
@@ -1143,11 +1144,20 @@ void _sizeFixTests() {
       expect(item, contains(point), reason: point);
     }
     expect(item, contains('`Waits on the Owner:`'));
+    expect(item, contains('a dispatched agent sees the name in `batch:`'));
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
       final text = _pluginText('skills/$skill/SKILL.md');
       final handOff = _oneLine(_sectionOf(text, '2. Hand off in batches'));
       expect(handOff, contains(_itemBatchRule), reason: skill);
-      expect(handOff, contains('`Waits on the Owner:`'), reason: skill);
+      expect(handOff, isNot(contains('`Waits on the Owner:`')), reason: skill);
+      expect(
+        _oneLine(_sectionOf(text, '3. After the reports')),
+        contains(
+          'list under `Waits on the Owner:` each `item_over_limit` finding no '
+          "report's `Waits on the Owner:` line named",
+        ),
+        reason: skill,
+      );
       for (final point in _itemRewritePoints) {
         expect(
           _oneLine(text),
@@ -1161,13 +1171,16 @@ void _sizeFixTests() {
       _oneLine(_sectionOf(agent, 'Input Contract')),
       contains(
         'the finding paths you fix, and `item_over_limit` when the '
-        'Owner named it for the run',
+        'Owner named it for the run and a `batch` path holds one',
       ),
     );
     final output = _oneLine(_sectionOf(agent, 'Output Format'));
     expect(
       output.substring(output.indexOf('- **Bootstrap**')),
-      contains('`Waits on the Owner:`, each `item_over_limit` finding'),
+      contains(
+        '`Waits on the Owner:`, each `item_over_limit` finding on a `batch` '
+        'path when `batch` does not name `item_over_limit`',
+      ),
     );
     for (final point in _itemRewritePoints) {
       expect(_oneLine(agent), isNot(contains(point)), reason: point);

@@ -6,8 +6,8 @@ This covers the three size findings `specstone check` raises, `chars_over_limit`
 ## The order
 
 Answer each `chars_over_limit` or `lines_over_limit` finding once in your report, though `check` tags it
-`(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither; the last section
-covers it.
+`(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither: it needs no
+answer; `An item over its limit` covers it.
 
 1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
    the laid-out doc.

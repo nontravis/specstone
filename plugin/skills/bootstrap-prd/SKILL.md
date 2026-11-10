@@ -33,7 +33,7 @@ the procedure yourself.
 
 An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
 that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item per `size-fix.md`. In any other
-run the finding waits for the Owner: list it under `Waits on the Owner:` when you stop.
+run the finding waits for the Owner.
 
 Without the tool, or when a dispatch fails, read `references/procedure.md` beside this file
 (`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`) and follow it yourself: without the tool,
@@ -57,4 +57,6 @@ in for item 4.
    those referrers.
 5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
    `(waits for the Owner)`, the last reports name it as one that clears with no write, or it waits on
-   `specstone:bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, stop.
+   `specstone:bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, stop; first, in a
+   run that did not name `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit` finding no
+   report's `Waits on the Owner:` line named.
