@@ -9,7 +9,7 @@ import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
-const _guideUsage = 'Usage: specstone guide [type] [--json]';
+const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 final String _bothPacks = shippedPinsConfig();
 final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
 final String _softwareTechOnly = shippedPinsConfig(['software-tech']);

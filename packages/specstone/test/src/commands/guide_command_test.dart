@@ -10,7 +10,13 @@ import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
-const _guideUsage = 'Usage: specstone guide [type] [--json]';
+const _guideUsage = 'Usage: specstone guide [type …] [--json]';
+
+/// A project doc type that adds `fr` beside the shipped fixture's two.
+const _frLayer = <String, String>{
+  '.specstone/templates/fr.yaml':
+      'id: fr\ndescription: One requirement.\npath: frs/{slug}.md\n',
+};
 
 Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
 
@@ -352,12 +358,198 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('two type arguments is a usage error and exits 64', () async {
+    test('two type arguments that no pack defines exit 64, naming both and '
+        'the usage', () async {
       final runner = await runnerIn(await projectWith({}));
 
       expect(await runner.run(['guide', 'a', 'b']), 64);
       expect(out.toString(), isEmpty);
-      expect(err.toString(), contains(_guideUsage));
+      expect(
+        err.toString(),
+        contains('Could not find doc types named "a", "b".\n\n$_guideUsage'),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide E01: two '
+        'unknown ids among known ones refuse the whole call, name each, and '
+        'print no guide', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(await runner.run(['guide', 'featur', 'feature', 'stroy']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains(
+          'Could not find doc types named "featur", "stroy".\n\n$_guideUsage',
+        ),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide E01: one '
+        'unknown id among known ones names it in the singular form and '
+        'prints no guide', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(await runner.run(['guide', 'feature', 'featur']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "featur".\n\n$_guideUsage'),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide E01: an '
+        'unknown id named twice is named once', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(await runner.run(['guide', 'featur', 'featur']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "featur".\n\n$_guideUsage'),
+      );
+    });
+
+    test(
+      'template_packs/read_writing_guide/print_writing_guide E07: a repeated '
+      'id prints once at its first place under ==> lines',
+      () async {
+        final runner = await runnerIn(await projectWith(_frLayer));
+
+        expect(await runner.run(['guide', 'fr', 'user_story', 'fr']), 0);
+        expect(
+          out.toString(),
+          '==> fr <==\n'
+          'One requirement.\n'
+          '==> user_story <==\n'
+          'One story\n',
+        );
+        expect(err.toString(), isEmpty);
+      },
+    );
+
+    test('template_packs/read_writing_guide/print_writing_guide E08: one id '
+        'named twice prints its guide once, with no ==> line', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
+
+      expect(await runner.run(['guide', 'fr', 'fr']), 0);
+      expect(out.toString(), 'One requirement.\n');
+      expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/read_writing_guide: read several doc types guides in '
+        'one call, each once in the order named under its own line', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
+
+      expect(await runner.run(['guide', 'user_story', 'feature', 'fr']), 0);
+      expect(
+        out.toString(),
+        '==> user_story <==\n'
+        'One story\n'
+        '==> feature <==\n'
+        'A feature groups the stories that serve one goal.\n\n'
+        'Second paragraph.\n\n'
+        '## Feature goal\n\n'
+        'Why, problem, and audience, one sentence each.\n'
+        '==> fr <==\n'
+        'One requirement.\n',
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/read_writing_guide: several merged schemas for a '
+        'program come as one list in the order named', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
+
+      expect(
+        await runner.run(['guide', 'user_story', 'feature', 'fr', '--json']),
+        0,
+      );
+      final json = jsonDecode(out.toString()) as List<Object?>;
+      expect(json.cast<Map<String, Object?>>().map((type) => type['id']), [
+        'user_story',
+        'feature',
+        'fr',
+      ]);
+      expect(out.toString(), startsWith('[\n  {\n    "id": "user_story",\n'));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/read_writing_guide: one unknown doc type among '
+        'several refuses the whole call and names it', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
+
+      expect(await runner.run(['guide', 'feature', 'stroy', 'fr']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "stroy".\n\n$_guideUsage'),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_merged_schema E01: unknown '
+        'ids with --json print one envelope naming each, and stdout stays '
+        'empty', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(
+        await runner.run(['guide', 'featur', 'feature', 'stroy', '--json']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), startsWith('{\n  "error": {\n    "code"'));
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'doc_type_unknown');
+      expect(
+        error['message'],
+        'Could not find doc types named "featur", "stroy".',
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_merged_schema E01: one '
+        'unknown id among known ones with --json names it in the singular '
+        'form', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(await runner.run(['guide', 'feature', 'featur', '--json']), 64);
+      expect(out.toString(), isEmpty);
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'doc_type_unknown');
+      expect(error['message'], 'Could not find a doc type named "featur".');
+    });
+
+    test(
+      'template_packs/read_writing_guide/print_merged_schema E07: a '
+      'repeated id with --json prints one array in order, the id once',
+      () async {
+        final runner = await runnerIn(await projectWith(_frLayer));
+
+        expect(
+          await runner.run(['guide', 'fr', 'user_story', 'fr', '--json']),
+          0,
+        );
+        final json = jsonDecode(out.toString()) as List<Object?>;
+        expect(json.cast<Map<String, Object?>>().map((type) => type['id']), [
+          'fr',
+          'user_story',
+        ]);
+        expect(err.toString(), isEmpty);
+      },
+    );
+
+    test('template_packs/read_writing_guide/print_merged_schema: one id named '
+        'twice with --json prints the object alone', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
+
+      expect(await runner.run(['guide', 'fr', 'fr', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['id'], 'fr');
+      expect(out.toString(), startsWith('{\n  "id": "fr",\n'));
+      expect(err.toString(), isEmpty);
     });
   });
 
