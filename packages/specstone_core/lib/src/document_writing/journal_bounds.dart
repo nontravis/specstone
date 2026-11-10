@@ -80,7 +80,7 @@ final class JournalBounds {
         existing--;
       }
       final missing = segments.skip(existing);
-      if (missing.any((segment) => segment == '.' || segment == '..')) {
+      if (holdsDotSegment(missing)) {
         return null;
       }
       try {

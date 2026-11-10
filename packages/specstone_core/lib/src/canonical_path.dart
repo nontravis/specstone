@@ -2,8 +2,8 @@ import 'dart:io';
 
 final String _separator = Platform.pathSeparator;
 
-/// The most dangling links one path may pass through before it counts as a
-/// loop.
+/// The most steps one path may take before it counts as a loop: dangling
+/// links followed and names that vanished mid-resolve share this budget.
 const _maxLinkHops = 40;
 
 /// Returns [path] with every `/` changed to `\` on Windows, else unchanged.
@@ -49,7 +49,9 @@ bool _hasDrive(String path) =>
 /// stay as named, so a write through them fails at the disk. With [strict]
 /// they throw a [FileSystemException] instead. A link whose target Windows
 /// reads against a drive the link does not name (`X:name`) throws too, since
-/// the place it leads to depends on that drive's current folder.
+/// the place it leads to depends on that drive's current folder. A `.` or `..`
+/// among the missing names throws as well, since a name before it may become a
+/// link before the write, and [holdsDotSegment] decides it.
 String canonicalPath(String path, {bool strict = false}) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(
@@ -95,6 +97,12 @@ String canonicalPath(String path, {bool strict = false}) {
       continue;
     }
     existing = withoutTrailingSeparator(linkTargetPath(existing, target));
+  }
+  if (strict && holdsDotSegment(missing)) {
+    throw FileSystemException(
+      'a . or .. after a name that does not exist cannot be resolved',
+      path,
+    );
   }
   for (final name in missing.reversed) {
     if (name == '.') continue;
@@ -154,6 +162,11 @@ String? _windowsVolumeOf(String path) {
   return r'\\'
       '${names[0]}\\${names[1]}';
 }
+
+/// Whether any of [names] is `.` or `..`, which a name that does not exist
+/// yet cannot stand before, since that name may become a link.
+bool holdsDotSegment(Iterable<String> names) =>
+    names.any((name) => name == '.' || name == '..');
 
 /// Whether [error] says the path does not exist: error 2 on POSIX (ENOENT) and
 /// Windows (file not found), error 3 on Windows (path not found).

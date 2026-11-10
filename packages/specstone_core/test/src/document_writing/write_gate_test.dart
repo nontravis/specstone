@@ -101,6 +101,16 @@ void main() {
     }
 
     for (final path in [
+      'missing/../x.txt',
+      'docs/missing/../a.md',
+      'missing/./x.txt',
+    ]) {
+      test('$path is refused: a . or .. after a missing name', () {
+        expect(refusal(path), startsWith('it cannot be resolved'));
+      });
+    }
+
+    for (final path in [
       '.git/config',
       '.GIT/config',
       'docs/.git/hooks/x',

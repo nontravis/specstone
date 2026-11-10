@@ -92,20 +92,66 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
+  group('$_scope: canonicalPath on a . or .. after a missing name', () {
+    late Directory base;
+
+    setUp(() async {
+      base = Directory(
+        (await writeTree({'proj/keep.txt': ''})).resolveSymbolicLinksSync(),
+      );
+    });
+
+    for (final (relative, applied) in [
+      ('proj/missing/../x.txt', 'proj/x.txt'),
+      ('proj/missing/./x.txt', 'proj/missing/x.txt'),
+      ('proj/missing/..', 'proj'),
+    ]) {
+      test('$relative is applied as written, and strict mode throws', () {
+        final path = '${base.path}/$relative';
+
+        expect(
+          canonicalPath(path),
+          withNativeSeparators('${base.path}/$applied'),
+        );
+        expect(
+          () => canonicalPath(path, strict: true),
+          throwsA(isA<FileSystemException>()),
+        );
+      });
+    }
+
+    test('a .. after a name that exists is resolved by the disk', () {
+      final path = '${base.path}/proj/../proj/new.txt';
+
+      expect(
+        canonicalPath(path, strict: true),
+        '${base.path}${Platform.pathSeparator}proj${Platform.pathSeparator}'
+        'new.txt',
+      );
+    });
+  });
+
   group('$_scope: canonicalPath on a path that vanishes mid-resolve', () {
     const churnFor = Duration(seconds: 2);
 
     test('a file another isolate makes and deletes counts as missing, never '
         'as unresolvable', () async {
       final base = await writeTree({'keep.txt': ''});
-      final path = '${base.resolveSymbolicLinksSync()}/side-file';
+      final path =
+          '${base.resolveSymbolicLinksSync()}${Platform.pathSeparator}'
+          'side-file';
       final churn = Isolate.run(() {
         final file = File(path);
         final watch = Stopwatch()..start();
         while (watch.elapsed < churnFor) {
-          file
-            ..writeAsBytesSync(const [0])
-            ..deleteSync();
+          try {
+            file
+              ..writeAsBytesSync(const [0])
+              ..deleteSync();
+          } on FileSystemException {
+            // A virus scanner may hold the file on Windows; only the
+            // judgments below are counted.
+          }
         }
       });
 

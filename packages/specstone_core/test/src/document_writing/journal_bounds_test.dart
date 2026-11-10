@@ -138,9 +138,14 @@ void main() {
           final dir = Directory(folder);
           final watch = Stopwatch()..start();
           while (watch.elapsed < churnFor) {
-            dir
-              ..createSync()
-              ..deleteSync();
+            try {
+              dir
+                ..createSync()
+                ..deleteSync();
+            } on FileSystemException {
+              // A virus scanner may hold the folder on Windows; only the
+              // judgments below are counted.
+            }
           }
         });
 
