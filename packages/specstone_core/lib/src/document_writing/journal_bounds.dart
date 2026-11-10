@@ -148,8 +148,8 @@ const _unresolved = 'it cannot be resolved';
 /// NTFS stream suffix cut at its first `:`.
 ///
 /// A path the disk cannot resolve (a link loop, a dangling chain longer than
-/// the OS follows, a folder it may not enter) is refused with its reason,
-/// never thrown.
+/// the OS follows, a folder it may not enter, a `.` or `..` after a name that
+/// does not exist) is refused with its reason, never thrown.
 String? writeRefusalOf(
   String path, {
   required Directory projectRoot,

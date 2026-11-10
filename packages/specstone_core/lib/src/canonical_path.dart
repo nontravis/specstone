@@ -39,19 +39,18 @@ bool _hasDrive(String path) =>
 ///
 /// The path may not exist: the nearest existing ancestor is resolved and the
 /// missing names are appended, so a build output file that is not written yet
-/// still compares against canonical roots. A `..` or `.` among the missing
-/// names is applied, because nothing missing can be a symbolic link. A link
-/// whose target does not exist is followed to where the target would be made,
-/// since a write through it creates the target. A name that vanishes while it
-/// is resolved counts as missing.
+/// still compares against canonical roots. Without [strict], a `..` or `.`
+/// among the missing names is applied, because nothing missing can be a
+/// symbolic link. A link whose target does not exist is followed to where the
+/// target would be made, since a write through it creates the target. A name
+/// that vanishes while it is resolved counts as missing.
 ///
 /// Links that loop, or a chain of dangling links longer than the OS follows,
 /// stay as named, so a write through them fails at the disk. With [strict]
 /// they throw a [FileSystemException] instead. A link whose target Windows
 /// reads against a drive the link does not name (`X:name`) throws too, since
 /// the place it leads to depends on that drive's current folder. A `.` or `..`
-/// among the missing names throws as well, since a name before it may become a
-/// link before the write, and [holdsDotSegment] decides it.
+/// after a missing name throws too, since that name may become a link.
 String canonicalPath(String path, {bool strict = false}) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(
