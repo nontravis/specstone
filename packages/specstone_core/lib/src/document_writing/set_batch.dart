@@ -36,20 +36,16 @@ const _byteOrderMark = '\uFEFF';
 
 // MARK: - Public
 
-/// Writes every changed block of [text], a `--batch` file read from
-/// [batchPath], or none, and returns one result line per block in file order.
+/// Writes every changed block of [parsed], a `--batch` file split by
+/// [parseBatchFile], or none, and returns one result line per block in file
+/// order.
 ///
 /// Each block is checked alone against its doc as it stands on disk under the
 /// write lock; any refusal throws one [BatchFault] naming all, before a write.
 /// Each doc a changed block reaches is written once, through one journal.
 /// `json` is `{'blocks': [...]}`: `name`, `docType`, `path`, `key`, `base`,
 /// `draft`, and `written` per block.
-ReadAnswer answerSetBatch(
-  WriteSession session, {
-  required String batchPath,
-  required String text,
-}) {
-  final parsed = parseBatchFile(batchPath, text);
+ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
   final refusals = <_Refusal>[
     for (final entry in parsed.lineFaults) (line: entry.line!, entry: entry),
   ];

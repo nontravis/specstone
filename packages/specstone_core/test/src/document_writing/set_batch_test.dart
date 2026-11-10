@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
+import 'package:specstone_core/src/document_writing/batch_file.dart'
+    show parseBatchFile;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_batch.dart';
@@ -52,7 +54,7 @@ String getText(Directory root, List<String> names) {
 }
 
 ReadAnswer runBatch(Directory root, String text) =>
-    writeIn(root, (s) => answerSetBatch(s, batchPath: 'batch.md', text: text));
+    writeIn(root, (s) => answerSetBatch(s, parseBatchFile('batch.md', text)));
 
 /// Returns [text] with its first [from] replaced by [to]; fails when [from] is
 /// not there, so an edit never silently misses.
@@ -847,7 +849,7 @@ void main() {
 
       final answer = writeInNoHome(
         root,
-        (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
       );
 
       expect(docBytes(root), before);
@@ -904,7 +906,7 @@ void main() {
         final text = getText(root, names);
         final answer = writeInNoHome(
           root,
-          (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+          (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
         );
         expect(answer.json['blocks'], [containsPair('written', false)]);
         expect(
@@ -951,7 +953,7 @@ void main() {
 
       final unchanged = writeInNoHome(
         root,
-        (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
       );
       expect(docFile(root, story2).readAsBytesSync(), bytes);
       expect(unchanged.json['blocks'], [containsPair('written', false)]);
@@ -1083,7 +1085,7 @@ void main() {
       expect(
         () => writeInNoHome(
           root,
-          (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+          (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
         ),
         throwsA(
           isA<RenderFault>()
@@ -1184,7 +1186,7 @@ void main() {
         final text = getText(root, names);
         final answer = writeInNoHome(
           root,
-          (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+          (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
         );
         expect(answer.json['blocks'], [containsPair('written', false)]);
       }
@@ -1201,7 +1203,7 @@ void main() {
       final fault = writeIn(root, (s) {
         docFile(root, story3).deleteSync();
         try {
-          answerSetBatch(s, batchPath: 'batch.md', text: text);
+          answerSetBatch(s, parseBatchFile('batch.md', text));
         } on BatchFault catch (fault) {
           return fault;
         }
@@ -1331,7 +1333,7 @@ void main() {
         expect(
           () => writeIn(
             root,
-            (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+            (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
             busyTimeout: Duration.zero,
           ),
           throwsA(
@@ -1405,7 +1407,7 @@ void main() {
 
       final answer = writeInNoHome(
         root,
-        (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
       );
 
       expect(docBytes(root), before);

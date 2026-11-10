@@ -291,6 +291,16 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
+  test('document_writing/edit_one_section_or_field/write_a_batch: set --help names every flag --batch conflicts with', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['set', '--help']), 0);
+    expect(
+      out.toString(),
+      contains(
+        'Takes no doc address, --base, --field, or --title; reads no stdin.',
+      ),
+    );
+  });
   test('f02/us01/fr03/e07: set --field with plain lines for a list field says the stdin is a YAML list, exit 64', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login';

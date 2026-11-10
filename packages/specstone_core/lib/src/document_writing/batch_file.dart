@@ -55,6 +55,9 @@ final class BatchBlock {
   final bool leavesFenceOpen;
 }
 
+/// A batch file's blocks, and the refusals of the lines no block owns.
+typedef ParsedBatch = ({List<BatchBlock> blocks, List<BatchEntry> lineFaults});
+
 /// Splits [text], a batch file read from [path], into its blocks.
 ///
 /// A block starts at each line outside fenced code that [readNamingLine]
@@ -63,10 +66,7 @@ final class BatchBlock {
 /// line: text before the first naming line, a naming line with no base (it
 /// starts no block), or a naming-line shape [readNamingLine] reads as none.
 /// Throws a file-level [BatchFault] when no naming line is outside fenced code.
-({List<BatchBlock> blocks, List<BatchEntry> lineFaults}) parseBatchFile(
-  String path,
-  String text,
-) {
+ParsedBatch parseBatchFile(String path, String text) {
   final lines = _linesOf(text);
   final scan = blockScan(lines);
   final heads = <(int, NamingLine)>[

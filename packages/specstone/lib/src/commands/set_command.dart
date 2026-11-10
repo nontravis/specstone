@@ -25,8 +25,8 @@ class SetCommand extends WriteCommand {
         'batch',
         help:
             'A file of `get` text output, edited; writes every changed '
-            'block, or none. Takes no doc address and no --base; reads no '
-            'stdin.',
+            'block, or none. Takes no doc address, --base, --field, or '
+            '--title; reads no stdin.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
@@ -80,21 +80,22 @@ class SetCommand extends WriteCommand {
 
   /// Writes the blocks of the batch file at [path] in one write session.
   ///
-  /// The file is read before the session opens. Stdin is never read: a harness
-  /// may leave it an open pipe nobody closes.
+  /// The file is read and split before the session opens, so a file that holds
+  /// no block refuses before any project is needed. Stdin is never read: a
+  /// harness may leave it an open pipe nobody closes.
   Future<int> _runBatch(String path, {required bool asJson}) async {
-    final String text;
+    final ParsedBatch parsed;
     try {
       _requireBatchAlone();
-      text = readBatchFile(
+      parsed = parseBatchFile(
         path,
-        workingDirectory: specstoneRunner.workingDirectory,
+        readBatchFile(path, workingDirectory: specstoneRunner.workingDirectory),
       );
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson);
     }
     return runWrite(
-      (session) => answerSetBatch(session, batchPath: path, text: text),
+      (session) => answerSetBatch(session, parsed),
       asJson: asJson,
     );
   }

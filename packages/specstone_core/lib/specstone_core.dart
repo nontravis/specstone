@@ -11,7 +11,8 @@ export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
     show SeenDraft, approveDrafts, approveDryRun, approveNamed;
 export 'src/document_writing/batch_fault.dart' show BatchEntry, BatchFault;
-export 'src/document_writing/batch_file.dart' show readBatchFile;
+export 'src/document_writing/batch_file.dart'
+    show ParsedBatch, parseBatchFile, readBatchFile;
 export 'src/document_writing/delete_doc.dart'
     show answerDelete, answerDeleteDryRun;
 export 'src/document_writing/move_doc.dart'

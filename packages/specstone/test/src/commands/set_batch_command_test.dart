@@ -447,6 +447,17 @@ void main() {
       expect(result.code, 64);
       expect(result.err, '$file: $file holds no block\n');
     });
+
+    test('a file with no block refuses before the project opens, so outside a project it exits 64 and not 78', () async {
+      final folder = await Directory.systemTemp.createTemp('specstone_bare_');
+      addTearDown(() => folder.delete(recursive: true));
+      final file = await batchFile('just text\n');
+
+      final result = await specstone(folder, ['set', '--batch', file]);
+
+      expect(result.code, 64);
+      expect(result.err, '$file: $file holds no block\n');
+    });
   });
 
   group('$_wb E18:', () {
