@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -399,13 +400,37 @@ void main() {
 
     test('E12: a fenced code block is no item', () async {
       final project = await writeCheckProject(
-        extra: fr(
-          'Test: a wrong password is refused.\n',
-          '```\n${'x' * 2000}\n```\n',
-        ),
+        extra: {
+          itemLimitTemplate: 'sections:\n  - id: verification\n    lint:\n      max_chars: 1000\n',
+          ...fr(
+            'Test: a wrong password is refused.\n',
+            '```\n${'x' * 2000}\n```\n',
+          ),
+        },
       );
 
       expect(itemFindings(project), isEmpty);
+      final over = checkOf(project).findings
+          .singleWhere((f) => f.kind == FindingKind.charsOverLimit);
+      expect(over.toJson(), containsPair('section', 'verification'));
+    });
+
+    test('E10: a repeated header the formatter refuses keeps each section its own items on disk', () async {
+      final project = await writeCheckProject(
+        extra: fr(
+          '## Rationale\n',
+          '## Edge cases\n\n1. E02 — A short case → refused.\n'
+              '${padded('2. E03 — A long case', 640)}\n\n## Rationale\n',
+        ),
+      );
+      final disk = File('${project.path}/docs/$loginFr').readAsStringSync();
+      final finding = itemFindings(project).single;
+
+      expect(layOutDoc(disk, fixtureDocTypeOf(loginFr)), disk);
+      expect(finding.line, lineOf(project, loginFr, '2. E03'));
+      expect(finding.toJson(), containsPair('section', 'edge_cases'));
+      expect(finding.toJson(), containsPair('id', 'E03'));
+      expect(finding.line, greaterThan(lineOf(project, loginFr, '1. E01')));
     });
 
     test(
