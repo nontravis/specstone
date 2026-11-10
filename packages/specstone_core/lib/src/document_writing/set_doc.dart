@@ -166,6 +166,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       session.index.typeOf(doc) ??
       (throw StateError('${doc.docPath} is typed but its type is gone'));
   final match = MatchedDocType(docType);
+  checkPartText(doc: doc, docType: docType, target: request.target, text: text);
 
   return session.locked(() {
     final read = _readLocked(session, doc, match);
@@ -210,8 +211,9 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// [sections] its sections, and [base] the hash of the part the caller read.
 /// `lfText` of the result is the spliced text and `marksDraft` tells whether
 /// the write marks the doc a draft: false only for an `output_ref` field.
-/// Touches no disk and takes no lock. Throws what [answerSet] throws for the
-/// part, [WriteFault] `base_mismatch` with the part's current text included.
+/// Touches no disk and takes no lock. Runs [checkPartText] first, then throws
+/// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
+/// part's current text included.
 ({String lfText, bool marksDraft}) splicePart({
   required IndexedDoc doc,
   required MergedDocType docType,
@@ -221,6 +223,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   required String base,
   required String text,
 }) {
+  checkPartText(doc: doc, docType: docType, target: target, text: text);
   final stdin = toLf(text);
   return switch (target) {
     SectionTarget(:final key) => _spliceSection(
@@ -243,6 +246,43 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
     TitleTarget() => _spliceTitle(doc, lfText, base, stdin),
     LeadTarget() => _spliceLead(doc, docType, lfText, base, stdin),
   };
+}
+
+/// Checks [text] against the part [target] names in [doc], as far as the
+/// text and the doc type decide, throwing the fault `set` refuses it with.
+///
+/// Needs no doc text, so a caller runs it before it takes the write lock;
+/// [splicePart] runs it too. What the doc's text decides stays in
+/// [splicePart]: a first line that may be the section's own header, a held
+/// key, a stale base, and the section lookup. Throws [IndexFault]
+/// `argument_invalid` for an open fence, a `## ` line after a section body's
+/// first line, a lead that holds a `# ` or `## ` line, and a title that is not
+/// one line, and the faults of [checkFieldWrite] for a field.
+void checkPartText({
+  required IndexedDoc doc,
+  required MergedDocType docType,
+  required SetTarget target,
+  required String text,
+}) {
+  final lf = toLf(text);
+  switch (target) {
+    case SectionTarget():
+      _checkSectionText(lf);
+    case LeadTarget():
+      _checkLeadText(lf);
+    case TitleTarget():
+      _titleOf(lf);
+    case FieldTarget(:final fieldId):
+      // The held key decides only an emptied key the type does not declare;
+      // `splicePart` checks it against the doc's text.
+      checkFieldWrite(
+        doc: doc,
+        docType: docType,
+        fieldId: fieldId,
+        value: _fieldValueOf(lf),
+        held: true,
+      );
+  }
 }
 
 /// Checks that [doc] may take [value] as the YAML of [fieldId], throwing the
@@ -347,15 +387,14 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
   required String base,
   required String stdin,
 }) {
-  final stripped = withoutTrailingBlankLines(stdin);
-  final empty = stripped.trim().isEmpty;
+  final value = _fieldValueOf(stdin);
   final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
   final held = blocks.where((b) => b.name == fieldId).firstOrNull;
   checkFieldWrite(
     doc: doc,
     docType: docType,
     fieldId: fieldId,
-    value: empty ? null : stripped,
+    value: value,
     held: held != null,
   );
   final currentBase = held == null ? emptyBaseHash : baseHashOf(held.text);
@@ -369,9 +408,11 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
       currentBase: currentBase,
     );
   }
-  final spliced = empty
-      ? withKeyBlock(lfText, fieldId, null)
-      : withKeyBlock(lfText, fieldId, _blockOf(fieldId, stripped));
+  final spliced = withKeyBlock(
+    lfText,
+    fieldId,
+    value == null ? null : _blockOf(fieldId, value),
+  );
   final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
   return (lfText: spliced, marksDraft: field?.type != FieldType.outputRef);
 }
@@ -455,16 +496,6 @@ String _blockOf(String fieldId, String stdin) {
   String base,
   String stdin,
 ) {
-  final dropped = stdin.endsWith('\n')
-      ? stdin.substring(0, stdin.length - 1)
-      : stdin;
-  final count = dropped.trim().isEmpty ? 0 : dropped.split('\n').length;
-  if (count != 1) {
-    throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      'a title is one line; stdin held $count lines',
-    );
-  }
   final currentTitle = Doc.parse(lfText).title ?? '';
   final currentBase = titleBaseOf(currentTitle);
   if (currentBase != base) {
@@ -477,7 +508,28 @@ String _blockOf(String fieldId, String stdin) {
       currentBase: currentBase,
     );
   }
-  return (lfText: withTitle(lfText, dropped.trim()), marksDraft: true);
+  return (lfText: withTitle(lfText, _titleOf(stdin)), marksDraft: true);
+}
+
+/// Returns the one-line title [lf] holds; throws [IndexFault]
+/// `argument_invalid` for any other count of lines.
+String _titleOf(String lf) {
+  final dropped = lf.endsWith('\n') ? lf.substring(0, lf.length - 1) : lf;
+  final count = dropped.trim().isEmpty ? 0 : dropped.split('\n').length;
+  if (count != 1) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'a title is one line; stdin held $count lines',
+    );
+  }
+  return dropped.trim();
+}
+
+/// Returns the YAML [lf] gives a field, its trailing blank lines dropped; null
+/// when nothing is left, which removes the key.
+String? _fieldValueOf(String lf) {
+  final stripped = withoutTrailingBlankLines(lf);
+  return stripped.trim().isEmpty ? null : stripped;
 }
 
 /// Reads [lf] as [Doc.parse] would, from outside any fence.
@@ -507,8 +559,24 @@ String _blockOf(String fieldId, String stdin) {
   String base,
   String stdin,
 ) {
+  final currentDoc = Doc.parse(lfText);
+  final currentBase = leadBaseOf(currentDoc, docType);
+  if (currentBase != base) {
+    throw _staleBase(
+      doc,
+      target: 'lead',
+      key: leadKey,
+      sinceBase: base,
+      currentText: currentDoc.lead,
+      currentBase: currentBase,
+    );
+  }
+  return (lfText: withLead(lfText, _pipedBodyOf(stdin)), marksDraft: true);
+}
+
+void _checkLeadText(String lf) {
   final scan = _scanStdin(
-    stdin,
+    lf,
     (line) => isTitleLine(line) || isSectionHeaderLine(line),
   );
   if (scan.refused case final refused?) {
@@ -523,19 +591,6 @@ String _blockOf(String fieldId, String stdin) {
       'the lead leaves the fence "$fence" open; close it',
     );
   }
-  final currentDoc = Doc.parse(lfText);
-  final currentBase = leadBaseOf(currentDoc, docType);
-  if (currentBase != base) {
-    throw _staleBase(
-      doc,
-      target: 'lead',
-      key: leadKey,
-      sinceBase: base,
-      currentText: currentDoc.lead,
-      currentBase: currentBase,
-    );
-  }
-  return (lfText: withLead(lfText, _pipedBodyOf(stdin)), marksDraft: true);
 }
 
 /// Returns [lf] less its first line after leading blank lines when that line
@@ -561,12 +616,6 @@ String _blockOf(String fieldId, String stdin) {
   required String base,
   required String stdin,
 }) {
-  if (blockScan(stdin.split('\n')).openFence case final fence?) {
-    throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      'the body leaves the fence "$fence" open; close it',
-    );
-  }
   final held = sections.indexWhere((section) => section.key == key);
   final template = docType.sections.where((s) => s.id == key).firstOrNull;
   if (held < 0 && template == null) {
@@ -582,12 +631,9 @@ String _blockOf(String fieldId, String stdin) {
   );
   final body = _pipedBodyOf(unwrapped.text);
   final removesSection = body.isEmpty && !unwrapped.dropped;
-  if (_scanStdin(body, isSectionHeaderLine).refused case final header?) {
-    throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      'the body holds the header line "$header"; send the body only',
-    );
-  }
+  // The first line may be the section's own header, which only the doc's
+  // text tells; `checkPartText` judged the lines after it.
+  _refuseHeaderLine(body);
   final currentBase = held < 0
       ? emptyBaseHash
       : sectionBaseOf(sections[held].body, docType);
@@ -619,6 +665,32 @@ String _blockOf(String fieldId, String stdin) {
     spliced = _withTemplateSection(lfText, docType, key, sections, body);
   }
   return (lfText: spliced, marksDraft: true);
+}
+
+/// Checks the lines of [lf] that no doc text changes: the fence is closed, and
+/// no `## ` line follows the first line, which may be the section's own header.
+void _checkSectionText(String lf) {
+  if (blockScan(lf.split('\n')).openFence case final fence?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the body leaves the fence "$fence" open; close it',
+    );
+  }
+  final lines = lf.split('\n');
+  final first = lines.indexWhere((line) => line.trim().isNotEmpty);
+  final mayBeOwnHeader = first >= 0 && isSectionHeaderLine(lines[first]);
+  _refuseHeaderLine(mayBeOwnHeader ? (lines..removeAt(first)).join('\n') : lf);
+}
+
+/// Throws [IndexFault] `argument_invalid` when [body] holds a `## ` line
+/// outside fenced code.
+void _refuseHeaderLine(String body) {
+  if (_scanStdin(body, isSectionHeaderLine).refused case final header?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'the body holds the header line "$header"; send the body only',
+    );
+  }
 }
 
 /// Returns piped [lf] as a section body, its leading blank lines kept; empty

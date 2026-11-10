@@ -18,6 +18,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, spots;
@@ -79,6 +80,18 @@ void checkFieldIn(
     held: held,
   );
 });
+
+/// Runs [checkPartText] for [request] and [text] on the doc it names.
+void checkPartIn(Directory root, SetRequest request, String text) =>
+    writeIn(root, (s) {
+      final doc = s.target(request.address);
+      checkPartText(
+        doc: doc,
+        docType: s.index.typeOf(doc)!,
+        target: request.target,
+        text: text,
+      );
+    });
 
 Matcher throwsIndexFault(IndexFaultCode code) =>
     throwsA(isA<IndexFault>().having((f) => f.code, 'code', code));
@@ -2532,43 +2545,58 @@ void main() {
     String titleBase(Directory root) =>
         (getDoc(root, address)['bases']! as Map)['title']! as String;
 
-    // Each row: the request on a fresh project, and its stdin.
-    final cases = <String, (SetRequest Function(Directory), String, bool)>{
-      'a section': (
-        (root) => req(
-          '$address#acceptance_criteria',
-          sectionBase(root, '$address#acceptance_criteria'),
-        ),
-        '\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email and its password\n',
-        true,
-      ),
-      'a section the doc lacks': (
-        (root) => req('$address#rules', emptyBaseHash),
-        '- BR-01 One account per email.\n',
-        true,
-      ),
-      'the lead': (
-        (root) => req('$address#_lead', sectionBase(root, '$address#_lead')),
-        'New lead.\n',
-        true,
-      ),
-      'a field': (
-        (root) => fieldReq(address, 'goals', emptyBaseHash),
-        '- PG-01\n',
-        true,
-      ),
-      'the title': (
-        (root) => SetRequest.parse(address, title: true, base: titleBase(root)),
-        'Sign in fast\n',
-        true,
-      ),
-    };
+    // Each row: the request on a fresh project, its stdin, whether the write
+    // marks a draft, and the file text it writes where that is plain to state.
+    final cases =
+        <String, (SetRequest Function(Directory), String, bool, String?)>{
+          'a section': (
+            (root) => req(
+              '$address#acceptance_criteria',
+              sectionBase(root, '$address#acceptance_criteria'),
+            ),
+            '\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email and its password\n',
+            true,
+            withLead.replaceFirst(
+              'a registered email\n',
+              'a registered email and its password\n',
+            ),
+          ),
+          'a section the doc lacks': (
+            (root) => req('$address#rules', emptyBaseHash),
+            '- BR-01 One account per email.\n',
+            true,
+            withLead.replaceFirst(
+              '## Acceptance Criteria\n',
+              '## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
+            ),
+          ),
+          'the lead': (
+            (root) =>
+                req('$address#_lead', sectionBase(root, '$address#_lead')),
+            'New lead.\n',
+            true,
+            withLead.replaceFirst('Old lead.\n', 'New lead.\n'),
+          ),
+          'a field': (
+            (root) => fieldReq(address, 'goals', emptyBaseHash),
+            '- PG-01\n',
+            true,
+            null,
+          ),
+          'the title': (
+            (root) =>
+                SetRequest.parse(address, title: true, base: titleBase(root)),
+            'Sign in fast\n',
+            true,
+            withLead.replaceFirst('# Sign in with email', '# Sign in fast'),
+          ),
+        };
 
     for (final MapEntry(key: name, value: row) in cases.entries) {
       test(
         '$name: returns the text answerSet writes for the same input',
         () async {
-          final (requestOf, text, marksDraft) = row;
+          final (requestOf, text, marksDraft, expected) = row;
           final spliced = await writeWriteProject(
             extra: {'docs/$story1': withLead},
           );
@@ -2594,6 +2622,7 @@ void main() {
             }),
           );
           expect(readDoc(spliced, story1), readDoc(written, story1));
+          if (expected != null) expect(readDoc(written, story1), expected);
         },
       );
     }
@@ -2804,6 +2833,217 @@ void main() {
       );
       checkFieldIn(root, story, 'size', null, held: true);
       checkFieldIn(root, 'feature:login', 'status', null, held: true);
+    });
+  });
+  group('document_writing/edit_one_section_or_field: a part is refused on its own text before the write lock', () {
+    const address = 'user_story:login/email_login';
+    const fr = 'fr:login/reset_password/expire_reset_link';
+
+    // Each row: the request, its stdin, and the fault it refuses with.
+    final refusals = <String, (SetRequest, String, Matcher)>{
+      'an open fence in a section body': (
+        req('$address#acceptance_criteria', 'x'),
+        '```\ncode\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a ## line in a section body': (
+        req('$address#acceptance_criteria', 'x'),
+        'a\n## Sub\nb\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a ## line in the lead': (
+        req('$address#_lead', 'x'),
+        '## Sub\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a # line in the lead': (
+        req('$address#_lead', 'x'),
+        '# Title\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'an open fence in the lead': (
+        req('$address#_lead', 'x'),
+        '```\ncode\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a title of two lines': (
+        SetRequest.parse(address, title: true, base: 'x'),
+        'one\ntwo\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a title of no line': (
+        SetRequest.parse(address, title: true, base: 'x'),
+        '\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'the draft field': (
+        fieldReq(address, 'draft', 'x'),
+        'true\n',
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      ),
+      'a value for a feature status': (
+        fieldReq('feature:login', 'status', 'x'),
+        'implemented\n',
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      ),
+      'a value its field does not take': (
+        fieldReq(address, 'vision', 'x'),
+        'PV-01\n',
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      ),
+      'a required field removed': (
+        fieldReq(fr, 'traced_from', 'x'),
+        '\n',
+        throwsWriteFault(WriteFaultCode.requiredTarget),
+      ),
+      'an undeclared field given a value': (
+        fieldReq(address, 'size', 'x'),
+        '1\n',
+        throwsWriteFault(WriteFaultCode.fieldUnknown),
+      ),
+    };
+
+    test(
+      'answerSet refuses each at once while another call holds the write lock',
+      () async {
+        final root = await writeWriteProject();
+        writeIn(root, (_) {}); // creates the index
+        final other = sqlite3.open('${root.path}/.specstone/index.sqlite')
+          ..execute('BEGIN IMMEDIATE');
+        addTearDown(other.close);
+        for (final MapEntry(key: name, value: (request, text, matcher))
+            in refusals.entries) {
+          expect(
+            () => writeIn(
+              root,
+              (s) => answerSet(s, request, text),
+              busyTimeout: const Duration(milliseconds: 100),
+            ),
+            matcher,
+            reason: name,
+          );
+        }
+      },
+    );
+
+    test('checkPartText refuses each with no lock and no doc text', () async {
+      final root = await writeWriteProject();
+      for (final MapEntry(key: name, value: (request, text, matcher))
+          in refusals.entries) {
+        expect(() => checkPartIn(root, request, text), matcher, reason: name);
+      }
+    });
+
+    test('checkPartText passes a text it cannot judge without the doc: a first line that may be the own header, and an unheld key emptied', () async {
+      final root = await writeWriteProject();
+      checkPartIn(
+        root,
+        req('$address#use_case', 'x'),
+        '## Use Case\nSign in.\n',
+      );
+      checkPartIn(
+        root,
+        req('$address#use_case', 'x'),
+        '```\n## Sub\n```\nbody\n',
+      );
+      checkPartIn(root, fieldReq(address, 'size', 'x'), '\n');
+      checkPartIn(root, req('$address#_lead', 'x'), 'A lead.\n');
+    });
+
+    test('checkPartText refuses a ## line after the first line, which may be the own header', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkPartIn(
+          root,
+          req('$address#use_case', 'x'),
+          '## Use Case\nSign in.\n## Sub\n',
+        ),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+    });
+
+    test(
+      'a first line that is a header other than the own refuses in splicePart',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => spliceIn(
+            root,
+            req('$address#use_case', sectionBase(root, '$address#use_case')),
+            '## Other\nSign in.\n',
+          ),
+          throwsIndexFault(IndexFaultCode.argumentInvalid),
+        );
+      },
+    );
+
+    test(
+      'a doc that is not UTF-8 with a title of two lines is argument_invalid',
+      () async {
+        final root = await writeWriteProject();
+        final file = docFile(root, signupFeature);
+        file.writeAsBytesSync([...file.readAsBytesSync(), 0xFF, 0x0A]);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              SetRequest.parse('feature:signup', title: true, base: 'x'),
+              'one\ntwo\n',
+            ),
+          ),
+          throwsIndexFault(IndexFaultCode.argumentInvalid),
+        );
+      },
+    );
+
+    test(
+      'a doc that is not there is doc_not_found whatever the text',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              req('user_story:login/no_such#_lead', 'x'),
+              '```\nopen\n',
+            ),
+          ),
+          throwsIndexFault(IndexFaultCode.docNotFound),
+        );
+      },
+    );
+
+    test('removing a required field on a stale base is required_target, and a required section keeps base_mismatch', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => spliceIn(root, fieldReq(fr, 'traced_from', 'stale'), '\n'),
+        throwsWriteFault(WriteFaultCode.requiredTarget),
+      );
+      expect(
+        () => spliceIn(root, req('$address#use_case', 'stale'), ''),
+        throwsWriteFault(WriteFaultCode.baseMismatch),
+      );
+    });
+
+    test('section_not_found names <type>:<name> for an address by DocPath and by bare name', () async {
+      final root = await writeWriteProject();
+      for (final written in [story1, 'login/email_login', address]) {
+        expect(
+          () => spliceIn(root, req('$written#notes', emptyBaseHash), 'x\n'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  startsWith('$address holds no section with the key notes'),
+                ),
+          ),
+          reason: written,
+        );
+      }
     });
   });
 }
