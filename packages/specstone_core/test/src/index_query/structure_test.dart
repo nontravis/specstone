@@ -1,6 +1,9 @@
 // The expected lines are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -347,6 +350,76 @@ void main() {
         );
         final first = ((sections.last as Map)['items']! as List).first as Map;
         expect(disk[(first['line']! as int) - 1], startsWith('1. E01'));
+      },
+    );
+
+    test('INV-14: a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
+      const before =
+          '# Validate credentials\n\n## Statement\nThe system shall check ';
+      const after =
+          ' the email.\n\n## Edge cases\n1. E01 — A wrong password → refused\n';
+      final project = await writeLoginProject();
+      File(
+        '${project.path}/$_frKey',
+      ).writeAsBytesSync([...utf8.encode(before), 0xFF, ...utf8.encode(after)]);
+      final session = openSession(project);
+      addTearDown(session.close);
+      final index = session.index;
+      final doc = index.resolve(_frTarget).single;
+      final stored = index.contentOf(doc).lineFacts.sectionCounts;
+      final sections =
+          (answerStructure(index, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+      final statement = (sections.first as Map)['items']! as List;
+      final disk = index.contentOf(doc).text.split('\n');
+
+      expect(doc.formatted, isNull);
+      expect(
+        [for (final s in sections) (s as Map)['chars']],
+        [for (final c in stored) c.chars],
+      );
+      expect(
+        disk[((statement.single as Map)['line']! as int) - 1],
+        startsWith('The system shall'),
+      );
+      expect((statement.single as Map)['line'], 4);
+    });
+
+    test(
+      'E09: an item with an emoji counts one character per code point',
+      () async {
+        const item = '2. E02 — 😀 a wrong email → refused';
+        final index = await indexWith({
+          _frKey: _e09Fr.replaceFirst(RegExp(r'2\. E02.*\n'), '$item\n'),
+        });
+        final sections =
+            (answerStructure(index, target: _frTarget).json['docs']! as List)
+                    .cast<Map<String, Object?>>()
+                    .single['sections']!
+                as List;
+        final items = (sections.last as Map)['items']! as List;
+
+        expect((items.last as Map)['chars'], item.runes.length);
+        expect(item.runes.length, lessThan(item.length));
+      },
+    );
+
+    test(
+      'E09: a scenario heading check does not read prints as a line',
+      () async {
+        final index = await indexWith({
+          _storyKey:
+              '---\nstatus: planned\n---\n\n# Agent signs in with email\n\n## Acceptance Criteria\n'
+              '### **Scenario 1** — [happy] Sign in\n- **Given** a user\n',
+        });
+        final lines = answerStructure(
+          index,
+          target: 'user_story:login/email_login',
+        ).text.split('\n');
+
+        expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
       },
     );
   });

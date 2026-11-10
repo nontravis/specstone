@@ -5,11 +5,11 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
-import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _indent = '  ';
+const _headingMarker = '### ';
 
 typedef _ItemSize = ({String? id, int line, int chars});
 typedef _SectionSize = ({String key, int chars, List<_ItemSize> items});
@@ -138,36 +138,39 @@ Map<String, Object> _treeJson(
   ],
 };
 
-/// Returns the sections of [doc] as `format` lays them out, each with its
-/// items; a doc the formatter refuses is read as on disk.
+/// Returns the sections of [doc] as its counts cover them, each with its
+/// items: the text `format` lays out, or the text as decoded for a doc with
+/// no layout.
 List<_SectionSize> _sectionSizesOf(DocIndex index, IndexedDoc doc) {
   final type = index.typeOf(doc);
-  final laid = layOutDoc(toLf(index.contentOf(doc).text), type);
-  final content = docStructureOf(laid, type);
+  final counted = doc.countedTextOf(toLf(index.contentOf(doc).text), type);
+  final content = docStructureOf(counted, type);
   final templates = heldTemplatesOf(content.sections, type);
   return [
     for (final (i, section) in content.sections.indexed)
       (
         key: section.key,
         chars: sectionCountsOf(section).chars,
-        items: [
-          for (final item in itemsOf(
-            sectionBodyLines(content.sections, content.lineFacts, i),
-          ))
-            (
-              id: _itemIdOf(item, templates[i]),
-              line: item.line,
-              chars: item.chars,
-            ),
-        ],
+        items: _itemSizesOf(content, i, templates[i]),
       ),
   ];
 }
 
+List<_ItemSize> _itemSizesOf(
+  DocContent content,
+  int sectionIndex,
+  MergedSection? template,
+) => [
+  for (final item in itemsOf(
+    sectionBodyLines(content.sections, content.lineFacts, sectionIndex),
+  ))
+    (id: _itemIdOf(item, template), line: item.line, chars: item.chars),
+];
+
 /// Returns the key `check` holds [item] by, or null when it reads none.
 String? _itemIdOf(DocItem item, MergedSection? template) {
   if (item.heading && template?.id == acceptanceSectionId) {
-    final scenario = readItemId(item.text, scenarioIdPrefix);
+    final scenario = readScenarioHeading('$_headingMarker${item.text}');
     if (scenario != null) return itemKeyOf(scenario, isScenario: true);
   }
   final prefix = template?.prefixId;

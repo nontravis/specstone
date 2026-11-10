@@ -121,7 +121,9 @@ final class IndexedDoc {
 
   /// Whether the LF text equals the text the format command lays out.
   ///
-  /// Null for an untyped doc and for a doc the format command refuses.
+  /// Null for an untyped doc, a doc whose bytes are not UTF-8, and a doc the
+  /// format command refuses: the docs whose counts cover their text as
+  /// decoded (see [countedTextOf]).
   final bool? formatted;
 
   /// The [comparedApprovalHash] of the doc; null for an untyped doc or one
@@ -133,6 +135,12 @@ final class IndexedDoc {
 
   /// What went wrong while reading the doc, one sentence each.
   final List<String> warnings;
+
+  /// Returns the text the counts of this doc cover: [lfText] laid out as
+  /// `format` lays it out for [type], or [lfText] as decoded for a doc with no
+  /// layout ([formatted] is null).
+  String countedTextOf(String lfText, MergedDocType? type) =>
+      formatted == null ? lfText : layOutDoc(lfText, type);
 
   /// Whether exactly one doc type matches [docPath].
   bool get isTyped => docTypeId != null;

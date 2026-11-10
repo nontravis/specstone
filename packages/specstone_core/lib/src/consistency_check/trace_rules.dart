@@ -17,7 +17,6 @@ const _relax = 'relax';
 const _add = 'add';
 const _projectType = 'project';
 const _rolesSection = 'roles';
-const _acceptanceSection = 'acceptance_criteria';
 const _personaType = 'persona';
 const _storyType = 'user_story';
 const _roleKey = 'role';
@@ -60,7 +59,7 @@ Iterable<Finding> _unresolvedScenarioTraces(
   final storyType = story?.docTypeId;
   if (story == null ||
       storyType == null ||
-      !context.typeHoldsSection(storyType, _acceptanceSection)) {
+      !context.typeHoldsSection(storyType, acceptanceSectionId)) {
     return;
   }
   final line = context.linesOf(doc).keyLine(_tracedFromKey);
