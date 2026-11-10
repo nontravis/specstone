@@ -660,16 +660,27 @@ void main() {
     }, skip: skipGit);
 
     test('f06/us01/fr02/e08: a committed doc that makes the re-plan refuse '
-        'legacy_collision, made while the prompt waits, is '
-        'working_tree_dirty naming it, and nothing is written', () async {
+        'legacy_collision, made while the prompt waits, refuses '
+        'legacy_collision as E06 says, and nothing is written', () async {
       final root = await gitFixture(acmeLegacy);
       const collided = 'prds/PROJECT.md';
+      late final String head;
 
-      expectRefusedNaming(root, collided, () {
-        File('${root.path}/docs/$collided').writeAsStringSync('# Project\n');
-        commitAll(root, 'meanwhile');
-      });
-
+      expect(
+        () => answerAfter(root, () {
+          File('${root.path}/docs/$collided').writeAsStringSync('# Project\n');
+          commitAll(root, 'meanwhile');
+          head = headOf(root);
+        }),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.legacyCollision)
+              .having((f) => f.exitStatus, 'exitStatus', 65),
+        ),
+      );
+      expect(headOf(root), head);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      expect(MoveJournal.pending(root), isFalse);
       expect(_bytesUnder(root), {
         ...acmeLegacy,
         'docs/$collided': '# Project\n',

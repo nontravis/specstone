@@ -229,12 +229,11 @@ int _plannedRun(
 /// Plans again and returns the new plan when it hashes as [shown] does.
 ///
 /// Throws [MigrateFault] `working_tree_dirty` otherwise, naming the first
-/// input that differs, or the plan alone when only its text does. The first
-/// plan succeeded, so any refusal from the new one, a [FileSystemException],
-/// [TemplateFault], [RenderFault], or [MigrateFault], means an input changed
-/// while the plan was shown; it refuses the same way, naming the path or file
-/// the failure gives. A git [MigrateFault] is the one exception: it says git
-/// failed, not that an input changed, so it passes unchanged.
+/// input that differs, or the plan alone when only its text does. A new plan
+/// that cannot read an input, a [FileSystemException], [TemplateFault], or
+/// [RenderFault], refuses the same way, naming the path or file the failure
+/// gives. A [MigrateFault] from the planner passes unchanged, with its own code
+/// as the first plan would: "A new plan that E06 refuses refuses as E06 says".
 RunPlan _replanMatching(
   MigrateRequest request,
   Directory root,
@@ -251,19 +250,11 @@ RunPlan _replanMatching(
     throw _inputChanged(fault.file);
   } on RenderFault catch (fault) {
     throw _inputChanged(fault.file);
-  } on MigrateFault catch (fault) {
-    if (_isGitFault(fault)) rethrow;
-    throw _inputChanged(fault.file);
   }
   final freshHash = planHashOf(fresh.toText(), fresh.inputs);
   if (freshHash == planHashOf(shown.toText(), shown.inputs)) return fresh;
   throw _inputChanged(shown.inputs.firstDifferenceFrom(fresh.inputs));
 }
-
-/// Whether [fault] reports git, not the plan's inputs, as the cause.
-bool _isGitFault(MigrateFault fault) =>
-    fault.code == MigrateFaultCode.gitWorkTreeRequired ||
-    fault.code == MigrateFaultCode.gitFailed;
 
 /// Returns the refusal for a plan whose [input] changed while it was shown,
 /// or the plan itself when [input] is null or empty.
