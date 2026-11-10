@@ -240,5 +240,28 @@ void main() {
         (line: 20, chars: 19, text: 'a', heading: false),
       ]);
     });
+
+    test('a line of 200,000 leading > marks reads in linear time, a fenced '
+        'one included', () {
+      final marks = '>' * 200000;
+      final clock = Stopwatch()..start();
+
+      final quoted = _items('${marks}x');
+      final fenced = _items('```\n$marks\n```');
+
+      expect(quoted, [(line: 20, chars: 200001, text: 'x', heading: false)]);
+      expect(fenced, isEmpty);
+      // Copying the rest of the line per mark takes seconds at this size.
+      expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+    });
+
+    test('a > mark takes up to 3 spaces before it and one after it', () {
+      expect(_items('   > > a\n\n    > b\n\n>c\n\n>  d'), [
+        (line: 20, chars: 8, text: 'a', heading: false),
+        (line: 22, chars: 7, text: '> b', heading: false),
+        (line: 24, chars: 2, text: 'c', heading: false),
+        (line: 26, chars: 4, text: 'd', heading: false),
+      ]);
+    });
   });
 }

@@ -5,7 +5,9 @@ import 'package:specstone_core/src/doc_model/text_scan.dart';
 
 const _lineFeedChars = 1;
 
-final _quotePrefix = RegExp('^ {0,3}> ?');
+const _quoteMark = 0x3E;
+const _space = 0x20;
+const _maxMarkIndent = 3;
 final _listMarker = RegExp(r'^\s*(?:[-*+]|\d+[.)])(?:\s+|$)');
 
 /// One item of a section.
@@ -55,22 +57,36 @@ enum _Kind { blank, fence, rule, heading, list, text }
 final class _Line {
   const new(this.kind, this.quote, this.inner);
 
+  /// Reads [line]; a fenced line is code, so it holds no `>` mark.
   factory of(BodyLine line) {
-    var inner = line.text;
-    var quote = 0;
-    for (
-      var mark = _quotePrefix.firstMatch(inner);
-      mark != null;
-      mark = _quotePrefix.firstMatch(inner)
-    ) {
-      inner = inner.substring(mark.end);
-      quote++;
-    }
-    return _Line(_kindOf(line, inner), quote, inner);
+    if (line.fenced) return _Line(_Kind.fence, 0, line.text);
+    final (:quote, :end) = _quoteMarksOf(line.text);
+    final inner = end == 0 ? line.text : line.text.substring(end);
+    return _Line(_kindOf(inner), quote, inner);
   }
 
-  static _Kind _kindOf(BodyLine line, String inner) {
-    if (line.fenced) return _Kind.fence;
+  /// Returns the count of `>` marks at the start of [text], each after up to
+  /// 3 spaces and before one optional space, and the index after the last.
+  static ({int quote, int end}) _quoteMarksOf(String text) {
+    var quote = 0;
+    var end = 0;
+    while (true) {
+      var at = end;
+      while (at < text.length &&
+          at - end < _maxMarkIndent &&
+          text.codeUnitAt(at) == _space) {
+        at++;
+      }
+      if (at >= text.length || text.codeUnitAt(at) != _quoteMark) break;
+      at++;
+      if (at < text.length && text.codeUnitAt(at) == _space) at++;
+      end = at;
+      quote++;
+    }
+    return (quote: quote, end: end);
+  }
+
+  static _Kind _kindOf(String inner) {
     if (inner.trim().isEmpty) return _Kind.blank;
     if (isThematicBreak(inner)) return _Kind.rule;
     if (inner.startsWith(itemHeadingMarker)) return _Kind.heading;
