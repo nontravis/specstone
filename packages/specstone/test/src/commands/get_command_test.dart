@@ -17,18 +17,106 @@ void main() {
       ),
     );
   });
-  test('f01/us04/fr01/e09: two names are a usage error whose usage line takes a name or a path, exit 64', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(await runner.run(['get', 'a', 'b']), 64);
-    expect(out.toString(), isEmpty);
-    expect(
-      err.toString(),
-      contains(
-        'Expected one name, got 2.\n\n'
-        'Usage: specstone get <name | path>[#<section key>] '
-        '[--paths | --code] [--json]\n',
-      ),
+  group('index_query/read_doc_section/print_doc_or_section, several names', () {
+    const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const featurePath = 'prds/features/f01_login/FEATURE.md';
+
+    test('S10: three names print each doc or section once, in the order named, '
+        'each with its base, exit 0', () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run([
+          'get',
+          'user_story:login/email_login',
+          'prds/d01_context.md#project_name',
+          'feature:login',
+          'user_story:login/email_login#use_case',
+        ]),
+        0,
+      );
+      final names = [
+        for (final line in out.toString().split('\n'))
+          if (line.startsWith('==> ')) line.split(' · ')[1],
+      ];
+      expect(names, [
+        storyPath,
+        'prds/d01_context.md#project_name',
+        featurePath,
+      ]);
+      expect(
+        RegExp(
+          r' · base [0-9a-f]{12} <==$',
+          multiLine: true,
+        ).allMatches(out.toString()),
+        hasLength(3),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('S10: --json holds the docs in argument order', () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run([
+          'get',
+          'prds/d01_context.md#project_name',
+          'login',
+          '--json',
+        ]),
+        0,
+      );
+      final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
+      expect(
+        [for (final doc in docs) (doc as Map)['path']],
+        ['prds/d01_context.md', featurePath, 'specs/f01_login/ARCHITECTURE.md'],
+      );
+    });
+
+    test(
+      'S11: one name that finds nothing refuses the whole call, stdout empty, '
+      'exit 64',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeReadProject());
+        expect(await runner.run(['get', 'login', 'logn', 'nope']), 64);
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          'no doc carries the name logn; no doc carries the name nope\n',
+        );
+        expect(await runner.run(['get', 'login', 'login#acceptance']), 64);
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          endsWith(
+            'no doc named login holds a section with the key acceptance\n',
+          ),
+        );
+      },
     );
+
+    test('E17: faults of two codes print one stderr line each, exit status '
+        "the first fault's", () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['get', 'logn', 'login#acceptance', 'nope']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'no doc carries the name logn; no doc carries the name nope\n'
+        'no doc named login holds a section with the key acceptance\n',
+      );
+    });
+
+    test("E17: --json prints the first fault's code and message", () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run(['get', 'login#acceptance', 'logn', '--json']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect((jsonDecode(err.toString()) as Map)['error'], {
+        'code': 'section_not_found',
+        'message': 'no doc named login holds a section with the key acceptance',
+      });
+    });
   });
   test('f01/us04/fr02/e06: no name is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
@@ -178,6 +266,45 @@ void main() {
       );
       expect(await runner.run(['get', 'sign_in', '--paths']), 0);
       expect(err.toString(), '⚠️ WARNING: sign_in: step 1 names no scenario\n');
+    });
+    for (final option in ['--paths', '--code']) {
+      test(
+        'journeys/${option == '--paths' ? 'get_journey_test_paths/print_journey_paths' : 'read_code_per_step/list_code_per_step'} E09: '
+        '$option with two names is argument_invalid, exit 64, nothing printed',
+        () async {
+          final (:runner, :out, :err) = readRunner(await project());
+          expect(
+            await runner.run([
+              'get',
+              'journey:sign_in',
+              'login',
+              option,
+              '--json',
+            ]),
+            64,
+          );
+          expect(out.toString(), isEmpty);
+          expect((jsonDecode(err.toString()) as Map)['error'], {
+            'code': 'argument_invalid',
+            'message': '$option takes one name, got 2',
+          });
+        },
+      );
+    }
+    test('journeys/read_code_per_step/list_code_per_step E10, '
+        'journeys/get_journey_test_paths/print_journey_paths: '
+        'the journey line holds no base', () async {
+      for (final option in ['--paths', '--code']) {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['get', 'journey:sign_in', option]), 0);
+        expect(
+          out.toString(),
+          startsWith(
+            '==> sign_in (journey) · prds/journeys/sign_in/JOURNEY.md <==\n',
+          ),
+          reason: option,
+        );
+      }
     });
     test('f10/us03/fr01: get journey:<slug> --code --json prints one object, exit 0', () async {
       final (:runner, :out, :err) = readRunner(await project());

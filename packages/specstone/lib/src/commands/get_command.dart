@@ -1,7 +1,7 @@
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Prints the docs a name addresses, or one section of each.
+/// Prints the docs each name addresses, or one section of each.
 class GetCommand extends SpecstoneCommand {
   new() {
     argParser
@@ -22,11 +22,12 @@ class GetCommand extends SpecstoneCommand {
   String get name => 'get';
 
   @override
-  String get description => 'Print the docs a name addresses, or a section.';
+  String get description =>
+      'Print the docs each name addresses, or a section, in one call.';
 
   @override
   String get invocation =>
-      'specstone get <name | path>[#<section key>] [--paths | --code] '
+      'specstone get <name | path>[#<section key>] … [--paths | --code] '
       '[--json]';
 
   @override
@@ -40,9 +41,6 @@ class GetCommand extends SpecstoneCommand {
         asJson: asJson,
       );
     }
-    if (rest.length > 1) {
-      usageException('Expected one name, got ${rest.length}.');
-    }
     final paths = args.flag('paths');
     final code = args.flag('code');
     if (paths && code) {
@@ -54,20 +52,28 @@ class GetCommand extends SpecstoneCommand {
         asJson: asJson,
       );
     }
-    final name = rest.first;
+    final option = paths ? '--paths' : (code ? '--code' : null);
+    if (option != null && rest.length > 1) {
+      return fail(
+        IndexFault(
+          IndexFaultCode.argumentInvalid,
+          '$option takes one name, got ${rest.length}',
+        ),
+        asJson: asJson,
+      );
+    }
     return runRead((session) {
-      final option = paths ? '--paths' : (code ? '--code' : null);
       if (option != null &&
-          session.index.splitAddress(name).sectionKey != null) {
+          session.index.splitAddress(rest.first).sectionKey != null) {
         throw IndexFault(
           IndexFaultCode.argumentConflict,
           '$option takes no #<section key>',
         );
       }
       return switch ((paths, code)) {
-        (true, _) => answerJourneyPaths(session.index, name),
-        (_, true) => answerJourneyCode(session.index, name),
-        _ => answerGet(session.index, name),
+        (true, _) => answerJourneyPaths(session.index, rest.first),
+        (_, true) => answerJourneyCode(session.index, rest.first),
+        _ => answerGet(session.index, rest),
       };
     }, asJson: asJson);
   }

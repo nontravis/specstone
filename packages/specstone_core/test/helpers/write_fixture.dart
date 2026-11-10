@@ -257,7 +257,7 @@ Map<String, List<int>> treeBytes(Directory root) {
 Map<String, Object?> getDoc(Directory root, String address) {
   final session = openSession(root);
   try {
-    final docs = answerGet(session.index, address).json['docs']! as List;
+    final docs = answerGet(session.index, [address]).json['docs']! as List;
     return docs.first as Map<String, Object?>;
   } finally {
     session.close();

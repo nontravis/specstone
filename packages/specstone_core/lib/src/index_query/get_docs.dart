@@ -10,14 +10,80 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _spaceTabEnd = RegExp(r'[ \t]+$');
 
-/// Returns the text of each doc [address] names, or of one of its sections.
+/// Returns the text of each doc [names] address, or of one of its sections.
 ///
-/// [address] is a name as `resolve` takes it, then `#` and a section key to
-/// keep that section of each doc that holds it, or [leadKey] to keep the lead
-/// of every resolved doc, empty or not. A whole doc prints as written.
-/// Throws an [IndexFault] when no doc carries the name, or when no resolved
-/// doc holds a section with the key.
-ReadAnswer answerGet(DocIndex index, String address) {
+/// A name is as `resolve` takes it, then `#` and a section key to keep that
+/// section of each doc that holds it or defines it in its template, or
+/// [leadKey] to keep the lead of every resolved doc, empty or not. A whole doc
+/// prints as written. Blocks print in argument order, each once: a doc read
+/// whole takes the place of the first name that names it or any of its parts,
+/// and drops every section of it. Every name is resolved before anything
+/// prints. Throws an [IndexFault] when the names hold faults of one code, an
+/// [IndexFaults] when they hold faults of two or more, each fault naming every
+/// name it covers: `doc_not_found` for a name no doc carries,
+/// `section_not_found` when no resolved doc holds a section with the key.
+ReadAnswer answerGet(DocIndex index, List<String> names) {
+  final blocks = _printedOnce(_readAll(index, names));
+  return ReadAnswer(
+    text: [for (final block in blocks) block.printed].join('\n'),
+    json: {
+      'docs': [
+        for (final block in blocks)
+          {
+            'name': block.doc.name,
+            'docType': ?block.doc.docTypeId,
+            'path': block.doc.docPath,
+            'section': ?block.sectionKey,
+            'base': ?block.base,
+            'bases': ?block.bases,
+            'text': block.text,
+          },
+      ],
+    },
+  );
+}
+
+/// Returns the blocks of every name, none read until all names resolved.
+List<List<_GetBlock>> _readAll(DocIndex index, List<String> names) {
+  final reads = <List<_GetBlock>>[];
+  final messages = <IndexFaultCode, List<String>>{};
+  for (final name in names) {
+    try {
+      reads.add(_readName(index, name));
+    } on IndexFault catch (fault) {
+      (messages[fault.code] ??= []).add(fault.message);
+    }
+  }
+  final faults = [
+    for (final MapEntry(:key, :value) in messages.entries)
+      IndexFault(key, value.join('; ')),
+  ];
+  return switch (faults) {
+    [] => reads,
+    [final fault] => throw fault,
+    _ => throw IndexFaults(faults),
+  };
+}
+
+/// Returns [reads] flat, each doc once: a doc read whole stands for every part
+/// of it, at the place of the first block that names the doc.
+List<_GetBlock> _printedOnce(List<List<_GetBlock>> reads) {
+  final blocks = [for (final read in reads) ...read];
+  final whole = {
+    for (final block in blocks)
+      if (block.sectionKey == null) block.doc.docPath: block,
+  };
+  final seen = <(String, String?)>{};
+  return [
+    for (final block in blocks)
+      if (whole[block.doc.docPath] ?? block case final printed
+          when seen.add((printed.doc.docPath, printed.sectionKey)))
+        printed,
+  ];
+}
+
+/// Returns the blocks one [address] reads, one per doc it holds a part of.
+List<_GetBlock> _readName(DocIndex index, String address) {
   final (docPart: name, sectionKey: key) = index.splitAddress(address);
 
   final blocks = <_GetBlock>[];
@@ -76,24 +142,7 @@ ReadAnswer answerGet(DocIndex index, String address) {
       'no doc named $name holds a section with the key $key',
     );
   }
-
-  return ReadAnswer(
-    text: [for (final block in blocks) block.printed].join('\n'),
-    json: {
-      'docs': [
-        for (final block in blocks)
-          {
-            'name': block.doc.name,
-            'docType': ?block.doc.docTypeId,
-            'path': block.doc.docPath,
-            'section': ?key,
-            'base': ?block.base,
-            'bases': ?block.bases,
-            'text': block.text,
-          },
-      ],
-    },
-  );
+  return blocks;
 }
 
 /// Returns the base of the whole doc, of its title, of each section, and of
