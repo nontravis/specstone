@@ -663,5 +663,41 @@ void main() {
       ]);
       expect(after.stdout, isNot(contains('`docs/$story3`')));
     });
+
+    test("f06/us01/fr02/e15: --dry-run shows the changes against the project's own committed copy under an exported GIT_INDEX_FILE and GIT_DIR", () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\nThey stay signed in.\n',
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      File('${root.path}/docs/$signupFeature').writeAsStringSync(
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\nThey stay signed in.\n',
+      );
+      commitAll(root, 'edited as a draft');
+      final other = await writeTree({'elsewhere.txt': 'another repository\n'});
+      expect(git(other, ['init', '-q']).exitCode, 0);
+      final junkIndex = File('${other.path}/junk-index')
+        ..writeAsStringSync('not an index\n');
+      const args = ['approve', '--dry-run', 'feature:signup'];
+
+      final plain = await run(root, args);
+      final exported = await Process.run(
+        binary,
+        args,
+        workingDirectory: root.path,
+        environment: {
+          'GIT_INDEX_FILE': junkIndex.path,
+          'GIT_DIR': '${other.path}/.git',
+        },
+      );
+
+      expect(plain.exitCode, 0, reason: '${plain.stderr}');
+      expect(plain.stdout, contains('+Users sign up.'));
+      expect(exported.exitCode, 0, reason: '${exported.stderr}');
+      expect(exported.stdout, plain.stdout);
+    }, skip: hasGit ? null : 'git is not available');
   });
 }

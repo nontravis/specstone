@@ -85,9 +85,100 @@ ProcessResult _startGit(
   'git',
   [..._explicitBareRepository, ...arguments],
   workingDirectory: workingDirectory,
-  environment: environment,
+  environment: gitChildEnvironment(
+    inherited: Platform.environment,
+    localVariables: _localEnvVars(workingDirectory),
+    own: environment,
+    ignoresCase: Platform.isWindows,
+  ),
+  includeParentEnvironment: false,
   stdoutEncoding: utf8,
 );
+
+/// The listed variables that stay in the child environment, as git's own
+/// `sanitize_repo_env` keeps them: `git -c` settings and config the
+/// environment supplies reach git through them.
+const _keptLocalVariables = {'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT'};
+
+/// Returns [inherited] without each of [localVariables] but
+/// [_keptLocalVariables], then with [own] on top.
+///
+/// A git hook or `git bisect run` exports the listed variables to point git at
+/// its own repository; dropping them has git run against the repository of its
+/// working folder. Names compare case-blind when [ignoresCase], as on Windows.
+Map<String, String> gitChildEnvironment({
+  required Map<String, String> inherited,
+  required Iterable<String> localVariables,
+  Map<String, String>? own,
+  required bool ignoresCase,
+}) {
+  String fold(String name) => ignoresCase ? name.toUpperCase() : name;
+  final removed = {
+    for (final name in localVariables)
+      if (!_keptLocalVariables.contains(name)) fold(name),
+  };
+  return {
+    for (final MapEntry(:key, :value) in inherited.entries)
+      if (!removed.contains(fold(key))) key: value,
+    ...?own,
+  };
+}
+
+/// Returns the names a `git rev-parse --local-env-vars` [result] lists, one
+/// per non-empty line.
+///
+/// Throws [ProcessException] when git exited non-zero.
+List<String> localEnvVarsFrom(ProcessResult result) {
+  if (result.exitCode != 0) {
+    throw ProcessException(
+      'git',
+      _localEnvVarsArguments,
+      '${result.stderr}'.trim(),
+      result.exitCode,
+    );
+  }
+  return [
+    for (final line in '${result.stdout}'.split('\n'))
+      if (line.trim().isNotEmpty) line.trim(),
+  ];
+}
+
+const List<String> _localEnvVarsArguments = [
+  ..._explicitBareRepository,
+  'rev-parse',
+  '--local-env-vars',
+];
+
+/// What the one list query of this process returned: the names, or the failure.
+({List<String>? names, ProcessException? failure})? _localEnvVarsOutcome;
+
+/// Returns the listed variable names, asking git once per process.
+///
+/// The query runs with the inherited environment and outside [guardedGit], as
+/// `git --version` does, since it reads no repository. A failure is cached and
+/// thrown again on each call.
+List<String> _localEnvVars(String workingDirectory) {
+  final outcome = _localEnvVarsOutcome ??= _queryLocalEnvVars(workingDirectory);
+  final failure = outcome.failure;
+  if (failure != null) throw failure;
+  return outcome.names!;
+}
+
+({List<String>? names, ProcessException? failure}) _queryLocalEnvVars(
+  String workingDirectory,
+) {
+  try {
+    final result = Process.runSync(
+      'git',
+      _localEnvVarsArguments,
+      workingDirectory: workingDirectory,
+      stdoutEncoding: utf8,
+    );
+    return (names: localEnvVarsFrom(result), failure: null);
+  } on ProcessException catch (failure) {
+    return (names: null, failure: failure);
+  }
+}
 
 /// The command a refusal tells the user to run again, when `migrate` is the one
 /// that refused.

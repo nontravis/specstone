@@ -6,6 +6,7 @@ import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 Map<String, String> _bytesUnder(Directory root) => {
@@ -364,5 +365,80 @@ void main() {
       "the Owner's ok in the chat\n",
     );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  group('f06/us01/fr02/e15: under an exported git repository variable', () {
+    late String binary;
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<Directory> otherRepoWithUntrackedFile() async {
+      final other = await writeTree({'untracked.txt': 'not committed\n'});
+      expect(git(other, ['init', '-q']).exitCode, 0);
+      return other;
+    }
+
+    test('migrate --dry-run plans the repository of its own folder and leaves '
+        'the other one alone', () async {
+      final root = await gitFixture(acmeLegacy);
+      final other = await otherRepoWithUntrackedFile();
+      final before = _bytesUnder(other);
+
+      final shown = await Process.run(
+        binary,
+        ['migrate', '--dry-run'],
+        workingDirectory: root.path,
+        environment: {
+          'GIT_DIR': '${other.path}/.git',
+          'GIT_WORK_TREE': other.path,
+        },
+      );
+
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      expect(shown.stdout, startsWith('legacy migration: '));
+      expect(shown.stdout, matches(RegExp(r'\nplan [0-9a-f]{12}\n')));
+      expect(_bytesUnder(other), before);
+      expect(
+        git(other, ['status', '--porcelain']).stdout,
+        '?? untracked.txt\n',
+      );
+    });
+
+    test('a bare migrate without a terminal passes the git checks of its own '
+        'folder and exits 77', () async {
+      final root = await gitFixture(acmeLegacy);
+      final other = await otherRepoWithUntrackedFile();
+
+      final shown = await Process.run(
+        binary,
+        ['migrate'],
+        workingDirectory: root.path,
+        environment: {
+          'GIT_DIR': '${other.path}/.git',
+          'GIT_WORK_TREE': other.path,
+        },
+      );
+
+      expect(shown.exitCode, 77, reason: '${shown.stderr}');
+      expect(shown.stdout, startsWith('legacy migration: '));
+    });
+
+    test(
+      'migrate --dry-run works under a GIT_DIR that names no folder',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+
+        final shown = await Process.run(
+          binary,
+          ['migrate', '--dry-run'],
+          workingDirectory: root.path,
+          environment: {'GIT_DIR': '/nonexistent'},
+        );
+
+        expect(shown.exitCode, 0, reason: '${shown.stderr}');
+        expect(shown.stdout, startsWith('legacy migration: '));
+      },
+    );
   }, skip: hasGit ? null : 'git is not available');
 }
