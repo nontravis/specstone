@@ -261,14 +261,7 @@ Iterable<Finding> checkTrackedLinks(
     final read =
         'read $block of $upstream below, then record ${link.label} with the '
         'fingerprint after it';
-    Map<String, Object> keysWith({required bool withText}) => {
-      'link': link.label,
-      'upstream': upstream,
-      'block': block,
-      if (entry != null) 'recorded': entry.fingerprint,
-      if (withText) 'text': _blockText(source),
-      'fingerprint': current,
-    };
+    final text = _blockText(source);
     switch (_stateOf(doc, link, entry)) {
       case LinkState.clean:
         break;
@@ -280,7 +273,14 @@ Iterable<Finding> checkTrackedLinks(
           message:
               '${link.label} changed after it was confirmed, recorded '
               '${entry.fingerprint}; $read',
-          keys: keysWith(withText: true),
+          keys: {
+            'link': link.label,
+            'recorded': entry.fingerprint,
+            'upstream': upstream,
+            'block': block,
+            'text': text,
+            'fingerprint': current,
+          },
         );
       case LinkState.unconfirmed:
         final waitsFor = _waitsForOf(doc, current, entry);
@@ -288,9 +288,22 @@ Iterable<Finding> checkTrackedLinks(
           doc,
           FindingKind.unconfirmed,
           line: entry?.line ?? link.traceLine,
-          message: _unconfirmedMessage(link.label, current, entry, read),
+          message: _unconfirmedMessage(
+            link.label,
+            current,
+            entry,
+            waitsFor,
+            read,
+          ),
           waitsFor: waitsFor,
-          keys: keysWith(withText: waitsFor == WaitsFor.agent),
+          keys: {
+            'link': link.label,
+            'upstream': upstream,
+            'block': block,
+            if (entry != null) 'recorded': entry.fingerprint,
+            if (waitsFor == WaitsFor.agent) 'text': text,
+            'fingerprint': current,
+          },
         );
     }
   }
@@ -339,7 +352,6 @@ Iterable<Finding> checkConfirmedEntries(
   }
 }
 
-// An entry with an unconfirmed state means the doc is a draft.
 // Only a draft whose entry records the current fingerprint waits for the
 // Owner's `approve` alone; every other unconfirmed link still needs the Agent
 // to read the upstream block and record the entry.
@@ -348,16 +360,21 @@ WaitsFor _waitsForOf(IndexedDoc doc, String current, _Entry? entry) =>
     ? WaitsFor.owner
     : WaitsFor.agent;
 
+// An entry with an unconfirmed state means the doc is a draft.
+// [waitsFor] is the one owner or agent decision; the message follows it.
 String _unconfirmedMessage(
   String label,
   String current,
   _Entry? entry,
+  WaitsFor waitsFor,
   String read,
 ) {
-  if (entry == null) return '$label has no confirmed entry; $read';
-  return entry.fingerprint == current
-      ? "$label $current is recorded in a draft; it waits for the Owner's "
-            'approve'
+  if (waitsFor == WaitsFor.owner) {
+    return "$label $current is recorded in a draft; it waits for the Owner's "
+        'approve';
+  }
+  return entry == null
+      ? '$label has no confirmed entry; $read'
       : '$label is not confirmed: the draft records ${entry.fingerprint}; '
             '$read';
 }

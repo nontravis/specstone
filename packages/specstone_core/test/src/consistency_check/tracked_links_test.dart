@@ -112,6 +112,14 @@ void main() {
           'read Scenario 2 of $loginStory below, then record S2 with the '
           'fingerprint after it',
         );
+        expect(finding.keys.keys, [
+          'link',
+          'recorded',
+          'upstream',
+          'block',
+          'text',
+          'fingerprint',
+        ]);
         expect(finding.keys['text'], block);
         expect(finding.textLines, [
           finding.textLine,
@@ -189,6 +197,13 @@ void main() {
         'S2 has no confirmed entry; read Scenario 2 of $loginStory below, '
         'then record S2 with the fingerprint after it',
       );
+      expect(finding.keys.keys, [
+        'link',
+        'upstream',
+        'block',
+        'text',
+        'fingerprint',
+      ]);
       expect(finding.keys['text'], upstreamText(loginScenario2).trimRight());
       final keys = finding.toJson().keys.toList();
       expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
@@ -214,6 +229,14 @@ void main() {
         'Scenario 2 of $loginStory below, then record S2 with the fingerprint '
         'after it',
       );
+      expect(finding.keys.keys, [
+        'link',
+        'upstream',
+        'block',
+        'recorded',
+        'text',
+        'fingerprint',
+      ]);
       expect(finding.keys['text'], upstreamText(loginScenario2).trimRight());
       final keys = finding.toJson().keys.toList();
       expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
