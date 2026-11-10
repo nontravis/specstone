@@ -1149,6 +1149,69 @@ void _agentTests() {
       isEmpty,
     );
   });
+
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E01, E03, '
+      'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
+      'in one get, loads every guide in one call, writes several docs '
+      'through one set --batch, and sdd-engineer allows only the redirect '
+      'that makes a batch file', () {
+    final author = _pluginText(_author);
+    final read = _oneLine(_sectionOf(author, '1. Read'));
+    for (final point in _authorRereadPoints) {
+      expect(read, contains(point), reason: point);
+    }
+    final place = _oneLine(_sectionOf(author, '2. Place each decision'));
+    for (final point in _authorBatchPoints) {
+      expect(place, contains(point), reason: point);
+    }
+    expect('specstone guide'.allMatches(author), hasLength(1));
+    expect(
+      _oneLine(author).indexOf('`specstone guide'),
+      lessThan(_oneLine(author).indexOf('`specstone new')),
+    );
+    expect(
+      _sectionOf(author, '4. Check'),
+      contains('- **In one of your drafts:** fix it there.\n'),
+    );
+    expect(
+      _sectionOf(author, '5. Report'),
+      contains(
+        '```\nNot landed: <decision>: <why no doc took it>\n'
+        'Not landed: <type>:<name>: listed and never created\n',
+      ),
+    );
+    for (final restated in _batchTableText) {
+      expect(author, isNot(contains(restated)), reason: restated);
+    }
+    final agent = _pluginText('agents/sdd-engineer.md');
+    final contract = _oneLine(_sectionOf(agent, 'Input Contract'));
+    for (final input in _laterPassInputs) {
+      expect(contract, contains(input), reason: input);
+    }
+    expect(
+      _oneLine(_sectionOf(agent, 'Output Format')),
+      isNot(contains('a fix round, the Owner')),
+      reason: 'each pass after the first is a fresh dispatch',
+    );
+    final scope = _sectionOf(agent, 'Scope Boundaries');
+    expect(_oneLine(scope), contains(_batchFileRedirect));
+    expect(_redirectSpan.allMatches(scope).map((span) => span[0]), [
+      '`specstone get … > <file>`',
+    ]);
+    expect(
+      _oneLine(scope),
+      contains('- Write a file by any other shell redirect, or a PRD or spec'),
+    );
+    bool ofAuthor(String problem) => problem.startsWith('$_author:');
+    expect(oversizedSkillFiles(pluginRoot()).where(ofAuthor), isEmpty);
+    expect(
+      unknownCliNames(
+        pluginRoot(),
+        SpecstoneCommandRunner(),
+      ).where((problem) => problem.startsWith('agents/sdd-engineer.md:')),
+      isEmpty,
+    );
+  });
 }
 
 /// Each point of `write_design_and_plan`'s dependents search and state-table
@@ -1311,6 +1374,79 @@ const _roundsOwnedElsewhere = [
   'End a `Findings:` line with `[behavior]`',
   'Run `specstone refs <owner>`',
 ];
+
+/// The author's procedure for `sdd-engineer`'s author mode, under the plugin
+/// folder.
+const _author = 'skills/brainstorming-sdd/references/author.md';
+
+/// Each point of `write_drafts_with_coverage`'s re-read clause and E12, as
+/// step 1 of author.md words it, cut at line width.
+const _authorRereadPoints = [
+  'each pass after the first: a fix round, or the pass after an amend',
+  "the first author report's drafts plus each doc a fix round or pass added;",
+  "in a fix round, the audit's `Findings:` lines too.",
+  'Before your first write, re-read the drafts in one',
+  '`specstone get <drafts list>` call.',
+  'When it refuses with `doc_not_found`, drop each name it names and run it',
+  'again on the rest; list each dropped name under `Findings:`, or as',
+  '`Not landed:` when listed and never created.',
+  'After an amend, write the amended design into the drafts through steps 2',
+  'Fix only those findings, only in those drafts, as step 2 writes;',
+  'List each finding outside those drafts under `Findings:`, unfixed.',
+];
+
+/// Each point of `write_drafts_with_coverage`'s guide and batch clauses, E03,
+/// and E11, as step 2 of author.md words it, cut at line width.
+const _authorBatchPoints = [
+  'A decision no doc can take is not landed: flag it, never force it.',
+  '**Guide**: before your first write, run `specstone guide <type> …` once,',
+  'naming every type you write.',
+  '**Several docs in one step**: run `specstone get <names> > <file>`,',
+  '`<file>` a `mktemp` file outside the repository; edit its blocks with',
+  '`Edit`, each naming line kept; then run `specstone set --batch <file>`.',
+  'A block printed ` · unchanged` wrote nothing and adds no draft.',
+  '**A refused batch** writes nothing',
+  '(`document_writing/edit_one_section_or_field/write_a_batch`). Per fault,',
+  'then run it again:',
+  '- Stale block: merge your edit into the current text the reply',
+  'prints; run no `get`.',
+  "- Gone block: get its doc again by name; a moved doc's new block takes",
+  'the edit; a name naming no doc drops the block, its doc listed under',
+  '- Untyped block: drop it, its doc listed under `Findings:`.',
+  '- One part twice, or a whole-doc block beside another',
+  'block beside another block of its doc: join them.',
+  "- Field or title block: write it inside its doc's whole-doc block.",
+  '- Removed required section: restore it; a field only the Owner or',
+  'Specstone sets: give back its value; open fence: close it.',
+  '- Any other refusal a single `set` of that part makes, such as',
+  "`field_unknown` or a section block's stray `##` line: fix that part as",
+  'line: fix that part as the refusal names.',
+  '- Refused path or line: build the file again from `get` text output',
+  'alone; pass its path, nothing on stdin.',
+];
+
+/// Text of `write_a_batch`'s fault table, which author.md handles through
+/// E11's points and never restates.
+const _batchTableText = ['exit status', '`75`', 'argument_invalid'];
+
+/// Each point of `write_drafts_with_coverage` E12's inputs, as the Input
+/// Contract of sdd-engineer words them, cut at line width.
+const _laterPassInputs = [
+  '(author, each pass after the first, a fresh dispatch: a fix round, or the',
+  'pass after a design-mode amend)',
+  "the drafts list, the first author report's drafts plus each doc a fix",
+  "round or pass added; in a fix round, the audit's `Findings:` lines too.",
+];
+
+/// The one shell redirect sdd-engineer may run (`domain:agent_plugin` INV-10),
+/// as its Scope Boundaries word it.
+const _batchFileRedirect =
+    'and a batch file: made by `specstone get … > <file>`, `<file>` outside '
+    'the repository, the one shell redirect you run, and passed to '
+    '`specstone set --batch <file>`.';
+
+/// A code span that redirects output into a file.
+final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
 
 /// The one home of the size-fix rule, under the plugin folder.
 const _sizeFix = 'skills/expert-sdd/references/size-fix.md';

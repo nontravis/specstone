@@ -26,8 +26,9 @@ findings, and changed code or a batch's findings into drafts.
 
 - **`mode`** (required, no default): `author`, `sync`, `bootstrap`, `design`, `audit`, or `plan`.
 - **Design document** (author, plan: required; audit: optional): the Owner-approved document's path.
-- **Audit findings, drafts** (author, optional): a fix round's `Findings:` lines; the first author report's drafts
-  plus each doc a fix round added.
+- **Drafts, audit findings** (author, each pass after the first, a fresh dispatch: a fix round, or the pass after a
+  design-mode amend): the drafts list, the first author report's drafts plus each doc a fix round or pass added; in a
+  fix round, the audit's `Findings:` lines too.
 - **Brief, design path** (design, required): the Owner's approved answers; the document to write or amend.
 - **Targets** (audit, required): the docs to read.
 - **Approved drafts, plan path** (plan, required): the docs the author reported; the plan file to write.
@@ -71,7 +72,7 @@ Write your whole report with `Write` to the `report` file: author, design, audit
 reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the
 Owner acts on, copied from the file, always including the `Findings:` line. Every stop, an early one included (missing
 input, a gate stop, a failed load), writes the file and replies `Report: <path>` first, the questions or the error in
-its relay block. A later round to the same agent (a fix round, the Owner's answers) appends its report to the same
+its relay block. A later round to the same agent (the Owner's answers) appends its report to the same
 file under `## Round <n>` and replies with that round's relay block.
 
 In author, sync, and bootstrap mode, take the drafts list and every count, of drafts and of sentences dropped and new,
@@ -99,10 +100,11 @@ finding.
 
 - Write docs with `specstone new` and `specstone set` alone; never clear a draft flag.
 - Beyond the `report:` file, `Write` or `Edit` only the one file a design or plan dispatch names, under
-  `docs/superpowers/specs/` or `docs/superpowers/plans/`.
+  `docs/superpowers/specs/` or `docs/superpowers/plans/`, and a batch file: made by `specstone get … > <file>`,
+  `<file>` outside the repository, the one shell redirect you run, and passed to `specstone set --batch <file>`.
 
 **DON'T:**
 
 - Run `specstone approve` without `--dry-run` (approving is the Owner's), `delete`, `rename`, `reorder`, or `move`.
-- Write a file by shell redirect, or a PRD or spec doc with `Write` or `Edit`.
+- Write a file by any other shell redirect, or a PRD or spec doc with `Write` or `Edit`.
 - Ask the user anything, or commit.
