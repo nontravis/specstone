@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
+    show PathMove;
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -66,6 +68,21 @@ Map<String, String> _specTree(Map<String, String> rows, List<String> files) => {
   for (final folder in rows.keys)
     for (final file in files) 'docs/specs/$folder/$file': '# S\n',
 };
+
+/// Two cycles, a-b and c-d, and two moves that lead from the second to the
+/// first: `d` to `e` waits on `e` to `a`, which waits on `a` to `b`.
+///
+/// The bridge moves lie on no cycle. No legacy tree plans this graph, since
+/// the bridge shares a source with `d` to `c` and a target with `b` to `a`;
+/// the cycle finder takes any moves.
+const _twoCyclesAndABridge = <PathMove>[
+  (from: 'a', to: 'b'),
+  (from: 'b', to: 'a'),
+  (from: 'e', to: 'a'),
+  (from: 'c', to: 'd'),
+  (from: 'd', to: 'c'),
+  (from: 'd', to: 'e'),
+];
 
 String _specIndex(List<String> rows) =>
     '''
@@ -654,6 +671,96 @@ void main() {
           'specs/f01_alpha/x/s02_api_Users.md',
         ]);
       });
+
+      test('f06/us01/fr03/e11: a Spec map row of specs/ itself beside one of '
+          'specs/server/ plans, the specs/ file keeping its old name in the '
+          'feature spec folder', () {
+        final tree = {
+          ..._threeFeatures,
+          'docs/specs/INDEX.md': _specIndex([
+            '| `c/` | `specs/` | `f01_alpha` |',
+            '| `s/` | `specs/server/` | `f01_alpha` |',
+          ]),
+          'docs/specs/s01_architecture.md': '#',
+          'docs/specs/server/s01_architecture.md': '#',
+        };
+        final plan = _plan(tree);
+
+        expect(
+          _movedTo(plan, 'specs/s01_architecture.md'),
+          'specs/f01_alpha/s01_architecture.md',
+        );
+        expect(
+          _movedTo(plan, 'specs/server/s01_architecture.md'),
+          'specs/f01_alpha/server/s01_architecture.md',
+        );
+        _expectNoDrop(tree, plan);
+      });
+
+      test('f06/us01/fr03/e11: three files where two share a trailing run '
+          'take a/x, b/x, and y', () {
+        final plan = _plan(
+          sameName({
+            'a/x/s01_architecture.md': '#',
+            'b/x/s01_architecture.md': '#',
+            'c/y/s01_architecture.md': '#',
+          }),
+        );
+
+        expect(plan.moves.map((m) => m.to), [
+          'specs/f01_alpha/a/x/s01_architecture.md',
+          'specs/f01_alpha/b/x/s01_architecture.md',
+          'specs/f01_alpha/y/s01_architecture.md',
+        ]);
+      });
+
+      test('f06/us01/fr03/e11: x/, a/x/, and b/a/x/ take x, a/x, and '
+          'b/a/x', () {
+        final plan = _plan(
+          sameName({
+            'x/s01_architecture.md': '#',
+            'a/x/s01_architecture.md': '#',
+            'b/a/x/s01_architecture.md': '#',
+          }),
+        );
+
+        expect(plan.moves.map((m) => m.to), [
+          'specs/f01_alpha/a/x/s01_architecture.md',
+          'specs/f01_alpha/b/a/x/s01_architecture.md',
+          'specs/f01_alpha/x/s01_architecture.md',
+        ]);
+      });
+
+      test('f06/us01/fr03/e11, e14: a case pair in the nested folder a/x/ '
+          'beside b/x/ takes the whole path a/x, not x', () {
+        final lines = _refusal(
+          sameName({
+            'a/x/s02_api_Users.md': '#',
+            'a/x/s02_api_users.md': '#',
+            'b/x/s02_api_users.md': '#',
+          }),
+        );
+
+        expect(lines.map((l) => l.file), [
+          'specs/f01_alpha/a/x/s02_api_Users.md',
+        ]);
+      });
+
+      test('f06/us01/fr03/e11, e12: a cross-cutting folder of the same file '
+          'name leaves the set and lands in specs/topics/', () {
+        final tree = _specTree(
+          {'a': '`f01_alpha`', 'b': '`f01_alpha`', 'auth': '—'},
+          ['s01_architecture.md'],
+        );
+        final plan = _plan(tree);
+
+        expect(plan.moves.map((m) => m.to), [
+          'specs/f01_alpha/a/s01_architecture.md',
+          'specs/topics/auth/s01_architecture.md',
+          'specs/f01_alpha/b/s01_architecture.md',
+        ]);
+        _expectNoDrop(tree, plan);
+      });
     });
 
     group('trailingRunNames', () {
@@ -689,6 +796,19 @@ void main() {
           'a/x',
           'b/x',
         ]);
+      });
+
+      test('f06/us01/fr03/e11: the bare specs/ folder takes no subfolder '
+          'name', () {
+        expect(trailingRunNames(['specs/', 'specs/server/']), ['', 'server']);
+      });
+
+      test('f06/us01/fr03/e11: an entry outside specs/ breaks the '
+          'precondition', () {
+        expect(
+          () => trailingRunNames(['x/api/', 'specs/a/api/']),
+          throwsA(isA<AssertionError>()),
+        );
       });
     });
 
@@ -739,6 +859,43 @@ void main() {
         expect(plan.moves, [
           (from: 'specs/a/Auth/x.md', to: 'specs/topics/a/Auth/x.md'),
           (from: 'specs/b/auth/x.md', to: 'specs/topics/b/auth/x.md'),
+        ]);
+      });
+
+      test('f06/us01/fr03/e12: cross-cutting rows outside specs/ or sharing '
+          'a last segment with no file plan without a throw', () {
+        for (final rows in [
+          ['auth/', 'lib/auth/'],
+          ['a/x/', 'b/x/'],
+          ['specs/', 'x/specs/'],
+        ]) {
+          final tree = {
+            'docs/prds/d01_context.md': '# D\n',
+            'docs/specs/INDEX.md': _specIndex([
+              for (final row in rows) '| `c/` | `$row` | — |',
+            ]),
+          };
+          final plan = _plan(tree);
+
+          expect(plan.moves, [
+            (from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
+          ]);
+          _expectNoDrop(tree, plan);
+        }
+      });
+
+      test('f06/us01/fr03/e12: a cross-cutting row with no file does not '
+          'count as sharing a last segment', () {
+        final plan = _plan({
+          'docs/specs/INDEX.md': _specIndex([
+            '| `a/` | `specs/old/auth/` | — |',
+            '| `b/` | `specs/ui/auth/` | — |',
+          ]),
+          'docs/specs/ui/auth/x.md': '# A\n',
+        });
+
+        expect(plan.moves, [
+          (from: 'specs/ui/auth/x.md', to: 'specs/topics/auth/x.md'),
         ]);
       });
     });
@@ -846,6 +1003,126 @@ void main() {
           'specs/f01_alpha/q/s02_api_n.md',
           'specs/f02_beta/q/s02_api_n.md',
         ]);
+      });
+
+      test('f06/us01/fr03/e14: a chain of three moves, each onto the next '
+          "one's old path, runs last first", () {
+        final tree = {
+          ..._specTree(
+            {
+              'f01_alpha/q': '`f02_beta`',
+              'z': '`f02_beta`',
+              'f02_beta/q': '`f03_gamma`',
+              'y': '`f03_gamma`',
+              'f03_gamma/q': '`f04_delta`',
+              'x': '`f04_delta`',
+            },
+            ['s02_api_n.md'],
+          ),
+          'docs/prds/features/f04_delta/FEATURE.md': '# F-04 — Delta\n',
+        };
+        final plan = _plan(tree);
+
+        expect(plan.moves.map((m) => m.from), [
+          'specs/f03_gamma/q/s02_api_n.md',
+          'specs/f02_beta/q/s02_api_n.md',
+          'specs/f01_alpha/q/s02_api_n.md',
+          'specs/x/s02_api_n.md',
+          'specs/y/s02_api_n.md',
+          'specs/z/s02_api_n.md',
+        ]);
+        _expectNoDrop(tree, plan);
+      });
+
+      test('f06/us01/fr03/e14: a cycle of three moves refuses with one line '
+          'per target', () {
+        final lines = _refusal(
+          _specTree(
+            {
+              'f01_alpha/q': '`f02_beta`',
+              'z': '`f02_beta`',
+              'f02_beta/q': '`f03_gamma`',
+              'y': '`f03_gamma`',
+              'f03_gamma/q': '`f01_alpha`',
+              'x': '`f01_alpha`',
+            },
+            ['s02_api_n.md'],
+          ),
+        );
+
+        expect(lines.map((l) => l.file), [
+          'specs/f01_alpha/q/s02_api_n.md',
+          'specs/f02_beta/q/s02_api_n.md',
+          'specs/f03_gamma/q/s02_api_n.md',
+        ]);
+      });
+
+      test('f06/us01/fr03/e14: moves that lead from one cycle to another lie '
+          'on no cycle', () {
+        expect(movesOnCycles(_twoCyclesAndABridge), [
+          (from: 'a', to: 'b'),
+          (from: 'b', to: 'a'),
+          (from: 'c', to: 'd'),
+          (from: 'd', to: 'c'),
+        ]);
+      });
+
+      test('f06/us01/fr03/e14: d01_context.md moving onto a staying '
+          'PROJECT.md or project.md refuses and says it stays', () {
+        for (final staying in ['PROJECT.md', 'project.md']) {
+          final lines = _refusal({
+            'docs/prds/d01_context.md': '# D\n',
+            'docs/prds/$staying': '# P\n',
+          });
+
+          expect(lines.map((l) => l.file), ['prds/PROJECT.md']);
+          expect(
+            lines.single.message,
+            allOf(
+              contains('prds/d01_context.md moves to prds/PROJECT.md'),
+              contains('prds/$staying stays'),
+            ),
+          );
+        }
+      });
+
+      test('f06/us01/fr03/e14: an FR moving up onto a staying fr01_x.md or '
+          'FR01_X.md refuses and says it stays', () {
+        const story = 'prds/features/f01_login/us01_email';
+        for (final staying in ['fr01_x.md', 'FR01_X.md']) {
+          final lines = _refusal({
+            'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
+            'docs/$story/USER_STORY.md': '# US-01\n',
+            'docs/$story/functional_requirements/fr01_x.md': '# FR-01\n',
+            'docs/$story/$staying': '# S\n',
+          });
+
+          expect(lines.map((l) => l.file), ['$story/$staying']);
+          expect(
+            lines.single.message,
+            allOf(
+              contains('$story/functional_requirements/fr01_x.md moves to'),
+              contains('$story/$staying stays'),
+            ),
+          );
+        }
+      });
+
+      test('f06/us01/fr03/e14: an empty specs/ holding one file leaves it '
+          'where it is', () {
+        final tree = {'docs/specs/INDEX.md': '# Index\n'};
+        final plan = _plan(tree);
+
+        expect(plan.moves, isEmpty);
+        expect(plan.left, ['specs/INDEX.md']);
+        _expectNoDrop(tree, plan);
+      });
+
+      test('f06/us01/fr03/e14: a tree with no file plans nothing', () {
+        final plan = _plan({});
+
+        expect(plan.moves, isEmpty);
+        expect(plan.left, isEmpty);
       });
     });
 

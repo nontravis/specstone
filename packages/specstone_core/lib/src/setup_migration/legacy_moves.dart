@@ -113,7 +113,7 @@ LegacyMoves planLegacyMoves(
 }) {
   final sorted = [...docPaths]..sort(compareCodePoints);
   final specFolders = _specFoldersOf(specMap);
-  final topicFolders = _topicFolderNames(specFolders);
+  final topicFolders = _topicFolderNames(specFolders, sorted);
 
   final placed = <String, _Placement>{};
   final specFiles = <_FeatureSpecFile>[];
@@ -159,7 +159,9 @@ LegacyMoves planLegacyMoves(
 
 /// Returns [path] as every legacy path comparison of E11, E12, and E14 sees it.
 ///
-/// Dart's locale-free Unicode lowercase, so `Ä` and `ä` fold too.
+/// Dart's locale-free simple Unicode lowercase, so `Ä` and `ä` fold too. It is
+/// not a file system's fold: NTFS and APFS fold some names it keeps apart
+/// (`ς` and `Σ`) and keep apart some it folds (`İ` and `i`).
 String caseBlindPath(String path) => path.toLowerCase();
 
 typedef _Placement = ({String to, LegacyKind? kind});
@@ -254,18 +256,31 @@ Map<String, Set<String>> _specFoldersOf(List<SpecMapRow> specMap) {
   return idsByFolder;
 }
 
-/// The `specs/topics/` subfolder name of each cross-cutting spec folder.
+/// The `specs/topics/` subfolder name of each cross-cutting spec folder that
+/// can place a file.
 ///
-/// A folder whose last segment no other shares (ignoring letter case) keeps
-/// it; the folders that share one take [trailingRunNames] among them (E12).
-Map<String, String> _topicFolderNames(Map<String, Set<String>> specFolders) {
+/// Such a folder is a subfolder of `specs/` that holds one of [paths]. One
+/// whose last segment no other shares (ignoring letter case) keeps it; the
+/// folders that share one take [trailingRunNames] among them (E12).
+Map<String, String> _topicFolderNames(
+  Map<String, Set<String>> specFolders,
+  List<String> paths,
+) {
   final byLastSegment = <String, List<String>>{};
+  final holding = {
+    for (final path in paths) path.substring(0, path.lastIndexOf('/') + 1),
+  };
   final folders = [
     for (final MapEntry(key: folder, value: ids) in specFolders.entries)
       if (ids.length == 1 && ids.single == _crossCutting) folder,
   ]..sort(compareCodePoints);
   for (final folder in folders) {
-    if (folder == _architectureFolder) continue;
+    final canPlace =
+        folder.startsWith(_specsFolder) &&
+        folder.length > _specsFolder.length &&
+        folder != _architectureFolder &&
+        holding.contains(folder);
+    if (!canPlace) continue;
     (byLastSegment[caseBlindPath(_lastSegmentOf(folder))] ??= []).add(folder);
   }
   final names = <String, String>{};
@@ -288,15 +303,23 @@ String _lastSegmentOf(String folder) {
 
 /// Returns the subfolder name of each of [oldFolders], in the same order.
 ///
-/// Each entry is an old folder path under `specs/`, ending in `/`. An entry's
-/// name is the shortest run of trailing segments that differs, ignoring
-/// letter case, from the same-length run of every other entry by position,
-/// a folder with fewer segments comparing as its whole path. An entry no run
-/// tells apart gets its whole path under `specs/`, without the final `/`.
+/// Each entry is an old folder path starting with `specs/` and ending in `/`.
+/// An entry's name is the shortest run of trailing segments that differs,
+/// ignoring letter case, from the same-length run of every other entry by
+/// position, a folder with fewer segments comparing as its whole path. An
+/// entry no run tells apart gets its whole path under `specs/`, without the
+/// final `/`; `specs/` itself has no segment and gets `''`.
 List<String> trailingRunNames(List<String> oldFolders) {
+  assert(
+    oldFolders.every((f) => f.startsWith(_specsFolder) && f.endsWith('/')),
+    'every entry is a folder path from specs/ to a final /',
+  );
   final segments = [
     for (final folder in oldFolders)
-      folder.substring(_specsFolder.length, folder.length - 1).split('/'),
+      [
+        for (final segment in folder.substring(_specsFolder.length).split('/'))
+          if (segment.isNotEmpty) segment,
+      ],
   ];
   return [for (var i = 0; i < segments.length; i++) _runNameOf(i, segments)];
 }
@@ -390,8 +413,8 @@ Map<String, _Placement> _resolveFeatureSpecs(List<_FeatureSpecFile> files) {
 
 /// Places [sameName], files of one name and feature, under their old names.
 ///
-/// Several files of a name each go into a subfolder (E11); a lone file goes
-/// straight into the feature's spec folder.
+/// Several files of a name each go into a subfolder (E11); a lone file, and a
+/// file held directly by `specs/`, go straight into the feature's spec folder.
 Map<String, _Placement> _placeUnderOldNames(List<_FeatureSpecFile> sameName) {
   final subfolders = sameName.length == 1
       ? const ['']
@@ -399,7 +422,7 @@ Map<String, _Placement> _placeUnderOldNames(List<_FeatureSpecFile> sameName) {
           for (final run in trailingRunNames([
             for (final file in sameName) file.oldFolder,
           ]))
-            '$run/',
+            if (run.isEmpty) '' else '$run/',
         ];
   return {
     for (var i = 0; i < sameName.length; i++)
@@ -420,7 +443,7 @@ Map<String, _Placement> _placeUnderOldNames(List<_FeatureSpecFile> sameName) {
 /// code point order. [sorted] holds every input path.
 void _refuseCollisions(List<String> sorted, List<PathMove> moves) {
   final faults = _collisionFaults(sorted, moves);
-  for (final move in _movesOnCycles(moves)) {
+  for (final move in movesOnCycles(moves)) {
     faults.putIfAbsent(caseBlindPath(move.to), () => _cycleFault(move));
   }
   if (faults.isEmpty) return;
@@ -482,40 +505,78 @@ MigrateFault _cycleFault(PathMove move) => MigrateFault(
 /// Returns the moves that lie on a cycle of moves, each waiting for another to
 /// leave the path it moves onto.
 ///
-/// A move onto its own old path in another letter case waits for nothing.
-List<PathMove> _movesOnCycles(List<PathMove> moves) {
+/// A move onto its own old path in another letter case waits for nothing, so
+/// no move waits for itself. A move that only leads from one cycle to another
+/// lies on none. Public for tests.
+List<PathMove> movesOnCycles(List<PathMove> moves) {
   final candidates = [
     for (final move in moves)
       if (caseBlindPath(move.to) != caseBlindPath(move.from)) move,
   ];
-  final leaving = <String, List<PathMove>>{};
-  for (final move in candidates) {
-    (leaving[caseBlindPath(move.from)] ??= []).add(move);
+  final leaving = <String, List<int>>{};
+  for (var i = 0; i < candidates.length; i++) {
+    (leaving[caseBlindPath(candidates[i].from)] ??= []).add(i);
   }
-  final waitsOn = {
+  final componentOf = _componentIds([
     for (final move in candidates)
-      move: leaving[caseBlindPath(move.to)] ?? const <PathMove>[],
-  };
-  final waiters = <PathMove, List<PathMove>>{};
-  for (final MapEntry(key: move, value: blockers) in waitsOn.entries) {
-    for (final blocker in blockers) {
-      (waiters[blocker] ??= []).add(move);
-    }
-  }
-  final alive = candidates.toSet();
-  bool isLive(PathMove move) => alive.contains(move);
-  while (true) {
-    final dead = [
-      for (final move in alive)
-        if (!waitsOn[move]!.any(isLive) ||
-            !(waiters[move] ?? const <PathMove>[]).any(isLive))
-          move,
-    ];
-    if (dead.isEmpty) break;
-    alive.removeAll(dead);
+      leaving[caseBlindPath(move.to)] ?? const <int>[],
+  ]);
+  final sizes = <int, int>{};
+  for (final id in componentOf) {
+    sizes[id] = (sizes[id] ?? 0) + 1;
   }
   return [
-    for (final move in candidates)
-      if (alive.contains(move)) move,
+    for (var i = 0; i < candidates.length; i++)
+      if (sizes[componentOf[i]]! > 1) candidates[i],
   ];
+}
+
+/// Returns the strongly connected component id of each node of [edges], where
+/// `edges[i]` lists the nodes `i` points to (Tarjan, without recursion).
+List<int> _componentIds(List<List<int>> edges) {
+  final count = edges.length;
+  final order = List<int>.filled(count, -1);
+  final lowLink = List<int>.filled(count, 0);
+  final nextEdge = List<int>.filled(count, 0);
+  final componentOf = List<int>.filled(count, -1);
+  final open = <int>[];
+  var visited = 0;
+  var components = 0;
+
+  void enter(int node, List<int> calls) {
+    order[node] = lowLink[node] = visited++;
+    open.add(node);
+    calls.add(node);
+  }
+
+  for (var root = 0; root < count; root++) {
+    if (order[root] != -1) continue;
+    final calls = <int>[];
+    enter(root, calls);
+    while (calls.isNotEmpty) {
+      final node = calls.last;
+      if (nextEdge[node] < edges[node].length) {
+        final next = edges[node][nextEdge[node]++];
+        if (order[next] == -1) {
+          enter(next, calls);
+        } else if (componentOf[next] == -1) {
+          lowLink[node] = min(lowLink[node], order[next]);
+        }
+        continue;
+      }
+      calls.removeLast();
+      if (calls.isNotEmpty) {
+        final caller = calls.last;
+        lowLink[caller] = min(lowLink[caller], lowLink[node]);
+      }
+      if (lowLink[node] != order[node]) continue;
+      int member;
+      do {
+        member = open.removeLast();
+        componentOf[member] = components;
+      } while (member != node);
+      components++;
+    }
+  }
+  return componentOf;
 }

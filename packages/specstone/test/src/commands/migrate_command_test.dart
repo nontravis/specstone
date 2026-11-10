@@ -188,6 +188,27 @@ void main() {
     }
   });
 
+  test('f06/us01/fr03/e12: Spec map rows outside specs/ sharing a last '
+      'segment plan, exit 0', () async {
+    final root = await gitFixture({
+      'docs/prds/d01_context.md': '# D-01 — Context\n',
+      'docs/specs/INDEX.md':
+          '## Spec map\n\n'
+          '| Code path | Spec path | feature_id |\n'
+          '|-----------|-----------|------------|\n'
+          '| `a/` | `auth/` | — |\n'
+          '| `b/` | `lib/auth/` | — |\n',
+    });
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['migrate', '--dry-run']),
+      0,
+      reason: err.toString(),
+    );
+    expect(out.toString(), endsWith('dry run: nothing written\n'));
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us01/fr02/e04: migrate --dry-run over a dirty tree is '
       'working_tree_dirty, exit 75, with no plan', () async {
     final root = await gitFixture(acmeLegacy);
