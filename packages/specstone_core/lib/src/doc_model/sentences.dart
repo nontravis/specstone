@@ -43,15 +43,12 @@ String heldTextOf(String lfText) => collapseWhitespace(
   ),
 );
 
-/// Returns the sentences of [lfText], a doc's LF text, as the text each one is
-/// written in, whitespace collapsed.
+/// Returns the sentences of [lfText], a doc's LF text, whitespace collapsed.
 ///
-/// A sentence is cut from the text of a paragraph, list item, table cell, or
-/// `###` or deeper heading, outside the frontmatter, the `# ` title, the `##`
-/// headers, and fenced code, after each `.`, `?`, or `!` that a space or the
-/// end of its block follows. List markers, `>` marks, heading marks, and table
-/// pipes are no part of it; inline markup is, so the sentence occurs in
-/// `heldTextOf` of any doc that holds it.
+/// They come from paragraphs, list items, table cells, and `###` or deeper
+/// headings, outside the frontmatter, the title, the `##` headers, and fenced
+/// code. Inline markup stays, so each sentence occurs in `heldTextOf` of any
+/// doc that holds it.
 List<String> sentencesOf(String lfText) {
   final lines = _linesOf(Doc.parse(lfText).afterFrontmatter);
   final scan = blockScan(lines);

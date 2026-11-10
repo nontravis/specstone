@@ -207,6 +207,23 @@ void main() {
       _expectEachHeld(text);
     });
 
+    test('$_story: a mark followed by a closing quote or parenthesis cuts '
+        'nothing', () {
+      const text = 'She said "hi." Next one. It was (really?) Yes.\n';
+      expect(sentencesOf(text), [
+        'She said "hi." Next one.',
+        'It was (really?) Yes.',
+      ]);
+      _expectEachHeld(text);
+    });
+
+    test('$_story: a mark and a space inside an inline code span cut, each '
+        'piece held', () {
+      const text = 'Run `a. b` now.\n';
+      expect(sentencesOf(text), ['Run `a.', 'b` now.']);
+      _expectEachHeld(text);
+    });
+
     test('$_story: a text with no sentence gives none', () {
       expect(sentencesOf(''), isEmpty);
       expect(sentencesOf('---\ndraft: true\n---\n'), isEmpty);
