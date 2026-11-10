@@ -33,8 +33,8 @@ findings, and changed code or a batch's findings into drafts.
 - **Approved drafts, plan path** (plan, required): the docs the author reported; the plan file to write.
 - **Changed paths or base commit** (sync, optional): absent, step 2 of
   `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` finds them.
-- **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix;
-  write any doc a fix needs.
+- **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
+  `item_over_limit` when the Owner named it for the run; write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report, outside the repository; absent, make one with
   `mktemp`.
 - **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
@@ -89,7 +89,8 @@ finding.
   one sentence on why it changed, never their text; each other draft; each pointer fixed; each behavior handed to
   `specstone:brainstorming-sdd`; each pointer that waits on an approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  one `specstone delete …` line; findings outside `batch`;
+  one `specstone delete …` line; findings outside `batch`; `Waits on the Owner:`, each `item_over_limit` finding
+  when `batch` does not name `item_over_limit`;
   then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
 ## Scope Boundaries

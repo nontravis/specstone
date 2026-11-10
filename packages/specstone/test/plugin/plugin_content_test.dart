@@ -1028,6 +1028,31 @@ const _sizeFindings = [
   '`item_over_limit`',
 ];
 
+/// The statement's split clause of
+/// `agent_plugin/fill_missing_format/fill_check_findings`, as size-fix.md
+/// words it.
+const _sizeAnswerRule =
+    'Answer each `chars_over_limit` or `lines_over_limit` finding once in your '
+    'report, though `check` tags it `(waits for the Owner)`: a split '
+    'proposal, or why none applies. Give `item_over_limit` neither';
+
+/// Each point of `fill_check_findings` E13's item rewrite, held only by
+/// size-fix.md.
+const _itemRewritePoints = [
+  "in its doc type's item shape, as `specstone guide <type>` gives it",
+  'one rule per ID',
+  'each rule split off takes the next free ID of its section',
+  'a bound stays in its rule',
+  'its mechanics, known limits, and trace move to the homes the guide names',
+  'no statement is dropped',
+];
+
+/// The `item_over_limit` Input row of `fill_check_findings`, as each
+/// bootstrap skill words it.
+const _itemBatchRule =
+    "An `item_over_limit` finding joins its doc's batch only when the Owner "
+    'named `item_over_limit` when starting the run';
+
 /// Each bootstrap procedure and the sentences by which it skipped or dropped
 /// old text on judgement, or wrote its own proposal for a gap.
 const _droppedTextReasons = {
@@ -1084,13 +1109,7 @@ void _sizeFixTests() {
     for (final finding in _sizeFindings) {
       expect(text, contains(finding), reason: finding);
     }
-    expect(
-      text,
-      contains(
-        'Answer each size finding once in your report, though `check` tags '
-        'it `(waits for the Owner)`: a split proposal, or why none applies.',
-      ),
-    );
+    expect(text, contains(_sizeAnswerRule));
     expect(
       text,
       contains('`item_over_limit` skips this step: a split never shrinks one'),
@@ -1106,6 +1125,53 @@ void _sizeFixTests() {
     expect(text, contains('fewer than 4 stories'));
     expect(text, isNot(contains('Cite a size only')));
     expect(text, isNot(contains('Never cut meaning')));
+  });
+
+  test('agent_plugin/fill_missing_format/fill_check_findings E12, E13: '
+      'size-fix.md asks a split answer of the two other size findings only '
+      'and holds the item rewrite, each bootstrap skill batches an '
+      'item_over_limit finding only in a run the Owner names it in, and '
+      'sdd-engineer lists the rest under Waits on the Owner', () {
+    final sizeFix = _pluginText(_sizeFix);
+    expect(_oneLine(sizeFix), contains(_sizeAnswerRule));
+    expect(
+      _sectionOf(sizeFix, 'No split applies'),
+      isNot(contains('`item_over_limit`')),
+    );
+    final item = _oneLine(_sectionOf(sizeFix, 'An item over its limit'));
+    for (final point in _itemRewritePoints) {
+      expect(item, contains(point), reason: point);
+    }
+    expect(item, contains('`Waits on the Owner:`'));
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      final text = _pluginText('skills/$skill/SKILL.md');
+      final handOff = _oneLine(_sectionOf(text, '2. Hand off in batches'));
+      expect(handOff, contains(_itemBatchRule), reason: skill);
+      expect(handOff, contains('`Waits on the Owner:`'), reason: skill);
+      for (final point in _itemRewritePoints) {
+        expect(
+          _oneLine(text),
+          isNot(contains(point)),
+          reason: '$skill: $point',
+        );
+      }
+    }
+    final agent = _pluginText('agents/sdd-engineer.md');
+    expect(
+      _oneLine(_sectionOf(agent, 'Input Contract')),
+      contains(
+        'the finding paths you fix, and `item_over_limit` when the '
+        'Owner named it for the run',
+      ),
+    );
+    final output = _oneLine(_sectionOf(agent, 'Output Format'));
+    expect(
+      output.substring(output.indexOf('- **Bootstrap**')),
+      contains('`Waits on the Owner:`, each `item_over_limit` finding'),
+    );
+    for (final point in _itemRewritePoints) {
+      expect(_oneLine(agent), isNot(contains(point)), reason: point);
+    }
   });
 
   test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules, '

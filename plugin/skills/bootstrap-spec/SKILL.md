@@ -35,6 +35,10 @@ round the rest batch always runs, even with no finding, and names `tech_stack:te
 `report:`, one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work
 no step of the procedure yourself.
 
+An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
+that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item per `size-fix.md`. In any other
+run the finding waits for the Owner: list it under `Waits on the Owner:` when you stop.
+
 Without the tool, or when a dispatch fails, read `references/procedure.md` beside this file
 (`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md`) and follow it yourself: without the tool,
 over every finding this skill takes; after a failed dispatch, for each batch no agent took.
