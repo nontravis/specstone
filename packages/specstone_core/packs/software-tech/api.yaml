@@ -38,7 +38,7 @@ sections:
       Write a success and an error Response example, both required and valid against the source of truth when one exists.
       Write Errors as the codes with a pointer to the error doc, and Auth as a scope or `none`.
       Write Idempotent on every mutating operation: `yes` with the key, or `no`.
-      Write no Why line.
+      Write no Why line; the reason a legacy Why line gives goes to the `Rationale` of the FR the operation traces.
   - id: compatibility
     header: Compatibility
     description: |-

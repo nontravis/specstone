@@ -37,7 +37,10 @@ const _placementLines = [
   'A sub-feature holds at least 2 stories or sub-features; a lone story never starts one.',
   'A feature that holds sub-features holds no story; a lone story whose only spec is such a parent goes to the sub-feature whose stories it is closest to, and the proposal says so.',
   'The parent keeps only what all its sub-features share.',
-  "When `check` reports `chars_over_limit` on a feature's spec doc, propose a split by the same three questions; the Owner approves it.",
+  "When `check` reports `chars_over_limit` or `lines_over_limit` on a feature's doc that a write has laid out, propose a sub-feature split by the same three questions; the Owner approves it.",
+  'A feature of fewer than 4 stories takes no split, since a split needs at least 2 sub-features of at least 2 stories each and a feature holds stories or sub-features, never both; say why no split applies.',
+  "`item_over_limit` takes no split, since a split never shrinks one item; the item takes its doc type's item shape instead.",
+  'Cut no text to pass a size.',
 ];
 
 const _dependsOnDescription =

@@ -6,6 +6,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
@@ -334,6 +335,58 @@ void main() {
       expect(await runner.run(['guide', 'a', 'b']), 64);
       expect(out.toString(), isEmpty);
       expect(err.toString(), contains(_guideUsage));
+    });
+  });
+
+  group('specstone guide with the shipped writing guides', () {
+    late StringBuffer out;
+    late StringBuffer err;
+
+    setUp(() {
+      out = StringBuffer();
+      err = StringBuffer();
+    });
+
+    Future<SpecstoneCommandRunner> shippedRunner() async =>
+        SpecstoneCommandRunner(
+          out: out,
+          err: err,
+          templates: TemplateResolver(),
+          workingDirectory: await writeTree({_configPath: shippedPinsConfig()}),
+          homeDirectory: await writeTree({}),
+        );
+
+    test('template_packs/write_prd_docs_from_prd_core/'
+        'write_shipped_writing_guides E05: guide feature names the three size '
+        'findings in order, with the no-split case', () async {
+      final runner = await shippedRunner();
+
+      expect(await runner.run(['guide', 'feature']), 0);
+      final guide = out.toString();
+      final chars = guide.indexOf('`chars_over_limit`');
+      final lines = guide.indexOf('`lines_over_limit`');
+      final item = guide.indexOf('`item_over_limit`');
+      expect(chars, isNonNegative);
+      expect(lines, greaterThan(chars));
+      expect(item, greaterThan(lines));
+      expect(guide, contains('fewer than 4 stories'));
+      expect(guide, contains('never both'));
+      expect(guide, contains('a split never shrinks one item'));
+      expect(guide, contains('Cut no text to pass a size'));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides: guide api names the FR Rationale as the '
+        'home of a legacy Why line', () async {
+      final runner = await shippedRunner();
+
+      expect(await runner.run(['guide', 'api']), 0);
+      expect(
+        out.toString(),
+        contains('the reason a legacy Why line gives goes to the `Rationale`'),
+      );
+      expect(err.toString(), isEmpty);
     });
   });
 }
