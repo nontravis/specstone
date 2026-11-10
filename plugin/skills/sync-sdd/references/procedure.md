@@ -1,6 +1,5 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
-As `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the Owner goes
-into your report.
+As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
 `specstone check` tests only that code pointers resolve; it never reads what a function now does. So start from the
 paths the task changed, not from findings. Follow `specstone:expert-sdd` for every doc you write.
@@ -63,9 +62,10 @@ comes first; the pointer follows it.
 ## Report to the Owner
 
 After your last write, run one `specstone approve --dry-run --json`, the source of every count, never your own tally.
-List your drafts, the docs whose text you wrote, with their count and each one's dropped and new sentence counts; name
-each other draft it lists, never counted; one of yours it shows as no draft is a finding. Then list each pointer
-fixed, each behavior handed to `specstone:brainstorming-sdd`, and each pointer that waits on an approval.
+Your drafts are the docs your own list names, those whose text you wrote: list them with their count and each one's
+dropped and new sentence counts; name each other draft it lists, never counted; one of yours it shows as no draft is a
+finding. Then list each pointer fixed, each behavior handed to `specstone:brainstorming-sdd`, and each pointer that
+waits on an approval.
 
 ## Red flags
 

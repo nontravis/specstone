@@ -1,6 +1,5 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
-As `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the Owner goes
-into your report.
+As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
 This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
 Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
@@ -76,7 +75,7 @@ to the retire set, a list for this run only.
 specstone delete <path> <path> …
 ```
 
-On a batch, delete nothing: hand that line to `specstone:bootstrap-spec`'s step 3.4, which joins the round's lines.
+On a batch, delete nothing: hand that line to `specstone:bootstrap-spec`'s step 3.4.
 With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Exit 64 `doc_referenced`: repoint the
 referrers it lists, then ask again.
 
@@ -88,9 +87,10 @@ title, each section `specstone guide tech_stack` names, and `code`, each code fo
 `## Naming canonicalization` to `## Naming`, then drop each PRD section. Fill each doc step 3 or 4 made the same way.
 Then rerun `specstone check`: new roots can raise `code_uncovered`.
 
-Last, take your drafts and every count from one `specstone approve --dry-run --json` after your last write,
-naming each other draft, never counted. Name per draft each change, moved pointer, dropped key or section, and
-finding that clears with no write; then get each draft approved through step 5's Owner confirmation.
+Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
+your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
+Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then get
+each approved through step 5's Owner confirmation.
 
 ## Red flags
 

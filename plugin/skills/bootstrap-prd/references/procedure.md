@@ -1,6 +1,5 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
-As `specstone:sdd-engineer`, ask the Owner nothing: each step that asks, confirms, or approves with the Owner goes
-into your report.
+As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
 This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
 `code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
@@ -72,18 +71,18 @@ specstone delete <path> <path> …
 ```
 
 On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4, which joins the round's lines.
-With no batch, run it once the Owner confirms it per `specstone:expert-sdd`. Without that ok the CLI refuses
-(exit 77). Never run `git rm`: it deletes while links still point in. On `doc_referenced` (exit 64), repoint the
-referrers it lists, then ask again.
+With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: it deletes while
+links still point in. Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
 `specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (`project:project`,
 `features:features`, `gnfr:gnfr`): read each with `specstone get` and fill it with the Owner.
 
-Last, take your drafts and every count from one `specstone approve --dry-run --json` after your last write,
-naming each other draft, never counted. Name per draft each change, proposal, moved pointer, dropped key, and finding
-that clears with no write; then get each draft approved as step 5's Owner confirmation says.
+Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
+your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
+Name per draft each change, proposal, moved pointer, dropped key, and finding that clears with no write; then get
+each approved as step 5's Owner confirmation says.
 
 ## Red flags
 

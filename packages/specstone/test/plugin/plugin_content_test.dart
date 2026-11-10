@@ -681,17 +681,34 @@ void _handOffTests() {
       );
       expect(text, contains('after your last write'), reason: where);
       expect(text, contains('every count'), reason: where);
+      expect(
+        text,
+        contains('your drafts are the docs your own list names'),
+        reason: where,
+      );
       expect(text, contains('never counted'), reason: where);
+      expect(text, contains('shows as no draft'), reason: where);
     }
     for (final (file, section) in [
       ('agents/sdd-engineer.md', 'Output Format'),
       ('skills/brainstorming-sdd/references/author.md', '5. Report'),
     ]) {
       final text = _oneLine(_sectionOf(_pluginText(file), section));
-      final where = '$file#$section';
-      expect(text, contains('never your own tally'), reason: where);
-      expect(text, contains('shows as no draft'), reason: where);
+      expect(text, contains('never your own tally'), reason: '$file#$section');
     }
+    final moved = _oneLine(
+      _sectionOf(
+        _pluginText('skills/brainstorming-sdd/references/author.md'),
+        '5. Report',
+      ),
+    );
+    expect(
+      moved,
+      contains(
+        'while its `Move:` line is unrun, by its name before the move; once '
+        'the runner runs it, by its name after',
+      ),
+    );
     expect(
       _oneLine(_sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules')),
       contains(

@@ -63,8 +63,9 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
   a fix round added, this one's included. The audit and plan modes take this list. Name each draft a `Move:` line
   moves, the story and its FRs, by the name it holds after the move.
 - **Counts**: take every count, of drafts and of sentences dropped and new, from one
-  `specstone approve --dry-run --json` after your last write, never your own tally; it lists a moved draft by its
-  name before the move. Count only the drafts your list names; name each other draft it lists under
-  `Other drafts:`, never counted; a doc of your list it shows as no draft goes under `Findings:`.
+  `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
+  list names; the output names a moved one, while its `Move:` line is unrun, by its name before the move; once the
+  runner runs it, by its name after. Name each other draft it lists under `Other drafts:`, never counted; one of
+  yours it shows as no draft goes under `Findings:`.
 - **Move**: only when the design moves stories, one line per target feature; copy each into the relay block. Run no
   `move`: the runner of `specstone:brainstorming-sdd` runs each line's command before the audit.
