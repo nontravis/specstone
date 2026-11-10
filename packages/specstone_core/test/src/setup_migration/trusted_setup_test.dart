@@ -203,17 +203,37 @@ void main() {
       expect(_bytesUnder(ws), before);
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
+    test('a dry run from there refuses 73 before the plan, prints nothing, and '
+        'writes nothing', () async {
+      final ws = await linkedTree();
+      final code = Directory('${ws.path}/code');
+      final before = _bytesUnder(ws);
+      final out = StringBuffer();
+
+      expect(
+        () => _migrate(code, dryRun: true, out: out),
+        _refuses(
+          '.specstone/trash/journal.json',
+          'the project folder ${ws.path} was reached through the docs '
+              'link in ${code.path}',
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(_bytesUnder(ws), before);
+    }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
+
     test(
-      'a dry run from there still prints the plan and writes nothing',
+      'a dry run from there prints the plan and writes nothing once the Owner '
+      'trusts the roots',
       () async {
         final ws = await linkedTree();
+        final code = Directory('${ws.path}/code');
+        _trust(code);
         final before = _bytesUnder(ws);
         final out = StringBuffer();
 
-        expect(
-          _migrate(Directory('${ws.path}/code'), dryRun: true, out: out),
-          0,
-        );
+        expect(_migrate(code, dryRun: true, out: out), 0);
 
         expect(out.toString(), contains('dry run: nothing written'));
         expect(_bytesUnder(ws), before);

@@ -42,7 +42,7 @@ void main() {
     expect(out.toString(), startsWith('legacy migration: '));
     expect(_bytesUnder(root), before);
     expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
-  });
+  }, skip: hasGit ? null : 'git is not available');
 
   test('a docs-root file named with # is read as a file name, not a URI '
       'fragment', () async {
@@ -58,7 +58,7 @@ void main() {
       reason: err.toString(),
     );
     expect(out.toString(), endsWith('dry run: nothing written\n'));
-  });
+  }, skip: hasGit ? null : 'git is not available');
 
   test(
     'f06/us01/fr01/e04: nothing to migrate, with and without --dry-run',
@@ -95,7 +95,7 @@ void main() {
 
     expect(err.toString(), isEmpty);
     expect(out.toString(), contains('  prds/d04_glossary.md: 1 mention\n'));
-  });
+  }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us01/fr01/e01: no project is project_not_found, exit 78', () async {
     final root = await writeTree({'notes.txt': 'x\n'});
@@ -136,7 +136,29 @@ void main() {
         'prds/features/core/cr02_utilities\n',
       );
     },
+    skip: hasGit ? null : 'git is not available',
   );
+
+  test('f06/us01/fr02/e04: migrate --dry-run over a dirty tree is '
+      'working_tree_dirty, exit 75, with no plan', () async {
+    final root = await gitFixture(acmeLegacy);
+    File('${root.path}/notes.txt').writeAsStringSync('x\n');
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--dry-run']), 75);
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), isNotEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us01/fr02/e03: migrate --dry-run outside a git work tree is '
+      'git_work_tree_required, exit 78, with no plan', () async {
+    final root = await writeTree(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--dry-run']), 78);
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), contains('not in a git work tree'));
+  }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us01/fr02: migrate takes no argument', () async {
     final root = await writeTree(acmeLegacy);
@@ -170,7 +192,7 @@ void main() {
       out.toString(),
       matches(RegExp(r'\nplan [0-9a-f]{12}\ndry run: nothing written\n$')),
     );
-  });
+  }, skip: hasGit ? null : 'git is not available');
 
   for (final (args, message) in [
     (

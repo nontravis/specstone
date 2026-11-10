@@ -798,6 +798,41 @@ void main() {
     expect(out.toString(), isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us03/fr01/e02: the legacy entry outside a git work tree, or in a '
+      'repository with no first commit, refuses git_work_tree_required '
+      'before the plan prints', () async {
+    final outside = await writeTree(acmeLegacy);
+    final unborn = await writeTree(acmeLegacy);
+    expect(git(unborn, ['init', '-q']).exitCode, 0);
+
+    for (final root in [outside, unborn]) {
+      final out = StringBuffer();
+
+      expect(
+        () => runInit(
+          InitRequest(
+            workingDirectory: root,
+            homeDirectory: testHome(),
+            templates: TemplateResolver(),
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => 'y',
+            out: out,
+            runGit: runRealGit,
+          ),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitWorkTreeRequired,
+          ),
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+    }
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
       'exit 75, and the journal stays', () async {
     final root = await gitFixture(acmeLegacy);

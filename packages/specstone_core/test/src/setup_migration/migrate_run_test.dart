@@ -1460,19 +1460,20 @@ void main() {
       expect(hasDoc(root, 'prds/a.md'), isFalse);
       expect(hasDoc(root, 'prds/b.md'), isTrue);
 
-      final dry = await gitFixture(files);
+      // A real project ignores `trash/`, so the journal leaves the tree clean.
+      final dry = await gitFixture({
+        ...files,
+        '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+      });
       writeJournal(dry, [const MoveStep('docs/prds/a.md', 'docs/prds/b.md')]);
-      // The journal file is untracked, so the tree as it stands is dirty.
-      expect(
-        () => _run(dry, StringBuffer(), dryRun: true),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.workingTreeDirty,
-          ),
-        ),
-      );
+      final journal = File('${dry.path}/.specstone/trash/journal.json');
+      final journalBytes = journal.readAsBytesSync();
+      final out = StringBuffer();
+
+      expect(_run(dry, out, dryRun: true), 0);
+
+      expect(out.toString(), 'nothing to migrate\n');
+      expect(journal.readAsBytesSync(), journalBytes);
       expect(hasDoc(dry, 'prds/a.md'), isTrue);
       expect(hasDoc(dry, 'prds/b.md'), isFalse);
     }, skip: skipGit);
@@ -1847,6 +1848,188 @@ void main() {
         acmeLegacy['docs/prds/d01_context.md'],
       );
     }, skip: skipGit);
+
+    Matcher refusesWith(MigrateFaultCode code) =>
+        throwsA(isA<MigrateFault>().having((f) => f.code, 'code', code));
+
+    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal whose step '
+        'is applied refuses the tree as it stands', () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+      });
+      _writeF02Journal(root);
+      File('${root.path}/docs/prds/d01_context.md')
+          .writeAsStringSync('replaced\n');
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      final before = journal.readAsStringSync();
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        refusesWith(MigrateFaultCode.workingTreeDirty),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(journal.readAsStringSync(), before);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e04, f06/us01/fr08/e10: a resume dry run over '
+        'untrusted roots refuses output_not_writable before any git '
+        'call', () async {
+      final tree = await writeTree(linkedAcme({'.gitignore': 'code/docs\n'}));
+      if (!linkCodeDocs(tree)) return;
+      final ws = Directory('${tree.path}/ws');
+      commitRepo(ws);
+      _stopAfterCommit1(ws);
+      final calls = <List<String>>[];
+      final out = StringBuffer();
+
+      expect(
+        () => _run(
+          Directory('${ws.path}/code'),
+          out,
+          dryRun: true,
+          runGit: _fakeGit(calls),
+        ),
+        trustRefusal(),
+      );
+
+      expect(calls, isEmpty);
+      expect(out.toString(), isEmpty);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e04, f06/us01/fr02/e03: a resume dry run under git '
+        '2.24 refuses git_work_tree_required and names 2.25', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(
+          root,
+          out,
+          dryRun: true,
+          runGit: _fakeGit([], version: '2.24.0'),
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.gitWorkTreeRequired,
+              )
+              .having((f) => f.message, 'message', contains('2.25')),
+        ),
+      );
+      expect(out.toString(), isEmpty);
+    }, skip: skipGit);
+
+    group('an upgrade dry run', () {
+      final upgrade = {'.specstone/config.yaml': _belowSince};
+
+      test('f06/us02/fr02, f06/us01/fr02/e04: over a dirty tree refuses '
+          'working_tree_dirty and prints no plan', () async {
+        final root = await gitFixture(upgrade);
+        File('${root.path}/notes.txt').writeAsStringSync('x\n');
+        final out = StringBuffer();
+
+        expect(
+          () => _run(root, out, dryRun: true),
+          refusesWith(MigrateFaultCode.workingTreeDirty),
+        );
+
+        expect(out.toString(), isEmpty);
+      }, skip: skipGit);
+
+      test('f06/us02/fr02, f06/us01/fr02/e03: outside a work tree refuses '
+          'git_work_tree_required', () async {
+        final root = await gitFixture(upgrade);
+        final out = StringBuffer();
+
+        expect(
+          () => _run(
+            root,
+            out,
+            dryRun: true,
+            runGit: _fakeGit([], outsideWorkTree: true),
+          ),
+          gitRefusal(),
+        );
+
+        expect(out.toString(), isEmpty);
+      }, skip: skipGit);
+
+      test('f06/us02/fr02, f06/us01/fr02/e03: under git 2.24 refuses '
+          'git_work_tree_required and names 2.25', () async {
+        final root = await gitFixture(upgrade);
+        final out = StringBuffer();
+
+        expect(
+          () => _run(
+            root,
+            out,
+            dryRun: true,
+            runGit: _fakeGit([], version: '2.24.0'),
+          ),
+          throwsA(
+            isA<MigrateFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  MigrateFaultCode.gitWorkTreeRequired,
+                )
+                .having((f) => f.message, 'message', contains('2.25')),
+          ),
+        );
+
+        expect(out.toString(), isEmpty);
+      }, skip: skipGit);
+    });
+
+    test('f06/us01/fr02/e04: a dry run over a tree dirty only by a '
+        'git-ignored file prints the plan', () async {
+      final root = await gitFixture({...acmeLegacy, '.gitignore': '*.log\n'});
+      File('${root.path}/build.log').writeAsStringSync('x\n');
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true), 0);
+
+      expect(out.toString(), endsWith('dry run: nothing written\n'));
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e04: an untracked file counts whatever the git '
+        'configuration hides', () async {
+      final root = await gitFixture(acmeLegacy);
+      expect(
+        git(root, ['config', 'status.showUntrackedFiles', 'no']).exitCode,
+        0,
+      );
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        refusesWith(MigrateFaultCode.workingTreeDirty),
+      );
+
+      expect(out.toString(), isEmpty);
+    }, skip: skipGit);
+
+    test('f06/us01/fr01/e04: an up-to-date project outside git has nothing '
+        'to migrate, with or without --dry-run', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+
+      for (final dryRun in [false, true]) {
+        final out = StringBuffer();
+
+        expect(_run(root, out, dryRun: dryRun), 0);
+
+        expect(out.toString(), 'nothing to migrate\n');
+      }
+    });
   });
 }
 
