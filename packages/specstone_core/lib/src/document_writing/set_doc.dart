@@ -169,7 +169,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   checkPartText(doc: doc, docType: docType, target: request.target, text: text);
 
   return session.locked(() {
-    final read = _readLocked(session, doc, match);
+    final read = readLocked(session, doc, match).parsed;
     final part = splicePart(
       doc: doc,
       docType: docType,
@@ -718,8 +718,13 @@ void _refuseHeaderLine(String body) {
 /// when [lf] is blank.
 String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
 
-/// Reads [doc] from disk as it is now, not as the session's index saw it.
-ParsedDoc _readLocked(
+/// Reads [doc] from disk as it is now, not as the session's index saw it, and
+/// returns its bytes and what they parse to.
+///
+/// Call it under the write lock. Throws [IndexFault] `doc_not_found` when the
+/// file is gone, and `RenderFault` `output_not_writable` for one that cannot be
+/// read or is not UTF-8.
+({List<int> bytes, ParsedDoc parsed}) readLocked(
   WriteSession session,
   IndexedDoc doc,
   DocTypeMatch match,
@@ -731,7 +736,12 @@ ParsedDoc _readLocked(
       'no ${doc.docTypeId} doc carries the name ${doc.name}',
     );
   }
-  return parseIndexedDoc(docPath: doc.docPath, bytes: bytes, match: match);
+  final parsed = parseIndexedDoc(
+    docPath: doc.docPath,
+    bytes: bytes,
+    match: match,
+  );
+  return (bytes: bytes, parsed: parsed);
 }
 
 /// Returns [lfText] with the template section [key] added before the first

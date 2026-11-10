@@ -338,21 +338,14 @@ _Disk? _readDisk(
   List<_Refusal> refusals,
 ) {
   final first = blocks.first;
-  final bytes = session.readDocBytes(first.doc.docPath);
-  if (bytes != null) {
-    return _Disk(
-      bytes,
-      parseIndexedDoc(
-        docPath: first.doc.docPath,
-        bytes: bytes,
-        match: MatchedDocType(first.docType),
-      ),
-    );
+  final IndexFault gone;
+  try {
+    final read = readLocked(session, first.doc, MatchedDocType(first.docType));
+    return _Disk(read.bytes, read.parsed);
+  } on IndexFault catch (fault) {
+    if (fault.code != IndexFaultCode.docNotFound) rethrow;
+    gone = fault;
   }
-  final gone = IndexFault(
-    IndexFaultCode.docNotFound,
-    'no ${first.doc.docTypeId} doc carries the name ${first.doc.name}',
-  );
   for (final block in blocks) {
     _refuse(
       refusals,
