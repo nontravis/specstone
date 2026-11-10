@@ -36,6 +36,7 @@ ReadAnswer answerGet(DocIndex index, String address) {
         _GetBlock(
           doc,
           parsed.lead,
+          sectionKey: leadKey,
           base: leadBaseOf(parsed, docType),
           printsEmptyAsNothing: true,
         ),
@@ -51,6 +52,7 @@ ReadAnswer answerGet(DocIndex index, String address) {
         _GetBlock(
           doc,
           held.map((section) => '${section.text}\n').join(),
+          sectionKey: key,
           base: sectionBaseOf(held.first.body, docType),
         ),
       );
@@ -59,7 +61,12 @@ ReadAnswer answerGet(DocIndex index, String address) {
     final template = docType?.sections.where((s) => s.id == key).firstOrNull;
     if (template != null) {
       blocks.add(
-        _GetBlock(doc, '## ${template.header}\n', base: emptyBaseHash),
+        _GetBlock(
+          doc,
+          '## ${template.header}\n',
+          sectionKey: key,
+          base: emptyBaseHash,
+        ),
       );
     }
   }
@@ -173,6 +180,7 @@ final class _GetBlock {
   const new(
     this.doc,
     this.text, {
+    this.sectionKey,
     this.base,
     this.bases,
     this.printsEmptyAsNothing = false,
@@ -180,6 +188,10 @@ final class _GetBlock {
 
   final IndexedDoc doc;
   final String text;
+
+  /// The key of the section [text] holds, `_lead` for the lead; null for a
+  /// whole-doc read.
+  final String? sectionKey;
 
   /// The base of the section [text] holds; null for a whole-doc read.
   final String? base;
@@ -191,9 +203,19 @@ final class _GetBlock {
   final bool printsEmptyAsNothing;
 
   /// The naming line, then [text] ended by a line break.
-  String get printed => printsEmptyAsNothing && text.isEmpty
-      ? '${namingLine(doc, base: base)}\n'
-      : '${namingLine(doc, base: base)}\n${_endedLine(text)}';
+  ///
+  /// The line names the target its base belongs to: the section, or the whole
+  /// doc with its `doc` base.
+  String get printed {
+    final line = namingLine(
+      doc,
+      sectionKey: sectionKey,
+      base: base ?? bases?['doc'] as String?,
+    );
+    return printsEmptyAsNothing && text.isEmpty
+        ? '$line\n'
+        : '$line\n${_endedLine(text)}';
+  }
 }
 
 /// Returns [text] ended by a line break, adding one only when it lacks it.

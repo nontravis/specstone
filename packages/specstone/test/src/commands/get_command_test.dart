@@ -13,7 +13,7 @@ void main() {
     expect(
       out.toString(),
       startsWith(
-        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n',
+        '==> login (feature) · prds/features/f01_login/FEATURE.md · base ',
       ),
     );
   });
@@ -89,7 +89,12 @@ void main() {
       ]),
       0,
     );
-    expect(out.toString(), contains('USER_STORY.md · base '));
+    expect(
+      out.toString(),
+      startsWith(
+        '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#acceptance_criteria · base 6d6a67fa9a00 <==\n',
+      ),
+    );
   });
   test('index_query/read_doc_section/print_doc_or_section E08: '
       'get --json prints the laid-out section bases', () async {

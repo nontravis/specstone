@@ -103,7 +103,7 @@ void main() {
         (
           status: 0,
           out:
-              '==> login/email_login (user_story) · $story1 · base ${baseHashOf('\nSign in with a passkey.\n')} <==\n',
+              '==> login/email_login (user_story) · $story1#use_case · base ${baseHashOf('\nSign in with a passkey.\n')} <==\n',
           err: '',
         ),
       );
@@ -122,7 +122,7 @@ void main() {
         (
           status: 0,
           out:
-              '==> login/email_login (user_story) · $story1 · base ${baseHashOf('\nSign in with a passkey.\n')} <==\n',
+              '==> login/email_login (user_story) · $story1#use_case · base ${baseHashOf('\nSign in with a passkey.\n')} <==\n',
           err: '',
         ),
       );

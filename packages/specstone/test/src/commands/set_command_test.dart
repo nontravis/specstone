@@ -67,7 +67,10 @@ void main() {
       0,
     );
     expect(err.toString(), isEmpty);
-    expect(out.toString(), startsWith('==> login/email_login (user_story)'));
+    expect(
+      out.toString(),
+      '==> login/email_login (user_story) · $story1 · field size · base e3b0c44298fc <==\n',
+    );
     expect(
       readDoc(root, story1),
       startsWith('---\nstatus: planned\ndraft: true\nvision:\n'),
@@ -93,7 +96,7 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base $passkeyBase <==\n',
+      '==> login/email_login (user_story) · $story1#use_case · base $passkeyBase <==\n',
     );
     final written = writeRunner(root);
     expect(
@@ -127,7 +130,7 @@ void main() {
     );
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base 7e11fc4a24d2 <==\n'
+      '==> login/email_login (user_story) · $story1#use_case · base 7e11fc4a24d2 <==\n'
       '## Use Case\n\nSign in with an email.\n',
     );
   });
@@ -354,7 +357,7 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(
       out.toString(),
-      '==> login/email_login (user_story) · $story1 · base ${baseHashOf('\nNew lead.\n')} <==\n',
+      '==> login/email_login (user_story) · $story1#_lead · base ${baseHashOf('\nNew lead.\n')} <==\n',
     );
     expect(
       readDoc(root, story1),

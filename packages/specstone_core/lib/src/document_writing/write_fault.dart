@@ -38,7 +38,8 @@ enum WriteFaultCode {
 final class CurrentTarget {
   const new({required this.heading, required this.text, required this.base});
 
-  /// `get`'s naming line with the base, printed only in text mode.
+  /// `get`'s naming line of the target, with its base, printed only in text
+  /// mode.
   final String heading;
 
   /// The target's current text.

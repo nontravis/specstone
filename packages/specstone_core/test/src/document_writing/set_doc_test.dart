@@ -228,7 +228,7 @@ void main() {
     );
     expect(
       answer.text,
-      '==> login/email_login (user_story) · $story1 · base $written <==\n',
+      '==> login/email_login (user_story) · $story1#acceptance_criteria · base $written <==\n',
     );
     expect(answer.json, {
       'name': 'login/email_login',
@@ -386,7 +386,7 @@ void main() {
             .having(
               (f) => f.current?.heading,
               'heading',
-              '==> login/email_login (user_story) · $story1 · base $current <==',
+              '==> login/email_login (user_story) · $story1#use_case · base $current <==',
             ),
       ),
     );
@@ -1061,7 +1061,7 @@ void main() {
   test('f02/us01/s3, f02/us01/fr03, f02/us01/fr03/e01, dw-s03/inv14: a field block is rewritten and every other block kept', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login';
-    writeIn(
+    final answer = writeIn(
       root,
       (s) => answerSet(
         s,
@@ -1074,6 +1074,10 @@ void main() {
       startsWith(
         '---\nstatus: planned\ndraft: true\nvision:\n  - PV-02\npersona:\n  - buyer\n---\n',
       ),
+    );
+    expect(
+      answer.text,
+      '==> login/email_login (user_story) · $story1 · field vision · base ${baseHashOf('vision:\n  - PV-02\n')} <==\n',
     );
   });
   test('f02/us01/s4, f02/us01/fr03/e02, dw-s03/inv4: an implements edit leaves an approved FR approved', () async {
@@ -1171,7 +1175,7 @@ void main() {
     );
     expect(
       answer.text,
-      '==> login (feature) · $loginFeature · base ${baseHashOf('Sign in')} <==\n',
+      '==> login (feature) · $loginFeature · title · base ${baseHashOf('Sign in')} <==\n',
     );
   });
 
@@ -1649,6 +1653,11 @@ void main() {
               (f) => f.current?.base,
               'current.base',
               baseHashOf('vision:\n  - PV-09\n'),
+            )
+            .having(
+              (f) => f.current?.heading,
+              'heading',
+              '==> login/email_login (user_story) · $story1 · field vision · base ${baseHashOf('vision:\n  - PV-09\n')} <==',
             ),
       ),
     );
@@ -1780,6 +1789,11 @@ void main() {
               (f) => f.current?.base,
               'current.base',
               baseHashOf('Sign in fast'),
+            )
+            .having(
+              (f) => f.current?.heading,
+              'heading',
+              '==> login (feature) · $loginFeature · title · base ${baseHashOf('Sign in fast')} <==',
             ),
       ),
     );
@@ -2001,7 +2015,7 @@ void main() {
       final written = baseHashOf('\nNew lead.\n');
       expect(
         answer.text,
-        '==> login/email_login (user_story) · $story1 · base $written <==\n',
+        '==> login/email_login (user_story) · $story1#_lead · base $written <==\n',
       );
       expect(answer.json['base'], written);
       expect(answer.json['draft'], isTrue);
@@ -2127,25 +2141,27 @@ void main() {
       expect(answer.json['base'], emptyBaseHash);
     });
 
-    test(
-      'f02/us01/fr06/e06: a stale base refuses with the current lead',
-      () async {
-        final root = await project();
-        expect(
-          () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
-                .having((f) => f.current?.text, 'current', '\nOld lead.\n')
-                .having(
-                  (f) => f.current?.base,
-                  'base',
-                  baseHashOf('\nOld lead.\n'),
-                ),
-          ),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_the_lead E06: a stale base refuses with the current lead and its naming line', () async {
+      final root = await project();
+      expect(
+        () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+              .having((f) => f.current?.text, 'current', '\nOld lead.\n')
+              .having(
+                (f) => f.current?.base,
+                'base',
+                baseHashOf('\nOld lead.\n'),
+              )
+              .having(
+                (f) => f.current?.heading,
+                'heading',
+                '==> login/email_login (user_story) · $story1#_lead · base ${baseHashOf('\nOld lead.\n')} <==',
+              ),
+        ),
+      );
+    });
 
     test('f02/us01/fr06/e07: a CRLF doc keeps CRLF', () async {
       final root = await project();

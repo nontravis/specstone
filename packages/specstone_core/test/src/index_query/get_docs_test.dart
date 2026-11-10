@@ -27,8 +27,8 @@ void main() {
     expect(
       text,
       startsWith(
-        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n'
-        '${file('prds/features/f01_login/FEATURE.md')}\n==> login (api) · specs/f01_login/API.md <==\n',
+        '==> login (feature) · prds/features/f01_login/FEATURE.md · base ${baseHashOf(file('prds/features/f01_login/FEATURE.md'))} <==\n'
+        '${file('prds/features/f01_login/FEATURE.md')}\n==> login (api) · specs/f01_login/API.md · base ${baseHashOf(file('specs/f01_login/API.md'))} <==\n',
       ),
     );
     expect('==> '.allMatches(text), hasLength(5));
@@ -37,7 +37,7 @@ void main() {
   test('f01/us04/s2, f01/us04/fr02/e01: one section from each doc that holds it, nothing else', () async {
     expect(
       answerGet(index, 'login#components').text,
-      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md · base cf930e1810b0 <==\n'
+      '==> login (architecture) · specs/f01_login/ARCHITECTURE.md#components · base cf930e1810b0 <==\n'
       '## Components\n| Component | Responsibility |\n|-----------|----------------|\n'
       '| Login form | Collects the email and the password |\n',
     );
@@ -54,7 +54,7 @@ void main() {
   test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its snake_case key', () async {
     expect(
       answerGet(index, 'prds/d01_context.md#project_vision').text,
-      '==> prds/d01_context.md · prds/d01_context.md · base 6f3e9bae7bdc <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
+      '==> prds/d01_context.md · prds/d01_context.md#project_vision · base 6f3e9bae7bdc <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
     );
   });
   test('f01/us04/fr01/e09, f01/us04/fr02/e01: a path takes a section key as the name does', () async {
@@ -105,7 +105,7 @@ void main() {
     });
     expect(
       answerGet(notes, 'notes.md#notes').text,
-      '==> notes.md · notes.md · base 47471c97c516 <==\n## Notes\nfirst\n## Notes\nsecond\n',
+      '==> notes.md · notes.md#notes · base 47471c97c516 <==\n## Notes\nfirst\n## Notes\nsecond\n',
     );
   });
   test('f01/us01/fr03/e13, f01/us04/fr02: headers Root schema and Root-schema key alike and both print', () async {
@@ -116,7 +116,7 @@ void main() {
     final text = answerGet(doc, 'roots.md#root_schema').text;
     expect(text, contains('## Root schema\nfirst\n'));
     expect(text, contains('## Root-schema\nsecond\n'));
-    expect(text, startsWith('==> roots.md · roots.md · base '));
+    expect(text, startsWith('==> roots.md · roots.md#root_schema · base '));
     final content = parseIndexedDoc(
       docPath: 'roots.md',
       bytes: utf8.encode(
@@ -146,7 +146,7 @@ void main() {
     });
     expect(
       answerGet(crlf, 'crlf.md').text,
-      '==> crlf.md · crlf.md <==\n# Crlf\r\n\r\n## A\r\nx\r\n',
+      '==> crlf.md · crlf.md · base ${baseHashOf('# Crlf\n\n## A\nx\n')} <==\n# Crlf\r\n\r\n## A\r\nx\r\n',
     );
   });
   test('s02_api_get: a doc with no final newline prints as one that ends in a newline, JSON text verbatim', () async {
@@ -154,7 +154,11 @@ void main() {
     final bare = await indexWith({featureKey: feature});
     final ended = await indexWith({featureKey: '$feature\n'});
     final answer = answerGet(bare, 'login');
-    expect(answer.text, answerGet(ended, 'login').text);
+    String afterNamingLine(String text) => text.split('\n').skip(1).join('\n');
+    expect(
+      afterNamingLine(answer.text),
+      afterNamingLine(answerGet(ended, 'login').text),
+    );
     expect(answer.text, contains('$feature\n\n==> login (api) · '));
     expect(answerGet(bare, 'feature:login').text, endsWith('$feature\n'));
     final docs = answer.json['docs']! as List;
@@ -177,17 +181,23 @@ void main() {
       '==> login (feature) · prds/features/f01_login/FEATURE.md · base abc123abc123 <==',
     );
   });
-  test('f01/us04/s8, f01/us04/fr02/e08: a section read names its base; a whole-doc read prints none', () async {
+  test('index_query/read_doc_section/print_doc_or_section E08, E13: a section read names <DocPath>#<key> with its base; a whole-doc read names its path with bases.doc', () async {
+    const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     expect(
       answerGet(index, 'user_story:login/email_login#acceptance_criteria').text,
       startsWith(
-        '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md · base 6d6a67fa9a00 <==\n## Acceptance Criteria\n',
+        '==> login/email_login (user_story) · $storyPath#acceptance_criteria · base 6d6a67fa9a00 <==\n## Acceptance Criteria\n',
       ),
     );
+    final whole = answerGet(index, 'user_story:login/email_login');
     expect(
-      answerGet(index, 'user_story:login/email_login').text,
-      isNot(contains('· base')),
+      whole.text,
+      startsWith(
+        '==> login/email_login (user_story) · $storyPath · base ${baseHashOf(file(storyPath))} <==\n',
+      ),
     );
+    final doc = (whole.json['docs']! as List).single as Map;
+    expect((doc['bases']! as Map)['doc'], baseHashOf(file(storyPath)));
   });
   group('index_query/read_doc_section/print_doc_or_section E08, layout-blind bases', () {
     const storyPath =
@@ -303,7 +313,7 @@ void main() {
   test('f01/us04/s9, f01/us04/fr02/e09: a template section the doc lacks prints empty with the base of empty text', () async {
     expect(
       answerGet(index, 'login/email_login#rules').text,
-      '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md · base e3b0c44298fc <==\n## Rules\n',
+      '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#rules · base e3b0c44298fc <==\n## Rules\n',
     );
     final doc =
         (answerGet(index, 'login/email_login#rules').json['docs']! as List)
@@ -407,7 +417,7 @@ void main() {
     const lead = '\nLead [x](a.md).\n';
     expect(
       answer.text,
-      '==> gnfr (gnfr) · prds/GNFR.md · base ${baseHashOf(lead)} <==\n$lead',
+      '==> gnfr (gnfr) · prds/GNFR.md#_lead · base ${baseHashOf(lead)} <==\n$lead',
     );
     final doc = (answer.json['docs']! as List).single as Map;
     expect(doc['section'], '_lead');
@@ -419,7 +429,7 @@ void main() {
     final answer = answerGet(index, 'gnfr#_lead');
     expect(
       answer.text,
-      '==> gnfr (gnfr) · prds/GNFR.md · base $emptyBaseHash <==\n',
+      '==> gnfr (gnfr) · prds/GNFR.md#_lead · base $emptyBaseHash <==\n',
     );
     final doc = (answer.json['docs']! as List).single as Map;
     expect(doc['base'], emptyBaseHash);
@@ -449,14 +459,14 @@ void main() {
     final withEmpty = await indexWith({'docs/prds/empty.md': ''});
     expect(
       answerGet(withEmpty, 'prds/empty.md').text,
-      '==> prds/empty.md · prds/empty.md <==\n\n',
+      '==> prds/empty.md · prds/empty.md · base $emptyBaseHash <==\n\n',
     );
   });
   test('index_query/read_doc_section/resolve_doc_name E13 (W8): a path holding # is read whole, as resolve reads it, so get splits no section key off it', () async {
     final noted = await indexWith({'docs/prds/notes#draft.md': '# Draft\n'});
     expect(
       answerGet(noted, 'prds/notes#draft.md').text,
-      '==> prds/notes#draft.md · prds/notes#draft.md <==\n# Draft\n',
+      '==> prds/notes#draft.md · prds/notes#draft.md · base ${baseHashOf('# Draft\n')} <==\n# Draft\n',
     );
     expect(
       () => answerGet(noted, 'prds/notes#draft'),
@@ -465,10 +475,10 @@ void main() {
   });
   test('f01/us04/fr02: get feature:shop/cart prints the text of the nested feature', () async {
     final nested = await nestedIndexWith();
+    final text = withApprovalHashes(nestedFiles())['docs/$cartFeature']!;
     expect(
       answerGet(nested, 'feature:shop/cart').text,
-      '==> shop/cart (feature) · $cartFeature <==\n'
-      '${withApprovalHashes(nestedFiles())['docs/$cartFeature']}',
+      '==> shop/cart (feature) · $cartFeature · base ${baseHashOf(text)} <==\n$text',
     );
   });
 }

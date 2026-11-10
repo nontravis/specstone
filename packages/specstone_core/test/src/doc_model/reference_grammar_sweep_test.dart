@@ -300,6 +300,13 @@ final RegExp _sentenceSplit = RegExp(
   r'''|\x27\. \x27|"\. "''',
 );
 
+/// A read of a naming line: `startsWith('==> ')`, `endsWith(' <==')`, or a
+/// `RegExp` literal holding `==>`.
+final RegExp _namingLineRead = RegExp(
+  r'''startsWith\(\s*[\x27"]==> |endsWith\(\s*[\x27"] <==[\x27"]|'''
+  '${_regExpLiteralWith('==>').pattern}',
+);
+
 final _rules = <_Rule>[
   (
     name: 'a number label is read only by number_label',
@@ -451,6 +458,14 @@ final _rules = <_Rule>[
     allowed: [],
     appliesTo: _everySource,
   ),
+  (
+    name: 'a naming line is read only by read_answer',
+    remedy: 'Read it through readNamingLine in index_query/read_answer.dart.',
+    pattern: _namingLineRead,
+    exempt: {_lib('index_query/read_answer.dart')},
+    allowed: [],
+    appliesTo: _everySource,
+  ),
 ];
 
 /// Returns `<file>: <snippet>` for each match of [rule] outside its exempt
@@ -549,6 +564,20 @@ void main() {
     }
     expect(_sentenceSplit.hasMatch("RegExp(r'[a-z]+')"), isFalse);
     expect(_sentenceSplit.hasMatch('const t = {0x2E, 0x3F};'), isFalse);
+  });
+
+  test('the naming line rule catches each way to read a naming line', () {
+    for (final source in [
+      "line.startsWith('==> ')",
+      'line.startsWith("==> ")',
+      "line.endsWith(' <==')",
+      r"RegExp(r'^==> (.*) <==$')",
+      'RegExp("==> ")',
+    ]) {
+      expect(_namingLineRead.hasMatch(source), isTrue, reason: source);
+    }
+    expect(_namingLineRead.hasMatch(r"'==> bundle: $n docs <==\n'"), isFalse);
+    expect(_namingLineRead.hasMatch("line.startsWith('## ')"), isFalse);
   });
 
   test('no doc_model file imports index_query', () {

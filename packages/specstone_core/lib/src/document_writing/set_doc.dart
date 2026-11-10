@@ -270,7 +270,7 @@ ReadAnswer _setField(
         ? emptyBaseHash
         : baseHashOf(afterBlock.text);
     return ReadAnswer(
-      text: '${namingLine(doc, base: base)}\n',
+      text: '${namingLine(doc, fieldId: fieldId, base: base)}\n',
       json: {
         'name': doc.name,
         'docType': ?doc.docTypeId,
@@ -403,7 +403,7 @@ ReadAnswer _setTitle(WriteSession session, SetRequest request, String stdin) {
     );
     final base = titleBaseOf(Doc.parse(written).title);
     return ReadAnswer(
-      text: '${namingLine(doc, base: base)}\n',
+      text: '${namingLine(doc, title: true, base: base)}\n',
       json: {
         'name': doc.name,
         'docType': ?doc.docTypeId,
@@ -491,7 +491,7 @@ ReadAnswer _setLead(WriteSession session, SetRequest request, String stdin) {
     );
     final base = leadBaseOf(Doc.parse(written), docType);
     return ReadAnswer(
-      text: '${namingLine(doc, base: base)}\n',
+      text: '${namingLine(doc, sectionKey: leadKey, base: base)}\n',
       json: {
         'name': doc.name,
         'docType': ?doc.docTypeId,
@@ -610,7 +610,7 @@ ReadAnswer _setSection(
         .firstOrNull;
     final base = newBase ?? emptyBaseHash;
     return ReadAnswer(
-      text: '${namingLine(doc, base: base)}\n',
+      text: '${namingLine(doc, sectionKey: key, base: base)}\n',
       json: {
         'name': doc.name,
         'docType': ?doc.docTypeId,
@@ -691,7 +691,11 @@ WriteFault _staleBase(
   file: doc.docPath,
   key: key,
   current: CurrentTarget(
-    heading: namingLine(doc, base: currentBase),
+    heading: switch (target) {
+      'field' => namingLine(doc, fieldId: key, base: currentBase),
+      'title' => namingLine(doc, title: true, base: currentBase),
+      _ => namingLine(doc, sectionKey: key, base: currentBase),
+    },
     text: currentText,
     base: currentBase,
   ),
