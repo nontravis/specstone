@@ -1,13 +1,15 @@
 # Fix a doc over its size limit
 
-This covers the three size findings `specstone check` raises: `chars_over_limit`, `lines_over_limit`, and
-`item_over_limit`. Cite a size only as `specstone structure <doc>` or `specstone check` prints it, never a count of
-your own. Never cut meaning to pass a size.
+This covers the three size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`, and
+`item_over_limit`, under `specstone:expert-sdd`'s rule 5.
 
 ## The order
 
-1. **Layout.** Every write lays its doc out. A size finding still listed after your last write to that doc takes the
-   next step.
+Answer each size finding once in your report, though `check` tags it `(waits for the Owner)`: a split proposal, or
+why none applies.
+
+1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
+   the laid-out doc.
 2. **Split.** `chars_over_limit` or `lines_over_limit` on a feature of 4 stories or more: propose a sub-feature
    split, as below. `item_over_limit` skips this step: a split never shrinks one item.
 3. **Text to its home.** After an approved split, the next round fills each new feature draft and moves each spec

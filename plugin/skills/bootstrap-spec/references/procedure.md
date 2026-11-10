@@ -9,7 +9,7 @@ Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections 
 
 Fix the first unhandled finding of this skill, then run `specstone check` again with no target (a targeted run
 omits `code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or is tagged
-`(waits for the Owner)`.
+`(waits for the Owner)`, except an unanswered size finding.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
@@ -20,8 +20,8 @@ empty text drops the section or key. The text between the title and the first `#
 Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
 `#quot;`.
 
-Where the old text lacks a value the guide needs, write `TBR — <why>` in its field or sub-field, never a value you
-propose. Ask the Owner only when no text bears on a whole section.
+Where the old text lacks a value the guide needs, write `TBR — <why>` in its place, never a value you propose. Ask
+the Owner only when no text bears on a whole section.
 
 | Finding | Fix |
 |---|---|
@@ -45,8 +45,7 @@ propose. Ask the Owner only when no text bears on a whole section.
 
 ## 4. Merge an old file
 
-An `untyped_doc` under `specs/` is an old file the migration left. Merge it into the doc that takes it, else one
-from `specstone new`:
+An `untyped_doc` under `specs/` is an old file the migration left. Merge it into the doc that takes it, else a new one:
 
 - one feature's old-named spec files: their type's doc (`--parent <feature>`);
 - an event or message schema: an internal one, such as stdout lines, to the architecture doc's `## Interaction`, an
@@ -55,7 +54,7 @@ from `specstone new`:
 - a folder under `specs/topics/`: its topic (`--slug <folder>`);
 - `specs/INDEX.md`: each code path in it to `covers` and the `code` roots (step 6), the source-of-truth table to the
   API docs, a cross-cutting statement to the tech stack's `## Constraints` or a topic doc; quote in step 6 each line
-  that only describes the old index, as a line with no home.
+  only about the old index, as a line with no home.
 
 Skip only a sentence its new doc holds word for word, and never target the old file: a write refuses it. Add its path
 to the retire set, a list for this run only.

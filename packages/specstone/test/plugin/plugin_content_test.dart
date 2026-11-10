@@ -1035,6 +1035,16 @@ void _sizeFixTests() {
       expect(sizeRows, hasLength(1), reason: file);
       final flat = _oneLine(text);
       expect(flat, contains('`TBR — <why>`'), reason: file);
+      expect(flat, contains('even if another doc holds it'), reason: file);
+      expect(flat, contains('word for word'), reason: file);
+      expect(
+        _oneLine(_sectionOf(text, '2. One finding at a time')),
+        contains(
+          'is tagged `(waits for the Owner)`, except an unanswered size '
+          'finding.',
+        ),
+        reason: file,
+      );
       for (final reason in reasons) {
         expect(flat, isNot(contains(reason)), reason: '$file: $reason');
       }
@@ -1049,7 +1059,17 @@ void _sizeFixTests() {
     for (final finding in _sizeFindings) {
       expect(text, contains(finding), reason: finding);
     }
-    expect(text, contains('`specstone structure <doc>`'));
+    expect(
+      text,
+      contains(
+        'Answer each size finding once in your report, though `check` tags '
+        'it `(waits for the Owner)`: a split proposal, or why none applies.',
+      ),
+    );
+    expect(
+      text,
+      contains('`item_over_limit` skips this step: a split never shrinks one'),
+    );
     final newFeature = text.indexOf(
       'specstone new feature --parent <feature> --slug <slug>',
     );
@@ -1059,7 +1079,8 @@ void _sizeFixTests() {
       greaterThan(newFeature),
     );
     expect(text, contains('fewer than 4 stories'));
-    expect(text, contains('Never cut meaning to pass a size.'));
+    expect(text, isNot(contains('Cite a size only')));
+    expect(text, isNot(contains('Never cut meaning')));
   });
 
   test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules, '
@@ -1069,7 +1090,14 @@ void _sizeFixTests() {
       _sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules'),
     );
     expect(rules, contains('`references/size-fix.md`'));
-    expect(rules, contains('`specstone structure <doc>`'));
+    expect(
+      rules,
+      contains(
+        'Cite a size only as `specstone structure <doc>` or `specstone check` '
+        'prints it.',
+      ),
+    );
+    expect(rules, contains('never cut meaning'));
     expect(
       rules,
       contains(

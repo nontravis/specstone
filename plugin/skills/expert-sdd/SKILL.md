@@ -37,7 +37,7 @@ working directory alone misses a project root above it.
    prints. A `suspect` link's upstream block moved on since the entry was recorded: re-read it and confirm
    again the same way. Your approval request to the Owner then says what changed upstream.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
-   its home; never cut meaning. Cite sizes only as `specstone structure <doc>` or `specstone check` prints them.
+   its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `specstone check` prints it.
    Steps: `references/size-fix.md`.
 6. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
    touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is `owner`, its line

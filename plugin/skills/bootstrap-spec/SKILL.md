@@ -45,8 +45,9 @@ When you followed the procedure yourself, its report stands in for item 1; on no
 in for item 4.
 
 1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes.
-2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation. On the Owner's ok to a split proposal,
-   run its commands yourself, in run order (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`).
+2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation. Ask the Owner to approve each split
+   proposal; on ok, run its commands yourself, in run order
+   (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into

@@ -8,7 +8,8 @@ This skill takes `specstone check` findings under `prds/`. Findings under `specs
 ## 2. One finding at a time
 
 Fix the first finding under `prds/` not yet handled, then run `specstone check` again. Stop when each finding left
-goes to `specstone:bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`.
+goes to `specstone:bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
+size finding.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
@@ -27,7 +28,7 @@ whole section.
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
-| `section_undeclared` | move each statement into the section that takes it, else the closest the guide allows, even if another doc holds it; a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone:bootstrap-spec`; then drop the section |
+| `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone:bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
 | `field_undeclared`, any other | move its value into the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
@@ -71,8 +72,8 @@ specstone delete <path> <path> …
 ```
 
 On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4, which joins the round's lines.
-With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: it deletes while
-links still point in. Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
+With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
+Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
