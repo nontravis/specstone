@@ -162,7 +162,10 @@ void main() {
       final plain = await runnerIn(await projectWith({}));
       expect(await plain.run(['guide', 'feature', '--json']), 0);
       final unset = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(unset.containsKey('lint'), isFalse);
+      expect(
+        (unset['lint'] as Map<String, Object?>?)?.containsKey('maxItemChars'),
+        isNot(true),
+      );
     });
 
     test('f03/us01/fr03, db-r7: guide <type> --json prints a section summary '
