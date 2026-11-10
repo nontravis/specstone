@@ -213,6 +213,82 @@ void main() {
     );
   });
 
+  test(
+    'consistency_check/find_suspect_links/report_unconfirmed_links E02: a draft '
+    'whose entry matches the current fingerprint waits for the Owner',
+    () async {
+      final finding = checkOf(
+        await writeCheckProject(
+          extra: fr(
+            'status: implemented\n',
+            'status: implemented\ndraft: true\n',
+          ),
+        ),
+      ).findings.single;
+      expect(finding.kind, FindingKind.unconfirmed);
+      expect(finding.waitsFor, WaitsFor.owner);
+      expect(finding.toJson()['waitsFor'], 'owner');
+      expect(finding.textLines.single, endsWith(' (waits for the Owner)'));
+    },
+  );
+
+  test(
+    'consistency_check/find_suspect_links/report_unconfirmed_links E05: in a '
+    'draft with one entry at the current fingerprint, that link waits for the '
+    'Owner and a link with no entry waits for the Agent',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: edit(loginFr, [
+            (
+              'status: implemented\ntraced_from:\n  - S2\n',
+              'status: implemented\ndraft: true\ntraced_from:\n  - S1\n  - S2\n',
+            ),
+          ]),
+        ),
+      );
+      final byLink = {
+        for (final f in report.findings)
+          if (f.kind == FindingKind.unconfirmed) f.keys['link']: f,
+      };
+      expect(byLink['S2']!.waitsFor, WaitsFor.owner);
+      expect(byLink['S1']!.waitsFor, WaitsFor.agent);
+      expect(
+        byLink['S1']!.textLines.single,
+        isNot(contains('waits for the Owner)')),
+      );
+    },
+  );
+
+  test('consistency_check/find_suspect_links/report_unconfirmed_links E04: a '
+      'draft whose entry records an older fingerprint waits for the Agent, and '
+      'so does a link with no entry outside a draft', () async {
+    final older = checkOf(
+      await writeCheckProject(
+        extra: edit(loginFr, [
+          ('status: implemented\n', 'status: implemented\ndraft: true\n'),
+          ('  - S2 ${fp(loginScenario2)}', '  - S2 000000000000'),
+        ]),
+      ),
+    ).findings.single;
+    final none = checkOf(
+      await writeCheckProject(
+        extra: fr('confirmed:\n  - S2 ${fp(loginScenario2)}\n', ''),
+      ),
+    ).findings.single;
+    expect(older.waitsFor, WaitsFor.agent);
+    expect(none.waitsFor, WaitsFor.agent);
+  });
+
+  test('consistency_check/find_suspect_links/report_suspect_links: a suspect '
+      'finding waits for the Agent', () async {
+    final finding = checkOf(
+      await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
+    ).findings.single;
+    expect(finding.kind, FindingKind.suspect);
+    expect(finding.waitsFor, WaitsFor.agent);
+  });
+
   test('f04/us04/fr02/e04: a draft whose entry records an older fingerprint is unconfirmed, never suspect', () async {
     final report = checkOf(
       await writeCheckProject(

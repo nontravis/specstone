@@ -25,12 +25,12 @@ final class CheckReport {
   /// Notes that are no finding and do not change [exitStatus].
   final List<String> warnings;
 
-  /// Each finding's text line, then the count line; every line ends in `\n`.
+  /// Each finding's text lines, then the count line; every line ends in `\n`.
   String get text {
     final count = findings.length;
     final summary = count == 1 ? '1 finding' : '$count findings';
     return [
-      for (final f in findings) f.textLine,
+      for (final f in findings) ...f.textLines,
       summary,
     ].map((l) => '$l\n').join();
   }

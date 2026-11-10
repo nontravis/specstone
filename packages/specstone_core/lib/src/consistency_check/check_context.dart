@@ -101,6 +101,7 @@ final class CheckContext {
     FindingKind kind, {
     required int line,
     required String message,
+    WaitsFor? waitsFor,
     Map<String, Object> keys = const {},
   }) => Finding(
     kind: kind,
@@ -108,6 +109,7 @@ final class CheckContext {
     name: doc.isTyped ? doc.name : null,
     line: line,
     message: message,
+    waitsFor: waitsFor,
     keys: keys,
   );
 

@@ -263,6 +263,7 @@ Iterable<Finding> checkTrackedLinks(
           FindingKind.unconfirmed,
           line: entry?.line ?? link.traceLine,
           message: _unconfirmedMessage(link.label, current, entry, read),
+          waitsFor: _waitsForOf(doc, current, entry),
           keys: keys,
         );
     }
@@ -309,6 +310,14 @@ Iterable<Finding> checkConfirmedEntries(
 }
 
 // An entry with an unconfirmed state means the doc is a draft.
+// Only a draft whose entry records the current fingerprint waits for the
+// Owner's `approve` alone; every other unconfirmed link still needs the Agent
+// to read the upstream block and record the entry.
+WaitsFor _waitsForOf(IndexedDoc doc, String current, _Entry? entry) =>
+    doc.isDraft && entry?.fingerprint == current
+    ? WaitsFor.owner
+    : WaitsFor.agent;
+
 String _unconfirmedMessage(
   String label,
   String current,

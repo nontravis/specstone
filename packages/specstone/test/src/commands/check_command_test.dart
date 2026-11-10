@@ -93,6 +93,7 @@ void main() {
           'name': 'shop',
           'line': 1,
           'message': 'holds both feature and user_story children',
+          'waitsFor': 'agent',
           'docTypes': ['feature', 'user_story'],
         },
       ],
@@ -113,9 +114,95 @@ void main() {
       'name': 'login/email_login/check_password',
       'line': 6,
       'message': 'verify_method is maybe; it takes test, analysis, inspection, or demonstration',
+      'waitsFor': 'agent',
       'field': 'verify_method',
       'value': 'maybe',
     });
+  });
+
+  group('user_story:consistency_check/find_template_breaks S8', () {
+    // Two findings: the story edited since the Owner approved it, and a
+    // requirement with a bad field value.
+    Future<Directory> project() => writeCheckProject(
+      extra: {
+        ...editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+        ...frWith('verify_method: maybe'),
+      },
+    );
+
+    test(
+      '--json gives each finding who clears it, and the count of two',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['check', '--json']), 1);
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        expect(json['count'], 2);
+        final waits = {
+          for (final f
+              in (json['findings']! as List).cast<Map<String, Object?>>())
+            f['kind']: f['waitsFor'],
+        };
+        expect(waits, {
+          'approval_stale': 'owner',
+          'field_value_mismatch': 'agent',
+        });
+        final stale = (json['findings']! as List)
+            .cast<Map<String, Object?>>()
+            .firstWhere((f) => f['kind'] == 'approval_stale');
+        expect(stale.keys.take(6), [
+          'kind',
+          'docPath',
+          'name',
+          'line',
+          'message',
+          'waitsFor',
+        ]);
+        expect(stale['message'], isNot(contains('(waits for the Owner)')));
+      },
+    );
+
+    test('text ends the edited doc line with the tag and no other', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['check']), 1);
+      final lines = out.toString().trimRight().split('\n');
+      expect(lines.last, '2 findings');
+      final tagged = lines.where((l) => l.endsWith(' (waits for the Owner)'));
+      expect(tagged, hasLength(1));
+      expect(tagged.single, startsWith('$loginStory:3: approval_stale: '));
+    });
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E08: an '
+      'approval_stale finding ends its line with the tag, and its JSON holds '
+      'waitsFor owner with a message that carries no tag', () async {
+    final project = await writeCheckProject(
+      extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      endsWith(' (waits for the Owner)\n1 finding\n'),
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final finding =
+        ((jsonDecode(json.out.toString()) as Map)['findings']! as List).single
+            as Map;
+    expect(finding['waitsFor'], 'owner');
+    expect(finding['message'], isNot(contains('waits for the Owner)')));
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+      'finding counts and exits 1 as any other', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+      ),
+    );
+    expect(await runner.run(['check']), 1);
+    expect(out.toString(), contains('\n1 finding\n'));
   });
 
   test('f04/us01/s9, f04/us01/fr01/e05, f04/us01/fr02/e07: a name no doc carries refuses, exit 64, no finding', () async {
@@ -212,7 +299,8 @@ void main() {
     expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
     expect(
       text.stdout,
-      'AGENTS.md:2: agent_block_stale: $message\n1 finding\n',
+      'AGENTS.md:2: agent_block_stale: $message (waits for the Owner)\n'
+      '1 finding\n',
     );
     expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
     final findings =
@@ -223,6 +311,7 @@ void main() {
         'docPath': 'AGENTS.md',
         'line': 2,
         'message': message,
+        'waitsFor': 'owner',
       },
     ]);
   });
@@ -266,7 +355,7 @@ void main() {
     expect(await stale.runner.run(['check']), 1);
     expect(
       stale.out.toString(),
-      "$loginStory:3: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve\n"
+      "$loginStory:3: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve (waits for the Owner)\n"
       '$loginApi:1: format_drift: the file differs from what `specstone format` writes; run '
       '`specstone format docs/$loginApi`\n'
       '2 findings\n',
@@ -282,7 +371,7 @@ void main() {
     expect(await text.runner.run(['check']), 1);
     expect(
       text.out.toString(),
-      "$loginFr:1: approval_stale: the doc carries no approval; it waits for the Owner's specstone approve\n"
+      "$loginFr:1: approval_stale: the doc carries no approval; it waits for the Owner's specstone approve (waits for the Owner)\n"
       '1 finding\n',
     );
 
@@ -297,6 +386,7 @@ void main() {
         'name': 'login/email_login/check_password',
         'line': 1,
         'message': "the doc carries no approval; it waits for the Owner's specstone approve",
+        'waitsFor': 'owner',
       },
     ]);
   });
@@ -332,7 +422,7 @@ void main() {
     final findings =
         ((jsonDecode(json.out.toString()) as Map)['findings']! as List)
             .cast<Map<String, Object?>>();
-    const shared = {'docPath', 'name', 'line', 'message'};
+    const shared = {'docPath', 'name', 'line', 'message', 'waitsFor'};
     expect(
       [
         for (final finding in findings)

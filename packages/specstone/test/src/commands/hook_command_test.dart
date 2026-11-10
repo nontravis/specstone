@@ -144,6 +144,22 @@ void main() {
     expect(context, endsWith('\n1 finding'));
   });
 
+  test('consistency_check/find_template_breaks/print_findings E08: an owner '
+      "finding's line keeps its tag in the hook context", () async {
+    final root = await writeCheckProject(
+      extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+    );
+    final result = await postEdit(root, abs(root, loginStory));
+    expect(result.status, 0);
+    final decoded = jsonDecode(result.out) as Map<String, Object?>;
+    final context =
+        (decoded['hookSpecificOutput']!
+                as Map<String, Object?>)['additionalContext']!
+            as String;
+    expect(context, contains(': approval_stale: '));
+    expect(context, endsWith(' (waits for the Owner)\n1 finding'));
+  });
+
   test("f08/us06/fr02/e08, f08/us06/s6: the platform's separators read as the same DocPath", () async {
     final root = await writeCheckProject(extra: _brokenStory());
     final result = await postEdit(root, abs(root, loginStory));

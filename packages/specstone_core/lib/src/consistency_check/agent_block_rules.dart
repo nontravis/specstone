@@ -28,6 +28,17 @@ String _messageOf(AgentDriftKind kind) => switch (kind) {
         'line',
 };
 
+// `migrate` runs on the Owner's word; a malformed marker or an open code fence
+// is a hand repair the Agent makes.
+WaitsFor _waitsForOf(AgentDriftKind kind) => switch (kind) {
+  AgentDriftKind.blockStale ||
+  AgentDriftKind.agentMdStale ||
+  AgentDriftKind.agentMdMissing ||
+  AgentDriftKind.topUnlisted => WaitsFor.owner,
+  AgentDriftKind.markersMalformed ||
+  AgentDriftKind.codeFenceOpen => WaitsFor.agent,
+};
+
 /// Returns one `agent_block_stale` finding per drift `agentFileDrifts` finds.
 ///
 /// Each finding carries the file's path from the project root and no `name`.
@@ -52,6 +63,7 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
       path: path,
       line: line,
       message: _messageOf(kind),
+      waitsFor: _waitsForOf(kind),
     );
   }
 }

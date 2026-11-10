@@ -114,6 +114,111 @@ void main() {
     );
   });
 
+  test('consistency_check/find_template_breaks/print_findings: every kind '
+      'waits for the Owner or the Agent, the Owner only for the kinds the '
+      'Output lists', () {
+    const owner = {
+      FindingKind.approvalStale,
+      FindingKind.charsOverLimit,
+      FindingKind.linesOverLimit,
+    };
+    for (final kind in FindingKind.values) {
+      expect(
+        kind.waitsFor,
+        owner.contains(kind) ? WaitsFor.owner : WaitsFor.agent,
+        reason: kind.wire,
+      );
+    }
+    expect(WaitsFor.values.map((w) => w.wire), ['owner', 'agent']);
+  });
+
+  test('consistency_check/find_template_breaks/print_findings: a finding '
+      'takes the waitsFor of its kind unless a rule sets it', () {
+    const byKind = Finding(
+      kind: FindingKind.unconfirmed,
+      path: 'a.md',
+      line: 1,
+      message: 'm',
+    );
+    const byRule = Finding(
+      kind: FindingKind.unconfirmed,
+      path: 'a.md',
+      line: 1,
+      message: 'm',
+      waitsFor: WaitsFor.owner,
+    );
+    expect(byKind.waitsFor, WaitsFor.agent);
+    expect(byRule.waitsFor, WaitsFor.owner);
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E08: an owner '
+      'finding ends its line with the tag; its JSON holds waitsFor after '
+      'message and no tag in the message', () {
+    const finding = Finding(
+      kind: FindingKind.approvalStale,
+      path: 'prds/a.md',
+      name: 'a',
+      line: 3,
+      message: 'waits',
+    );
+    expect(finding.textLines, [
+      'prds/a.md:3: approval_stale: waits (waits for the Owner)',
+    ]);
+    expect(finding.toJson().keys, [
+      'kind',
+      'docPath',
+      'name',
+      'line',
+      'message',
+      'waitsFor',
+    ]);
+    expect(finding.toJson()['message'], 'waits');
+    expect(finding.toJson()['waitsFor'], 'owner');
+    expect(
+      CheckReport(findings: const [finding]).text,
+      'prds/a.md:3: approval_stale: waits (waits for the Owner)\n1 finding\n',
+    );
+  });
+
+  test('consistency_check/find_template_breaks/print_findings: an agent '
+      'finding carries no tag, and its JSON waitsFor sits before the '
+      'keys of its kind', () {
+    const finding = Finding(
+      kind: FindingKind.bannedWord,
+      path: 'a.md',
+      line: 2,
+      message: 'm',
+      keys: {'word': 'w'},
+    );
+    expect(finding.textLines, ['a.md:2: banned_word: m']);
+    expect(finding.toJson().keys, [
+      'kind',
+      'docPath',
+      'line',
+      'message',
+      'waitsFor',
+      'word',
+    ]);
+    expect(finding.toJson()['waitsFor'], 'agent');
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+      'finding counts and exits 1 as any other', () {
+    final report = CheckReport(
+      findings: const [
+        Finding(
+          kind: FindingKind.approvalStale,
+          path: 'a.md',
+          line: 1,
+          message: 'm',
+        ),
+      ],
+    );
+    expect(report.exitStatus, 1);
+    expect(report.json['count'], 1);
+    expect(report.text.split('\n').reversed.skip(1).first, '1 finding');
+  });
+
   test('f04/us01/fr02/e01: no finding prints 0 findings and exits 0', () {
     final report = CheckReport(findings: const []);
     expect(report.text, '0 findings\n');
@@ -163,6 +268,7 @@ void main() {
       'docPath': 'prds/d01_context.md',
       'line': 1,
       'message': 'm',
+      'waitsFor': 'agent',
     });
     final report = CheckReport(
       findings: const [finding],

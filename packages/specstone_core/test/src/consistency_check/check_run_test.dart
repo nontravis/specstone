@@ -405,4 +405,32 @@ void main() {
     expect(paths, contains('.specstone/AGENT.md'));
     expect(paths, [...paths]..sort());
   });
+
+  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+      'finding counts, sorts, and exits 1 beside an agent finding', () async {
+    final project = await writeCheckProject(
+      extra: {
+        '.specstone/AGENT.md': 'hand edit\n',
+        'docs/prds/d01_context.md': '# Context\n',
+      },
+    );
+    final report = checkOf(project);
+
+    expect(
+      {for (final f in report.findings) f.kind: f.waitsFor},
+      {
+        FindingKind.agentBlockStale: WaitsFor.owner,
+        FindingKind.untypedDoc: WaitsFor.agent,
+      },
+    );
+    expect(report.exitStatus, 1);
+    expect(report.json['count'], 2);
+    expect(report.text, contains('2 findings\n'));
+    expect(
+      report.text
+          .split('\n')
+          .where((l) => l.endsWith(' (waits for the Owner)')),
+      hasLength(1),
+    );
+  });
 }

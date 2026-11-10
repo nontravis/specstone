@@ -1,3 +1,21 @@
+/// Who clears a finding (`print_findings`): the Owner by an act of theirs, or
+/// the Agent by editing.
+///
+/// It is no level: an `owner` finding counts toward the count line and the exit
+/// status as any other.
+enum WaitsFor {
+  owner('owner'),
+  agent('agent');
+
+  new(this.wire);
+
+  /// The name printed in JSON.
+  final String wire;
+}
+
+/// The tag the text line of an `owner` finding ends with.
+const _ownerTag = ' (waits for the Owner)';
+
 /// A rule violation kind of the consistency check.
 ///
 /// Values follow the `s02_api_check.md` Finding kinds table. [wire] is the
@@ -78,6 +96,12 @@ enum FindingKind {
   /// The snake_case name printed in text and JSON.
   final String wire;
 
+  /// Who clears a finding of this kind, unless its rule says otherwise.
+  WaitsFor get waitsFor => switch (this) {
+    approvalStale || charsOverLimit || linesOverLimit => WaitsFor.owner,
+    _ => WaitsFor.agent,
+  };
+
   /// Whether the kind is reported against the project, not one doc (INV-12).
   bool get isProjectLevel =>
       this == codeUncovered ||
@@ -93,8 +117,9 @@ final class Finding {
     required this.line,
     required this.message,
     this.name,
+    WaitsFor? waitsFor,
     this.keys = const {},
-  });
+  }) : _waitsFor = waitsFor;
 
   /// The violated rule.
   final FindingKind kind;
@@ -112,20 +137,32 @@ final class Finding {
   /// The violation in plain text.
   final String message;
 
-  /// Extra JSON members after `message`.
+  final WaitsFor? _waitsFor;
+
+  /// Who clears the finding: the rule's choice, else the kind's.
+  WaitsFor get waitsFor => _waitsFor ?? kind.waitsFor;
+
+  /// Extra JSON members after `waitsFor`.
   final Map<String, Object> keys;
 
-  /// The `path:line: kind: message` text line.
+  /// The `path:line: kind: message` text line, with no tag.
   String get textLine => '$path:$line: ${kind.wire}: $message';
 
-  /// The JSON object: `kind`, `docPath`, `name` when set, `line`, `message`,
-  /// then [keys].
+  /// The lines the text output prints: [textLine], ended with the tag when
+  /// [waitsFor] is `owner`.
+  List<String> get textLines => [
+    if (waitsFor == WaitsFor.owner) '$textLine$_ownerTag' else textLine,
+  ];
+
+  /// The JSON object: `kind`, `docPath`, `name` when set, `line`, `message`
+  /// with no tag, `waitsFor`, then [keys].
   Map<String, Object> toJson() => {
     'kind': kind.wire,
     'docPath': path,
     'name': ?name,
     'line': line,
     'message': message,
+    'waitsFor': waitsFor.wire,
     ...keys,
   };
 }

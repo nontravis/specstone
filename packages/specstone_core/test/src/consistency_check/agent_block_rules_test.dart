@@ -14,6 +14,7 @@ import '../../helpers/temp_tree.dart';
 
 const _stale =
     'consistency_check/find_template_breaks/report_stale_agent_blocks';
+const _print = 'consistency_check/find_template_breaks/print_findings';
 const _migrate = 'run `specstone migrate`';
 const _agentMd = '.specstone/AGENT.md';
 
@@ -216,6 +217,66 @@ void main() {
       );
     },
   );
+
+  group('$_print E10: waitsFor by drift kind', () {
+    test(
+      'a stale block waits for the Owner, `migrate` running on their word',
+      () async {
+        final found = await _staleOf({
+          'AGENTS.md': 'top\n${_inline().replaceFirst('Rules', 'Rule')}',
+          _agentMd: agentMdText,
+        });
+
+        expect(found.single.waitsFor, WaitsFor.owner);
+        expect(
+          found.single.textLines.single,
+          endsWith(' (waits for the Owner)'),
+        );
+      },
+    );
+
+    test('a stale AGENT.md waits for the Owner', () async {
+      final found = await _staleOf({_agentMd: 'hand edit\n'});
+
+      expect(found.single.waitsFor, WaitsFor.owner);
+    });
+
+    test('a missing AGENT.md waits for the Owner', () async {
+      final found = await _staleOf({'CLAUDE.md': 'x\n${_imports()}'});
+
+      expect(found.single.waitsFor, WaitsFor.owner);
+    });
+
+    test('an unlisted repository top waits for the Owner', () async {
+      final found = await _staleBeside();
+
+      expect(found.single.waitsFor, WaitsFor.owner);
+    });
+
+    test('malformed marker lines wait for the Agent, a hand repair', () async {
+      final found = await _staleOf({
+        'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+        _agentMd: agentMdText,
+      });
+
+      expect(found.single.waitsFor, WaitsFor.agent);
+      expect(found.single.toJson()['waitsFor'], 'agent');
+      expect(
+        found.single.textLines.single,
+        isNot(contains('waits for the Owner)')),
+      );
+    });
+
+    test('an open code fence waits for the Agent', () async {
+      final found = await _staleOf({
+        'CLAUDE.md': 'x\n```\ncode\n${_imports()}',
+        _agentMd: agentMdText,
+      });
+
+      expect(found.single.waitsFor, WaitsFor.agent);
+    });
+  });
+
   group('a repository top', () {
     test(
       '$_stale E13: a top a code entry reaches and the config does not list is '
