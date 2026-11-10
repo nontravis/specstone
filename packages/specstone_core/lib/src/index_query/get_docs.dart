@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -7,21 +8,16 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 
 final _spaceTabEnd = RegExp(r'[ \t]+$');
 
-/// Returns the text of each doc [names] address, or of one of its sections.
+/// Returns the text of each doc [names] address, or of one section of each.
 ///
-/// A name is as `resolve` takes it, then `#` and a section key to keep that
-/// section of each doc that holds it or defines it in its template, or
-/// [leadKey] to keep the lead of every resolved doc, empty or not. A whole doc
-/// prints as written. Blocks print in argument order, each once: a doc read
-/// whole takes the place of the first name that names it or any of its parts,
-/// and drops every section of it. Every name is resolved before anything
-/// prints. Throws an [IndexFault] when the names hold faults of one code, an
-/// [IndexFaults] when they hold faults of two or more, each fault naming every
-/// name it covers: `doc_not_found` for a name no doc carries,
-/// `section_not_found` when no resolved doc holds a section with the key.
+/// Blocks print in argument order, each doc once; every name is resolved
+/// before any prints. Throws an [IndexFault], or an [IndexFaults] when the
+/// names hold faults of two or more codes, each fault naming every name it
+/// covers.
 ReadAnswer answerGet(DocIndex index, List<String> names) {
   final blocks = _printedOnce(_readAll(index, names));
   return ReadAnswer(
@@ -44,25 +40,49 @@ ReadAnswer answerGet(DocIndex index, List<String> names) {
 }
 
 /// Returns the blocks of every name, none read until all names resolved.
+///
+/// A name's fault is an [IndexFault], or the `doc_type_unknown`
+/// [TemplateFault] `resolve` throws; any other fault propagates.
 List<List<_GetBlock>> _readAll(DocIndex index, List<String> names) {
   final reads = <List<_GetBlock>>[];
-  final messages = <IndexFaultCode, List<String>>{};
+  final groups = <String, _FaultGroup>{};
+  void collect(SpecstoneFault fault, String code, String message) =>
+      (groups[code] ??= _FaultGroup(fault)).messages.add(message);
   for (final name in names) {
     try {
       reads.add(_readName(index, name));
     } on IndexFault catch (fault) {
-      (messages[fault.code] ??= []).add(fault.message);
+      collect(fault, fault.code.wire, fault.message);
+    } on TemplateFault catch (fault) {
+      collect(fault, fault.code.wire, fault.message);
     }
   }
-  final faults = [
-    for (final MapEntry(:key, :value) in messages.entries)
-      IndexFault(key, value.join('; ')),
-  ];
+  final faults = [for (final group in groups.values) group.fault];
   return switch (faults) {
     [] => reads,
     [final fault] => throw fault,
     _ => throw IndexFaults(faults),
   };
+}
+
+/// The faults of one code: [first], and the distinct messages of all of them.
+final class _FaultGroup {
+  new(this.first);
+
+  final SpecstoneFault first;
+  final messages = <String>{};
+
+  /// The fault that names every name of the group: [first] for one message,
+  /// else one fault of its code holding the messages in first-name order.
+  SpecstoneFault get fault {
+    if (messages.length == 1) return first;
+    final joined = messages.join('; ');
+    return switch (first) {
+      IndexFault(:final code) => IndexFault(code, joined),
+      TemplateFault(:final code) => TemplateFault(code, joined),
+      _ => first,
+    };
+  }
 }
 
 /// Returns [reads] flat, each doc once: a doc read whole stands for every part

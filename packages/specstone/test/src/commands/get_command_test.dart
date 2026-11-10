@@ -105,6 +105,45 @@ void main() {
       );
     });
 
+    test('E17: an unknown doc type is one more fault, one stderr line per '
+        "code, the first name's fault first", () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run(['get', 'nosuch1', 'login#zzz', 'nosuchtype:x']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'no doc carries the name nosuch1\n'
+        'no doc named login holds a section with the key zzz\n'
+        'Could not find a doc type named "nosuchtype".\n',
+      );
+    });
+
+    test("E17: --json with an unknown doc type prints the first name's "
+        'fault', () async {
+      for (final (names, code) in [
+        (['nosuch1', 'login#zzz', 'nosuchtype:x'], 'doc_not_found'),
+        (['nosuchtype:x', 'nosuch2'], 'doc_type_unknown'),
+      ]) {
+        final (:runner, :out, :err) = readRunner(await writeReadProject());
+        expect(await runner.run(['get', ...names, '--json']), 64);
+        expect(out.toString(), isEmpty);
+        expect(
+          ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+          code,
+          reason: '$names',
+        );
+      }
+    });
+
+    test('E15, E02: a name given twice is named once on stderr', () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['get', 'logn', 'logn']), 64);
+      expect(err.toString(), 'no doc carries the name logn\n');
+    });
+
     test("E17: --json prints the first fault's code and message", () async {
       final (:runner, :out, :err) = readRunner(await writeReadProject());
       expect(
@@ -288,6 +327,13 @@ void main() {
             'code': 'argument_invalid',
             'message': '$option takes one name, got 2',
           });
+          err.clear();
+          expect(
+            await runner.run(['get', 'journey:sign_in', 'login', option]),
+            64,
+          );
+          expect(out.toString(), isEmpty);
+          expect(err.toString(), '$option takes one name, got 2\n');
         },
       );
     }

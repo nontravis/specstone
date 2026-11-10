@@ -6,11 +6,13 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show withApprovalHashes;
@@ -629,42 +631,94 @@ void main() {
 
     test('E17: faults of two codes throw IndexFaults, one per code, in the '
         "order of each code's first name", () {
-      IndexFaults thrown(List<String> names) {
-        try {
-          answerGet(index, names);
-        } on IndexFaults catch (faults) {
-          return faults;
-        }
-        fail('$names did not throw IndexFaults');
-      }
-
-      final docFirst = thrown([
+      final docFirst = _thrownFaults(index, [
         'logn',
         'login#acceptance',
         'nope',
         'gnfr#nope',
       ]);
       expect(
-        [for (final f in docFirst.faults) (f.code, f.message)],
+        [for (final f in docFirst.faults) f.toJson()['error']],
         [
-          (
-            IndexFaultCode.docNotFound,
-            'no doc carries the name logn; no doc carries the name nope',
-          ),
-          (
-            IndexFaultCode.sectionNotFound,
-            'no doc named login holds a section with the key acceptance; '
+          {
+            'code': 'doc_not_found',
+            'message':
+                'no doc carries the name logn; no doc carries the name nope',
+          },
+          {
+            'code': 'section_not_found',
+            'message':
+                'no doc named login holds a section with the key acceptance; '
                 'no doc named gnfr holds a section with the key nope',
-          ),
+          },
         ],
       );
-      final sectionFirst = thrown(['login#acceptance', 'logn']);
+      final sectionFirst = _thrownFaults(index, ['login#acceptance', 'logn']);
       expect(
-        [for (final f in sectionFirst.faults) f.code],
-        [IndexFaultCode.sectionNotFound, IndexFaultCode.docNotFound],
+        [for (final f in sectionFirst.faults) _codeOf(f)],
+        ['section_not_found', 'doc_not_found'],
       );
       expect(sectionFirst.exitStatus, 64);
       expect(sectionFirst.toJson(), sectionFirst.faults.first.toJson());
+    });
+
+    test('E17: an unknown doc type is one more fault of its name, in the '
+        "order of each code's first name", () {
+      final mixed = _thrownFaults(index, [
+        'nosuch1',
+        'login#zzz',
+        'nosuchtype:x',
+      ]);
+      expect(
+        [for (final f in mixed.faults) _codeOf(f)],
+        ['doc_not_found', 'section_not_found', 'doc_type_unknown'],
+      );
+      expect(_codeOf(mixed), 'doc_not_found');
+      final typeFirst = _thrownFaults(index, ['nosuchtype:x', 'nosuch2']);
+      expect(
+        [for (final f in typeFirst.faults) _codeOf(f)],
+        ['doc_type_unknown', 'doc_not_found'],
+      );
+      expect(_codeOf(typeFirst), 'doc_type_unknown');
+      expect(typeFirst.exitStatus, 64);
+    });
+
+    test('E17: names with two unknown doc types give one doc_type_unknown '
+        'fault naming both', () {
+      expect(
+        () => answerGet(index, ['a:x', 'b:y']),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.message,
+            'message',
+            'Could not find a doc type named "a".; '
+                'Could not find a doc type named "b".',
+          ),
+        ),
+      );
+    });
+
+    test('E15, E02: a name given twice is named once in its fault', () {
+      expect(
+        () => answerGet(index, ['logn', 'logn']),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            'no doc carries the name logn',
+          ),
+        ),
+      );
+      expect(
+        () => answerGet(index, ['login#x', 'login#x']),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            'no doc named login holds a section with the key x',
+          ),
+        ),
+      );
     });
 
     test('E17: a fault of one code stays one IndexFault', () {
@@ -682,4 +736,16 @@ void main() {
       '==> shop/cart (feature) · $cartFeature · base ${baseHashOf(text)} <==\n$text',
     );
   });
+}
+
+String _codeOf(SpecstoneFault fault) =>
+    (fault.toJson()['error']! as Map)['code']! as String;
+
+IndexFaults _thrownFaults(DocIndex index, List<String> names) {
+  try {
+    answerGet(index, names);
+  } on IndexFaults catch (faults) {
+    return faults;
+  }
+  fail('$names did not throw IndexFaults');
 }

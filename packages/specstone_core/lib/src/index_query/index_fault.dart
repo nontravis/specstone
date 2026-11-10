@@ -55,16 +55,16 @@ final class IndexFault implements SpecstoneFault {
   String toString() => toText();
 }
 
-/// The faults of one `get` call whose names hold two or more faults.
+/// The faults of one `get` call whose names hold faults of two or more codes.
 ///
-/// Each fault is one code. [faults] holds at least two, in the order of each
+/// [faults] holds one fault per code, at least two, in the order of each
 /// code's first name; the exit status and the JSON envelope are the first
 /// fault's.
 final class IndexFaults implements SpecstoneFault {
   const new(this.faults);
 
   /// The faults, one per code.
-  final List<IndexFault> faults;
+  final List<SpecstoneFault> faults;
 
   @override
   int get exitStatus => faults.first.exitStatus;

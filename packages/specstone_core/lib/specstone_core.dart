@@ -27,7 +27,8 @@ export 'src/index_query/code_bundle.dart'
     show CodePath, pickCodeBundle, resolveCodePath;
 export 'src/index_query/doc_index.dart' show DocIndex;
 export 'src/index_query/get_docs.dart' show answerGet;
-export 'src/index_query/index_fault.dart' show IndexFault, IndexFaultCode;
+export 'src/index_query/index_fault.dart'
+    show IndexFault, IndexFaultCode, IndexFaults;
 export 'src/index_query/index_store.dart' show indexBusyTimeout;
 export 'src/index_query/indexed_doc.dart' show IndexedDoc;
 export 'src/index_query/list_docs.dart' show ListFilters, answerList;
