@@ -50,7 +50,8 @@ Not landed: <decision>: <why no doc took it>
 |----------|------------------|
 | <ID or label> | <type>:<name>#<key>, or NOT LANDED |
 Rulings swept: <ruling>: <type>:<name>#<key>, ..., or none
-Drafts for the Owner's specstone approve <type>:<name> (<count>): <type>:<name> (<d> dropped, <n> new), ...
+Drafts for the Owner's specstone approve <type>:<name>: <type>:<name>, ...
+Counts: <count> drafts; <type>:<name>: <d> dropped, <n> new; ...
 Other drafts: <type>:<name>, ..., or none
 Move: specstone move <story> … --under <feature>
 Move: specstone move <story> … --under <other feature>
@@ -60,9 +61,9 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 - **Rows**: one per decision; in a fix round, one per finding. `Not landed:` lines come first, read before any
   approval.
 - **Drafts**: every doc you wrote or confirmed again; in a fix round, the first author report's drafts plus each doc
-  a fix round added, this one's included. The audit and plan modes take this list. Name each draft a `Move:` line
-  moves, the story and its FRs, by the name it holds after the move.
-- **Counts**: take every count, of drafts and of sentences dropped and new, from one
+  a fix round added, this one's included. The audit and plan modes take this list as it is: names only. Name each
+  draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
+- **Counts**: on the `Counts:` line, take every count, of drafts and of sentences dropped and new, from one
   `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
   list names; the output names a moved one, while its `Move:` line is unrun, by its name before the move; once the
   runner runs it, by its name after. Name each other draft it lists under `Other drafts:`, never counted; one of

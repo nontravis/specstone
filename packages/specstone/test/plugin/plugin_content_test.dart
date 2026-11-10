@@ -718,6 +718,31 @@ void _handOffTests() {
     );
   });
 
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E10, '
+      'agent_plugin/write_prd_and_spec/run_brainstorm_to_design: the author '
+      "report's Drafts line stays a bare list of names that the audit and "
+      'plan dispatches take as it is, its counts on their own line', () {
+    final report = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      '5. Report',
+    );
+    expect(
+      report,
+      contains(
+        "\nDrafts for the Owner's specstone approve <type>:<name>: "
+        '<type>:<name>, ...\n'
+        'Counts: <count> drafts; <type>:<name>: <d> dropped, <n> new; ...\n',
+      ),
+    );
+    expect(
+      _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+      contains(
+        "the `Drafts for the Owner's specstone approve` line, the `Counts:` "
+        'line,',
+      ),
+    );
+  });
+
   test('agent_plugin/write_prd_and_spec/confirm_gated_commands_with_the_owner: '
       'the Rules and Owner confirmation sections of expert-sdd gate the '
       'delete of a guarded doc', () {

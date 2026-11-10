@@ -79,7 +79,8 @@ from one `specstone approve --dry-run --json` after your last write, never your 
 your own list names; name each other draft it lists, never counted; a doc of your list it shows as no draft is a
 finding.
 
-- **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Findings:` line.
+- **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Counts:` line, the
+  `Findings:` line.
 - **Design**: the `Design document:` line, `Open questions:` with its items, the `Findings:` line.
 - **Audit**: `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is `owner`), and
   `Outside the drafts:`, each with its items.
