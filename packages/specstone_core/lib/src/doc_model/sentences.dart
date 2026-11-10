@@ -185,13 +185,18 @@ List<String> sentencesOf(String lfText) {
   _Stripped? textAt(int i) => i < lines.length && !scan.fenced[i]
       ? _withoutContainers(lines[i], scan.continuesParagraph[i])
       : null;
+  // The delimiter row below a header keeps a list marker: `- | -` is one, and
+  // `markdown` tries the table before the list.
+  _Stripped? delimiterAt(int i) => i < lines.length && !scan.fenced[i]
+      ? _withoutContainers(lines[i], true)
+      : null;
   for (var i = 0; i < lines.length; i++) {
     if (scan.fenced[i]) {
       reader.close();
     } else {
       reader.read(
         textAt(i),
-        below: textAt(i + 1),
+        below: delimiterAt(i + 1),
         continuesParagraph: scan.continuesParagraph[i],
       );
     }
@@ -231,6 +236,10 @@ final class _BlockReader {
   /// The block quote depth of the table being read.
   var _tableQuotes = 0;
 
+  /// Whether the next line is the delimiter row of the table just started,
+  /// which holds no text.
+  var _delimiterNext = false;
+
   /// Reads [line], a line without its containers or null for a thematic
   /// break, with [below] the next line.
   void read(
@@ -238,6 +247,10 @@ final class _BlockReader {
     required _Stripped? below,
     required bool continuesParagraph,
   }) {
+    if (_delimiterNext) {
+      _delimiterNext = false;
+      return;
+    }
     if (line == null || line.text.trim().isEmpty) return close();
     final text = line.text;
     final heading = atxHeadingOf(text);
@@ -255,11 +268,11 @@ final class _BlockReader {
     }
     if (!line.isListItem &&
         below != null &&
-        !below.isListItem &&
         below.quotes == line.quotes &&
         startsTable(text, below.text)) {
       _closeBlock();
       _inTable = true;
+      _delimiterNext = true;
       _tableQuotes = line.quotes;
       return _readTableRow(text);
     }

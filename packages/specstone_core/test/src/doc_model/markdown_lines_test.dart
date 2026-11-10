@@ -195,6 +195,9 @@ void main() {
         'x | y',
         '| --- | --- |',
         ' |-|-| ',
+        '- | -',
+        '* | *',
+        '+ | -',
       ];
       var tables = 0;
       for (final header in headers) {

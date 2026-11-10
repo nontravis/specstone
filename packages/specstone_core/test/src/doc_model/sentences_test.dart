@@ -197,6 +197,11 @@ void main() {
       expect(sentencesOf(text), ['a', 'b', 'c', 'd', 'item that wraps.']);
     });
 
+    test('$_story: a delimiter row that starts like a list item still makes '
+        'a table', () {
+      expect(sentencesOf('a | b\n- | -\nc | d\n'), ['a', 'b', 'c', 'd']);
+    });
+
     test('$_story: a line that opens with a pipe is a row only inside a '
         'table', () {
       expect(sentencesOf('| one. two.\n| three.\n'), [

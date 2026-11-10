@@ -221,5 +221,12 @@ void main() {
         ]);
       },
     );
+
+    test('doc_model/doc_items E09: a delimiter row that starts like a list '
+        'item still makes a table', () {
+      expect(_items('a | b\n- | -\nc | d'), [
+        (line: 22, chars: 5, text: 'c | d', heading: false),
+      ]);
+    });
   });
 }

@@ -99,7 +99,9 @@ final class _Line {
 bool _startsTable(List<_Line> lines, int i) {
   if (i + 1 >= lines.length) return false;
   final next = lines[i + 1];
-  return next.kind == _Kind.text &&
+  // A delimiter row such as `- | -` starts like a list item, and `markdown`
+  // tries the table before the list.
+  return (next.kind == _Kind.text || next.kind == _Kind.list) &&
       next.quote == lines[i].quote &&
       startsTable(lines[i].inner, next.inner);
 }
