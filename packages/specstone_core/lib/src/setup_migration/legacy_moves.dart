@@ -13,6 +13,9 @@ const _specsFolder = 'specs/';
 const _topicsFolder = 'specs/topics/';
 const _architectureFolder = 'specs/architecture/';
 
+/// The Spec map file, which stays in place whatever row names its folder (E13).
+const _specIndexPath = 'specs/INDEX.md';
+
 /// The Spec map `feature_id` that marks a cross-cutting row.
 const _crossCutting = '—';
 
@@ -362,7 +365,7 @@ _SpecFile? _readSpecFile(
 
   if (ids.isEmpty) {
     final topic = topicFolders[folder];
-    if (topic == null) return null;
+    if (topic == null || path == _specIndexPath) return null;
     return _CrossCuttingFile((to: '$_topicsFolder$topic/$name', kind: null));
   }
   if (ids.length != 1) return null;

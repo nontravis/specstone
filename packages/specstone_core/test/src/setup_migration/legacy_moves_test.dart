@@ -902,6 +902,21 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
+      test('f06/us01/fr03/e12, e13: specs/INDEX.md stays under a cross-cutting '
+          'row of specs/, its other files move', () {
+        final tree = {
+          'docs/specs/INDEX.md': _specIndex(['| `c/` | `specs/` | — |']),
+          'docs/specs/s01_notes.md': '# N\n',
+        };
+        final plan = _plan(tree);
+
+        expect(plan.moves, [
+          (from: 'specs/s01_notes.md', to: 'specs/topics/specs/s01_notes.md'),
+        ]);
+        expect(plan.left, ['specs/INDEX.md']);
+        _expectNoDrop(tree, plan);
+      });
+
       test('f06/us01/fr03/e12: a cross-cutting row with no file does not '
           'count as sharing a last segment', () {
         final plan = _plan({
