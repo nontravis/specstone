@@ -47,7 +47,7 @@ final _allowed = <_Allowed>[
   ),
   _core(
     'doc_model/markdown_lines.dart',
-    r"""RegExp( r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$'""",
+    r"""RegExp( r'^ {0,3}(?=[^|]*\|)(?:\|[ \t]*)?:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$'""",
     'Table delimiter row, no reference.',
   ),
   _core(

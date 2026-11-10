@@ -4,10 +4,14 @@ import 'package:markdown/markdown.dart' show HeaderSyntax;
 // that changes it changes every reader with it.
 final RegExp _atxHeading = const HeaderSyntax().pattern;
 
-/// `markdown`'s `tablePattern` (`patterns.dart:53`), which `markdown.dart` does
-/// not export: a line of hyphens separated by at least one pipe.
+/// A table delimiter row: cells of hyphens, each with optional colons, at most
+/// 3 spaces in, and at least one pipe, a leading one alone included.
+///
+/// This is `markdown`'s `tablePattern` (`patterns.dart:53`), which
+/// `markdown.dart` does not export, widened to take a one-column row such as
+/// `|---` as GFM does.
 final RegExp _tableDelimiterRow = RegExp(
-  r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$',
+  r'^ {0,3}(?=[^|]*\|)(?:\|[ \t]*)?:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$',
 );
 
 /// An ATX heading line: its level, 1 to 6, and its text without the marks.
@@ -24,6 +28,8 @@ AtxHeading? atxHeadingOf(String line) {
   var text = line.substring(line.indexOf(marks) + marks.length).trim();
   if (closing != null) {
     text = text.substring(0, text.length - closing.length).trimRight();
+  } else if (text.isNotEmpty && text.replaceAll('#', '').isEmpty) {
+    text = ''; // a lone closing run, as in `### ###`
   }
   return (level: marks.length, text: text);
 }

@@ -21,6 +21,8 @@ void main() {
 
     test('reads a heading with no text as empty text', () {
       expect(atxHeadingOf('###'), (level: 3, text: ''));
+      expect(atxHeadingOf('### ###'), (level: 3, text: ''));
+      expect(atxHeadingOf('### ##'), (level: 3, text: ''));
     });
 
     test('reads no heading from a line that is none', () {
@@ -39,10 +41,22 @@ void main() {
       expect(isTableDelimiterRow('  |-|-|  '), isTrue);
     });
 
+    test('accepts a one-column row with a leading pipe', () {
+      expect(isTableDelimiterRow('|---'), isTrue);
+      expect(isTableDelimiterRow('|:--:'), isTrue);
+      expect(isTableDelimiterRow('| --- |'), isTrue);
+    });
+
     test('rejects a row that holds text or no pipe', () {
       expect(isTableDelimiterRow('| a | b |'), isFalse);
       expect(isTableDelimiterRow('---'), isFalse);
+      expect(isTableDelimiterRow('|---| text'), isFalse);
       expect(isTableDelimiterRow(''), isFalse);
+    });
+
+    test('rejects a row indented 4 spaces or more, which is code', () {
+      expect(isTableDelimiterRow('    |---|'), isFalse);
+      expect(isTableDelimiterRow('    ---|---'), isFalse);
     });
   });
 }

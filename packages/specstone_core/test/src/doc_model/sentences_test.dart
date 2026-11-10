@@ -224,6 +224,11 @@ void main() {
       _expectEachHeld(text);
     });
 
+    test('$_story: an indented # line between two paragraphs is the title, '
+        'no text', () {
+      expect(sentencesOf('One.\n\n  # x\n\nTwo.\n'), ['One.', 'Two.']);
+    });
+
     test('$_story: a text with no sentence gives none', () {
       expect(sentencesOf(''), isEmpty);
       expect(sentencesOf('---\ndraft: true\n---\n'), isEmpty);
