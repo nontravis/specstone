@@ -246,6 +246,40 @@ void main() {
       );
     });
 
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'Input: a doc-level lint.max_item_chars reads as written', () {
+      expect(_parse('lint: {max_item_chars: 900}').lint?.maxItemChars, 900);
+      expect(_parse('lint: {max_chars: 400}').lint?.maxItemChars, isNull);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'E16: a section lint that writes max_item_chars is unknown_key', () {
+      expect(
+        () => _parse(
+          'sections: [{id: goal, header: G, lint: {max_item_chars: 900}}]',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.unknownKey,
+            key: 'sections.goal.lint.max_item_chars',
+          ),
+        ),
+      );
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'Input: a non-integer lint.max_item_chars is unknown_value like '
+        'max_chars', () {
+      expect(
+        () => _parse('lint: {max_item_chars: many}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.max_item_chars')),
+      );
+      expect(
+        () => _parse('lint: {max_chars: many}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.max_chars')),
+      );
+    });
+
     test('f03/us02/fr03, f03/us03/fr01: a section lint holds banned_words, '
         'allowed_words, and line_prefix', () {
       final lint = _parse(

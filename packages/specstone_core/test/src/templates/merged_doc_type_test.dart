@@ -196,6 +196,18 @@ void main() {
       expect(unset.nests, isFalse);
     });
 
+    test('template_packs/read_writing_guide/print_merged_schema E05: toJson '
+        'prints maxItemChars only when a layer sets it', () {
+      final unset = _merge(_featureLayer).toJson();
+      expect(
+        (unset['lint']! as Map<String, Object?>).containsKey('maxItemChars'),
+        isFalse,
+      );
+
+      final set = _merge(_featureLayer, 'lint: {max_item_chars: 900}').toJson();
+      expect((set['lint']! as Map<String, Object?>)['maxItemChars'], 900);
+    });
+
     test('f03/us01/fr03: the merged schema matches the s02 example', () {
       final json = _merge(
         _featureLayer,

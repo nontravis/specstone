@@ -96,6 +96,7 @@ final class DocTypeMerger {
     return base.copyWith(
       maxChars: lint.maxChars,
       maxLines: lint.maxLines,
+      maxItemChars: lint.maxItemChars,
       bannedWords: _mergeList<String>(
         base.bannedWords,
         lint.bannedWords,

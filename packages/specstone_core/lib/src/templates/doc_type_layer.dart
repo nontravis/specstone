@@ -247,6 +247,7 @@ final class LintLayer {
   new({
     this.maxChars,
     this.maxLines,
+    this.maxItemChars,
     this.bannedWords,
     this.allowedWords,
     this.bannedPatterns,
@@ -258,6 +259,9 @@ final class LintLayer {
 
   /// The doc-level line ceiling, when written.
   final int? maxLines;
+
+  /// The doc-level character limit of one item, when written.
+  final int? maxItemChars;
 
   /// The banned word list, plain or as changes, when written.
   final ListWrite<String>? bannedWords;
@@ -578,6 +582,7 @@ const _sectionKeys = {
 const _docLintKeys = {
   'max_chars',
   'max_lines',
+  'max_item_chars',
   'banned_words',
   'allowed_words',
   'banned_patterns',
@@ -774,6 +779,12 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
   return LintLayer(
     maxChars: optionalValue<int>(map, 'max_chars', file: file, prefix: 'lint.'),
     maxLines: optionalValue<int>(map, 'max_lines', file: file, prefix: 'lint.'),
+    maxItemChars: optionalValue<int>(
+      map,
+      'max_item_chars',
+      file: file,
+      prefix: 'lint.',
+    ),
     bannedWords: _listWrite(map, 'banned_words', file: file, prefix: 'lint.'),
     allowedWords: _listWrite(map, 'allowed_words', file: file, prefix: 'lint.'),
     bannedPatterns: _patternWrite(

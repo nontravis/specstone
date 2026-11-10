@@ -145,6 +145,26 @@ void main() {
       },
     );
 
+    test('template_packs/read_writing_guide/print_merged_schema: guide <type> '
+        '--json prints lint.maxItemChars as a project layer sets it, and no '
+        'such key with no layer', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml': 'lint: {max_item_chars: 900}\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect((json['lint']! as Map<String, Object?>)['maxItemChars'], 900);
+
+      out.clear();
+      final plain = await runnerIn(await projectWith({}));
+      expect(await plain.run(['guide', 'feature', '--json']), 0);
+      final unset = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(unset.containsKey('lint'), isFalse);
+    });
+
     test('f03/us01/fr03, db-r7: guide <type> --json prints a section summary '
         'set by a project layer', () async {
       final runner = await runnerIn(

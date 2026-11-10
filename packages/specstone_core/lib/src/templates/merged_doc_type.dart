@@ -226,6 +226,9 @@ final class MergedSection {
   }
 }
 
+/// The most characters one item may hold when no layer sets `max_item_chars`.
+const defaultMaxItemChars = 600;
+
 /// The doc-level lint settings of a merged doc type.
 ///
 /// A null limit or word list means no layer defines it.
@@ -233,6 +236,7 @@ final class MergedLint {
   const new({
     this.maxChars,
     this.maxLines,
+    this.maxItemChars,
     this.bannedWords,
     this.allowedWords,
     this.bannedPatterns,
@@ -244,6 +248,12 @@ final class MergedLint {
 
   /// The doc-level line ceiling.
   final int? maxLines;
+
+  /// The most characters one item may hold, when a layer sets it.
+  final int? maxItemChars;
+
+  /// The most characters one item may hold: [maxItemChars], else the default.
+  int get itemCharLimit => maxItemChars ?? defaultMaxItemChars;
 
   /// The banned words.
   final List<String>? bannedWords;
@@ -261,6 +271,7 @@ final class MergedLint {
   MergedLint copyWith({
     int? maxChars,
     int? maxLines,
+    int? maxItemChars,
     List<String>? bannedWords,
     List<String>? allowedWords,
     List<PatternEntry>? bannedPatterns,
@@ -268,6 +279,7 @@ final class MergedLint {
   }) => MergedLint(
     maxChars: maxChars ?? this.maxChars,
     maxLines: maxLines ?? this.maxLines,
+    maxItemChars: maxItemChars ?? this.maxItemChars,
     bannedWords: bannedWords ?? this.bannedWords,
     allowedWords: allowedWords ?? this.allowedWords,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
@@ -280,6 +292,7 @@ final class MergedLint {
   Map<String, Object> toJson() => {
     'maxChars': ?maxChars,
     'maxLines': ?maxLines,
+    'maxItemChars': ?maxItemChars,
     'bannedWords': ?bannedWords,
     'allowedWords': ?allowedWords,
     'bannedPatterns': ?bannedPatterns?.map((p) => p.toJson()).toList(),

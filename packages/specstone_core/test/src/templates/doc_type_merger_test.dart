@@ -783,6 +783,57 @@ sections:
       expect(merged.lint.maxLines, 300);
     });
 
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'E15: a project max_item_chars sets that doc type; every other keeps '
+        'the 600 default', () {
+      final domain = merger.apply(
+        merger.builtInBase('domain'),
+        layer('description: A domain\npath: domain.md\n', docTypeId: 'domain'),
+      );
+
+      final merged = merger.apply(
+        domain,
+        layer(
+          'lint: {max_item_chars: 900}',
+          kind: LayerKind.project,
+          docTypeId: 'domain',
+        ),
+      );
+
+      expect(merged.lint.maxItemChars, 900);
+      expect(merged.lint.itemCharLimit, 900);
+      expect(defaultMaxItemChars, 600);
+      expect(domain.lint.maxItemChars, isNull);
+      expect(domain.lint.itemCharLimit, 600);
+      expect(shipped().lint.itemCharLimit, 600);
+      expect(merger.builtInBase('feature').lint.itemCharLimit, 600);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'Input: an upper layer max_item_chars replaces the lower one and a '
+        'layer without it keeps it', () {
+      final base = project(shipped(), 'lint: {max_item_chars: 900}');
+
+      expect(
+        project(base, 'lint: {max_item_chars: 300}').lint.maxItemChars,
+        300,
+      );
+      expect(project(base, 'lint: {max_chars: 50}').lint.maxItemChars, 900);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'E01: a doc-level lint key outside the list is unknown_key, and '
+        'max_item_chars is inside it', () {
+      expect(
+        () => project(shipped(), 'lint: {max_words: 3}'),
+        throwsA(fault(FaultCode.unknownKey, 'lint.max_words')),
+      );
+      expect(
+        project(shipped(), 'lint: {max_item_chars: 1}').lint.maxItemChars,
+        1,
+      );
+    });
+
     test('f03/us02/fr03/e04: a section keeps its own lint and an unwritten '
         'one stays null', () {
       final merged = project(
