@@ -87,7 +87,7 @@ ProcessResult _startGit(
   workingDirectory: workingDirectory,
   environment: gitChildEnvironment(
     inherited: Platform.environment,
-    localVariables: _localEnvVars(workingDirectory),
+    localVariables: _localEnvVars(),
     own: environment,
     ignoresCase: Platform.isWindows,
   ),
@@ -105,7 +105,9 @@ const _keptLocalVariables = {'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT'};
 ///
 /// A git hook or `git bisect run` exports the listed variables to point git at
 /// its own repository; dropping them has git run against the repository of its
-/// working folder. Names compare case-blind when [ignoresCase], as on Windows.
+/// working folder. Names compare case-blind when [ignoresCase], as on Windows,
+/// where an [own] name also replaces each inherited name that differs from it
+/// in case.
 Map<String, String> gitChildEnvironment({
   required Map<String, String> inherited,
   required Iterable<String> localVariables,
@@ -116,6 +118,7 @@ Map<String, String> gitChildEnvironment({
   final removed = {
     for (final name in localVariables)
       if (!_keptLocalVariables.contains(name)) fold(name),
+    for (final name in own?.keys ?? const <String>[]) fold(name),
   };
   return {
     for (final MapEntry(:key, :value) in inherited.entries)
@@ -127,7 +130,8 @@ Map<String, String> gitChildEnvironment({
 /// Returns the names a `git rev-parse --local-env-vars` [result] lists, one
 /// per non-empty line.
 ///
-/// Throws [ProcessException] when git exited non-zero.
+/// Throws [ProcessException] when git exited non-zero or listed no name, since
+/// git always lists at least `GIT_DIR`.
 List<String> localEnvVarsFrom(ProcessResult result) {
   if (result.exitCode != 0) {
     throw ProcessException(
@@ -137,10 +141,18 @@ List<String> localEnvVarsFrom(ProcessResult result) {
       result.exitCode,
     );
   }
-  return [
-    for (final line in '${result.stdout}'.split('\n'))
+  final names = [
+    for (final line in const LineSplitter().convert('${result.stdout}'))
       if (line.trim().isNotEmpty) line.trim(),
   ];
+  if (names.isEmpty) {
+    throw const ProcessException(
+      'git',
+      _localEnvVarsArguments,
+      'listed no name',
+    );
+  }
+  return names;
 }
 
 const List<String> _localEnvVarsArguments = [
@@ -157,21 +169,21 @@ const List<String> _localEnvVarsArguments = [
 /// The query runs with the inherited environment and outside [guardedGit], as
 /// `git --version` does, since it reads no repository. A failure is cached and
 /// thrown again on each call.
-List<String> _localEnvVars(String workingDirectory) {
-  final outcome = _localEnvVarsOutcome ??= _queryLocalEnvVars(workingDirectory);
+List<String> _localEnvVars() {
+  final outcome = _localEnvVarsOutcome ??= _queryLocalEnvVars();
   final failure = outcome.failure;
   if (failure != null) throw failure;
   return outcome.names!;
 }
 
-({List<String>? names, ProcessException? failure}) _queryLocalEnvVars(
-  String workingDirectory,
-) {
+/// Runs the query in the temp folder, not in a caller's folder: the outcome is
+/// cached for every folder, so it must depend on git alone.
+({List<String>? names, ProcessException? failure}) _queryLocalEnvVars() {
   try {
     final result = Process.runSync(
       'git',
       _localEnvVarsArguments,
-      workingDirectory: workingDirectory,
+      workingDirectory: Directory.systemTemp.path,
       stdoutEncoding: utf8,
     );
     return (names: localEnvVarsFrom(result), failure: null);

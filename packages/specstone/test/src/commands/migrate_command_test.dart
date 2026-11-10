@@ -444,5 +444,41 @@ void main() {
         expect(shown.stdout, startsWith('legacy migration: '));
       },
     );
+
+    test(
+      'migrate --dry-run refuses git_work_tree_required, exit 78, when git '
+      'cannot list its repository variables',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+        final realGit = (Process.runSync('which', ['git']).stdout as String)
+            .trim();
+        final stub = await writeTree({
+          'git': [
+            '#!/bin/sh',
+            r'case "$*" in',
+            "  *--local-env-vars*) echo 'fatal: boom' >&2; exit 128 ;;",
+            'esac',
+            'exec "$realGit" "\$@"',
+            '',
+          ].join('\n'),
+        });
+        expect(
+          Process.runSync('chmod', ['755', '${stub.path}/git']).exitCode,
+          0,
+        );
+
+        final shown = await Process.run(
+          binary,
+          ['migrate', '--dry-run'],
+          workingDirectory: root.path,
+          environment: {'PATH': '${stub.path}:${Platform.environment['PATH']}'},
+        );
+
+        expect(shown.exitCode, 78, reason: '${shown.stderr}');
+        expect(shown.stdout, isEmpty);
+        expect(shown.stderr, contains('not in a git work tree'));
+      },
+      skip: Platform.isWindows ? 'the stub git is a POSIX shell script' : null,
+    );
   }, skip: hasGit ? null : 'git is not available');
 }
