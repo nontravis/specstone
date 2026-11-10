@@ -695,6 +695,48 @@ sections:
       }, home: home);
     }, skip: skipGit);
 
+    test('f06/us02/fr02/e08: a config committed as deleted while an upgrade '
+        'prompt waits is working_tree_dirty naming it, never a raw '
+        'FileSystemException', () async {
+      final (:project, :home) = await _upgradeFixture();
+      const config = '.specstone/config.yaml';
+
+      expectRefusedNaming(project, config, () {
+        expect(git(project, ['rm', '-q', config]).exitCode, 0);
+        commitAll(project, 'meanwhile');
+      }, home: home);
+
+      expect(File('${project.path}/$config').existsSync(), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us02/fr02/e08: a personal pack.yaml deleted while an upgrade '
+        'prompt waits is working_tree_dirty naming it, and nothing is '
+        'written', () async {
+      final (:project, :home) = await _upgradeFixture();
+      const packPath = '.specstone/packs/acme/pack.yaml';
+
+      expectRefusedNaming(project, packPath, () {
+        File('${home.path}/$packPath').deleteSync();
+      }, home: home);
+
+      expect(
+        File('${project.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.0.0'),
+      );
+    }, skip: skipGit);
+
+    test('f06/us02/fr02/e08: an invalid file dropped in the personal pack '
+        'while an upgrade prompt waits is working_tree_dirty naming it, and '
+        'nothing is written', () async {
+      final (:project, :home) = await _upgradeFixture();
+      const broken = 'playbook.yaml';
+
+      expectRefusedNaming(project, broken, () {
+        File('${home.path}/.specstone/packs/acme/$broken')
+            .writeAsStringSync('id: [unclosed\n');
+      }, home: home);
+    }, skip: skipGit);
+
     test('f06/us02/fr02/e08: a tracked file committed while an upgrade with a '
         'labelled code file waits leaves every input, and the run '
         'applies', () async {

@@ -14,6 +14,7 @@ import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
 /// Opens the `owner_terminal_required` message of an apply.
@@ -227,7 +228,10 @@ int _plannedRun(
 /// Plans again and returns the new plan when it hashes as [shown] does.
 ///
 /// Throws [MigrateFault] `working_tree_dirty` otherwise, naming the first
-/// input that differs, or the plan alone when only its text does.
+/// input that differs, or the plan alone when only its text does. The first
+/// plan succeeded, so a [FileSystemException] or [TemplateFault] from the new
+/// one means an input changed while the plan was shown; it refuses the same
+/// way, naming the path or file the failure gives.
 RunPlan _replanMatching(
   MigrateRequest request,
   Directory root,
@@ -235,16 +239,42 @@ RunPlan _replanMatching(
   Directory? linkFolder,
   RunPlan shown,
 ) {
-  final fresh = _planOf(request, root, kind, linkFolder);
+  final RunPlan fresh;
+  try {
+    fresh = _planOf(request, root, kind, linkFolder);
+  } on FileSystemException catch (error) {
+    throw _inputChanged(_fromRoot(root, error.path));
+  } on TemplateFault catch (fault) {
+    throw _inputChanged(fault.file);
+  }
   final freshHash = planHashOf(fresh.toText(), fresh.inputs);
   if (freshHash == planHashOf(shown.toText(), shown.inputs)) return fresh;
-  final input = shown.inputs.firstDifferenceFrom(fresh.inputs);
-  final changed = input == null ? 'the plan' : '$input, an input of the plan,';
-  throw MigrateFault(
+  throw _inputChanged(shown.inputs.firstDifferenceFrom(fresh.inputs));
+}
+
+/// Returns the refusal for a plan whose [input] changed while it was shown,
+/// or the plan itself when [input] is null or empty.
+MigrateFault _inputChanged(String? input) {
+  final changed = input == null || input.isEmpty
+      ? 'the plan'
+      : '$input, an input of the plan,';
+  return MigrateFault(
     MigrateFaultCode.workingTreeDirty,
     '$changed changed while the plan was shown; run specstone migrate again '
     'to plan from it',
   );
+}
+
+/// Returns the `/`-separated path of [absolute] from [root], [absolute] itself
+/// when it lies outside, or null when it is null.
+String? _fromRoot(Directory root, String? absolute) {
+  if (absolute == null) return null;
+  final prefix = root.absolute.path.endsWith(Platform.pathSeparator)
+      ? root.absolute.path
+      : '${root.absolute.path}${Platform.pathSeparator}';
+  if (!absolute.startsWith(prefix)) return absolute;
+  final relative = absolute.substring(prefix.length);
+  return Platform.isWindows ? relative.replaceAll(r'\', '/') : relative;
 }
 
 /// Refuses, in order and before any plan, roots that wait for the Owner's
