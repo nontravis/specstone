@@ -3046,4 +3046,68 @@ void main() {
       }
     });
   });
+
+  group('document_writing/edit_one_section_or_field/write_one_section: a naming line in a text is refused,', () {
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    const target = 'user_story:login/email_login#use_case';
+
+    Matcher refusesNamingLine(String line) => throwsA(
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+          .having((f) => f.message, 'message', contains('"$line"')),
+    );
+
+    test('set of a section refuses a column-0 naming line outside a fence and writes nothing', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = sectionBase(root, target);
+      for (final text in [
+        'Sign in.\n\n$naming\nExample.\n',
+        '$naming\n',
+        '## Use Case\n\nx\n$naming  \n',
+        'x\n==> broken <==\n',
+      ]) {
+        final line = text.split('\n').firstWhere((l) => l.startsWith('==>'));
+        expect(
+          () => writeIn(root, (s) => answerSet(s, req(target, base), text)),
+          refusesNamingLine(line.trimRight()),
+          reason: text,
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('checkPartText refuses it in a lead and a field value, with no lock and no doc text', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkPartIn(root, req('$story1#_lead', 'x'), 'Lead.\n$naming\n'),
+        refusesNamingLine(naming),
+      );
+      expect(
+        () => checkPartIn(
+          root,
+          fieldReq(story1, 'vision', 'x'),
+          '- PV-01\n$naming\n',
+        ),
+        refusesNamingLine(naming),
+      );
+    });
+
+    test('a fenced line and an indented line pass', () async {
+      final root = await writeWriteProject();
+      final base = sectionBase(root, target);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, base),
+          'Shown as:\n\n```text\n$naming\n```\n\n    $naming\n\n- $naming\n',
+        ),
+      );
+      final text = readDoc(root, story1);
+      expect(text, contains('\n```text\n$naming\n```\n'));
+      expect(text, contains('\n    $naming\n'));
+    });
+  });
 }

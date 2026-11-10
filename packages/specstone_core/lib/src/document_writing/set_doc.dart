@@ -256,8 +256,9 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// [splicePart]: a first line that may be the section's own header, a held
 /// key, a stale base, and the section lookup. Throws [IndexFault]
 /// `argument_invalid` for an open fence, a `## ` line after a section body's
-/// first line, a lead that holds a `# ` or `## ` line, and a title that is not
-/// one line, and the faults of [checkFieldWrite] for a field.
+/// first line, a lead that holds a `# ` or `## ` line, a section, lead, or
+/// field value that holds a naming line (see [refuseNamingLine]), and a title
+/// that is not one line, and the faults of [checkFieldWrite] for a field.
 void checkPartText({
   required IndexedDoc doc,
   required MergedDocType docType,
@@ -273,6 +274,7 @@ void checkPartText({
     case TitleTarget():
       _titleOf(lf);
     case FieldTarget(:final fieldId):
+      refuseNamingLine(lf, 'the value');
       // The held key decides only an emptied key the type does not declare;
       // `splicePart` checks it against the doc's text.
       checkFieldWrite(
@@ -591,6 +593,7 @@ void _checkLeadText(String lf) {
       'the lead leaves the fence "$fence" open; close it',
     );
   }
+  refuseNamingLine(lf, 'the lead');
 }
 
 /// Returns [lf] less its first line after leading blank lines when that line
@@ -680,6 +683,24 @@ void _checkSectionText(String lf) {
   final first = lines.indexWhere((line) => line.trim().isNotEmpty);
   final mayBeOwnHeader = first >= 0 && isSectionHeaderLine(lines[first]);
   _refuseHeaderLine(mayBeOwnHeader ? (lines..removeAt(first)).join('\n') : lf);
+  refuseNamingLine(lf, 'the body');
+}
+
+/// Throws [IndexFault] `argument_invalid` when [lf] holds a line at column 0
+/// outside fenced code that has a naming line's shape; [subject] opens the
+/// message.
+///
+/// Such a line would split the doc's `get` output into a false block when it
+/// is fed back to `set --batch`, so a doc's text never holds one; an indented
+/// or fenced line is text.
+void refuseNamingLine(String lf, String subject) {
+  if (_scanStdin(lf, hasNamingLineShape).refused case final line?) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '$subject holds the naming line "${line.trimRight()}"; '
+      'indent it or put it in a fenced code block',
+    );
+  }
 }
 
 /// Throws [IndexFault] `argument_invalid` when [body] holds a `## ` line

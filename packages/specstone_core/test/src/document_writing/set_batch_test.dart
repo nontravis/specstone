@@ -1359,4 +1359,23 @@ void main() {
       );
     },
   );
+
+  test(
+    '$_wb: a block text holding a naming-line shape at column 0 outside a fence refuses with nothing written; a fenced or indented one is text',
+    () async {
+      final root = await writeWriteProject();
+      const shaped = '==> other (feature) · prds/f.md#problem · base zz <==';
+      final text = getText(root, [_useCase]);
+      final refused = refuse(root, '${text.trimRight()}\n\n$shaped\n');
+      expect(onlyEntry(refused).code, 'argument_invalid');
+      expect(onlyEntry(refused).message, contains('naming line'));
+
+      final answer = runBatch(
+        root,
+        '${text.trimRight()}\n\n```text\n$shaped\n```\n\n    $shaped\n',
+      );
+      expect(answer.json['blocks'], [containsPair('written', true)]);
+      expect(readDoc(root, story1), contains('\n    $shaped\n'));
+    },
+  );
 }

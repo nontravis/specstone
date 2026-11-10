@@ -845,4 +845,58 @@ void main() {
       given.replaceFirst('---\nvision', '---\ndraft: true\nvision'),
     );
   });
+
+  test('document_writing/create_doc_from_template/fill_new_doc: a text holding a column-0 naming line outside a fence is refused and nothing is created', () async {
+    final root = await writeWriteProject();
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    for (final text in [
+      '# Mine\n\nExample:\n$naming\nbody\n',
+      '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n$naming\n',
+    ]) {
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'quoted',
+            text: text,
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.message, 'message', contains('"$naming"')),
+        ),
+        reason: text,
+      );
+    }
+    expect(
+      Directory('${root.path}/docs/prds/features/f01_login/us04_quoted')
+          .existsSync(),
+      isFalse,
+    );
+  });
+
+  test('document_writing/create_doc_from_template/fill_new_doc: a naming line inside a fence or indented is written as text', () async {
+    final root = await writeWriteProject();
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'quoted',
+        text: '# Mine\n\n```text\n$naming\n```\n\n    $naming\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_quoted/USER_STORY.md'),
+      contains('```text\n$naming\n```\n\n    $naming\n'),
+    );
+  });
 }

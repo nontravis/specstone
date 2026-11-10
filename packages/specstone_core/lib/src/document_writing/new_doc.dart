@@ -54,7 +54,8 @@ typedef NewDocFill = String Function(
 /// Throws [TemplateFault] `doc_type_unknown` for [docTypeId] or a [parent]
 /// that names another doc type id, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
-/// not take, or a [parent] already at `max_depth`, [WriteFault] `doc_exists`
+/// not take, a [parent] already at `max_depth`, or a [text] that holds a naming
+/// line at column 0 outside fenced code, [WriteFault] `doc_exists`
 /// when the doc is there and `field_not_writable` when [text] holds an
 /// `approved` key, and [RenderFault] `output_not_writable` when the disk
 /// refuses, after removing what this call created.
@@ -97,7 +98,10 @@ ReadAnswer answerNew(
         '$docTypeId has no path to create a doc at depth $depth',
       ));
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
-  if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
+  if (text.isNotEmpty) {
+    refuseNamingLine(toLf(text), 'the text');
+    _refuseApprovedMark(toLf(text));
+  }
   final given = text.isEmpty
       ? skeletonOf(docType, title)
       : markDraft(toLf(text), docType);
