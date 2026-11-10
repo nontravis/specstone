@@ -266,15 +266,16 @@ final class _BlockReader {
       }
       close();
     }
-    if (!line.isListItem &&
-        below != null &&
+    // A header such as `- a | b` starts like a list item, and `markdown` tries
+    // the table before the list; its marker is part of the first cell.
+    if (below != null &&
         below.quotes == line.quotes &&
-        startsTable(text, below.text)) {
+        startsTable(line.written, below.text)) {
       _closeBlock();
       _inTable = true;
       _delimiterNext = true;
       _tableQuotes = line.quotes;
-      return _readTableRow(text);
+      return _readTableRow(line.written);
     }
     if (!continuesParagraph) close();
     _open.add(text.trim());
@@ -300,8 +301,14 @@ String _trimPipes(String row) {
 }
 
 /// A line read past its containers: its `text`, the count of block quote
-/// marks it opened with, and whether a list marker opened it.
-typedef _Stripped = ({String text, int quotes, bool isListItem});
+/// marks it opened with, whether a list marker opened it, and the line as
+/// `written`, past the block quote marks only.
+typedef _Stripped = ({
+  String text,
+  int quotes,
+  bool isListItem,
+  String written,
+});
 
 /// Returns [line] past the block quote marks it opens with, and past its list
 /// marker unless it continues a paragraph, or null for a thematic break.
@@ -309,6 +316,7 @@ _Stripped? _withoutContainers(String line, bool continuesParagraph) {
   var text = line;
   var quotes = 0;
   var isListItem = false;
+  String? written;
   while (true) {
     if (isThematicBreak(text)) return null;
     final quote = _quotePrefix.matchAsPrefix(text);
@@ -317,11 +325,17 @@ _Stripped? _withoutContainers(String line, bool continuesParagraph) {
         : null;
     final prefix = quote ?? marker;
     if (prefix == null) {
-      return (text: text, quotes: quotes, isListItem: isListItem);
+      return (
+        text: text,
+        quotes: quotes,
+        isListItem: isListItem,
+        written: written ?? text,
+      );
     }
     if (quote != null) {
       quotes++;
     } else {
+      written ??= text;
       isListItem = true;
     }
     text = text.substring(prefix.end);

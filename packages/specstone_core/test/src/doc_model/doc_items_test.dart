@@ -228,5 +228,17 @@ void main() {
         (line: 22, chars: 5, text: 'c | d', heading: false),
       ]);
     });
+
+    test('doc_model/doc_items E09: a header line that opens with a list '
+        'marker still makes a table', () {
+      for (final header in ['- a | b', '* a | b', '+ a | b', '1. a | b']) {
+        expect(_items('$header\n--- | ---\nc | d'), [
+          (line: 22, chars: 5, text: 'c | d', heading: false),
+        ], reason: header);
+      }
+      expect(_items('- a\n--- | ---\nc | d'), [
+        (line: 20, chars: 19, text: 'a', heading: false),
+      ]);
+    });
   });
 }

@@ -32,7 +32,7 @@ List<DocItem> itemsOf(List<BodyLine> body) {
   var i = 0;
   while (i < lines.length) {
     final line = lines[i];
-    if (line.kind == _Kind.text && _startsTable(lines, i)) {
+    if (_startsTable(lines, i)) {
       i = _addTableRows(items, body, lines, i);
     } else if (line.kind == _Kind.blank ||
         line.kind == _Kind.fence ||
@@ -87,6 +87,10 @@ final class _Line {
   final int quote;
   final String inner;
 
+  /// Whether the line is text, or opens like a list item, that a table row
+  /// may be.
+  bool get isTableCandidate => kind == _Kind.text || kind == _Kind.list;
+
   /// The first line of an item that starts here, marker stripped.
   String get itemText => switch (kind) {
     _Kind.heading => inner.substring(itemHeadingMarker.length),
@@ -98,12 +102,14 @@ final class _Line {
 /// Whether line [i] is a table header, the delimiter row under it.
 bool _startsTable(List<_Line> lines, int i) {
   if (i + 1 >= lines.length) return false;
+  final line = lines[i];
   final next = lines[i + 1];
-  // A delimiter row such as `- | -` starts like a list item, and `markdown`
-  // tries the table before the list.
-  return (next.kind == _Kind.text || next.kind == _Kind.list) &&
-      next.quote == lines[i].quote &&
-      startsTable(lines[i].inner, next.inner);
+  // A header or delimiter row such as `- a | b` or `- | -` starts like a list
+  // item, and `markdown` tries the table before the list.
+  return line.isTableCandidate &&
+      next.isTableCandidate &&
+      next.quote == line.quote &&
+      startsTable(line.inner, next.inner);
 }
 
 /// Adds one item per row below the delimiter row of the table at [i] to

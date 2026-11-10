@@ -326,6 +326,11 @@ void main() {
       'a | b\n---|---\nc | d\n',
     );
     check(
+      'a header line that opens with a list marker makes a table',
+      '- a   |   b\n--- | ---\nc  |  d\n',
+      '- a | b\n---|---\nc | d\n',
+    );
+    check(
       'a header with more cells than the delimiter row has columns is no '
           'table',
       'a  |  b  |  c\n---|---\nx\n',

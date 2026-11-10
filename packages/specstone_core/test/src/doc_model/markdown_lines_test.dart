@@ -179,6 +179,9 @@ void main() {
         ' a | b ',
         r'a \',
         r'a | \',
+        '- a | b',
+        '1. a | b',
+        '* a',
       ];
       const delimiters = [
         '---',

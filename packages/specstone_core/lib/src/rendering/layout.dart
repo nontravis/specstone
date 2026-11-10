@@ -110,17 +110,17 @@ final class _Layout {
     }
   }
 
-  // The delimiter row may start like a list item, as `- | -` does; `markdown`
-  // tries the table before the list.
+  // The header and the delimiter row may start like a list item, as `- a | b`
+  // and `- | -` do; `markdown` tries the table before the list.
   bool _startsTable(int i) =>
-      _isRowLine(i) && !protected[i + 1] && startsTable(lines[i], lines[i + 1]);
+      _isTextLine(i) &&
+      !protected[i + 1] &&
+      startsTable(lines[i], lines[i + 1]);
 
-  bool _isRowLine(int i) =>
-      !protected[i] &&
-      !isBlank(i) &&
-      !isHeading(i) &&
-      !_isQuote(lines[i]) &&
-      !_isListItemLine(lines[i]);
+  bool _isTextLine(int i) =>
+      !protected[i] && !isBlank(i) && !isHeading(i) && !_isQuote(lines[i]);
+
+  bool _isRowLine(int i) => _isTextLine(i) && !_isListItemLine(lines[i]);
 }
 
 List<bool> _protectedLines(

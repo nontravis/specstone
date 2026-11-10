@@ -202,6 +202,23 @@ void main() {
       expect(sentencesOf('a | b\n- | -\nc | d\n'), ['a', 'b', 'c', 'd']);
     });
 
+    test('$_story: a header line that opens with a list marker still makes '
+        'a table, its marker part of the first cell', () {
+      expect(sentencesOf('- a | b\n--- | ---\nc | d\n'), [
+        '- a',
+        'b',
+        'c',
+        'd',
+      ]);
+      expect(sentencesOf('* a | b\n--- | ---\nc | d\n'), [
+        '* a',
+        'b',
+        'c',
+        'd',
+      ]);
+      expect(sentencesOf('- a\n--- | ---\nc | d\n'), ['a --- | --- c | d']);
+    });
+
     test('$_story: a line that opens with a pipe is a row only inside a '
         'table', () {
       expect(sentencesOf('| one. two.\n| three.\n'), [
