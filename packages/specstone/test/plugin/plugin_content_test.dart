@@ -202,6 +202,7 @@ void main() {
   _leadAndMermaidTests();
   _agentTests();
   _sizeFixTests();
+  _batchGuideTests();
 }
 
 typedef _Shipped = ({
@@ -1508,6 +1509,57 @@ void _sizeFixTests() {
         _oneLine(file.readAsStringSync()),
         isNot(contains('new feature --parent')),
         reason: file.path,
+      );
+    }
+  });
+}
+
+/// Each bootstrap procedure and its est. tokens at `e8262ba`, which its one
+/// guide call per batch leaves no higher.
+const _bootstrapProcedureTokens = {
+  'skills/bootstrap-prd/references/procedure.md': 1497,
+  'skills/bootstrap-spec/references/procedure.md': 1499,
+};
+
+/// The one guide call of a bootstrap batch
+/// (`agent_plugin/fill_missing_format/fill_check_findings` E25).
+const _batchGuideCall =
+    'before the first, run `specstone guide <type> …` once, naming every type '
+    'you write.';
+
+void _batchGuideTests() {
+  test('agent_plugin/fill_missing_format/fill_check_findings E25: each '
+      'bootstrap procedure runs one guide call for every type its batch '
+      'writes before the first write, points each finding fix to it, and '
+      'stays within its e8262ba est. tokens', () {
+    for (final MapEntry(key: file, value: tokens)
+        in _bootstrapProcedureTokens.entries) {
+      final text = _pluginText(file);
+      final call = _oneLine(text).indexOf(_batchGuideCall);
+      expect(call, isNonNegative, reason: file);
+      for (final write in ['`specstone set', '`specstone new']) {
+        expect(
+          call,
+          lessThan(_oneLine(text).indexOf(write)),
+          reason: '$file: $write',
+        );
+      }
+      expect(
+        'specstone guide'.allMatches(text),
+        hasLength(1),
+        reason: '$file names one guide call',
+      );
+      expect(
+        _oneLine(_sectionOf(text, '2. One finding at a time')),
+        contains('| rewrite what it names per its guide;'),
+        reason: file,
+      );
+      expect(
+        oversizedSkillFiles(
+          pluginRoot(),
+          limit: tokens,
+        ).where((problem) => problem.startsWith('$file:')),
+        isEmpty,
       );
     }
   });

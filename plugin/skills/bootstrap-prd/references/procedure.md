@@ -3,11 +3,12 @@ As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goe
 
 This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
 `code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
-`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write.
+`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write; before the first, run
+`specstone guide <type> …` once, naming every type you write.
 
 ## 2. One finding at a time
 
-Fix the first finding under `prds/` not yet handled, then run `specstone check` again. Stop when each finding left
+Fix the first unhandled finding under `prds/`, then run `specstone check` again. Stop when each finding left
 goes to `specstone:bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
 size finding.
 
@@ -26,15 +27,15 @@ whole section.
 
 | Finding | Fix |
 |---|---|
-| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text |
+| `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
 | `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone:bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
-| `field_undeclared`, any other | move its value into the field that takes it, then drop the key |
+| `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
-| any other under `prds/` | rewrite what it names per `specstone guide <type>`; one that clears with no write goes to step 6 |
+| any other under `prds/` | rewrite what it names per its guide; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
 
@@ -45,8 +46,8 @@ new list, as YAML `- item` lines, to `specstone set <type>:<name> --field implem
 
 ## 4. Merge an old file, or split a full one
 
-An `untyped_doc` is an old file the migration left with its old name, such as a group's container `FEATURE.md`.
-Merge its content through `specstone set` into the doc that takes it, or into a new one from `specstone new <type>`
+An `untyped_doc` is an old file the migration left, such as a group's container `FEATURE.md`.
+Merge its content through `specstone set` into the doc that takes it, else a new one from `specstone new <type>`
 (`--parent`, `--slug`, as the type takes them). Skip only a sentence that doc holds word for word, and never target
 the untyped file: a write refuses it. Add its path to the retire set, a list for this run only.
 
@@ -71,7 +72,7 @@ such as `NFR-Sec01`, to its new doc. Name in step 6 each waiver and each mention
 specstone delete <path> <path> …
 ```
 
-On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4, which joins the round's lines.
+On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4.
 With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 

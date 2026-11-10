@@ -3,12 +3,13 @@ As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goe
 
 This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
 Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
-`specstone:expert-sdd` for every write.
+`specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once,
+naming every type you write.
 
 ## 2. One finding at a time
 
-Fix the first unhandled finding of this skill, then run `specstone check` again with no target (a targeted run
-omits `code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or is tagged
+Fix this skill's first unhandled finding, then run a bare `specstone check` again (a targeted run omits
+`code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or is tagged
 `(waits for the Owner)`, except an unanswered size finding.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
@@ -32,7 +33,7 @@ the Owner only when no text bears on a whole section.
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
-| any other of this skill | rewrite what it names per `specstone guide <type>`; one that clears with no write goes to step 6 |
+| any other of this skill | rewrite what it names per its guide; one that clears with no write goes to step 6 |
 
 ## 3. Point and cover code
 
@@ -80,11 +81,11 @@ referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 
-`specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill `tech_stack:tech_stack`:
-title, each section `specstone guide tech_stack` names, and `code`, each code folder from the code root (`code_root` in
-`.specstone/config.yaml`, else the project root). Write PROJECT's old `## Tech stack` to `## Stack` and its
-`## Naming canonicalization` to `## Naming`, then drop each PRD section. Fill each doc step 3 or 4 made the same way.
-Then rerun `specstone check`: new roots can raise `code_uncovered`.
+`specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill `tech_stack:tech_stack` per
+its guide, and `code`, each code folder under `code_root` in `.specstone/config.yaml`, else the project root. Write
+PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop each PRD
+section. Fill each doc step 3 or 4 made the same way. Then rerun `specstone check`: new roots can raise
+`code_uncovered`.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
