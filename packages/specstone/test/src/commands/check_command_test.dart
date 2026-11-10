@@ -299,6 +299,55 @@ void main() {
     expect(out.toString(), contains('\n1 finding\n'));
   });
 
+  group('consistency_check/find_template_breaks/print_findings E11, E12: item_over_limit', () {
+    final overlong = 'A long rationale'.padRight(700, '.');
+
+    Future<Directory> project() => writeCheckProject(
+      extra: fr('A wrong password must not sign in.', overlong),
+    );
+
+    test('text ends its line with the tag and the run exits 1', () async {
+      final dir = await project();
+      final line =
+          File('${dir.path}/docs/$loginFr')
+              .readAsLinesSync()
+              .indexWhere((l) => l.startsWith('A long rationale')) +
+          1;
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginFr:$line: item_over_limit: the item at line $line of section '
+        'rationale has 700 characters; the limit is 600 '
+        '(waits for the Owner)\n1 finding\n',
+      );
+    });
+
+    test('--json carries waitsFor owner and the four keys, no tag', () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeCheckProject(
+          extra: fr(
+            '1. E01 — An empty password → refused.',
+            '1. E01 — ${'An empty password'.padRight(700, '.')}',
+          ),
+        ),
+      );
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map;
+      expect(finding['kind'], 'item_over_limit');
+      expect(finding['waitsFor'], 'owner');
+      expect(finding, containsPair('section', 'edge_cases'));
+      expect(finding, containsPair('id', 'E01'));
+      expect(finding, containsPair('limit', 600));
+      expect(finding, containsPair('actual', 709));
+      expect(finding['message'], isNot(contains('waits for the Owner)')));
+    });
+  });
+
   test('f04/us01/s9, f04/us01/fr01/e05, f04/us01/fr02/e07: a name no doc carries refuses, exit 64, no finding', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
     expect(await runner.run(['check', 'login/emial_login']), 64);

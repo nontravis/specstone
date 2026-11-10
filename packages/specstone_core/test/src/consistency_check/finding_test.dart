@@ -19,6 +19,7 @@ void main() {
       'section_undeclared',
       'lines_over_limit',
       'chars_over_limit',
+      'item_over_limit',
       'vision_quote_missing',
       'banned_word',
       'untyped_doc',
@@ -121,6 +122,7 @@ void main() {
     const owner = {
       FindingKind.approvalStale,
       FindingKind.charsOverLimit,
+      FindingKind.itemOverLimit,
       FindingKind.linesOverLimit,
       FindingKind.tbrOpen,
     };

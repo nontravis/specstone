@@ -1,10 +1,15 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:io';
+
+import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/structure.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
 
 void main() {
   test('f04/us01/s2, f04/us01/fr04/e01: a requirement with no Statement section names the file and the section', () async {
@@ -189,7 +194,7 @@ void main() {
               'lint:\n  max_lines: 30\n  max_chars: 600\n',
           ...fr(
             '## Statement\n',
-            '## Notes\n${'A long note line.\n' * 40}\n## Statement\n',
+            '## Notes\n${'- A long note line.\n' * 40}\n## Statement\n',
           ),
         },
       ),
@@ -312,5 +317,201 @@ void main() {
       contains('$loginFr:1: chars_over_limit'),
     );
     expect(spots(report, FindingKind.formatDrift), isEmpty);
+  });
+
+  group('consistency_check/find_template_breaks/check_sections_and_limits', () {
+    const edgeFrom = '1. E01 — An empty password → refused.\n';
+    const rationaleFrom = 'A wrong password must not sign in.\n';
+    const itemLimitTemplate = '.specstone/templates/fr.yaml';
+
+    String padded(String start, int length) => start.padRight(length, '.');
+
+    List<Finding> itemFindings(Directory project) =>
+        checkOf(project).findings
+            .where((f) => f.kind == FindingKind.itemOverLimit)
+            .toList();
+
+    int lineOf(Directory project, String docPath, String prefix) =>
+        File('${project.path}/docs/$docPath')
+            .readAsLinesSync()
+            .indexWhere((line) => line.startsWith(prefix)) +
+        1;
+
+    Future<Directory> withEdgeItem(int chars, {String? template}) =>
+        writeCheckProject(
+          extra: {
+            itemLimitTemplate: ?template,
+            ...fr(
+              edgeFrom,
+              '${edgeFrom}2. E02 — Another case → refused.\n'
+              '${padded('3. E03 — A long case', chars)}\n',
+            ),
+          },
+        );
+
+    test(
+      'E10: an item over the default limit is item_over_limit with its ID',
+      () async {
+        final project = await withEdgeItem(640);
+        final finding = itemFindings(project).single;
+
+        expect(finding.line, lineOf(project, loginFr, '3. E03'));
+        expect(finding.waitsFor, WaitsFor.owner);
+        expect(
+          finding.toJson(),
+          allOf(
+            containsPair('section', 'edge_cases'),
+            containsPair('id', 'E03'),
+            containsPair('limit', 600),
+            containsPair('actual', 640),
+          ),
+        );
+        expect(
+          finding.message,
+          'item E03 of section edge_cases has 640 characters; the limit is 600',
+        );
+        expect(
+          finding.toJson().keys.where(
+            ['section', 'id', 'limit', 'actual'].contains,
+          ),
+          ['section', 'id', 'limit', 'actual'],
+        );
+      },
+    );
+
+    test(
+      'E11: a paragraph with no ID is item_over_limit with no id key',
+      () async {
+        final project = await writeCheckProject(
+          extra: fr(rationaleFrom, '${padded('A long rationale', 700)}\n'),
+        );
+        final finding = itemFindings(project).single;
+
+        expect(finding.line, lineOf(project, loginFr, 'A long rationale'));
+        expect(finding.toJson(), isNot(contains('id')));
+        expect(
+          finding.message,
+          'the item at line ${finding.line} of section rationale has 700 '
+          'characters; the limit is 600',
+        );
+      },
+    );
+
+    test('E12: a fenced code block is no item', () async {
+      final project = await writeCheckProject(
+        extra: fr(
+          'Test: a wrong password is refused.\n',
+          '```\n${'x' * 2000}\n```\n',
+        ),
+      );
+
+      expect(itemFindings(project), isEmpty);
+    });
+
+    test(
+      'E13: an item of 700 characters under max_item_chars 900 is no finding',
+      () async {
+        final project = await withEdgeItem(
+          700,
+          template: 'lint:\n  max_item_chars: 900\n',
+        );
+
+        expect(itemFindings(project), isEmpty);
+      },
+    );
+
+    test('E14: an item of 901 characters under max_item_chars 900 is item_over_limit', () async {
+      final project = await withEdgeItem(
+        901,
+        template: 'lint:\n  max_item_chars: 900\n',
+      );
+
+      expect(
+        itemFindings(project).single.toJson(),
+        allOf(containsPair('limit', 900), containsPair('actual', 901)),
+      );
+    });
+
+    test('E13, E14: an item of exactly the limit is no finding, one character more is one', () async {
+      expect(itemFindings(await withEdgeItem(600)), isEmpty);
+      expect(
+        itemFindings(await withEdgeItem(601)).single.toJson(),
+        containsPair('actual', 601),
+      );
+      const raised = 'lint:\n  max_item_chars: 900\n';
+      expect(itemFindings(await withEdgeItem(900, template: raised)), isEmpty);
+    });
+
+    test('E15: a lead paragraph over the limit is item_over_limit in section _lead', () async {
+      final project = await writeCheckProject(
+        extra: doc(
+          loginArchitecture,
+          '# Login architecture\n\n',
+          '# Login architecture\n\n${padded('The lead says what the doc covers.', 687)}\n\n',
+        ),
+      );
+      final finding = itemFindings(project).single;
+
+      expect(finding.path, loginArchitecture);
+      expect(finding.line, lineOf(project, loginArchitecture, 'The lead says'));
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('section', '_lead'),
+          containsPair('actual', 687),
+          isNot(contains('id')),
+        ),
+      );
+    });
+
+    test(
+      'E10: a lettered item form holds no ID and takes the line form',
+      () async {
+        final project = await writeCheckProject(
+          extra: fr(edgeFrom, '${padded('3. E03a — A lettered case', 640)}\n'),
+        );
+        final finding = itemFindings(project).single;
+
+        expect(finding.toJson(), isNot(contains('id')));
+        expect(
+          finding.message,
+          'the item at line ${finding.line} of section edge_cases has 640 '
+          'characters; the limit is 600',
+        );
+      },
+    );
+
+    test('E10: sections out of template order give the key and the line structure prints', () async {
+      final project = await writeCheckProject(
+        extra: fr(
+          '## Statement\n\n$checkPasswordStatement\n\n## Edge cases\n\n$edgeFrom\n',
+          '## Edge cases\n\n$edgeFrom\n## Statement\n\n\n\n'
+              '${padded('A long statement', 700)}\n\n',
+        ),
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      final finding = runCheck(session).findings
+          .singleWhere((f) => f.kind == FindingKind.itemOverLimit);
+      final sections =
+          (answerStructure(session.index, target: loginFr).json['docs']!
+                      as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+      final statement = sections.cast<Map<String, Object?>>().singleWhere(
+        (s) => s['key'] == 'statement',
+      );
+      final item = (statement['items']! as List).single as Map<String, Object?>;
+      final diskLine = lineOf(project, loginFr, 'A long statement');
+
+      expect(finding.toJson(), containsPair('section', 'statement'));
+      expect(finding.line, item['line']);
+      expect(finding.line, isNot(diskLine));
+      expect(
+        checkOf(project).findings.map((f) => f.kind),
+        contains(FindingKind.formatDrift),
+      );
+    });
   });
 }

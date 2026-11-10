@@ -36,6 +36,7 @@ enum FindingKind {
   sectionUndeclared('section_undeclared'),
   linesOverLimit('lines_over_limit'),
   charsOverLimit('chars_over_limit'),
+  itemOverLimit('item_over_limit'),
   visionQuoteMissing('vision_quote_missing'),
   bannedWord('banned_word'),
   untypedDoc('untyped_doc'),
@@ -104,6 +105,7 @@ enum FindingKind {
   WaitsFor get waitsFor => switch (this) {
     approvalStale ||
     charsOverLimit ||
+    itemOverLimit ||
     linesOverLimit ||
     tbrOpen => WaitsFor.owner,
     _ => WaitsFor.agent,
