@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -229,9 +230,11 @@ int _plannedRun(
 ///
 /// Throws [MigrateFault] `working_tree_dirty` otherwise, naming the first
 /// input that differs, or the plan alone when only its text does. The first
-/// plan succeeded, so a [FileSystemException] or [TemplateFault] from the new
-/// one means an input changed while the plan was shown; it refuses the same
-/// way, naming the path or file the failure gives.
+/// plan succeeded, so any refusal from the new one, a [FileSystemException],
+/// [TemplateFault], [RenderFault], or [MigrateFault], means an input changed
+/// while the plan was shown; it refuses the same way, naming the path or file
+/// the failure gives. A git [MigrateFault] is the one exception: it says git
+/// failed, not that an input changed, so it passes unchanged.
 RunPlan _replanMatching(
   MigrateRequest request,
   Directory root,
@@ -246,11 +249,21 @@ RunPlan _replanMatching(
     throw _inputChanged(_fromRoot(root, error.path));
   } on TemplateFault catch (fault) {
     throw _inputChanged(fault.file);
+  } on RenderFault catch (fault) {
+    throw _inputChanged(fault.file);
+  } on MigrateFault catch (fault) {
+    if (_isGitFault(fault)) rethrow;
+    throw _inputChanged(fault.file);
   }
   final freshHash = planHashOf(fresh.toText(), fresh.inputs);
   if (freshHash == planHashOf(shown.toText(), shown.inputs)) return fresh;
   throw _inputChanged(shown.inputs.firstDifferenceFrom(fresh.inputs));
 }
+
+/// Whether [fault] reports git, not the plan's inputs, as the cause.
+bool _isGitFault(MigrateFault fault) =>
+    fault.code == MigrateFaultCode.gitWorkTreeRequired ||
+    fault.code == MigrateFaultCode.gitFailed;
 
 /// Returns the refusal for a plan whose [input] changed while it was shown,
 /// or the plan itself when [input] is null or empty.

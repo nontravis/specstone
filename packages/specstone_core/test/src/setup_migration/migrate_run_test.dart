@@ -659,6 +659,45 @@ void main() {
       expect(_bytesUnder(root), {...acmeLegacy, added: '# D-09 — Extra\n'});
     }, skip: skipGit);
 
+    test('f06/us01/fr02/e08: a committed doc that makes the re-plan refuse '
+        'legacy_collision, made while the prompt waits, is '
+        'working_tree_dirty naming it, and nothing is written', () async {
+      final root = await gitFixture(acmeLegacy);
+      const collided = 'prds/PROJECT.md';
+
+      expectRefusedNaming(root, collided, () {
+        File('${root.path}/docs/$collided').writeAsStringSync('# Project\n');
+        commitAll(root, 'meanwhile');
+      });
+
+      expect(_bytesUnder(root), {
+        ...acmeLegacy,
+        'docs/$collided': '# Project\n',
+      });
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e08: an ignored legacy doc made unreadable while the '
+        'prompt waits is working_tree_dirty naming the plan, and nothing is '
+        'written', () async {
+      const ignored = 'docs/prds/zz_local.md';
+      final root = await gitFixture({
+        ...acmeLegacy,
+        '.gitignore': 'zz_local.md\n',
+        ignored: '# D-09 — Local\n',
+      });
+      final file = File('${root.path}/$ignored');
+      addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+
+      // The read's RenderFault carries no file, so the refusal names the plan.
+      expectRefusedNaming(
+        root,
+        'the plan changed while the plan was shown',
+        () {
+          expect(Process.runSync('chmod', ['000', file.path]).exitCode, 0);
+        },
+      );
+    }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : skipGit);
+
     test('f06/us02/fr02/e08: a runbook committed while an upgrade prompt '
         'waits is working_tree_dirty naming it, and nothing is '
         'written', () async {
