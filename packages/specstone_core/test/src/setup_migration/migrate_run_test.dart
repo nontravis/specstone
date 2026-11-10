@@ -1495,9 +1495,24 @@ void main() {
       final journalBytes = journal.readAsBytesSync();
       final out = StringBuffer();
 
-      expect(_run(dry, out, dryRun: true), 0);
+      expect(
+        () => _run(dry, out, dryRun: true),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(
+                  contains(MoveJournal.journalPath),
+                  contains('run specstone migrate to finish the move'),
+                  contains('plan again'),
+                ),
+              ),
+        ),
+      );
 
-      expect(out.toString(), 'nothing to migrate\n');
+      expect(out.toString(), isEmpty);
       expect(journal.readAsBytesSync(), journalBytes);
       expect(hasDoc(dry, 'prds/a.md'), isTrue);
       expect(hasDoc(dry, 'prds/b.md'), isFalse);
@@ -1846,17 +1861,17 @@ void main() {
       expect(journal.readAsStringSync(), before);
     });
 
-    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal replays '
-        'nothing, then refuses the tree as it stands', () async {
+    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal with a step '
+        'left replays nothing and refuses before any git call', () async {
       final root = await gitFixture(acmeLegacy);
       _writeF02Journal(root);
-      File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final journal = File('${root.path}/${MoveJournal.journalPath}');
       final before = journal.readAsStringSync();
       final out = StringBuffer();
+      final calls = <List<String>>[];
 
       expect(
-        () => _run(root, out, dryRun: true),
+        () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
         throwsA(
           isA<MigrateFault>().having(
             (f) => f.code,
@@ -1866,6 +1881,7 @@ void main() {
         ),
       );
 
+      expect(calls, isEmpty);
       expect(out.toString(), isEmpty);
       expect(journal.readAsStringSync(), before);
       expect(

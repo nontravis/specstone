@@ -75,8 +75,9 @@ final class MigrateRequest {
 ///
 /// A pending journal is finished first: a `document_writing` journal is
 /// replayed before the git checks, and a migrate journal is resumed with no
-/// second `y`. A dry run replays nothing, but refuses a journal the replay
-/// would refuse, then checks git on the tree as it stands.
+/// second `y`. A dry run replays nothing: it refuses a `document_writing`
+/// journal the replay would refuse, and refuses `working_tree_dirty` while one
+/// has a step left; a journal with none left goes on to the git checks.
 ///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal, the git checks
@@ -120,7 +121,13 @@ int _migrate(MigrateRequest request) {
     if (request.dryRun) {
       // Reads the journal and its cursor only, so a dry run refuses one that
       // does not parse as the replay does, and writes nothing.
-      MoveJournal.remaining(target);
+      if (MoveJournal.remaining(target).isNotEmpty) {
+        throw MigrateFault(
+          MigrateFaultCode.workingTreeDirty,
+          'the move journal (${MoveJournal.journalPath}) has steps left; run '
+          'specstone migrate to finish the move, commit it, and plan again',
+        );
+      }
     } else {
       MoveJournal.replay(target);
     }
