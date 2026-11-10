@@ -79,7 +79,7 @@ ItemFacts itemFactsOf({
 }) {
   final counted = laid?.doc ?? doc;
   final countedText = laid?.text ?? lfText;
-  final lines = laid == null
+  final lines = countedText == lfText
       ? lineFacts
       : LineFacts.structureOf(lfText: countedText, doc: counted);
   final held = indexedSectionsOf(counted, type);

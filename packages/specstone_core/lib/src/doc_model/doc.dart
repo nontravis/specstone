@@ -70,6 +70,7 @@ final class Section {
 /// The input is LF text; line endings are the caller's concern.
 final class Doc {
   new _({
+    required this.text,
     required this.frontmatter,
     required this.head,
     required this.title,
@@ -87,6 +88,7 @@ final class Doc {
     final bodyLines = lines.sublist(close < 0 ? 0 : close + 1);
     final scan = _scan(bodyLines);
     return Doc._(
+      text: text,
       frontmatter: close < 0 ? null : _keyBlocks(lines.sublist(1, close)),
       head: scan.head,
       title: scan.title,
@@ -97,6 +99,9 @@ final class Doc {
       hasUnclosedFence: scan.unclosedFence,
     );
   }
+
+  /// The text [parse] read.
+  final String text;
 
   /// The frontmatter key blocks in file order, or null without frontmatter.
   ///

@@ -17,6 +17,21 @@ fields:
     required: true
 ''';
 
+const _keyed = '''
+id: keyed
+description: A doc type with two declared fields and a section.
+path: prds/k{nn}_{slug}.md
+fields:
+  - id: traced_from
+    type: string
+    list: true
+  - id: verify_method
+    type: string
+sections:
+  - id: statement
+    header: Statement
+''';
+
 Future<MergedDocType> _feature() async =>
     (await fixtureDocTypes()).lookup('feature')!;
 
@@ -230,16 +245,37 @@ void main() {
       expect(refused.duplicateHeaders, isEmpty);
     });
 
-    test('rendering/format_docs/match_section_headers: frontmatter blocks '
-        'the layout reorders are no structure change', () async {
-      final feature = await _feature();
+    test('rendering/format_docs/match_section_headers: declared fields the '
+        'layout reorders are formatted, whatever lines trail the last '
+        'block', () async {
+      final keyed = (await fixtureDocTypes(extra: {'keyed.yaml': _keyed}))
+          .lookup('keyed')!;
+      const keys = 'verify_method: test\ntraced_from:\n  - S1\n';
 
-      final outcome = formatDoc(
-        Doc.parse('---\nb: 1\na: 2\n---\n# T\n\n## Feature name\nx\n'),
-        feature,
-      );
+      for (final trailing in ['', '\n', '# note\n', '\n# note\n']) {
+        final disk = '---\n$keys$trailing---\n# T\n\n## Statement\nx\n';
+
+        final outcome = formatDoc(Doc.parse(disk), keyed);
+
+        expect(outcome, isA<Formatted>(), reason: disk);
+        final text = (outcome as Formatted).text;
+        expect(
+          text.indexOf('traced_from'),
+          lessThan(text.indexOf('verify_method')),
+          reason: disk,
+        );
+      }
+    });
+
+    test('rendering/format_docs/match_section_headers: a doc the layout '
+        'leaves as it is keeps its own parse', () async {
+      final feature = await _feature();
+      final doc = Doc.parse('# T\n\n## Feature name\n\nx\n');
+
+      final outcome = formatDoc(doc, feature);
 
       expect(outcome, isA<Formatted>());
+      expect(identical((outcome as Formatted).doc, doc), isTrue);
     });
 
     test('f05/us01/fr04: a header fault is not unclosedFence', () async {

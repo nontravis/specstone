@@ -120,6 +120,8 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
     headerLines.add(headerLine);
   }
   final text = out.toString();
+  // Text the layout left as it was keeps its structure, so its parse stands.
+  if (text == doc.text) return Formatted(text, doc, twinOf);
   final laid = Doc.parse(text);
   if (!_keepsStructure(frontmatter, headerLines, laid)) {
     return const Refused(changesStructure: true);
@@ -127,8 +129,12 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
   return Formatted(text, laid, twinOf);
 }
 
-/// Whether [laid] holds the frontmatter blocks [source] holds, in any order,
-/// and the sections [headerLines] list, in that order.
+/// Whether [laid] holds frontmatter exactly when [source] does, the key names
+/// [source] holds, in any order, and the sections [headerLines] list, in that
+/// order.
+///
+/// Block text is no part of it: the layout moves blank and comment lines with
+/// the key block they trail, and a re-parse hands them to the next key.
 bool _keepsStructure(
   List<KeyBlock>? source,
   List<String> headerLines,
@@ -137,8 +143,8 @@ bool _keepsStructure(
   final keepsFrontmatter = switch ((source, laid.frontmatter)) {
     (null, null) => true,
     (final before?, final after?) => _sameStrings(
-      _sortedTexts(before),
-      _sortedTexts(after),
+      _sortedKeys(before),
+      _sortedKeys(after),
     ),
     _ => false,
   };
@@ -148,8 +154,10 @@ bool _keepsStructure(
       ]);
 }
 
-List<String> _sortedTexts(List<KeyBlock> blocks) =>
-    [for (final block in blocks) block.text]..sort();
+List<String> _sortedKeys(List<KeyBlock> blocks) => [
+  for (final block in blocks)
+    if (block.key.isNotEmpty) block.key,
+]..sort();
 
 bool _sameStrings(List<String> a, List<String> b) {
   if (a.length != b.length) return false;
