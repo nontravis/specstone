@@ -136,6 +136,23 @@ void main() {
     );
   });
 
+  group('DraftView comparison', () {
+    test('document_writing/approve_drafts/show_changes_since_approval: the '
+        'view and the JSON read one comparison, found once', () {
+      final draft = _draft(lookup: _copy(_old));
+      final first = draft.comparison;
+
+      final view = _render(draft, context: 1);
+      final json = draftViewJson(draft);
+
+      expect(identical(draft.comparison, first), isTrue);
+      expect(first.hasDiff, isTrue);
+      expect(first.units, isNotEmpty);
+      expect(view, contains('| changes | field `verify_method` |'));
+      expect(json['changes'], 'field verify_method, rationale');
+    });
+  });
+
   group('draftViewJson', () {
     String feature(String flow, {String extra = ''}) =>
         '---\nvision:\n  - V\n---\n\n# F\n\n## Feature name\nN.\n\n'

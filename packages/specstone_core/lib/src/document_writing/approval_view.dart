@@ -10,7 +10,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One draft as the approval view shows it.
 final class DraftView {
-  const new({
+  new({
     required this.name,
     required this.docType,
     this.mergedType,
@@ -53,6 +53,46 @@ final class DraftView {
 
   /// The sentences the draft dropped since that copy and the ones it added.
   final SentenceChanges sentences;
+
+  /// What the draft changed since its approved copy, found on first use and
+  /// shared by [renderApprovalView] and [draftViewJson].
+  late final DraftComparison comparison = DraftComparison.of(this);
+}
+
+/// The texts of a draft and its approved copy as the view compares them, their
+/// line diff, and the units that differ.
+final class DraftComparison {
+  const new _(this.newText, this.oldText, this.diff, this.units);
+
+  factory of(DraftView draft) {
+    final newText = comparableTextOf(draft.text, draft.mergedType);
+    final oldText = _approvedTextOf(draft);
+    final diff = LineDiff(oldText ?? '', newText);
+    return DraftComparison._(
+      newText,
+      oldText,
+      diff,
+      oldText == null || diff.isEmpty
+          ? const <ChangedUnit>[]
+          : changedUnits(oldText, newText),
+    );
+  }
+
+  /// The draft, laid out, without its approval marks.
+  final String newText;
+
+  /// The approved copy, laid out, or null when git found none.
+  final String? oldText;
+
+  /// The diff from [oldText], an empty text when there is none, to [newText].
+  final LineDiff diff;
+
+  /// The units that differ; none when [oldText] is null or [hasDiff] is false.
+  final List<ChangedUnit> units;
+
+  /// Whether the view shows a diff: a draft with no approved copy shows
+  /// whole, any other only when [diff] holds a hunk.
+  bool get hasDiff => oldText == null || !diff.isEmpty;
 }
 
 /// Returns [lfText] without its `draft` and `approved` frontmatter key blocks.
@@ -80,14 +120,11 @@ String renderApprovalView(
   bool color = false,
 }) {
   final lookup = draft.lookup;
-  final newText = comparableTextOf(draft.text, draft.mergedType);
-  final oldText = _approvedTextOf(draft);
-  final diff = approvalDiff(oldText ?? '', newText, context: context);
-  final hasDiff = _hasDiff(oldText, diff);
+  final compared = draft.comparison;
+  final diff = compared.diff.hunks(context: context);
+  final hasDiff = compared.hasDiff;
   final changes = _changeCells(
-    oldText,
-    newText,
-    hasDiff: hasDiff,
+    compared,
     plain: false,
     docType: draft.mergedType,
   );
@@ -137,12 +174,8 @@ String renderApprovalView(
 /// and `dropped` and `new`.
 Map<String, Object> draftViewJson(DraftView draft) {
   final lookup = draft.lookup;
-  final newText = comparableTextOf(draft.text, draft.mergedType);
-  final oldText = _approvedTextOf(draft);
   final changes = _changeCells(
-    oldText,
-    newText,
-    hasDiff: _hasDiff(oldText, approvalDiff(oldText ?? '', newText)),
+    draft.comparison,
     plain: true,
     docType: draft.mergedType,
   );
@@ -169,11 +202,6 @@ Map<String, Object> draftViewJson(DraftView draft) {
 /// the text the view compares and reads sentences from.
 String comparableTextOf(String text, MergedDocType? docType) =>
     withoutApprovalMarks(layOutDoc(toLf(text), docType));
-
-/// Returns whether the view shows a diff: a draft with no approved copy shows
-/// whole, any other only when [diff] holds a hunk.
-bool _hasDiff(String? oldText, String diff) =>
-    oldText == null || diff.isNotEmpty;
 
 /// Returns [projectPath], a path of [draft]'s approved copy, relative to the
 /// docs root as `docPath` is.
@@ -232,23 +260,21 @@ String _oldCell(ApprovalLookup lookup) => switch (lookup) {
 };
 
 /// Returns the `changes` cells: `whole doc` for a draft with no approved copy,
-/// `none` when [hasDiff] is false, else one cell per changed unit.
+/// `none` when [compared] holds no diff, else one cell per changed unit.
 ///
 /// [plain] names each unit as text with no code span, a section by its key.
 List<String> _changeCells(
-  String? oldText,
-  String newText, {
-  required bool hasDiff,
+  DraftComparison compared, {
   required bool plain,
   required MergedDocType? docType,
-}) => switch (oldText) {
-  null => const ['whole doc'],
-  _ when !hasDiff => const ['none'],
-  final old => [
-    for (final unit in changedUnits(old, newText))
+}) {
+  if (compared.oldText == null) return const ['whole doc'];
+  if (!compared.hasDiff) return const ['none'];
+  return [
+    for (final unit in compared.units)
       _changeCell(unit, plain: plain, docType: docType),
-  ],
-};
+  ];
+}
 
 /// Returns the `changes` cell naming [unit], a suffix marking a one-side unit.
 String _changeCell(
