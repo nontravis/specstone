@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show approvalHashOf;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -11,7 +13,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart'
-    show basesOf, leadBaseOf, sectionBaseOf, titleBaseOf;
+    show basesOf, sectionBaseOf;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -25,6 +27,9 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The `key` a whole-doc block carries in its result and its fault line.
 const _wholeDocKey = 'doc';
+
+/// The `key` of a refused title block.
+const _titleKey = 'title';
 
 /// A byte-order mark as the one character a step's text may begin with.
 const _byteOrderMark = '\uFEFF';
@@ -74,19 +79,28 @@ final class _Planned {
   final IndexedDoc doc;
   final MergedDocType docType;
 
-  /// The section or the lead the block writes; null for a whole doc.
+  /// What the block writes: a section, the lead, a field, the title, or null
+  /// for a whole doc. A field or the title is refused, but still resolved, so
+  /// the overlap check names it.
   final SetTarget? target;
 
   bool get isWholeDoc => target == null;
 
-  /// The section key, `_lead`, or `doc`.
+  /// The section key, `_lead`, the field id, `title`, or `doc`.
   String get key => switch (target) {
     null => _wholeDocKey,
     SectionTarget(:final key) => key,
     LeadTarget() => leadKey,
-    FieldTarget() || TitleTarget() => throw StateError(
-      'a batch block never targets a field or the title',
-    ),
+    FieldTarget(:final fieldId) => fieldId,
+    TitleTarget() => _titleKey,
+  };
+
+  /// Tells one part of a doc from another; a field named like a section is
+  /// another part.
+  String get partId => switch (target) {
+    SectionTarget(:final key) => 'section:$key',
+    FieldTarget(:final fieldId) => 'field:$fieldId',
+    _ => key,
   };
 
   String get base => block.naming.base!;
@@ -158,8 +172,8 @@ void _refuseOnFault(
   }
 }
 
-/// Resolves the doc [block] names; a block that names a field, the title, or
-/// no doc adds a refusal and gives null.
+/// Resolves the doc [block] names; a block that names no doc adds a refusal
+/// and gives null.
 _Planned? _resolveBlock(
   WriteSession session,
   BatchBlock block,
@@ -168,47 +182,52 @@ _Planned? _resolveBlock(
   final naming = block.naming;
   final (:docPart, :sectionKey) = session.index.splitAddress(naming.path);
   final partKey = sectionKey == null || sectionKey.isEmpty ? null : sectionKey;
-  var file = docPart;
-  var key = partKey ?? _wholeDocKey;
   try {
-    final notAPart = naming.fieldId ?? (naming.isTitle ? 'title' : null);
-    if (notAPart != null) {
-      key = notAPart;
-      throw IndexFault(
-        IndexFaultCode.argumentInvalid,
-        'a block takes a section, the lead, or a whole doc; change a field '
-        'or the title inside the whole-doc block of its doc',
-      );
-    }
     final doc = session.target(docPart);
-    file = doc.docPath;
     final docType =
         session.index.typeOf(doc) ??
         (throw StateError('${doc.docPath} is typed but its type is gone'));
-    final target = switch (partKey) {
-      null => null,
-      leadKey => const LeadTarget(),
-      final section => SectionTarget(section),
+    final target = switch ((naming.fieldId, naming.isTitle, partKey)) {
+      (final fieldId?, _, _) => FieldTarget(fieldId),
+      (_, true, _) => const TitleTarget(),
+      (_, _, null) => null,
+      (_, _, leadKey) => const LeadTarget(),
+      (_, _, final section?) => SectionTarget(section),
     };
     return _Planned(block, doc, docType, target);
   } on SpecstoneFault catch (fault) {
-    _refuse(refusals, block, fault, file: file, key: key);
+    _refuse(
+      refusals,
+      block,
+      fault,
+      file: docPart,
+      key: partKey ?? _wholeDocKey,
+    );
     return null;
   }
 }
 
 /// Checks the text of [block] as far as the text and the doc type decide.
+///
+/// Throws [IndexFault] `argument_invalid` for a field or title block, which a
+/// batch takes only inside the whole-doc block of its doc.
 void _checkText(_Planned block) {
-  final target = block.target;
-  if (target == null) {
-    _checkWholeDocText(block.block.text);
-  } else {
-    checkPartText(
-      doc: block.doc,
-      docType: block.docType,
-      target: target,
-      text: block.block.text,
-    );
+  switch (block.target) {
+    case null:
+      _checkWholeDocText(block.block.text);
+    case FieldTarget() || TitleTarget():
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        'a block takes a section, the lead, or a whole doc; change a field '
+        'or the title inside the whole-doc block of its doc',
+      );
+    case final target:
+      checkPartText(
+        doc: block.doc,
+        docType: block.docType,
+        target: target,
+        text: block.block.text,
+      );
   }
 }
 
@@ -222,36 +241,35 @@ void _checkWholeDocText(String lf) {
   }
 }
 
-/// Refuses each of two blocks that write one part of a doc, a whole-doc block
-/// counting as every part; each entry names the other block by its line.
+/// Refuses every block that writes a part another block of its doc writes, a
+/// whole-doc block counting as every part; each entry names the line of each
+/// block it overlaps.
 void _refuseOverlaps(List<_Planned> resolved, List<_Refusal> refusals) {
-  void refuseNaming(_Planned block, _Planned other) {
-    if (_isRefused(refusals, block)) return;
+  bool overlaps(_Planned a, _Planned b) =>
+      !identical(a, b) &&
+      a.doc.docPath == b.doc.docPath &&
+      (a.isWholeDoc || b.isWholeDoc || a.partId == b.partId);
+
+  for (final block in resolved) {
+    final lines = [
+      for (final other in resolved)
+        if (overlaps(block, other)) other.block.line,
+    ];
+    if (lines.isEmpty || _isRefused(refusals, block)) continue;
+    final which = lines.length == 1
+        ? 'the block at line ${lines.single} writes'
+        : 'the blocks at lines ${lines.join(', ')} write';
     _refuse(
       refusals,
       block.block,
       IndexFault(
         IndexFaultCode.argumentInvalid,
-        'the block at line ${other.block.line} writes the same part; send '
-        'one block per part of a doc, and a whole-doc block alone for its doc',
+        '$which the same part; send one block per part of a doc, and a '
+        'whole-doc block alone for its doc',
       ),
       file: block.doc.docPath,
       key: block.key,
     );
-  }
-
-  for (final (at, next) in resolved.indexed) {
-    final earlier = resolved
-        .take(at)
-        .where(
-          (other) =>
-              other.doc.docPath == next.doc.docPath &&
-              (other.isWholeDoc || next.isWholeDoc || other.key == next.key),
-        )
-        .firstOrNull;
-    if (earlier == null) continue;
-    refuseNaming(earlier, next);
-    refuseNaming(next, earlier);
   }
 }
 
@@ -411,7 +429,7 @@ Map<_Planned, _Checked> _checkBlocks(
   _checkRemovedSections(block, disk, lfText);
   return (
     lfText: lfText,
-    marksDraft: _marksDraft(block.docType, held, proposed, changedFields),
+    marksDraft: _marksDraft(block.docType, disk.lfText, lfText, changedFields),
   );
 }
 
@@ -540,12 +558,12 @@ List<IndexedSection> _sectionsOf(_Planned block, String lfText) =>
     ).content.sections;
 
 /// Whether the write marks the doc a draft: false only when every change is an
-/// `output_ref` field and no part of the doc differs, parts read layout-blind
-/// as their bases read them.
+/// `output_ref` field and the approval hash of the doc does not move, the one
+/// rule `approval_stale` judges a content change by.
 bool _marksDraft(
   MergedDocType docType,
-  Doc held,
-  Doc proposed,
+  String heldText,
+  String proposedText,
   List<String> changedFields,
 ) {
   final outputRefs = {
@@ -555,23 +573,9 @@ bool _marksDraft(
   final onlyOutputRefs =
       changedFields.isNotEmpty && changedFields.every(outputRefs.contains);
   return !onlyOutputRefs ||
-      _partsOf(held, docType) != _partsOf(proposed, docType) ||
-      _keylessText(held) != _keylessText(proposed);
+      approvalHashOf(heldText, docType) !=
+          approvalHashOf(proposedText, docType);
 }
-
-/// Returns the title base, the lead base, and each section's header line with
-/// its body base, one per line, in doc order.
-String _partsOf(Doc doc, MergedDocType docType) => [
-  titleBaseOf(doc.title),
-  leadBaseOf(doc, docType),
-  for (final section in doc.sections)
-    '${section.headerLine} ${sectionBaseOf(section.body, docType)}',
-].join('\n');
-
-String _keylessText(Doc doc) => [
-  for (final block in doc.frontmatter ?? const <KeyBlock>[])
-    if (block.key.isEmpty) block.text,
-].join();
 
 // MARK: - Writing
 

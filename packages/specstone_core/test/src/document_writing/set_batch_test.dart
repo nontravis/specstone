@@ -657,6 +657,68 @@ void main() {
   );
 
   test(
+    '$_wb INV-4: a whole-doc block that changes the text before the title as well as an output_ref field marks an approved doc draft',
+    () async {
+      final root = await writeWriteProject();
+      var text = getText(root, [fr11]);
+      text = edit(text, 'CredentialValidator', 'CredentialChecker');
+      text = edit(
+        text,
+        '# Validate credentials\n',
+        'Preface text.\n\n# Validate credentials\n',
+      );
+
+      final answer = runBatch(root, text);
+
+      expect(readDoc(root, fr11), contains('Preface text.'));
+      expect(readDoc(root, fr11), contains('draft: true\n'));
+      expect(answer.json['blocks'], [containsPair('draft', true)]);
+    },
+  );
+
+  test(
+    '$_wb E05: two section blocks and a whole-doc block of one doc are all refused, the whole-doc entry naming each of the two',
+    () async {
+      final root = await writeWriteProject();
+      final sections = getText(root, [_useCase, _criteria]);
+      final whole = getText(root, [story1]);
+      final wholeLine = sections.split('\n').length + 1;
+
+      final fault = refuse(root, '$sections\n$whole');
+
+      expect(fault.entries.map((e) => (e.key, e.code)), [
+        ('use_case', 'argument_invalid'),
+        ('acceptance_criteria', 'argument_invalid'),
+        ('doc', 'argument_invalid'),
+      ]);
+      expect(fault.entries[0].message, contains('line $wholeLine'));
+      expect(fault.entries[1].message, contains('line $wholeLine'));
+      expect(
+        fault.entries[2].message,
+        allOf(contains('lines 1,'), contains('line')),
+      );
+    },
+  );
+
+  test(
+    '$_wb E05: a field block beside a whole-doc block of its doc is refused for its kind and the whole-doc block is refused for the overlap',
+    () async {
+      final root = await writeWriteProject();
+      const fieldBlock =
+          '==> $_story1Line · $story1 · field vision · base $emptyBaseHash <==\n- PV-02\n';
+      final whole = getText(root, [story1]);
+
+      final fault = refuse(root, '$fieldBlock\n$whole');
+
+      expect(fault.entries.map((e) => (e.key, e.code)), [
+        ('vision', 'argument_invalid'),
+        ('doc', 'argument_invalid'),
+      ]);
+      expect(fault.entries[1].message, contains('line 1'));
+    },
+  );
+
+  test(
     '$_wb E07: a whole-doc block that removes two sections of one key is written, not refused as stale',
     () async {
       final original =
