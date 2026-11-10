@@ -46,11 +46,6 @@ final _allowed = <_Allowed>[
     'Level-2 heading line splitting a doc into sections.',
   ),
   _core(
-    'doc_model/markdown_lines.dart',
-    r"""RegExp( r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$'""",
-    'Table delimiter row, no reference.',
-  ),
-  _core(
     'doc_model/doc_anchors.dart',
     """RegExp( '&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});'""",
     'HTML character reference such as `&#38;`, no reference.',

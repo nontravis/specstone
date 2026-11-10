@@ -4,14 +4,14 @@ import 'package:markdown/markdown.dart' show HeaderSyntax;
 // that changes it changes every reader with it.
 final RegExp _atxHeading = const HeaderSyntax().pattern;
 
-/// `markdown`'s `tablePattern` (`patterns.dart:53`), which `markdown.dart` does
-/// not export: a line of hyphens separated by at least one pipe.
-///
-/// The pattern is the package's own, so every reader agrees with the renderer
-/// on what a table is: a one-column row such as `|---` is no delimiter row.
-final RegExp _tableDelimiterRow = RegExp(
-  r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$',
-);
+const _space = 0x20;
+const _tab = 0x09;
+const _pipe = 0x7C;
+const _dash = 0x2D;
+const _colon = 0x3A;
+
+/// The most spaces `markdown` lets precede the leading pipe of a table row.
+const _maxIndent = 3;
 
 /// An ATX heading line: its level, 1 to 6, and its text without the marks.
 typedef AtxHeading = ({int level, String text});
@@ -34,4 +34,57 @@ AtxHeading? atxHeadingOf(String line) {
 }
 
 /// Whether [line] is a table delimiter row, such as `|---|:-:|`.
-bool isTableDelimiterRow(String line) => _tableDelimiterRow.hasMatch(line);
+///
+/// It reads what `markdown`'s `tablePattern` (`patterns.dart`, not exported)
+/// matches, so every reader agrees with the renderer on what a table is: up to
+/// 3 spaces, an optional pipe, then cells of hyphens with an optional colon
+/// at each end, each closed by a pipe, the last one needing none. A one-column
+/// row such as `|---` is no delimiter row. The pattern backtracks on a
+/// failing row with spaces around many pipes, so this reads the line once,
+/// left to right.
+bool isTableDelimiterRow(String line) {
+  var at = 0;
+  while (at < line.length && line.codeUnitAt(at) == _space) {
+    at++;
+  }
+  final hasLeadingPipe =
+      at <= _maxIndent && at < line.length && line.codeUnitAt(at) == _pipe;
+  at = hasLeadingPipe ? at + 1 : 0;
+  var pipes = 0;
+  while (true) {
+    at = _skipBlanks(line, at);
+    at = _skipDelimiterCell(line, at);
+    if (at < 0) return false;
+    at = _skipBlanks(line, at);
+    if (at == line.length) return pipes > 0;
+    if (line.codeUnitAt(at) != _pipe) return false;
+    pipes++;
+    at = _skipBlanks(line, at + 1);
+    if (at == line.length) return true;
+  }
+}
+
+/// Returns the index after the blanks that start at [from].
+int _skipBlanks(String line, int from) {
+  var at = from;
+  while (at < line.length) {
+    final unit = line.codeUnitAt(at);
+    if (unit != _space && unit != _tab) break;
+    at++;
+  }
+  return at;
+}
+
+/// Returns the index after the cell of hyphens, `:-:` for one, that starts at
+/// [from], or -1 when none does.
+int _skipDelimiterCell(String line, int from) {
+  var at = from;
+  if (at < line.length && line.codeUnitAt(at) == _colon) at++;
+  final start = at;
+  while (at < line.length && line.codeUnitAt(at) == _dash) {
+    at++;
+  }
+  if (at == start) return -1;
+  if (at < line.length && line.codeUnitAt(at) == _colon) at++;
+  return at;
+}
