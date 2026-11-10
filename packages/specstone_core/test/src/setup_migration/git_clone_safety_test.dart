@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/git_process.dart';
-import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
@@ -170,8 +169,9 @@ void main() {
       final evil = Directory('${clone.path}/evil');
 
       expect(
-        () => planHashOf('plan\n', evil, _guardedOlderGit()),
-        _refusesAsNoWorkTree(again: 'the command'),
+        () => _migrate(clone, StringBuffer(), runGit: _migrateOlderGit()),
+        _refusesAsNoWorkTree(),
+        reason: 'the plan hash starts no git; the preflight refuses the clone',
       );
       expect(
         () => _guardedOlderGit()([

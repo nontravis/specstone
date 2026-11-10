@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
@@ -120,7 +121,7 @@ LoadedPack loadPersonalPackManifest(String name, Directory home) {
     displayFolder: displayFolder,
     paths: _topLevelPaths(folder).toList(),
     files: _DiskFiles(folder),
-    read: (path) => File.fromUri(folder.uri.resolve(path)).readAsBytesSync(),
+    read: (path) => readPlanInput(File.fromUri(folder.uri.resolve(path))),
   );
 }
 
@@ -138,7 +139,7 @@ List<DocTypeLayer> loadProjectTemplates(Directory root) {
     for (final path in _docTypeNames(_topLevelPaths(folder)))
       DocTypeLayer.parse(
         decodeYamlBytes(
-          File.fromUri(folder.uri.resolve(path)).readAsBytesSync(),
+          readPlanInput(File.fromUri(folder.uri.resolve(path))),
           file: '$displayFolder/$path',
         ),
         file: '$displayFolder/$path',
@@ -172,7 +173,7 @@ PackManifest _packManifest(String displayFolder, Uint8List? bytes) {
 Uint8List? _manifestBytes(Directory folder) {
   final manifest = File.fromUri(folder.uri.resolve(packManifestName));
   if (!manifest.existsSync()) return null;
-  return manifest.readAsBytesSync();
+  return readPlanInput(manifest);
 }
 
 /// Returns the doc-type names of [paths] in code point order (INV-22).

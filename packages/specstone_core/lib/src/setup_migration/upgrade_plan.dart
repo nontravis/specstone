@@ -12,6 +12,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show codeRootFiles, projectPathOfCodeFile;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -75,12 +76,32 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// files step is the full upsert; otherwise the step refreshes what exists.
 /// [homeDirectory] is the personal pack home, or null. [runGit] lists the
 /// files the project's git tracks, which the label pass reads under the
-/// `code:` roots.
+/// `code:` roots. The plan's `inputs` hold every file it read and that listing.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
   RunGit runGit = runRealGit,
+}) {
+  final inputs = PlanInputs(root);
+  return inputs.collect(
+    () => _upgradeRunOf(
+      root,
+      templates: templates,
+      homeDirectory: homeDirectory,
+      runGit: runGit,
+      inputs: inputs,
+    ),
+  );
+}
+
+/// Plans the upgrade of [root] while [inputs] records each file read.
+RunPlan _upgradeRunOf(
+  Directory root, {
+  required TemplateResolver templates,
+  required Directory? homeDirectory,
+  required RunGit runGit,
+  required PlanInputs inputs,
 }) {
   final config = ProjectConfig.read(root);
   final pins = config.pins;
@@ -340,6 +361,7 @@ RunPlan planUpgradeRun(
     left: const [],
     commit1Message: _commit1Message,
     commit2Message: commit2Message,
+    inputs: inputs,
     rewriteLines: [
       ...stepLines,
       ...linkLines,
@@ -407,7 +429,7 @@ List<_OverrideFile> _renamedOverrides(
   for (final layer in layers) {
     final file = _OverrideFile(
       layer.file,
-      readDocText(File.fromUri(root.uri.resolve(layer.file)).readAsBytesSync()),
+      readDocText(readPlanInput(File.fromUri(root.uri.resolve(layer.file)))),
     );
     for (final (index, (:step, from: _)) in steps.indexed) {
       if (step.docType != layer.docTypeId) continue;
@@ -661,7 +683,7 @@ _CodeFile? _readCodeFile(Directory codeRoot, String codePath) {
     '${codePath.split('/').join(Platform.pathSeparator)}',
   );
   try {
-    final bytes = file.readAsBytesSync();
+    final bytes = readPlanInput(file);
     final text = utf8.decode(bytes);
     return (text: text, bom: startsWithUtf8Bom(bytes), hash: textHashOf(text));
   } on FileSystemException {
@@ -686,8 +708,10 @@ Set<String> _trackedPaths(Directory projectRoot, RunGit runGit) {
       '-z',
     ], workingDirectory: projectRoot.path);
     if (result.exitCode != 0) return const {};
+    final listing = result.stdout as String;
+    recordTrackedListing(listing);
     return {
-      for (final path in (result.stdout as String).split('\x00'))
+      for (final path in listing.split('\x00'))
         if (path.isNotEmpty) path,
     };
   } on ProcessException {
@@ -724,7 +748,7 @@ PlannedRewrite? _configRewriteOf(
 }) {
   if (upgrades.isEmpty && agentFileRoots == null) return null;
   final original = readDocText(
-    File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
+    readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
   );
   final packs =
       (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;

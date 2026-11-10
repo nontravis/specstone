@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
@@ -15,6 +16,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -59,7 +61,7 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// Reads the files under `docs/prds` and `docs/specs`, the carried packs, and
 /// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`
 /// or `legacy_collision` and a `TemplateFault` before it returns, so a refused
-/// run prints nothing.
+/// run prints nothing. The plan's `inputs` hold every file it read.
 /// A created config names [linkFolder] as its `code_root` when more legacy
 /// `implements` paths name a file from there than from [root].
 ///
@@ -71,6 +73,26 @@ RunPlan planLegacyRun(
   required TemplateResolver templates,
   required Directory? homeDirectory,
   Directory? linkFolder,
+}) {
+  final inputs = PlanInputs(root);
+  return inputs.collect(
+    () => _legacyRunOf(
+      root,
+      templates: templates,
+      homeDirectory: homeDirectory,
+      linkFolder: linkFolder,
+      inputs: inputs,
+    ),
+  );
+}
+
+/// Plans the legacy run of [root] while [inputs] records each file read.
+RunPlan _legacyRunOf(
+  Directory root, {
+  required TemplateResolver templates,
+  required Directory? homeDirectory,
+  required Directory? linkFolder,
+  required PlanInputs inputs,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
@@ -174,6 +196,7 @@ RunPlan planLegacyRun(
     left: legacy.left,
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
+    inputs: inputs,
     closingLine: legacyClosingLine,
     agentFiles: agentFiles,
   );
@@ -572,7 +595,7 @@ PlannedRewrite? _configRewriteOf(
     codeRoot: existing.codeRoot,
     agentFileRoots: agentFileRoots,
   );
-  final current = config.readAsStringSync();
+  final current = utf8.decode(readPlanInput(config));
   if (text == current) return null;
   return PlannedRewrite(
     path: projectConfigPath,

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -117,7 +118,7 @@ List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {
     final match = matcher.match(docPath);
     if (match is! MatchedDocType) continue;
     if (!match.docType.fields.any((field) => field.id == _codeField)) continue;
-    final text = _decode(docs[docPath]!.readAsBytesSync());
+    final text = _decode(readPlanInput(docs[docPath]!));
     if (text == null) continue;
     for (final (:value, line: _, text: _) in DocLines.of(
       toLf(text),
@@ -718,7 +719,7 @@ _AgentMd _agentMdOf(Directory root) {
   if (!file.existsSync()) {
     return _AgentMd(realPath: realPath, exists: false, matches: false);
   }
-  final bytes = file.readAsBytesSync();
+  final bytes = readPlanInput(file);
   return _AgentMd(
     realPath: realPath,
     exists: true,
@@ -787,7 +788,7 @@ String? _decode(List<int> bytes) {
 /// Returns the text of [file] with its byte order mark kept, or null when it
 /// is not UTF-8.
 String? _readAgentText(File file) {
-  final bytes = file.readAsBytesSync();
+  final bytes = readPlanInput(file);
   final text = _decode(bytes);
   final hasMark =
       bytes.length >= 3 &&

@@ -326,6 +326,51 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us01/s17: a commit that touches no input between the dry run and '
+      'migrate --yes --plan leaves the hash, and the plan applies', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    File('${root.path}/notes.txt').writeAsStringSync('later\n');
+    commitAll(root, 'unrelated');
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
+
+    expect(err.toString(), isEmpty);
+    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+        .trim()
+        .split('\n');
+    expect(subjects.take(3), [
+      'rewrite titles, keys, and links; add project configuration',
+      'move legacy docs to their new paths',
+      'unrelated',
+    ]);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test(
+    'f06/us01/s18: a committed edit to a doc between the dry run and '
+    'migrate --yes --plan exits 75, plan_mismatch, and writes nothing',
+    () async {
+      final root = await gitFixture(acmeLegacy);
+      final hash = await _dryRunPlanHash(root);
+      File('${root.path}/docs/prds/d01_context.md')
+          .writeAsStringSync('later\n');
+      commitAll(root, 'edit a doc');
+      final head = git(root, ['rev-parse', 'HEAD']).stdout;
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--yes', '--plan', hash]), 75);
+
+      expect(
+        err.toString(),
+        startsWith('the plan is not the one the Owner saw'),
+      );
+      expect(git(root, ['rev-parse', 'HEAD']).stdout, head);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+    },
+    skip: hasGit ? null : 'git is not available',
+  );
+
   test('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: '
       'migrate --yes --plan leaves the typed docs stamped and no stale '
       'approval for check', () async {

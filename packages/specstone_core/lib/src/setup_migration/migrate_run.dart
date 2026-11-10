@@ -180,11 +180,12 @@ RootTrust _trustOf(
 /// Prints the plan of a legacy or upgrade run after the preflight, and applies
 /// it on the Owner's `y`, or under `--yes` with no prompt.
 ///
-/// The git checks run again after the `y`, since the Owner may read the plan
-/// for minutes: a change to the tree or a new commit in that time refuses
-/// `working_tree_dirty` with nothing written, as
-/// `document_writing`'s delete and approve re-check after their prompt
-/// (INV-3). A legacy plan reads [linkFolder].
+/// After the `y` or the `--plan` check the run checks the clean tree again and
+/// every file the plan read, since the Owner may read the plan for minutes: a
+/// dirty tree or a changed input refuses `working_tree_dirty` with nothing
+/// written. A commit that leaves every input as it was does not refuse; the
+/// run then reads HEAD as each commit step's `base`. A legacy plan reads
+/// [linkFolder].
 int _plannedRun(
   MigrateRequest request,
   Directory root,
@@ -193,16 +194,13 @@ int _plannedRun(
 }) {
   final trust = _trustOf(root, linkFolder, request);
   _preflight(request, root, trust, checksCleanTree: true);
-  if (request.dryRun) {
-    final plan = _planOf(request, root, kind, linkFolder);
-    _nameSkipped(request, plan);
-    _printDryRun(request, root, plan.toText());
-    return 0;
-  }
-  final base = headSha(root, request.runGit);
   final plan = _planOf(request, root, kind, linkFolder);
   _nameSkipped(request, plan);
   final planText = plan.toText();
+  if (request.dryRun) {
+    _printDryRun(request, planText, plan.inputs);
+    return 0;
+  }
   request.out.write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
@@ -211,16 +209,18 @@ int _plannedRun(
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;
   } else {
-    _requireSeenPlan(request, root, planText);
+    _requireSeenPlan(request, planText, plan.inputs);
   }
   requireCleanWorkTree(root, request.runGit);
-  if (headSha(root, request.runGit) != base) {
+  final changed = plan.inputs.firstChangeIn(request.runGit);
+  if (changed != null) {
     throw MigrateFault(
       MigrateFaultCode.workingTreeDirty,
-      'the repository that holds the docs gained a commit while the plan was '
-      'shown; run specstone migrate again to plan from it',
+      '$changed, a file the plan read, changed while the plan was shown; run '
+      'specstone migrate again to plan from it',
     );
   }
+  final base = headSha(root, request.runGit);
   final steps = plan.journalSteps(base: base, projectRoot: root);
   MoveJournal(
     steps,
@@ -283,20 +283,25 @@ RunPlan _planOf(
 int _resume(MigrateRequest request, Directory root, RootTrust trust) {
   _preflight(request, root, trust, checksCleanTree: false);
   final target = _targetOf(root, request, trust);
-  final listing = StringBuffer()
-    ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')
-    ..writeln('remaining steps:');
-  for (final step in MoveJournal.remaining(target)) {
-    listing.writeln('  ${step.describe()}');
-  }
-  final planText = listing.toString();
+  final inputs = PlanInputs(root);
+  final planText = inputs.collect(() {
+    final listing = StringBuffer()
+      ..writeln('pending migration: ${root.path} (${MoveJournal.journalPath})')
+      ..writeln('remaining steps:');
+    for (final step in MoveJournal.remaining(target)) {
+      listing.writeln('  ${step.describe()}');
+    }
+    return listing.toString();
+  });
   if (request.dryRun) {
-    _printDryRun(request, root, planText);
+    _printDryRun(request, planText, inputs);
     return 0;
   }
   final out = request.out..write(planText);
   request.confirmation.refuseIfMissing(_applyRefusal);
-  if (!request.confirmation.prompts) _requireSeenPlan(request, root, planText);
+  if (!request.confirmation.prompts) {
+    _requireSeenPlan(request, planText, inputs);
+  }
   final commits = MoveJournal.read(target)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
@@ -306,21 +311,25 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
   return 0;
 }
 
-/// Prints [planText], its `plan <hash>` line, and the dry-run closing line.
-void _printDryRun(MigrateRequest request, Directory root, String planText) {
+/// Prints [planText], its `plan <hash>` line over [inputs], and the dry-run
+/// closing line.
+void _printDryRun(MigrateRequest request, String planText, PlanInputs inputs) {
   request.out
     ..write(planText)
-    ..writeln('plan ${planHashOf(planText, root, request.runGit)}')
+    ..writeln('plan ${planHashOf(planText, inputs)}')
     ..writeln('dry run: nothing written');
 }
 
 /// Refuses a `--yes` run whose plan is not the one the Owner saw.
 ///
-/// Throws [MigrateFault] `plan_mismatch` when [planText], with the HEAD of
-/// [root], does not hash to the request's plan hash, or the request carries
-/// none.
-void _requireSeenPlan(MigrateRequest request, Directory root, String planText) {
-  if (request.planHash == planHashOf(planText, root, request.runGit)) return;
+/// Throws [MigrateFault] `plan_mismatch` when [planText] and [inputs] do not
+/// hash to the request's plan hash, or the request carries none.
+void _requireSeenPlan(
+  MigrateRequest request,
+  String planText,
+  PlanInputs inputs,
+) {
+  if (request.planHash == planHashOf(planText, inputs)) return;
   throw MigrateFault(
     MigrateFaultCode.planMismatch,
     'the plan is not the one the Owner saw in the dry run; run specstone '

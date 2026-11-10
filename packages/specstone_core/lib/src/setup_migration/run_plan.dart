@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
@@ -64,7 +65,7 @@ final class PlannedCreate {
 
 /// What a `specstone migrate` run moves, rewrites, and creates.
 final class RunPlan {
-  const new({
+  new({
     required this.header,
     required this.moves,
     required this.prunes,
@@ -73,6 +74,7 @@ final class RunPlan {
     required this.left,
     required this.commit1Message,
     required this.commit2Message,
+    required this.inputs,
     this.rewriteLines,
     this.closingLine,
     this.agentFiles,
@@ -104,6 +106,9 @@ final class RunPlan {
 
   /// The message of commit 2.
   final String commit2Message;
+
+  /// The files the planner read, each with the hash of its bytes.
+  final PlanInputs inputs;
 
   /// The lines printed under `commit 2, rewrites:` in place of [rewrites].
   final List<String>? rewriteLines;

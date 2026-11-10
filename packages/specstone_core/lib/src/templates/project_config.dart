@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -125,7 +126,7 @@ final class ProjectConfig {
   static ProjectConfig read(Directory root) {
     requireSpecstoneFolder(root);
     final text = decodeYamlBytes(
-      File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
+      readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
       file: projectConfigPath,
     );
     final map = readYamlMap(text, file: projectConfigPath);

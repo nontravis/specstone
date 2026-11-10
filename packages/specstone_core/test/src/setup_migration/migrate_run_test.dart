@@ -505,13 +505,45 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e04: a commit made before the y is '
-        'working_tree_dirty, and nothing is written', () async {
+    test('f06/us01/fr02/e08: a commit that leaves every input as it was, made '
+        'while the prompt waits, lets the run apply on top of it', () async {
       final root = await gitFixture(acmeLegacy);
+      late final String meanwhile;
+
+      expect(
+        answerAfter(root, () {
+          File('${root.path}/notes.txt').writeAsStringSync('x\n');
+          commitAll(root, 'meanwhile');
+          meanwhile = headOf(root);
+        }),
+        0,
+      );
+
+      final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+          .trim()
+          .split('\n');
+      expect(subjects, [
+        _commit2Message,
+        _commit1Message,
+        'meanwhile',
+        'legacy',
+      ]);
+      expect(
+        (git(root, ['rev-parse', 'HEAD~2']).stdout as String).trim(),
+        meanwhile,
+        reason: 'commit 1 builds on the commit made while the prompt waited',
+      );
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e08: a committed edit to an input, made while the '
+        'prompt waits, is working_tree_dirty naming it, and nothing is '
+        'written', () async {
+      final root = await gitFixture(acmeLegacy);
+      const input = 'docs/prds/d01_context.md';
 
       expect(
         () => answerAfter(root, () {
-          File('${root.path}/notes.txt').writeAsStringSync('x\n');
+          File('${root.path}/$input').writeAsStringSync('# edited\n');
           commitAll(root, 'meanwhile');
         }),
         throwsA(
@@ -520,13 +552,33 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'the repository that holds the docs gained a commit while '
-                    'the plan was shown; run specstone migrate again to plan '
-                    'from it',
+                '$input, a file the plan read, changed while the plan was '
+                    'shown; run specstone migrate again to plan from it',
               ),
         ),
       );
-      expect(_bytesUnder(root), {...acmeLegacy, 'notes.txt': 'x\n'});
+      expect(_bytesUnder(root), {...acmeLegacy, input: '# edited\n'});
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('f06/us01/fr02/e08: a committed deletion of an input, made while the '
+        'prompt waits, is working_tree_dirty naming it, never a raw '
+        'FileSystemException', () async {
+      final root = await gitFixture(acmeLegacy);
+      const input = 'docs/prds/d01_context.md';
+
+      expect(
+        () => answerAfter(root, () {
+          expect(git(root, ['rm', '-q', input]).exitCode, 0);
+          expect(git(root, ['commit', '-q', '-m', 'meanwhile']).exitCode, 0);
+        }),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having((f) => f.message, 'message', startsWith('$input, ')),
+        ),
+      );
+      expect(File('${root.path}/$input').existsSync(), isFalse);
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
@@ -650,15 +702,21 @@ void main() {
     final planLine = lines[lines.length - 3];
     final plan = text.substring(0, text.lastIndexOf(planLine));
     expect(plan, startsWith('legacy migration: '));
-    expect(planLine, 'plan ${planHashOf(plan, root, runRealGit)}');
+    final inputs = planLegacyRun(
+      root,
+      templates: TemplateResolver(),
+      homeDirectory: testHome(),
+    ).inputs;
+    expect(planLine, 'plan ${planHashOf(plan, inputs)}');
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: a commit between the dry run and --yes changes the plan hash, '
-      'so --yes refuses plan_mismatch and writes nothing', () async {
+  test('f06/us01/fr02/e11, f06/us01/s18: a committed edit to a doc between '
+      'the dry run and --yes changes the plan hash, so --yes refuses '
+      'plan_mismatch and writes nothing', () async {
     final root = await gitFixture(acmeLegacy);
     final hash = _dryRunPlanHash(root);
-    File('${root.path}/notes.txt').writeAsStringSync('later\n');
-    commitAll(root, 'unrelated');
+    File('${root.path}/docs/prds/d01_context.md').writeAsStringSync('later\n');
+    commitAll(root, 'edit a doc');
     final legacy = _bytesUnder(root);
     final head = headOf(root);
 
@@ -679,6 +737,28 @@ void main() {
     );
     expect(_bytesUnder(root), legacy);
     expect(headOf(root), head);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us01/fr02/e11, f06/us01/s17: a commit that touches no input '
+      'between the dry run and --yes leaves the plan hash, so --yes '
+      'applies', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = _dryRunPlanHash(root);
+    File('${root.path}/notes.txt').writeAsStringSync('later\n');
+    commitAll(root, 'unrelated');
+
+    expect(
+      _run(
+        root,
+        StringBuffer(),
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      0,
+    );
+
+    expect(MoveJournal.pending(root), isFalse);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
   test("ms-r11: --yes with the dry run's plan hash applies the plan with no "
@@ -836,7 +916,7 @@ void main() {
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us01/fr07/e01: a plan that moves no file journals one commit', () {
-    const plan = RunPlan(
+    final plan = RunPlan(
       header: 'legacy migration: x',
       moves: [],
       prunes: [],
@@ -845,6 +925,7 @@ void main() {
       left: [],
       commit1Message: _commit1Message,
       commit2Message: _commit2Message,
+      inputs: PlanInputs(Directory.systemTemp),
     );
 
     final steps = plan.journalSteps(
@@ -1434,6 +1515,30 @@ void main() {
           .trim()
           .split('\n');
       expect(subjects.first, _commit2Message);
+    }, skip: skipGit);
+
+    test('f06/us01/fr07/e03: a resume plan hash survives a new commit and '
+        'changes with the cursor file', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final cursor = File('${root.path}/${MoveJournal.cursorPath}')
+        ..writeAsStringSync('0');
+      final hash = _dryRunPlanHash(root);
+
+      expect(
+        git(root, [
+          'commit',
+          '-q',
+          '--allow-empty',
+          '-m',
+          'meanwhile',
+        ]).exitCode,
+        0,
+      );
+      expect(_dryRunPlanHash(root), hash);
+
+      cursor.writeAsStringSync('00');
+      expect(_dryRunPlanHash(root), isNot(hash));
     }, skip: skipGit);
 
     test('ms-r11: --yes with a stale plan hash leaves the stopped run '

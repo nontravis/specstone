@@ -109,6 +109,7 @@ void main() {
   _renumberTests();
   _labelTests();
   _stampTests();
+  _planInputTests();
 
   test('agentFilesSince matches the shipped versions of its packs', () {
     final shipped = shippedPackVersions();
@@ -1297,12 +1298,6 @@ String _withoutStamp(String text) => text
     .replaceAll(_approvedLine, '')
     .replaceFirstMapped(_emptyFrontmatter, (match) => match.group(1)!);
 
-ProcessResult _missingGit(
-  List<String> arguments, {
-  required String workingDirectory,
-  Map<String, String>? environment,
-}) => throw const ProcessException('git', []);
-
 void _renumberTests() {
   group('renumber pass', () {
     test('$_fr E18: the upgrade renumbers each lettered ID once and rewrites '
@@ -1381,14 +1376,11 @@ void _renumberTests() {
         _e18Docs(topic: _topic.replaceFirst('RULE-7a', 'RULE-7')),
       );
 
-      final bothText = _planAt(both).toText();
-      final storyOnlyText = _planAt(storyOnly).toText();
+      final bothPlan = _planAt(both);
+      final storyOnlyPlan = _planAt(storyOnly);
 
-      expect(storyOnlyText, isNot(contains('RULE-7a -> RULE-31')));
-      expect(
-        planHashOf(bothText, both, _missingGit),
-        isNot(planHashOf(storyOnlyText, storyOnly, _missingGit)),
-      );
+      expect(storyOnlyPlan.toText(), isNot(contains('RULE-7a -> RULE-31')));
+      expect(_hashOf(bothPlan), isNot(_hashOf(storyOnlyPlan)));
     });
 
     test('$_fr E19: two lettered scenarios renumber in document order to the '
@@ -1872,6 +1864,123 @@ void _stampTests() {
         plan.rewrites.map((rewrite) => rewrite.text),
         everyElement(isNot(contains('approved: "'))),
       );
+    });
+  });
+}
+
+String _hashOf(RunPlan plan) => planHashOf(plan.toText(), plan.inputs);
+
+void _planInputTests() {
+  group('plan inputs', () {
+    /// Plans, appends [edit] to the file at [path], and plans again; the plan
+    /// text stays, so only the recorded input can move the hash.
+    Future<void> expectEditMoves(
+      String path,
+      String edit, {
+      required RunPlan Function() plan,
+      String? recordedAs,
+    }) async {
+      final before = plan();
+      expect(before.inputs.lines, contains(recordedAs ?? '$path '));
+
+      final file = File(path);
+      file.writeAsStringSync('${file.readAsStringSync()}$edit');
+      final after = plan();
+
+      expect(after.toText(), before.toText());
+      expect(_hashOf(after), isNot(_hashOf(before)));
+    }
+
+    test(
+      '$_fr INV-4: an edit to .specstone/config.yaml changes the hash',
+      () async {
+        final fixture = await _fixture();
+
+        await expectEditMoves(
+          '${fixture.project.path}/.specstone/config.yaml',
+          '# edited\n',
+          plan: () => _plan(fixture),
+          recordedAs: '.specstone/config.yaml ',
+        );
+      },
+    );
+
+    test(
+      '$_fr INV-4: an edit to a project-layer template changes the hash',
+      () async {
+        final fixture = await _fixture();
+
+        await expectEditMoves(
+          '${fixture.project.path}/$_overridePath',
+          '# edited\n',
+          plan: () => _plan(fixture),
+          recordedAs: '$_overridePath ',
+        );
+      },
+    );
+
+    test("$_fr INV-4: an edit to a personal pack's home pack.yaml changes "
+        'the hash', () async {
+      final fixture = await _fixture();
+
+      await expectEditMoves(
+        '${fixture.home.path}/.specstone/packs/acme/pack.yaml',
+        '# edited\n',
+        plan: () => _plan(fixture),
+        recordedAs: '/.specstone/packs/acme/pack.yaml ',
+      );
+    });
+
+    test('$_fr INV-4: an edit to an agent file changes the hash', () async {
+      final project = _canonical(
+        await writeTree({
+          '.specstone/config.yaml': _belowSince,
+          'CLAUDE.md': '# Owner rules\n',
+        }),
+      );
+
+      await expectEditMoves(
+        '${project.path}/CLAUDE.md',
+        'more rules\n',
+        plan: () => _planAt(project),
+        recordedAs: 'CLAUDE.md ',
+      );
+    });
+
+    test('$_fr INV-4: an edit to a code file the label pass reads changes '
+        'the hash, and the tracked listing joins as one more line', () async {
+      final project = await _labelTree(
+        {},
+        code: {'lib/a.dart': '// See F-01 US-01\n'},
+      );
+      final tracked = _tracking({'lib/a.dart'});
+
+      await expectEditMoves(
+        '${project.path}/lib/a.dart',
+        '// more\n',
+        plan: () => _planWith(project, tracked),
+        recordedAs: 'lib/a.dart ',
+      );
+      expect(
+        _planWith(project, tracked).inputs.lines,
+        contains('git ls-files '),
+      );
+    });
+
+    test('$_fr INV-4: the plan hash starts no git', () async {
+      final fixture = await _fixture();
+      final calls = <List<String>>[];
+      final plan = planUpgradeRun(
+        fixture.project,
+        templates: TemplateResolver(),
+        homeDirectory: fixture.home,
+        runGit: _tracking({}, calls),
+      );
+      calls.clear();
+
+      _hashOf(plan);
+
+      expect(calls, isEmpty);
     });
   });
 }

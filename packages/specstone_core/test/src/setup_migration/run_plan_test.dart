@@ -4,11 +4,15 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/write_fixture.dart' show testHome;
+
+/// The inputs of a plan built by hand, which read no file.
+PlanInputs _noInputs() => PlanInputs(Directory.systemTemp);
 
 const _runbook = 'prds/runbooks/deploy/RUNBOOK.md';
 const _notes = 'prds/runbooks/deploy/NOTES.md';
@@ -28,6 +32,7 @@ RunPlan _planOf(List<PathMove> moves) => RunPlan(
   left: const [],
   commit1Message: 'move',
   commit2Message: 'pin',
+  inputs: _noInputs(),
 );
 
 AgentWrite _agentWrite(
@@ -68,6 +73,7 @@ RunPlan _planWithAgents({List<String>? rewriteLines}) => RunPlan(
   left: const [],
   commit1Message: 'move',
   commit2Message: 'pin',
+  inputs: _noInputs(),
   rewriteLines: rewriteLines,
   agentFiles: _agentPlan(),
 );
@@ -85,18 +91,18 @@ void main() {
     'setup_migration/upgrade_pack_pins/apply_steps_and_pins: two writes '
     'of one path are refused, since the first would make the second skip',
     () {
-      const plan = RunPlan(
+      final plan = RunPlan(
         header: 'migrate',
         moves: [],
         prunes: [],
         rewrites: [
-          PlannedRewrite(
+          const PlannedRewrite(
             path: 'AGENTS.md',
             text: 'a',
             before: 'b',
             changes: [],
           ),
-          PlannedRewrite(
+          const PlannedRewrite(
             path: 'AGENTS.md',
             text: 'c',
             before: 'b',
@@ -107,6 +113,7 @@ void main() {
         left: [],
         commit1Message: 'move',
         commit2Message: 'pin',
+        inputs: _noInputs(),
       );
 
       expect(
@@ -355,6 +362,7 @@ void main() {
           left: const [],
           commit1Message: 'move',
           commit2Message: 'pin',
+          inputs: _noInputs(),
           agentFiles: AgentWritePlan(
             rootWrites: [
               _agentWrite('CLAUDE.md', isNew: false, was: 'Owner\n'),
@@ -402,6 +410,7 @@ void main() {
             left: const [],
             commit1Message: 'move',
             commit2Message: 'pin',
+            inputs: _noInputs(),
             agentFiles: AgentWritePlan(
               rootWrites: rootWrites,
               topWrites: topWrites,
