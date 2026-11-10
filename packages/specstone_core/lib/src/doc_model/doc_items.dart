@@ -1,7 +1,7 @@
+import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show isTableDelimiterRow;
-import 'package:specstone_core/src/index_query/held_sections.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/doc_model/text_scan.dart';
 
 const _headingMarker = '### ';
 const _lineFeedChars = 1;

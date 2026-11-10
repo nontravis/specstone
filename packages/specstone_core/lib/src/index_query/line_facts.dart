@@ -5,8 +5,10 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
+import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/index_query/section_counts.dart'
+    show SectionCounts;
 import 'package:yaml/yaml.dart';
 
 const _space = 0x20;

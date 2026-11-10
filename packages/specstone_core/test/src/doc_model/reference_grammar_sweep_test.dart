@@ -263,6 +263,8 @@ typedef _Rule = ({
 
 String _lib(String file) => 'specstone_core/lib/src/$file';
 
+const _indexQueryImport = 'package:specstone_core/src/index_query/';
+
 /// A `RegExp(` call whose first string literal holds [inner], a regex source.
 RegExp _regExpLiteralWith(String inner) => RegExp(
   "RegExp\\(\\s*r?(?:'[^'\\n]*(?:$inner)[^'\\n]*'"
@@ -539,6 +541,22 @@ void main() {
     }
     expect(_sentenceSplit.hasMatch("RegExp(r'[a-z]+')"), isFalse);
     expect(_sentenceSplit.hasMatch('const t = {0x2E, 0x3F};'), isFalse);
+  });
+
+  test('no doc_model file imports index_query', () {
+    final offenders = [
+      for (final file in _sources())
+        if (_relative(file).startsWith(_lib('doc_model/')) &&
+            file.readAsStringSync().contains(_indexQueryImport))
+          _relative(file),
+    ];
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'doc_model sits below index_query; move what a doc_model file '
+          'needs into doc_model.',
+    );
   });
 
   test('no hand-written reference parser sits outside reference_grammar', () {
