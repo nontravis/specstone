@@ -10,10 +10,12 @@ report what the author's own coverage table cannot show.
 1. **Targets**: the drafts the author reported, or the feature or doc the Owner named. An audit after a fix round,
    or after the author pass that follows an amend, takes the drafts
    `agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E13 names, each read whole and audited again.
-2. **Hashes**: run one `specstone get <targets> --json` on every target and keep each doc's `bases.doc` for its
-   `Audited:` line. When it refuses with `doc_not_found`, for a target never created, or moved or deleted since the
-   list was made, drop each name the refusal names, run it again on the rest, and list each dropped name under
-   `Outside the drafts:`, with no `Audited:` line.
+2. **Hashes**: run one `specstone get <targets> --json` on every target. Each doc's `Audited:` line joins its JSON
+   `docType` and `name` with `:`, then `@` and its `bases.doc`. When it refuses with `doc_not_found`, for a target
+   never created, or moved or deleted since the list was made, drop each name the refusal names and list it under
+   `Outside the drafts:`, with no `Audited:` line. Any other refusal, such as `doc_type_unknown` or a section fault,
+   is a finding and drops each name it names too. Run the call again on the rest; when no target is left, skip the
+   rerun and the steps below. A dropped name is no target for the steps below: no bundle and no `check` for it.
 3. **Bundles**: run `specstone context <target> --for design` once for each feature the targets fall under
    (`project` for a project-level doc), not once per target: a design bundle already holds the whole feature. Read
    each bundle whole.

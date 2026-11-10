@@ -1146,7 +1146,8 @@ void _agentTests() {
 /// Each point of `write_design_and_plan`'s dependents search and state-table
 /// clauses, E09-E12, as step 3 of design.md words it, cut at line width.
 const _dependentsSearchPoints = [
-  "its rule's owner doc, and the terms you searched for it.",
+  "its rule's owner doc (`none` for a decision with no rule, such as a pure",
+  'ruling or an approach pick), and the terms you searched for it.',
   'A decision whose rule has states, such as a refusal set or a set of name',
   'forms, also gets a table of each state against each command or skill',
   "Before the Docs to change table closes, search each decision's dependents:",
@@ -1173,11 +1174,17 @@ const _auditReadPoints = [
   'amend, takes the drafts',
   '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E13 names, each',
   'read whole and audited again.',
-  'run one `specstone get <targets> --json` on every target and keep each',
-  "doc's `bases.doc` for its `Audited:` line.",
+  'run one `specstone get <targets> --json` on every target.',
+  "Each doc's `Audited:` line joins its JSON `docType` and `name` with `:`,",
+  'then `@` and its `bases.doc`.',
   'When it refuses with `doc_not_found`',
-  'drop each name the refusal names, run it again on the rest, and list each',
-  'dropped name under `Outside the drafts:`, with no `Audited:` line.',
+  'drop each name the refusal names and list it under `Outside the drafts:`,',
+  'with no `Audited:` line.',
+  'Any other refusal, such as `doc_type_unknown` or a section fault, is a',
+  'finding and drops each name it names too.',
+  'Run the call again on the rest; when no target is left, skip the rerun and',
+  'the steps below.',
+  'A dropped name is no target for the steps below: no bundle and no `check`',
 ];
 
 /// The restatement gap of `audit_drafts_by_reading` E10, as step 2 of

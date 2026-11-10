@@ -38,8 +38,9 @@ Sections, in this order:
    verbatim, each naming the text it supersedes.
 4. **Approaches**: the one picked, and why each other lost.
 5. **Decisions**: one per thing decided, each with its own ID (`D1`, `D2`, ...), as the Owner decided it, its rule's
-   owner doc, and the terms you searched for it. A decision whose rule has states, such as a refusal set or a set of
-   name forms, also gets a table of each state against each command or skill that reads it.
+   owner doc (`none` for a decision with no rule, such as a pure ruling or an approach pick), and the terms you
+   searched for it. A decision whose rule has states, such as a refusal set or a set of name forms, also gets a table
+   of each state against each command or skill that reads it.
 6. **Docs to change**: a table, one row per doc: its `<type>:<name>` (a new doc: its type and parent), the sections
    it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. A
    ruling that supersedes doc text gets a row for each doc that states it. Each feature the change reaches that
