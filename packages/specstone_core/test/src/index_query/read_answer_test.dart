@@ -242,4 +242,37 @@ void main() {
       }
     });
   });
+
+  group('hasNamingLineShape', () {
+    test('a line opening with an arrow and closing with one has the shape', () {
+      for (final line in [
+        '==> a (feature) · p.md · base abc123abc123 <==',
+        '==> a (feature) · p.md · base abc123abc123<==',
+        '==> a (feature) · p.md · base abc123abc123 <==\r',
+        '==> a (feature) · p.md · base abc123abc123 <==\u00A0',
+        '==> a (feature) · p.md · base abc123abc123 <== \t\u2003',
+        '==><==',
+      ]) {
+        expect(hasNamingLineShape(line), isTrue, reason: line);
+      }
+    });
+    test('prose, an indented line, and a half-open line have none', () {
+      for (final line in [
+        '',
+        '==>',
+        '<==',
+        '==> see below',
+        'then <==',
+        ' ==> a <==',
+        'text ==> a <==',
+        '=> a <=',
+      ]) {
+        expect(hasNamingLineShape(line), isFalse, reason: line);
+      }
+    });
+    test('every line readNamingLine reads has the shape', () {
+      expect(hasNamingLineShape(namingLine(typed, base: hash)), isTrue);
+      expect(hasNamingLineShape('==> feature <=='), isTrue);
+    });
+  });
 }

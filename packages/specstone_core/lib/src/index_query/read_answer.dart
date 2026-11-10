@@ -32,8 +32,10 @@ String nameWithType(IndexedDoc doc) {
   return typeId == null ? doc.name : '${doc.name} ($typeId)';
 }
 
-const _namingOpen = '==> ';
-const _namingClose = ' <==';
+const _arrowOpen = '==>';
+const _arrowClose = '<==';
+const _namingOpen = '$_arrowOpen ';
+const _namingClose = ' $_arrowClose';
 const _namingSeparator = ' · ';
 const _namingFieldPart = 'field ';
 const _namingTitlePart = 'title';
@@ -165,6 +167,19 @@ NamingLine? readNamingLine(String line) {
     fieldId: fieldId,
     isTitle: isTitle,
   );
+}
+
+/// Returns whether [line] opens with `==>` at column 0 and, once trailing
+/// white space of any kind drops, ends with `<==`.
+///
+/// Every line [readNamingLine] reads has the shape; a line that has it and
+/// reads as none is a naming line written wrong, such as one with no space
+/// before `<==`.
+bool hasNamingLineShape(String line) {
+  final text = line.trimRight();
+  return text.length >= _arrowOpen.length + _arrowClose.length &&
+      text.startsWith(_arrowOpen) &&
+      text.endsWith(_arrowClose);
 }
 
 /// Returns the path of a naming line whose tails [head] no longer holds.

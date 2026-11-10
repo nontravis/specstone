@@ -9,7 +9,9 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 const _textBeforeFirstBlock = 'text before the first naming line';
 const _namingLineWithoutBase =
     'the naming line holds no base of 12 lowercase hex characters';
-const _byteOrderMark = '﻿';
+const _namingLineUnread =
+    'the line is shaped like a naming line but reads as none';
+const _byteOrderMark = '\uFEFF';
 final _blankLine = RegExp(r'^[ \t]*$');
 
 /// Returns the text of the batch file at [path], read as UTF-8.
@@ -56,12 +58,11 @@ final class BatchBlock {
 /// Splits [text], a batch file read from [path], into its blocks.
 ///
 /// A block starts at each line outside fenced code that [readNamingLine]
-/// reads, and runs to the next one. A leading byte order mark and CRLF line
-/// ends are dropped first. `lineFaults` holds, in file order, one
-/// `argument_invalid` entry per non-blank line before the first naming line
-/// and per naming line without a base; the latter starts no block. Throws a
-/// file-level [BatchFault] when [text] holds no naming line outside fenced
-/// code.
+/// reads, and runs to the next one; a BOM and CRLF line ends drop first.
+/// `lineFaults` holds, in file order, an `argument_invalid` entry per refused
+/// line: text before the first naming line, a naming line with no base (it
+/// starts no block), or a naming-line shape [readNamingLine] reads as none.
+/// Throws a file-level [BatchFault] when no naming line is outside fenced code.
 ({List<BatchBlock> blocks, List<BatchEntry> lineFaults}) parseBatchFile(
   String path,
   String text,
@@ -108,6 +109,14 @@ final class BatchBlock {
       ),
     );
   }
+  for (var i = heads.first.$1 + 1; i < lines.length; i++) {
+    if (!scan.fenced[i] &&
+        readNamingLine(lines[i]) == null &&
+        hasNamingLineShape(lines[i])) {
+      refuseLine(i, _namingLineUnread);
+    }
+  }
+  lineFaults.sort((a, b) => a.line!.compareTo(b.line!));
   return (blocks: blocks, lineFaults: lineFaults);
 }
 
