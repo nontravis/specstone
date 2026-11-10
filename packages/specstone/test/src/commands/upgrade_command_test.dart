@@ -386,6 +386,12 @@ import 'dart:io';
 void main() =>
     File('${Platform.resolvedExecutable}.ran').writeAsStringSync('ran');
 ''');
+      final marker = File('${plant.path}.ran');
+      addTearDown(() {
+        for (final file in [plant, marker]) {
+          if (file.existsSync()) file.deleteSync();
+        }
+      });
       final compiled = await Process.run(Platform.resolvedExecutable, [
         'compile',
         'exe',
@@ -394,12 +400,6 @@ void main() =>
         plant.path,
       ]);
       expect(compiled.exitCode, 0, reason: '${compiled.stderr}');
-      final marker = File('${plant.path}.ran');
-      addTearDown(() {
-        for (final file in [plant, marker]) {
-          if (file.existsSync()) file.deleteSync();
-        }
-      });
 
       expect(await runner.run(['upgrade']), 0);
       expect(marker.existsSync(), isFalse);
