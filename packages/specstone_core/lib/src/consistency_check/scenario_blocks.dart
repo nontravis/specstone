@@ -4,11 +4,11 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
+export 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show acceptanceSectionId;
 export 'package:specstone_core/src/index_query/held_sections.dart'
     show BodyLine;
 
-/// Id of the story section that holds the scenarios.
-const acceptanceSectionId = 'acceptance_criteria';
 const _subHeadingMarker = '###';
 const _deeperHeadingMarker = '####';
 const _itemHeadingMarker = '### ';

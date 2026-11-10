@@ -58,7 +58,7 @@ void main() {
       SectionSpec('statement', 'Statement', required: true),
       SectionSpec('input_output', 'Input / Output'),
       SectionSpec('behavior', 'Behavior'),
-      SectionSpec('edge_cases', 'Edge cases', required: true),
+      SectionSpec('edge_cases', 'Edge cases', prefixId: 'E', required: true),
       SectionSpec('rationale', 'Rationale', required: true),
       SectionSpec('verification', 'Verification', required: true),
       SectionSpec('tbr', 'TBR'),

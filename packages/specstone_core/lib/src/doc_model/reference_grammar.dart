@@ -135,6 +135,9 @@ final class UnreadableId extends IdRead {
 /// `Scenario `.
 const scenarioIdPrefix = 'Scenario ';
 
+/// Id of the story section that holds the scenarios.
+const acceptanceSectionId = 'acceptance_criteria';
+
 /// Reads the ID of [prefix] at the start of [text], after one optional `**`;
 /// null when [text] does not open with [prefix] and an ASCII digit.
 IdRead? readItemId(String text, String prefix) =>
@@ -146,6 +149,14 @@ IdRead? readItemIdAt(String text, int at, String prefix) {
   if (!text.startsWith(prefix, at)) return null;
   return _readIdAt(text, prefix, at + prefix.length);
 }
+
+/// Returns the key `check` holds an item by: `Scenario <n>` for the number
+/// value of a scenario heading (`Scenario 01` repeats `Scenario 1`), else the
+/// ID as written.
+String itemKeyOf(IdRead id, {required bool isScenario}) => switch (id) {
+  ItemId(:final number) when isScenario => '$scenarioIdPrefix$number',
+  _ => id.written,
+};
 
 /// Reads the number of a `### Scenario <N>` heading [line]; null for any
 /// other line.

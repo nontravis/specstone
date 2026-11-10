@@ -85,11 +85,8 @@ Iterable<Finding> checkItemIds(CheckContext context, IndexedDoc doc) sync* {
 
 // A scenario is held by its number's value, so `Scenario 01` repeats
 // `Scenario 1` (W9); an item ID by its text as written.
-String _heldKeyOf(IdAt item, IdRead id) => switch (id) {
-  ItemId(:final number) when item.prefix == scenarioIdPrefix =>
-    '$scenarioIdPrefix$number',
-  _ => id.written,
-};
+String _heldKeyOf(IdAt item, IdRead id) =>
+    itemKeyOf(id, isScenario: item.prefix == scenarioIdPrefix);
 
 Finding _missing(CheckContext context, IndexedDoc doc, IdAt item) =>
     context.finding(

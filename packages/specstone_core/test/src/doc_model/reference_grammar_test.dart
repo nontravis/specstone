@@ -558,4 +558,30 @@ void main() {
       ));
     });
   });
+
+  group('itemKeyOf', () {
+    test('an item ID is held as written', () {
+      expect(
+        itemKeyOf(readItemId('E01 — a case', 'E')!, isScenario: false),
+        'E01',
+      );
+      expect(
+        itemKeyOf(readItemId('**E007** — a case', 'E')!, isScenario: false),
+        'E007',
+      );
+    });
+
+    test('a scenario heading is held by its number value', () {
+      final heading = readScenarioHeading('### Scenario 01 — [happy] a')!;
+
+      expect(itemKeyOf(heading, isScenario: true), 'Scenario 1');
+      expect(itemKeyOf(heading, isScenario: false), 'Scenario 01');
+    });
+
+    test('a lettered scenario number is held as written', () {
+      final heading = readScenarioHeading('### Scenario 6a — [happy] a')!;
+
+      expect(itemKeyOf(heading, isScenario: true), 'Scenario 6a');
+    });
+  });
 }

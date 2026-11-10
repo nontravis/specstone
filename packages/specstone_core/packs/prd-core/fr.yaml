@@ -111,6 +111,7 @@ sections:
       ```
   - id: edge_cases
     header: Edge cases
+    prefix_id: E
     required: true
     description: |-
       Write each as `E01 — <trigger> → <response>`, numbered in order.
