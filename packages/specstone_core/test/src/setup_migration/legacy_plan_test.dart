@@ -116,6 +116,9 @@ RunPlan _planOf(Directory tree) => planLegacyRun(
   homeDirectory: null,
 );
 
+Iterable<PlannedRewrite> _rewritesOf(RunPlan plan, String path) =>
+    plan.rewrites.where((r) => r.path == path);
+
 PlannedCreate _configCreate(RunPlan plan) =>
     plan.creates.singleWhere((c) => c.path == '.specstone/config.yaml');
 
@@ -1209,6 +1212,65 @@ name: NFR
       );
       expect(rewrite.text, contains('\ncode_root: ../code\n'));
       expect(plan.rewriteLines, contains('.specstone/config.yaml: pins'));
+    });
+
+    for (final (:label, :config) in [
+      (
+        label: 'code_root: .',
+        config: 'packs:\n  prd-core: 0.0.1\ncode_root: .\n',
+      ),
+      (
+        label: 'code_root: with no value',
+        config: 'packs:\n  prd-core: 0.0.1\ncode_root:\n',
+      ),
+    ]) {
+      test('f06/us01/fr05/e10: a config with $label keeps the key, infers '
+          'none, and its line has no code_root part', () async {
+        final plan = await _linkedPlan({
+          '.specstone/config.yaml': config,
+          legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+          'code/lib/a.dart': 'class A {}\n',
+        });
+
+        final rewrite = plan.rewrites.singleWhere(
+          (r) => r.path == '.specstone/config.yaml',
+        );
+        expect(rewrite.text, contains('\ncode_root: .\n'));
+        expect(plan.rewriteLines, contains('.specstone/config.yaml: pins'));
+      });
+    }
+
+    test('f06/us01/fr05/e10: a config whose rewrite text stays unchanged is '
+        'not written and has no plan line', () async {
+      final versions = shippedPackVersions();
+      final pins =
+          'packs:\n  prd-core: ${versions['prd-core']}\n'
+          '  software-tech: ${versions['software-tech']}\n';
+      final keyed = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml': '${pins}code_root: .\n',
+      });
+      final inferred = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml': pins,
+      });
+
+      for (final plan in [keyed, inferred]) {
+        expect(_rewritesOf(plan, '.specstone/config.yaml'), isEmpty);
+        expect(plan.toText(), isNot(contains('.specstone/config.yaml:')));
+      }
+    });
+
+    test('f06/us01/fr05/e11: a topic applies_to entry is a cited path of the '
+        'plan', () async {
+      final plan = await _linkedPlan({
+        'docs/specs/architecture/caching.md': '---\nname: Caching\napplies_to:\n  - lib/a.dart\n---\n\n# Caching\n',
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      final create = _configCreate(plan);
+      expect(create.text, endsWith('\ncode_root: code\n'));
+      expect(create.note, endsWith('; code_root code (1 of 2 paths)'));
     });
   });
 

@@ -590,7 +590,8 @@ bool _existsIn(Directory docsRoot, String path) =>
 /// stays.
 ///
 /// [codeRoot] is the config's own value, or the one inferred for a config with
-/// no key; [note] ends the plan line. [agentFileRoots] is the full list the run
+/// no key; a config that holds the key keeps its line, `.` included. [note]
+/// ends the plan line. [agentFileRoots] is the full list the run
 /// leaves in the config.
 PlannedRewrite? _configRewriteOf(
   File config,
@@ -603,6 +604,7 @@ PlannedRewrite? _configRewriteOf(
   final text = configText(
     {...existing.pins, ...pins},
     codeRoot: codeRoot,
+    keepCodeRootKey: existing.hasCodeRoot,
     agentFileRoots: agentFileRoots,
   );
   final current = utf8.decode(readPlanInput(config));

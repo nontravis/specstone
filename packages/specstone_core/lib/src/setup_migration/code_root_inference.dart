@@ -29,29 +29,43 @@ typedef CodeRootChoice = ({String value, int found, int cited});
 /// resolve, the deepest on a tie, then [root], then [linkFolder], then the code
 /// point order of the paths. [implementsEntries] are `path[:Symbol]` entries
 /// that count for a regular file; [coversEntries] count for a file or folder.
+///
+/// Only a candidate whose path from [root] the config reader accepts can win,
+/// so a `value` other than `.` is always one the run can write. [root] and
+/// [linkFolder] are read through their links, so a folder reached by a link
+/// gives the value of its canonical path.
 CodeRootChoice inferCodeRoot(
   Directory root, {
   Directory? linkFolder,
   required List<String> implementsEntries,
   required List<String> coversEntries,
 }) {
+  final canonicalRoot = _canonicalOf(root);
+  final canonicalLink = linkFolder == null ? null : _canonicalOf(linkFolder);
   final cited = implementsEntries.length + coversEntries.length;
   final ranked = [
-    for (final candidate in _candidatesOf(root, linkFolder))
-      (
-        folder: candidate.folder,
-        rank: candidate.rank,
-        depth: _depthOf(candidate.folder),
-        count: _countFrom(candidate.folder, implementsEntries, coversEntries),
-      ),
+    for (final candidate in _candidatesOf(canonicalRoot, canonicalLink))
+      if (_valueOf(canonicalRoot, candidate.folder) case final value?)
+        (
+          folder: candidate.folder,
+          rank: candidate.rank,
+          depth: _depthOf(candidate.folder),
+          count: _countFrom(candidate.folder, implementsEntries, coversEntries),
+          value: value,
+        ),
   ]..sort(_byPreference);
   final winner = ranked.first;
   return (
-    value: winner.count > 0 ? _valueOf(root, winner.folder) : '.',
+    value: winner.count > 0 ? winner.value : '.',
     found: winner.count,
     cited: cited,
   );
 }
+
+/// Returns [folder] with every link on its path resolved; a missing folder
+/// keeps its path and counts no entry.
+Directory _canonicalOf(Directory folder) =>
+    folder.existsSync() ? Directory(folder.resolveSymbolicLinksSync()) : folder;
 
 /// Returns the candidates, each folder once under its lowest rank.
 List<({Directory folder, int rank})> _candidatesOf(
@@ -96,7 +110,13 @@ int _countFrom(
         .length +
     coversEntries.where((entry) => namesFileOrFolderFrom(base, entry)).length;
 
-typedef _Ranked = ({Directory folder, int rank, int depth, int count});
+typedef _Ranked = ({
+  Directory folder,
+  int rank,
+  int depth,
+  int count,
+  String value,
+});
 
 int _byPreference(_Ranked a, _Ranked b) {
   final byCount = b.count.compareTo(a.count);
@@ -108,10 +128,9 @@ int _byPreference(_Ranked a, _Ranked b) {
   return compareCodePoints(a.folder.path, b.folder.path);
 }
 
-/// Returns [winner] from [root] as the key value, `.` when no key is written:
-/// the winner is the root, or the reader would refuse its path, or none
-/// reaches it.
-String _valueOf(Directory root, Directory winner) {
-  final relative = relativeFolderPath(root, winner);
-  return relative != null && isCodeRootValue(relative) ? relative : '.';
+/// Returns [folder] from [root] as a key value, or null when the reader would
+/// refuse its path or none reaches it.
+String? _valueOf(Directory root, Directory folder) {
+  final relative = relativeFolderPath(root, folder);
+  return relative != null && isCodeRootValue(relative) ? relative : null;
 }

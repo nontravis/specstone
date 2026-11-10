@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/setup_migration/code_root_inference.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 
 const _repositoryMark = '.git/HEAD';
@@ -217,4 +218,217 @@ void main() {
 
     expect(choice, (value: '.', found: 2, cited: 3));
   });
+
+  test('f06/us01/fr05/e11: a root reached through a symlink gives the value '
+      'of its canonical path', () async {
+    final tree = await _tree({
+      'real/repo/$_repositoryMark': '',
+      'real/repo/docs/keep.txt': '',
+      'real/repo/lib/b.dart': '',
+      'real/lib/a.dart': '',
+      'real/lib/b.dart': '',
+    });
+    if (!_linkOrSkip('${tree.path}/ln', 'real')) return;
+    const entries = ['lib/a.dart', 'lib/b.dart'];
+
+    final canonical = _infer(
+      _at(tree, 'real/repo/docs'),
+      implementsEntries: entries,
+    );
+    final viaLink = _infer(
+      _at(tree, 'ln/repo/docs'),
+      implementsEntries: entries,
+    );
+
+    expect(canonical, (value: '..', found: 1, cited: 2));
+    expect(viaLink, canonical);
+  });
+
+  test('f06/us01/fr05/e11: a link folder reached through a symlink adds no '
+      'folder above the repository top', () async {
+    final tree = await _tree({
+      'proj/keep.txt': '',
+      'real/repo/$_repositoryMark': '',
+      'real/repo/code/keep.txt': '',
+      'real/lib/a.dart': '',
+    });
+    if (!_linkOrSkip('${tree.path}/ln', 'real')) return;
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      link: _at(tree, 'ln/repo/code'),
+      implementsEntries: ['lib/a.dart'],
+    );
+
+    expect(choice, (value: '.', found: 0, cited: 1));
+  });
+
+  test('f06/us01/fr05/e11: a candidate whose value the reader refuses is '
+      'skipped, so the winner is a value that can be written', () async {
+    final tree = await _tree({
+      _repositoryMark: '',
+      'proj/keep.txt': '',
+      'lib/b.dart': '',
+    });
+    // writeTree reads its keys as URIs, which turn `\` into `/`.
+    File('${tree.path}/co\\de/lib/a.dart')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('');
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      link: Directory('${tree.path}/co\\de'),
+      implementsEntries: ['lib/a.dart', 'lib/b.dart'],
+    );
+
+    expect(choice, (value: '..', found: 1, cited: 2));
+  }, skip: _windowsSkip);
+
+  test('f06/us01/fr05/e11: entries every candidate resolves go to the '
+      'deepest candidate', () async {
+    final tree = await _tree({'proj/keep.txt': '', 'proj/code/keep.txt': ''});
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      link: _at(tree, 'proj/code'),
+      coversEntries: ['', '.'],
+    );
+
+    expect(choice, (value: 'code', found: 2, cited: 2));
+  });
+
+  test('f06/us01/fr05/e11: a link folder in no repository adds no folder '
+      'above it', () async {
+    final tree = await _tree({
+      'a/proj/keep.txt': '',
+      'b/code/keep.txt': '',
+      'b/lib/x.dart': '',
+    });
+
+    final choice = _infer(
+      _at(tree, 'a/proj'),
+      link: _at(tree, 'b/code'),
+      implementsEntries: ['lib/x.dart'],
+    );
+
+    expect(choice, (value: '.', found: 0, cited: 1));
+  });
+
+  test('f06/us01/fr05/e11: a link folder in another repository climbs to its '
+      'own repository top and no further', () async {
+    final tree = await _tree({
+      'r1/$_repositoryMark': '',
+      'r1/proj/keep.txt': '',
+      'r2/$_repositoryMark': '',
+      'r2/code/keep.txt': '',
+      'r2/lib/x.dart': '',
+      'lib/y.dart': '',
+    });
+
+    final choice = _infer(
+      _at(tree, 'r1/proj'),
+      link: _at(tree, 'r2/code'),
+      implementsEntries: ['lib/x.dart', 'lib/y.dart'],
+    );
+
+    expect(choice, (value: '../../r2', found: 1, cited: 2));
+  });
+
+  test('f06/us01/fr05/e11: a repository top equal to the root adds no '
+      'folder above it', () async {
+    final tree = await _tree({
+      'proj/$_repositoryMark': '',
+      'proj/keep.txt': '',
+      'lib/a.dart': '',
+    });
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      implementsEntries: ['lib/a.dart'],
+      coversEntries: ['lib/a.dart'],
+    );
+
+    expect(choice, (value: '.', found: 0, cited: 2));
+  });
+
+  test('f06/us01/fr05/e11: an entry with Windows separators does not count '
+      r'where \ is a name character', () async {
+    final tree = await _tree({
+      _repositoryMark: '',
+      'proj/keep.txt': '',
+      'lib/q.dart': '',
+    });
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      implementsEntries: [r'..\lib\q.dart'],
+      coversEntries: [r'..\lib\q.dart'],
+    );
+
+    expect(choice, (value: '.', found: 0, cited: 2));
+  }, skip: _windowsSkip);
+
+  test('f06/us01/fr05/e11: an absolute entry counts as the path under the '
+      'candidate, as check resolves it', () async {
+    final tree = await _tree({_repositoryMark: '', 'proj/lib/q.dart': ''});
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      implementsEntries: ['/lib/q.dart'],
+      coversEntries: ['/lib/q.dart'],
+    );
+
+    expect(choice, (value: '.', found: 2, cited: 2));
+  }, skip: _windowsSkip);
+
+  test('f06/us01/fr05/e11: an entry that leaves the repository counts from '
+      'the candidate that reaches it', () async {
+    final tree = await _tree({
+      'repo/$_repositoryMark': '',
+      'repo/proj/keep.txt': '',
+      'lib/c.dart': '',
+    });
+
+    final choice = _infer(
+      _at(tree, 'repo/proj'),
+      implementsEntries: ['../../lib/c.dart'],
+      coversEntries: ['../../lib/c.dart'],
+    );
+
+    expect(choice, (value: '.', found: 2, cited: 2));
+  });
+
+  test('f06/us01/fr05/e11: an entry through a symlinked code folder counts, '
+      'as check follows links', () async {
+    final tree = await _tree({
+      _repositoryMark: '',
+      'proj/keep.txt': '',
+      'real/a.dart': '',
+    });
+    if (!_linkOrSkip('${tree.path}/proj/src', '../real')) return;
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      implementsEntries: ['src/a.dart'],
+      coversEntries: ['src'],
+    );
+
+    expect(choice, (value: '.', found: 2, cited: 2));
+  });
+}
+
+final Object _windowsSkip = Platform.isWindows
+    ? r'POSIX path rules: \ is a name character and / roots a path'
+    : false;
+
+/// Links [linkPath] to [target]; marks the test skipped and returns false
+/// where links need privileges.
+bool _linkOrSkip(String linkPath, String target) {
+  try {
+    createRelativeLink(linkPath, target);
+    return true;
+  } on FileSystemException {
+    markTestSkipped('symbolic links need privileges on this machine');
+    return false;
+  }
 }
