@@ -1184,6 +1184,60 @@ void main() {
       });
     });
 
+    group('setup_migration/upgrade_pack_pins item limit', () {
+      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
+
+      test('$fr E32: the upgrade of E14 keeps an over-limit invariant as one '
+          'item, and the first check reports it with waitsFor owner', () async {
+        const domainPath = 'docs/specs/f01_a/DOMAIN.md';
+        final invariant = '- **INV-1** ${'A long rule'.padRight(15600, '.')}';
+        final domain =
+            '# A domain\n\n## Entities\n\n'
+            '| Entity | Kind | Identity | Owns | Notes |\n'
+            '| --- | --- | --- | --- | --- |\n'
+            '| Account | Aggregate root | id | balance | - |\n\n'
+            '## Invariants\n\n$invariant\n'
+            '  - **Enforcer:** Account\n'
+            '  - **Consistency:** immediate\n';
+        Future<List<Map<String, Object?>>> overLimit(
+          Directory root,
+          Directory home,
+        ) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': 'item_over_limit'} && final item)
+                item as Map<String, Object?>,
+          ];
+        }
+
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_a/FEATURE.md': '# A\n',
+          domainPath: domain,
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        final invariants = _read(
+          root,
+          domainPath,
+        ).split('\n').where((line) => line.startsWith('- **INV-')).toList();
+        expect(invariants, [invariant]);
+        final after = await overLimit(root, home);
+        expect(after, hasLength(1));
+        expect(after.single, containsPair('section', 'invariants'));
+        expect(after.single, containsPair('id', 'INV-1'));
+        expect(after.single, containsPair('waitsFor', 'owner'));
+        expect(after.single, containsPair('actual', invariant.length));
+      });
+    });
+
     group('setup_migration/upgrade_pack_pins stamp pass', () {
       const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
