@@ -437,7 +437,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/read_writing_guide: read several doc types guides in '
+    test("template_packs/read_writing_guide: read several doc types' guides in "
         'one call, each once in the order named under its own line', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -473,6 +473,84 @@ void main() {
       ]);
       expect(out.toString(), startsWith('[\n  {\n    "id": "user_story",\n'));
       expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide E01: an empty '
+        'id refuses the call with exit 64 and names ""', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(await runner.run(['guide', '']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "".\n\n$_guideUsage'),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide E01: an empty '
+        'id beside a known one refuses the whole call', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
+
+      expect(await runner.run(['guide', 'fr', '']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "".\n\n$_guideUsage'),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide: a project '
+        'layer that overrides a shipped type prints the override in the '
+        'order named', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          ..._frLayer,
+          '.specstone/templates/user_story.yaml':
+              'description: An overridden story.\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'user_story', 'fr']), 0);
+      expect(
+        out.toString(),
+        '==> user_story <==\n'
+        'An overridden story.\n'
+        '==> fr <==\n'
+        'One requirement.\n',
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/read_writing_guide/print_writing_guide E04: a broken '
+        'template file with an unknown id among the types exits 78 with the '
+        'template fault and no output', () async {
+      final runner = await runnerIn(
+        await projectWith({'.specstone/templates/fr.yaml': 'id: [\n'}),
+      );
+
+      expect(await runner.run(['guide', 'fr', 'nope']), 78);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        matches(RegExp(r'^\.specstone/templates/fr\.yaml:\d+: ')),
+      );
+    });
+
+    test('template_packs/read_writing_guide/print_merged_schema E04: a broken '
+        'template file with an unknown id among the types exits 78 with one '
+        'JSON envelope', () async {
+      final runner = await runnerIn(
+        await projectWith({'.specstone/templates/fr.yaml': 'bogus: 1\n'}),
+      );
+
+      expect(await runner.run(['guide', 'fr', 'nope', '--json']), 78);
+      expect(out.toString(), isEmpty);
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'unknown_key');
+      expect(error['file'], '.specstone/templates/fr.yaml');
+      expect(error['key'], 'bogus');
     });
 
     test('template_packs/read_writing_guide: one unknown doc type among '
