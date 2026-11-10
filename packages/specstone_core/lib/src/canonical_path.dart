@@ -51,7 +51,8 @@ bool _hasDrive(String path) =>
 /// reads against a drive the link does not name (`X:name`) throws too, since
 /// the place it leads to depends on that drive's current folder. A `.` or `..`
 /// after a missing name throws too, since that name may become a link. Windows
-/// collapses a `..` before the disk sees it, so none is left to throw on.
+/// collapses a `..` that lands on an existing folder before the disk sees it;
+/// one that lands on a missing name still throws.
 String canonicalPath(String path, {bool strict = false}) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(
