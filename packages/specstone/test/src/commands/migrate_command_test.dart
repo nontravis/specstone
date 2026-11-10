@@ -139,6 +139,55 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
+  group('f06/us01/s15: a legacy collision', () {
+    const featureWithSpecs = {
+      'docs/prds/d01_context.md': '# D-01 — Context\n',
+      'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
+      'docs/specs/INDEX.md':
+          '## Spec map\n\n'
+          '| Code path | Spec path | feature_id |\n'
+          '|-----------|-----------|------------|\n'
+          '| `a/` | `specs/f01_login/` | `f01_login` |\n',
+    };
+
+    for (final (:name, :tree) in [
+      (
+        name: 'a move onto a file that stays',
+        tree: {...acmeLegacy, 'docs/prds/FEATURES.md': '# Features\n'},
+      ),
+      (
+        name: 'a move onto ARCHITECTURE.md beside a staying architecture.md',
+        tree: {
+          ...featureWithSpecs,
+          'docs/specs/f01_login/s01_architecture.md': '# New\n',
+          'docs/specs/f01_login/architecture.md': '# Mine\n',
+        },
+      ),
+    ]) {
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        test(
+          '$name refuses ${args.join(' ')}, exit 65, writes nothing',
+          () async {
+            final root = await gitFixture(tree);
+            final before = _bytesUnder(root);
+            final (:runner, :out, :err) = writeRunner(root);
+
+            expect(await runner.run(args), 65);
+
+            expect(out.toString(), isEmpty);
+            expect(err.toString(), contains('moves to'));
+            expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+            expect(_bytesUnder(root), before);
+          },
+          skip: hasGit ? null : 'git is not available',
+        );
+      }
+    }
+  });
+
   test('f06/us01/fr02/e04: migrate --dry-run over a dirty tree is '
       'working_tree_dirty, exit 75, with no plan', () async {
     final root = await gitFixture(acmeLegacy);

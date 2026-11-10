@@ -58,7 +58,8 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 ///
 /// Reads the files under `docs/prds` and `docs/specs`, the carried packs, and
 /// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`
-/// and a `TemplateFault` before it returns, so a refused run prints nothing.
+/// or `legacy_collision` and a `TemplateFault` before it returns, so a refused
+/// run prints nothing.
 /// A created config names [linkFolder] as its `code_root` when more legacy
 /// `implements` paths name a file from there than from [root].
 ///

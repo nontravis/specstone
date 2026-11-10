@@ -810,6 +810,31 @@ void main() {
     expect(dirtyOut.toString(), isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us01/fr02/e06: a legacy collision refuses in --dry-run and bare '
+      'migrate before any plan line prints', () async {
+    final root = await gitFixture({
+      ...acmeLegacy,
+      'docs/prds/FEATURES.md': '# Features\n',
+    });
+    final before = _bytesUnder(root);
+    Matcher refusal() => throwsA(
+      isA<MigrateFault>().having(
+        (f) => f.code,
+        'code',
+        MigrateFaultCode.legacyCollision,
+      ),
+    );
+    final dryOut = StringBuffer();
+    final out = StringBuffer();
+
+    expect(() => _run(root, dryOut, dryRun: true), refusal());
+    expect(() => _run(root, out, answers: ['y']), refusal());
+
+    expect(dryOut.toString(), isEmpty);
+    expect(out.toString(), isEmpty);
+    expect(_bytesUnder(root), before);
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us01/fr07/e01: a plan that moves no file journals one commit', () {
     const plan = RunPlan(
       header: 'legacy migration: x',

@@ -882,19 +882,30 @@ MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
       file: source,
     );
 
+String _exactPath(String path) => path;
+
 /// Orders [moves] so a move whose target is another move's original path runs
 /// after that move.
 ///
-/// A cycle, such as two docs trading places, has no such order;
-/// [RunPlan.journalSteps] parks one of its moves in the stage.
-List<PathMove> orderedMoves(List<PathMove> moves) {
-  final bySource = {for (final move in moves) move.from: move};
+/// [keyOf] maps a path to the key two paths are compared by; a move waits for
+/// every move whose original path has its target's key. A cycle, such as two
+/// docs trading places, has no such order; [RunPlan.journalSteps] parks one of
+/// its moves in the stage.
+List<PathMove> orderedMoves(
+  List<PathMove> moves, {
+  String Function(String path) keyOf = _exactPath,
+}) {
+  final bySource = <String, List<PathMove>>{};
+  for (final move in moves) {
+    (bySource[keyOf(move.from)] ??= []).add(move);
+  }
   final ordered = <PathMove>[];
   final placed = <String>{};
   void place(PathMove move) {
     if (!placed.add(move.from)) return;
-    final blocker = bySource[move.to];
-    if (blocker != null && blocker.from != move.from) place(blocker);
+    for (final blocker in bySource[keyOf(move.to)] ?? const <PathMove>[]) {
+      if (blocker.from != move.from) place(blocker);
+    }
     ordered.add(move);
   }
 
