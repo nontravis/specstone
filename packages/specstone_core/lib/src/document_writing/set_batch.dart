@@ -11,7 +11,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart'
-    show basesOf, sectionBaseOf;
+    show basesOf, leadBaseOf, sectionBaseOf, titleBaseOf;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -48,10 +48,7 @@ ReadAnswer answerSetBatch(
   final refusals = <_Refusal>[
     for (final entry in parsed.lineFaults) (line: entry.line!, entry: entry),
   ];
-  final planned = _withoutOverlaps(
-    _planBlocks(session, parsed.blocks, refusals),
-    refusals,
-  );
+  final planned = _planBlocks(session, parsed.blocks, refusals);
   if (planned.isEmpty) throw _refused(refusals);
 
   return session.locked(() {
@@ -115,17 +112,55 @@ void _refuse(
   ),
 ));
 
-/// Resolves each block of [blocks] and checks its text, as far as the text
-/// and the doc type decide, without the doc's text or the lock.
+/// Resolves each block of [blocks] and checks its text and its overlap with
+/// the other blocks, as far as the text and the doc type decide, without the
+/// doc's text or the lock.
 ///
-/// A block refused adds to [refusals] and drops out.
+/// A block refused adds to [refusals] and drops out of the result; it still
+/// counts in the overlap check, so a twin of it is refused too.
 List<_Planned> _planBlocks(
   WriteSession session,
   List<BatchBlock> blocks,
   List<_Refusal> refusals,
-) => [for (final block in blocks) ?_planBlock(session, block, refusals)];
+) {
+  final resolved = [
+    for (final block in blocks) ?_resolveBlock(session, block, refusals),
+  ];
+  for (final block in resolved) {
+    if (_isRefused(refusals, block)) continue;
+    _refuseOnFault(refusals, block, () => _checkText(block));
+  }
+  _refuseOverlaps(resolved, refusals);
+  return [
+    for (final block in resolved)
+      if (!_isRefused(refusals, block)) block,
+  ];
+}
 
-_Planned? _planBlock(
+bool _isRefused(List<_Refusal> refusals, _Planned block) =>
+    refusals.any((refusal) => refusal.line == block.block.line);
+
+void _refuseOnFault(
+  List<_Refusal> refusals,
+  _Planned block,
+  void Function() check,
+) {
+  try {
+    check();
+  } on SpecstoneFault catch (fault) {
+    _refuse(
+      refusals,
+      block.block,
+      fault,
+      file: block.doc.docPath,
+      key: block.key,
+    );
+  }
+}
+
+/// Resolves the doc [block] names; a block that names a field, the title, or
+/// no doc adds a refusal and gives null.
+_Planned? _resolveBlock(
   WriteSession session,
   BatchBlock block,
   List<_Refusal> refusals,
@@ -155,20 +190,25 @@ _Planned? _planBlock(
       leadKey => const LeadTarget(),
       final section => SectionTarget(section),
     };
-    if (target == null) {
-      _checkWholeDocText(block.text);
-    } else {
-      checkPartText(
-        doc: doc,
-        docType: docType,
-        target: target,
-        text: block.text,
-      );
-    }
     return _Planned(block, doc, docType, target);
   } on SpecstoneFault catch (fault) {
     _refuse(refusals, block, fault, file: file, key: key);
     return null;
+  }
+}
+
+/// Checks the text of [block] as far as the text and the doc type decide.
+void _checkText(_Planned block) {
+  final target = block.target;
+  if (target == null) {
+    _checkWholeDocText(block.block.text);
+  } else {
+    checkPartText(
+      doc: block.doc,
+      docType: block.docType,
+      target: target,
+      text: block.block.text,
+    );
   }
 }
 
@@ -182,40 +222,37 @@ void _checkWholeDocText(String lf) {
   }
 }
 
-/// Returns [planned] without each block that writes a part an earlier block of
-/// its doc writes, a whole-doc block counting as every part; each such block
-/// adds a refusal naming both.
-List<_Planned> _withoutOverlaps(
-  List<_Planned> planned,
-  List<_Refusal> refusals,
-) {
-  final kept = <_Planned>[];
-  for (final next in planned) {
-    final earlier = kept
+/// Refuses each of two blocks that write one part of a doc, a whole-doc block
+/// counting as every part; each entry names the other block by its line.
+void _refuseOverlaps(List<_Planned> resolved, List<_Refusal> refusals) {
+  void refuseNaming(_Planned block, _Planned other) {
+    if (_isRefused(refusals, block)) return;
+    _refuse(
+      refusals,
+      block.block,
+      IndexFault(
+        IndexFaultCode.argumentInvalid,
+        'the block at line ${other.block.line} writes the same part; send '
+        'one block per part of a doc, and a whole-doc block alone for its doc',
+      ),
+      file: block.doc.docPath,
+      key: block.key,
+    );
+  }
+
+  for (final (at, next) in resolved.indexed) {
+    final earlier = resolved
+        .take(at)
         .where(
           (other) =>
               other.doc.docPath == next.doc.docPath &&
               (other.isWholeDoc || next.isWholeDoc || other.key == next.key),
         )
         .firstOrNull;
-    if (earlier == null) {
-      kept.add(next);
-      continue;
-    }
-    _refuse(
-      refusals,
-      next.block,
-      IndexFault(
-        IndexFaultCode.argumentInvalid,
-        'the blocks at lines ${earlier.block.line} and ${next.block.line} '
-        'write the same part; send one block per part of a doc, and a '
-        'whole-doc block alone for its doc',
-      ),
-      file: next.doc.docPath,
-      key: next.key,
-    );
+    if (earlier == null) continue;
+    refuseNaming(earlier, next);
+    refuseNaming(next, earlier);
   }
-  return kept;
 }
 
 // MARK: - Checking
@@ -369,6 +406,7 @@ Map<_Planned, _Checked> _checkBlocks(
   final lfText = _wholeDocText(block.block.text, disk.lfText);
   final held = Doc.parse(disk.lfText);
   final proposed = Doc.parse(lfText);
+  _checkTitleAndLead(block, held, proposed);
   final changedFields = _checkFields(block, held, proposed);
   _checkRemovedSections(block, disk, lfText);
   return (
@@ -402,6 +440,21 @@ WriteFault _staleDoc(
     base: currentBase,
   ),
 );
+
+/// Runs the title and the lead [proposed] holds through [checkPartText] when
+/// they differ from [held], as a single `set` of either checks its text.
+void _checkTitleAndLead(_Planned block, Doc held, Doc proposed) {
+  void check(SetTarget target, String text) => checkPartText(
+    doc: block.doc,
+    docType: block.docType,
+    target: target,
+    text: text,
+  );
+  if (proposed.title != held.title) {
+    check(const TitleTarget(), proposed.title ?? '');
+  }
+  if (proposed.lead != held.lead) check(const LeadTarget(), proposed.lead);
+}
 
 /// Checks each frontmatter key [proposed] adds, changes, or removes against
 /// [held], and returns their ids.
@@ -463,8 +516,10 @@ String _valueOf(KeyBlock block) {
 /// [splicePart], which refuses a required one as a single `set` does.
 void _checkRemovedSections(_Planned block, _Disk disk, String lfText) {
   final kept = {for (final s in _sectionsOf(block, lfText)) s.key};
+  final removed = <String>{};
   for (final section in disk.sections) {
-    if (kept.contains(section.key)) continue;
+    // The first held section of a key is the one a single `set` of it reads.
+    if (kept.contains(section.key) || !removed.add(section.key)) continue;
     splicePart(
       doc: block.doc,
       docType: block.docType,
@@ -485,7 +540,8 @@ List<IndexedSection> _sectionsOf(_Planned block, String lfText) =>
     ).content.sections;
 
 /// Whether the write marks the doc a draft: false only when every change is an
-/// `output_ref` field and nothing else of the doc differs.
+/// `output_ref` field and no part of the doc differs, parts read layout-blind
+/// as their bases read them.
 bool _marksDraft(
   MergedDocType docType,
   Doc held,
@@ -499,9 +555,18 @@ bool _marksDraft(
   final onlyOutputRefs =
       changedFields.isNotEmpty && changedFields.every(outputRefs.contains);
   return !onlyOutputRefs ||
-      held.afterFrontmatter != proposed.afterFrontmatter ||
+      _partsOf(held, docType) != _partsOf(proposed, docType) ||
       _keylessText(held) != _keylessText(proposed);
 }
+
+/// Returns the title base, the lead base, and each section's header line with
+/// its body base, one per line, in doc order.
+String _partsOf(Doc doc, MergedDocType docType) => [
+  titleBaseOf(doc.title),
+  leadBaseOf(doc, docType),
+  for (final section in doc.sections)
+    '${section.headerLine} ${sectionBaseOf(section.body, docType)}',
+].join('\n');
 
 String _keylessText(Doc doc) => [
   for (final block in doc.frontmatter ?? const <KeyBlock>[])

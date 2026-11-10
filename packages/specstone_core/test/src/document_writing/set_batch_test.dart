@@ -390,7 +390,7 @@ void main() {
   );
 
   test(
-    '$_wb E05: two blocks of one part refuse with argument_invalid naming both blocks',
+    '$_wb E05: two blocks of one part refuse with argument_invalid, each block an entry naming the other by its line',
     () async {
       final root = await writeWriteProject();
       final block = getText(root, [_useCase]);
@@ -400,14 +400,17 @@ void main() {
       final fault = refuse(root, text);
 
       expect(fault, refusedWith('argument_invalid'));
-      final entry = onlyEntry(fault);
-      expect((entry.file, entry.key), (story1, 'use_case'));
-      expect(entry.message, contains('lines 1 and 6'));
+      expect(fault.entries.map((e) => (e.file, e.key)), [
+        (story1, 'use_case'),
+        (story1, 'use_case'),
+      ]);
+      expect(fault.entries[0].message, contains('line 6'));
+      expect(fault.entries[1].message, contains('line 1'));
     },
   );
 
   test(
-    '$_wb E05: a whole-doc block beside any other block of its doc refuses with argument_invalid naming both blocks',
+    '$_wb E05: a whole-doc block beside any other block of its doc refuses with argument_invalid, each block an entry naming the other by its line',
     () async {
       final root = await writeWriteProject();
       final text = '${getText(root, [story1])}\n${getText(root, [_useCase])}';
@@ -416,9 +419,35 @@ void main() {
       final fault = refuse(root, text);
 
       expect(fault, refusedWith('argument_invalid'));
-      final entry = onlyEntry(fault);
-      expect((entry.file, entry.key), (story1, 'use_case'));
-      expect(entry.message, contains('lines 1 and $secondLine'));
+      expect(fault.entries.map((e) => (e.file, e.key)), [
+        (story1, 'doc'),
+        (story1, 'use_case'),
+      ]);
+      expect(fault.entries[0].message, contains('line $secondLine'));
+      expect(fault.entries[1].message, contains('line 1'));
+    },
+  );
+
+  test(
+    '$_wb E05: a block refused for its text still takes part, so its twin is named too',
+    () async {
+      final root = await writeWriteProject();
+      final open = edit(
+        getText(root, [_useCase]),
+        'Sign in with an email.',
+        'Sign in with an email.\n\n```dart\ncode()\n',
+      );
+      final whole = getText(root, [story1]);
+      final openLine = whole.split('\n').length + 1;
+
+      final fault = refuse(root, '$whole\n$open');
+
+      expect(fault.entries.map((e) => (e.key, e.code)), [
+        ('doc', 'argument_invalid'),
+        ('use_case', 'argument_invalid'),
+      ]);
+      expect(fault.entries[0].message, contains('line $openLine'));
+      expect(fault.entries[1].message, contains('```'));
     },
   );
 
@@ -556,6 +585,92 @@ void main() {
           ('required_target', 'verify_method'),
         );
       });
+    },
+  );
+
+  test(
+    '$_wb E06: a whole-doc block with its title removed refuses with argument_invalid as set --title does, and writes nothing',
+    () async {
+      final root = await writeWriteProject();
+      final text = getText(root, [story1]);
+
+      final fault = refuse(root, edit(text, '# Sign in with email\n\n', ''));
+
+      expect(fault, refusedWith('argument_invalid'));
+      final entry = onlyEntry(fault);
+      expect((entry.file, entry.key), (story1, 'doc'));
+      expect(entry.message, 'a title is one line; stdin held 0 lines');
+    },
+  );
+
+  test(
+    '$_wb E06: a whole-doc block holding a second title line refuses with argument_invalid as a lead holding a # line does, and writes nothing',
+    () async {
+      final root = await writeWriteProject();
+      final text = getText(root, [story1]);
+
+      final fault = refuse(
+        root,
+        edit(
+          text,
+          '# Sign in with email\n',
+          '# Sign in with email\n\n# Another\n',
+        ),
+      );
+
+      expect(fault, refusedWith('argument_invalid'));
+      final entry = onlyEntry(fault);
+      expect((entry.file, entry.key), (story1, 'doc'));
+      expect(entry.message, contains('the lead holds the line "# Another"'));
+    },
+  );
+
+  group(
+    '$_wb INV-4: an output_ref-only whole-doc change keeps an approved doc approved whatever its file ends with',
+    () {
+      for (final (shape, ending) in [
+        ('a trailing blank line', (String text) => '$text\n'),
+        ('no final newline', (String text) => text.trimRight()),
+      ]) {
+        test(shape, () async {
+          final original = ending(writeProject['docs/$fr11']!);
+          final root = await writeWriteProject(extra: {'docs/$fr11': original});
+          final text = edit(
+            getText(root, [fr11]),
+            'CredentialValidator',
+            'CredentialChecker',
+          );
+
+          final answer = runBatch(root, text);
+
+          final written = readDoc(root, fr11);
+          expect(written, contains('CredentialChecker'));
+          expect(written, isNot(contains('draft:')));
+          expect(
+            RegExp('approved: "[0-9a-f]{12}"').firstMatch(written)!.group(0),
+            RegExp('approved: "[0-9a-f]{12}"').firstMatch(original)!.group(0),
+          );
+          expect(answer.json['blocks'], [containsPair('draft', false)]);
+        });
+      }
+    },
+  );
+
+  test(
+    '$_wb E07: a whole-doc block that removes two sections of one key is written, not refused as stale',
+    () async {
+      final original =
+          '${writeProject['docs/$story1']!}\n## Notes\n\nA.\n\n## Notes\n\nB.\n';
+      final root = await writeWriteProject(extra: {'docs/$story1': original});
+      final text = edit(
+        getText(root, [story1]),
+        '\n## Notes\n\nA.\n\n## Notes\n\nB.\n',
+        '',
+      );
+
+      runBatch(root, text);
+
+      expect(readDoc(root, story1), writeProject['docs/$story1']);
     },
   );
 
@@ -719,16 +834,24 @@ void main() {
         story2,
       ).replaceFirst('## Use Case\n\n', '## Use Case\n');
       docFile(root, story2).writeAsStringSync(approved);
-      final text = getText(root, [story2, _signOutUseCase]);
 
-      final answer = writeInNoHome(
-        root,
-        (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
-      );
-
+      for (final names in [
+        [story2],
+        [_signOutUseCase],
+      ]) {
+        final text = getText(root, names);
+        final answer = writeInNoHome(
+          root,
+          (s) => answerSetBatch(s, batchPath: 'batch.md', text: text),
+        );
+        expect(answer.json['blocks'], [containsPair('written', false)]);
+        expect(
+          answer.json['blocks'],
+          everyElement(containsPair('draft', false)),
+        );
+      }
       expect(readDoc(root, story2), approved);
       expect(readDoc(root, story2), isNot(contains('draft:')));
-      expect(answer.json['blocks'], everyElement(containsPair('draft', false)));
     },
   );
 
@@ -847,6 +970,41 @@ void main() {
       expect(records.listSync(), isEmpty);
     },
     skip: unreadablePathSkipReason() ?? false,
+  );
+
+  test(
+    '$_wb E14: a stopped journal of guarded write steps is finished by the next write command, which leaves a doc edited after the stop as it is',
+    () async {
+      final root = await writeWriteProject();
+      final twin = await writeWriteProject();
+      var text = getText(twin, [story1, story3, fr31]);
+      text = edit(text, 'Sign in with an email.', 'Sign in with a passkey.');
+      text = edit(text, 'Reset a password.', 'Reset the password.');
+      text = edit(text, 'send a link', 'send a reset link');
+      runBatch(twin, text);
+      final docs = [story1, story3, fr31];
+      writeJournal(root, [
+        for (final docPath in docs)
+          WriteStep(
+            'docs/$docPath',
+            readDoc(twin, docPath),
+            before: textHashOf(readDoc(root, docPath)),
+          ),
+      ]);
+      docFile(root, story1).writeAsStringSync(readDoc(twin, story1));
+      final edited = readDoc(
+        root,
+        fr31,
+      ).replaceFirst('send a link', 'send a link by mail');
+      docFile(root, fr31).writeAsStringSync(edited);
+
+      writeIn(root, (_) {});
+
+      expect(readDoc(root, story1), readDoc(twin, story1));
+      expect(readDoc(root, story3), readDoc(twin, story3));
+      expect(readDoc(root, fr31), edited);
+      expect(File(journalPathOf(root)).existsSync(), isFalse);
+    },
   );
 
   test(
