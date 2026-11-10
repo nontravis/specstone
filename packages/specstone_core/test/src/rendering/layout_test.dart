@@ -314,6 +314,25 @@ void main() {
     );
   });
 
+  group('table start', () {
+    check(
+      'a one-column table needs no pipe in its header',
+      'abc\n| - |\nrow  \n',
+      'abc\n|---|\nrow\n',
+    );
+    check(
+      'a delimiter row that starts like a list item makes a table',
+      'a   |   b\n- | -\nc  |  d\n',
+      'a | b\n---|---\nc | d\n',
+    );
+    check(
+      'a header with more cells than the delimiter row has columns is no '
+          'table',
+      'a  |  b  |  c\n---|---\nx\n',
+      'a  |  b  |  c\n---|---\nx\n',
+    );
+  });
+
   group('lazy table row', () {
     check(
       'a pipe-less line after a table is a row: its trailing spaces go',

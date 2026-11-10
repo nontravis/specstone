@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show startsTable;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 
 const _hardBreakSuffix = '  ';
@@ -14,7 +16,6 @@ const _dash = 0x2D;
 const _dot = 0x2E;
 const _digitZero = 0x30;
 const _digitNine = 0x39;
-const _colon = 0x3A;
 const _quoteMarker = 0x3E;
 
 /// The most spaces before a heading's `#` run.
@@ -94,10 +95,6 @@ final class _Layout {
   bool _continuesParagraph(int i) =>
       continues[i] && !protected[i] && !isTable[i];
 
-  bool _isDelimiterRow(int i) =>
-      _hasPipe(lines[i]) &&
-      _splitCells(_trim(lines[i])).every(_isDelimiterCell);
-
   void _markTables() {
     var i = 0;
     while (i + 1 < lines.length) {
@@ -113,13 +110,10 @@ final class _Layout {
     }
   }
 
+  // The delimiter row may start like a list item, as `- | -` does; `markdown`
+  // tries the table before the list.
   bool _startsTable(int i) =>
-      _isRowLine(i) &&
-      _hasPipe(lines[i]) &&
-      _isRowLine(i + 1) &&
-      _isDelimiterRow(i + 1) &&
-      _splitCells(_trim(lines[i])).length ==
-          _splitCells(_trim(lines[i + 1])).length;
+      _isRowLine(i) && !protected[i + 1] && startsTable(lines[i], lines[i + 1]);
 
   bool _isRowLine(int i) =>
       !protected[i] &&
@@ -167,8 +161,6 @@ List<String> _insertHeadingGaps(
   }
   return out;
 }
-
-bool _hasPipe(String line) => line.contains('|');
 
 /// Writes one table row with 1 space inside each cell edge.
 ///
@@ -319,16 +311,3 @@ bool _isListItemLine(String line) {
 }
 
 bool _isDigit(int unit) => unit >= _digitZero && unit <= _digitNine;
-
-/// Whether [cell] is `-` runs with an optional `:` at either end.
-bool _isDelimiterCell(String cell) {
-  var start = 0;
-  var end = cell.length;
-  if (start < end && cell.codeUnitAt(start) == _colon) start++;
-  if (end > start && cell.codeUnitAt(end - 1) == _colon) end--;
-  if (start >= end) return false;
-  for (var i = start; i < end; i++) {
-    if (cell.codeUnitAt(i) != _dash) return false;
-  }
-  return true;
-}
