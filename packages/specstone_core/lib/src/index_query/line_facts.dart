@@ -78,6 +78,7 @@ final class LineFacts {
     required this.unreadableLinks,
     required this.nameMentions,
     required this.numberLabels,
+    required this.tbrMarkers,
     required this.anchors,
     required this.sectionLines,
     required this.sectionCounts,
@@ -94,7 +95,8 @@ final class LineFacts {
   /// it, while [lineCount] and [charCount] measure [countedText].
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
   /// frontmatter. [bodyNumberLabels] are the number labels of the body, by
-  /// 0-based body line. A body whose parse fails has no links and an unknown
+  /// 0-based body line, and [bodyTbrMarkers] its TBR markers, by the same
+  /// line. A body whose parse fails has no links and an unknown
   /// anchor set; [markdownUnparsedWarning] joins [warnings] only when the body
   /// holds link syntax, as at base — a body with no link syntax is never
   /// parsed for links, so it never warns. [linkWarningOf] gives the warning.
@@ -106,6 +108,7 @@ final class LineFacts {
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
     required List<({int line, String written})> bodyNumberLabels,
+    required List<({int line, String rest})> bodyTbrMarkers,
     required List<String> warnings,
   }) {
     final prefix = doc.frontmatter == null
@@ -144,6 +147,10 @@ final class LineFacts {
         for (final (:line, :written) in bodyNumberLabels)
           (line: bodyStart + line + 1, written: written),
       ],
+      tbrMarkers: [
+        for (final (:line, :rest) in bodyTbrMarkers)
+          (line: bodyStart + line + 1, rest: rest),
+      ],
       anchors: anchorNodes == null ? null : anchorsOf(anchorNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
@@ -172,6 +179,7 @@ final class LineFacts {
       unreadableLinks: const [],
       nameMentions: const [],
       numberLabels: const [],
+      tbrMarkers: const [],
       anchors: null,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: const [],
@@ -200,6 +208,11 @@ final class LineFacts {
         for (final label
             in (json['number_labels']! as List<Object?>).cast<List<Object?>>())
           (line: label[0]! as int, written: label[1]! as String),
+      ],
+      tbrMarkers: [
+        for (final marker
+            in (json['tbr_markers']! as List<Object?>).cast<List<Object?>>())
+          (line: marker[0]! as int, rest: marker[1]! as String),
       ],
       anchors: anchors == null
           ? null
@@ -245,6 +258,11 @@ final class LineFacts {
   /// The number labels of the body as `number_label` reads them (R82), in
   /// source order; `line` is the file line.
   final List<LabelPlace> numberLabels;
+
+  /// The `TBR — ` markers of the body outside fenced code and code spans, in
+  /// source order; `line` is the file line and `rest` the line's text after
+  /// the marker, trimmed.
+  final List<TbrMarkerPlace> tbrMarkers;
 
   /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
   /// be computed, never a stand-in for an empty one.
@@ -307,6 +325,9 @@ final class LineFacts {
     'number_labels': [
       for (final label in numberLabels) [label.line, label.written],
     ],
+    'tbr_markers': [
+      for (final marker in tbrMarkers) [marker.line, marker.rest],
+    ],
     'anchors': anchors?.toJson(),
     'sections': sectionLines,
     'fenced': [
@@ -320,6 +341,9 @@ final class LineFacts {
 
 /// A number label at its file line, as it is written.
 typedef LabelPlace = ({int line, String written});
+
+/// A TBR marker at its file line, with the line's text after it.
+typedef TbrMarkerPlace = ({int line, String rest});
 
 /// Returns the mentions of [body], whose lines start at file line
 /// `bodyStart + 1`.

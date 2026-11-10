@@ -365,10 +365,10 @@ void main() {
       expect(facts.lineCount, greaterThan(0));
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 12);
     });
     test(
-      'domain:index_query INV-2: an index at layout 2 is rebuilt to layout 11',
+      'domain:index_query INV-2: an index at layout 2 is rebuilt to layout 12',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -379,11 +379,11 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 12);
       },
     );
     test(
-      'domain:index_query INV-2: an index at layout 3 is rebuilt to layout 11',
+      'domain:index_query INV-2: an index at layout 3 is rebuilt to layout 12',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -394,12 +394,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 12);
       },
     );
     test(
       'domain:index_query INV-2: an index at layout 4, with no banned-pattern '
-      'matches, is rebuilt to layout 11 with them',
+      'matches, is rebuilt to layout 12 with them',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -411,12 +411,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 12);
         expect(after.select('SELECT banned_matches FROM docs'), hasLength(25));
       },
     );
     test('domain:index_query INV-2: an index at layout 5, its banned-pattern '
-        'matches from the old backtick pairing, is rebuilt to layout 11 with '
+        'matches from the old backtick pairing, is rebuilt to layout 12 with '
         'them recomputed', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -428,7 +428,7 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 12);
       expect(
         after.select(
           "SELECT doc_path FROM docs WHERE banned_matches = 'stale'",
@@ -436,7 +436,7 @@ void main() {
         isEmpty,
       );
     });
-    test('domain:index_query INV-2: an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 11', () async {
+    test('domain:index_query INV-2: an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 12', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -446,9 +446,9 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 12);
     });
-    test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 11', () async {
+    test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 12', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -465,7 +465,7 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 11);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 12);
     });
     test(
       'f04/nfr-p03, s03/inv2: an index at the current layout is not rebuilt',

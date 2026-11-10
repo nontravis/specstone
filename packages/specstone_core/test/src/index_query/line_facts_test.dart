@@ -56,6 +56,46 @@ void main() {
       );
     });
 
+    test('consistency_check/find_template_breaks/report_open_tbrs: each TBR '
+        'marker of the body is stored at its file line and survives a JSON '
+        'round trip', () {
+      const marked =
+          '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n\n'
+          'A gap TBR \u2014 pick a value.\n'
+          '```\nTBR \u2014 in code\n```\n'
+          'And `TBR \u2014 x` then TBR \u2014 later.\n';
+      final facts = _factsOf(marked);
+      expect(facts.tbrMarkers, [
+        (line: 6, rest: 'pick a value.'),
+        (line: 10, rest: 'later.'),
+      ]);
+      expect(
+        LineFacts.fromJson(
+          jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+          sectionCounts: facts.sectionCounts,
+        ).tbrMarkers,
+        facts.tbrMarkers,
+      );
+      expect(facts.toJson()['tbr_markers'], [
+        [6, 'pick a value.'],
+        [10, 'later.'],
+      ]);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs E08: a '
+        'marker in a frontmatter value is not stored', () {
+      const doc = '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n';
+      expect(_factsOf(doc).tbrMarkers, isEmpty);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs: a CRLF '
+        'doc stores the markers of its LF text', () {
+      const lf = '---\na: 1\n---\n# T\n\nTBR \u2014 gap\n';
+      expect(_factsOf(lf.replaceAll('\n', '\r\n')).tbrMarkers, [
+        (line: 6, rest: 'gap'),
+      ]);
+    });
+
     test('f04/nfr-p03: a doc with frontmatter, title, sections, and a fence hiding a ## has 1-based file lines', () {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
@@ -332,6 +372,7 @@ void main() {
         sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
         frontmatterErrorLine: null,
         bodyNumberLabels: const [],
+        bodyTbrMarkers: const [],
         warnings: [],
       );
       expect(facts.sectionLines, [3, 7]);

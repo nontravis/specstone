@@ -579,5 +579,17 @@ void main() {
         expect(store.readStamp(), isNull);
       },
     );
+    test('domain:index_query INV-2: an index of layout 11 has no stamp, so it '
+        'is rebuilt with the TBR markers', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute('UPDATE meta SET layout = 11');
+      expect(store.readStamp(), isNull);
+    });
   });
 }
