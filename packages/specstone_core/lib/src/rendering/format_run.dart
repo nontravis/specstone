@@ -36,6 +36,7 @@ final class FileResult {
     this.unclosedFence = false,
     this.openBlock,
     this.openBlockKind,
+    this.changesStructure = false,
   });
 
   /// The doc's path, relative to the project root.
@@ -62,8 +63,12 @@ final class FileResult {
   /// The generator kind that [openBlock] names.
   final String? openBlockKind;
 
+  /// Whether laying the doc out would change its frontmatter or its sections.
+  final bool changesStructure;
+
   /// Returns the wire form; a list prints only when it is not empty,
-  /// `unclosedFence` only when true, and `openBlock` only when set.
+  /// `unclosedFence` and `changesStructure` only when true, and `openBlock`
+  /// only when set.
   Map<String, Object> toJson() => {
     'path': path,
     'status': status.name,
@@ -72,6 +77,7 @@ final class FileResult {
     if (docTypes.isNotEmpty) 'docTypes': docTypes,
     if (unclosedFence) 'unclosedFence': true,
     'openBlock': ?openBlock,
+    if (changesStructure) 'changesStructure': true,
   };
 
   String get _reasons => [
@@ -80,6 +86,7 @@ final class FileResult {
     if (docTypes.isNotEmpty) 'doc types ${docTypes.join(', ')} match this path',
     if (unclosedFence) 'unclosed code fence',
     if (openBlockKind != null) 'open generated block $openBlockKind',
+    if (changesStructure) 'layout would change the doc structure',
   ].join('; ');
 }
 
@@ -232,6 +239,7 @@ FileResult _formatReadable<R>(
       :final unclosedFence,
       :final openBlock,
       :final openBlockKind,
+      :final changesStructure,
     ):
       return FileResult(
         path: read.path,
@@ -241,6 +249,7 @@ FileResult _formatReadable<R>(
         unclosedFence: unclosedFence,
         openBlock: openBlock,
         openBlockKind: openBlockKind,
+        changesStructure: changesStructure,
       );
     case Formatted(:final text):
       var finalText = text;

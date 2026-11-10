@@ -10,7 +10,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
-import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
+import 'package:specstone_core/src/rendering/formatter.dart' show Formatted;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One item of a doc: the key `check` holds it by when it reads one, its
@@ -67,51 +67,33 @@ final class ItemFacts {
 
 /// Returns the items of [doc], the file's parse, in the text its counts cover.
 ///
-/// [lineFacts] are those of [lfText]. Each section of [doc] takes the items of
-/// its twin in [countedText], the text the counts cover: the section at the
-/// same position when it equals [lfText], else the one with the same
-/// `headerKey`, since a laid-out doc may reorder sections. Only a differing
-/// [countedText] is parsed.
+/// [lineFacts] are those of [lfText]. The counts cover [laid]'s text when
+/// [laid] is not null, else [lfText]; each section of [doc] takes the items of
+/// its twin there, which [Formatted.twinOf] names.
 ItemFacts itemFactsOf({
   required Doc doc,
   required String lfText,
   required LineFacts lineFacts,
-  required String countedText,
+  required Formatted? laid,
   required MergedDocType? type,
 }) {
-  final isSameText = countedText == lfText;
-  final counted = isSameText ? doc : Doc.parse(countedText);
-  final lines = isSameText
+  final counted = laid?.doc ?? doc;
+  final countedText = laid?.text ?? lfText;
+  final lines = laid == null
       ? lineFacts
       : LineFacts.structureOf(lfText: countedText, doc: counted);
   final held = indexedSectionsOf(counted, type);
   final templates = heldTemplatesOf(held, type);
-  final twinOf = isSameText
-      ? null
-      : {
-          for (final (i, section) in counted.sections.indexed)
-            headerKey(section.headerText): i,
-        };
-
-  List<ItemFact> itemsOfSection(int position, Section section) {
-    final twin = twinOf == null
-        ? position
-        : twinOf[headerKey(section.headerText)];
-    if (twin == null) {
-      throw StateError(
-        'no laid-out twin for the section "${section.headerText}"',
-      );
-    }
-    return _itemFactsIn(sectionBodyLines(held, lines, twin), templates[twin]);
-  }
-
   final (:counts, :items) = _leadOf(counted, countedText, lines);
   return ItemFacts(
     lead: counts,
     leadItems: items,
     sectionItems: [
-      for (final (i, section) in doc.sections.indexed)
-        itemsOfSection(i, section),
+      for (var i = 0; i < doc.sections.length; i++)
+        _itemFactsIn(
+          sectionBodyLines(held, lines, laid?.twinOf[i] ?? i),
+          templates[laid?.twinOf[i] ?? i],
+        ),
     ],
   );
 }

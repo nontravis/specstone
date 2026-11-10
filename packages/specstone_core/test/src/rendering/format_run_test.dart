@@ -378,6 +378,26 @@ void main() {
     ]);
   });
 
+  test('rendering/format_docs/match_section_headers: a doc whose layout '
+      'would turn a body line into a frontmatter close is refused and left '
+      'alone', () async {
+    const text = '---\n# F-05\n\n## Feature name\nx\n--- \n';
+    final run = await _open({_feature: text});
+
+    final report = _run(run);
+
+    expect(report.files.single.status, FileStatus.refused);
+    expect(
+      report.toText(),
+      '$_feature: refused: layout would change the doc structure\n',
+    );
+    expect(report.toJson()['files'], [
+      {'path': _feature, 'status': 'refused', 'changesStructure': true},
+    ]);
+    expect(report.exitStatus, 1);
+    expect(_read(run, _feature), text);
+  });
+
   test('f05/us01/fr06/e02: a refused doc lists a duplicate header with its '
       'template form', () async {
     final run = await _open({_story: '$_storyFormatted\n## Summary\ntwice\n'});

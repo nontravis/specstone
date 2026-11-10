@@ -199,6 +199,21 @@ void main() {
       });
     });
 
+    test('rendering/format_docs/match_section_headers: a doc whose layout '
+        'would turn a body line into a frontmatter close is refused and '
+        'left byte for byte', () async {
+      const text = '---\n# US-01\n\n## Summary\nx\n--- \n';
+      final project = await fixtureProject({_story: text});
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format']), 1);
+      expect(
+        out.toString(),
+        '$_story: refused: layout would change the doc structure\n',
+      );
+      expect(read(project, _story), text);
+    });
+
     test('f05/us01/s8: a target outside the docs root, then a missing target, '
         'exit 64 and change nothing', () async {
       final project = await fixtureProject({

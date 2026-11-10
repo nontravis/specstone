@@ -308,15 +308,30 @@ void main() {
     );
   });
 
+  group('index_query/read_current_docs/index_each_doc', () {
+    test('a layout that would turn a body line into a frontmatter close '
+        'leaves the doc counted on disk and the reindex whole', () {
+      const text = '---\n# V\n\n## Statement\nThe system shall.\n--- \n';
+
+      final parsed = parse(_frPath, text);
+
+      expect(parsed.doc.formatted, isNull);
+      expect(parsed.content.itemFacts.sectionItems, hasLength(1));
+      expect(parsed.content.itemFacts.sectionItems.single, [
+        (id: null, line: 5, chars: 'The system shall.'.length),
+      ]);
+    });
+  });
+
   group('itemFactsOf', () {
-    test('a text that equals the laid-out text needs no parse of its own', () {
+    test('a doc with no layout counts its text as it is', () {
       const text = '# T\n\nLead.\n\n## Notes\nx\n';
       final doc = Doc.parse(text);
       final facts = itemFactsOf(
         doc: doc,
         lfText: text,
         lineFacts: LineFacts.structureOf(lfText: text, doc: doc),
-        countedText: text,
+        laid: null,
         type: null,
       );
 
@@ -333,7 +348,7 @@ void main() {
         doc: doc,
         lfText: text,
         lineFacts: LineFacts.structureOf(lfText: text, doc: doc),
-        countedText: text,
+        laid: null,
         type: typeOf(_frPath),
       );
 

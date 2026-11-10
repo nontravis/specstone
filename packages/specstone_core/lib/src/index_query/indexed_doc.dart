@@ -272,7 +272,7 @@ ParsedDoc parseIndexedDoc({
     countedText: laidText,
     docPath: docPath,
     doc: doc,
-    sectionCounts: _countsOf(doc, sections, laid, templates),
+    sectionCounts: _countsOf(sections, laid, templates),
     frontmatterErrorLine: yaml?.errorLine,
     bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
@@ -282,7 +282,7 @@ ParsedDoc parseIndexedDoc({
     doc: doc,
     lfText: lfText,
     lineFacts: lineFacts,
-    countedText: laidText,
+    laid: laid is Formatted ? laid : null,
     type: docType,
   );
   final content = DocContent(
@@ -337,7 +337,7 @@ DocContent docStructureOf(String lfText, MergedDocType? docType) {
       doc: doc,
       lfText: lfText,
       lineFacts: lineFacts,
-      countedText: lfText,
+      laid: null,
       type: docType,
     ),
   );
@@ -358,24 +358,19 @@ DocContent docStructureOf(String lfText, MergedDocType? docType) {
   }
 }
 
-/// Returns the counts of each section of [doc], in its order.
+/// Returns the counts of each of [sections], in its order.
 ///
-/// A section takes the counts of the laid-out section with the same header key;
-/// without a layout the counts are those of the text on disk.
+/// A section takes the counts of its laid-out twin; without a layout the
+/// counts are those of the text on disk.
 List<SectionCounts> _countsOf(
-  Doc doc,
   List<IndexedSection> sections,
   FormatOutcome? laid,
   Map<String, MergedSection> templates,
 ) {
   if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
-  final laidByKey = {
-    for (final section in laid.sections)
-      headerKey(section.headerText): _sectionOf(section, templates),
-  };
   return [
-    for (final section in doc.sections)
-      sectionCountsOf(laidByKey[headerKey(section.headerText)]!),
+    for (final twin in laid.twinOf)
+      sectionCountsOf(_sectionOf(laid.sections[twin], templates)),
   ];
 }
 

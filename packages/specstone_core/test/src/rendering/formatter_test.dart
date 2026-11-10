@@ -217,6 +217,31 @@ void main() {
       expect(refused.duplicateHeaders, isEmpty);
     });
 
+    test('rendering/format_docs/match_section_headers: a layout that turns a '
+        'body line into a frontmatter close is refused, apart from the '
+        'header faults', () async {
+      final feature = await _feature();
+
+      final refused = _refused('---\n## Feature name\nx\n--- \n', feature);
+
+      expect(refused.changesStructure, isTrue);
+      expect(refused.unclosedFence, isFalse);
+      expect(refused.unknownHeaders, isEmpty);
+      expect(refused.duplicateHeaders, isEmpty);
+    });
+
+    test('rendering/format_docs/match_section_headers: frontmatter blocks '
+        'the layout reorders are no structure change', () async {
+      final feature = await _feature();
+
+      final outcome = formatDoc(
+        Doc.parse('---\nb: 1\na: 2\n---\n# T\n\n## Feature name\nx\n'),
+        feature,
+      );
+
+      expect(outcome, isA<Formatted>());
+    });
+
     test('f05/us01/fr04: a header fault is not unclosedFence', () async {
       final feature = await _feature();
 

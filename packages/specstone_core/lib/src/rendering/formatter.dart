@@ -10,17 +10,26 @@ sealed class FormatOutcome {
 
 /// A doc formatted to its template.
 final class Formatted extends FormatOutcome {
-  const new(this.text, this.sections);
+  const new(this.text, this.doc, this.twinOf);
 
   /// The formatted text, LF line endings.
   final String text;
 
-  /// The laid-out sections in [text] order, as [Doc.parse] reads them there.
-  final List<Section> sections;
+  /// [text] as [Doc.parse] reads it, which holds the source's frontmatter and
+  /// the source's sections in template order.
+  final Doc doc;
+
+  /// For each section of the source doc, the index in [doc]'s sections of
+  /// its laid-out twin.
+  final List<int> twinOf;
+
+  /// The laid-out sections in [text] order.
+  List<Section> get sections => doc.sections;
 }
 
 /// A doc the formatter will not touch: its headers break the template, its
-/// text ends inside a code fence, or a generated block it lists has no end.
+/// text ends inside a code fence, a generated block it lists has no end, or
+/// its layout would change its frontmatter or sections.
 final class Refused extends FormatOutcome {
   const new({
     this.unknownHeaders = const [],
@@ -28,6 +37,7 @@ final class Refused extends FormatOutcome {
     this.unclosedFence = false,
     this.openBlock,
     this.openBlockKind,
+    this.changesStructure = false,
   });
 
   /// Headers the template does not define, as written, in file order.
@@ -45,6 +55,10 @@ final class Refused extends FormatOutcome {
 
   /// The generator kind that [openBlock] names.
   final String? openBlockKind;
+
+  /// Whether laying the doc out would change its frontmatter or turn a section
+  /// header into text, or text into one.
+  final bool changesStructure;
 }
 
 final _whitespaceRun = RegExp(r'\s+');
@@ -56,8 +70,9 @@ String headerKey(String headerText) =>
 /// Formats [doc] to the section and key order of [docType].
 ///
 /// Refuses a doc whose headers are unknown or repeated, whose text ends
-/// inside a code fence, or that opens a generated block of a kind [docType]
-/// lists with no end marker (rendering INV-29), changing nothing.
+/// inside a code fence, that opens a generated block of a kind [docType]
+/// lists with no end marker (rendering INV-29), or whose laid-out text does
+/// not parse back into the same frontmatter and sections, changing nothing.
 /// Adds no section. Key blocks are copied as written; the head and every
 /// section body get their layout whitespace normalized by [layOutText].
 FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
@@ -74,8 +89,9 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
     return Refused(openBlock: open.marker, openBlockKind: open.kind);
   }
 
-  final sectionByKey = {
-    for (final section in doc.sections) headerKey(section.headerText): section,
+  final sourceIndexByKey = {
+    for (final (i, section) in doc.sections.indexed)
+      headerKey(section.headerText): i,
   };
   final out = StringBuffer();
   final frontmatter = doc.frontmatter;
@@ -87,17 +103,60 @@ FormatOutcome formatDoc(Doc doc, MergedDocType docType) {
   }
   final head = layOutText(doc.head, blockKinds: kinds);
   if (head.isNotEmpty) out.write(_endWithLineBreak(head));
-  final sections = <Section>[];
+  final twinOf = List.filled(doc.sections.length, 0);
+  final headerLines = <String>[];
   for (final template in docType.sections) {
-    final found = sectionByKey[headerKey(template.header)];
-    if (found == null) continue;
+    final sourceIndex = sourceIndexByKey[headerKey(template.header)];
+    if (sourceIndex == null) continue;
     if (out.isNotEmpty) out.write('\n');
-    final body = layOutText(found.body, underHeading: true, blockKinds: kinds);
-    final section = Section('## ${template.header}', _endWithLineBreak(body));
-    out.write('${section.headerLine}\n${section.body}');
-    sections.add(section);
+    final body = layOutText(
+      doc.sections[sourceIndex].body,
+      underHeading: true,
+      blockKinds: kinds,
+    );
+    final headerLine = '## ${template.header}';
+    out.write('$headerLine\n${_endWithLineBreak(body)}');
+    twinOf[sourceIndex] = headerLines.length;
+    headerLines.add(headerLine);
   }
-  return Formatted(out.toString(), sections);
+  final text = out.toString();
+  final laid = Doc.parse(text);
+  if (!_keepsStructure(frontmatter, headerLines, laid)) {
+    return const Refused(changesStructure: true);
+  }
+  return Formatted(text, laid, twinOf);
+}
+
+/// Whether [laid] holds the frontmatter blocks [source] holds, in any order,
+/// and the sections [headerLines] list, in that order.
+bool _keepsStructure(
+  List<KeyBlock>? source,
+  List<String> headerLines,
+  Doc laid,
+) {
+  final keepsFrontmatter = switch ((source, laid.frontmatter)) {
+    (null, null) => true,
+    (final before?, final after?) => _sameStrings(
+      _sortedTexts(before),
+      _sortedTexts(after),
+    ),
+    _ => false,
+  };
+  return keepsFrontmatter &&
+      _sameStrings(headerLines, [
+        for (final section in laid.sections) section.headerLine,
+      ]);
+}
+
+List<String> _sortedTexts(List<KeyBlock> blocks) =>
+    [for (final block in blocks) block.text]..sort();
+
+bool _sameStrings(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
 
 /// Returns [lfText] laid out as [formatDoc] lays it out for [docType].
