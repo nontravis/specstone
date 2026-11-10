@@ -13,6 +13,10 @@ const _gitEntry = '.git';
 /// The 8.3 short name Windows may give a `.git` folder.
 const _gitShortName = 'git~1';
 
+/// The most times one folder path is walked again after a folder on it
+/// vanished mid-resolve.
+const _maxResolveAttempts = 40;
+
 /// The dots and spaces Windows drops from the end of a file name.
 final _windowsDroppedEnd = RegExp(r'[. ]+$');
 
@@ -62,24 +66,33 @@ final class JournalBounds {
 
   /// Returns the real path of the folder [segments] name from the project
   /// root, or null when it cannot be resolved.
-  String? _realFolder(List<String> segments) =>
-      _realFolders.putIfAbsent(segments.join('/'), () {
-        var existing = segments.length;
-        while (existing > 0 && !_exists(segments.take(existing))) {
-          existing--;
-        }
-        final missing = segments.skip(existing);
-        if (missing.any((segment) => segment == '.' || segment == '..')) {
-          return null;
-        }
-        try {
-          final real = Directory(_joined(segments.take(existing)))
-              .resolveSymbolicLinksSync();
-          return [real, ...missing].join(Platform.pathSeparator);
-        } on FileSystemException {
-          return null;
-        }
-      });
+  String? _realFolder(List<String> segments) => _realFolders.putIfAbsent(
+    segments.join('/'),
+    () => _resolvedFolder(segments),
+  );
+
+  /// Resolves [segments] against the disk; a folder that vanishes between the
+  /// check and the resolve counts as missing, so the walk runs again.
+  String? _resolvedFolder(List<String> segments) {
+    for (var attempt = 0; attempt < _maxResolveAttempts; attempt++) {
+      var existing = segments.length;
+      while (existing > 0 && !_exists(segments.take(existing))) {
+        existing--;
+      }
+      final missing = segments.skip(existing);
+      if (missing.any((segment) => segment == '.' || segment == '..')) {
+        return null;
+      }
+      try {
+        final real = Directory(_joined(segments.take(existing)))
+            .resolveSymbolicLinksSync();
+        return [real, ...missing].join(Platform.pathSeparator);
+      } on FileSystemException catch (error) {
+        if (!isNotFoundError(error)) return null;
+      }
+    }
+    return null;
+  }
 
   bool _exists(Iterable<String> segments) =>
       FileSystemEntity.typeSync(_joined(segments)) !=

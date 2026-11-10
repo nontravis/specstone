@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -122,6 +123,42 @@ void main() {
       expect(bounds.holds('docs/out'), isTrue);
     }, skip: _linksUnavailable);
   });
+
+  group(
+    '$_finish E08: JournalBounds on a folder that vanishes mid-resolve',
+    () {
+      const churnFor = Duration(seconds: 2);
+
+      test('a folder another isolate makes and deletes is missing or there, '
+          'never unresolvable', () async {
+        final root = await writeTree({'keep.txt': ''});
+        final real = root.resolveSymbolicLinksSync();
+        final folder = '$real/side-folder';
+        final churn = Isolate.run(() {
+          final dir = Directory(folder);
+          final watch = Stopwatch()..start();
+          while (watch.elapsed < churnFor) {
+            dir
+              ..createSync()
+              ..deleteSync();
+          }
+        });
+
+        var refused = 0;
+        var rounds = 0;
+        final watch = Stopwatch()..start();
+        while (watch.elapsed < churnFor) {
+          rounds++;
+          // A fresh instance each round, since one remembers the folders asked.
+          if (!JournalBounds(root, [real]).holds('side-folder/x.md')) refused++;
+        }
+        await churn;
+
+        expect(rounds, greaterThan(0));
+        expect(refused, 0, reason: '$refused of $rounds judgments refused');
+      });
+    },
+  );
 
   group('$_finish E08: a refused replay changes nothing', () {
     late Directory root;

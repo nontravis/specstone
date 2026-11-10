@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:test/test.dart';
@@ -89,6 +90,41 @@ void main() {
       );
       expect(canonical('proj/l59'), startsWith('${base.path}/proj/l'));
     }, skip: _linksUnavailable);
+  });
+
+  group('$_scope: canonicalPath on a path that vanishes mid-resolve', () {
+    const churnFor = Duration(seconds: 2);
+
+    test('a file another isolate makes and deletes counts as missing, never '
+        'as unresolvable', () async {
+      final base = await writeTree({'keep.txt': ''});
+      final path = '${base.resolveSymbolicLinksSync()}/side-file';
+      final churn = Isolate.run(() {
+        final file = File(path);
+        final watch = Stopwatch()..start();
+        while (watch.elapsed < churnFor) {
+          file
+            ..writeAsBytesSync(const [0])
+            ..deleteSync();
+        }
+      });
+
+      var refused = 0;
+      var rounds = 0;
+      final watch = Stopwatch()..start();
+      while (watch.elapsed < churnFor) {
+        rounds++;
+        try {
+          expect(canonicalPath(path, strict: true), path);
+        } on FileSystemException {
+          refused++;
+        }
+      }
+      await churn;
+
+      expect(rounds, greaterThan(0));
+      expect(refused, 0, reason: '$refused of $rounds judgments refused');
+    });
   });
 
   group('$_scope: linkTargetPath on POSIX', () {

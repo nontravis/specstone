@@ -42,7 +42,8 @@ bool _hasDrive(String path) =>
 /// still compares against canonical roots. A `..` or `.` among the missing
 /// names is applied, because nothing missing can be a symbolic link. A link
 /// whose target does not exist is followed to where the target would be made,
-/// since a write through it creates the target.
+/// since a write through it creates the target. A name that vanishes while it
+/// is resolved counts as missing.
 ///
 /// Links that loop, or a chain of dangling links longer than the OS follows,
 /// stay as named, so a write through them fails at the disk. With [strict]
@@ -54,6 +55,7 @@ String canonicalPath(String path, {bool strict = false}) {
   var existing = withoutTrailingSeparator(
     withNativeSeparators(File(path).absolute.path),
   );
+  String resolved;
   for (var hops = 0; ; hops++) {
     while (FileSystemEntity.typeSync(existing, followLinks: false) ==
         FileSystemEntityType.notFound) {
@@ -62,7 +64,15 @@ String canonicalPath(String path, {bool strict = false}) {
       existing = parentOf(existing);
     }
     if (FileSystemEntity.typeSync(existing) != FileSystemEntityType.notFound) {
-      break;
+      try {
+        resolved = File(existing).resolveSymbolicLinksSync();
+        break;
+      } on FileSystemException catch (error) {
+        // A name gone since the check, such as a SQLite side file another
+        // connection closed: walk again, so it counts as missing.
+        if (!isNotFoundError(error) || hops >= _maxLinkHops) rethrow;
+        continue;
+      }
     }
     // A link that exists as itself but leads nowhere yet.
     if (hops >= _maxLinkHops) {
@@ -76,11 +86,16 @@ String canonicalPath(String path, {bool strict = false}) {
       existing = parentOf(existing);
       continue;
     }
-    existing = withoutTrailingSeparator(
-      linkTargetPath(existing, Link(existing).targetSync()),
-    );
+    final String target;
+    try {
+      target = Link(existing).targetSync();
+    } on FileSystemException catch (error) {
+      // The link is gone since the check: walk again from the same name.
+      if (!isNotFoundError(error)) rethrow;
+      continue;
+    }
+    existing = withoutTrailingSeparator(linkTargetPath(existing, target));
   }
-  var resolved = File(existing).resolveSymbolicLinksSync();
   for (final name in missing.reversed) {
     if (name == '.') continue;
     if (name == '..') {
@@ -139,6 +154,15 @@ String? _windowsVolumeOf(String path) {
   return r'\\'
       '${names[0]}\\${names[1]}';
 }
+
+/// Whether [error] says the path does not exist: error 2 on POSIX (ENOENT) and
+/// Windows (file not found), error 3 on Windows (path not found).
+///
+/// Dart throws a plain [FileSystemException] from `realpath` and a
+/// [PathNotFoundException] from `readlink` for the same error, so the code
+/// decides, not the type.
+bool isNotFoundError(FileSystemException error) =>
+    const {2, 3}.contains(error.osError?.errorCode);
 
 String _joined(String folder, String name, String separator) =>
     folder.endsWith(separator) ? '$folder$name' : '$folder$separator$name';
