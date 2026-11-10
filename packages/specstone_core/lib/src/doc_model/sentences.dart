@@ -1,18 +1,19 @@
-import 'package:specstone_core/src/doc_model/doc.dart'
-    show Doc, blockScan, isSectionHeaderLine, isTitleLine;
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show atxHeadingOf, isTableDelimiterRow;
 
 const _space = 0x20;
 const _terminators = {0x2E, 0x3F, 0x21}; // . ? !
+
+/// The first heading level a sentence is read from; `#` and `##` are the title
+/// and the section headers.
+const _firstTextHeadingLevel = 3;
 
 final _whitespaceRun = RegExp(r'\s+');
 final _quotePrefix = RegExp(r'^[ \t]*>[ \t]?');
 final _listMarker = RegExp(r'^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)');
 final _thematicBreak = RegExp(r'^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$');
-final _deepHeading = RegExp(
-  r'^ {0,3}#{3,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$',
-);
 final _tableRow = RegExp(r'^ {0,3}\|');
-final _tableDelimiterCell = RegExp(r'^:?-+:?$');
 final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 final _quoteMark = RegExp(r'>[ \t]?');
@@ -88,11 +89,11 @@ final class _BlockReader {
   void read(String line, {required bool continuesParagraph}) {
     final text = _withoutContainers(line, continuesParagraph);
     if (text == null || text.trim().isEmpty) return close();
-    if (isTitleLine(text) || isSectionHeaderLine(text)) return close();
-    final heading = _deepHeading.firstMatch(text);
+    final heading = atxHeadingOf(text);
     if (heading != null) {
       close();
-      return _add(heading[1] ?? '');
+      if (heading.level >= _firstTextHeadingLevel) _add(heading.text);
+      return;
     }
     if (_tableRow.hasMatch(text)) {
       close();
@@ -107,11 +108,8 @@ final class _BlockReader {
   }
 
   void _readTableRow(String row) {
-    final cells = [
-      for (final cell in _trimPipes(row).split(_unescapedPipe)) cell.trim(),
-    ];
-    if (cells.every(_tableDelimiterCell.hasMatch)) return;
-    cells.forEach(_add);
+    if (isTableDelimiterRow(row)) return;
+    _trimPipes(row).split(_unescapedPipe).forEach(_add);
   }
 }
 

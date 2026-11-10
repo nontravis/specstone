@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show isTableDelimiterRow;
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 
@@ -7,7 +9,6 @@ const _pipe = '|';
 
 final _quotePrefix = RegExp('^ {0,3}> ?');
 final _listMarker = RegExp(r'^\s*(?:[-*+]|\d+[.)])(?:\s+|$)');
-final _delimiterRow = RegExp(r'^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$');
 
 /// One item of a section.
 ///
@@ -105,7 +106,7 @@ bool _startsTable(List<_Line> lines, int i) {
   return next.kind == _Kind.text &&
       next.quote == lines[i].quote &&
       next.inner.contains(_pipe) &&
-      _delimiterRow.hasMatch(next.inner);
+      isTableDelimiterRow(next.inner);
 }
 
 /// Returns the last line of the paragraph or list item that starts at [i].

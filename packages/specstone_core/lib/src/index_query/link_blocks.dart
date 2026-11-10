@@ -17,6 +17,8 @@ import 'package:markdown/markdown.dart'
         LinkReferenceDefinitionSyntax,
         SetextHeaderSyntax,
         UnorderedListSyntax;
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show isTableDelimiterRow;
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
 
 /// The inline text of a body and the definitions its links resolve against.
@@ -70,12 +72,6 @@ const _footnoteIndent = '    ';
 
 /// `ListSyntax.parseTaskListItem`'s checkbox (`list_syntax.dart:93`).
 final _checkbox = RegExp(r'^ {0,3}\[([ xX])\][ \t]');
-
-/// `markdown`'s `tablePattern` (`patterns.dart:53`), which `markdown.dart` does
-/// not export.
-final _tableDelimiter = RegExp(
-  r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$',
-);
 
 /// `HtmlBlockSyntax`'s end conditions (`html_block_syntax.dart:29-39`), by the
 /// start condition they close; null ends the block at the next blank line.
@@ -387,7 +383,7 @@ final class _BlockPass {
   bool _headsTable(int i) {
     final next = i + 1;
     if (next >= _lines.length) return false;
-    return _delimiters[next] ??= _tableDelimiter.hasMatch(_lines[next]);
+    return _delimiters[next] ??= isTableDelimiterRow(_lines[next]);
   }
 
   /// Starts the block at line [i], where no paragraph is open, in the order
