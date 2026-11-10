@@ -95,7 +95,7 @@ void main() {
     () {
       expectItemShape(
         project,
-        'Write one rule per ID in each `PV-*` and `PG-*` entry, '
+        'Write one rule per `PV-*` or `PG-*` ID, '
         'and leave mechanics to the spec docs.\n'
         "Keep a goal's bound in its own `**Metric:**` and "
         '`**By:**` lines, and its trace in its `**Serves:**` '

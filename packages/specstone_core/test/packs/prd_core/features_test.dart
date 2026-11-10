@@ -64,10 +64,10 @@ void main() {
     () {
       expectItemShape(
         features,
-        'Write one rule per item: one system in each Systems row, '
-        'with mechanics left to the spec docs.\n'
-        'Keep a bound in the rule it limits and a trace in its '
-        'own field, never in the diagram or a row.',
+        'Write one rule per ID; in a section with no IDs, one '
+        'rule per item, with mechanics left to the spec docs.\n'
+        'Keep a bound in the rule it limits, never in the '
+        'diagram or a row.',
       );
     },
   );

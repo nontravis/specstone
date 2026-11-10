@@ -63,8 +63,7 @@ void main() {
         journey,
         'Write one rule per ID; in a section with no IDs, one '
         'rule per item, with mechanics left to the spec docs.\n'
-        'Keep a bound in the step it limits, and any trace in its '
-        'own field, never in the prose.',
+        'Keep a bound in the step it limits, never in the prose.',
       );
     },
   );

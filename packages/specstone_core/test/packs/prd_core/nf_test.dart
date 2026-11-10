@@ -94,7 +94,7 @@ void main() {
     () {
       expectItemShape(
         nf,
-        'Write one rule per ID, keep its bound in that sentence, '
+        'Write one rule per ID, keep its bound in the Statement, '
         'and leave mechanics to the spec docs.\n'
         'Keep the trace in `traced_from` alone, never in the '
         'Statement.',
