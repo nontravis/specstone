@@ -182,4 +182,28 @@ void main() {
       expect(changes.added, isEmpty);
     });
   });
+
+  group('$_name run lookup', () {
+    test('a tree answer that also holds the sentences of other drafts drops '
+        'the same sentences as one for this draft alone', () {
+      final approved = _doc('## Statement\nKept. Gone.\n');
+      final tree = heldTextsOf([_doc('## Statement\nKept. Other draft.\n')]);
+      final own = sentenceChangesOf(
+        draft: _doc('## Statement\nKept.\n'),
+        approved: approved,
+        tree: tree,
+        runCopies: '',
+      );
+
+      final shared = sentenceChangesGiven(
+        draft: _doc('## Statement\nKept.\n'),
+        approvedSentences: ['Kept.', 'Gone.'],
+        treeHeld: heldSentencesIn(['Kept.', 'Gone.', 'Other draft.'], tree),
+        runCopies: '',
+      );
+
+      expect(shared.dropped, own.dropped);
+      expect(shared.dropped, ['Gone.']);
+    });
+  });
 }

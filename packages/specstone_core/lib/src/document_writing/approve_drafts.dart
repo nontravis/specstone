@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/doc_model/sentences.dart' show heldTextOf;
+import 'package:specstone_core/src/doc_model/sentences.dart'
+    show heldTextOf, sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
@@ -283,13 +284,22 @@ String? _answer(String? Function() readLine, StringSink out) {
 }
 
 /// What a run reads once, before its first view: the approved copy of each
-/// shown draft and the two texts a sentence is looked for in.
+/// shown draft, the two texts a sentence is looked for in, and which approved
+/// sentences the tree holds, found in one pass over it for the whole run.
 ///
 /// A re-shown draft reads its new bytes, and nothing else is read again.
 final class _RunReads {
   new _(this._lookups, this._approved, this._treeHeld)
     : _tree = joinHeldTexts(_treeHeld.values),
-      _runCopies = heldTextsOf(_approved.values);
+      _runCopies = heldTextsOf(_approved.values),
+      _approvedSentences = {
+        for (final MapEntry(:key, :value) in _approved.entries)
+          key: sentencesOf(value),
+      } {
+    _treeHolds = heldSentencesIn([
+      for (final sentences in _approvedSentences.values) ...sentences,
+    ], _tree);
+  }
 
   /// Reads the approved copy of each of [drafts] through [history], then the
   /// text of every doc the index lists, typed or not, as on disk.
@@ -333,6 +343,12 @@ final class _RunReads {
   final String _tree;
   final String _runCopies;
 
+  /// The sentences of each approved copy, by DocPath.
+  final Map<String, List<String>> _approvedSentences;
+
+  /// The approved sentences of every draft of the run that [_tree] holds.
+  late final Set<String> _treeHolds;
+
   /// Returns what git said about the approved copy of [doc].
   ApprovalLookup lookupOf(IndexedDoc doc) => _lookups[doc.docPath]!;
 
@@ -340,12 +356,19 @@ final class _RunReads {
   /// shown now.
   SentenceChanges changesOf(IndexedDoc doc, String text, MergedDocType? type) {
     final held = heldTextOf(toLf(text));
-    return sentenceChangesOf(
-      draft: comparableTextOf(text, type),
-      approved: _approved[doc.docPath],
-      tree: held == _treeHeld[doc.docPath]
-          ? _tree
-          : joinHeldTexts({..._treeHeld, doc.docPath: held}.values),
+    final draft = comparableTextOf(text, type);
+    if (held != _treeHeld[doc.docPath]) {
+      return sentenceChangesOf(
+        draft: draft,
+        approved: _approved[doc.docPath],
+        tree: joinHeldTexts({..._treeHeld, doc.docPath: held}.values),
+        runCopies: _runCopies,
+      );
+    }
+    return sentenceChangesGiven(
+      draft: draft,
+      approvedSentences: _approvedSentences[doc.docPath] ?? const [],
+      treeHeld: _treeHolds,
       runCopies: _runCopies,
     );
   }

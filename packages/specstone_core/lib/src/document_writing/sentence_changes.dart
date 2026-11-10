@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/needle_search.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart';
 
 /// The sentences a draft dropped since its approved copy and the ones it
@@ -15,6 +16,14 @@ String joinHeldTexts(Iterable<String> heldTexts) => heldTexts.join(_docBreak);
 String heldTextsOf(Iterable<String> lfTexts) =>
     joinHeldTexts(lfTexts.map(heldTextOf));
 
+/// Returns the sentences of [sentences] that [held] holds.
+///
+/// A sentence is held when its text occurs in [held]. One pass over [held]
+/// answers for any number of sentences, so a run asks once for every draft
+/// and not once per sentence.
+Set<String> heldSentencesIn(Iterable<String> sentences, String held) =>
+    needlesFoundIn(sentences, held);
+
 /// Returns the sentences [approved] lost and [draft] gained.
 ///
 /// A dropped sentence is one of [approved], the draft's approved copy, that
@@ -30,15 +39,40 @@ SentenceChanges sentenceChangesOf({
   required String? approved,
   required String tree,
   required String runCopies,
-}) => (
-  dropped: _notHeldIn(
-    approved == null ? const [] : sentencesOf(approved),
-    tree,
-  ),
-  added: _notHeldIn(sentencesOf(draft), runCopies),
-);
+}) {
+  final approvedSentences = approved == null
+      ? const <String>[]
+      : sentencesOf(approved);
+  return sentenceChangesGiven(
+    draft: draft,
+    approvedSentences: approvedSentences,
+    treeHeld: heldSentencesIn(approvedSentences, tree),
+    runCopies: runCopies,
+  );
+}
 
-List<String> _notHeldIn(Iterable<String> sentences, String held) => [
-  for (final sentence in {...sentences})
-    if (!held.contains(sentence)) sentence,
-];
+/// Returns the sentences of [approvedSentences] lost and of [draft] gained,
+/// the tree's answer being [treeHeld] already.
+///
+/// [treeHeld] holds the sentences of [approvedSentences] that the tree holds
+/// (see [heldSentencesIn]); it may hold more, such as those of other drafts of
+/// the run. The rest reads as [sentenceChangesOf] does.
+SentenceChanges sentenceChangesGiven({
+  required String draft,
+  required Iterable<String> approvedSentences,
+  required Set<String> treeHeld,
+  required String runCopies,
+}) {
+  final added = sentencesOf(draft);
+  final addedHeld = heldSentencesIn(added, runCopies);
+  return (
+    dropped: [
+      for (final sentence in {...approvedSentences})
+        if (!treeHeld.contains(sentence)) sentence,
+    ],
+    added: [
+      for (final sentence in {...added})
+        if (!addedHeld.contains(sentence)) sentence,
+    ],
+  );
+}
