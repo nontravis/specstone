@@ -39,7 +39,8 @@ after your last. For each finding the second run adds:
 - **In one of your drafts:** fix it there.
 - **A `suspect` link in a doc you did not write:** your write moved its upstream. Confirm it again per
   `specstone:expert-sdd`; that doc joins your drafts. When you cannot, list it under `Findings:`.
-- **An `unconfirmed` link on a draft:** it waits for the Owner's approval; leave it.
+- **A finding whose `waitsFor` is `owner`**, its line ending `(waits for the Owner)`: leave it as it is, never write
+  around it, and list it.
 
 ## 5. Report
 

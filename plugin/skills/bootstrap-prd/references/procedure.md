@@ -10,7 +10,7 @@ This skill takes `specstone check` findings under `prds/`. Findings under `specs
 ## 2. One finding at a time
 
 Fix the first finding under `prds/` not yet handled, then run `specstone check` again. Stop when each finding left
-goes to `specstone:bootstrap-spec`, clears with no write, or waits on the Owner, such as an `unconfirmed` link.
+goes to `specstone:bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`.
 
 Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
 `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints

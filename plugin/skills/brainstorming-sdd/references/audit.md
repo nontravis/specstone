@@ -16,7 +16,8 @@ report what the author's own coverage table cannot show.
    `specstone list user_story --draft`, `specstone list fr --draft`, and `specstone list nf --draft`: the drafts
    among the targets are what this change wrote.
 3. **Check**: run `specstone check <target>` once per target, not over the whole project, and keep each finding as
-   printed. An `unconfirmed` link on a draft is no gap: it waits for the Owner's approval.
+   printed. A finding whose `waitsFor` is `owner`, its line ending `(waits for the Owner)`, is no gap: only the
+   Owner clears it.
 
 ## 2. Compare
 
@@ -41,14 +42,15 @@ Findings:
 - <type>:<name>#<section>: <gap>
 - check: <finding, as printed>
 Waits on the Owner:
-- check: <each unconfirmed link on a draft, as printed>
+- check: <each finding tagged (waits for the Owner), as printed>
 Outside the drafts:
 - <a gap or check finding whose fix lies in no draft>
 - <type>:<name>: invented whole, a deletion for the Owner
 ```
 
 - **`Findings:`**: each gap or `check` finding a write inside a draft fixes, so a fix round can act on it.
-- **`Waits on the Owner:`**: each `unconfirmed` link on a draft; the Owner's approval clears it.
+- **`Waits on the Owner:`**: each `check` finding whose `waitsFor` is `owner`, its line ending
+  `(waits for the Owner)`; only the Owner clears it.
 - **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft, such as a baseline finding on
   an approved doc under a target, or a decision the author reported not landed; and each whole draft story or FR
   that is invented, marked as a deletion for the Owner, since author mode deletes no doc. It goes to the Owner,

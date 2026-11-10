@@ -61,7 +61,8 @@ A failed load: report it and stop; never search.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
    each write through `--base`; list other findings. Then Workflow step 5.
 4. **Author, design, audit, plan**: follow the On-Demand reference through its report; then stop.
-5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added.
+5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added, but leave each
+   tagged `(waits for the Owner)`.
 
 ## Output Format
 
@@ -74,7 +75,8 @@ file under `## Round <n>` and replies with that round's relay block.
 
 - **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Findings:` line.
 - **Design**: the `Design document:` line, `Open questions:` with its items, the `Findings:` line.
-- **Audit**: `Findings:`, `Waits on the Owner:`, and `Outside the drafts:`, each with its items.
+- **Audit**: `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is `owner`), and
+  `Outside the drafts:`, each with its items.
 - **Plan**: the `Plan:` line, each `NOT PLANNED` row, `Open questions:` with its items, the `Findings:` line.
 - **Sync**: the drafts, one `<type>:<name>` line each with one sentence on why it changed, never their text;
   each pointer fixed; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an

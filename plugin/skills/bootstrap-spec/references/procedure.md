@@ -9,7 +9,8 @@ Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections 
 ## 2. One finding at a time
 
 Fix the first unhandled finding of this skill, then run `specstone check` again with no target (a targeted run
-omits `code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or waits on the Owner.
+omits `code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or is tagged
+`(waits for the Owner)`.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or

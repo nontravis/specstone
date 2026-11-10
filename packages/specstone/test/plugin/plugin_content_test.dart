@@ -572,6 +572,50 @@ void _handOffTests() {
     );
   });
 
+  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E07, '
+      'agent_plugin/write_prd_and_spec/audit_drafts_by_reading, '
+      'agent_plugin/write_prd_and_spec/write_drafts_with_coverage E09, '
+      'agent_plugin/fill_missing_format/fill_check_findings: each plugin '
+      'reader of what waits for the Owner reads waitsFor or its tag, never '
+      'message prose', () {
+    for (final (file, section) in _ownerFindingReaders) {
+      final text = _oneLine(_sectionOf(_pluginText(file), section));
+      final where = '$file#$section';
+      expect(
+        text,
+        anyOf(contains('`waitsFor`'), contains('`(waits for the Owner)`')),
+        reason: where,
+      );
+      expect(text, isNot(contains('waits on the Owner')), reason: where);
+      expect(
+        text,
+        isNot(contains("waits for the Owner's approval")),
+        reason: where,
+      );
+    }
+    final waits = _oneLine(
+      _sectionOf(
+        _pluginText('skills/brainstorming-sdd/references/audit.md'),
+        '3. Report',
+      ),
+    );
+    expect(
+      waits,
+      contains(
+        'Waits on the Owner: - check: <each finding tagged '
+        '(waits for the Owner), as printed>',
+      ),
+    );
+    for (final file
+        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+      expect(
+        _oneLine(file.readAsStringSync().replaceAll('`', '')),
+        isNot(contains('unconfirmed link on a draft')),
+        reason: file.path,
+      );
+    }
+  });
+
   test('f08/us02/fr02: author mode runs a bare specstone check before its '
       'first write and after its last', () {
     final check = _sectionOf(
@@ -661,6 +705,21 @@ void _handOffTests() {
 /// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
 /// its steps in the skill's `references/<mode>.md`.
 const _brainstormModes = ['author', 'design', 'audit', 'plan'];
+
+/// Each plugin file and `## ` section that says which `check` finding waits for
+/// the Owner (`consistency_check/find_template_breaks/print_findings`).
+const _ownerFindingReaders = [
+  ('skills/expert-sdd/SKILL.md', 'Rules'),
+  ('skills/brainstorming-sdd/references/author.md', '4. Check'),
+  ('skills/brainstorming-sdd/references/audit.md', '1. Read'),
+  ('skills/brainstorming-sdd/references/audit.md', '3. Report'),
+  ('skills/bootstrap-prd/references/procedure.md', '2. One finding at a time'),
+  ('skills/bootstrap-spec/references/procedure.md', '2. One finding at a time'),
+  ('skills/bootstrap-prd/SKILL.md', '3. After the reports'),
+  ('skills/bootstrap-spec/SKILL.md', '3. After the reports'),
+  ('agents/sdd-engineer.md', 'Workflow'),
+  ('agents/sdd-engineer.md', 'Output Format'),
+];
 
 /// The relay line the report file replaced; no shipped file may hold it.
 const _relayLine =

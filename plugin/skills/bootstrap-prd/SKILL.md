@@ -49,6 +49,6 @@ in for item 4.
    referrer under `specs/` names: they wait for `specstone:bootstrap-spec`'s delete. Then get the Owner's word on the
    command per `specstone:expert-sdd`. On exit 64, dispatch again each batch whose file a listed referrer names, with
    those referrers.
-5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless the last reports
-   name it as one that clears with no write or waits on the Owner, or it waits on `specstone:bootstrap-spec`, such as
-   a finding on a path item 4 left out for it. With none left, stop.
+5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
+   `(waits for the Owner)`, the last reports name it as one that clears with no write, or it waits on
+   `specstone:bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, stop.
