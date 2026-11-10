@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:specstone_core/src/doc_model/sentences.dart';
 import 'package:test/test.dart' hide collapseWhitespace;
 
@@ -12,7 +14,83 @@ void _expectEachHeld(String source) {
   }
 }
 
+/// The regex form `collapseWhitespace` and `heldTextOf` were read by, kept as
+/// the reference their one-pass scans must match.
+String _referenceCollapse(String text) => text.replaceAll(RegExp(r'\s+'), ' ');
+
+String _referenceHeld(String lfText) => _referenceCollapse(
+  lfText.replaceAllMapped(
+    RegExp(
+      r'^(?:[ \t]*(?:>[ \t]?|(?:[-+*]|\d{1,9}[.)])[ \t]+))+',
+      multiLine: true,
+    ),
+    (opening) => opening[0]!.replaceAll(RegExp(r'>[ \t]?'), ''),
+  ),
+);
+
 void main() {
+  group('collapseWhitespace and heldTextOf read as the regex form did', () {
+    test('$_story: every code unit is whitespace as \\s says', () {
+      for (var unit = 0; unit <= 0xFFFF; unit++) {
+        final char = String.fromCharCode(unit);
+        for (final text in ['a${char}b', '$char$char', '> $char> b']) {
+          expect(
+            collapseWhitespace(text),
+            _referenceCollapse(text),
+            reason: 'U+${unit.toRadixString(16)} in "$text"',
+          );
+          expect(
+            heldTextOf(text),
+            _referenceHeld(text),
+            reason: 'U+${unit.toRadixString(16)} in "$text"',
+          );
+        }
+      }
+    });
+
+    test('$_story: tabs, CRLF remnants, no-break spaces, and quote marks at '
+        'line starts', () {
+      for (final text in [
+        '> a\n>   b\r\n>\tc\n\n',
+        '  > > deep\n\t- item\u00a0one\n1) two\n12345678901. no\n',
+        '- > x\n> - y\n>- z\n-> arrow\na > b\n',
+        'x\u2028> after separator\u2029> and another\r> after CR',
+        '\ufeff> bom\n\u3000> ideographic\n',
+        '>\n> \n>\t\n  \n',
+        '',
+      ]) {
+        expect(heldTextOf(text), _referenceHeld(text), reason: '"$text"');
+        expect(
+          collapseWhitespace(text),
+          _referenceCollapse(text),
+          reason: '"$text"',
+        );
+      }
+    });
+
+    test('$_story: 200,000 random strings over the characters that matter', () {
+      const alphabet = [
+        ' ', '\t', '\n', '\r', '\u00a0', '\u2028', '\u2029', '>', '-', '+', //
+        '*', '1', '9', '.', ')', 'a', '\ufeff', '\u200b', '\u180e', '|',
+      ];
+      final random = Random(5);
+      for (var round = 0; round < 200000; round++) {
+        final text = [
+          for (var i = 0, n = random.nextInt(16); i < n; i++)
+            alphabet[random.nextInt(alphabet.length)],
+        ].join();
+
+        final held = heldTextOf(text);
+        if (held != _referenceHeld(text)) {
+          fail('heldTextOf differs on ${text.codeUnits}');
+        }
+        if (collapseWhitespace(text) != _referenceCollapse(text)) {
+          fail('collapseWhitespace differs on ${text.codeUnits}');
+        }
+      }
+    });
+  });
+
   group('sentencesOf', () {
     test(
       '$_story: a paragraph is cut after . ? ! a space or the end follows',
