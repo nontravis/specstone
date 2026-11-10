@@ -159,6 +159,26 @@ void main() {
       ]);
     });
 
+    test('$_story: a table with no outer pipes ends at a fence, and the '
+        'paragraph after it is read whole', () {
+      const text =
+          'Field | Note\n'
+          '---|---\n'
+          'limit | A value.\n'
+          '```\n'
+          'code\n'
+          '```\n'
+          'A sentence that\n'
+          'wraps here.\n';
+      expect(sentencesOf(text), [
+        'Field',
+        'Note',
+        'limit',
+        'A value.',
+        'A sentence that wraps here.',
+      ]);
+    });
+
     test('$_story: a table with no outer pipes below a paragraph line '
         'ends that paragraph', () {
       const text =

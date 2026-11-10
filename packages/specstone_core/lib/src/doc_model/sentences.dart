@@ -214,15 +214,21 @@ final class _BlockReader {
 
   final _open = <String>[];
 
+  /// Whether the rows being read belong to a table whose header had no edge
+  /// pipe.
+  var _inTable = false;
+
+  /// Ends the open block and any table: every other block starts anew.
   void close() {
+    _closeBlock();
+    _inTable = false;
+  }
+
+  void _closeBlock() {
     if (_open.isEmpty) return;
     blocks.add(_open.join(' '));
     _open.clear();
   }
-
-  /// Whether the rows being read belong to a table whose header had no edge
-  /// pipe.
-  var _inTable = false;
 
   /// Reads [text], a line without its containers or null for a thematic
   /// break, with [below] the next line's text.
@@ -231,23 +237,19 @@ final class _BlockReader {
     required String? below,
     required bool continuesParagraph,
   }) {
-    if (text == null || text.trim().isEmpty) {
-      _inTable = false;
-      return close();
-    }
+    if (text == null || text.trim().isEmpty) return close();
     final heading = atxHeadingOf(text);
     if (heading != null) {
-      _inTable = false;
       close();
       if (heading.level >= _firstTextHeadingLevel) _add(heading.text);
       return;
     }
     if (_tableRow.hasMatch(text) || _inTable) {
-      close();
+      _closeBlock();
       return _readTableRow(text);
     }
     if (below != null && startsTable(text, below)) {
-      close();
+      _closeBlock();
       _inTable = true;
       return _readTableRow(text);
     }
