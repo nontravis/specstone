@@ -353,7 +353,7 @@ void main() {
       },
     );
 
-    test('INV-14: a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
+    test('domain:consistency_check INV-14: a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
       const before =
           '# Validate credentials\n\n## Statement\nThe system shall check ';
       const after =

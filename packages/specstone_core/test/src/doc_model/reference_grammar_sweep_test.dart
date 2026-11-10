@@ -284,6 +284,25 @@ final RegExp _labelRead = _regExpLiteralWith(
   r'\b(?:F|US|FR)\b[|)\]?]*-|\[FU\]S\?-|[Uu][Ss]\(?\\{1,2}d|[Ff][Rr]\(?\\{1,2}d',
 );
 
+/// A `WaitsFor.owner` or `WaitsFor.agent` value, or the `waitsFor` JSON key.
+final RegExp _waitsForWrite = RegExp(
+  r'''\bWaitsFor\.(?:owner|agent)\b|\x27waitsFor\x27|"waitsFor"''',
+);
+
+/// The `TBR` marker text (`TBR`, then an em dash) or the bare `'TBR'` word as
+/// a string literal.
+final RegExp _tbrMarkerRead = RegExp(
+  r'''TBR[ ]?(?:—|\\u\{?2014)|\x27TBR\x27|"TBR"''',
+);
+
+/// A sentence split: a character class or set holding `.`, `?`, and `!`, or a
+/// `'. '` literal.
+final RegExp _sentenceSplit = RegExp(
+  r'''\[[.?!\\]{3,6}\]'''
+  r'''|\{(?=[^}]*0x2[Ee])(?=[^}]*0x3[Ff])(?=[^}]*0x21)[^}]*\}'''
+  r'''|\x27\. \x27|"\. "''',
+);
+
 final _rules = <_Rule>[
   (
     name: 'a number label is read only by number_label',
@@ -392,6 +411,36 @@ final _rules = <_Rule>[
     allowed: [],
     appliesTo: _everySource,
   ),
+  (
+    name: 'a waitsFor value is written only by its three owners',
+    remedy:
+        'Set it in finding.dart (the kind default), tracked_links.dart, or '
+        'agent_block_rules.dart; no other rule names owner or agent.',
+    pattern: _waitsForWrite,
+    exempt: {
+      _lib('consistency_check/finding.dart'),
+      _lib('consistency_check/tracked_links.dart'),
+      _lib('consistency_check/agent_block_rules.dart'),
+    },
+    allowed: [],
+    appliesTo: _everySource,
+  ),
+  (
+    name: 'the TBR marker is read only by tbr_marker',
+    remedy: 'Read the marker through tbrMarkerLinesIn in doc_model/tbr_marker.dart.',
+    pattern: _tbrMarkerRead,
+    exempt: {_lib('doc_model/tbr_marker.dart')},
+    allowed: [],
+    appliesTo: _everySource,
+  ),
+  (
+    name: 'a sentence is split only by sentences',
+    remedy: 'Cut sentences through sentencesOf in doc_model/sentences.dart.',
+    pattern: _sentenceSplit,
+    exempt: {_lib('doc_model/sentences.dart')},
+    allowed: [],
+    appliesTo: _everySource,
+  ),
 ];
 
 /// Returns `<file>: <snippet>` for each match of [rule] outside its exempt
@@ -452,6 +501,44 @@ void main() {
       expect(_labelRead.hasMatch(source), isTrue, reason: source);
     }
     expect(_labelRead.hasMatch(r"RegExp(r'^[a-z]+-\d')"), isFalse);
+  });
+
+  test('the waitsFor rule catches each way to write a value', () {
+    for (final source in [
+      'WaitsFor.owner',
+      'x == WaitsFor.agent',
+      "'waitsFor': 'owner'",
+      '"waitsFor"',
+    ]) {
+      expect(_waitsForWrite.hasMatch(source), isTrue, reason: source);
+    }
+    expect(_waitsForWrite.hasMatch('WaitsFor? waitsFor'), isFalse);
+  });
+
+  test('the TBR rule catches the marker and the bare word', () {
+    for (final source in [
+      "const m = 'TBR — ';",
+      r"'TBR \u2014 '",
+      "contains('TBR')",
+    ]) {
+      expect(_tbrMarkerRead.hasMatch(source), isTrue, reason: source);
+    }
+    expect(_tbrMarkerRead.hasMatch("'the TBR section is open'"), isFalse);
+  });
+
+  test('the sentence rule catches each way to cut a sentence', () {
+    for (final source in [
+      "RegExp(r'(?<=[.?!]) ')",
+      "RegExp(r'[^.!?]+[.!?]')",
+      r"RegExp(r'[\.\?!]')",
+      'const t = {0x2E, 0x3F, 0x21};',
+      'const t = {0x21, 0x2E, 0x3F};',
+      "text.split('. ')",
+    ]) {
+      expect(_sentenceSplit.hasMatch(source), isTrue, reason: source);
+    }
+    expect(_sentenceSplit.hasMatch("RegExp(r'[a-z]+')"), isFalse);
+    expect(_sentenceSplit.hasMatch('const t = {0x2E, 0x3F};'), isFalse);
   });
 
   test('no hand-written reference parser sits outside reference_grammar', () {
