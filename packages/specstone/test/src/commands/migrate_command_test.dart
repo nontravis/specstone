@@ -517,6 +517,34 @@ void main() {
     );
 
     test(
+      'f06/us01/fr02/g8-r8: migrate --dry-run never starts a git found in its '
+      'own folder through a "." PATH entry',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+        final marker = '${(await writeTree({})).path}/ran';
+        final planted = File('${root.path}/git')
+          ..writeAsStringSync('#!/bin/sh\n: > "$marker"\nexit 1\n');
+        expect(Process.runSync('chmod', ['755', planted.path]).exitCode, 0);
+        File('${root.path}/.git/info/exclude')
+            .writeAsStringSync('/git\n', mode: FileMode.append);
+
+        final shown = await Process.run(
+          binary,
+          ['migrate', '--dry-run'],
+          workingDirectory: root.path,
+          environment: {'PATH': '.:${Platform.environment['PATH']}'},
+        );
+
+        expect(shown.exitCode, 0, reason: '${shown.stderr}');
+        expect(shown.stdout, startsWith('legacy migration: '));
+        expect(File(marker).existsSync(), isFalse);
+      },
+      skip: Platform.isWindows
+          ? 'the planted git is a POSIX shell script'
+          : null,
+    );
+
+    test(
       'migrate --dry-run refuses git_work_tree_required, exit 78, when git '
       'cannot list its repository variables',
       () async {

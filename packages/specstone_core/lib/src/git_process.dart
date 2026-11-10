@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/executable_lookup.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 
 /// Runs `git` with [arguments] in [workingDirectory].
@@ -82,7 +83,7 @@ ProcessResult _startGit(
   required String workingDirectory,
   Map<String, String>? environment,
 }) => Process.runSync(
-  'git',
+  _gitProgram(arguments),
   [..._explicitBareRepository, ...arguments],
   workingDirectory: workingDirectory,
   environment: gitChildEnvironment(
@@ -94,6 +95,19 @@ ProcessResult _startGit(
   includeParentEnvironment: false,
   stdoutEncoding: utf8,
 );
+
+/// Returns the one `git` this process starts, found on its absolute `PATH`
+/// entries only.
+///
+/// Throws [ProcessException], a git that cannot start, when none holds one:
+/// a bare `git` would also run one the current folder supplies.
+String _gitProgram(List<String> arguments) =>
+    findOnProcessPath('git') ??
+    (throw ProcessException(
+      'git',
+      arguments,
+      'no git on an absolute PATH entry',
+    ));
 
 /// The listed variables that stay in the child environment, as git's own
 /// `sanitize_repo_env` keeps them: `git -c` settings and config the
@@ -181,7 +195,7 @@ List<String> _localEnvVars() {
 ({List<String>? names, ProcessException? failure}) _queryLocalEnvVars() {
   try {
     final result = Process.runSync(
-      'git',
+      _gitProgram(_localEnvVarsArguments),
       _localEnvVarsArguments,
       workingDirectory: Directory.systemTemp.path,
       stdoutEncoding: utf8,

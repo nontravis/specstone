@@ -105,31 +105,6 @@ String _comparable(Directory folder, {required bool windows}) {
   return windows ? bare.toLowerCase() : bare;
 }
 
-/// Returns the path of [name] on the PATH of [environment], or null.
-///
-/// Scans the folders in order; on [windows] it matches `<name>.exe`, then
-/// `<name>.cmd`, in each folder, and reads `PATH` without case.
-String? findOnPath(
-  String name,
-  Map<String, String> environment, {
-  required bool windows,
-}) {
-  final path = environment.entries
-      .where((e) => windows ? e.key.toUpperCase() == 'PATH' : e.key == 'PATH')
-      .map((e) => e.value)
-      .firstOrNull;
-  if (path == null) return null;
-  final fileNames = windows ? ['$name.exe', '$name.cmd'] : [name];
-  for (final folder in path.split(windows ? ';' : ':')) {
-    if (folder.isEmpty) continue;
-    for (final fileName in fileNames) {
-      final candidate = File('$folder${Platform.pathSeparator}$fileName');
-      if (candidate.existsSync()) return candidate.path;
-    }
-  }
-  return null;
-}
-
 /// Upgrades the CLI and the plugin to the latest release.
 ///
 /// Refuses unless the running binary sits in `<home>/.specstone/bin`.
@@ -238,12 +213,22 @@ class UpgradeCommand extends SpecstoneCommand {
       );
     }
     final shell = windows ? 'powershell' : '/bin/sh';
+    final program = windows
+        ? findExecutable(shell, environment, isWindows: true)
+        : shell;
+    if (program == null) {
+      return UpgradeFault(
+        UpgradeFaultCode.installScriptFailed,
+        'specstone upgrade: could not start $shell for $url: no $shell on an '
+        'absolute PATH entry; the install is unchanged',
+      );
+    }
     final arguments = windows
         ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script.path]
         : [script.path];
     try {
       final process = await Process.start(
-        shell,
+        program,
         arguments,
         mode: ProcessStartMode.inheritStdio,
         environment: environment,
@@ -299,7 +284,12 @@ class UpgradeCommand extends SpecstoneCommand {
   Future<void> _updatePlugin() async {
     final out = specstoneRunner.out;
     final command = 'claude ${_pluginUpdateArguments.join(' ')}';
-    final claude = findOnPath('claude', environment, windows: windows);
+    final claude = findExecutable(
+      'claude',
+      environment,
+      isWindows: windows,
+      windowsExtensions: const ['.exe', '.cmd'],
+    );
     if (claude == null) {
       out
         ..writeln('To update the Specstone plugin, run:')

@@ -217,6 +217,18 @@ void main() {
       skip: hasGit ? null : 'git is not available',
     );
 
+    test('a PATH with no absolute entry is a git that cannot start', () async {
+      final root = await repo();
+
+      final outcomes = await runIn(
+        [root],
+        ['--version'],
+        inherited: {'PATH': ':.:bin'},
+      );
+
+      expect(outcomes.single['threw'], contains('ProcessException'));
+    }, skip: hasGit ? null : 'git is not available');
+
     test('an inherited GIT_CONFIG_COUNT pair still reaches git', () async {
       final root = await repo();
 
