@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
@@ -116,6 +117,44 @@ void main() {
       ]);
       expect(laid[8], startsWith('1. E01'));
       expect(laid[4], startsWith('The system'));
+    });
+
+    test('E18: a lead that differs between the laid-out and the on-disk text '
+        'takes its items from the laid-out head', () {
+      const text =
+          '# V\n\n| A | B |\n|---|---|\n| x     | y     |\n\n'
+          '## Statement\n\nShall.\n';
+      final parsed = parse(_frPath, text);
+      final laid = layOutDoc(text, typeOf(_frPath)).split('\n');
+      final facts = parsed.content.itemFacts;
+      final row = facts.leadItems.single;
+
+      expect(parsed.doc.formatted, isFalse);
+      expect(laid[row.line - 1], '| x | y |');
+      expect(row.chars, '| x | y |'.length);
+      expect(facts.lead, (lines: 3, chars: 9 + 1 + 9 + 1 + 9));
+    });
+
+    test('E18: a drifted doc whose section holds a fenced ## line gives each '
+        'section its own items', () {
+      const text =
+          '# V\n\n## Edge cases\n1. E01 — a\n\n```\n## not a header\n```\n\n'
+          '## Statement\nShall.\n';
+      final parsed = parse(_frPath, text);
+      final laid = layOutDoc(text, typeOf(_frPath)).split('\n');
+      final facts = parsed.content.itemFacts;
+
+      expect(parsed.doc.formatted, isFalse);
+      expect(parsed.content.sections.map((s) => s.key), [
+        'edge_cases',
+        'statement',
+      ]);
+      expect(facts.sectionItems, [
+        [(id: 'E01', line: 9, chars: '1. E01 — a'.length)],
+        [(id: null, line: 5, chars: 'Shall.'.length)],
+      ]);
+      expect(laid[8], '1. E01 — a');
+      expect(laid[4], 'Shall.');
     });
 
     test('E19: a doc the format command refuses for a repeated header gives '
@@ -276,6 +315,7 @@ void main() {
       final facts = itemFactsOf(
         doc: doc,
         lfText: text,
+        lineFacts: LineFacts.structureOf(lfText: text, doc: doc),
         countedText: text,
         type: null,
       );
@@ -288,9 +328,11 @@ void main() {
 
     test('a doc type that defines no prefix_id gives no ID', () {
       const text = '# T\n\n## Statement\nE01 — a\n';
+      final doc = Doc.parse(text);
       final facts = itemFactsOf(
-        doc: Doc.parse(text),
+        doc: doc,
         lfText: text,
+        lineFacts: LineFacts.structureOf(lfText: text, doc: doc),
         countedText: text,
         type: typeOf(_frPath),
       );

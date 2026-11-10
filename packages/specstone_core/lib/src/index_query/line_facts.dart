@@ -34,6 +34,12 @@ String? linkWarningOf(String docPath, LinkPlaces? links) {
       'check skips its see links';
 }
 
+/// Returns how many lines of [lfText], the text [doc] parses, come before the
+/// text after its frontmatter: the frontmatter lines, delimiters included.
+int linesBeforeBodyOf(Doc doc, String lfText) => _lineCount(
+  lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+);
+
 /// The 1-based file lines `first` through `last`, both included.
 typedef LineRange = ({int first, int last});
 
@@ -113,10 +119,7 @@ final class LineFacts {
     required List<({int line, String rest})> bodyTbrMarkers,
     required List<String> warnings,
   }) {
-    final prefix = doc.frontmatter == null
-        ? ''
-        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
-    final bodyStart = _lineCount(prefix);
+    final bodyStart = linesBeforeBodyOf(doc, lfText);
     final whole = scanText(countedText);
     final body = doc.afterFrontmatter;
     // One gate and one parse per doc, failed or not: a link-syntax body
@@ -170,9 +173,7 @@ final class LineFacts {
   /// counts empty, so only [sectionLines], [fenced], and the counts of lines
   /// and characters hold.
   factory structureOf({required String lfText, required Doc doc}) {
-    final bodyStart = _lineCount(
-      lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
-    );
+    final bodyStart = linesBeforeBodyOf(doc, lfText);
     final whole = scanText(lfText);
     return LineFacts(
       links: const [],

@@ -1,10 +1,12 @@
-import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show itemHeadingMarker;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
+import 'package:specstone_core/src/index_query/held_sections.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show indexedSectionsOf;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
@@ -65,23 +67,25 @@ final class ItemFacts {
 
 /// Returns the items of [doc], the file's parse, in the text its counts cover.
 ///
-/// [lfText] is the file's LF text and [countedText] the text the doc's counts
-/// cover. [countedText] is parsed at most once, and not at all when it equals
-/// [lfText]. Each section of [doc], by position, takes the items of its
-/// counted twin, matched by `headerKey` when the two texts differ, so a doc
-/// whose sections stand out of template order keeps each section's own items
-/// on the laid-out lines. A doc with a repeated header is never laid out, so
-/// its sections match by position and each keeps its own items.
+/// [lineFacts] are those of [lfText]. Each section of [doc] takes the items of
+/// its twin in [countedText], the text the counts cover: the section at the
+/// same position when it equals [lfText], else the one with the same
+/// `headerKey`, since a laid-out doc may reorder sections. Only a differing
+/// [countedText] is parsed.
 ItemFacts itemFactsOf({
   required Doc doc,
   required String lfText,
+  required LineFacts lineFacts,
   required String countedText,
   required MergedDocType? type,
 }) {
   final isSameText = countedText == lfText;
   final counted = isSameText ? doc : Doc.parse(countedText);
-  final lines = LineFacts.structureOf(lfText: countedText, doc: counted);
-  final templates = _templatesByHeader(type);
+  final lines = isSameText
+      ? lineFacts
+      : LineFacts.structureOf(lfText: countedText, doc: counted);
+  final held = indexedSectionsOf(counted, type);
+  final templates = heldTemplatesOf(held, type);
   final twinOf = isSameText
       ? null
       : {
@@ -90,18 +94,15 @@ ItemFacts itemFactsOf({
         };
 
   List<ItemFact> itemsOfSection(int position, Section section) {
-    final key = headerKey(section.headerText);
-    final twin = twinOf == null ? position : twinOf[key];
+    final twin = twinOf == null
+        ? position
+        : twinOf[headerKey(section.headerText)];
     if (twin == null) {
       throw StateError(
         'no laid-out twin for the section "${section.headerText}"',
       );
     }
-    final first = lines.sectionLines[twin] + 1;
-    return _itemFactsIn([
-      for (final (k, text) in counted.sections[twin].body.split('\n').indexed)
-        (text: text, line: first + k, fenced: lines.isFenced(first + k)),
-    ], templates[key]);
+    return _itemFactsIn(sectionBodyLines(held, lines, twin), templates[twin]);
   }
 
   final (:counts, :items) = _leadOf(counted, countedText, lines);
@@ -124,7 +125,7 @@ ItemFacts itemFactsOf({
   String text,
   LineFacts lines,
 ) {
-  final firstBodyLine = _firstBodyLineOf(doc, text);
+  final firstBodyLine = linesBeforeBodyOf(doc, text) + 1;
   final skip = switch (doc.titleLineIndex) {
     final at? => at + 1,
     null => 0,
@@ -152,25 +153,7 @@ ItemFacts itemFactsOf({
   );
 }
 
-/// Returns the file line the text after the frontmatter of [doc] starts on.
-int _firstBodyLineOf(Doc doc, String text) {
-  final prefix = text.substring(0, text.length - doc.afterFrontmatter.length);
-  if (prefix.isEmpty) return 1;
-  final breaks = scanText(prefix).breaks;
-  return (prefix.endsWith('\n') ? breaks : breaks + 1) + 1;
-}
-
 int _codePointsOf(String text) => text.length - scanText(text).pairs;
-
-/// Returns the sections of [type] by the `headerKey` of their header; the
-/// first of a repeated header wins.
-Map<String, MergedSection> _templatesByHeader(MergedDocType? type) {
-  final byHeader = <String, MergedSection>{};
-  for (final section in type?.sections ?? const <MergedSection>[]) {
-    byHeader.putIfAbsent(headerKey(section.header), () => section);
-  }
-  return byHeader;
-}
 
 List<ItemFact> _itemFactsIn(List<BodyLine> body, MergedSection? template) => [
   for (final item in itemsOf(body))

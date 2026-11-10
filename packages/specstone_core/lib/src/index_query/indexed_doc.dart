@@ -281,6 +281,7 @@ ParsedDoc parseIndexedDoc({
   final itemFacts = itemFactsOf(
     doc: doc,
     lfText: lfText,
+    lineFacts: lineFacts,
     countedText: laidText,
     type: docType,
   );
@@ -321,22 +322,21 @@ ParsedDoc parseIndexedDoc({
 /// item facts count [lfText] as it is, with no layout.
 DocContent docStructureOf(String lfText, MergedDocType? docType) {
   final doc = Doc.parse(lfText);
-  final templates = _templatesByKey(docType);
+  final lineFacts = LineFacts.structureOf(lfText: lfText, doc: doc);
   return DocContent(
     readText: () => lfText,
     frontmatterText: doc.frontmatter == null
         ? null
         : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
     head: doc.head,
-    sections: [
-      for (final section in doc.sections) _sectionOf(section, templates),
-    ],
+    sections: indexedSectionsOf(doc, docType),
     links: const [],
-    lineFacts: LineFacts.structureOf(lfText: lfText, doc: doc),
+    lineFacts: lineFacts,
     readBannedMatches: () => const [],
     readItemFacts: () => itemFactsOf(
       doc: doc,
       lfText: lfText,
+      lineFacts: lineFacts,
       countedText: lfText,
       type: docType,
     ),
@@ -377,6 +377,13 @@ List<SectionCounts> _countsOf(
     for (final section in doc.sections)
       sectionCountsOf(laidByKey[headerKey(section.headerText)]!),
   ];
+}
+
+/// Returns the sections of [doc], keyed as [parseIndexedDoc] keys them under
+/// [docType].
+List<IndexedSection> indexedSectionsOf(Doc doc, MergedDocType? docType) {
+  final templates = _templatesByKey(docType);
+  return [for (final section in doc.sections) _sectionOf(section, templates)];
 }
 
 /// Returns the sections of [docType] by the [headerKey] of their header.

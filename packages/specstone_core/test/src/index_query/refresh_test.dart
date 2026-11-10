@@ -469,6 +469,27 @@ void main() {
         expect(after.select('SELECT layout FROM meta').single['layout'], 13);
       },
     );
+    test('domain:index_query INV-2: an index at layout 12, with no item facts, '
+        'is rebuilt in full to layout 13 with them', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute('ALTER TABLE docs DROP COLUMN item_facts')
+        ..execute('UPDATE meta SET layout = 12')
+        ..close();
+      final (:result, :store) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      expect(
+        store
+            .loadContent('prds/features/f01_login/FEATURE.md')
+            .itemFacts
+            .sectionItems,
+        isNotEmpty,
+      );
+      final after = sqlite3.open('${project.path}/$indexFilePath');
+      addTearDown(after.close);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+    });
     test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 13', () async {
       final project = await writeLoginProject();
       refresh(project);
