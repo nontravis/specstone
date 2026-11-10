@@ -788,7 +788,13 @@ void _handOffTests() {
     for (final point in _oneOwnerPoints) {
       expect(rules, contains(point), reason: point);
     }
-    expect(rules, contains('`references/confirm-links.md`'));
+    expect(
+      rules,
+      contains(
+        'When you write an FR, an nf, or an API row, follow '
+        '`references/confirm-links.md`',
+      ),
+    );
     expect(_oneLine(_pluginText(_confirmLinks)), contains(_confirmLinkSteps));
     for (final step in ['bases.fields.confirmed', '--field confirmed']) {
       expect(skill, isNot(contains(step)), reason: step);
