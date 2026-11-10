@@ -1114,6 +1114,13 @@ void _agentTests() {
     for (final restated in _roundsOwnedElsewhere) {
       expect(rounds, isNot(contains(restated)), reason: restated);
     }
+    expect(
+      _bareStep.allMatches(rounds).map((match) => match[0]),
+      isEmpty,
+      reason:
+          "rounds.md names its own parts as sections; only the skill's "
+          'steps are steps',
+    );
     final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
     final design = _sectionOf(skill, '3. Write the document: design mode');
     expect(design, contains('`$_roundsPath`'));
@@ -1249,15 +1256,17 @@ const _roundsPoints = [
   "When the design report holds open questions, gather the Owner's answers,",
   'append each that only words or records one, send the rest to one amend,',
   'and ask for the approval only after it (E10).',
-  'an amend, then one fresh author pass and a re-audit, as step 2 says (E12).',
-  "the Owner's decision on a finding past the cap included (E06)",
-  'one author pass that carries the amend alone and is no fix round,',
-  'then a re-audit (step 3) whose findings reach the Owner with the drafts,',
-  'with no further round.',
+  '**During fix rounds**, a decision that adds or changes behavior takes',
+  'an amend, then one fresh author pass and a re-audit, as section 2 says',
+  '**After the second fix round**, a decision that adds or changes',
+  "behavior, the Owner's decision on a finding past the cap included (E06),",
+  'takes an amend, then one author pass that carries the amend alone and is',
+  'no fix round, then a re-audit (section 3) whose findings reach the Owner',
+  'with the drafts, with no further round.',
   'Fix an Owner change that only corrects text per `specstone:expert-sdd`,',
   'with no amend (E12).',
   "The drafts list is the first author report's drafts plus each doc a fix",
-  'round or pass added',
+  'round or pass added, renamed or dropped as section 3 says.',
   'every author pass after the first, each fix round and the pass that',
   'follows an amend, is a new `mode: author` dispatch, never the resumed',
   'one (E05).',
@@ -1266,14 +1275,15 @@ const _roundsPoints = [
   '`agent_plugin/write_prd_and_spec/write_drafts_with_coverage` E12) and',
   'fixes only those findings, in those drafts.',
   'never goes to a fix round: put it, with the decision that answers it,',
-  'in the brief for an amend (step 1).',
+  'in the brief for an amend (section 1).',
   'that pass takes them too and counts as a fix round; a pass that carries',
   'the amend alone is no fix round (E12).',
   'run at most two fix rounds, counted across an amend.',
   'Lines left after the second get no third round: the Owner sees them',
   'with the drafts before approving any',
+  "and their decision on one takes section 1's route (E06).",
   'After each fix round, and after each pass that follows an amend,',
-  're-audit as step 3 says.',
+  're-audit as section 3 says.',
   "Run one `specstone get <drafts list> --json` and keep each draft's",
   'When it refuses with `doc_not_found`, update the drafts list',
   'takes the new name `move` printed (`moved <from> to <to>`), and a doc',
@@ -1286,9 +1296,13 @@ const _roundsPoints = [
   'its earlier finding stands.',
   'A doc of the list that is no draft, approved between rounds or listed',
   'and never written, is no target.',
-  'name each doc approved between rounds and each name step 2 renamed or',
+  'name each doc approved between rounds and each name item 2 renamed or',
   'dropped (E13).',
 ];
+
+/// A step number not preceded by "skill's"; in rounds.md it could mean a step
+/// of SKILL.md or one of the file's own sections.
+final _bareStep = RegExp(r"(?<!skill's )\bsteps? \d");
 
 /// Text that audit.md or design.md owns, which rounds.md cites and never
 /// restates.
