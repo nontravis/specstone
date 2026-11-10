@@ -25,7 +25,8 @@ class SetCommand extends WriteCommand {
         'batch',
         help:
             'A file of `get` text output, edited; writes every changed '
-            'block, or none. Takes no doc address, no --base, and no stdin.',
+            'block, or none. Takes no doc address and no --base; reads no '
+            'stdin.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
@@ -79,28 +80,12 @@ class SetCommand extends WriteCommand {
 
   /// Writes the blocks of the batch file at [path] in one write session.
   ///
-  /// The file is the only target: a doc address, `--base`, `--field`, or
-  /// `--title` beside it, or stdin that is no terminal and holds a byte,
-  /// refuses `argument_conflict`. The file is read before the session opens.
+  /// The file is read before the session opens. Stdin is never read: a harness
+  /// may leave it an open pipe nobody closes.
   Future<int> _runBatch(String path, {required bool asJson}) async {
-    final args = argResults!;
     final String text;
     try {
-      if (args.rest.isNotEmpty ||
-          args.option('base') != null ||
-          args.option('field') != null ||
-          args.flag('title')) {
-        throw IndexFault(
-          IndexFaultCode.argumentConflict,
-          '--batch takes no doc address, --base, --field, or --title',
-        );
-      }
-      if (!console.stdinIsTerminal && (await console.readAll()).isNotEmpty) {
-        throw IndexFault(
-          IndexFaultCode.argumentConflict,
-          '--batch takes no stdin: the file holds the text',
-        );
-      }
+      _requireBatchAlone();
       text = readBatchFile(
         path,
         workingDirectory: specstoneRunner.workingDirectory,
@@ -111,6 +96,23 @@ class SetCommand extends WriteCommand {
     return runWrite(
       (session) => answerSetBatch(session, batchPath: path, text: text),
       asJson: asJson,
+    );
+  }
+
+  /// Throws [IndexFault] `argument_conflict` when a doc address, `--base`,
+  /// `--field`, or `--title` goes beside `--batch`, the file being the only
+  /// target.
+  void _requireBatchAlone() {
+    final args = argResults!;
+    if (args.rest.isEmpty &&
+        args.option('base') == null &&
+        args.option('field') == null &&
+        !args.flag('title')) {
+      return;
+    }
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      '--batch takes no doc address, --base, --field, or --title',
     );
   }
 }

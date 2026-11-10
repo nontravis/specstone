@@ -9,7 +9,6 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
-import '../../helpers/write_runner.dart';
 
 const _story = 'document_writing/edit_one_section_or_field';
 const _wb = '$_story/write_a_batch';
@@ -183,6 +182,42 @@ void main() {
   );
 
   test(
+    '$_wb E02: --json with only stale blocks exits 75, prints nothing on stdout, and each blocks entry carries its current text',
+    () async {
+      final root = await writeWriteProject();
+      var text = await getText(root, [story2, fr11]);
+      text = edit(text, 'Sign out.', 'Sign out everywhere.');
+      text = edit(text, 'check the email', 'check the email twice, then');
+      final file = await batchFile(text);
+      final signOut = readDoc(
+        root,
+        story2,
+      ).replaceFirst('Sign out.', 'Sign out now.');
+      final validate = readDoc(
+        root,
+        fr11,
+      ).replaceFirst('shall check', 'shall carefully check');
+      docFile(root, story2).writeAsStringSync(signOut);
+      docFile(root, fr11).writeAsStringSync(validate);
+      final before = docBytes(root);
+
+      final result = await specstone(root, ['set', '--batch', file, '--json']);
+
+      expect(result.code, 75);
+      expect(result.out, isEmpty);
+      expect(docBytes(root), before);
+      final error = decode(result.err)['error']! as Map<String, Object?>;
+      expect(error['code'], 'base_mismatch');
+      final blocks = (error['blocks']! as List).cast<Map<String, Object?>>();
+      expect(blocks.map((b) => b['file']), [story2, fr11]);
+      expect(blocks.map((b) => (b['current']! as Map)['text']), [
+        signOut,
+        validate,
+      ]);
+    },
+  );
+
+  test(
     '$_wb E04: a stale block beside a block whose doc is gone names both, prints the stale text, exit 64',
     () async {
       final root = await writeWriteProject();
@@ -303,50 +338,40 @@ void main() {
       );
     });
 
-    test(
-      'stdin that holds a byte refuses argument_conflict and writes nothing',
-      () async {
-        final root = await writeWriteProject();
-        final text = edit(
-          await getText(root, [story2]),
-          'Sign out.',
-          'Sign out everywhere.',
-        );
-        final file = await batchFile(text);
-        final before = docBytes(root);
+    test('--field or --title beside --batch refuses argument_conflict and writes nothing', () async {
+      final root = await writeWriteProject();
+      final text = edit(
+        await getText(root, [story2]),
+        'Sign out.',
+        'Sign out everywhere.',
+      );
+      final file = await batchFile(text);
+      final before = docBytes(root);
 
+      for (final flag in [
+        ['--field', 'size'],
+        ['--title'],
+      ]) {
         final result = await specstone(root, [
           'set',
           '--batch',
           file,
+          ...flag,
           '--json',
-        ], stdin: 'x');
+        ]);
 
-        expect(result.code, 64);
+        expect(result.code, 64, reason: '$flag');
+        expect(result.out, isEmpty);
         expect(
           (decode(result.err)['error']! as Map)['code'],
           'argument_conflict',
+          reason: '$flag',
         );
         expect(docBytes(root), before);
-      },
-    );
-
-    test('an empty stdin is ignored', () async {
-      final root = await writeWriteProject();
-      final text = edit(
-        await getText(root, [story2]),
-        'Sign out.',
-        'Sign out everywhere.',
-      );
-      final file = await batchFile(text);
-
-      final result = await specstone(root, ['set', '--batch', file]);
-
-      expect(result.code, 0, reason: result.err);
-      expect(readDoc(root, story2), contains('Sign out everywhere.'));
+      }
     });
 
-    test('a terminal stdin is not read', () async {
+    test('stdin is never read: an open pipe that never closes does not hold the run, and its text is ignored', () async {
       final root = await writeWriteProject();
       final text = edit(
         await getText(root, [story2]),
@@ -354,15 +379,27 @@ void main() {
         'Sign out everywhere.',
       );
       final file = await batchFile(text);
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(input: 'x\n', stdinIsTerminal: true),
+      final home = testHome().path;
+      final process = await Process.start(
+        binary,
+        ['set', '--batch', file],
+        workingDirectory: root.path,
+        environment: {'HOME': home, 'USERPROFILE': home},
+      );
+      addTearDown(process.kill);
+      process.stdout.drain<void>().ignore();
+      process.stderr.drain<void>().ignore();
+      process.stdin.done.ignore();
+      process.stdin.write('ignored text\n');
+
+      final code = await process.exitCode.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => -1,
       );
 
-      expect(await runner.run(['set', '--batch', file]), 0);
-
-      expect(err.toString(), isEmpty);
+      expect(code, 0, reason: 'the run finished without stdin closing');
       expect(readDoc(root, story2), contains('Sign out everywhere.'));
+      expect(readDoc(root, story2), isNot(contains('ignored text')));
     });
   });
 
