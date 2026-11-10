@@ -16,6 +16,9 @@ enum WaitsFor {
 /// The tag the text line of an `owner` finding ends with.
 const _ownerTag = ' (waits for the Owner)';
 
+/// What every line under a finding line starts with.
+const _blockIndent = '    ';
+
 /// A rule violation kind of the consistency check.
 ///
 /// Values follow the `s02_api_check.md` Finding kinds table. [wire] is the
@@ -150,9 +153,30 @@ final class Finding {
 
   /// The lines the text output prints: [textLine], ended with the tag when
   /// [waitsFor] is `owner`.
+  ///
+  /// A `suspect` or `unconfirmed` finding with a `text` key goes on with each
+  /// line of the upstream block and then `fingerprint <hash>`, each indented
+  /// 4 spaces, so a reader cut short of the block's end never reaches the
+  /// fingerprint.
   List<String> get textLines => [
     if (waitsFor == WaitsFor.owner) '$textLine$_ownerTag' else textLine,
+    ..._upstreamBlockLines,
   ];
+
+  // `reference_malformed` and `item_id_*` findings hold an unrelated `text`.
+  Iterable<String> get _upstreamBlockLines sync* {
+    final text = keys['text'];
+    if ((kind != FindingKind.suspect && kind != FindingKind.unconfirmed) ||
+        text is! String) {
+      return;
+    }
+    if (text.isNotEmpty) {
+      for (final line in text.split('\n')) {
+        yield '$_blockIndent$line';
+      }
+    }
+    yield '${_blockIndent}fingerprint ${keys['fingerprint']}';
+  }
 
   /// The JSON object: `kind`, `docPath`, `name` when set, `line`, `message`
   /// with no tag, `waitsFor`, then [keys].

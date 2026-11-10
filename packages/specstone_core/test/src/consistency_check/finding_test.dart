@@ -180,6 +180,56 @@ void main() {
     );
   });
 
+  test('consistency_check/find_template_breaks/print_findings: a finding with '
+      'a text key prints the block indented 4 spaces, an empty line as exactly '
+      '4 spaces, then the fingerprint last', () {
+    const finding = Finding(
+      kind: FindingKind.suspect,
+      path: 'prds/a.md',
+      line: 3,
+      message: 'read it',
+      keys: {
+        'text': '### Scenario 2\n\nfingerprint 000000000000 in the block',
+        'fingerprint': '9a1c03be55d2',
+      },
+    );
+    expect(finding.textLines, [
+      'prds/a.md:3: suspect: read it',
+      '    ### Scenario 2',
+      '    ',
+      '    fingerprint 000000000000 in the block',
+      '    fingerprint 9a1c03be55d2',
+    ]);
+  });
+
+  test('consistency_check/find_template_breaks/print_findings: a '
+      'reference_malformed finding keeps its own text key off the printed '
+      'lines', () {
+    const finding = Finding(
+      kind: FindingKind.referenceMalformed,
+      path: 'prds/a.md',
+      line: 3,
+      message: 'bad',
+      keys: {'form': 'item_id', 'text': 'FR-01'},
+    );
+    expect(finding.textLines, ['prds/a.md:3: reference_malformed: bad']);
+  });
+
+  test('consistency_check/find_template_breaks/print_findings: a finding with '
+      'no text key prints its line alone', () {
+    const finding = Finding(
+      kind: FindingKind.unconfirmed,
+      path: 'prds/a.md',
+      line: 3,
+      message: 'waits',
+      waitsFor: WaitsFor.owner,
+      keys: {'fingerprint': '9a1c03be55d2'},
+    );
+    expect(finding.textLines, [
+      'prds/a.md:3: unconfirmed: waits (waits for the Owner)',
+    ]);
+  });
+
   test('consistency_check/find_template_breaks/print_findings: an agent '
       'finding carries no tag, and its JSON waitsFor sits before the '
       'keys of its kind', () {

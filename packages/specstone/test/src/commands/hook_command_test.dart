@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
@@ -159,6 +160,37 @@ void main() {
     expect(context, contains(': approval_stale: '));
     expect(context, endsWith(' (waits for the Owner)\n1 finding'));
   });
+
+  test(
+    'consistency_check/find_suspect_links/report_suspect_links E12: a suspect '
+    'finding holds its upstream block, then the fingerprint, in the hook '
+    'context',
+    () async {
+      final edited = loginScenario2.replaceFirst(
+        'wrong password',
+        'wrong pass',
+      );
+      final root = await writeCheckProject(
+        extra: doc(loginStory, loginScenario2, edited),
+      );
+      final result = await postEdit(root, abs(root, loginFr));
+      expect(result.status, 0);
+      final decoded = jsonDecode(result.out) as Map<String, Object?>;
+      final context =
+          (decoded['hookSpecificOutput']!
+                  as Map<String, Object?>)['additionalContext']!
+              as String;
+      final block = upstreamText(edited).trimRight();
+      expect(
+        context,
+        endsWith(
+          '${block.split('\n').map((l) => '    $l\n').join()}'
+          '    fingerprint ${fingerprintOf(edited)}\n1 finding',
+        ),
+      );
+      expect(context.split('\n').first, isNot(contains(fingerprintOf(edited))));
+    },
+  );
 
   test("f08/us06/fr02/e08, f08/us06/s6: the platform's separators read as the same DocPath", () async {
     final root = await writeCheckProject(extra: _brokenStory());

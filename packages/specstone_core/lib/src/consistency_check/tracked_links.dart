@@ -28,13 +28,14 @@ enum LinkState { clean, suspect, unconfirmed }
 final class TrackedLink {
   /// The link [label] traced at [traceLine].
   ///
-  /// [upstream], [block], and [fingerprint] stay null when the upstream block
-  /// is missing; the link then has no [LinkState] (INV-6).
+  /// [upstream], [block], [source], and [fingerprint] stay null when the
+  /// upstream block is missing; the link then has no [LinkState] (INV-6).
   const new({
     required this.label,
     required this.traceLine,
     this.upstream,
     this.block,
+    this.source,
     this.fingerprint,
   });
 
@@ -50,6 +51,9 @@ final class TrackedLink {
 
   /// The upstream block's name as a message prints it.
   final String? block;
+
+  /// The upstream block as the doc holds it, before layout.
+  final String? source;
 
   /// The Fingerprint of the upstream block now.
   final String? fingerprint;
@@ -97,6 +101,7 @@ Iterable<TrackedLink> _scenarioLinks(
             traceLine: line,
             upstream: traced.docPath,
             block: 'Scenario ${ref.scenario}',
+            source: text,
             fingerprint: fingerprintOf(text),
           );
   }
@@ -120,6 +125,7 @@ Iterable<TrackedLink> _overrideLinks(
           traceLine: line,
           upstream: statement.path,
           block: '$id $_statementBlock',
+          source: statement.text,
           fingerprint: fingerprintOf(statement.text),
         );
 }
@@ -131,16 +137,25 @@ Iterable<TrackedLink> _frRowLinks(CheckContext context, IndexedDoc api) sync* {
     final fr = context.frNamed('${feature.name}/$cell');
     yield fr == null
         ? TrackedLink(label: cell, traceLine: line)
-        : TrackedLink(
-            label: cell,
-            traceLine: line,
-            upstream: fr.docPath,
-            block: _statementBlock,
-            fingerprint: fingerprintOf(
-              context.heldSection(fr, _statementSection)?.body ?? '',
-            ),
-          );
+        : _statementLink(context, cell, line, fr);
   }
+}
+
+TrackedLink _statementLink(
+  CheckContext context,
+  String label,
+  int line,
+  IndexedDoc fr,
+) {
+  final statement = context.heldSection(fr, _statementSection)?.body ?? '';
+  return TrackedLink(
+    label: label,
+    traceLine: line,
+    upstream: fr.docPath,
+    block: _statementBlock,
+    source: statement,
+    fingerprint: fingerprintOf(statement),
+  );
 }
 
 // A step whose `step:` reads as a target tracks that story scenario; a missing
@@ -168,6 +183,7 @@ Iterable<TrackedLink> _stepLinks(
             traceLine: line,
             upstream: story!.docPath,
             block: 'Scenario ${target.scenario}',
+            source: text,
             fingerprint: fingerprintOf(text),
           );
   }
@@ -234,15 +250,24 @@ Iterable<Finding> checkTrackedLinks(
     final current = link.fingerprint;
     final upstream = link.upstream;
     final block = link.block;
-    if (current == null || upstream == null || block == null) continue;
+    final source = link.source;
+    if (current == null ||
+        upstream == null ||
+        block == null ||
+        source == null) {
+      continue;
+    }
     final entry = _entryOf(lines, link.label);
-    final read = 'read $block of $upstream, then record ${link.label} $current';
-    final keys = <String, Object>{
+    final read =
+        'read $block of $upstream below, then record ${link.label} with the '
+        'fingerprint after it';
+    Map<String, Object> keysWith({required bool withText}) => {
       'link': link.label,
-      'fingerprint': current,
       'upstream': upstream,
       'block': block,
       if (entry != null) 'recorded': entry.fingerprint,
+      if (withText) 'text': _blockText(source),
+      'fingerprint': current,
     };
     switch (_stateOf(doc, link, entry)) {
       case LinkState.clean:
@@ -253,22 +278,27 @@ Iterable<Finding> checkTrackedLinks(
           FindingKind.suspect,
           line: entry!.line,
           message:
-              '${link.label} changed after it was confirmed: recorded '
-              '${entry.fingerprint}, current $current; $read',
-          keys: keys,
+              '${link.label} changed after it was confirmed, recorded '
+              '${entry.fingerprint}; $read',
+          keys: keysWith(withText: true),
         );
       case LinkState.unconfirmed:
+        final waitsFor = _waitsForOf(doc, current, entry);
         yield context.finding(
           doc,
           FindingKind.unconfirmed,
           line: entry?.line ?? link.traceLine,
           message: _unconfirmedMessage(link.label, current, entry, read),
-          waitsFor: _waitsForOf(doc, current, entry),
-          keys: keys,
+          waitsFor: waitsFor,
+          keys: keysWith(withText: waitsFor == WaitsFor.agent),
         );
     }
   }
 }
+
+// The block as `format` lays it out, with the line break that ends it dropped,
+// so each of its lines prints once.
+String _blockText(String source) => upstreamText(source).trimRight();
 
 /// Returns the malformed and stale `confirmed` entries of [doc] (INV-7).
 ///
@@ -324,12 +354,10 @@ String _unconfirmedMessage(
   _Entry? entry,
   String read,
 ) {
-  if (entry == null) {
-    return '$label has no confirmed entry: current $current; $read';
-  }
+  if (entry == null) return '$label has no confirmed entry; $read';
   return entry.fingerprint == current
       ? "$label $current is recorded in a draft; it waits for the Owner's "
             'approve'
-      : '$label is not confirmed: the draft records ${entry.fingerprint}, '
-            'current $current; $read';
+      : '$label is not confirmed: the draft records ${entry.fingerprint}; '
+            '$read';
 }

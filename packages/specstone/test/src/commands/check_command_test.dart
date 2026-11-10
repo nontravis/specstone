@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -192,6 +193,42 @@ void main() {
             as Map;
     expect(finding['waitsFor'], 'owner');
     expect(finding['message'], isNot(contains('waits for the Owner)')));
+  });
+
+  group('consistency_check/find_template_breaks/print_findings upstream block', () {
+    final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
+    final fingerprint = fingerprintFor(edited);
+    final block = upstreamText(edited).trimRight();
+
+    Future<Directory> project() =>
+        writeCheckProject(extra: doc(loginStory, loginScenario2, edited));
+
+    test('text prints the finding line, the block indented 4 spaces, then '
+        'the fingerprint line, then the count', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginFr:8: suspect: S2 changed after it was confirmed, recorded ${fingerprintFor(loginScenario2)}; '
+        'read Scenario 2 of $loginStory below, then record S2 with the fingerprint after it\n'
+        '${block.split('\n').map((l) => '    $l\n').join()}'
+        '    fingerprint $fingerprint\n'
+        '1 finding\n',
+      );
+    });
+
+    test('--json puts text before fingerprint', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map<String, Object?>;
+      expect(finding['text'], block);
+      final keys = finding.keys.toList();
+      expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
+      expect(finding['fingerprint'], fingerprint);
+      expect(finding['message'], isNot(contains(fingerprint)));
+    });
   });
 
   test('consistency_check/find_template_breaks/print_findings E12: an owner '
