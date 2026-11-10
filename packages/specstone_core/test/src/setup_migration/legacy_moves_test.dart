@@ -224,6 +224,74 @@ void main() {
       });
     });
 
+    group('a spec folder of one feature', () {
+      Map<String, String> slotTree(List<String> files) => {
+        ...containerLegacy,
+        'docs/specs/INDEX.md': _specIndex([
+          '| `ui/slot/` | `specs/ui/slot/` | `co01_01_slot` |',
+        ]),
+        for (final file in files) 'docs/specs/ui/slot/$file': '# S\n',
+      };
+
+      test('f06/us01/fr03/e08: a bare s02_api.md maps to API.md', () {
+        final plan = _plan(slotTree(['s02_api.md']));
+
+        expect(
+          _movedTo(plan, 'specs/ui/slot/s02_api.md'),
+          'specs/utilities/f01_slot/API.md',
+        );
+        expect(plan.kindOf['specs/utilities/f01_slot/API.md'], LegacyKind.api);
+      });
+
+      test('f06/us01/fr03/e08: each of the six kinds takes a suffix', () {
+        final plan = _plan(
+          slotTree([
+            's01_architecture_overview.md',
+            's02_api_login.md',
+            's03_domain_actor_and_keys.md',
+            's04_integration_payments.md',
+            's05_errors_codes.md',
+            's06_auth_tokens.md',
+          ]),
+        );
+
+        expect(plan.kindOf, {
+          'prds/features/utilities/f01_slot/FEATURE.md': LegacyKind.feature,
+          'prds/features/components/f07_navigation/FEATURE.md':
+              LegacyKind.feature,
+          'specs/utilities/f01_slot/ARCHITECTURE.md': LegacyKind.architecture,
+          'specs/utilities/f01_slot/API.md': LegacyKind.api,
+          'specs/utilities/f01_slot/DOMAIN.md': LegacyKind.domain,
+          'specs/utilities/f01_slot/INTEGRATION.md': LegacyKind.integration,
+          'specs/utilities/f01_slot/ERROR.md': LegacyKind.error,
+          'specs/utilities/f01_slot/AUTH.md': LegacyKind.auth,
+        });
+      });
+
+      test('f06/us01/fr03/e13: s04_authentication.md matches no kind and '
+          'stays', () {
+        final plan = _plan(slotTree(['s04_authentication.md']));
+
+        expect(plan.left, contains('specs/ui/slot/s04_authentication.md'));
+        expect(_movedTo(plan, 'specs/ui/slot/s04_authentication.md'), isNull);
+      });
+
+      test('f06/us01/fr03/e10: s02_api.md beside s02_api_login.md keeps both '
+          'old names', () {
+        final plan = _plan(slotTree(['s02_api.md', 's02_api_login.md']));
+
+        expect(
+          _movedTo(plan, 'specs/ui/slot/s02_api.md'),
+          'specs/utilities/f01_slot/s02_api.md',
+        );
+        expect(
+          _movedTo(plan, 'specs/ui/slot/s02_api_login.md'),
+          'specs/utilities/f01_slot/s02_api_login.md',
+        );
+        expect(plan.kindOf, isNot(contains('specs/utilities/f01_slot/API.md')));
+      });
+    });
+
     test('f06/us01/fr03/e10, f06/us01/s4: two API files of one feature keep '
         'their old names, untyped', () {
       final plan = _plan(acmeLegacy);

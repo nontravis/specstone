@@ -22,8 +22,21 @@ final _storyFile = RegExp(
   r'|functional_requirements/(fr\d+_[^/]+\.md)'
   r'|non_functional_requirements/(nf\d+_[^/]+\.md))$',
 );
+const _architectureKind = 'architecture';
+const _apiKind = 'api';
+const _domainKind = 'domain';
+const _integrationKind = 'integration';
+const _errorsKind = 'errors';
+const _authKind = 'auth';
+
+/// A legacy spec file `s<NN>_<kind>.md` or `s<NN>_<kind>_<suffix>.md`.
+///
+/// Group 1 is the kind, which ends at the `_` or at the `.md`.
 final _specFile = RegExp(
-  r'^s\d+_(architecture|api_[^/]+|domain|integration|errors|auth)\.md$',
+  r'^s\d+_('
+  '$_architectureKind|$_apiKind|$_domainKind|$_integrationKind|$_errorsKind'
+  '|$_authKind'
+  r')(?:_[^/]+)?\.md$',
 );
 
 /// The doc type a legacy file is renamed to.
@@ -290,12 +303,13 @@ String? _featurePathOfId(String featureId, LegacyFeatures features) {
 }
 
 (String, LegacyKind) _specDocOf(String name) => switch (name) {
-  'architecture' => ('ARCHITECTURE', LegacyKind.architecture),
-  'domain' => ('DOMAIN', LegacyKind.domain),
-  'integration' => ('INTEGRATION', LegacyKind.integration),
-  'errors' => ('ERROR', LegacyKind.error),
-  'auth' => ('AUTH', LegacyKind.auth),
-  _ => ('API', LegacyKind.api),
+  _architectureKind => ('ARCHITECTURE', LegacyKind.architecture),
+  _apiKind => ('API', LegacyKind.api),
+  _domainKind => ('DOMAIN', LegacyKind.domain),
+  _integrationKind => ('INTEGRATION', LegacyKind.integration),
+  _errorsKind => ('ERROR', LegacyKind.error),
+  _authKind => ('AUTH', LegacyKind.auth),
+  _ => throw ArgumentError.value(name, 'name', 'not a legacy spec kind'),
 };
 
 /// Rule 6: places the spec files of each feature by the doc file they map to.
