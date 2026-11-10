@@ -51,6 +51,13 @@ const loginApi = 'specs/f01_login/API.md';
 /// Returns the fingerprint of [block], as the library takes it.
 String fingerprintFor(String block) => fingerprintOf(block);
 
+/// Returns [block] laid out, less the one line break that ends it: the `text`
+/// of a `suspect` finding.
+String printedBlockOf(String block) {
+  final text = upstreamText(block);
+  return text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
+}
+
 /// The text of login scenario 1.
 const loginScenario1 =
     '### Scenario 1 — [happy] Sign in\n\n- **Given** an account\n'

@@ -4,7 +4,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -198,7 +197,7 @@ void main() {
   group('consistency_check/find_template_breaks/print_findings upstream block', () {
     final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
     final fingerprint = fingerprintFor(edited);
-    final block = upstreamText(edited).trimRight();
+    final block = printedBlockOf(edited);
 
     Future<Directory> project() =>
         writeCheckProject(extra: doc(loginStory, loginScenario2, edited));

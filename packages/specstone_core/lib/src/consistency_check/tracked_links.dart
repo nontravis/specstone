@@ -309,9 +309,13 @@ Iterable<Finding> checkTrackedLinks(
   }
 }
 
-// The block as `format` lays it out, with the line break that ends it dropped,
-// so each of its lines prints once.
-String _blockText(String source) => upstreamText(source).trimRight();
+// The block as `format` lays it out, with the one line break that ends it
+// dropped, so each of its lines prints once and a trailing space the layout
+// keeps stays in the text the fingerprint hashes.
+String _blockText(String source) {
+  final text = upstreamText(source);
+  return text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
+}
 
 /// Returns the malformed and stale `confirmed` entries of [doc] (INV-7).
 ///

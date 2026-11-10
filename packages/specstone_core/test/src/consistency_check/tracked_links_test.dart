@@ -94,7 +94,7 @@ void main() {
   });
 
   group('consistency_check/find_suspect_links/report_suspect_links', () {
-    final block = upstreamText(edited).trimRight();
+    final block = printedBlockOf(edited);
 
     test(
       'E02: a suspect finding prints the block, then the fingerprint, '
@@ -151,6 +151,25 @@ void main() {
       },
     );
 
+    test(
+      'a block whose last line ends in a no-break space keeps it in text, '
+      'and text plus its line break is the block the fingerprint hashes',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: fr(checkPasswordStatement, '$checkPasswordStatement\u00A0'),
+          ),
+        );
+        final finding = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.suspect,
+        );
+
+        final text = finding.keys['text']! as String;
+        expect(text, endsWith('\u00A0'));
+        expect(fp('$text\n'), finding.keys['fingerprint']);
+      },
+    );
+
     test('a block with an empty line and a line opening with fingerprint '
         'prints every block line indented, the empty one as 4 spaces, and the '
         'real fingerprint last', () async {
@@ -171,7 +190,7 @@ void main() {
       );
       expect(
         lines.skip(1).take(lines.length - 2),
-        upstreamText(tricky).trimRight().split('\n').map((l) => '    $l'),
+        printedBlockOf(tricky).split('\n').map((l) => '    $l'),
       );
       for (final line in lines.skip(1)) {
         expect(line, startsWith('    '));
@@ -204,7 +223,7 @@ void main() {
         'text',
         'fingerprint',
       ]);
-      expect(finding.keys['text'], upstreamText(loginScenario2).trimRight());
+      expect(finding.keys['text'], printedBlockOf(loginScenario2));
       final keys = finding.toJson().keys.toList();
       expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
       expect(finding.textLines.last, '    fingerprint ${fp(loginScenario2)}');
@@ -237,7 +256,7 @@ void main() {
         'text',
         'fingerprint',
       ]);
-      expect(finding.keys['text'], upstreamText(loginScenario2).trimRight());
+      expect(finding.keys['text'], printedBlockOf(loginScenario2));
       final keys = finding.toJson().keys.toList();
       expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
       expect(finding.textLines.last, '    fingerprint ${fp(loginScenario2)}');

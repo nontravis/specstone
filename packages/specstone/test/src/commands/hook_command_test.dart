@@ -180,7 +180,7 @@ void main() {
           (decoded['hookSpecificOutput']!
                   as Map<String, Object?>)['additionalContext']!
               as String;
-      final block = upstreamText(edited).trimRight();
+      final block = printedBlockOf(edited);
       expect(
         context,
         endsWith(
