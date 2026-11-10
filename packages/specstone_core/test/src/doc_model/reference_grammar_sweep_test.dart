@@ -300,10 +300,11 @@ final RegExp _sentenceSplit = RegExp(
   r'''|\x27\. \x27|"\. "''',
 );
 
-/// A read of a naming line: `startsWith('==> ')`, `endsWith(' <==')`, or a
-/// `RegExp` literal holding `==>`.
+/// A read of a naming line: `startsWith('==>')`, `endsWith(' <==')`,
+/// `contains(' <==')`, or a `RegExp` literal holding `==>`.
 final RegExp _namingLineRead = RegExp(
-  r'''startsWith\(\s*[\x27"]==> |endsWith\(\s*[\x27"] <==[\x27"]|'''
+  r'''startsWith\(\s*[\x27"]==>|endsWith\(\s*[\x27"] <==[\x27"]'''
+  r'''|contains\(\s*[\x27"] <==[\x27"]|'''
   '${_regExpLiteralWith('==>').pattern}',
 );
 
@@ -571,6 +572,8 @@ void main() {
       "line.startsWith('==> ')",
       'line.startsWith("==> ")',
       "line.endsWith(' <==')",
+      "line.startsWith('==>')",
+      "line.contains(' <==')",
       r"RegExp(r'^==> (.*) <==$')",
       'RegExp("==> ")',
     ]) {

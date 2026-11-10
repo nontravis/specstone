@@ -146,6 +146,84 @@ void main() {
       expect(readNamingLine('==> <=='), isNull);
       expect(readNamingLine(''), isNull);
     });
+    test(
+      'a doc path or untyped name holding the separator reads back whole',
+      () async {
+        final spaced = await indexWith({'docs/prds/a · b.md': '# AB\n'});
+        final untypedDoc = spaced.resolve('prds/a · b.md').single;
+        const path = 'prds/a · b.md';
+        expect(
+          namingLine(untypedDoc, base: hash),
+          '==> $path · $path · base $hash <==',
+        );
+        final forms = <(String, NamingLine)>[
+          (
+            namingLine(untypedDoc, base: hash),
+            const NamingLine(path: path, base: hash),
+          ),
+          (
+            namingLine(untypedDoc, sectionKey: 'one', base: hash),
+            const NamingLine(path: '$path#one', base: hash),
+          ),
+          (
+            namingLine(untypedDoc, fieldId: 'vision', base: hash),
+            const NamingLine(path: path, base: hash, fieldId: 'vision'),
+          ),
+          (
+            namingLine(untypedDoc, title: true, base: hash),
+            const NamingLine(path: path, base: hash, isTitle: true),
+          ),
+          (
+            '==> a (feature) · my · doc.md · base $hash <==',
+            const NamingLine(path: 'my · doc.md', base: hash),
+          ),
+          (
+            '==> a (feature) · my · doc.md#one · field vision · base $hash <==',
+            const NamingLine(
+              path: 'my · doc.md#one',
+              base: hash,
+              fieldId: 'vision',
+            ),
+          ),
+          (
+            '==> a (feature) · my · doc.md · title · base $hash <==',
+            const NamingLine(path: 'my · doc.md', base: hash, isTitle: true),
+          ),
+          (
+            '==> a (feature) · my · doc.md · base $hash · unchanged <==',
+            const NamingLine(path: 'my · doc.md'),
+          ),
+          (
+            '==> a (feature) · my · doc.md · summary <==',
+            const NamingLine(path: 'my · doc.md'),
+          ),
+        ];
+        for (final (line, expected) in forms) {
+          final read = readNamingLine(line);
+          expect(read, isNotNull, reason: line);
+          expect(read!.path, expected.path, reason: line);
+          expect(read.base, expected.base, reason: line);
+          expect(read.fieldId, expected.fieldId, reason: line);
+          expect(read.isTitle, expected.isTitle, reason: line);
+        }
+      },
+    );
+    test('a malformed hash leaves the path whole', () {
+      final read = readNamingLine(
+        '==> a (feature) · p.md · base abc123abc12 <==',
+      );
+      expect(read!.path, 'p.md');
+      expect(read.base, isNull);
+    });
+    test('a line whose path is empty reads as none', () {
+      for (final bad in [
+        '==>  <==',
+        '==> a ·  <==',
+        '==> a (feature) ·  <==',
+      ]) {
+        expect(readNamingLine(bad), isNull, reason: bad);
+      }
+    });
     test('a hash of 11 or 13 characters, or upper-case hex, has no base', () {
       for (final bad in ['abc123abc12', 'abc123abc1234', 'ABC123ABC123']) {
         final read = readNamingLine(namingLine(typed, base: bad));
