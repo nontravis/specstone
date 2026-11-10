@@ -347,6 +347,37 @@ void main() {
     ]);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('f06/us02/s17: a tracked file added between the dry run and migrate '
+      '--yes --plan leaves the hash of an upgrade that converts a labelled '
+      'code file, and the plan applies', () async {
+    final root = await gitFixture({
+      '.specstone/config.yaml':
+          'packs:\n  prd-core: 1.0.0\n'
+          '  software-tech: 1.0.0\n',
+      'docs/prds/features/f01_a/FEATURE.md': '# A\n',
+      'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
+      'docs/prds/features/f01_a/us01_b/fr01_c.md': '# C\n',
+      'docs/specs/TECH_STACK.md': '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+      'lib/a.dart': '// See F-01 US-01\n',
+    });
+    final hash = await _dryRunPlanHash(root);
+    File('${root.path}/notes.txt').writeAsStringSync('later\n');
+    commitAll(root, 'unrelated');
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['migrate', '--yes', '--plan', hash]),
+      0,
+      reason: err.toString(),
+    );
+
+    expect(
+      File('${root.path}/lib/a.dart').readAsStringSync(),
+      isNot(contains('F-01')),
+    );
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
   test(
     'f06/us01/s18: a committed edit to a doc between the dry run and '
     'migrate --yes --plan exits 75, plan_mismatch, and writes nothing',

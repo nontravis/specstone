@@ -181,11 +181,11 @@ RootTrust _trustOf(
 /// it on the Owner's `y`, or under `--yes` with no prompt.
 ///
 /// After the `y` or the `--plan` check the run checks the clean tree again and
-/// every file the plan read, since the Owner may read the plan for minutes: a
-/// dirty tree or a changed input refuses `working_tree_dirty` with nothing
-/// written. A commit that leaves every input as it was does not refuse; the
-/// run then reads HEAD as each commit step's `base`. A legacy plan reads
-/// [linkFolder].
+/// plans again, since the Owner may read the plan for minutes: a dirty tree, or
+/// a new plan that hashes differently from the one shown (an input edited,
+/// deleted, or added), refuses `working_tree_dirty` with nothing written. A
+/// commit that leaves every input as it was does not refuse; the run then
+/// reads HEAD as each commit step's `base`. A legacy plan reads [linkFolder].
 int _plannedRun(
   MigrateRequest request,
   Directory root,
@@ -212,23 +212,39 @@ int _plannedRun(
     _requireSeenPlan(request, planText, plan.inputs);
   }
   requireCleanWorkTree(root, request.runGit);
-  final changed = plan.inputs.firstChangeIn(request.runGit);
-  if (changed != null) {
-    throw MigrateFault(
-      MigrateFaultCode.workingTreeDirty,
-      '$changed, a file the plan read, changed while the plan was shown; run '
-      'specstone migrate again to plan from it',
-    );
-  }
+  final applied = _replanMatching(request, root, kind, linkFolder, plan);
   final base = headSha(root, request.runGit);
-  final steps = plan.journalSteps(base: base, projectRoot: root);
-  MoveJournal(
-    steps,
-  ).run(_targetOf(root, request, trust, agentFiles: plan.agentFiles?.writeSet));
+  final steps = applied.journalSteps(base: base, projectRoot: root);
+  MoveJournal(steps).run(
+    _targetOf(root, request, trust, agentFiles: applied.agentFiles?.writeSet),
+  );
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
-  final closingLine = plan.closingLine;
+  final closingLine = applied.closingLine;
   if (closingLine != null) request.out.writeln(closingLine);
   return 0;
+}
+
+/// Plans again and returns the new plan when it hashes as [shown] does.
+///
+/// Throws [MigrateFault] `working_tree_dirty` otherwise, naming the first
+/// input that differs, or the plan alone when only its text does.
+RunPlan _replanMatching(
+  MigrateRequest request,
+  Directory root,
+  RunKind kind,
+  Directory? linkFolder,
+  RunPlan shown,
+) {
+  final fresh = _planOf(request, root, kind, linkFolder);
+  final freshHash = planHashOf(fresh.toText(), fresh.inputs);
+  if (freshHash == planHashOf(shown.toText(), shown.inputs)) return fresh;
+  final input = shown.inputs.firstDifferenceFrom(fresh.inputs);
+  final changed = input == null ? 'the plan' : '$input, an input of the plan,';
+  throw MigrateFault(
+    MigrateFaultCode.workingTreeDirty,
+    '$changed changed while the plan was shown; run specstone migrate again '
+    'to plan from it',
+  );
 }
 
 /// Refuses, in order and before any plan, roots that wait for the Owner's

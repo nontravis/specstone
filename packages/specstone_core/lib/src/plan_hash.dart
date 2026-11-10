@@ -1,15 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
-
-/// The name `PlanInputs.lines` gives the tracked-file listing.
-const _listingName = 'git ls-files';
 
 /// The `Zone` key the active recorder runs under.
 final _recorderKey = Object();
@@ -17,7 +12,7 @@ final _recorderKey = Object();
 /// Returns the hash a dry run prints on its `plan <hash>` line.
 ///
 /// It is the [baseHashOf] of [planText] followed by [inputs]' lines, so a
-/// change to the plan or to a file it read changes it, and a commit that
+/// change to the plan or to an input it used changes it, and a commit that
 /// leaves every input as it was does not (`setup_migration` INV-4).
 String planHashOf(String planText, PlanInputs inputs) =>
     baseHashOf('$planText${inputs.lines}');
@@ -31,19 +26,23 @@ Uint8List readPlanInput(File file) {
   return bytes;
 }
 
-/// Records [listing], the output of `git ls-files -z`, when a
-/// [PlanInputs.collect] runs.
-void recordTrackedListing(String listing) {
-  _activeRecorder?._recordListing(listing);
+/// Records whether git tracks [path], a `/`-separated path from the project
+/// root, when a [PlanInputs.collect] runs.
+///
+/// A path answered twice keeps its first answer.
+void recordTrackedAnswer(String path, {required bool isTracked}) {
+  _activeRecorder?._recordTracked(path, isTracked: isTracked);
 }
 
 PlanInputs? get _activeRecorder => Zone.current[_recorderKey] as PlanInputs?;
 
-/// The files a plan read, each with the hash of its bytes.
+/// What a plan used: each file it read with the hash of its bytes, and each
+/// path it asked git about with the answer.
 ///
 /// The reads sit in layers that non-planner callers share, so a read records
 /// through [readPlanInput] into the recorder the running `Zone` holds, with no
-/// parameter threaded through those layers.
+/// parameter threaded through those layers. A plan that gained, lost, or
+/// changed an input of any kind has different [lines].
 final class PlanInputs {
   new(this.projectRoot) : _rootPaths = _rootPathsOf(projectRoot);
 
@@ -51,89 +50,65 @@ final class PlanInputs {
   final Directory projectRoot;
 
   final List<String> _rootPaths;
-  final _files = <String, ({File file, String hash})>{};
-  String? _listingHash;
+  final _hashes = <String, String>{};
+  final _tracked = <String, bool>{};
 
   /// Runs [plan] with this recorder active and returns its result.
   T collect<T>(T Function() plan) =>
       Zone.current.fork(zoneValues: {_recorderKey: this}).run(plan);
 
   /// One `<path> <sha256 hex>` line per recorded file in code point order of
-  /// path, then a `git ls-files <sha256 hex>` line when a listing was recorded.
+  /// path, then one `<path> tracked|untracked` line per path asked of git in
+  /// the same order.
   String get lines {
     final buffer = StringBuffer();
-    for (final (:path, :hash, file: _) in _sortedEntries) {
-      buffer.write('$path $hash\n');
+    for (final path in _sorted(_hashes.keys)) {
+      buffer.write('$path ${_hashes[path]}\n');
     }
-    final listing = _listingHash;
-    if (listing != null) buffer.write('$_listingName $listing\n');
+    for (final path in _sorted(_tracked.keys)) {
+      buffer.write('$path ${_tracked[path]! ? 'tracked' : 'untracked'}\n');
+    }
     return buffer.toString();
   }
 
-  /// Returns the first recorded path whose bytes now differ or that is gone,
-  /// or `git ls-files` when a fresh listing differs, else null.
+  /// Returns the path of the first line in code point order that [other] and
+  /// this hold differently, or null when their [lines] are equal.
   ///
-  /// [runGit] lists the tracked files again, as the plan did.
-  String? firstChangeIn(RunGit runGit) {
-    for (final (:path, :hash, :file) in _sortedEntries) {
-      if (_hashOf(file) != hash) return path;
-    }
-    final listing = _listingHash;
-    if (listing != null && _listingNow(runGit) != listing) return _listingName;
-    return null;
+  /// A path one holds and the other lacks counts as a difference.
+  String? firstDifferenceFrom(PlanInputs other) {
+    final mine = lines.split('\n').toSet();
+    final theirs = other.lines.split('\n').toSet();
+    final differing = mine.difference(theirs).union(theirs.difference(mine))
+      ..remove('');
+    if (differing.isEmpty) return null;
+    final first = _sorted(differing).first;
+    return first.substring(0, first.lastIndexOf(' '));
   }
-
-  List<({String path, String hash, File file})> get _sortedEntries => [
-    for (final entry
-        in _files.entries.toList()
-          ..sort((a, b) => compareCodePoints(a.key, b.key)))
-      (path: entry.key, hash: entry.value.hash, file: entry.value.file),
-  ];
 
   void _record(File file, Uint8List bytes) {
-    _files.putIfAbsent(
-      _keyOf(file),
-      () => (file: file, hash: sha256.convert(bytes).toString()),
-    );
+    _hashes.putIfAbsent(_keyOf(file.absolute.path), () {
+      return sha256.convert(bytes).toString();
+    });
   }
 
-  void _recordListing(String listing) {
-    _listingHash ??= sha256.convert(utf8.encode(listing)).toString();
+  void _recordTracked(String path, {required bool isTracked}) {
+    _tracked.putIfAbsent(path, () => isTracked);
   }
 
-  /// Returns the `/`-separated path of [file] from the project root, or its
-  /// absolute path when it lies outside.
-  String _keyOf(File file) {
-    final absolute = file.absolute.path;
+  /// Returns the `/`-separated path of [absolute] from the project root, or
+  /// [absolute] itself when it lies outside.
+  String _keyOf(String absolute) {
     for (final root in _rootPaths) {
       if (!absolute.startsWith(root)) continue;
-      return absolute.substring(root.length).replaceAll(r'\', '/');
+      final relative = absolute.substring(root.length);
+      return Platform.isWindows ? relative.replaceAll(r'\', '/') : relative;
     }
     return absolute;
   }
-
-  String? _listingNow(RunGit runGit) {
-    try {
-      final result = runGit([
-        'ls-files',
-        '-z',
-      ], workingDirectory: projectRoot.path);
-      if (result.exitCode != 0) return null;
-      return sha256.convert(utf8.encode(result.stdout as String)).toString();
-    } on ProcessException {
-      return null;
-    }
-  }
 }
 
-/// Returns the hash of the bytes of [file], or null when it cannot be read.
-String? _hashOf(File file) {
-  try {
-    return sha256.convert(file.readAsBytesSync()).toString();
-  } on FileSystemException {
-    return null;
-  }
-}
+List<String> _sorted(Iterable<String> items) =>
+    items.toList()..sort(compareCodePoints);
 
 /// Returns [root]'s absolute and canonical paths, each ending in a separator.
 List<String> _rootPathsOf(Directory root) {

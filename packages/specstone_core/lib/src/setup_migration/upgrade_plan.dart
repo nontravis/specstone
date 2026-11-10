@@ -614,6 +614,9 @@ _LabelPlan _planLabelPass(
   final tracked = labelled.isEmpty
       ? const <String>{}
       : _trackedPaths(projectRoot, runGit);
+  for (final path in labelled.keys) {
+    recordTrackedAnswer(path, isTracked: tracked.contains(path));
+  }
   final convertible = {
     for (final path in labelled.keys)
       if (tracked.contains(path) && _isInsideProject(path)) path,
@@ -708,10 +711,8 @@ Set<String> _trackedPaths(Directory projectRoot, RunGit runGit) {
       '-z',
     ], workingDirectory: projectRoot.path);
     if (result.exitCode != 0) return const {};
-    final listing = result.stdout as String;
-    recordTrackedListing(listing);
     return {
-      for (final path in listing.split('\x00'))
+      for (final path in (result.stdout as String).split('\x00'))
         if (path.isNotEmpty) path,
     };
   } on ProcessException {

@@ -1948,7 +1948,7 @@ void _planInputTests() {
     });
 
     test('$_fr INV-4: an edit to a code file the label pass reads changes '
-        'the hash, and the tracked listing joins as one more line', () async {
+        'the hash, and its tracked answer joins as one more line', () async {
       final project = await _labelTree(
         {},
         code: {'lib/a.dart': '// See F-01 US-01\n'},
@@ -1963,7 +1963,37 @@ void _planInputTests() {
       );
       expect(
         _planWith(project, tracked).inputs.lines,
-        contains('git ls-files '),
+        contains('lib/a.dart tracked\n'),
+      );
+    });
+
+    test('$_fr INV-4: a tracked file the label pass never asked about leaves '
+        'the hash', () async {
+      final project = await _labelTree(
+        {},
+        code: {'lib/a.dart': '// See F-01 US-01\n'},
+      );
+
+      final before = _planWith(project, _tracking({'lib/a.dart'}));
+      final after = _planWith(
+        project,
+        _tracking({'lib/a.dart', 'notes.txt', 'src/b.dart'}),
+      );
+
+      expect(_hashOf(after), _hashOf(before));
+      expect(after.inputs.lines, isNot(contains('notes.txt')));
+    });
+
+    test('$_fr INV-4: a labelled file git does not track enters as '
+        'untracked', () async {
+      final project = await _labelTree(
+        {},
+        code: {'lib/a.dart': '// See F-01 US-01\n'},
+      );
+
+      expect(
+        _planWith(project, _tracking({})).inputs.lines,
+        contains('lib/a.dart untracked\n'),
       );
     });
 

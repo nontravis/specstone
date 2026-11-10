@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:test/test.dart';
 
@@ -68,7 +67,6 @@ void main() {
 
     expect(planHashOf(_plan, inputs), before);
     expect(planHashOf(_plan, _recorded(root, ['keep.txt'])), before);
-    expect(inputs.firstChangeIn(runRealGit), isNull);
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06 INV-4: a read outside collect records nothing', () async {
@@ -76,7 +74,7 @@ void main() {
     final inputs = PlanInputs(root);
 
     readPlanInput(_in(root, 'a.md'));
-    recordTrackedListing('a.md\x00');
+    recordTrackedAnswer('a.md', isTracked: true);
 
     expect(inputs.lines, isEmpty);
   });
@@ -108,6 +106,21 @@ void main() {
     );
   });
 
+  test(
+    r'f06 INV-4: a backslash in a name is no separator on POSIX, so a\b.md and '
+    'a/b.md keep two lines',
+    () async {
+      final root = await writeTree({r'a\b.md': 'one\n', 'a/b.md': 'two\n'});
+      final inputs = _recorded(root, [r'a\b.md', 'a/b.md']);
+
+      expect(
+        inputs.lines,
+        'a/b.md ${_hex('two\n')}\n${r'a\b.md'} ${_hex('one\n')}\n',
+      );
+    },
+    skip: Platform.isWindows ? 'a backslash separates paths on Windows' : null,
+  );
+
   test('f06 INV-4: a file outside the project root enters by its absolute '
       'path', () async {
     final root = await writeTree({'a.md': 'one\n'});
@@ -121,72 +134,120 @@ void main() {
     );
   });
 
-  test('f06 INV-4: the tracked listing joins as one more line', () async {
+  test('f06 INV-4: a tracked answer joins as one line per path, after the '
+      'file lines, in code point order', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = PlanInputs(root)
       ..collect(() {
         readPlanInput(_in(root, 'a.md'));
-        recordTrackedListing('a.md\x00');
+        recordTrackedAnswer('lib/z.dart', isTracked: false);
+        recordTrackedAnswer('lib/b.dart', isTracked: true);
+        recordTrackedAnswer('lib/b.dart', isTracked: false);
       });
 
     expect(
       inputs.lines,
-      'a.md ${_hex('one\n')}\ngit ls-files ${_hex('a.md\x00')}\n',
+      'a.md ${_hex('one\n')}\nlib/b.dart tracked\nlib/z.dart untracked\n',
     );
   });
 
-  test('f06 INV-4: firstChangeIn names an edited file', () async {
-    final root = await writeTree({'a.md': 'one\n', 'b.md': 'two\n'});
-    final inputs = _recorded(root, ['a.md', 'b.md']);
-    expect(inputs.firstChangeIn(runRealGit), isNull);
+  test('f06 INV-4: a tracked answer outside collect records nothing', () {
+    final inputs = PlanInputs(Directory.systemTemp);
 
-    _in(root, 'b.md').writeAsStringSync('2\n');
+    recordTrackedAnswer('lib/a.dart', isTracked: true);
 
-    expect(inputs.firstChangeIn(runRealGit), 'b.md');
+    expect(inputs.lines, isEmpty);
   });
 
-  test('f06 INV-4: firstChangeIn names a deleted file, never a raw '
-      'FileSystemException', () async {
-    final root = await writeTree({'a.md': 'one\n', 'b.md': 'two\n'});
-    final inputs = _recorded(root, ['a.md', 'b.md']);
-
-    _in(root, 'a.md').deleteSync();
-
-    expect(inputs.firstChangeIn(runRealGit), 'a.md');
-  });
-
-  test('f06 INV-4: firstChangeIn names git ls-files once a new file is '
-      'tracked', () async {
-    final root = await writeTree({'a.md': 'one\n'});
-    expect(git(root, ['init', '-q']).exitCode, 0);
-    commitAll(root, 'first');
-    final inputs = PlanInputs(root)
-      ..collect(() {
-        readPlanInput(_in(root, 'a.md'));
-        final listing = git(root, ['ls-files', '-z']).stdout as String;
-        recordTrackedListing(listing);
+  group('firstDifferenceFrom', () {
+    Future<PlanInputs> plan(
+      Directory root,
+      List<String> files, {
+      Map<String, bool> tracked = const {},
+    }) async {
+      return PlanInputs(root)..collect(() {
+        for (final path in files) {
+          readPlanInput(_in(root, path));
+        }
+        for (final MapEntry(:key, :value) in tracked.entries) {
+          recordTrackedAnswer(key, isTracked: value);
+        }
       });
-    expect(inputs.firstChangeIn(runRealGit), isNull);
+    }
 
-    _in(root, 'new.md').writeAsStringSync('new\n');
-    expect(git(root, ['add', 'new.md']).exitCode, 0);
-
-    expect(inputs.firstChangeIn(runRealGit), 'git ls-files');
-  }, skip: hasGit ? null : 'git is not available');
-
-  test(
-    'f06 INV-4: a git that cannot list counts as a changed listing',
-    () async {
+    test('f06 INV-4: equal lines differ nowhere', () async {
       final root = await writeTree({'a.md': 'one\n'});
-      final inputs = PlanInputs(root)
-        ..collect(() => recordTrackedListing('a.md\x00'));
-      ProcessResult missingGit(
-        List<String> arguments, {
-        required String workingDirectory,
-        Map<String, String>? environment,
-      }) => throw const ProcessException('git', []);
 
-      expect(inputs.firstChangeIn(missingGit), 'git ls-files');
-    },
-  );
+      expect(
+        (await plan(root, [
+          'a.md',
+        ])).firstDifferenceFrom(await plan(root, ['a.md'])),
+        isNull,
+      );
+    });
+
+    test('f06 INV-4: an edited file is named', () async {
+      final root = await writeTree({'a.md': 'one\n', 'b.md': 'two\n'});
+      final before = await plan(root, ['a.md', 'b.md']);
+
+      _in(root, 'b.md').writeAsStringSync('2\n');
+
+      expect(
+        before.firstDifferenceFrom(await plan(root, ['a.md', 'b.md'])),
+        'b.md',
+      );
+    });
+
+    test('f06 INV-4: a file one plan read and the other did not is named, '
+        'whichever side lacks it', () async {
+      final root = await writeTree({'a.md': 'one\n', 'b.md': 'two\n'});
+      final fewer = await plan(root, ['a.md']);
+      final more = await plan(root, ['a.md', 'b.md']);
+
+      expect(fewer.firstDifferenceFrom(more), 'b.md');
+      expect(more.firstDifferenceFrom(fewer), 'b.md');
+    });
+
+    test('f06 INV-4: the first differing path in code point order is named, '
+        'not the first found', () async {
+      final root = await writeTree({
+        'a.md': 'one\n',
+        'b.md': 'two\n',
+        'c.md': 'three\n',
+      });
+      final before = await plan(root, ['a.md', 'b.md', 'c.md']);
+
+      _in(root, 'c.md').writeAsStringSync('3\n');
+      _in(root, 'b.md').writeAsStringSync('2\n');
+
+      expect(
+        before.firstDifferenceFrom(await plan(root, ['c.md', 'b.md', 'a.md'])),
+        'b.md',
+      );
+    });
+
+    test('f06 INV-4: a changed tracked answer names its path', () async {
+      final root = await writeTree({'a.md': 'one\n'});
+      final before = await plan(root, ['a.md'], tracked: {'lib/a.dart': true});
+      final after = await plan(root, ['a.md'], tracked: {'lib/a.dart': false});
+
+      expect(before.firstDifferenceFrom(after), 'lib/a.dart');
+    });
+
+    test('f06 INV-4: a commit that adds an unasked file differs nowhere, as '
+        'the plan never asked git about it', () async {
+      final root = await writeTree({'keep.txt': 'x\n'});
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      commitAll(root, 'first');
+      final before = await plan(root, ['keep.txt']);
+
+      _in(root, 'other.txt').writeAsStringSync('z\n');
+      commitAll(root, 'second');
+
+      expect(
+        before.firstDifferenceFrom(await plan(root, ['keep.txt'])),
+        isNull,
+      );
+    }, skip: hasGit ? null : 'git is not available');
+  });
 }

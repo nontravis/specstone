@@ -95,6 +95,17 @@ sections:
   return (project: project, home: home);
 }
 
+/// A committed project below the pack versions that write the agent files,
+/// whose `lib/a.dart` holds a number label the label pass converts.
+Future<Directory> _labelledCodeFixture() => gitFixture({
+  '.specstone/config.yaml': _belowSince,
+  'docs/prds/features/f01_a/FEATURE.md': '# A\n',
+  'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
+  'docs/prds/features/f01_a/us01_b/fr01_c.md': '# C\n',
+  'docs/specs/TECH_STACK.md': '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+  'lib/a.dart': '// See F-01 US-01\n',
+});
+
 /// Writes [files] under a new canonical folder, makes each key of [links] a
 /// link to its value, then commits `proj/` and [other] as two repositories.
 Future<Directory> _twoRepositories(
@@ -552,7 +563,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                '$input, a file the plan read, changed while the plan was '
+                '$input, an input of the plan, changed while the plan was '
                     'shown; run specstone migrate again to plan from it',
               ),
         ),
@@ -608,6 +619,101 @@ void main() {
       expect(out.toString(), contains('apply? [y/N] '));
       expect(runbook.readAsStringSync(), '# Deploy\n\n## Steps\n\nedited\n');
       expect(MoveJournal.pending(project), isFalse);
+    }, skip: skipGit);
+
+    /// Expects [meanwhile], run while the prompt waits, to make the run refuse
+    /// `working_tree_dirty` naming [input], with nothing written after it.
+    void expectRefusedNaming(
+      Directory root,
+      String input,
+      void Function() meanwhile, {
+      Directory? home,
+    }) {
+      late final String head;
+      expect(
+        () => answerAfter(root, () {
+          meanwhile();
+          head = headOf(root);
+        }, home: home),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having((f) => f.message, 'message', contains(input)),
+        ),
+      );
+      expect(headOf(root), head);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      expect(MoveJournal.pending(root), isFalse);
+    }
+
+    test('f06/us01/fr02/e08: a legacy doc committed while the prompt waits is '
+        'working_tree_dirty naming it, and nothing is written', () async {
+      final root = await gitFixture(acmeLegacy);
+      const added = 'docs/prds/d09_extra.md';
+
+      expectRefusedNaming(root, added, () {
+        File('${root.path}/$added').writeAsStringSync('# D-09 — Extra\n');
+        commitAll(root, 'meanwhile');
+      });
+
+      expect(_bytesUnder(root), {...acmeLegacy, added: '# D-09 — Extra\n'});
+    }, skip: skipGit);
+
+    test('f06/us02/fr02/e08: a runbook committed while an upgrade prompt '
+        'waits is working_tree_dirty naming it, and nothing is '
+        'written', () async {
+      final (:project, :home) = await _upgradeFixture();
+      const added = 'docs/prds/runbooks/other/RUNBOOK.md';
+
+      expectRefusedNaming(project, added, () {
+        File('${project.path}/$added')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('# Other\n\n## Steps\n\nRun it.\n');
+        commitAll(project, 'meanwhile');
+      }, home: home);
+
+      expect(
+        File('${project.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.0.0'),
+      );
+    }, skip: skipGit);
+
+    test('f06/us02/fr02/e08: a file added to the personal pack while an '
+        'upgrade prompt waits is working_tree_dirty naming it, and nothing '
+        'is written', () async {
+      final (:project, :home) = await _upgradeFixture();
+      const added = '/.specstone/packs/acme/playbook.yaml';
+
+      expectRefusedNaming(project, added, () {
+        File('${home.path}$added').writeAsStringSync('''
+id: playbook
+description: A playbook.
+path: prds/playbooks/{slug}/PLAYBOOK.md
+sections:
+  - {id: body, header: Body, required: true}
+''');
+      }, home: home);
+    }, skip: skipGit);
+
+    test('f06/us02/fr02/e08: a tracked file committed while an upgrade with a '
+        'labelled code file waits leaves every input, and the run '
+        'applies', () async {
+      final project = await _labelledCodeFixture();
+
+      expect(
+        answerAfter(project, () {
+          File('${project.path}/notes.txt').writeAsStringSync('x\n');
+          commitAll(project, 'meanwhile');
+        }),
+        0,
+      );
+
+      expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
+      expect(
+        File('${project.path}/lib/a.dart').readAsStringSync(),
+        isNot(contains('F-01')),
+        reason: 'the labelled code file was converted',
+      );
     }, skip: skipGit);
   });
 
