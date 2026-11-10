@@ -53,9 +53,10 @@ Each `specstone:sdd-engineer` dispatch in steps 3 to 5 also passes `report:`, a 
 show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
 Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the open
-questions) to a `mktemp` file outside the repository. Dispatch `mode: design` with that brief's path and
-`docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`. Add the answers, and each change from the builder check or the
-Owner, to the brief, and dispatch again with the same inputs.
+questions) to a `mktemp` file outside the repository, once every answer is in. Dispatch `mode: design` once, with that
+brief's path and `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`.
+
+Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
 
 ## 4. Write the drafts, then audit them
 
@@ -63,9 +64,7 @@ Owner, to the brief, and dispatch again with the same inputs.
    the path is the hand-off.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
    list as its targets.
-3. When the audit reports `Findings:` lines, send them to the author while it is live, else to a new `mode: author`
-   dispatch with the document's path and the drafts list; then audit again with a fresh agent. Run at most two fix
-   rounds. The drafts list is the first author report's drafts plus each doc a fix round added.
+3. Run fix rounds on its `Findings:` lines per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
 4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
    until then, per `specstone:expert-sdd`.
 

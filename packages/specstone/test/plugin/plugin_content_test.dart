@@ -1101,6 +1101,46 @@ void _agentTests() {
       contains('- **Audit**: the `Audited:` lines, `Findings:`,'),
     );
   });
+
+  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E05, E06, '
+      "E07, E10, E12, E13: rounds.md holds the runner's dispatch, fix-round, "
+      'amend, and re-audit rules, and steps 3 and 4.3 of brainstorming-sdd '
+      'point to it', () {
+    final rounds = _oneLine(_pluginText(_rounds));
+    for (final point in _roundsPoints) {
+      expect(rounds, contains(point), reason: point);
+    }
+    for (final restated in _roundsOwnedElsewhere) {
+      expect(rounds, isNot(contains(restated)), reason: restated);
+    }
+    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final design = _sectionOf(skill, '3. Write the document: design mode');
+    expect(design, contains('`$_roundsPath`'));
+    expect(_oneLine(design), contains('Dispatch `mode: design` once'));
+    expect(_oneLine(design), isNot(contains('dispatch again')));
+    final fixRounds = _sectionOf(
+      skill,
+      '4. Write the drafts, then audit them',
+    ).split('\n').where((line) => line.startsWith('3. '));
+    expect(fixRounds, hasLength(1));
+    expect(fixRounds.single, contains('`Findings:` lines'));
+    expect(fixRounds.single, contains('`$_roundsPath`'));
+    expect(_oneLine(skill), isNot(contains('two fix rounds')));
+    for (final file in ['SKILL.md', 'references/rounds.md']) {
+      expect(
+        _pluginText('skills/brainstorming-sdd/$file'),
+        isNot(contains('while it is live')),
+        reason: file,
+      );
+    }
+    expect(cliCommands(_pluginText(_rounds)), contains('get'));
+    bool ofRounds(String problem) => problem.startsWith('$_rounds:');
+    expect(oversizedSkillFiles(pluginRoot()).where(ofRounds), isEmpty);
+    expect(
+      unknownCliNames(pluginRoot(), SpecstoneCommandRunner()).where(ofRounds),
+      isEmpty,
+    );
+  });
 }
 
 /// Each point of `write_design_and_plan`'s dependents search and state-table
@@ -1175,6 +1215,79 @@ const _ownedElsewhere = [
   'pins no hash',
   'differs from their last',
   'each doc the round or pass added',
+];
+
+/// The runner's fix-round and ruling procedure of `brainstorming-sdd`, under
+/// the plugin folder.
+const _rounds = 'skills/brainstorming-sdd/references/rounds.md';
+
+/// [_rounds] by the path the skill's runner reads it from.
+const _roundsPath = '\${CLAUDE_PLUGIN_ROOT}/$_rounds';
+
+/// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
+/// re-audit clauses, E05, E06, E07, E10, E12, and E13, as rounds.md words
+/// them, cut at line width.
+const _roundsPoints = [
+  'adds or changes behavior when it brings a new state, input, output,',
+  'edge case, error, or reader of a rule (E12).',
+  "append it to the design document's Rulings yourself",
+  'the author, or the fix round under way, goes on (E07, E12).',
+  'or needs more PRD or spec grounding',
+  "dispatch `mode: design` again with the brief's path and the document's",
+  'path, an amend of the same file.',
+  "Design mode searches the decision's terms (`references/design.md`)",
+  'before the author writes it (E07, E12).',
+  'after an append or an amend, ask for the approval again (E07).',
+  "When the design report holds open questions, gather the Owner's answers,",
+  'append each that only words or records one, send the rest to one amend,',
+  'and ask for the approval only after it (E10).',
+  'an amend, then one fresh author pass and a re-audit, as step 2 says (E12).',
+  "the Owner's decision on a finding past the cap included (E06)",
+  'one author pass that carries the amend alone and is no fix round,',
+  'then a re-audit (step 3) whose findings reach the Owner with the drafts,',
+  'with no further round.',
+  'Fix an Owner change that only corrects text per `specstone:expert-sdd`,',
+  'with no amend (E12).',
+  "The drafts list is the first author report's drafts plus each doc a fix",
+  'round or pass added',
+  'every author pass after the first, each fix round and the pass that',
+  'follows an amend, is a new `mode: author` dispatch, never the resumed',
+  'one (E05).',
+  "a fix round adds the audit's `Findings:` lines that carry no `[behavior]`",
+  'The author re-reads those drafts before its first write',
+  '`agent_plugin/write_prd_and_spec/write_drafts_with_coverage` E12) and',
+  'fixes only those findings, in those drafts.',
+  'never goes to a fix round: put it, with the decision that answers it,',
+  'in the brief for an amend (step 1).',
+  'that pass takes them too and counts as a fix round; a pass that carries',
+  'the amend alone is no fix round (E12).',
+  'run at most two fix rounds, counted across an amend.',
+  'Lines left after the second get no third round: the Owner sees them',
+  'with the drafts before approving any',
+  'After each fix round, and after each pass that follows an amend,',
+  're-audit as step 3 says.',
+  "Run one `specstone get <drafts list> --json` and keep each draft's",
+  'When it refuses with `doc_not_found`, update the drafts list',
+  'takes the new name `move` printed (`moved <from> to <to>`), and a doc',
+  'deleted, or listed and never created, drops out.',
+  'Run the call again on that list.',
+  "Dispatch a fresh `mode: audit` with the document's path and, as its",
+  'targets, the drafts whose `bases.doc` differs from their last',
+  '`Audited:` hash, plus each doc the round or pass added.',
+  'A draft whose hash equals its last `Audited:` hash is not read again;',
+  'its earlier finding stands.',
+  'A doc of the list that is no draft, approved between rounds or listed',
+  'and never written, is no target.',
+  'name each doc approved between rounds and each name step 2 renamed or',
+  'dropped (E13).',
+];
+
+/// Text that audit.md or design.md owns, which rounds.md cites and never
+/// restates.
+const _roundsOwnedElsewhere = [
+  'one line per target',
+  'End a `Findings:` line with `[behavior]`',
+  'Run `specstone refs <owner>`',
 ];
 
 /// The one home of the size-fix rule, under the plugin folder.
