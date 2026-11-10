@@ -321,6 +321,50 @@ void main() {
       expect(facts.fenced, [(first: 9, last: 11)]);
       expect(facts.sectionCounts.last, (lines: 2, chars: 12));
     });
+    test('index_query/read_current_docs/index_each_doc: a stored doc loads '
+        'back with the item facts putDoc wrote', () async {
+      const text =
+          '# T\n\nLead.\n\n## A\n- one\n- two\n\n## B\nhéllo \u{1F600}\n';
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      final written = parsed('A.md', text);
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(written);
+      });
+      final facts = store.loadContent('A.md').itemFacts;
+
+      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.sectionItems, hasLength(2));
+      expect(
+        jsonEncode(facts.toJson()),
+        jsonEncode(written.content.itemFacts.toJson()),
+      );
+    });
+    test('index_query/read_current_docs/index_each_doc: loadContent keeps the '
+        'item facts column undecoded until they are read', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(parsed('A.md', '# T\n\n## A\nx\n'));
+      });
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute("UPDATE docs SET item_facts = 'not json'");
+      final content = store.loadContent('A.md');
+
+      expect(content.head, startsWith('# T'));
+      expect(content.sections, hasLength(1));
+      expect(() => content.itemFacts, throwsFormatException);
+    });
     test('f04/nfr-p03, f04/us01/fr08: a stored doc loads back with its banned-pattern matches', () async {
       final type = MergedDocType(
         id: 'note',
@@ -589,6 +633,19 @@ void main() {
       final raw = sqlite3.open(file(r, indexFilePath).path);
       addTearDown(raw.close);
       raw.execute('UPDATE meta SET layout = 11');
+      expect(store.readStamp(), isNull);
+    });
+    test('domain:index_query INV-2: an index of layout 12 has no stamp, so it '
+        'is rebuilt with the item facts', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      expect(store.readStamp(), stamp);
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute('UPDATE meta SET layout = 12');
       expect(store.readStamp(), isNull);
     });
   });

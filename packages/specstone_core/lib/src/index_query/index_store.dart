@@ -7,6 +7,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/version.dart';
@@ -35,11 +36,13 @@ const _notWritableMessage =
 
 /// The layout of the index, kept in the `layout` column of the meta row.
 ///
-/// Bump it on every change to what a row holds: [_schema], the line-facts and
-/// banned-match JSON, and how that JSON is computed. An index of another
-/// layout is then rebuilt instead of failing a read (INV-2). An older build's
-/// reset recreates the meta row without it, so its index is rebuilt too.
-const _layoutVersion = 12;
+/// Bump it on every change to what a row holds: [_schema], the line-facts,
+/// banned-match, and item-facts JSON, and how that JSON is computed. An index
+/// of another layout is then rebuilt instead of failing a read (INV-2). An
+/// older build's reset recreates the meta row without it, so its index is
+/// rebuilt too. Layout 13 added `item_facts`: an index of layout 12 holds no
+/// item counts, so it is rebuilt instead of read as one with none.
+const _layoutVersion = 13;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -68,6 +71,7 @@ CREATE TABLE docs (
   head TEXT NOT NULL,
   line_facts TEXT NOT NULL,
   banned_matches TEXT NOT NULL,
+  item_facts TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
   stat_ctime INTEGER,
@@ -232,7 +236,8 @@ final class IndexStore {
   // Prepared once: `loadContent` runs per doc, and a check reads every doc.
   final List<PreparedStatement> _prepared = [];
   late final PreparedStatement _contentSql = _prepare(
-    'SELECT frontmatter_text, head, line_facts, banned_matches FROM docs '
+    'SELECT frontmatter_text, head, line_facts, banned_matches, item_facts '
+    'FROM docs '
     'WHERE doc_path = ?',
   );
   late final PreparedStatement _textSql = _prepare(
@@ -349,8 +354,8 @@ final class IndexStore {
     _db.execute(
       'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
       'tokens, formatted, approval_hash, ord, warnings, content_hash, text, '
-      'frontmatter_text, head, line_facts, banned_matches) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'frontmatter_text, head, line_facts, banned_matches, item_facts) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -371,6 +376,7 @@ final class IndexStore {
         content.head,
         jsonEncode(content.lineFacts.toJson()),
         jsonEncode(bannedMatchesToJson(content.bannedMatches)),
+        jsonEncode(content.itemFacts.toJson()),
       ],
     );
     final docId = _db.lastInsertRowId;
@@ -509,8 +515,9 @@ final class IndexStore {
   DocContent loadContent(String docPath) {
     final doc = _contentSql.select([docPath]).single;
     final rows = _sectionsSql.select([docPath]);
-    // Only the column value is captured: the Row would pin line_facts too.
+    // Only the column values are captured: the Row would pin line_facts too.
     final banned = doc['banned_matches'] as String;
+    final itemFacts = doc['item_facts'] as String;
     return DocContent(
       readText: () => _textSql.select([docPath]).single['text'] as String,
       frontmatterText: doc['frontmatter_text'] as String?,
@@ -535,6 +542,7 @@ final class IndexStore {
       ),
       readBannedMatches: () =>
           bannedMatchesFromJson(jsonDecode(banned) as List<Object?>),
+      readItemFacts: () => ItemFacts.fromJson(jsonDecode(itemFacts)),
     );
   }
 

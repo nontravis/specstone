@@ -9,6 +9,7 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/tbr_marker.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -171,8 +172,9 @@ bool _isScalar(Object? value) =>
 
 /// The text and structure of one doc, as `get` and `context` print it.
 final class DocContent {
-  /// Takes [text] and [bannedMatches] through [readText] and
-  /// [readBannedMatches], each called on the first read of its field.
+  /// Takes [text], [bannedMatches], and [itemFacts] through [readText],
+  /// [readBannedMatches], and [readItemFacts], each called on the first read
+  /// of its field.
   new({
     required String Function() readText,
     this.frontmatterText,
@@ -181,8 +183,10 @@ final class DocContent {
     required this.links,
     required this.lineFacts,
     required List<BannedMatch> Function() readBannedMatches,
+    required ItemFacts Function() readItemFacts,
   }) : _readText = readText,
-       _readBannedMatches = readBannedMatches;
+       _readBannedMatches = readBannedMatches,
+       _readItemFacts = readItemFacts;
 
   /// The whole file as decoded, in its own line endings.
   late final String text = _readText();
@@ -209,6 +213,12 @@ final class DocContent {
   late final List<BannedMatch> bannedMatches = _readBannedMatches();
 
   final List<BannedMatch> Function() _readBannedMatches;
+
+  /// The items of the doc and its lead's counts, stored by the refresh that
+  /// parsed it; a read command that never reads them never decodes them.
+  late final ItemFacts itemFacts = _readItemFacts();
+
+  final ItemFacts Function() _readItemFacts;
 }
 
 /// One parsed file: its index entry, its content, and its content hash.
@@ -274,6 +284,12 @@ ParsedDoc parseIndexedDoc({
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
     warnings: warnings,
   );
+  final itemFacts = itemFactsOf(
+    doc: doc,
+    lfText: lfText,
+    countedText: laidText,
+    type: docType,
+  );
   final content = DocContent(
     readText: () => text,
     frontmatterText: doc.frontmatter == null
@@ -284,6 +300,7 @@ ParsedDoc parseIndexedDoc({
     links: {for (final place in lineFacts.links) place.target}.toList(),
     lineFacts: lineFacts,
     readBannedMatches: () => bannedMatchesOf(sections, lineFacts, docType),
+    readItemFacts: () => itemFacts,
   );
   final indexed = IndexedDoc(
     docPath: docPath,
@@ -306,7 +323,8 @@ ParsedDoc parseIndexedDoc({
 /// [parseIndexedDoc] keys them, and their section and fenced lines.
 ///
 /// No markdown parse, layout, or YAML read runs, so the content holds no
-/// links, banned matches, or section counts (see [LineFacts.structureOf]).
+/// links, banned matches, or section counts (see [LineFacts.structureOf]). Its
+/// item facts count [lfText] as it is, with no layout.
 DocContent docStructureOf(String lfText, MergedDocType? docType) {
   final doc = Doc.parse(lfText);
   final templates = _templatesByKey(docType);
@@ -322,6 +340,12 @@ DocContent docStructureOf(String lfText, MergedDocType? docType) {
     links: const [],
     lineFacts: LineFacts.structureOf(lfText: lfText, doc: doc),
     readBannedMatches: () => const [],
+    readItemFacts: () => itemFactsOf(
+      doc: doc,
+      lfText: lfText,
+      countedText: lfText,
+      type: docType,
+    ),
   );
 }
 

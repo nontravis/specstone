@@ -461,4 +461,47 @@ void main() {
       ]);
     });
   });
+
+  group('item facts', () {
+    const frPath =
+        'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const drifted =
+        '# Validate credentials\n\nLead.\n\n## Edge cases\n'
+        '1. E01 — A wrong password → refused\n\n'
+        '## Statement\nThe system shall check it.\n';
+
+    test('index_query/read_current_docs/index_each_doc: parseIndexedDoc gives '
+        'the item facts of the laid-out text', () {
+      final facts = parse(frPath, drifted).content.itemFacts;
+
+      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.leadItems, [(id: null, line: 3, chars: 5)]);
+      expect(facts.sectionItems, [
+        [(id: 'E01', line: 11, chars: 35)],
+        [(id: null, line: 7, chars: 26)],
+      ]);
+    });
+
+    test('index_query/read_current_docs/index_each_doc: docStructureOf gives '
+        'item facts that count its own text with no layout', () {
+      final type = (matcher.match(frPath) as MatchedDocType).docType;
+      final facts = docStructureOf(drifted, type).itemFacts;
+
+      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.sectionItems, [
+        [(id: 'E01', line: 6, chars: 35)],
+        [(id: null, line: 9, chars: 26)],
+      ]);
+    });
+
+    test('index_query/read_current_docs/index_each_doc: docStructureOf with '
+        'no doc type gives items with no ID', () {
+      final facts = docStructureOf(
+        '# T\n\n## Notes\n1. E01 — a\n',
+        null,
+      ).itemFacts;
+
+      expect(facts.sectionItems.single.single.id, isNull);
+    });
+  });
 }
