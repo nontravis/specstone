@@ -28,8 +28,9 @@ working directory alone misses a project root above it.
    or with `--yes` as Owner confirmation below says; it binds `approve`, `delete` of a guarded doc, `migrate`, and
    `init` on a legacy tree alike.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
-   `specstone guide <type> --json` for its fields, even for a type you wrote earlier in the session. A project may
-   customize its templates; the CLI prints the guide it has now, and this skill keeps none.
+   `specstone guide <type> --json` for its fields, even for a type you wrote in an earlier task. One call naming
+   several types counts for each type it names, so a batch never repeats it per write. A project may customize its
+   templates; the CLI prints the guide it has now, and this skill keeps none.
 4. **Confirm traced links.** When you write an FR, an nf, or an API row, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
    its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `specstone check` prints it.
@@ -74,7 +75,7 @@ the Owner to run `specstone trust` in their own terminal (Claude Code's `!` pref
 
 | Thought | Do instead |
 |---|---|
-| "I know this type's guide already." | Run `specstone guide <type>` again. |
+| "I read this type's guide in an earlier task." | Run `specstone guide <type>` again. |
 | "Removing `draft: true` clears the finding." | Leave it; the Owner approves. |
 | "A direct file edit is faster." | Use `specstone set`. |
 | "Check for `.specstone/` before the first call." | The first `specstone check` is the check. |

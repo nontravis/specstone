@@ -1672,16 +1672,36 @@ const _bootstrapProcedureTokens = {
 };
 
 /// The one guide call of a bootstrap batch
-/// (`agent_plugin/fill_missing_format/fill_check_findings` E25).
+/// (`agent_plugin/fill_missing_format/fill_check_findings` E25), and the call
+/// a type first met after it takes.
 const _batchGuideCall =
     'before the first, run `specstone guide <type> …` once, naming every type '
-    'you write.';
+    'you write; a type met later gets its own call before its first write.';
+
+/// Rule 3 of expert-sdd, the guide-first rule's owner, on a call naming
+/// several types.
+const _guideCallCountsForEach =
+    'One call naming several types counts for each type it names, so a batch '
+    'never repeats it per write.';
 
 void _batchGuideTests() {
-  test('agent_plugin/fill_missing_format/fill_check_findings E25: each '
+  test('agent_plugin/fill_missing_format/fill_check_findings E25, '
+      'agent_plugin/write_prd_and_spec/follow_cross_doc_rules: each '
       'bootstrap procedure runs one guide call for every type its batch '
-      'writes before the first write, points each finding fix to it, and '
-      'stays within its e8262ba est. tokens', () {
+      'writes before the first write and its own call for a type met later, '
+      'points each finding fix to it, and stays within its e8262ba est. '
+      'tokens; expert-sdd counts one call for each type it names', () {
+    final expert = _pluginText('skills/expert-sdd/SKILL.md');
+    final rules = _oneLine(_sectionOf(expert, 'Rules'));
+    expect(rules, contains(_guideCallCountsForEach));
+    expect(rules, isNot(contains('earlier in the session')));
+    expect(
+      expert,
+      contains(
+        '| "I read this type\'s guide in an earlier task." | Run '
+        '`specstone guide <type>` again. |',
+      ),
+    );
     for (final MapEntry(key: file, value: tokens)
         in _bootstrapProcedureTokens.entries) {
       final text = _pluginText(file);
@@ -1701,9 +1721,10 @@ void _batchGuideTests() {
       );
       expect(
         _oneLine(_sectionOf(text, '2. One finding at a time')),
-        contains('| rewrite what it names per its guide;'),
+        contains('| rewrite what it names per the guide you loaded;'),
         reason: file,
       );
+      expect(_oneLine(text), isNot(contains('per its guide')), reason: file);
       expect(
         oversizedSkillFiles(
           pluginRoot(),

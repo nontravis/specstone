@@ -4,7 +4,8 @@ As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goe
 This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
 `code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
 `specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write; before the first, run
-`specstone guide <type> …` once, naming every type you write.
+`specstone guide <type> …` once, naming every type you write; a type met later gets its own call before its first
+write.
 
 ## 2. One finding at a time
 
@@ -35,7 +36,7 @@ whole section.
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
-| any other under `prds/` | rewrite what it names per its guide; one that clears with no write goes to step 6 |
+| any other under `prds/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
 
@@ -47,15 +48,15 @@ new list, as YAML `- item` lines, to `specstone set <type>:<name> --field implem
 ## 4. Merge an old file, or split a full one
 
 An `untyped_doc` is an old file the migration left, such as a group's container `FEATURE.md`.
-Merge its content through `specstone set` into the doc that takes it, else a new one from `specstone new <type>`
+Merge its content into the doc that takes it, else a new one from `specstone new <type>`
 (`--parent`, `--slug`, as the type takes them). Skip only a sentence that doc holds word for word, and never target
 the untyped file: a write refuses it. Add its path to the retire set, a list for this run only.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
 Keep the first; put each other in its own `specstone new <type>` doc under the same parent, named from its heading.
 Drop the container and any list of inherited GNFR items, naming in step 6 each item the list left out. End a `relax`
-item's Rationale with "The Owner approves the waiver by approving this doc." Repoint each mention of an old item ID,
-such as `NFR-Sec01`, to its new doc. Name in step 6 each waiver and each mention in a section kept unchanged.
+item's Rationale with "The Owner approves the waiver by approving this doc." Repoint each mention of an old item ID to
+its new doc. Name in step 6 each waiver and each mention in a section kept unchanged.
 
 ## 5. Retire the old files
 
@@ -90,5 +91,5 @@ each approved as step 5's Owner confirmation says.
 
 | Thought | Do instead |
 |---|---|
-| "Merged, so I'll delete the old files." | Delete only after the Owner's `ok` or at their terminal. |
+| "Merged, so I'll delete the old files." | Delete only as step 5 says. |
 | "Several items fit in one doc for now." | Split them as step 4 says. |
