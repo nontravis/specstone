@@ -8,17 +8,16 @@ import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
-import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/failing_rename.dart';
+import '../../helpers/git_repo.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
@@ -220,11 +219,94 @@ void main() {
     final hashed = signOutUnit
         .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
         .join();
-    final hash = planHashOf(hashed, Directory('${root.path}/docs'), runRealGit);
+    final hash = baseHashOf(hashed);
     expect(answer.text, '${list}plan $hash\ndry run: nothing removed\n');
     expect(answer.json, {'files': signOutUnit, 'plan': hash});
     expect(hasDoc(root, story2), isTrue);
   });
+
+  test('f02/us04/fr06/e08: the plan hash is the same outside git, in a repo '
+      'with no commit, and in one with a commit', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final expected = baseHashOf(
+      signOutUnit
+          .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
+          .join(),
+    );
+    String planOf() =>
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+
+    expect(planOf(), expected, reason: 'outside git');
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(planOf(), expected, reason: 'no commit');
+    commitAll(root, 'first');
+    expect(planOf(), expected, reason: 'a commit');
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f02/us04/fr06/e04: a commit of an unrelated file after the dry run '
+      'leaves the plan valid; a committed edit to a listed file is '
+      'plan_mismatch and removes nothing', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    commitAll(root, 'first');
+    String planOf() =>
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+    final hash = planOf();
+
+    File('${root.path}/unrelated.txt').writeAsStringSync('x\n');
+    commitAll(root, 'unrelated');
+    final edited = signOutUnit[1];
+    docFile(root, edited).writeAsStringSync('${readDoc(root, edited)}More.\n');
+    commitAll(root, 'edit a listed file');
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    for (final path in signOutUnit) {
+      expect(hasDoc(root, path), isTrue, reason: path);
+    }
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f02/us04/fr06/e04: a dry run, then a commit of an unrelated file, '
+      'then --yes --plan removes the unit', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    commitAll(root, 'first');
+    final hash =
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+    File('${root.path}/unrelated.txt').writeAsStringSync('x\n');
+    commitAll(root, 'unrelated');
+
+    final answer = del(
+      root,
+      ['user_story:login/sign_out'],
+      confirmation: OwnerConfirmation.given,
+      planHash: hash,
+    );
+    expect(answer.json['removed'], signOutUnit);
+    expect(hasDoc(root, story2), isFalse);
+  }, skip: hasGit ? null : 'git is not available');
 
   test('ms-r11: an uncommitted edit to a listed file after the dry run is '
       'plan_mismatch, exit 75, and nothing is removed', () async {
