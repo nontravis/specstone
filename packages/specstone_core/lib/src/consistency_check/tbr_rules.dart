@@ -8,9 +8,16 @@ const _gnfrType = 'gnfr';
 const _tbrSection = 'tbr';
 const _bulletLabel = '- **TBR:**';
 const _noValue = 'none';
-const _openValue = 'the value is still to be resolved: ';
+const _openValue = 'the value is still to be resolved';
 const _openSection = 'the TBR section is open';
 const _formKey = 'form';
+const _markerForm = 'marker';
+const _sectionForm = 'section';
+const _bulletForm = 'bullet';
+
+/// Returns the message of an open value; an empty [value] names none.
+String _valueMessage(String value) =>
+    value.isEmpty ? _openValue : '$_openValue: $value';
 
 /// Returns one `tbr_open` finding per open TBR of [doc], a typed doc.
 ///
@@ -28,7 +35,7 @@ Iterable<Finding> checkOpenTbrs(CheckContext context, IndexedDoc doc) sync* {
   }
   for (final (:line, :rest) in context.contentOf(doc).lineFacts.tbrMarkers) {
     if (claimed.contains(line)) continue;
-    yield _finding(context, doc, line, '$_openValue$rest', 'marker');
+    yield _finding(context, doc, line, _valueMessage(rest), _markerForm);
   }
 }
 
@@ -63,7 +70,7 @@ Iterable<_Open> _sectionsOf(
     claimed
       ..add(header)
       ..addAll([for (final line in context.bodyLinesOf(doc, i)) line.line]);
-    yield (line: header, message: _openSection, form: 'section');
+    yield (line: header, message: _openSection, form: _sectionForm);
   }
 }
 
@@ -82,7 +89,7 @@ Iterable<_Open> _bulletsOf(
       claimed.add(line);
       final value = bullet.substring(_bulletLabel.length).trim();
       if (value == _noValue) continue;
-      yield (line: line, message: '$_openValue$value', form: 'bullet');
+      yield (line: line, message: _valueMessage(value), form: _bulletForm);
     }
   }
 }

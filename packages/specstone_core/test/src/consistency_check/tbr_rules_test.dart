@@ -10,7 +10,8 @@ import '../../helpers/check_fixture.dart';
 const _name = 'consistency_check/find_template_breaks/report_open_tbrs';
 const _dash = '—';
 const _marker = 'TBR $_dash ';
-const _stillOpen = 'the value is still to be resolved: ';
+const _openNoValue = 'the value is still to be resolved';
+const _stillOpen = '$_openNoValue: ';
 const _rationale = 'A wrong password must not sign in.';
 const _nfRationale = 'Users wait.';
 const _gnfrBlock = '- **Rationale:** Users wait.\n';
@@ -138,8 +139,15 @@ void main() {
     expect(found.single.keys, {'form': 'section'});
   });
 
-  test('$_name E04: the section removed, no finding', () async {
-    expect((await _run(const {})).found, isEmpty);
+  test('$_name E04: the same fr gives one finding with its tbr section '
+      'and none once the section is removed', () async {
+    const section = '## TBR\n\n- **Value:** 2 s\n';
+    final open = await _run(_frWithSection(section));
+    final closed = await _run(_frWithSection(''));
+
+    expect(open.found, hasLength(1));
+    expect(open.found.single.keys, {'form': 'section'});
+    expect(closed.found, isEmpty);
   });
 
   test('$_name E05: a gnfr bullet reading none gives no finding', () async {
@@ -163,6 +171,42 @@ void main() {
     expect(finding.keys, {'form': 'bullet'});
     expect(finding.message, '$_stillOpen$value');
     expect(finding.waitsFor, WaitsFor.owner);
+  });
+
+  test('$_name E05: none is read exactly after trim, so None, none. and '
+      'none $_dash reason each give a bullet finding', () async {
+    for (final value in ['None', 'none.', 'none $_dash reason']) {
+      final (:project, :found) = await _run(
+        doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:**   $value  \n'),
+      );
+
+      expect(found, hasLength(1), reason: value);
+      expect(found.single.keys, {'form': 'bullet'}, reason: value);
+      expect(found.single.message, '$_stillOpen$value', reason: value);
+      expect(found.single.line, _lineOf(project, gnfrDoc, '**TBR:**'));
+    }
+  });
+
+  test('$_name E05: a bullet with no value names no value after the '
+      'sentence', () async {
+    final (:found, project: _) = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:**\n'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'bullet'});
+    expect(found.single.message, _openNoValue);
+  });
+
+  test('$_name E01: a marker with nothing after it names no value after '
+      'the sentence', () async {
+    final (:found, project: _) = await _run(
+      _frWith('Cite ${_marker.trimRight()} '),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'marker'});
+    expect(found.single.message, _openNoValue);
   });
 
   test('$_name E05: a bullet label inside fenced code of a gnfr gives no '
