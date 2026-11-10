@@ -26,9 +26,9 @@ findings, and changed code or a batch's findings into drafts.
 
 - **`mode`** (required, no default): `author`, `sync`, `bootstrap`, `design`, `audit`, or `plan`.
 - **Design document** (author, plan: required; audit: optional): the Owner-approved document's path.
-- **Drafts, audit findings** (author, each pass after the first, a fresh dispatch: a fix round, or the pass after a
-  design-mode amend): the drafts list, the first author report's drafts plus each doc a fix round or pass added; in a
-  fix round, the audit's `Findings:` lines too.
+- **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
+  pass after a design-mode amend): the drafts list, the first author report's drafts plus each doc a fix round or
+  pass added; in a fix round, the audit's `Findings:` lines too.
 - **Brief, design path** (design, required): the Owner's approved answers; the document to write or amend.
 - **Targets** (audit, required): the docs to read.
 - **Approved drafts, plan path** (plan, required): the docs the author reported; the plan file to write.

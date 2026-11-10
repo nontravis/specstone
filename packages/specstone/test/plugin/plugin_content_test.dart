@@ -1408,20 +1408,20 @@ const _authorBatchPoints = [
   '**A refused batch** writes nothing',
   '(`document_writing/edit_one_section_or_field/write_a_batch`). Per fault,',
   'then run it again:',
-  '- Stale block: merge your edit into the current text the reply',
-  'prints; run no `get`.',
-  "- Gone block: get its doc again by name; a moved doc's new block takes",
+  '- Stale block: replace the block with the one the reply prints, your',
+  'edit merged in; run no `get`.',
+  "- Gone block: re-read its doc by name; a moved doc's new block takes",
   'the edit; a name naming no doc drops the block, its doc listed under',
   '- Untyped block: drop it, its doc listed under `Findings:`.',
   '- One part twice, or a whole-doc block beside another',
-  'block beside another block of its doc: join them.',
+  'block beside another of its doc: join them.',
   "- Field or title block: write it inside its doc's whole-doc block.",
   '- Removed required section: restore it; a field only the Owner or',
-  'Specstone sets: give back its value; open fence: close it.',
+  'Specstone sets: restore its value; open fence: close it.',
   '- Any other refusal a single `set` of that part makes, such as',
   "`field_unknown` or a section block's stray `##` line: fix that part as",
   'line: fix that part as the refusal names.',
-  '- Refused path or line: build the file again from `get` text output',
+  '- Refused path or line: rebuild the file from `get` text output',
   'alone; pass its path, nothing on stdin.',
 ];
 
@@ -1432,8 +1432,8 @@ const _batchTableText = ['exit status', '`75`', 'argument_invalid'];
 /// Each point of `write_drafts_with_coverage` E12's inputs, as the Input
 /// Contract of sdd-engineer words them, cut at line width.
 const _laterPassInputs = [
-  '(author, each pass after the first, a fresh dispatch: a fix round, or the',
-  'pass after a design-mode amend)',
+  '(author, required in each pass after the first, a fresh dispatch: a fix',
+  'round, or the pass after a design-mode amend)',
   "the drafts list, the first author report's drafts plus each doc a fix",
   "round or pass added; in a fix round, the audit's `Findings:` lines too.",
 ];

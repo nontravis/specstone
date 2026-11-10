@@ -33,17 +33,17 @@ force it. Write each Docs to change row that carries no decision too, such as a 
   printed ` · unchanged` wrote nothing and adds no draft.
 - **A refused batch** writes nothing (`document_writing/edit_one_section_or_field/write_a_batch`). Per fault, then
   run it again:
-  - Stale block: merge your edit into the current text the reply prints; run no `get`.
-  - Gone block: get its doc again by name; a moved doc's new block takes the edit; a name naming no doc drops the
+  - Stale block: replace the block with the one the reply prints, your edit merged in; run no `get`.
+  - Gone block: re-read its doc by name; a moved doc's new block takes the edit; a name naming no doc drops the
     block, its doc listed under `Findings:`.
   - Untyped block: drop it, its doc listed under `Findings:`.
-  - One part twice, or a whole-doc block beside another block of its doc: join them.
+  - One part twice, or a whole-doc block beside another of its doc: join them.
   - Field or title block: write it inside its doc's whole-doc block.
-  - Removed required section: restore it; a field only the Owner or Specstone sets: give back its value; open
+  - Removed required section: restore it; a field only the Owner or Specstone sets: restore its value; open
     fence: close it.
   - Any other refusal a single `set` of that part makes, such as `field_unknown` or a section block's stray `##`
     line: fix that part as the refusal names.
-  - Refused path or line: build the file again from `get` text output alone; pass its path, nothing on stdin.
+  - Refused path or line: rebuild the file from `get` text output alone; pass its path, nothing on stdin.
 
 ## 3. Sweep each ruling
 
