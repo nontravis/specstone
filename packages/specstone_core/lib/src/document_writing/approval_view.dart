@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
+import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -16,6 +17,7 @@ final class DraftView {
     required this.projectPath,
     required this.text,
     required this.lookup,
+    required this.sentences,
   });
 
   /// The doc name, which heads the view when [title] is null.
@@ -42,6 +44,9 @@ final class DraftView {
 
   /// What git says about the last approved copy.
   final ApprovalLookup lookup;
+
+  /// The sentences the draft dropped since that copy and the ones it added.
+  final SentenceChanges sentences;
 }
 
 /// Returns [lfText] without its `draft` and `approved` frontmatter key blocks.
@@ -52,7 +57,8 @@ String withoutApprovalMarks(String lfText) =>
     withKeyBlock(withKeyBlock(lfText, 'draft', null), 'approved', null);
 
 /// Returns the approval view of [draft]: heading, path, field table, and the
-/// fenced diff from its last approved copy, ending in `\n`.
+/// fenced diff from its last approved copy, then each sentence dropped and each
+/// sentence new, ending in `\n`.
 ///
 /// [position] of [count] numbers the draft in the heading. [context] sets the
 /// lines of context per hunk, else every changed unit shows whole. With
@@ -68,9 +74,9 @@ String renderApprovalView(
   bool color = false,
 }) {
   final lookup = draft.lookup;
-  final newText = _comparable(draft.text, draft.mergedType);
+  final newText = comparableTextOf(draft.text, draft.mergedType);
   final oldText = switch (lookup) {
-    ApprovedCopy(:final text) => _comparable(text, draft.mergedType),
+    ApprovedCopy(:final text) => comparableTextOf(text, draft.mergedType),
     NoApprovedCopy() || UnknownHistory() => null,
   };
   final diff = approvalDiff(oldText ?? '', newText, context: context);
@@ -103,20 +109,45 @@ String renderApprovalView(
   for (final (at, change) in changes.indexed) {
     out.writeln(_row(at == 0 ? 'changes' : '', change));
   }
-  out.writeln();
+  final (:dropped, :added) = draft.sentences;
+  out
+    ..writeln(_row('dropped', _count(dropped.length, 'dropped')))
+    ..writeln(_row('new', _count(added.length, 'new')))
+    ..writeln();
   if (hasDiff) {
     out.write(_fenced(color ? _colored(diff) : diff, _fenceFor(diff)));
   } else {
     out.writeln(_noChange);
   }
+  _writeList(out, 'Dropped sentences:', dropped);
+  _writeList(out, 'New sentences:', added);
   return out.toString();
 }
 
-/// Returns [text] as LF, laid out by [docType], without the approval marks.
-String _comparable(String text, MergedDocType? docType) =>
+/// Returns [text] as LF, laid out by [docType], without the approval marks:
+/// the text the view compares and reads sentences from.
+String comparableTextOf(String text, MergedDocType? docType) =>
     withoutApprovalMarks(layOutDoc(toLf(text), docType));
 
 const _noChange = 'no change since the approved copy';
+
+// MARK: - Sentences
+
+/// Returns the `dropped` or `new` cell: `1 sentence new`, `0 sentences new`.
+String _count(int count, String kind) =>
+    '$count ${count == 1 ? 'sentence' : 'sentences'} $kind';
+
+/// Writes a blank line, [heading], and one `- ` line per sentence of
+/// [sentences]; nothing for none.
+void _writeList(StringBuffer out, String heading, List<String> sentences) {
+  if (sentences.isEmpty) return;
+  out
+    ..writeln()
+    ..writeln(heading);
+  for (final sentence in sentences) {
+    out.writeln('- $sentence');
+  }
+}
 
 // MARK: - Table
 

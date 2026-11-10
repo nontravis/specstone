@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -17,6 +18,11 @@ const _neuDraft =
     '## Statement\nA.\n\n## Rationale\nR2.\n';
 const _path = 'docs/fr01_t.md';
 const _commit = '4b1c2d3e5f60718293a4b5c6d7e8f9012345abcd';
+const SentenceChanges _noSentences = (dropped: <String>[], added: <String>[]);
+const _noChangeEnd =
+    '| dropped | 0 sentences dropped |\n'
+    '| new     | 0 sentences new |\n\n'
+    'no change since the approved copy\n';
 
 ApprovedCopy _copy(String text, {String path = _path}) =>
     ApprovedCopy(text, commit: _commit, path: path);
@@ -29,6 +35,7 @@ DraftView _draft({
   String name = 'fr01_t',
   String projectPath = _path,
   MergedDocType? mergedType,
+  SentenceChanges sentences = _noSentences,
 }) => DraftView(
   name: name,
   docType: 'fr',
@@ -38,6 +45,7 @@ DraftView _draft({
   projectPath: projectPath,
   text: text,
   lookup: lookup ?? _copy(_old),
+  sentences: sentences,
 );
 
 String _render(DraftView draft, {int? context, bool color = false}) =>
@@ -70,10 +78,7 @@ void main() {
           mergedType: frType,
         ),
       );
-      expect(
-        view,
-        endsWith('| changes | none |\n\nno change since the approved copy\n'),
-      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
     });
 
     test('a hard break added or removed shows as a change', () {
@@ -146,6 +151,8 @@ void main() {
         '| old     | approved copy in commit `4b1c2d3` |\n'
         '| changes | field `verify_method` |\n'
         '|         | `## Rationale` |\n'
+        '| dropped | 0 sentences dropped |\n'
+        '| new     | 0 sentences new |\n'
         '\n'
         '```diff\n'
         '@@ -1,3 +1,3 @@\n'
@@ -246,10 +253,7 @@ void main() {
 
       final view = _render(_draft(lookup: _copy(oldMarked)));
 
-      expect(
-        view,
-        endsWith('| changes | none |\n\nno change since the approved copy\n'),
-      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
       expect(view, isNot(contains('```')));
     });
 
@@ -258,10 +262,7 @@ void main() {
         _draft(text: _neuDraft, lookup: _copy(_neu.replaceAll('\n', '\r\n'))),
       );
 
-      expect(
-        view,
-        endsWith('| changes | none |\n\nno change since the approved copy\n'),
-      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
     });
 
     test("f02/us03/fr02/e13: the fence outlasts the doc's own fence", () {
@@ -396,6 +397,91 @@ void main() {
       expect(
         tinted,
         everyElement(matches(RegExp(r'^\x1b\[3[126]m[-+@].*\x1b\[0m$'))),
+      );
+    });
+  });
+
+  group('document_writing/approve_drafts/show_changes_since_approval E23', () {
+    test('the dropped and new rows follow the changes rows, and each list '
+        'follows the diff', () {
+      final view = _render(
+        _draft(
+          sentences: (dropped: ['Gone one.', 'Gone two.'], added: ['Fresh.']),
+        ),
+      );
+
+      expect(
+        view,
+        contains(
+          '| changes | field `verify_method` |\n'
+          '|         | `## Rationale` |\n'
+          '| dropped | 2 sentences dropped |\n'
+          '| new     | 1 sentence new |\n\n```diff\n',
+        ),
+      );
+      expect(
+        view,
+        endsWith(
+          '\n```\n\nDropped sentences:\n- Gone one.\n- Gone two.\n\n'
+          'New sentences:\n- Fresh.\n',
+        ),
+      );
+    });
+
+    test('a list is printed only when its count is above 0', () {
+      final onlyDropped = _render(
+        _draft(sentences: (dropped: ['Gone.'], added: <String>[])),
+      );
+      final onlyNew = _render(
+        _draft(sentences: (dropped: <String>[], added: ['Fresh.'])),
+      );
+
+      expect(onlyDropped, contains('| dropped | 1 sentence dropped |\n'));
+      expect(onlyDropped, contains('| new     | 0 sentences new |\n'));
+      expect(onlyDropped, endsWith('\n```\n\nDropped sentences:\n- Gone.\n'));
+      expect(onlyDropped, isNot(contains('New sentences:')));
+      expect(onlyNew, contains('| dropped | 0 sentences dropped |\n'));
+      expect(onlyNew, endsWith('\n```\n\nNew sentences:\n- Fresh.\n'));
+      expect(onlyNew, isNot(contains('Dropped sentences:')));
+    });
+
+    test('a list follows the no-change line when the layout alone differs', () {
+      final view = _render(
+        _draft(
+          lookup: _copy(_neu),
+          sentences: (dropped: ['Gone.'], added: <String>[]),
+        ),
+      );
+
+      expect(
+        view,
+        endsWith(
+          '| dropped | 1 sentence dropped |\n'
+          '| new     | 0 sentences new |\n\n'
+          'no change since the approved copy\n\nDropped sentences:\n- Gone.\n',
+        ),
+      );
+    });
+
+    test('a count of 0 prints the rows and no list', () {
+      final view = _render(_draft());
+
+      expect(view, contains('| dropped | 0 sentences dropped |\n'));
+      expect(view, contains('| new     | 0 sentences new |\n'));
+      expect(view, isNot(contains('sentences:')));
+    });
+
+    test('colour touches no sentence line', () {
+      final view = _render(
+        _draft(sentences: (dropped: ['Gone.'], added: ['Fresh.'])),
+        color: true,
+      );
+
+      expect(
+        view,
+        endsWith(
+          '\n```\n\nDropped sentences:\n- Gone.\n\nNew sentences:\n- Fresh.\n',
+        ),
       );
     });
   });

@@ -1,14 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _prompt = 'approve? [y/n/q] ';
 const _nothingWaits = 'no draft waits for approval\n';
@@ -24,7 +27,8 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
 /// `draft` and writes the doc's ApprovalHash as `approved:`.
-/// Reads every selected draft before the first view shows.
+/// Reads every selected draft, the approved copy of each, and every doc of the
+/// tree once, before the first view shows.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries,
 /// `RenderFault` `output_not_writable` for a draft that cannot be read or is
 /// not UTF-8, both before any draft shows, `output_not_writable` for roots the
@@ -45,13 +49,13 @@ void approveDrafts(
     return;
   }
   _requireTrusted(session, drafts);
-  final lookup = history ?? ApprovalHistory();
+  final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   for (final (at, (:doc, bytes: _)) in drafts.indexed) {
     String viewOf(List<int> bytes) => _viewOf(
       session,
       doc,
       bytes,
-      lookup,
+      reads,
       position: at + 1,
       count: drafts.length,
       context: context,
@@ -79,14 +83,14 @@ ReadAnswer approveDryRun(
 }) {
   final drafts = _shownDraftsUnder(session, names);
   if (drafts.isNotEmpty) _requireTrusted(session, drafts);
-  final lookup = history ?? ApprovalHistory();
+  final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
     for (final (at, (:doc, :bytes)) in drafts.indexed)
       _viewOf(
         session,
         doc,
         bytes,
-        lookup,
+        reads,
         position: at + 1,
         count: drafts.length,
         context: context,
@@ -263,32 +267,117 @@ String? _answer(String? Function() readLine, StringSink out) {
   }
 }
 
+/// What a run reads once, before its first view: the approved copy of each
+/// shown draft and the two texts a sentence is looked for in.
+///
+/// A re-shown draft reads its new bytes, and nothing else is read again.
+final class _RunReads {
+  new _(this._lookups, this._approved, this._treeTexts)
+    : _tree = heldTextsOf(_treeTexts.values),
+      _runCopies = heldTextsOf(_approved.values);
+
+  /// Reads the approved copy of each of [drafts] through [history], then the
+  /// text of every doc the index lists, typed or not, as on disk.
+  ///
+  /// Throws `RenderFault` `output_not_writable` for a doc that cannot be read.
+  factory read(
+    WriteSession session,
+    List<_ShownDraft> drafts,
+    ApprovalHistory history,
+  ) {
+    final lookups = <String, ApprovalLookup>{};
+    final approved = <String, String>{};
+    for (final (:doc, bytes: _) in drafts) {
+      final lookup = history.lastApproved(
+        session.project.projectRoot,
+        session.projectPathOf(doc.docPath),
+        docType: session.index.typeOf(doc),
+      );
+      lookups[doc.docPath] = lookup;
+      if (lookup case ApprovedCopy(:final text)) {
+        approved[doc.docPath] = comparableTextOf(
+          text,
+          session.index.typeOf(doc),
+        );
+      }
+    }
+    return _RunReads._(lookups, approved, {
+      for (final doc in session.index.docs)
+        doc.docPath: _textOnDisk(session, doc.docPath),
+    });
+  }
+
+  final Map<String, ApprovalLookup> _lookups;
+
+  /// The laid-out approved copy of each draft whose lookup found one.
+  final Map<String, String> _approved;
+
+  /// The LF text of each doc of the tree, by DocPath.
+  final Map<String, String> _treeTexts;
+
+  final String _tree;
+  final String _runCopies;
+
+  /// Returns what git said about the approved copy of [doc].
+  ApprovalLookup lookupOf(IndexedDoc doc) => _lookups[doc.docPath]!;
+
+  /// Returns the sentences [doc] dropped and added, [text] being its draft as
+  /// shown now.
+  SentenceChanges changesOf(IndexedDoc doc, String text, MergedDocType? type) {
+    final lfText = toLf(text);
+    return sentenceChangesOf(
+      draft: comparableTextOf(text, type),
+      approved: _approved[doc.docPath],
+      tree: lfText == _treeTexts[doc.docPath]
+          ? _tree
+          : heldTextsOf({..._treeTexts, doc.docPath: lfText}.values),
+      runCopies: _runCopies,
+    );
+  }
+}
+
+/// Returns the LF text of [docPath] as it is on disk, or `''` for a file gone;
+/// invalid UTF-8 reads as replacement characters, since this doc is only looked
+/// in.
+String _textOnDisk(WriteSession session, String docPath) {
+  try {
+    return toLf(
+      utf8.decode(
+        session.fileOf(docPath).readAsBytesSync(),
+        allowMalformed: true,
+      ),
+    );
+  } on PathNotFoundException {
+    return '';
+  } on FileSystemException catch (error) {
+    throw cannotRead(docPath, error);
+  }
+}
+
 /// Returns the approval view of the typed draft [doc] holding [bytes].
 String _viewOf(
   WriteSession session,
   IndexedDoc doc,
   List<int> bytes,
-  ApprovalHistory history, {
+  _RunReads reads, {
   required int position,
   required int count,
   required int? context,
   required bool color,
 }) {
-  final projectPath = session.projectPathOf(doc.docPath);
+  final type = session.index.typeOf(doc);
+  final text = utf8.decode(bytes);
   final draft = DraftView(
     name: doc.name,
     // `_waitsForApproval` kept only typed drafts, so the type id is set.
     docType: doc.docTypeId!,
-    mergedType: session.index.typeOf(doc),
+    mergedType: type,
     title: doc.title,
     status: session.index.statusOf(doc),
-    projectPath: projectPath,
-    text: utf8.decode(bytes),
-    lookup: history.lastApproved(
-      session.project.projectRoot,
-      projectPath,
-      docType: session.index.typeOf(doc),
-    ),
+    projectPath: session.projectPathOf(doc.docPath),
+    text: text,
+    lookup: reads.lookupOf(doc),
+    sentences: reads.changesOf(doc, text, type),
   );
   return renderApprovalView(
     draft,

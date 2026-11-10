@@ -862,6 +862,7 @@ void main() {
             projectPath: newPath,
             text: File('${repo.path}/$newPath').readAsStringSync(),
             lookup: lookup,
+            sentences: (dropped: <String>[], added: <String>[]),
           ),
           position: 1,
           count: 1,

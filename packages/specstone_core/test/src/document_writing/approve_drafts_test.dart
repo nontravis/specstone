@@ -288,7 +288,10 @@ void main() {
       expect(out.toString(), contains('| old     | none: never approved |\n'));
       expect(
         out.toString(),
-        contains('+## Problem\n+\n+Users create an account.\n```\n$_prompt'),
+        contains(
+          '+## Problem\n+\n+Users create an account.\n```\n\n'
+          'New sentences:\n- Users create an account.\n$_prompt',
+        ),
       );
     },
     skip: skipGit,
@@ -1478,6 +1481,156 @@ void main() {
           );
         },
       );
+    });
+  });
+
+  group('document_writing/approve_drafts/show_changes_since_approval E23', () {
+    const approvedFeature =
+        '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\n'
+        'Kept sentence. Dropped sentence. Moved sentence.\n';
+    const draftFeature =
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\n\n'
+        'Kept sentence. Added sentence.\n';
+
+    /// A repository whose newest commit holds [approvedFeature] approved and
+    /// the untyped `d01_context.md`, then edits them to the draft.
+    Future<Directory> editedRepo() async {
+      final root = await writeWriteProject(
+        extra: {'docs/$signupFeature': approvedFeature},
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      docFile(root, signupFeature).writeAsStringSync(draftFeature);
+      docFile(
+        root,
+        'prds/d01_context.md',
+      ).writeAsStringSync('# Context\n\n## Features\nMoved sentence.\n');
+      commitAll(root, 'edited as a draft');
+      return root;
+    }
+
+    test('the walk and the dry run print the same counts and lists for one '
+        'draft', () async {
+      final root = await editedRepo();
+      final out = StringBuffer();
+
+      final dry = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      ).text;
+      writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          names: ['feature:signup'],
+          readLine: answers(['q']),
+          out: out,
+        ),
+      );
+
+      final dryFirst = dry.substring(0, dry.indexOf('### Draft 2/2'));
+      final view = dryFirst.substring(0, dryFirst.length - 1);
+      expect(view, contains('| dropped | 1 sentence dropped |\n'));
+      expect(view, contains('| new     | 1 sentence new |\n'));
+      expect(
+        view,
+        endsWith(
+          '\n```\n\nDropped sentences:\n- Dropped sentence.\n\n'
+          'New sentences:\n- Added sentence.\n',
+        ),
+      );
+      expect(out.toString(), '$view$_prompt');
+    }, skip: skipGit);
+
+    test('a draft edited while the prompt waits shows again with the sentences '
+        'its new text drops', () async {
+      final root = await editedRepo();
+      final out = StringBuffer();
+      var calls = 0;
+      String? answer() {
+        if (calls++ == 0) {
+          docFile(root, signupFeature).writeAsStringSync(
+            '---\ndraft: true\n---\n\n# Signup\n\n## Problem\n\n'
+            'Added sentence.\n',
+          );
+          return 'y';
+        }
+        return 'q';
+      }
+
+      writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          names: ['feature:signup'],
+          readLine: answer,
+          out: out,
+        ),
+      );
+
+      final views = out.toString().split('### Draft 1/2 · Signup\n');
+      expect(views, hasLength(3));
+      expect(views[1], contains('Dropped sentences:\n- Dropped sentence.\n'));
+      expect(views[1], isNot(contains('- Kept sentence.')));
+      expect(
+        views[2],
+        contains('Dropped sentences:\n- Kept sentence.\n- Dropped sentence.\n'),
+      );
+    }, skip: skipGit);
+
+    test('a sentence moved to another draft of the run is neither dropped nor '
+        'new, and the other draft counts what it adds', () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature':
+              '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\n'
+              'Users create an account. Collects the email.\n',
+          'docs/$signupArch':
+              '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n\n'
+              '| Component | Responsibility |\n|---|---|\n'
+              '| Signup form | Collects the email. |\n',
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      docFile(root, signupFeature).writeAsStringSync(
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\n\n'
+        'Users create an account.\n',
+      );
+      commitAll(root, 'edited as a draft');
+
+      final views = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      ).text.split('### Draft 2/2');
+
+      expect(views[0], contains('| dropped | 0 sentences dropped |\n'));
+      expect(views[0], contains('| new     | 0 sentences new |\n'));
+      expect(views[0], isNot(contains('sentences:')));
+      expect(views[1], contains('| new     | 3 sentences new |\n'));
+      expect(
+        views[1],
+        endsWith(
+          'New sentences:\n- Component\n- Responsibility\n- Signup form\n',
+        ),
+      );
+    }, skip: skipGit);
+
+    test('a draft with no approved copy has no dropped sentence and every one '
+        'new', () async {
+      final root = await writeWriteProject();
+
+      final view = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      ).text.split('### Draft 2/2').first;
+
+      expect(view, contains('| old     | unknown: git cannot answer |\n'));
+      expect(view, contains('| dropped | 0 sentences dropped |\n'));
+      expect(view, contains('| new     | 1 sentence new |\n'));
+      expect(view, endsWith('New sentences:\n- Users create an account.\n\n'));
     });
   });
 }

@@ -395,6 +395,46 @@ void main() {
     expect(out.toString(), contains('| changes | none |'));
     expect(out.toString(), contains('no change since the approved copy'));
   });
+  test('document_writing/approve_drafts/show_changes_since_approval E23: --dry-run lists the sentence dropped and the one new, and not the one moved', () async {
+    String story(String mark, String useCase) =>
+        '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'
+        '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story2': story(
+          'approved: true\n',
+          'Sign out. Clears the cookie. Ends the session.',
+        ),
+      },
+    );
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(root, 'approved');
+    File('${root.path}/docs/$story2')
+        .writeAsStringSync(story('draft: true\n', 'Sign out. Warns the user.'));
+    File('${root.path}/docs/prds/d01_context.md').writeAsStringSync(
+      '# Context\n\n## Features\n'
+      'See [signup](features/f02_signup/FEATURE.md). Ends the session.\n',
+    );
+    commitAll(root, 'edited as a draft');
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['approve', '--dry-run', 'user_story:login/sign_out']),
+      0,
+    );
+
+    expect(out.toString(), contains('| dropped | 1 sentence dropped |\n'));
+    expect(out.toString(), contains('| new     | 1 sentence new |\n'));
+    expect(
+      out.toString(),
+      endsWith(
+        '\n```\n\nDropped sentences:\n- Clears the cookie.\n\n'
+        'New sentences:\n- Warns the user.\n',
+      ),
+    );
+    expect(out.toString(), isNot(contains('- Ends the session.')));
+  });
   group('--context reaches the view', () {
     Future<Directory> editedDraft() async {
       final root = await writeWriteProject(
