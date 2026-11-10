@@ -201,6 +201,7 @@ void main() {
   _handOffTests();
   _leadAndMermaidTests();
   _agentTests();
+  _sizeFixTests();
 }
 
 typedef _Shipped = ({
@@ -970,5 +971,114 @@ void _agentTests() {
         'feature.',
       ),
     );
+  });
+}
+
+/// The one home of the size-fix rule, under the plugin folder.
+const _sizeFix = 'skills/expert-sdd/references/size-fix.md';
+
+/// [_sizeFix] by the path a dispatched agent reads it from.
+const _sizeFixPath = '\${CLAUDE_PLUGIN_ROOT}/$_sizeFix';
+
+const _sizeFindings = [
+  '`chars_over_limit`',
+  '`lines_over_limit`',
+  '`item_over_limit`',
+];
+
+/// Each bootstrap procedure and the sentences by which it skipped or dropped
+/// old text on judgement, or wrote its own proposal for a gap.
+const _droppedTextReasons = {
+  'skills/bootstrap-prd/references/procedure.md': [
+    "propose it from the project's own text",
+    'unless a project doc holds it already',
+    'Write nothing it holds already',
+  ],
+  'skills/bootstrap-spec/references/procedure.md': [
+    "propose it from the project's own text",
+    'write nothing a project doc holds already',
+    'drop, as a step 6 proposal, what only describes the old index',
+  ],
+};
+
+void _sizeFixTests() {
+  test('agent_plugin/fill_missing_format/fill_check_findings E06, E07, '
+      'E10-E12, agent_plugin/fill_missing_format/merge_old_files E02, E07: '
+      'each bootstrap procedure moves old text, marks a gap TBR, and has one '
+      'finding row sending the three size findings to size-fix.md', () {
+    for (final MapEntry(key: file, value: reasons)
+        in _droppedTextReasons.entries) {
+      final text = _pluginText(file);
+      final sizeRows = [
+        for (final line in text.split('\n'))
+          if (line.startsWith('|') &&
+              [..._sizeFindings, '`$_sizeFixPath`'].every(line.contains))
+            line,
+      ];
+      expect(sizeRows, hasLength(1), reason: file);
+      final flat = _oneLine(text);
+      expect(flat, contains('`TBR — <why>`'), reason: file);
+      for (final reason in reasons) {
+        expect(flat, isNot(contains(reason)), reason: '$file: $reason');
+      }
+    }
+  });
+
+  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E05, E06, '
+      'agent_plugin/fill_missing_format/fill_check_findings E10-E12: '
+      "size-fix.md names the three findings, the split proposal's ready "
+      'commands in run order, and the case no split applies to', () {
+    final text = _oneLine(_pluginText(_sizeFix));
+    for (final finding in _sizeFindings) {
+      expect(text, contains(finding), reason: finding);
+    }
+    expect(text, contains('`specstone structure <doc>`'));
+    final newFeature = text.indexOf(
+      'specstone new feature --parent <feature> --slug <slug>',
+    );
+    expect(newFeature, isNonNegative);
+    expect(
+      text.indexOf('specstone move <story> … --under <sub-feature>'),
+      greaterThan(newFeature),
+    );
+    expect(text, contains('fewer than 4 stories'));
+    expect(text, contains('Never cut meaning to pass a size.'));
+  });
+
+  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules, '
+      'agent_plugin/fill_missing_format/fill_check_findings: every other file '
+      'points to size-fix.md and none restates its commands', () {
+    final rules = _oneLine(
+      _sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules'),
+    );
+    expect(rules, contains('`references/size-fix.md`'));
+    expect(rules, contains('`specstone structure <doc>`'));
+    expect(
+      rules,
+      contains(
+        'layout, then a sub-feature split the Owner approves, then text '
+        'moved to its home',
+      ),
+    );
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      final after = _oneLine(
+        _sectionOf(
+          _pluginText('skills/$skill/SKILL.md'),
+          '3. After the reports',
+        ),
+      );
+      expect(after, contains('`$_sizeFixPath`'), reason: skill);
+      expect(after, contains('in run order'), reason: skill);
+    }
+    expect(_pluginText('agents/sdd-engineer.md'), contains('`$_sizeFixPath`'));
+    for (final file
+        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+      if (file.uri.path.endsWith(_sizeFix)) continue;
+      expect(
+        _oneLine(file.readAsStringSync()),
+        isNot(contains('new feature --parent')),
+        reason: file.path,
+      );
+    }
   });
 }

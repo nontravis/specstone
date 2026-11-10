@@ -11,28 +11,29 @@ This skill takes `specstone check` findings under `prds/`. Findings under `specs
 Fix the first finding under `prds/` not yet handled, then run `specstone check` again. Stop when each finding left
 goes to `specstone:bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`.
 
-Before the first write to a type, run `specstone guide <type>` (`--json` lists its fields). Bases come from
-`specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); each write prints
-the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` in place
-of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key.
+Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
+each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
+`--title` in place of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key.
 The text between the title and the first `##` section is `#_lead`. Exit 75 `base_mismatch`: read again, merge,
 retry.
 
 Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
 `#quot;`.
 
-Where the old text lacks what the guide needs, propose it from the project's own text (a vision entry's Why
-line backs its `> en:` summary), named in step 6. Ask the Owner only if no text bears on it.
+Move every old statement to a home; never drop one on judgement. Where the old text lacks a value the guide needs,
+write `TBR — <why>` in its field or sub-field, never a value you propose. Ask the Owner only when no text bears on a
+whole section.
 
 | Finding | Fix |
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the doc's old text |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
-| `section_undeclared` | merge each statement into the section that takes it, else the closest the guide allows, unless a project doc holds it already (cite where in step 6); a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone:bootstrap-spec`; then drop the section |
+| `section_undeclared` | move each statement into the section that takes it, else the closest the guide allows, even if another doc holds it; a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone:bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
 | `field_undeclared`, any other | move its value into the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
 | any other under `prds/` | rewrite what it names per `specstone guide <type>`; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
@@ -46,15 +47,14 @@ new list, as YAML `- item` lines, to `specstone set <type>:<name> --field implem
 
 An `untyped_doc` is an old file the migration left with its old name, such as a group's container `FEATURE.md`.
 Merge its content through `specstone set` into the doc that takes it, or into a new one from `specstone new <type>`
-(`--parent`, `--slug`, as the type takes them). Write nothing it holds already, and never target the
-untyped file: a write refuses it. Add its path to the retire set, a list for this run only.
+(`--parent`, `--slug`, as the type takes them). Skip only a sentence that doc holds word for word, and never target
+the untyped file: a write refuses it. Add its path to the retire set, a list for this run only.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
 Keep the first; put each other in its own `specstone new <type>` doc under the same parent, named from its heading.
-Drop the container and any list of inherited GNFR items (every GNFR item applies to every story), naming in step 6
-each item the list left out. End a `relax` item's Rationale with "The Owner approves the waiver by approving this
-doc." Repoint each mention of an old item ID, such as `NFR-Sec01`, to its new doc. Name in step 6 each waiver and each
-mention in a section kept unchanged.
+Drop the container and any list of inherited GNFR items, naming in step 6 each item the list left out. End a `relax`
+item's Rationale with "The Owner approves the waiver by approving this doc." Repoint each mention of an old item ID,
+such as `NFR-Sec01`, to its new doc. Name in step 6 each waiver and each mention in a section kept unchanged.
 
 ## 5. Retire the old files
 

@@ -46,6 +46,7 @@ findings, and changed code or a batch's findings into drafts.
 | `mode: sync`                | `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`       |
 | `procedure: bootstrap-prd`  | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`  |
 | `procedure: bootstrap-spec` | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md` |
+| a size finding in `batch`   | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`      |
 | `mode: author`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md` |
 | `mode: design`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md` |
 | `mode: audit`               | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`  |
@@ -86,8 +87,9 @@ finding.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
   one sentence on why it changed, never their text; each other draft; each pointer fixed; each behavior handed to
   `specstone:brainstorming-sdd`; each pointer that waits on an approval; open questions; then `Findings:`.
-- **Bootstrap**: the drafts as in sync; proposals and waivers; open questions; one `specstone delete …` line;
-  findings outside `batch`; then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
+- **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
+  one `specstone delete …` line; findings outside `batch`;
+  then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
 ## Scope Boundaries
 

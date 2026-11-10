@@ -21,18 +21,18 @@ empty text drops the section or key. The text between the title and the first `#
 Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
 `#quot;`.
 
-For a finding a write clears: write nothing a project doc holds already (cite where in step 6); where the old text
-lacks what the guide needs, propose it from the project's own text, named in step 6; ask the Owner only when no
-text bears on it.
+Where the old text lacks a value the guide needs, write `TBR — <why>` in its field or sub-field, never a value you
+propose. Ask the Owner only when no text bears on a whole section.
 
 | Finding | Fix |
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
-| `section_undeclared` | merge each statement into the section that takes it, else the closest, then drop the section |
+| `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; then drop the section |
 | `field_undeclared` on `implements`, `architecture_missing`, `code_uncovered` | step 3 |
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
 | any other of this skill | rewrite what it names per `specstone guide <type>`; one that clears with no write goes to step 6 |
 
 ## 3. Point and cover code
@@ -55,11 +55,11 @@ from `specstone new`:
 - a migration or rollout note: the architecture doc's `## Rollout`;
 - a folder under `specs/topics/`: its topic (`--slug <folder>`);
 - `specs/INDEX.md`: each code path in it to `covers` and the `code` roots (step 6), the source-of-truth table to the
-  API docs, a cross-cutting statement to the tech stack's `## Constraints` or a topic doc; drop, as a step 6
-  proposal, what only describes the old index.
+  API docs, a cross-cutting statement to the tech stack's `## Constraints` or a topic doc; quote in step 6 each line
+  that only describes the old index, as a line with no home.
 
-Never target the old file: a write refuses it. Add its path to the retire set, a list for this run only, even when
-the doc held its content.
+Skip only a sentence its new doc holds word for word, and never target the old file: a write refuses it. Add its path
+to the retire set, a list for this run only.
 
 ## 5. Retire the old files
 
@@ -77,17 +77,16 @@ specstone delete <path> <path> …
 ```
 
 On a batch, delete nothing: hand that line to `specstone:bootstrap-spec`'s step 3.4, which joins the round's lines.
-With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Exit 77: a file without `draft: true` is
-approved and needs the Owner's word. Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
+With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Exit 64 `doc_referenced`: repoint the
+referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 
-The migration's `specs/TECH_STACK.md` holds a bare-name title and empty sections that `specstone check` skips.
-With the Owner, fill `tech_stack:tech_stack`: title, each section `specstone guide tech_stack` names, and `code`,
-each code folder from the code root (`code_root` in `.specstone/config.yaml`, else the project root). Write
-PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop each PRD
-section. Fill each doc step 3 or 4 made the same way. Then rerun `specstone check`: new roots can raise
-`code_uncovered`.
+`specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill `tech_stack:tech_stack`:
+title, each section `specstone guide tech_stack` names, and `code`, each code folder from the code root (`code_root` in
+`.specstone/config.yaml`, else the project root). Write PROJECT's old `## Tech stack` to `## Stack` and its
+`## Naming canonicalization` to `## Naming`, then drop each PRD section. Fill each doc step 3 or 4 made the same way.
+Then rerun `specstone check`: new roots can raise `code_uncovered`.
 
 Last, take your drafts and every count from one `specstone approve --dry-run --json` after your last write,
 naming each other draft, never counted. Name per draft each change, moved pointer, dropped key or section, and

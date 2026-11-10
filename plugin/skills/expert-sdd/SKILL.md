@@ -12,12 +12,11 @@ Shared rules for any skill that writes or confirms a Specstone doc.
 1. Run `specstone check` before any other command.
 2. Exit 78 with `project_not_found`: tell the Owner the project is still on the old format; `specstone migrate` moves
    it, or they can keep using the old skills. Then stop: run nothing else, and neither read nor write a doc.
-3. Exit 0 or 1: the project is on the new format, even from a subfolder, since the CLI searches each parent folder
-   for `.specstone/config.yaml`. Keep any findings as the baseline and go on.
+3. Exit 0 or 1: the project is on the new format, even from a subfolder. Keep any findings as the baseline and go on.
 4. Any other non-zero exit: report the CLI's error to the Owner and stop.
 
 That call is the gate. Never look for `.specstone/` first with `ls`, a file read, or any other step: a look at the
-working directory alone misses a project root above it, and spends a tool call the gate already covers.
+working directory alone misses a project root above it.
 
 ## Rules
 
@@ -30,15 +29,17 @@ working directory alone misses a project root above it, and spends a tool call t
    `init` on a legacy tree alike.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
    `specstone guide <type> --json` for its fields, even for a type you wrote earlier in the session. A project may
-   customize its templates; the CLI prints the guide the project has now, and this skill keeps none that could fall
-   out of date.
+   customize its templates; the CLI prints the guide it has now, and this skill keeps none.
 4. **Confirm traced links.** When you write an FR (`fr`), an nf (`nf`), or an API row (`api`), record its
    `confirmed` entries: run `specstone check <target>` to print each link it traces, its upstream block, then its
    fingerprint; read the block, then write the entries with `specstone set <target> --field confirmed --base <hash>`.
    Take `<hash>` from `bases.fields.confirmed` in `specstone get <target> --json`, never from a fingerprint `check`
-   prints. A `suspect` link means its upstream block moved on since the entry was recorded: re-read it and confirm
+   prints. A `suspect` link's upstream block moved on since the entry was recorded: re-read it and confirm
    again the same way. Your approval request to the Owner then says what changed upstream.
-5. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
+5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
+   its home; never cut meaning. Cite sizes only as `specstone structure <doc>` or `specstone check` prints them.
+   Steps: `references/size-fix.md`.
+6. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
    touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is `owner`, its line
    ending `(waits for the Owner)`. The post-edit hook does not replace this run: it checks one doc, and a shell
    rewrite triggers no hook.
