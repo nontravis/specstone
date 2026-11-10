@@ -1,11 +1,14 @@
 // The test titles and literals are plan values kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
+import '../../../../specstone_core/test/helpers/relative_link.dart';
+import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
@@ -46,10 +49,6 @@ void main() {
     final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
     expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
-  });
-  test('f02/us03/fr01: approve takes no --json', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(await runner.run(['approve', '--json']), 64);
   });
   test(
     'ms-r10: at a terminal, two names walk the drafts under either',
@@ -212,7 +211,13 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone approve [<name> …] [--dry-run] [--context <n>] | <name>@<hash> … --yes',
+        'Usage: specstone approve [<name> …] [--dry-run] [--context <n> | --json] | <name>@<hash> … --yes',
+      ),
+    );
+    expect(
+      out.toString().replaceAll(RegExp(r'\s+'), ' '),
+      contains(
+        '--json With --dry-run, print the drafts as one JSON object in place of the views.',
       ),
     );
   });
@@ -249,6 +254,103 @@ void main() {
       await runner.run(['approve', '--dry-run', _seen(root, 'feature:signup')]),
       64,
     );
+  });
+  group('document_writing/approve_drafts/print_drafts_for_chat E09', () {
+    for (final (args, message) in [
+      (['--json'], '--json goes only with --dry-run.'),
+      (
+        ['--yes', '--json', 'a@0123456789ab'],
+        '--json goes only with --dry-run.',
+      ),
+      (
+        ['--dry-run', '--json', '--context', '0'],
+        '--json goes without --context.',
+      ),
+      (
+        ['--dry-run', '--json', '--yes', 'a@0123456789ab'],
+        '--dry-run goes without --yes.',
+      ),
+    ]) {
+      test(
+        'approve ${args.join(' ')} is a usage error, exit 64, and prints nothing',
+        () async {
+          final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+
+          expect(await runner.run(['approve', ...args]), 64);
+
+          expect(out.toString(), isEmpty);
+          expect(err.toString(), startsWith('$message\n'));
+        },
+      );
+    }
+  });
+  group('document_writing/approve_drafts/print_drafts_for_chat E10', () {
+    test('--dry-run --json prints one object holding each draft and the count, the drafts and hashes its view prints', () async {
+      final root = await writeWriteProject();
+      var (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', 'login', '--dry-run']), 0);
+      final view = out.toString();
+
+      (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', 'login', '--dry-run', '--json']), 0);
+
+      expect(err.toString(), isEmpty);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final drafts = (json['drafts']! as List).cast<Map<String, Object?>>();
+      expect(json['count'], drafts.length);
+      expect(drafts, isNotEmpty);
+      expect('### Draft '.allMatches(view), hasLength(drafts.length));
+      for (final draft in drafts) {
+        expect(draft, contains('name'));
+        expect(draft, contains('dropped'));
+        expect(draft, contains('new'));
+        expect(view, contains('`${draft['hash']}`'));
+        expect(view, contains('`docs/${draft['docPath']}`'));
+      }
+    });
+    test(
+      'no draft in scope prints an empty list and a count of 0, exit 0',
+      () async {
+        final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+
+        expect(
+          await runner.run([
+            'approve',
+            'architecture:login',
+            '--dry-run',
+            '--json',
+          ]),
+          0,
+        );
+
+        expect(jsonDecode(out.toString()), {
+          'drafts': <Object>[],
+          'count': 0,
+          'warnings': <Object>[],
+        });
+      },
+    );
+    test("roots awaiting the Owner's record refuse with exit 73 and the JSON error on stderr, and print no JSON", () async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          if (key.startsWith('docs/'))
+            'ext/${key.substring(5)}': value
+          else
+            'src/clone/$key': value,
+      });
+      createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+      final (:runner, :out, :err) = writeRunner(
+        Directory('${base.path}/src/clone'),
+      );
+
+      expect(await runner.run(['approve', '--dry-run', '--json']), 73);
+
+      expect(out.toString(), isEmpty);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'output_not_writable'),
+      );
+    }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
   });
   test('ms-r10: a @<hash> without --yes on a non-terminal is a usage error, exit 64', () async {
     final root = await writeWriteProject();

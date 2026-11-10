@@ -42,6 +42,7 @@ DraftView _draft({
   mergedType: mergedType,
   title: title,
   status: status,
+  docPath: projectPath,
   projectPath: projectPath,
   text: text,
   lookup: lookup ?? _copy(_old),

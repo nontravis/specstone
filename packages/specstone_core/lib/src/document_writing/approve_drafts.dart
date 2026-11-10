@@ -72,8 +72,9 @@ void approveDrafts(
 ///
 /// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks for
 /// [names]. The text is their views joined by a blank line, else `no draft
-/// waits for approval`; the JSON is `{}`. It takes no lock, and with no draft
-/// waiting it reads no doc of the tree.
+/// waits for approval`; the JSON is `drafts` (see [draftViewJson]) and their
+/// `count`, `{"drafts": [], "count": 0}` for none. It takes no lock, and with
+/// no draft waiting it reads no doc of the tree.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
 /// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
 /// cannot be read, or a draft that is not UTF-8, all before any view prints,
@@ -87,23 +88,34 @@ ReadAnswer approveDryRun(
   ApprovalHistory? history,
 }) {
   final drafts = _shownDraftsUnder(session, names);
-  if (drafts.isEmpty) return const ReadAnswer(text: _nothingWaits, json: {});
+  if (drafts.isEmpty) {
+    return const ReadAnswer(
+      text: _nothingWaits,
+      json: {'drafts': <Object>[], 'count': 0},
+    );
+  }
   _requireTrusted(session, drafts);
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
-    for (final (at, (:doc, :bytes)) in drafts.indexed)
-      _viewOf(
-        session,
-        doc,
-        bytes,
-        reads,
-        position: at + 1,
-        count: drafts.length,
-        context: context,
-        color: color,
-      ),
+    for (final (:doc, :bytes) in drafts)
+      _draftViewOf(session, doc, bytes, reads),
   ];
-  return ReadAnswer(text: views.join('\n'), json: const {});
+  return ReadAnswer(
+    text: [
+      for (final (at, view) in views.indexed)
+        renderApprovalView(
+          view,
+          position: at + 1,
+          count: views.length,
+          context: context,
+          color: color,
+        ),
+    ].join('\n'),
+    json: {
+      'drafts': [for (final view in views) draftViewJson(view)],
+      'count': views.length,
+    },
+  );
 }
 
 /// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
@@ -357,6 +369,30 @@ String _textOnDisk(WriteSession session, String docPath) {
   }
 }
 
+/// Returns the draft [doc] holding [bytes], as the view and the JSON show it.
+DraftView _draftViewOf(
+  WriteSession session,
+  IndexedDoc doc,
+  List<int> bytes,
+  _RunReads reads,
+) {
+  final type = session.index.typeOf(doc);
+  final text = utf8.decode(bytes);
+  return DraftView(
+    name: doc.name,
+    // `_waitsForApproval` kept only typed drafts, so the type id is set.
+    docType: doc.docTypeId!,
+    mergedType: type,
+    title: doc.title,
+    status: session.index.statusOf(doc),
+    docPath: doc.docPath,
+    projectPath: session.projectPathOf(doc.docPath),
+    text: text,
+    lookup: reads.lookupOf(doc),
+    sentences: reads.changesOf(doc, text, type),
+  );
+}
+
 /// Returns the approval view of the typed draft [doc] holding [bytes].
 String _viewOf(
   WriteSession session,
@@ -367,29 +403,13 @@ String _viewOf(
   required int count,
   required int? context,
   required bool color,
-}) {
-  final type = session.index.typeOf(doc);
-  final text = utf8.decode(bytes);
-  final draft = DraftView(
-    name: doc.name,
-    // `_waitsForApproval` kept only typed drafts, so the type id is set.
-    docType: doc.docTypeId!,
-    mergedType: type,
-    title: doc.title,
-    status: session.index.statusOf(doc),
-    projectPath: session.projectPathOf(doc.docPath),
-    text: text,
-    lookup: reads.lookupOf(doc),
-    sentences: reads.changesOf(doc, text, type),
-  );
-  return renderApprovalView(
-    draft,
-    position: position,
-    count: count,
-    context: context,
-    color: color,
-  );
-}
+}) => renderApprovalView(
+  _draftViewOf(session, doc, bytes, reads),
+  position: position,
+  count: count,
+  context: context,
+  color: color,
+);
 
 /// Writes the approval under the lock; returns false when the bytes changed.
 bool _approveIfUnchanged(

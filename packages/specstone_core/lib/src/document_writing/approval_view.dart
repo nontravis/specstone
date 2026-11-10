@@ -2,6 +2,8 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show sectionKeyOf;
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -14,6 +16,7 @@ final class DraftView {
     this.mergedType,
     this.title,
     this.status,
+    required this.docPath,
     required this.projectPath,
     required this.text,
     required this.lookup,
@@ -35,6 +38,9 @@ final class DraftView {
 
   /// The status the index gives, or null when it gives none.
   final String? status;
+
+  /// The DocPath of the doc, relative to the docs root.
+  final String docPath;
 
   /// The path of the doc relative to the project root.
   final String projectPath;
@@ -75,19 +81,16 @@ String renderApprovalView(
 }) {
   final lookup = draft.lookup;
   final newText = comparableTextOf(draft.text, draft.mergedType);
-  final oldText = switch (lookup) {
-    ApprovedCopy(:final text) => comparableTextOf(text, draft.mergedType),
-    NoApprovedCopy() || UnknownHistory() => null,
-  };
+  final oldText = _approvedTextOf(draft);
   final diff = approvalDiff(oldText ?? '', newText, context: context);
   final hasDiff = oldText == null || diff.isNotEmpty;
-  final changes = switch (oldText) {
-    null => const ['whole doc'],
-    _ when !hasDiff => const ['none'],
-    final old => [
-      for (final unit in changedUnits(old, newText)) _changeCell(unit),
-    ],
-  };
+  final changes = _changeCells(
+    oldText,
+    newText,
+    hasDiff: hasDiff,
+    plain: false,
+    docType: draft.mergedType,
+  );
 
   final out = StringBuffer()
     ..writeln('### Draft $position/$count · ${draft.title ?? draft.name}')
@@ -124,10 +127,53 @@ String renderApprovalView(
   return out.toString();
 }
 
+/// Returns the draft as one JSON object: the cells of its view, as plain text.
+///
+/// The keys are `name` (`<doc type>:<name>`), `docPath`, `title` and `status`
+/// when [draft] has them, `hash`, `lookup` (`found`, `none`, or `unknown`),
+/// `renamedFrom` when the approved copy sits under another path, `changes`
+/// (the view's `changes` cells in order, joined by `, `, a section by its key),
+/// and `dropped` and `new`.
+Map<String, Object> draftViewJson(DraftView draft) {
+  final lookup = draft.lookup;
+  final newText = comparableTextOf(draft.text, draft.mergedType);
+  final oldText = _approvedTextOf(draft);
+  final changes = _changeCells(
+    oldText,
+    newText,
+    hasDiff: oldText == null || approvalDiff(oldText, newText).isNotEmpty,
+    plain: true,
+    docType: draft.mergedType,
+  );
+  return {
+    'name': '${draft.docType}:${draft.name}',
+    'docPath': draft.docPath,
+    'title': ?draft.title,
+    'status': ?draft.status,
+    'hash': baseHashOf(toLf(draft.text)),
+    'lookup': switch (lookup) {
+      ApprovedCopy() => 'found',
+      NoApprovedCopy() => 'none',
+      UnknownHistory() => 'unknown',
+    },
+    if (lookup case ApprovedCopy(:final path) when path != draft.projectPath)
+      'renamedFrom': path,
+    'changes': changes.join(', '),
+    'dropped': draft.sentences.dropped,
+    'new': draft.sentences.added,
+  };
+}
+
 /// Returns [text] as LF, laid out by [docType], without the approval marks:
 /// the text the view compares and reads sentences from.
 String comparableTextOf(String text, MergedDocType? docType) =>
     withoutApprovalMarks(layOutDoc(toLf(text), docType));
+
+/// Returns the laid-out approved copy of [draft], or null when git found none.
+String? _approvedTextOf(DraftView draft) => switch (draft.lookup) {
+  ApprovedCopy(:final text) => comparableTextOf(text, draft.mergedType),
+  NoApprovedCopy() || UnknownHistory() => null,
+};
 
 const _noChange = 'no change since the approved copy';
 
@@ -164,20 +210,53 @@ String _oldCell(ApprovalLookup lookup) => switch (lookup) {
   UnknownHistory() => 'unknown: git cannot answer',
 };
 
+/// Returns the `changes` cells: `whole doc` for a draft with no approved copy,
+/// `none` when [hasDiff] is false, else one cell per changed unit.
+///
+/// [plain] names each unit as text with no code span, a section by its key.
+List<String> _changeCells(
+  String? oldText,
+  String newText, {
+  required bool hasDiff,
+  required bool plain,
+  required MergedDocType? docType,
+}) => switch (oldText) {
+  null => const ['whole doc'],
+  _ when !hasDiff => const ['none'],
+  final old => [
+    for (final unit in changedUnits(old, newText))
+      _changeCell(unit, plain: plain, docType: docType),
+  ],
+};
+
 /// Returns the `changes` cell naming [unit], a suffix marking a one-side unit.
-String _changeCell(ChangedUnit unit) {
+String _changeCell(
+  ChangedUnit unit, {
+  required bool plain,
+  required MergedDocType? docType,
+}) {
   final label = switch (unit.kind) {
     .frontmatter => 'frontmatter',
-    .field => 'field ${_codeSpan(unit.name)}',
+    .field => 'field ${plain ? unit.name : _codeSpan(unit.name)}',
     .title => 'title',
     .lead => 'lead',
-    .section => _codeSpan('## ${unit.name}'),
+    .section =>
+      plain ? _sectionKeyOf(unit.name, docType) : _codeSpan('## ${unit.name}'),
   };
   return switch (unit.side) {
     .both => label,
     .added => '$label (new)',
     .removed => '$label (removed)',
   };
+}
+
+/// Returns the key of the section headed [header]: the template section id
+/// whose header matches, else the key the header derives.
+String _sectionKeyOf(String header, MergedDocType? docType) {
+  for (final section in docType?.sections ?? const <MergedSection>[]) {
+    if (headerKey(section.header) == headerKey(header)) return section.id;
+  }
+  return sectionKeyOf(header);
 }
 
 // MARK: - Markdown

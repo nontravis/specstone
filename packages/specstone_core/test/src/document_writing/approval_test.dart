@@ -859,6 +859,7 @@ void main() {
             name: 'recover_account',
             docType: 'fr',
             mergedType: _docType,
+            docPath: newPath,
             projectPath: newPath,
             text: File('${repo.path}/$newPath').readAsStringSync(),
             lookup: lookup,

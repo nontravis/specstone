@@ -26,6 +26,13 @@ class ApproveCommand extends WriteCommand {
         help:
             'Show n lines around each change, in place of the whole changed '
             'unit.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help:
+            'With --dry-run, print the drafts as one JSON object in place of '
+            'the views.',
       );
   }
 
@@ -39,7 +46,7 @@ class ApproveCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone approve [<name> …] [--dry-run] [--context <n>] '
+      'specstone approve [<name> …] [--dry-run] [--context <n> | --json] '
       '| <name>@<hash> … --yes';
 
   @override
@@ -49,11 +56,18 @@ class ApproveCommand extends WriteCommand {
     final yes = args.flag('yes');
     final dryRun = args.flag('dry-run');
     final contextArg = args.option('context');
+    final asJson = args.flag('json');
     if (dryRun && yes) {
       usageException('--dry-run goes without --yes.');
     }
     if (contextArg != null && yes) {
       usageException('--context goes without --yes.');
+    }
+    if (asJson && !dryRun) {
+      usageException('--json goes only with --dry-run.');
+    }
+    if (asJson && contextArg != null) {
+      usageException('--json goes without --context.');
     }
     final context = contextArg == null ? null : _contextOf(contextArg);
     if (yes && names.isEmpty) {
@@ -74,7 +88,7 @@ class ApproveCommand extends WriteCommand {
           context: context,
           color: color,
         ),
-        asJson: false,
+        asJson: asJson,
       );
     }
     final seen = yes ? names.map(_seenDraftOf).toList() : const <SeenDraft>[];

@@ -413,7 +413,7 @@ void main() {
       expect(shown, contains('`\n\n| field   | value |'));
       expect(shown, contains('\n\n### Draft 2/2 · '));
       expect(shown, endsWith('\n'));
-      expect(answer.json, isEmpty);
+      expect(answer.json, containsPair('count', 2));
       expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
       expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
     });
@@ -472,7 +472,7 @@ void main() {
         (s) => approveDryRun(s, names: ['architecture:login']),
       );
       expect(answer.text, 'no draft waits for approval\n');
-      expect(answer.json, isEmpty);
+      expect(answer.json, {'drafts': <Object>[], 'count': 0});
     });
 
     test(
@@ -1632,6 +1632,105 @@ void main() {
       expect(view, contains('| new     | 1 sentence new |\n'));
       expect(view, endsWith('New sentences:\n- Users create an account.\n\n'));
     });
+  });
+
+  group('document_writing/approve_drafts/print_drafts_for_chat JSON', () {
+    const kept = 'Users create an account.';
+
+    /// Commits `signup` as an approved doc, then as an edited draft whose
+    /// title is [title] and whose Problem drops one sentence and adds one.
+    Future<Directory> repoWithEditedSignup({String title = 'Signup'}) async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature':
+              '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\n'
+              '$kept Users stay signed in.\n',
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      docFile(root, signupFeature).writeAsStringSync(
+        '---\ndraft: true\n---\n\n# $title\n\n## Problem\n\n'
+        '$kept Users sign up.\n',
+      );
+      commitAll(root, 'edited as a draft');
+      return root;
+    }
+
+    test('E10: each draft in tree order with its name, hash, lookup, '
+        'and sentences, and the count', () async {
+      final root = await repoWithEditedSignup();
+
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      );
+
+      final hash = baseHashOf(toLf(readDoc(root, signupFeature)));
+      expect(answer.json, {
+        'drafts': [
+          {
+            'name': 'feature:signup',
+            'docPath': signupFeature,
+            'title': 'Signup',
+            'status': 'planned',
+            'hash': hash,
+            'lookup': 'found',
+            'changes': 'problem',
+            'dropped': ['Users stay signed in.'],
+            'new': ['Users sign up.'],
+          },
+          containsPair('name', 'architecture:signup'),
+        ],
+        'count': 2,
+      });
+      expect(answer.text, contains('| hash    | `$hash` |'));
+    }, skip: skipGit);
+
+    test('a draft with two changed units gives one changes string of both, '
+        'joined by a comma and a space', () async {
+      final root = await repoWithEditedSignup(title: 'Sign up');
+
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      );
+
+      final drafts = answer.json['drafts']! as List<Object>;
+      expect((drafts.first as Map)['changes'], 'title, problem');
+    }, skip: skipGit);
+
+    test('a draft with no approved copy is a whole doc and has no '
+        'renamedFrom', () async {
+      final root = await writeWriteProject();
+
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup']),
+      );
+
+      final drafts = answer.json['drafts']! as List<Object>;
+      expect(drafts.first, containsPair('lookup', 'unknown'));
+      expect(drafts.first, containsPair('changes', 'whole doc'));
+      expect(drafts.first, containsPair('dropped', <String>[]));
+      expect(drafts.first, containsPair('new', [kept]));
+      expect(drafts.first, isNot(contains('renamedFrom')));
+    });
+
+    test(
+      'E10: no draft in scope gives an empty list and a count of 0',
+      () async {
+        final root = await writeWriteProject();
+
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(s, names: ['user_story:login/sign_out']),
+        );
+
+        expect(answer.json, {'drafts': <Object>[], 'count': 0});
+      },
+    );
   });
 
   group('document_writing/approve_drafts/print_drafts_for_chat E24', () {
