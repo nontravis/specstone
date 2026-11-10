@@ -453,11 +453,12 @@ void main() {
       final root = await writeWriteProject();
       final emptyPath = Directory.systemTemp.createTempSync('specstone_path_');
       addTearDown(() => emptyPath.deleteSync(recursive: true));
-      // A `git` that leaves a mark where a started git would be found.
+      // A `git` that leaves a mark where a started git would be found; the
+      // shell builtin `:` writes it, since `touch` is not on this PATH.
       final marker = File('${emptyPath.path}/git_started');
       if (!Platform.isWindows) {
         final stub = File('${emptyPath.path}/git')
-          ..writeAsStringSync('#!/bin/sh\ntouch "${marker.path}"\nexit 1\n');
+          ..writeAsStringSync('#!/bin/sh\n: > "${marker.path}"\nexit 1\n');
         expect(Process.runSync('chmod', ['+x', stub.path]).exitCode, 0);
       }
       final home = testHome().path;
@@ -480,7 +481,14 @@ void main() {
       final yes = await run(['--yes', '--plan', hash]);
       expect(yes.exitCode, 0, reason: '${yes.stderr}');
       expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
-      expect(marker.existsSync(), isFalse, reason: 'a git process started');
+      expect(
+        marker.existsSync(),
+        isFalse,
+        reason: 'a git process started',
+        skip: Platform.isWindows
+            ? 'Windows runs no sh stub, so a started git leaves no mark'
+            : null,
+      );
     });
   });
 }

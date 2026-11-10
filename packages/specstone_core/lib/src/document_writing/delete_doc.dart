@@ -129,10 +129,16 @@ String _planHashOf(_UnitFiles files) => baseHashOf(
   ].join(),
 );
 
-/// Returns the `bases.doc` hash of [bytes]; a byte that is not UTF-8 decodes
-/// to U+FFFD, so any file of a unit hashes the same way each time.
-String _textHashOf(List<int> bytes) =>
-    baseHashOf(toLf(utf8.decode(bytes, allowMalformed: true)));
+/// Returns the `bases.doc` hash of [bytes] when they are UTF-8 text, else the
+/// hash of the bytes themselves, so no two different binary files hash alike.
+String _textHashOf(List<int> bytes) {
+  try {
+    return baseHashOf(toLf(utf8.decode(bytes)));
+  } on FormatException {
+    // Latin-1 maps each byte to one code point, so the text keeps every byte.
+    return baseHashOf(latin1.decode(bytes));
+  }
+}
 
 String _listOf(Iterable<String> docPaths) =>
     docPaths.map((docPath) => '$docPath\n').join();

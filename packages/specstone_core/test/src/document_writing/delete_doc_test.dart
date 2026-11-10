@@ -338,6 +338,67 @@ void main() {
     }
   });
 
+  String signOutPlan(Directory root) =>
+      writeIn(
+            root,
+            (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+          ).json['plan']!
+          as String;
+
+  void expectSignOutRefused(
+    Directory root,
+    String hash,
+    Iterable<String> kept,
+  ) {
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    for (final path in kept) {
+      expect(hasDoc(root, path), isTrue, reason: path);
+    }
+  }
+
+  test('f02/us04/fr06/e04: a file added to the unit after the dry run is '
+      'plan_mismatch and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final hash = signOutPlan(root);
+    const added = 'prds/features/f01_login/us02_sign_out/notes.txt';
+    docFile(root, added).writeAsStringSync('late\n');
+
+    expectSignOutRefused(root, hash, [...signOutUnit, added]);
+  });
+
+  test('f02/us04/fr06/e04: a file removed from the unit after the dry run is '
+      'plan_mismatch and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final hash = signOutPlan(root);
+    docFile(root, signOutUnit.last).deleteSync();
+
+    expectSignOutRefused(root, hash, signOutUnit.take(2));
+  });
+
+  test('f02/us04/fr06/e04: a listed file that is not UTF-8 and changes after '
+      'the dry run is plan_mismatch and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    const blob = 'prds/features/f01_login/us02_sign_out/blob.bin';
+    docFile(root, blob).writeAsBytesSync([0xFF, 0xFE, 0xFD]);
+    final hash = signOutPlan(root);
+    // Same length and the same count of invalid bytes as before.
+    docFile(root, blob).writeAsBytesSync([0xFE, 0xFF, 0xFC]);
+
+    expectSignOutRefused(root, hash, [...signOutUnit, blob]);
+  });
+
   test('ms-r11: a dry run refuses a referred unit as the run does', () async {
     final root = await writeWriteProject();
     expect(
