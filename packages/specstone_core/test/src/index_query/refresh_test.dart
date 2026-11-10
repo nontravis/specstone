@@ -448,6 +448,27 @@ void main() {
       addTearDown(after.close);
       expect(after.select('SELECT layout FROM meta').single['layout'], 12);
     });
+    test(
+      'consistency_check/find_template_breaks/report_open_tbrs: an index at '
+      'layout 11 is rebuilt to layout 12 with the TBR markers filled',
+      () async {
+        final project = await writeLoginProject(
+          extra: {'docs/note.md': '# N\n\nTBR \u2014 pick a value.\n'},
+        );
+        refresh(project);
+        sqlite3.open('${project.path}/$indexFilePath')
+          ..execute('UPDATE meta SET layout = 11')
+          ..close();
+        final (:result, :store) = refresh(project);
+        expect(result.fullBuild, isTrue);
+        expect(store.loadContent('note.md').lineFacts.tbrMarkers, [
+          (line: 3, rest: 'pick a value.'),
+        ]);
+        final after = sqlite3.open('${project.path}/$indexFilePath');
+        addTearDown(after.close);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 12);
+      },
+    );
     test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 12', () async {
       final project = await writeLoginProject();
       refresh(project);

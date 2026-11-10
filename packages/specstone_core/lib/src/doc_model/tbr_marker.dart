@@ -8,7 +8,8 @@ const _marker = 'TBR — ';
 /// its 0-based body line and the text after it on that line, trimmed.
 ///
 /// Fenced code and code spans hold no marker. A line with two markers gives
-/// two places.
+/// two places. Spans are read per line, so a marker inside a span wrapped over
+/// two lines is still read, as for number labels.
 List<({int line, String rest})> tbrMarkerLinesIn(String lfBody) {
   if (!lfBody.contains(_marker)) return const [];
   final lines = lfBody.split('\n');

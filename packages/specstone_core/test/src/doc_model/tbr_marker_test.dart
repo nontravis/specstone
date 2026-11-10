@@ -41,6 +41,21 @@ void main() {
     });
 
     test('consistency_check/find_template_breaks/report_open_tbrs E03: a '
+        'longer fence holds a shorter fence line and its marker', () {
+      const body =
+          '````md\n'
+          '```\n'
+          'TBR \u2014 in the long backtick fence\n'
+          '````\n'
+          '~~~~\n'
+          '~~~\n'
+          'TBR \u2014 in the long tilde fence\n'
+          '~~~~\n'
+          'TBR \u2014 after both\n';
+      expect(tbrMarkerLinesIn(body), [(line: 8, rest: 'after both')]);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs E03: a '
         'marker after a code span on the same line is still read', () {
       expect(tbrMarkerLinesIn('See `x` then TBR — later.\n'), [
         (line: 0, rest: 'later.'),
