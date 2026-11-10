@@ -31,6 +31,13 @@ String frWithSizes() =>
     '## Edge cases\n${'1. E01 — A wrong password → refused'.padRight(106, '.')}\n'
     '${'2. E02 — An unknown email → refused'.padRight(121, '.')}\n';
 
+// The same requirement with a lead of 681 chars after its title.
+String frWithLead() => frWithSizes().replaceFirst(
+  '# Validate credentials\n\n',
+  '# Validate credentials\n\n'
+      '${'The lead says what the check covers.'.padRight(681, '.')}\n\n',
+);
+
 Map<String, Object?> errorOf(StringBuffer err) =>
     (jsonDecode(err.toString()) as Map)['error'] as Map<String, Object?>;
 
@@ -103,6 +110,40 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
+  test('index_query/view_docs_tree S7: a requirement with a lead prints it first, as text', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(extra: {frKey: frWithLead()}),
+    );
+    expect(await runner.run(['structure', frTarget]), 0);
+    expect(
+      out.toString().split('\n').skip(1).join('\n'),
+      '  _lead · 681 chars\n'
+      '    line 12 · 681 chars\n'
+      '  statement · 179 chars\n'
+      '    line 16 · 165 chars\n'
+      '  edge_cases · 243 chars\n'
+      '    E01 · 106 chars\n'
+      '    E02 · 121 chars\n',
+    );
+    expect(err.toString(), isEmpty);
+  });
+  test('index_query/view_docs_tree S7: a requirement with a lead gives --json a _lead section first', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(extra: {frKey: frWithLead()}),
+    );
+    expect(await runner.run(['structure', frTarget, '--json']), 0);
+    final doc =
+        ((jsonDecode(out.toString()) as Map)['docs']! as List).single
+            as Map<String, Object?>;
+    expect((doc['sections']! as List).first, {
+      'key': '_lead',
+      'chars': 681,
+      'items': [
+        {'line': 12, 'chars': 681},
+      ],
+    });
+    expect(err.toString(), isEmpty);
+  });
   test('f01/us02/s5, f01/us02/fr01/e03: a target no doc carries exits 64 and names it', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['structure', 'logn']), 64);

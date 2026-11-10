@@ -1,19 +1,11 @@
-import 'package:specstone_core/src/doc_model/doc_items.dart';
-import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show itemHeadingMarker;
-import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
-import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart';
-import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _indent = '  ';
 
-typedef _ItemSize = ({String? id, int line, int chars});
-typedef _SectionSize = ({String key, int chars, List<_ItemSize> items});
+typedef _SectionSize = ({String key, int chars, List<ItemFact> items});
 
 /// Returns the docs tree, or the subtree of every doc [target] addresses.
 ///
@@ -24,9 +16,10 @@ typedef _SectionSize = ({String key, int chars, List<_ItemSize> items});
 /// line with no folder line.
 ///
 /// When [target] resolves to one typed doc, that doc's line is followed by one
-/// line per section and, under it, one per item, each with its characters as
-/// `check` counts them in the doc as `format` lays it out; the doc's JSON
-/// object gains `sections`.
+/// line per section, its lead first when it holds text, and, under each, one
+/// per item, each with the characters the index stores for it, as `check`
+/// counts them in the doc as `format` lays it out; the doc's JSON object gains
+/// `sections`. No doc is laid out or counted again.
 ReadAnswer answerStructure(DocIndex index, {String? target}) {
   final resolved = target == null ? null : index.resolve(target);
   final shown = resolved == null ? index.docs : _withoutNested(index, resolved);
@@ -139,42 +132,19 @@ Map<String, Object> _treeJson(
   ],
 };
 
-/// Returns the sections of [doc] as its counts cover them, each with its
-/// items: the text `format` lays out, or the text as decoded for a doc with
-/// no layout.
+/// Returns the sections of [doc] as the index stores them: the lead first when
+/// it holds text, then each section in file order, each with its items.
 List<_SectionSize> _sectionSizesOf(DocIndex index, IndexedDoc doc) {
-  final type = index.typeOf(doc);
-  final counted = doc.countedTextOf(toLf(index.contentOf(doc).text), type);
-  final content = docStructureOf(counted, type);
-  final templates = heldTemplatesOf(content.sections, type);
+  final content = index.contentOf(doc);
+  final facts = content.itemFacts;
   return [
+    if (facts.lead case final lead?)
+      (key: leadKey, chars: lead.chars, items: facts.leadItems),
     for (final (i, section) in content.sections.indexed)
       (
         key: section.key,
-        chars: sectionCountsOf(section).chars,
-        items: _itemSizesOf(content, i, templates[i]),
+        chars: content.lineFacts.sectionCounts[i].chars,
+        items: facts.sectionItems[i],
       ),
   ];
-}
-
-List<_ItemSize> _itemSizesOf(
-  DocContent content,
-  int sectionIndex,
-  MergedSection? template,
-) => [
-  for (final item in itemsOf(
-    sectionBodyLines(content.sections, content.lineFacts, sectionIndex),
-  ))
-    (id: _itemIdOf(item, template), line: item.line, chars: item.chars),
-];
-
-/// Returns the key `check` holds [item] by, or null when it reads none.
-String? _itemIdOf(DocItem item, MergedSection? template) {
-  if (item.heading && template?.id == acceptanceSectionId) {
-    final scenario = readScenarioHeading('$itemHeadingMarker${item.text}');
-    if (scenario != null) return itemKeyOf(scenario, isScenario: true);
-  }
-  final prefix = template?.prefixId;
-  final id = prefix == null ? null : readItemId(item.text, prefix);
-  return id == null ? null : itemKeyOf(id, isScenario: false);
 }

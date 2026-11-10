@@ -431,6 +431,19 @@ final _rules = <_Rule>[
     appliesTo: _everySource,
   ),
   (
+    name: 'items are read only by item_facts',
+    remedy:
+        'Read an item through DocContent.itemFacts in '
+        'index_query/item_facts.dart.',
+    pattern: RegExp(r'\bitemsOf\('),
+    exempt: {
+      _lib('doc_model/doc_items.dart'),
+      _lib('index_query/item_facts.dart'),
+    },
+    allowed: [],
+    appliesTo: _everySource,
+  ),
+  (
     name: 'a sentence is split only by sentences',
     remedy: 'Cut sentences through sentencesOf in doc_model/sentences.dart.',
     pattern: _sentenceSplit,

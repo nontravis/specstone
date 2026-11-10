@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -30,6 +31,43 @@ final _e09Fr =
     '${_padded('The system shall check the email and the password.', 165)}\n\n'
     '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
     '${_padded('2. E02 — An unknown email → refused', 121)}\n';
+
+final String _leadFr = _e09Fr.replaceFirst(
+  '# Validate credentials\n\n',
+  '# Validate credentials\n\n${_padded('The lead says what the check covers.', 681)}\n\n',
+);
+
+/// The `sections` of the doc [target] names, as `--json` prints them.
+List<Map<String, Object?>> _jsonSections(DocIndex index, String target) =>
+    ((answerStructure(index, target: target).json['docs']! as List)
+                .cast<Map<String, Object?>>()
+                .single['sections']!
+            as List)
+        .cast<Map<String, Object?>>();
+
+/// The sections of [content] as its stored counts and item facts hold them,
+/// the lead first when it holds text.
+List<Map<String, Object?>> _storedSections(DocContent content) {
+  Map<String, Object?> entry(String key, int chars, List<ItemFact> items) => {
+    'key': key,
+    'chars': chars,
+    'items': [
+      for (final item in items)
+        {'id': ?item.id, 'line': item.line, 'chars': item.chars},
+    ],
+  };
+  final facts = content.itemFacts;
+  return [
+    if (facts.lead case final lead?)
+      entry('_lead', lead.chars, facts.leadItems),
+    for (final (i, section) in content.sections.indexed)
+      entry(
+        section.key,
+        content.lineFacts.sectionCounts[i].chars,
+        facts.sectionItems[i],
+      ),
+  ];
+}
 
 void main() {
   late DocIndex index;
@@ -228,6 +266,128 @@ void main() {
             ],
           },
         ]);
+      },
+    );
+
+    test('E11: a lead prints first as _lead with its items, as text', () async {
+      final index = await indexWith({_frKey: _leadFr});
+      expect(
+        answerStructure(index, target: _frTarget).text,
+        'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_leadFr)} tokens\n'
+        '  _lead · 681 chars\n'
+        '    line 12 · 681 chars\n'
+        '  statement · 179 chars\n'
+        '    line 16 · 165 chars\n'
+        '  edge_cases · 243 chars\n'
+        '    E01 · 106 chars\n'
+        '    E02 · 121 chars\n',
+      );
+    });
+
+    test(
+      'E11: a lead gives the first sections entry key _lead under --json',
+      () async {
+        final index = await indexWith({_frKey: _leadFr});
+        final sections = _jsonSections(index, _frTarget);
+
+        expect(sections.first, {
+          'key': '_lead',
+          'chars': 681,
+          'items': [
+            {'line': 12, 'chars': 681},
+          ],
+        });
+        expect(
+          [for (final s in sections) s['key']],
+          ['_lead', 'statement', 'edge_cases'],
+        );
+      },
+    );
+
+    test(
+      'E12: a lead that holds no text prints no _lead line and no _lead entry',
+      () async {
+        final text = answerStructure(e09, target: _frTarget).text;
+
+        expect(text, isNot(contains('_lead')));
+        expect(
+          [for (final s in _jsonSections(e09, _frTarget)) s['key']],
+          ['statement', 'edge_cases'],
+        );
+      },
+    );
+
+    test('E12: a lead of blank lines only prints no _lead line', () async {
+      final blank = _e09Fr.replaceFirst(
+        '# Validate credentials\n\n',
+        '# Validate credentials\n\n   \n\n',
+      );
+      final index = await indexWith({_frKey: blank});
+
+      expect(
+        answerStructure(index, target: _frTarget).text,
+        isNot(contains('_lead')),
+      );
+    });
+
+    test(
+      'Review Focus: a doc with no title line takes its whole head as the lead',
+      () async {
+        final untitled = _leadFr.replaceFirst('# Validate credentials\n\n', '');
+        final index = await indexWith({_frKey: untitled});
+        final content = index.contentOf(index.resolve(_frTarget).single);
+        final sections = _jsonSections(index, _frTarget);
+
+        expect(content.itemFacts.lead, isNotNull);
+        expect(sections.first['key'], '_lead');
+        expect(sections, _storedSections(content));
+      },
+    );
+
+    test('Review Focus: sections out of template order print what the index stores', () async {
+      final shuffled = _e09Fr.replaceFirst(
+        RegExp(r'## Statement\n.*\n\n## Edge cases\n.*\n.*\n', dotAll: true),
+        '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
+        '${_padded('2. E02 — An unknown email → refused', 121)}\n\n'
+        '## Statement\n${_padded('The system shall check the email and the password.', 165)}\n',
+      );
+      final index = await indexWith({_frKey: shuffled});
+      final content = index.contentOf(index.resolve(_frTarget).single);
+      final sections = _jsonSections(index, _frTarget);
+
+      expect([for (final s in sections) s['key']], ['edge_cases', 'statement']);
+      expect(sections, _storedSections(content));
+    });
+
+    test('Review Focus: a doc with a repeated header keeps each section its own items', () async {
+      final repeated = _e09Fr.replaceFirst(
+        '## Edge cases',
+        '## Statement\nsecond\n\n## Edge cases',
+      );
+      final index = await indexWith({_frKey: repeated});
+      final content = index.contentOf(index.resolve(_frTarget).single);
+      final sections = _jsonSections(index, _frTarget);
+
+      expect(
+        [for (final s in sections) s['key']],
+        ['statement', 'statement', 'edge_cases'],
+      );
+      expect(sections, _storedSections(content));
+    });
+
+    test(
+      'item IDs: a lettered item ID prints as a line, never as an ID',
+      () async {
+        final lettered = _e09Fr.replaceFirst('2. E02 —', '2. E02a —');
+        final index = await indexWith({_frKey: lettered});
+        final lines = answerStructure(
+          index,
+          target: _frTarget,
+        ).text.split('\n');
+
+        expect(lines, contains('    E01 · 106 chars'));
+        expect(lines, contains(matches(RegExp(r'^    line 19 · \d+ chars$'))));
+        expect(lines.where((l) => l.contains('E02a')), isEmpty);
       },
     );
 
