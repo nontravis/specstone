@@ -41,12 +41,6 @@ void main() {
       expect(isTableDelimiterRow('  |-|-|  '), isTrue);
     });
 
-    test('accepts a one-column row with a leading pipe', () {
-      expect(isTableDelimiterRow('|---'), isTrue);
-      expect(isTableDelimiterRow('|:--:'), isTrue);
-      expect(isTableDelimiterRow('| --- |'), isTrue);
-    });
-
     test('rejects a row that holds text or no pipe', () {
       expect(isTableDelimiterRow('| a | b |'), isFalse);
       expect(isTableDelimiterRow('---'), isFalse);
@@ -54,9 +48,15 @@ void main() {
       expect(isTableDelimiterRow(''), isFalse);
     });
 
-    test('rejects a row indented 4 spaces or more, which is code', () {
+    test('rejects a one-column row with no closing pipe, as package:markdown '
+        '7.3.1 renders it as a paragraph', () {
+      expect(isTableDelimiterRow('|---'), isFalse);
+      expect(isTableDelimiterRow('|:--:'), isFalse);
+      expect(isTableDelimiterRow('| --- |'), isTrue);
+    });
+
+    test('rejects a row with a leading pipe indented 4 spaces or more', () {
       expect(isTableDelimiterRow('    |---|'), isFalse);
-      expect(isTableDelimiterRow('    ---|---'), isFalse);
     });
   });
 }

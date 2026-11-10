@@ -4,14 +4,13 @@ import 'package:markdown/markdown.dart' show HeaderSyntax;
 // that changes it changes every reader with it.
 final RegExp _atxHeading = const HeaderSyntax().pattern;
 
-/// A table delimiter row: cells of hyphens, each with optional colons, at most
-/// 3 spaces in, and at least one pipe, a leading one alone included.
+/// `markdown`'s `tablePattern` (`patterns.dart:53`), which `markdown.dart` does
+/// not export: a line of hyphens separated by at least one pipe.
 ///
-/// This is `markdown`'s `tablePattern` (`patterns.dart:53`), which
-/// `markdown.dart` does not export, widened to take a one-column row such as
-/// `|---` as GFM does.
+/// The pattern is the package's own, so every reader agrees with the renderer
+/// on what a table is: a one-column row such as `|---` is no delimiter row.
 final RegExp _tableDelimiterRow = RegExp(
-  r'^ {0,3}(?=[^|]*\|)(?:\|[ \t]*)?:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$',
+  r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$',
 );
 
 /// An ATX heading line: its level, 1 to 6, and its text without the marks.
