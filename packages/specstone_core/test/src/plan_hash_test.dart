@@ -351,14 +351,18 @@ void main() {
 
     test('f06 INV-4: a sibling folder that shares a prefix is outside', () {
       expect(
-        pathFromRoots('/work/project-two/a.md', ['/work/project']),
+        pathFromRoots('/work/project-two/a.md', [
+          '/work/project',
+        ], isWindows: false),
         '/work/project-two/a.md',
       );
     });
 
     test('f06 INV-4: on POSIX a backslash is part of a file name', () {
       expect(
-        pathFromRoots(r'/work/project/a\b.md', ['/work/project']),
+        pathFromRoots(r'/work/project/a\b.md', [
+          '/work/project',
+        ], isWindows: false),
         r'a\b.md',
       );
     });
