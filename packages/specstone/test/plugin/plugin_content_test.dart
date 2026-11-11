@@ -204,6 +204,7 @@ void main() {
   _sizeFixTests();
   _batchGuideTests();
   _otherPluginSkillTests();
+  _planTests();
 }
 
 const _nameOnly = 'agent_plugin/ground_a_task/name_only_existing_commands';
@@ -357,6 +358,18 @@ const _shipped = <_Shipped>[
         'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
         'f08/us05/s1',
     commands: ['check'],
+  ),
+  (
+    file: 'skills/plan-sdd/SKILL.md',
+    name: 'plan-sdd',
+    tags: 'agent_plugin/plan_approved_stories/run_plan_skill',
+    commands: ['check', 'list'],
+  ),
+  (
+    file: 'agents/plan-engineer.md',
+    name: 'plan-engineer',
+    tags: 'agent_plugin/plan_approved_stories/write_grounded_plan',
+    commands: ['context', 'check'],
   ),
 ];
 
@@ -1811,5 +1824,186 @@ void _batchGuideTests() {
         isEmpty,
       );
     }
+  });
+}
+
+const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
+const _writePlan = 'agent_plugin/plan_approved_stories/write_grounded_plan';
+
+/// The plan skill and the plan agent, under the plugin folder.
+const _planSkill = 'skills/plan-sdd/SKILL.md';
+const _planAgent = 'agents/plan-engineer.md';
+
+/// [_planAgent] by the path the plan skill's runner reads it from.
+const _planAgentPath = '\${CLAUDE_PLUGIN_ROOT}/$_planAgent';
+
+/// The lead and source 1 of the plan agent's `## Ground`, as the plan-sdd
+/// design's ground ruling words them, cut at line width.
+const _groundLead =
+    'Read sources in this order; read a later source only for what the '
+    'earlier ones leave out.';
+const _groundSpecstone =
+    '1. Specstone, always first: `specstone context <story> --for implement` '
+    'for each story the plan builds. The bundle holds the story, its FRs, NFR '
+    'overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open '
+    'a doc file by path.';
+
+/// The line between sources 1 and 2: the plan-sdd design's line for a target
+/// that is no story, opening with a capital where the design's colon let it
+/// open on a lowercase word.
+const _groundNonStoryTarget =
+    'For a target that is no story, an NFR or a spec doc, `specstone context '
+    '<target> --for implement` on that doc itself. An FR target grounds '
+    "through its story's step-1 call, as "
+    '`fr:agent_plugin/ground_a_task/ground_through_context#edge_cases` E01 '
+    'grounds a task citing a story and its FRs.';
+
+/// Sources 2 to 4, then the three closing paragraphs the design's later ruling
+/// put in place of the ground ruling's last two.
+const _groundSources =
+    '2. The code the specs point at: each `implements` and `covers` path, then '
+    'its direct callers. '
+    "3. The project's own instruction files (`CLAUDE.md`, `AGENTS.md`): "
+    'commands, branch flow, gotchas. '
+    "4. Library docs for each dependency TECH_STACK names (the host's doc "
+    'tool, when it has one).';
+const _groundClosing =
+    'When the code differs from a spec, the spec wins (code ⊆ spec ⊆ PRD): '
+    'plan the task that brings the code to it. '
+    'When another source (instructions, library docs) contradicts a spec on '
+    'behavior, write no task around it; list the conflict under Open '
+    'questions for the Owner. A later source wins only on process (commands, '
+    'branch, CI). '
+    'Every task names the doc it builds (a story, FR, NFR, or spec doc), by '
+    "doc name, and takes its test from that doc's Verification field, or the "
+    'TECH_STACK CI commands when it has none. A task that would build '
+    'behavior no doc states is a spec gap: list it, never plan it.';
+
+/// Text of the ground ruling's last two paragraphs, which the later ruling
+/// replaced.
+const _groundSuperseded = [
+  'When a later source contradicts a spec on behavior',
+  'Every task names the story and FR it builds',
+];
+
+final _frontmatterBlock = RegExp(r'^---\r?\n((?:.*\r?\n)*?)---\r?\n');
+
+/// The comma-separated tools of the frontmatter line `<key>:` in [agent];
+/// null when the frontmatter has no such line.
+List<String>? _toolsOf(String agent, String key) {
+  final frontmatter = _frontmatterBlock.firstMatch(agent)?.group(1) ?? '';
+  final line = RegExp('^$key:(.*)\$', multiLine: true).firstMatch(frontmatter);
+  return line?.group(1)?.split(',').map((tool) => tool.trim()).toList();
+}
+
+void _planTests() {
+  test('$_runPlanSkill, domain:agent_plugin INV-1: plan-sdd makes specstone '
+      'check its first CLI call', () {
+    final body = _bodyOf(_pluginText(_planSkill));
+    expect(cliCommands(body).first, 'check');
+  });
+
+  test('$_runPlanSkill E02: plan-sdd lists the approved stories still planned '
+      'when no target is given', () {
+    expect(
+      _oneLine(_pluginText(_planSkill)),
+      contains('specstone list user_story --status planned'),
+    );
+  });
+
+  test('$_runPlanSkill E05, E07, verification: plan-sdd dispatches '
+      'specstone:plan-engineer with a mktemp report: file, shows the Report: '
+      "line, follows the agent file itself, loads the Owner's pick with "
+      'Skill, and names no plan mode', () {
+    final text = _oneLine(_pluginText(_planSkill));
+    for (final point in [
+      'specstone:plan-engineer',
+      '`report:`',
+      '`mktemp`',
+      '`Report:`',
+      '`Skill`',
+      _planAgentPath,
+    ]) {
+      expect(text, contains(point), reason: point);
+    }
+    expect(text, isNot(contains('mode: plan')));
+  });
+
+  test('$_writePlan statement, E16, verification: the Ground section of '
+      'plan-engineer holds the four sources in order, the line for a target '
+      'that is no story between sources 1 and 2, and the closing paragraphs '
+      "in place of the ground ruling's last two", () {
+    final ground = _oneLine(_sectionOf(_pluginText(_planAgent), 'Ground'));
+    final parts = [
+      _groundLead,
+      _groundSpecstone,
+      _groundNonStoryTarget,
+      _groundSources,
+      _groundClosing,
+    ];
+    for (final part in parts) {
+      expect(ground, contains(part), reason: part);
+    }
+    expect(ground, contains(parts.join(' ')));
+    for (final superseded in _groundSuperseded) {
+      expect(ground, isNot(contains(superseded)), reason: superseded);
+    }
+  });
+
+  test('$_writePlan statement, E20: plan-engineer names a bare specstone '
+      'check, the sync-sdd last task, the plan path outside the '
+      'CheckedFolders, the NOT PLANNED row, and the reply lines', () {
+    final agent = _oneLine(_pluginText(_planAgent));
+    for (final point in [
+      '`specstone check`',
+      'specstone:sync-sdd',
+      'docs/plans/<YYYY-MM-DD>-<slug>.md',
+      'NOT PLANNED',
+      'Report: <path>',
+      'Plan:',
+      'Findings:',
+    ]) {
+      expect(agent, contains(point), reason: point);
+    }
+  });
+
+  test('$_writePlan statement: the Ground and Workflow sections of '
+      'plan-engineer name only the context and check commands', () {
+    final agent = _pluginText(_planAgent);
+    final sections =
+        '${_sectionOf(agent, 'Ground')}\n${_sectionOf(agent, 'Workflow')}';
+    expect(cliCommands(sections).toSet(), {'context', 'check'});
+  });
+
+  test('$_writePlan, domain:agent_plugin INV-10: plan-engineer lists no tools '
+      'line, denies only Agent and NotebookEdit, and its Scope Boundaries '
+      'name the report: file and the one plan file', () {
+    final agent = _pluginText(_planAgent);
+    expect(_toolsOf(agent, 'tools'), isNull);
+    final denied = _toolsOf(agent, 'disallowedTools');
+    expect(denied, containsAll(['Agent', 'NotebookEdit']));
+    expect(
+      denied!.toSet().intersection({'Write', 'Edit', 'Skill', 'Bash', 'Read'}),
+      isEmpty,
+    );
+    final scope = _oneLine(_sectionOf(agent, 'Scope Boundaries'));
+    expect(scope, contains('`report:`'));
+    expect(scope, contains('the one plan file'));
+  });
+
+  test('$_runPlanSkill, $_writePlan: neither plan-sdd nor plan-engineer names '
+      "another plugin's skill", () {
+    for (final file in [_planSkill, _planAgent]) {
+      final shipped = File.fromUri(pluginRoot().uri.resolve(file));
+      expect(shipped.existsSync(), isTrue, reason: '$file is missing');
+    }
+    expect(
+      otherPluginSkillNames(pluginRoot(), shippedDocTypes()).where(
+        (problem) =>
+            problem.startsWith('skills/plan-sdd/') ||
+            problem.startsWith('$_planAgent:'),
+      ),
+      isEmpty,
+    );
   });
 }
