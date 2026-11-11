@@ -33,12 +33,12 @@ String hookCommandOf(String event) {
   return (hooks.single as Map<String, dynamic>)['command'] as String;
 }
 
-/// Plants every [hookPlantedNames] program in the run folder and in `bin`
-/// below it.
+/// Plants every [hookPlantedNames] program in the run folder, in `bin` below
+/// it, and in `~/bin` below it (a folder literally named `~`).
 ///
 /// Git Bash runs a file that starts with `#!` without an execute bit.
 void plantHookPrograms(ScriptSandbox sb) {
-  for (final folder in ['.', 'bin']) {
+  for (final folder in ['.', 'bin', '~/bin']) {
     for (final name in hookPlantedNames) {
       final file = File('${sb.root.path}/$folder/$name')
         ..createSync(recursive: true)
@@ -115,5 +115,6 @@ Map<String, String> hookPathsWithRelativeEntries(String stubs) => {
   'a leading empty entry': ':$stubs:/usr/bin:/bin',
   'a middle empty entry': '$stubs::/usr/bin:/bin',
   'a relative folder': 'bin:$stubs:/usr/bin:/bin',
+  'a literal tilde folder': '~/bin:$stubs:/usr/bin:/bin',
   'a dot, an empty entry, and a relative folder': '.::bin:$stubs:/usr/bin:/bin',
 };
