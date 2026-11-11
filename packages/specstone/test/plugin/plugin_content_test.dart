@@ -188,7 +188,10 @@ void main() {
       {
         'matcher': 'Write|Edit',
         'hooks': [
-          {'type': 'command', 'command': 'specstone hook post-edit'},
+          {
+            'type': 'command',
+            'command': r'/bin/sh "${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"',
+          },
         ],
       },
     ]);

@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../helpers/hook_command.dart';
 import '../helpers/script_sandbox.dart';
 
 /// Returns Git for Windows' `bash.exe`, or null when it is not installed.
@@ -47,11 +48,10 @@ void main() {
       'CLAUDE_PLUGIN_ROOT': _forward(pluginDir),
       'CLAUDE_ENV_FILE': _forward(envFile.path),
     });
-    final script = _forward('${repoRoot().path}/plugin/hooks/session-start.sh');
-
+    // The command as hooks.json states it, with its absolute /bin/bash.
     final hook = await Process.run(
       bash,
-      [script],
+      ['-c', hookCommandOf('SessionStart')],
       environment: env,
       includeParentEnvironment: false,
       workingDirectory: sb.root.path,
