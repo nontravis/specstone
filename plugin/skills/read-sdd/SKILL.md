@@ -1,6 +1,6 @@
 ---
 name: read-sdd
-description: Use when a task in a Specstone project needs its PRD or spec docs, such as a plan task that cites story or FR IDs, a question about a feature's docs, or design work on a feature, or when another `specstone:` skill names `specstone:read-sdd`.
+description: Use when a task in a Specstone project needs its PRD or spec docs, such as a plan task that names the story, FR, NFR, or spec doc it builds, a question about a feature's docs, or design work on a feature, or when another `specstone:` skill names `specstone:read-sdd`.
 ---
 
 # Ground a task in its Specstone docs
@@ -11,14 +11,16 @@ work from text a plan or brief quotes.
 ## Pick the target and mode
 
 - **Target:** the doc the task names. For `design`, the smallest doc that holds the change: a story's bundle holds its
-  sibling stories in summary; a feature's holds them whole; add `--summary` on the feature to add a story. For a plan
-  task, use the story it cites. In `implement` mode the story's bundle already holds its FRs, so one call covers the
-  story and every FR ID the task lists. When a plan task cites several stories, run one
-  `specstone context <story> --for implement --budget 20000` per story. Every tool call from the first CLI call counts
-  toward three, a `Read` of a saved output included: run the next story's call only while the calls so far, plus that
-  call and its possible `Read`, stay within three. When the task cites more than three stories, the next call would
-  pass three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites,
-  `--summary` beside each ID whose call used it, and no doc text.
+  sibling stories in summary; a feature's holds them whole; add `--summary` on the feature to add a story. A plan task
+  names each doc it builds: a story and its FRs, an NFR, or a spec doc. Run one
+  `specstone context <story> --for implement --budget 20000` per story the task cites or whose FR it cites: in
+  `implement` mode a story's bundle already holds its FRs, so that call covers the story and every FR ID the task lists
+  under it. Run one `specstone context <target> --for implement --budget 20000` on each cited NFR or spec doc itself.
+  Never target the feature: its `implement` bundle lists only its stories' names, not the FRs the task cites. Every
+  tool call from the first CLI call counts toward three, a `Read` of a saved output included: run the next call only
+  while the calls so far, plus that call and its possible `Read`, stay within three. When the task cites more than
+  three stories, NFRs, and spec docs in all, the next call would pass three, or any call exits 1, give
+  `specstone:sdd-reader` every ID the task cites, `--summary` beside each ID whose call used it, and no doc text.
 - **Mode:**
 
 | Task                                | `--for`     |
@@ -56,8 +58,8 @@ That call is also the project gate. Never look for `.specstone/` first with `ls`
 CLI searches each folder upward, so a run from a subfolder of a project goes on as normal; a look at the working
 directory alone would stop there by mistake and cost a tool call.
 
-The bundle is in hand within three tool calls of the first CLI call. At or under the budget, the one call does it,
-plus one `Read` when the host saved its output to a file: two calls at most.
+The bundle is in hand within three tool calls of the first CLI call. For one target at or under the budget, its call
+does it, plus one `Read` when the host saved its output to a file: two calls at most.
 
 ## Red flags
 

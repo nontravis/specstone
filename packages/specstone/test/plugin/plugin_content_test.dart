@@ -336,14 +336,8 @@ void _otherPluginSkillTests() {
     ]);
   });
 
-  test("$_nameOnly: no shipped agent file names another plugin's skill", () {
-    expect(
-      otherPluginSkillNames(
-        pluginRoot(),
-        shippedDocTypes(),
-      ).where((problem) => problem.startsWith('agents/')),
-      isEmpty,
-    );
+  test("$_nameOnly: no shipped plugin file names another plugin's skill", () {
+    expect(otherPluginSkillNames(pluginRoot(), shippedDocTypes()), isEmpty);
   });
 }
 
@@ -493,11 +487,6 @@ const _procedures = <_Procedure>[
     file: 'skills/brainstorming-sdd/references/audit.md',
     tags: 'f08/us02/fr01, f08/us02/fr07',
     commands: ['get', 'context', 'list', 'check'],
-  ),
-  (
-    file: 'skills/brainstorming-sdd/references/plan.md',
-    tags: 'f08/us02/fr01, f08/us02/fr06',
-    commands: ['context'],
   ),
 ];
 
@@ -673,20 +662,18 @@ void _handOffTests() {
       ),
     );
     expect(output, contains('never their text'));
-    for (final mode in [
-      'author',
-      'design',
-      'audit',
-      'plan',
-      'sync',
-      'bootstrap',
-    ]) {
+    for (final mode in ['author', 'design', 'audit', 'sync', 'bootstrap']) {
       expect(
         output,
         contains('**${mode[0].toUpperCase()}${mode.substring(1)}'),
         reason: '$mode names its relay block',
       );
     }
+    expect(
+      output,
+      isNot(contains('**Plan')),
+      reason: 'plan-engineer owns the plan relay block',
+    );
     expect(output, contains('Every stop, an early one included'));
     expect(output, contains('`## Round <n>`'));
     expect(_sectionOf(agent, 'Scope Boundaries'), contains('`report:`'));
@@ -875,8 +862,8 @@ void _handOffTests() {
 
   test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E10, '
       'agent_plugin/write_prd_and_spec/run_brainstorm_to_design: the author '
-      "report's Drafts line stays a bare list of names that the audit and "
-      'plan dispatches take as it is, its counts on their own line', () {
+      "report's Drafts line stays a bare list of names that the audit "
+      'dispatch and plan-sdd take as it is, its counts on their own line', () {
     final report = _sectionOf(
       _pluginText('skills/brainstorming-sdd/references/author.md'),
       '5. Report',
@@ -986,7 +973,11 @@ const _confirmLinkSteps =
 
 /// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
 /// its steps in the skill's `references/<mode>.md`.
-const _brainstormModes = ['author', 'design', 'audit', 'plan'];
+/// The path a design document takes when the brainstorm skill keeps none of
+/// its own.
+const _designPath = 'docs/designs/<YYYY-MM-DD>-<topic>-design.md';
+
+const _brainstormModes = ['author', 'design', 'audit'];
 
 /// Each plugin file and `## ` section that says which `check` finding waits for
 /// the Owner (`consistency_check/find_template_breaks/print_findings`).
@@ -1045,25 +1036,20 @@ final _modeBullet = RegExp(
 final _codeSpan = RegExp(r'`([^`\n]+)`');
 
 void _agentTests() {
-  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, sd-r9: the sdd-engineer '
-      'Input Contract names exactly its six modes', () {
-    final contract = _sectionOf(
-      _pluginText('agents/sdd-engineer.md'),
-      'Input Contract',
-    );
-    final bullet = _modeBullet.firstMatch(contract)?.group(1) ?? '';
-    expect(
-      [for (final span in _codeSpan.allMatches(bullet)) span.group(1)],
-      unorderedEquals([
-        'author',
-        'sync',
-        'bootstrap',
-        'design',
-        'audit',
-        'plan',
-      ]),
-    );
-  });
+  test(
+    'agent_plugin/write_prd_and_spec/write_drafts_with_coverage E04, '
+    'sd-r9: the sdd-engineer Input Contract names exactly its five modes',
+    () {
+      final contract = _sectionOf(
+        _pluginText('agents/sdd-engineer.md'),
+        'Input Contract',
+      );
+      final bullet = _modeBullet.firstMatch(contract)?.group(1) ?? '';
+      expect([
+        for (final span in _codeSpan.allMatches(bullet)) span.group(1),
+      ], unorderedEquals(['author', 'sync', 'bootstrap', 'design', 'audit']));
+    },
+  );
 
   test('sd-r1: both agent descriptions ask to be used proactively', () {
     final proactive = RegExp(
@@ -1079,51 +1065,93 @@ void _agentTests() {
     }
   });
 
-  test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr01, '
-      'f08/us05/fr01: the sdd-engineer description sends sync and bootstrap '
-      'through their skills and names the four modes a caller may dispatch '
-      'directly', () {
-    final description = RegExp(
-      r'^description:(.*)$',
-      multiLine: true,
-    ).firstMatch(_pluginText('agents/sdd-engineer.md'))?.group(1);
-    expect(description, contains('`specstone:sync-sdd`'));
-    expect(description, contains('`specstone:bootstrap-prd`'));
-    for (final mode in _brainstormModes) {
-      expect(description, contains('`$mode`'), reason: mode);
-    }
-  });
+  test(
+    'agent_plugin/write_prd_and_spec/write_drafts_with_coverage E04: the '
+    'sdd-engineer description sends sync and bootstrap through their skills '
+    'and names the three modes a caller may dispatch directly, plan none',
+    () {
+      final description = RegExp(
+        r'^description:(.*)$',
+        multiLine: true,
+      ).firstMatch(_pluginText('agents/sdd-engineer.md'))?.group(1);
+      expect(description, contains('`specstone:sync-sdd`'));
+      expect(description, contains('`specstone:bootstrap-prd`'));
+      for (final mode in _brainstormModes) {
+        expect(description, contains('`$mode`'), reason: mode);
+      }
+      expect(description, isNot(contains('`plan`')));
+    },
+  );
 
-  test('inv-10, f08/us02/fr06, f08/us02/fr07: sdd-engineer holds Write and '
-      'Edit for the one file under docs/superpowers/ a design or plan '
-      'dispatch names, and audit, design, and plan mode write no other '
-      'file but the report file', () {
+  test('domain:agent_plugin INV-10, '
+      'agent_plugin/write_prd_and_spec/write_design_document statement: sdd-engineer holds Write and Edit for '
+      'the one design document a design dispatch names, audit and design mode '
+      'write no other file but the report file, and no file names '
+      'docs/superpowers/', () {
     final agent = _pluginText('agents/sdd-engineer.md');
     final tools = RegExp(
       r'^tools:(.*)$',
       multiLine: true,
     ).firstMatch(agent)?.group(1)?.split(',').map((tool) => tool.trim());
     expect(tools, containsAll(['Write', 'Edit']));
-    final scope = _sectionOf(agent, 'Scope Boundaries');
-    expect(scope, contains('`docs/superpowers/specs/`'));
-    expect(scope, contains('`docs/superpowers/plans/`'));
     expect(
       _pluginText('skills/brainstorming-sdd/references/audit.md'),
       contains("Write nothing but the agent's `report:`"),
     );
-    for (final file in ['design.md', 'plan.md']) {
-      final text = _pluginText('skills/brainstorming-sdd/references/$file');
-      expect(
-        text,
-        contains("Write no other file but the agent's `report:` file"),
-        reason: file,
-      );
-      expect(
-        text,
-        contains("write nothing but the agent's `report:` file"),
-        reason: file,
-      );
+    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    expect(
+      design,
+      contains("Write no other file but the agent's `report:` file"),
+    );
+    expect(design, contains("write nothing but the agent's `report:` file"));
+    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    for (final (file, text) in [
+      (
+        'agents/sdd-engineer.md Scope Boundaries',
+        _sectionOf(agent, 'Scope Boundaries'),
+      ),
+      ('references/design.md', design),
+      ('brainstorming-sdd/SKILL.md', skill),
+    ]) {
+      expect(text, isNot(contains('docs/superpowers/')), reason: file);
     }
+    for (final text in [design, skill]) {
+      expect(text, contains(_designPath));
+    }
+  });
+
+  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design statement, '
+      'E03, E14, E15: brainstorming-sdd hands the approved drafts to '
+      'specstone:plan-sdd through Skill and runs no plan mode', () {
+    final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
+    expect(skill, contains('`specstone:plan-sdd`'));
+    expect(skill, contains('`Skill`'));
+    expect(skill, isNot(contains('mode: plan')));
+    expect(skill, isNot(contains('references/plan.md')));
+    expect(
+      _pluginText('agents/sdd-engineer.md'),
+      isNot(contains('references/plan.md')),
+    );
+    expect(
+      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      isNot(contains('plan mode')),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E04: the '
+      'plan procedure file is gone, as plan-engineer holds the steps', () {
+    final plan = File.fromUri(
+      pluginRoot().uri.resolve('skills/brainstorming-sdd/references/plan.md'),
+    );
+    expect(plan.existsSync(), isFalse);
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E06: read-sdd names '
+      'the context call it runs per cited story, NFR, and spec doc', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains('specstone context <target> --for implement --budget 20000'),
+    );
   });
 
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
@@ -2045,7 +2073,7 @@ void _planTests() {
     final agent = _pluginText(_planAgent);
     expect(_toolsOf(agent, 'tools'), isNull);
     final denied = _toolsOf(agent, 'disallowedTools');
-    expect(denied, containsAll(['Agent', 'NotebookEdit']));
+    expect(denied?.toSet(), {'Agent', 'NotebookEdit'});
     expect(
       denied!.toSet().intersection({'Write', 'Edit', 'Skill', 'Bash', 'Read'}),
       isEmpty,

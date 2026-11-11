@@ -9,9 +9,11 @@ and the PRD and spec docs carry the content once the Owner approves it.
 
 - **Brief**: the Owner's approved answers: the decisions, the rulings in the Owner's own words, the approach picked,
   and the open questions. Read it whole.
-- **Design document**: the file to write, under `docs/superpowers/specs/`, named `<YYYY-MM-DD>-<topic>-design.md`.
-  When it exists, read it whole: you amend it with `Edit` and never write a second file.
-- **A path outside `docs/superpowers/specs/`, or a PRD or spec doc named as the file:** write nothing but the agent's `report:` file; report the
+- **Design document**: the file to write, at the host brainstorm skill's own path for a design document, else
+  `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole: you amend it with `Edit` and never
+  write a second file.
+- **A path inside the CheckedFolders (the folders under the docs folder that hold PRD and spec docs, such as `prds/`
+  and `specs/`), or a PRD or spec doc named as the file:** write nothing but the agent's `report:` file; report the
   path as an open question.
 
 ## 2. Ground each claim

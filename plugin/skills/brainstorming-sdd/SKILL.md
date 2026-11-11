@@ -35,10 +35,14 @@ questions, and show the Owner each answer; go on only after their yes.
 
 ## 2. Reach an approved design document
 
-- **`superpowers:brainstorming` in your skill list:** run it on the change, grounded in step 1's docs. It keeps the
-  conversation, the builder check, and the approval; at its write step, write through step 3. When it reaches its
-  hand-off to `superpowers:writing-plans`, invoke nothing: go to step 4.
-- **Not in your skill list:** run this flow; it ends at the same document and the same approval.
+The brainstorm skill is the one in your skill list whose description says it turns a change into a design through
+dialogue with the user. Judge by that alone, never by a name. When two qualify, take the one the project's
+`CLAUDE.md` names, else the first listed.
+
+- **A skill qualifies:** run it on the change, grounded in step 1's docs. It keeps the conversation and the approval;
+  at its write step, write through step 3. At its own hand-off to a plan or build skill, invoke nothing: once the
+  Owner approves the document, go to step 4. Specstone's rules win on a conflict.
+- **None qualifies:** run this flow; it ends at the same document and the same approval.
   1. Ask the Owner one question per message until scope, behavior, edge cases, and what stays out are clear.
   2. Offer two or three approaches with their trade-offs, and recommend one.
   3. Write the document through step 3.
@@ -49,12 +53,13 @@ document holds no open question; approval of an approach is not approval of the 
 
 ## 3. Write the document: design mode
 
-Each `specstone:sdd-engineer` dispatch in steps 3 to 5 also passes `report:`, a `mktemp` file outside the repository;
+Each `specstone:sdd-engineer` dispatch in steps 3 and 4 also passes `report:`, a `mktemp` file outside the repository;
 show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
 Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the open
 questions) to a `mktemp` file outside the repository, once every answer is in. Dispatch `mode: design` once, with that
-brief's path and `docs/superpowers/specs/<YYYY-MM-DD>-<topic>-design.md`.
+brief's path and the document's: the brainstorm skill's own path for design documents, else
+`docs/designs/<YYYY-MM-DD>-<topic>-design.md`.
 
 Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
 
@@ -68,11 +73,10 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
    until then, per `specstone:expert-sdd`.
 
-## 5. Write the plan, then ask how to run it
+## 5. Hand the approved drafts to the plan skill
 
-After the Owner approves the drafts, dispatch `mode: plan` with the document's path, the drafts list, and
-`docs/superpowers/plans/<YYYY-MM-DD>-<topic>.md`. Send the Owner's answers on its `NOT PLANNED` rows and open questions
-to plan mode with the same inputs. Then show the plan and ask how to run it.
+After the Owner approves the drafts, invoke `specstone:plan-sdd` through `Skill` with the approved drafts list, whole,
+and the document's path. It writes the plan and asks the Owner how to run it.
 
 ## Without the `Agent` tool
 
@@ -82,7 +86,6 @@ fresh reader's, since you saw the drafts being made: tell the Owner so.
 - author: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md`
 - design: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md`
 - audit: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`
-- plan: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/plan.md`
 
 ## Red flags
 
@@ -91,4 +94,4 @@ fresh reader's, since you saw the drafts being made: tell the Owner so.
 | "The design is clear; draft the docs now."      | No `mode: author` before the document's approval.          |
 | "I'll write the design document myself."        | Step 3: you hold the answers; the agent holds the docs.    |
 | "The coverage table is clean; skip the audit."  | A fresh reader finds what the author's own table cannot.   |
-| "Brainstorming says: invoke writing-plans now." | Step 4 first; step 5's plan cites IDs the drafts now hold. |
+| "The brainstorm hands off to a plan skill now." | Invoke nothing; step 4 first, then `specstone:plan-sdd`.   |

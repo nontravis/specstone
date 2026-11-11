@@ -81,7 +81,7 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Rows**: one per decision; in a fix round, one per finding. `Not landed:` lines come first, read before approval.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, the drafts list less each name step 1
-  dropped, plus each doc this pass added. The audit and plan modes take it as is: names only. Name each
+  dropped, plus each doc this pass added. Audit mode and `specstone:plan-sdd` take it as is: names only. Name each
   draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
 - **Counts**: on the `Counts:` line, take every count, of drafts and of sentences dropped and new, from one
   `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
