@@ -693,8 +693,9 @@ void main() {
         ]);
       });
 
-      for (final MapEntry(key: label, value: before) in {
-        'unset': '',
+      // A null value leaves the key out of the child environment.
+      for (final MapEntry(key: label, value: before) in <String, String?>{
+        'unset': null,
         'set to 0': '0',
       }.entries) {
         pathTest('irm | iex leaves NoDefaultCurrentDirectoryInExePath as it '
@@ -703,12 +704,18 @@ void main() {
 
           final r = await runIex(
             sb,
-            printNoCurrentFolder,
-            extra: {'NoDefaultCurrentDirectoryInExePath': before},
+            "$printNoCurrentFolder; 'PRESENT=' + "
+            '(Test-Path Env:NoDefaultCurrentDirectoryInExePath)',
+            extra: {'NoDefaultCurrentDirectoryInExePath': ?before},
           );
 
+          final printedValue = before ?? '';
+          final isPresent = before == null ? 'False' : 'True';
           expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect((r.stdout as String).trim(), endsWith('NOCWD=<$before>'));
+          expect(
+            flat(r.stdout).trim(),
+            endsWith('NOCWD=<$printedValue> PRESENT=$isPresent'),
+          );
         });
       }
 
