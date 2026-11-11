@@ -475,17 +475,23 @@ void _reportSpawn(String role, Stopwatch watch) {
 
 String? _cachePath;
 
-/// Returns the module analysis cache file the PowerShell children of this
-/// suite share.
+/// Returns the module analysis cache file the PowerShell children of the
+/// running test share.
 ///
 /// A Windows PowerShell 5.1 child started without `LOCALAPPDATA` finds no
 /// cache and analyzes every module on its first cmdlet. The file is a copy of
-/// the runner's own cache, made once per suite into a folder the suite owns;
-/// without a source it is a path in that folder that no child has written yet.
+/// the runner's own cache, made once per test into a folder the test's
+/// teardown deletes; without a source it is a path in that folder that no
+/// child has written yet. Call it from a test or a `setUp`, as
+/// `addTearDown` needs.
 String _moduleAnalysisCachePath() {
   final existing = _cachePath;
   if (existing != null) return existing;
   final folder = Directory.systemTemp.createTempSync('specstone_ps_cache_');
+  addTearDown(() {
+    _cachePath = null;
+    folder.deleteSync(recursive: true);
+  });
   final target = File('${folder.path}${Platform.pathSeparator}$_cacheFile');
   final localAppData = Platform.environment['LOCALAPPDATA'];
   if (localAppData != null) {
