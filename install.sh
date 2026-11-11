@@ -53,10 +53,10 @@ is_version() (
     GREP_OPTIONS='' grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?'
 )
 
-# Prints $1 with each control byte (C0 and DEL) as `?`, so a refusal cannot
-# move the cursor or rewrite the terminal.
+# Prints $1 with each byte outside printable ASCII (0x20-0x7E) as `?`, so a
+# shown value cannot move the cursor, rewrite the terminal, or reach a C1 control.
 printable() {
-  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '[?*]'
+  printf '%s' "$1" | LC_ALL=C tr -c ' -~' '?'
 }
 
 # Prints the SHA-256 of the file named $1 in the folder $tmp as lower-case hex.
@@ -232,13 +232,18 @@ run_claude_live() {
 }
 
 # Reads the JSON text on stdin with a tokenizer that knows strings and
-# nesting, so a quote, brace, or key name inside a value never counts.
-# mode `entry`: the list is an array of objects; prints the one object whose
-# `name` is "specstone" on one line. mode `field`: the text is one object;
-# prints the string value of its key $2. Prints nothing when the text is not
-# well-formed JSON, the match is missing or not unique, or the value is not a
-# string. An escape other than \" \\ \/ stays as typed, so such a value never
-# equals a plain one and is read as another source.
+# nesting, so a quote, brace, or key name inside a value never counts. Exits 1
+# and prints nothing when the text is not read for sure: not well-formed, text
+# around the JSON, a key written with an escape, or the wrong top-level shape.
+# mode `entry`: the text is the marketplace list; prints the object whose `name`
+# is "specstone" on one line (nothing when none), and exits 1 for two such
+# objects, a repeated key in it, or a `source` that is not one string.
+# mode `plugins`: the text is the plugin list; prints `installed` when an object
+# holds id specstone@specstone and scope user, and exits 1 for a repeated id or
+# scope. mode `field`: the text is one object; prints the string value of its
+# key $2 (nothing when absent, repeated, or not a string). An escape in a value
+# other than \" \\ \/ stays as typed, so such a value never equals a plain one
+# and is read as another source.
 json_scan() {
   LC_ALL=C awk -v mode="$1" -v want="${2:-}" '
 function decode(raw,    out, k, c, m) {
@@ -256,7 +261,11 @@ function reset(    k) {
   for (k in isstr) delete isstr[k]
   for (k in val) delete val[k]
 }
-function inlist() { return mode != "entry" || kind[1] == "[" }
+function inlist() { return mode == "field" || kind[1] == "[" }
+function all_unique(    k) {
+  for (k in cnt) if (cnt[k] != 1) return 0
+  return 1
+}
 function check_value() { if (st[depth] != "val" && st[depth] != "v0") bad = 1 }
 function note(isstring, v) {
   if (depth == keydepth && kind[depth] == "{" && inlist()) {
@@ -272,15 +281,23 @@ function value(isstring, v) {
   st[depth] = "next"
 }
 function close_object() {
-  if (mode == "entry" && cnt["name"] == 1 && isstr["name"] && val["name"] == "specstone") {
-    matches++
-    entry = substr(text, start, i - start + 1)
+  if (mode == "entry") {
+    if (cnt["name"] > 1) bad = 1
+    else if (cnt["name"] == 1 && isstr["name"] && val["name"] == "specstone") {
+      if (!all_unique() || cnt["source"] != 1 || !isstr["source"]) bad = 1
+      matches++
+      entry = substr(text, start, i - start + 1)
+    }
+  } else if (mode == "plugins") {
+    if (cnt["id"] > 1 || cnt["scope"] > 1) bad = 1
+    else if (isstr["id"] && isstr["scope"] && val["id"] == "specstone@specstone" && val["scope"] == "user") found = 1
   }
 }
 { text = (NR == 1 ? "" : text "\n") $0 }
 END {
   n = length(text)
-  keydepth = (mode == "entry") ? 2 : 1
+  keydepth = (mode == "field") ? 1 : 2
+  topwant = (mode == "field") ? "{" : "["
   st[0] = "val"; kind[0] = "top"
   depth = 0
   i = 1
@@ -298,6 +315,7 @@ END {
       i = j + 1
       if (index(raw, "\n") > 0) { bad = 1; break }
       if (kind[depth] == "{" && (st[depth] == "k0" || st[depth] == "key")) {
+        if (index(raw, "\\") > 0) { bad = 1; break }
         curkey[depth] = raw
         st[depth] = "colon"
       } else value(1, decode(raw))
@@ -307,6 +325,7 @@ END {
       check_value()
       note(0, "")
       if (bad) break
+      if (depth == 0) top = c
       depth++
       kind[depth] = c
       st[depth] = (c == "{") ? "k0" : "v0"
@@ -340,15 +359,18 @@ END {
     value(0, "")
     i = j
   }
-  if (bad || depth != 0 || st[0] != "next") exit
+  if (bad || depth != 0 || st[0] != "next" || top != topwant) exit 1
   if (mode == "entry") {
+    if (matches > 1) exit 1
     if (matches == 1) { gsub(/[\r\n]+/, " ", entry); print entry }
+  } else if (mode == "plugins") {
+    if (found) print "installed"
   } else if (cnt[want] == 1 && isstr[want]) print val[want]
 }'
 }
 
 # Prints the one object of the marketplace list $1 named "specstone" on one
-# line, else nothing.
+# line, nothing when none; exits 1 when the list is not read for sure.
 marketplace_entry() {
   printf '%s\n' "$1" | json_scan entry
 }
@@ -358,12 +380,11 @@ entry_field() {
   printf '%s\n' "$1" | json_scan field "$2"
 }
 
-# Succeeds when one entry of the plugin list $1 holds both the id
-# specstone@specstone and the scope user; project and local entries never count.
-plugin_installed_for_user() {
-  printf '%s\n' "$1" | tr '\n' ' ' | tr '}' '\n' |
-    grep -E '"id"[[:space:]]*:[[:space:]]*"specstone@specstone"' |
-    grep -Eq '"scope"[[:space:]]*:[[:space:]]*"user"'
+# Prints `installed` when an entry of the plugin list $1 holds both the id
+# specstone@specstone and the scope user (project and local entries never
+# count); exits 1 when the list is not read for sure.
+plugin_for_user() {
+  printf '%s\n' "$1" | json_scan plugins
 }
 
 # Prints the remove, add, and install commands for the marketplace source $1.
@@ -374,6 +395,21 @@ plugin_commands() {
     '  claude plugin install specstone@specstone'
 }
 
+# Prints the commands of plugin_commands under a line saying who runs them.
+manual_plugin_commands() {
+  printf '%s\n' 'To add the Specstone plugin to Claude Code, run (the first command only when a marketplace specstone already exists):'
+  plugin_commands "$1"
+}
+
+# Names the claude list command $2... whose reply was not read for sure, then
+# prints the commands for the source $1.
+unreadable_reply() {
+  unreadable_source=$1
+  shift
+  printf 'specstone: claude %s failed: its reply could not be read; run it by hand\n' "$*" >&2
+  manual_plugin_commands "$unreadable_source"
+}
+
 # Succeeds when the marketplace entry $1 is the one this script adds: source
 # github, repo exactly nontravis/specstone. Any other entry is the Owner's own.
 is_official_entry() {
@@ -381,17 +417,25 @@ is_official_entry() {
     [ "$(entry_field "$1" repo)" = nontravis/specstone ]
 }
 
-# Prints where the marketplace entry $1 comes from: its repo, url, or path.
+# Prints where the marketplace entry $1 comes from, read from the key its
+# source type names, else `an unknown source`.
 entry_source() {
-  for key in repo url path source; do
-    found=$(entry_field "$1" "$key")
-    if [ -n "$found" ]; then
-      printable "$found"
-      printf '\n'
-      return 0
-    fi
-  done
-  echo 'an unknown source'
+  case "$(entry_field "$1" source)" in
+    github) key=repo ;;
+    git | url) key=url ;;
+    directory | file) key=path ;;
+    *) key='' ;;
+  esac
+  found=''
+  if [ -n "$key" ]; then
+    found=$(entry_field "$1" "$key") || found=''
+  fi
+  if [ -n "$found" ]; then
+    printable "$found"
+    printf '\n'
+  else
+    echo 'an unknown source'
+  fi
 }
 
 # Moves marketplace specstone to the source $1. The remove also uninstalls the
@@ -404,7 +448,8 @@ readd_marketplace() {
 
 # Puts marketplace specstone at the wanted source and installs the plugin
 # through claude, skipping what is there, or prints the commands when claude is
-# not on the PATH. A marketplace from another source stays. Never fails the
+# not on the PATH. A marketplace from another source stays, and a list reply
+# that is not read for sure stops the step like a failed list. Never fails the
 # script: the CLI install stands.
 install_plugin() {
   wanted='nontravis/specstone'
@@ -414,15 +459,19 @@ install_plugin() {
     wanted_ref="v$version"
   fi
   if ! command -v claude >/dev/null 2>&1; then
-    printf '%s\n' 'To add the Specstone plugin to Claude Code, run (the first command only when a marketplace specstone already exists):'
-    plugin_commands "$wanted"
+    manual_plugin_commands "$wanted"
     return 0
   fi
   run_claude plugin marketplace list --json || return 0
-  marketplaces=$claude_out
+  if ! entry=$(marketplace_entry "$claude_out"); then
+    unreadable_reply "$wanted" plugin marketplace list --json
+    return 0
+  fi
   run_claude plugin list --json || return 0
-  plugins=$claude_out
-  entry=$(marketplace_entry "$marketplaces")
+  if ! user_plugin=$(plugin_for_user "$claude_out"); then
+    unreadable_reply "$wanted" plugin list --json
+    return 0
+  fi
   if [ -z "$entry" ]; then
     run_claude_live plugin marketplace add "$wanted" || return 0
   elif ! is_official_entry "$entry"; then
@@ -430,9 +479,9 @@ install_plugin() {
     plugin_commands "$wanted"
   elif [ "$(entry_field "$entry" ref)" != "$wanted_ref" ]; then
     readd_marketplace "$wanted" || return 0
-    plugins='[]'
+    user_plugin=''
   fi
-  if ! plugin_installed_for_user "$plugins"; then
+  if [ -z "$user_plugin" ]; then
     run_claude_live plugin install specstone@specstone || return 0
   fi
 }
