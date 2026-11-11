@@ -409,20 +409,38 @@ void main() {
       },
     );
 
-    test('install_update/version_match session-start INV-9: a pre-release '
-        'plugin and CLI pair prints nothing; a different pre-release '
-        'mismatches', () async {
-      File(
-        '$pluginDir/.claude-plugin/plugin.json',
-      ).writeAsStringSync('{"name": "specstone", "version": "1.2.0-beta.1"}\n');
+    void pluginAt(String version) {
+      File('$pluginDir/.claude-plugin/plugin.json')
+          .writeAsStringSync('{"name": "specstone", "version": "$version"}\n');
+    }
 
-      final same = await runHook(version: '1.2.0-beta.1');
-      expect(same.exitCode, 0);
-      expect(same.stdout, isEmpty);
+    test('install_update/version_match session-start INV-9: a matching '
+        'pre-release plugin and CLI pair prints nothing', () async {
+      pluginAt('1.2.0-beta.1');
+
+      final r = await runHook(version: '1.2.0-beta.1');
+
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
+    });
+
+    test('install_update/version_match session-start INV-9: a different '
+        'pre-release CLI gets the mismatch message', () async {
+      pluginAt('1.2.0-beta.1');
 
       expect(
         message(await runHook(version: '1.2.0-beta.2')),
         mismatch('1.2.0-beta.2', '1.2.0-beta.1'),
+      );
+    });
+
+    test('install_update/version_match session-start INV-9: a release CLI '
+        'against a pre-release plugin gets the mismatch message', () async {
+      pluginAt('1.2.0-beta.1');
+
+      expect(
+        message(await runHook(version: '1.2.0')),
+        mismatch('1.2.0', '1.2.0-beta.1'),
       );
     });
 

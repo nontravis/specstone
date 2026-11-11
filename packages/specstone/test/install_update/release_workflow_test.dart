@@ -266,7 +266,7 @@ void main() {
       final log = File('${work.path}/gh.log');
       final r = await Process.run(
         'bash',
-        ['-c', '${step['run']}'],
+        ['-e', '-c', '${step['run']}'],
         workingDirectory: work.path,
         environment: {
           'PATH': '${work.path}/stubs:${Platform.environment['PATH']}',
@@ -279,21 +279,32 @@ void main() {
       return log.readAsStringSync();
     }
 
-    test('install_update/version_match/release_new_version/publish_on_tag '
-        'E06: a pre-release tag publishes a GitHub pre-release with generated '
-        'notes', () async {
-      final line = await publishedWith('v1.2.0-beta.1');
+    void expectCreateLine(String log, String tag) {
+      expect(log, contains('release create $tag '));
+      expect(log, contains('--verify-tag'));
+      expect(log, contains('--generate-notes'));
+      expect(log, endsWith('specstone-x.tar.gz SHA256SUMS\n'));
+    }
 
-      expect(line, contains('--prerelease'));
-      expect(line, contains('--generate-notes'));
-    });
+    for (final tag in ['v1.2.0-beta.1', 'v1.2.0-rc.1', 'v1.2.0-alpha-1']) {
+      test(
+        'install_update/version_match/release_new_version/publish_on_tag '
+        'E06: $tag publishes a GitHub pre-release with generated notes',
+        () async {
+          final log = await publishedWith(tag);
+
+          expectCreateLine(log, tag);
+          expect(log, contains('--prerelease'));
+        },
+      );
+    }
 
     test('install_update/version_match/release_new_version/publish_on_tag '
         'E07: a release tag publishes a normal release', () async {
-      final line = await publishedWith('v1.2.0');
+      final log = await publishedWith('v1.2.0');
 
-      expect(line, contains('--generate-notes'));
-      expect(line, isNot(contains('--prerelease')));
+      expectCreateLine(log, 'v1.2.0');
+      expect(log, isNot(contains('--prerelease')));
     });
   }, testOn: '!windows');
 }
