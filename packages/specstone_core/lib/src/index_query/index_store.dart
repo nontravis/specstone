@@ -703,7 +703,9 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
 /// `.gitignore` in [specstoneFolder].
 ///
 /// Throws [FileSystemException] when a line is missing and the file is
-/// read-only: a rename would replace it whatever its mode.
+/// read-only: a rename would replace it whatever its mode, and `RenderFault`
+/// `output_not_writable` when the file leads outside the project or into
+/// `.git`.
 void ensureSpecstoneGitignore(Directory specstoneFolder) {
   final target = File.fromUri(specstoneFolder.uri.resolve('.gitignore'));
   requireWritableTarget(target.path, projectRoot: specstoneFolder.parent);
