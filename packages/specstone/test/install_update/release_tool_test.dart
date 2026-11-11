@@ -13,11 +13,32 @@ const _check =
     'install_update/version_match/release_new_version/check_before_release';
 const _bump =
     'install_update/version_match/release_new_version/bump_and_push_tag';
+const _land =
+    'install_update/version_match/release_new_version/merge_after_publish';
+const _rerun =
+    'install_update/version_match/release_new_version/'
+    'rerun_from_release_branch';
 const fetchLine =
     'fetch origin; check origin/main and local develop before moving any ref';
 const fastForwardLine =
     'fast-forward main to v0.2.0; fast-forward develop to origin/develop; '
     'merge release/0.2.0 into develop';
+const preFetchLine = 'fetch origin; check local develop before moving any ref';
+const preFastForwardLine =
+    'fast-forward develop to origin/develop; '
+    'merge release/0.2.0-beta.1 into develop';
+const prePushLine =
+    'push develop alone; main stays where it is; '
+    'delete release/0.2.0-beta.1';
+const List<String> preLandingLines = [
+  preFetchLine,
+  preFastForwardLine,
+  prePushLine,
+];
+const preReleased =
+    'Released v0.2.0-beta.1: '
+    'https://github.com/nontravis/specstone/releases/tag/v0.2.0-beta.1; '
+    'develop pushed';
 
 void main() {
   late ReleaseRepo repo;
@@ -56,6 +77,26 @@ void main() {
         fetchLine,
         fastForwardLine,
         'push main and develop in one atomic push; delete release/0.2.0',
+      ].map((l) => '$l\n').join(),
+    );
+    expect(await repo.state(), before);
+  });
+
+  test('$_check E09: a pre-release --dry-run prints the first-run steps and '
+      'the three develop-only landing lines', () async {
+    final r = await repo.release(['0.2.0-beta.1', '--dry-run']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(
+      r.stdout,
+      [
+        'create release/0.2.0-beta.1 from develop',
+        'set 0.2.0-beta.1 in the five version spots',
+        're-read the five spots; run dart pub get --enforce-lockfile',
+        'commit "chore: release 0.2.0-beta.1"; tag v0.2.0-beta.1 on it',
+        'push tag v0.2.0-beta.1',
+        'wait for the release.yaml run of v0.2.0-beta.1',
+        ...preLandingLines,
       ].map((l) => '$l\n').join(),
     );
     expect(await repo.state(), before);
@@ -276,6 +317,10 @@ void main() {
   const resolveLine =
       'Resolve it, then run dart run tool/release.dart 0.2.0 again from '
       'release/0.2.0';
+
+  const resolveBeta =
+      'Resolve it, then run dart run tool/release.dart 0.2.0-beta.1 again '
+      'from release/0.2.0-beta.1';
 
   test('f09/us04/fr02, f09/us04/fr03, f09/us04/s1: the tag ships first; main '
       'and develop move after the Release', () async {
@@ -560,6 +605,138 @@ dependencies:
     expect(r.exitCode, 1);
     expect(r.stderr, contains('a second release reached main'));
     expect(r.stderr, isNot(contains('develop holds commits')));
+  });
+
+  test('release_new_version S11, $_land E07: a pre-release lands develop '
+      'alone and never writes main', () async {
+    final main = await sha('main');
+    final originMain = (await repo.originRefs())['refs/heads/main'];
+
+    final r = await repo.release(['0.2.0-beta.1']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect((r.stdout as String).trimRight().split('\n').last, preReleased);
+    expect(await sha('main'), main);
+    final refs = await repo.originRefs();
+    expect(refs['refs/heads/main'], originMain);
+    final tagged = refs['refs/tags/v0.2.0-beta.1']!;
+    expect(refs['refs/heads/develop'], await sha('develop'));
+    // Throws when the tag is not an ancestor.
+    await repo.git([
+      'merge-base',
+      '--is-ancestor',
+      tagged,
+      refs['refs/heads/develop']!,
+    ]);
+    expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+    expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+    expect(repo.ghCalls().skip(1), [
+      'api repos/{owner}/{repo}/actions/runs?head_sha=$tagged&event=push',
+      'run watch 123456789 --exit-status',
+      'release view v0.2.0-beta.1 --json url --jq .url',
+    ]);
+    expect(await repo.git(['branch', '--show-current']), 'develop');
+  });
+
+  test('$_land E07: an origin/main that moved during the wait stops a '
+      'pre-release nothing', () async {
+    final main = await sha('main');
+
+    final r = await repo.release(
+      ['0.2.0-beta.1'],
+      gh: {'GH_STUB_ON_WATCH': repo.pushFromOtherCloneCommand('main')},
+    );
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final refs = await repo.originRefs();
+    final otherMain = await repo.git(['rev-parse', 'origin/main']);
+    expect(refs['refs/heads/main'], otherMain);
+    expect(otherMain, isNot(main));
+    expect(await sha('main'), main);
+    expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+    await repo.git([
+      'merge-base',
+      '--is-ancestor',
+      refs['refs/tags/v0.2.0-beta.1']!,
+      refs['refs/heads/develop']!,
+    ]);
+  });
+
+  test('$_land E08: a rejected push of develop resets local develop and '
+      'keeps the release branch', () async {
+    await rejectPushes('refs/heads/develop');
+    final main = await sha('main');
+    final develop = await sha('develop');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(['0.2.0-beta.1']);
+
+    expect(r.exitCode, 1);
+    expect(r.stderr, contains('git push origin develop'));
+    expect(stderrLines(r).last, resolveBeta);
+    final after = await repo.originRefs();
+    expect(after['refs/heads/main'], refs['refs/heads/main']);
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+    expect(after, contains('refs/tags/v0.2.0-beta.1'));
+    expect(await sha('main'), main);
+    expect(await sha('develop'), develop);
+    expect(
+      await repo.git(['branch', '--list', 'release/0.2.0-beta.1']),
+      isNotEmpty,
+    );
+    expect(await repo.git(['status', '--porcelain']), isEmpty);
+  });
+
+  test('$_land E09: a full release from a develop holding a pre-release '
+      'moves main and develop in the atomic push', () async {
+    final pre = await createReleaseRepo(version: '0.2.0-beta.1');
+
+    final r = await pre.release(['0.2.0']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(
+      (r.stdout as String).trimRight().split('\n').last,
+      'Released v0.2.0: '
+      'https://github.com/nontravis/specstone/releases/tag/v0.2.0; '
+      'main and develop pushed',
+    );
+    final refs = await pre.originRefs();
+    final tagged = refs['refs/tags/v0.2.0']!;
+    expect(refs['refs/heads/main'], tagged);
+    await pre.git([
+      'merge-base',
+      '--is-ancestor',
+      tagged,
+      refs['refs/heads/develop']!,
+    ]);
+    expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+  });
+
+  test('$_land E05: local develop ahead of origin/develop refuses a '
+      'pre-release too', () async {
+    final main = await sha('main');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(
+      ['0.2.0-beta.1'],
+      gh: {'GH_STUB_ON_WATCH': localDevelopCommit()},
+    );
+
+    expect(r.exitCode, 1);
+    final develop = await sha('develop');
+    expect(
+      r.stderr,
+      contains(
+        'release: local develop holds commits origin/develop lacks:\n'
+        '  ${develop.substring(0, 7)} local-only\n',
+      ),
+    );
+    expect(stderrLines(r).where((l) => l.startsWith('git ')), isEmpty);
+    expect(stderrLines(r).last, resolveBeta);
+    expect(await sha('main'), main);
+    final after = await repo.originRefs();
+    expect(after['refs/heads/main'], refs['refs/heads/main']);
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
   });
 
   group('first-run checks', () {
@@ -1166,6 +1343,76 @@ dependencies:
           fetchLine,
           fastForwardLine,
           'push main and develop in one atomic push; delete release/0.2.0',
+        ].map((l) => '$l\n').join(),
+      );
+      expect(await repo.state(), mid);
+    });
+  });
+
+  group('$_rerun: a pre-release', () {
+    setUp(() async {
+      final first = await repo.release(
+        ['0.2.0-beta.1'],
+        gh: {'GH_STUB_RUN': 'failure'},
+      );
+      expect(first.exitCode, 1);
+    });
+
+    test('$_rerun: a run again with the Release published lands develop '
+        'alone', () async {
+      final main = await sha('main');
+      final originMain = (await repo.originRefs())['refs/heads/main'];
+      final tagged = (await repo.originRefs())['refs/tags/v0.2.0-beta.1']!;
+
+      final r = await repo.release(
+        ['0.2.0-beta.1'],
+        gh: {'GH_STUB_RELEASE': 'present'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((r.stdout as String).trimRight().split('\n').last, preReleased);
+      expect(await sha('main'), main);
+      final refs = await repo.originRefs();
+      expect(refs['refs/heads/main'], originMain);
+      expect(refs['refs/tags/v0.2.0-beta.1'], tagged);
+      await repo.git([
+        'merge-base',
+        '--is-ancestor',
+        tagged,
+        refs['refs/heads/develop']!,
+      ]);
+      expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+    });
+
+    test('$_rerun: --dry-run with the Release published prints the three '
+        'develop-only landing lines', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(
+        ['0.2.0-beta.1', '--dry-run'],
+        gh: {'GH_STUB_RELEASE': 'present'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stdout, preLandingLines.map((l) => '$l\n').join());
+      expect(await repo.state(), mid);
+    });
+
+    test('$_rerun: --dry-run without the Release prints the tag move, the '
+        'wait, and the develop-only landing', () async {
+      final mid = await repo.state();
+
+      final r = await repo.release(['0.2.0-beta.1', '--dry-run']);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        r.stdout,
+        [
+          'push release/0.2.0-beta.1',
+          'move tag v0.2.0-beta.1 to the head of release/0.2.0-beta.1; push it',
+          'wait for the release.yaml run of v0.2.0-beta.1',
+          ...preLandingLines,
         ].map((l) => '$l\n').join(),
       );
       expect(await repo.state(), mid);
