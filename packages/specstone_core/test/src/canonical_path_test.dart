@@ -243,6 +243,66 @@ void main() {
         throwsA(isA<FileSystemException>()),
       );
     });
+
+    test(r'an answer elsewhere under $Extend is a real path, since another '
+        'file system lets a user make that folder', () {
+      const madeByUser = r'C:\$Extend\x';
+      String answerMadeByUser(String asked) =>
+          asked == path ? madeByUser : realPathOnDisk(asked);
+
+      expect(canonicalPath(path, resolve: answerMadeByUser), madeByUser);
+    });
+  });
+
+  group('$_scope: canonicalPath when a link changes while it is read', () {
+    late String link;
+
+    setUp(() async {
+      final base = await writeTree({'keep.txt': ''});
+      link = '${base.resolveSymbolicLinksSync()}/x';
+      createRelativeLink(link, 'gone');
+    });
+
+    test('a link deleted meanwhile counts as missing', () {
+      String deleteThenFail(String asked) {
+        if (asked != link) return linkTargetOnDisk(asked);
+        Link(asked).deleteSync();
+        throw FileSystemException('', asked, const OSError('not found', 2));
+      }
+
+      expect(canonicalPath(link, strict: true, readLink: deleteThenFail), link);
+    }, skip: _linksUnavailable);
+
+    test('a link made a plain file meanwhile resolves as that file, whatever '
+        'the code', () {
+      String replaceThenFail(String asked) {
+        if (asked != link) return linkTargetOnDisk(asked);
+        Link(asked).deleteSync();
+        File(asked).writeAsStringSync('');
+        throw FileSystemException('', asked, const OSError('invalid', 22));
+      }
+
+      expect(
+        canonicalPath(link, strict: true, readLink: replaceThenFail),
+        link,
+      );
+    }, skip: _linksUnavailable);
+
+    test('a link that stays a link rethrows its read error', () {
+      String fail(String asked) =>
+          throw FileSystemException('', asked, const OSError('denied', 5));
+
+      expect(
+        () => canonicalPath(link, strict: true, readLink: fail),
+        throwsA(
+          isA<FileSystemException>().having(
+            (error) => error.osError?.errorCode,
+            'code',
+            5,
+          ),
+        ),
+      );
+    }, skip: _linksUnavailable);
   });
 
   group('$_scope: linkTargetPath on POSIX', () {

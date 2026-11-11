@@ -54,12 +54,14 @@ bool _hasDrive(String path) =>
 /// collapses a `..` that lands on an existing folder before the disk sees it;
 /// one that lands on a missing name still throws.
 ///
-/// [resolve] reads the real path of an existing name; it defaults to the
-/// disk's answer, and a test passes a double.
+/// [resolve] reads the real path of an existing name and [readLink] the
+/// target of a link; they default to the disk's answers, and a test passes
+/// doubles.
 String canonicalPath(
   String path, {
   bool strict = false,
   String Function(String path) resolve = realPathOnDisk,
+  String Function(String path) readLink = linkTargetOnDisk,
 }) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(
@@ -99,10 +101,11 @@ String canonicalPath(
     }
     final String target;
     try {
-      target = Link(existing).targetSync();
-    } on FileSystemException catch (error) {
-      // The link is gone since the check: walk again from the same name.
-      if (!isNotFoundError(error)) rethrow;
+      target = readLink(existing);
+    } on FileSystemException {
+      // A link gone or replaced since the check fails whatever the code; walk
+      // again from the same name, so it reads as it stands now.
+      if (FileSystemEntity.isLinkSync(existing)) rethrow;
       continue;
     }
     existing = withoutTrailingSeparator(linkTargetPath(existing, target));
@@ -129,6 +132,9 @@ String canonicalPath(
 /// Returns the real path of [path] as the disk resolves it.
 String realPathOnDisk(String path) => File(path).resolveSymbolicLinksSync();
 
+/// Returns the target the link at [path] names on disk, as written.
+String linkTargetOnDisk(String path) => Link(path).targetSync();
+
 /// Returns the real path [resolve] gives for [path], a name just seen to
 /// exist.
 ///
@@ -139,14 +145,14 @@ String realPathOnDisk(String path) => File(path).resolveSymbolicLinksSync();
 /// made again.
 String resolveExisting(String path, String Function(String path) resolve) {
   final real = resolve(path);
-  if (!_ntfsMetadataFolder.hasMatch(real)) return real;
+  if (!_ntfsDeletedFiles.hasMatch(real)) return real;
   throw FileSystemException('it was deleted while it was resolved', path);
 }
 
-/// The NTFS metadata folder, which holds the deleted files and never a file a
-/// user makes; NTFS reads its name in any case.
-final _ntfsMetadataFolder = RegExp(
-  r'^[A-Za-z]:\\\$Extend\\',
+/// The folder of deleted files, which on NTFS never holds a file a user
+/// makes; NTFS reads its name in any case.
+final _ntfsDeletedFiles = RegExp(
+  r'^[A-Za-z]:\\\$Extend\\\$Deleted\\',
   caseSensitive: false,
 );
 
@@ -200,15 +206,6 @@ String? _windowsVolumeOf(String path) {
 /// yet cannot stand before, since that name may become a link.
 bool holdsDotSegment(Iterable<String> names) =>
     names.any((name) => name == '.' || name == '..');
-
-/// Whether [error] says the path does not exist: error 2 on POSIX (ENOENT) and
-/// Windows (file not found), error 3 on Windows (path not found).
-///
-/// Dart throws a plain [FileSystemException] from `realpath` and a
-/// [PathNotFoundException] from `readlink` for the same error, so the code
-/// decides, not the type.
-bool isNotFoundError(FileSystemException error) =>
-    const {2, 3}.contains(error.osError?.errorCode);
 
 String _joined(String folder, String name, String separator) =>
     folder.endsWith(separator) ? '$folder$name' : '$folder$separator$name';
