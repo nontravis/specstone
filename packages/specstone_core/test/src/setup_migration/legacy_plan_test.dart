@@ -1031,6 +1031,23 @@ name: NFR
       );
     });
 
+    test('g8-r9: writes code_root for a child folder that is its own '
+        'repository', () async {
+      final plan = await _plan({
+        legacyFrPath: implementingDoc('Validate credentials', [
+          'lib/a.dart',
+          'lib/b.dart',
+        ]),
+        'code/.git/HEAD': '',
+        'code/lib/a.dart': 'class A {}\n',
+        'code/lib/b.dart': 'class B {}\n',
+      });
+
+      final create = _configCreate(plan);
+      expect(create.text, contains('\ncode_root: code\n'));
+      expect(create.note, endsWith('; code_root code (2 of 2 paths)'));
+    });
+
     test('keeps the default when the paths resolve from the root', () async {
       final plan = await _linkedPlan({
         legacyFrPath: implementingDoc('Validate credentials', [

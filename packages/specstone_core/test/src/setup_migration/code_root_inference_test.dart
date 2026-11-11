@@ -415,6 +415,135 @@ void main() {
 
     expect(choice, (value: '.', found: 2, cited: 2));
   });
+
+  group('child folders that are their own repository (G8-R9)', () {
+    test('g8-r9: a child folder holding .git wins when more entries resolve '
+        'from it', () async {
+      final tree = await _tree({
+        'proj/keep.txt': '',
+        'proj/code/.git/HEAD': '',
+        'proj/code/lib/a.dart': '',
+        'proj/code/lib/b.dart': '',
+      });
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart', 'lib/b.dart', 'lib/gone.dart'],
+      );
+
+      expect(choice, (value: 'code', found: 2, cited: 3));
+    });
+
+    test(
+      'g8-r9: a .git file marks a child repository as a folder does',
+      () async {
+        final tree = await _tree({
+          'proj/keep.txt': '',
+          'proj/code/.git': 'gitdir: ../../elsewhere\n',
+          'proj/code/lib/a.dart': '',
+        });
+
+        final choice = _infer(
+          _at(tree, 'proj'),
+          implementsEntries: ['lib/a.dart'],
+        );
+
+        expect(choice, (value: 'code', found: 1, cited: 1));
+      },
+    );
+
+    test('g8-r9: a child folder without .git is no candidate', () async {
+      final tree = await _tree({
+        'proj/keep.txt': '',
+        'proj/code/lib/a.dart': '',
+      });
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: '.', found: 0, cited: 1));
+    });
+
+    test('g8-r9: a tie between the root and a child repository goes to the '
+        'root', () async {
+      final tree = await _tree({
+        'proj/lib/a.dart': '',
+        'proj/code/.git/HEAD': '',
+        'proj/code/lib/a.dart': '',
+      });
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: '.', found: 1, cited: 1));
+    });
+
+    test('g8-r9: a tie between a child repository and a folder above the '
+        'root goes to the folder above', () async {
+      final tree = await _tree({
+        _repositoryMark: '',
+        'a/lib/x.dart': '',
+        'a/proj/keep.txt': '',
+        'a/proj/code/.git/HEAD': '',
+        'a/proj/code/lib/x.dart': '',
+      });
+
+      final choice = _infer(
+        _at(tree, 'a/proj'),
+        implementsEntries: ['lib/x.dart'],
+      );
+
+      expect(choice, (value: '..', found: 1, cited: 1));
+    });
+
+    test(
+      'g8-r9: two child repositories rank by count, then by code point',
+      () async {
+        final tree = await _tree({
+          'proj/keep.txt': '',
+          'proj/aa/.git/HEAD': '',
+          'proj/aa/lib/a.dart': '',
+          'proj/bb/.git/HEAD': '',
+          'proj/bb/lib/a.dart': '',
+          'proj/bb/lib/b.dart': '',
+        });
+
+        final byCount = _infer(
+          _at(tree, 'proj'),
+          implementsEntries: ['lib/a.dart', 'lib/b.dart'],
+        );
+        final tie = _infer(
+          _at(tree, 'proj'),
+          implementsEntries: ['lib/a.dart'],
+        );
+
+        expect(byCount, (value: 'bb', found: 2, cited: 2));
+        expect(tie, (value: 'aa', found: 1, cited: 1));
+      },
+    );
+
+    test('g8-r9: a child repository whose value the reader refuses is not '
+        'ranked', () async {
+      final tree = await _tree({'proj/keep.txt': ''});
+      // writeTree reads its keys as URIs, which turn `\` into `/`.
+      for (final path in ['.git/HEAD', 'lib/a.dart']) {
+        File('${tree.path}/proj/co\\de/$path')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('');
+      }
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: '.', found: 0, cited: 1));
+    }, skip: _windowsSkip);
+  });
 }
 
 final Object _windowsSkip = Platform.isWindows
