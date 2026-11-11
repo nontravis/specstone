@@ -145,16 +145,18 @@ String linkTargetOnDisk(String path) => Link(path).targetSync();
 /// made again.
 String resolveExisting(String path, String Function(String path) resolve) {
   final real = resolve(path);
-  if (!_ntfsDeletedFiles.hasMatch(real)) return real;
+  if (!_isNtfsDeletedFile(real)) return real;
   throw FileSystemException('it was deleted while it was resolved', path);
 }
 
-/// The folder of deleted files, which on NTFS never holds a file a user
-/// makes; NTFS reads its name in any case.
-final _ntfsDeletedFiles = RegExp(
-  r'^[A-Za-z]:\\\$Extend\\\$Deleted\\',
-  caseSensitive: false,
-);
+/// Whether [real] lies in the folder of deleted files, which on NTFS never
+/// holds a file a user makes; NTFS reads its name in any case.
+bool _isNtfsDeletedFile(String real) =>
+    _hasDrive(real) &&
+    real.substring(2).toLowerCase().startsWith(_ntfsDeletedFiles);
+
+/// The folder of deleted files below a drive, in lower case.
+const _ntfsDeletedFiles = r'\$extend\$deleted\';
 
 /// Returns the absolute path the link at [linkPath] names with [target], read
 /// from the folder of the link.
