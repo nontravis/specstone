@@ -160,29 +160,34 @@ void main() {
         var rounds = 0;
         final firstRefusals = <String>[];
         final watch = Stopwatch()..start();
-        while (watch.elapsed < churnFor) {
-          rounds++;
-          final answers = <String>[];
-          String recordAnswer(String asked) {
-            try {
-              final answer = realPathOnDisk(asked);
-              answers.add(answer);
-              return answer;
-            } on FileSystemException catch (error) {
-              answers.add('error ${error.osError?.errorCode} at $asked');
-              rethrow;
+        try {
+          while (watch.elapsed < churnFor) {
+            rounds++;
+            final answers = <String>[];
+            String recordAnswer(String asked) {
+              try {
+                final answer = realPathOnDisk(asked);
+                answers.add(answer.isEmpty ? '(empty)' : answer);
+                return answer;
+              } on FileSystemException catch (error) {
+                answers.add('error ${error.osError?.errorCode} at $asked');
+                rethrow;
+              }
+            }
+
+            // A fresh instance each round, since one remembers the folders
+            // asked.
+            final bounds = JournalBounds(root, [real], resolve: recordAnswer);
+            if (bounds.holds('side-folder/x.md')) continue;
+            refused++;
+            if (firstRefusals.length < _refusalsShown) {
+              firstRefusals.add(answers.join(', then '));
             }
           }
-
-          // A fresh instance each round, since one remembers the folders asked.
-          final bounds = JournalBounds(root, [real], resolve: recordAnswer);
-          if (bounds.holds('side-folder/x.md')) continue;
-          refused++;
-          if (firstRefusals.length < _refusalsShown) {
-            firstRefusals.add(answers.join(', then '));
-          }
+        } finally {
+          // The churn must stop before the test deletes its folder.
+          await churn;
         }
-        await churn;
 
         expect(rounds, greaterThan(0));
         expect(
@@ -206,6 +211,20 @@ void main() {
       root = await writeTree({'side-folder/keep.txt': ''});
       real = root.resolveSymbolicLinksSync();
       folder = '${root.path}${Platform.pathSeparator}side-folder';
+    });
+
+    test('an empty answer for a folder gone since counts as missing', () {
+      String deleteThenAnswerEmpty(String asked) {
+        if (asked != folder) return realPathOnDisk(asked);
+        Directory(asked).deleteSync(recursive: true);
+        return '';
+      }
+
+      final bounds = JournalBounds(root, [
+        real,
+      ], resolve: deleteThenAnswerEmpty);
+
+      expect(bounds.holds('side-folder/x.md'), isTrue);
     });
 
     test('an NTFS deleted-file answer for a folder gone since counts as '

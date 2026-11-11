@@ -138,14 +138,14 @@ String linkTargetOnDisk(String path) => Link(path).targetSync();
 /// Returns the real path [resolve] gives for [path], a name just seen to
 /// exist.
 ///
-/// A handle still open to a name deleted meanwhile makes Windows answer a
-/// place in the NTFS folder of deleted files (`C:\$Extend\$Deleted\...`).
-/// That answer throws a [FileSystemException], as a failed resolve does, so a
-/// caller walks the path again and reads the name as it stands now: gone, or
-/// made again.
+/// Windows answers a name deleted meanwhile, while a handle to it is still
+/// open, with a place in the NTFS folder of deleted files
+/// (`C:\$Extend\$Deleted\...`) or with an empty path. Either answer throws a
+/// [FileSystemException], as a failed resolve does, so a caller walks the
+/// path again and reads the name as it stands now: gone, or made again.
 String resolveExisting(String path, String Function(String path) resolve) {
   final real = resolve(path);
-  if (!_isNtfsDeletedFile(real)) return real;
+  if (real.isNotEmpty && !_isNtfsDeletedFile(real)) return real;
   throw FileSystemException('it was deleted while it was resolved', path);
 }
 

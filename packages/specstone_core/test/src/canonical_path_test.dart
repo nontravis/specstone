@@ -161,27 +161,35 @@ void main() {
         }
       });
 
-      var refused = 0;
+      var wrong = 0;
       var rounds = 0;
-      FileSystemException? firstRefusal;
+      Object? firstWrong;
       final watch = Stopwatch()..start();
-      while (watch.elapsed < churnFor) {
-        rounds++;
-        try {
-          expect(canonicalPath(path, strict: true), path);
-        } on FileSystemException catch (error) {
-          refused++;
-          firstRefusal ??= error;
+      try {
+        while (watch.elapsed < churnFor) {
+          rounds++;
+          try {
+            final answer = canonicalPath(path, strict: true);
+            if (answer == path) continue;
+            wrong++;
+            firstWrong ??= "the answer '$answer'";
+          } on FileSystemException catch (error) {
+            wrong++;
+            firstWrong ??= error;
+          }
         }
+      } finally {
+        // The churn must stop before the test deletes its folder.
+        await churn;
       }
-      await churn;
 
       expect(rounds, greaterThan(0));
       expect(
-        refused,
+        wrong,
         0,
         reason:
-            '$refused of $rounds judgments refused; the first: $firstRefusal',
+            '$wrong of $rounds judgments wrong or refused; the first: '
+            '$firstWrong',
       );
     });
   });
@@ -232,6 +240,29 @@ void main() {
       }
 
       expect(canonicalPath(path, strict: true, resolve: answerAliasOnce), path);
+    });
+
+    test('an empty answer for a name gone since counts as missing', () {
+      String deleteThenAnswerEmpty(String asked) {
+        if (asked != path) return realPathOnDisk(asked);
+        File(asked).deleteSync();
+        return '';
+      }
+
+      expect(
+        canonicalPath(path, strict: true, resolve: deleteThenAnswerEmpty),
+        path,
+      );
+    });
+
+    test('an empty answer for a name that stays throws', () {
+      String answerEmpty(String asked) =>
+          asked == path ? '' : realPathOnDisk(asked);
+
+      expect(
+        () => canonicalPath(path, resolve: answerEmpty),
+        throwsA(isA<FileSystemException>()),
+      );
     });
 
     test('an NTFS deleted-file answer for a name that stays throws', () {
