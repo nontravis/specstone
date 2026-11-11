@@ -18,7 +18,8 @@ touches, the trade-off behind each choice, and its test.
 
 ## Bootstrap
 
-- **Prompt only**: take your inputs from the dispatch prompt; open no file before the Ground's first call.
+- **Prompt only**: take your inputs from the dispatch prompt; open no file but the `report` file before the Ground's
+  first call.
 - **Same steps everywhere**: a direct dispatch with these inputs, and `specstone:plan-sdd`'s runner following this
   file itself, run the same steps under the same file rules.
 
@@ -27,8 +28,8 @@ touches, the trade-off behind each choice, and its test.
 - **`targets`** (required): names, each a story, FR, NFR, or spec doc, or, from a brainstorm, the approved drafts
   list whole. Workflow step 1 sorts them.
 - **`design document`** (optional): a path, read in Workflow step 4; no ground source.
-- **`plan path`** (optional): the plan an earlier run reported for the same targets, amended in place with the Owner's
-  answers, or the Owner's new path for a refused one.
+- **`plan path`** (optional): the plan an earlier run reported, or a failed one left, for the same targets, amended in
+  place with the Owner's answers, or the Owner's new path for a refused one.
 - **`answers`** (optional): the Owner's answers on `NOT PLANNED` rows, spec gaps, and open questions. Run every step
   again on them: the Ground shows each doc as it now stands.
 - **`report`** (optional): the file for the whole report, outside the repository; absent, make one with `mktemp`.
@@ -85,10 +86,11 @@ is a spec gap: list it, never plan it.
    - **Any other doc**, such as the `project` or `feature` doc, an FR target's story, a sibling FR, or a spec doc: a
      draft or `approval_stale` one goes under open questions, to be approved before the plan runs; the plan goes on.
      A doc among `targets` that no task builds keeps its row with no task instead.
-6. **Plan format**: when your skill list holds a skill whose description says it writes an implementation plan from
-   a spec, load it as the plan's format; where it conflicts, Specstone's rules win; none, follow the own procedure;
-   when two qualify, the one the project's CLAUDE.md names, else the first listed. A Specstone skill,
-   `specstone:plan-sdd` included, never qualifies.
+6. **Plan format**: when steps 1 to 5 took no target or made each one `NOT PLANNED`, load no skill and go to step 8.
+   Else, when your skill list holds a skill whose description says it writes an implementation plan from a spec,
+   load it as the plan's format; where it conflicts, Specstone's rules win; none, follow the own procedure; when two
+   qualify, the one the project's CLAUDE.md names, else the first listed. A Specstone skill, `specstone:plan-sdd`
+   included, never qualifies.
    - **A skill qualifies**: load it with `Skill` after steps 1 to 5, and follow it for the header, the file map, the
      task size, and the steps; its own self-review still runs. Specstone's rules win where they differ: the Ground's
      order and rules, no doc text in a task, the last `specstone:sync-sdd` task, and the one plan file outside the
@@ -111,9 +113,9 @@ is a spec gap: list it, never plan it.
    - **A plan path inside the CheckedFolders** (the `prds/` or `specs/` folder a bundle header's path opens with), or
      a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a
      new `plan path`.
-   - **Else**: with `Write`, the one plan file, at the plan skill's own path, else `docs/plans/<YYYY-MM-DD>-<slug>.md`;
-     given a `plan path`, write there instead: amend its file with `Edit`, or `Write` it when none is there yet. Write
-     no second plan file.
+   - **Else**: the one plan file, at a given `plan path`, else the plan skill's own path, else
+     `docs/plans/<YYYY-MM-DD>-<slug>.md`. `Read` a file already there, such as one the plan skill saved or an earlier
+     run wrote, and amend it with `Edit`; make a new one with `Write`. Write no second plan file.
 9. **Check before reporting**: each approved FR of a target that gets a task is built by a task; no task quotes a
    doc's text; each name a task cites is one a Ground bundle printed. Fix the plan until all three hold. List each
    name no bundle printed, and each file or symbol not found, under `Findings:`, never cited.
@@ -152,13 +154,13 @@ Findings: <items, or none>
 
 - Run `specstone context` for the Ground and one bare `specstone check`, and no other `specstone` command.
 - Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
-- Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the plan skill's own path, else
-  `docs/plans/<YYYY-MM-DD>-<slug>.md`, outside the CheckedFolders.
+- Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
+  `plan path` such as the Owner's new one included, outside the CheckedFolders.
 
 **DON'T:**
 
 - Write or edit a PRD or spec doc by any tool, write any other file, or write a file by shell redirect.
 - Run `specstone new`, `specstone set`, or `specstone approve`, or clear a draft flag.
-- Open a doc file by path, or list the docs folder.
+- Open a doc file by path, or list the CheckedFolders.
 - Invoke a skill at the plan skill's execution hand-off, or run a task of the plan.
 - Ask the user anything, or commit.

@@ -971,12 +971,12 @@ const _confirmLinkSteps =
     'recorded: re-read it and confirm again the same way. Your approval '
     'request to the Owner then says what changed upstream.';
 
-/// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
-/// its steps in the skill's `references/<mode>.md`.
 /// The path a design document takes when the brainstorm skill keeps none of
 /// its own.
 const _designPath = 'docs/designs/<YYYY-MM-DD>-<topic>-design.md';
 
+/// The `sdd-engineer` modes that `brainstorming-sdd` dispatches, each with
+/// its steps in the skill's `references/<mode>.md`.
 const _brainstormModes = ['author', 'design', 'audit'];
 
 /// Each plugin file and `## ` section that says which `check` finding waits for
@@ -1115,8 +1115,15 @@ void _agentTests() {
     ]) {
       expect(text, isNot(contains('docs/superpowers/')), reason: file);
     }
-    for (final text in [design, skill]) {
-      expect(text, contains(_designPath));
+    for (final (file, text) in [
+      (
+        'agents/sdd-engineer.md Scope Boundaries',
+        _sectionOf(agent, 'Scope Boundaries'),
+      ),
+      ('references/design.md', design),
+      ('brainstorming-sdd/SKILL.md', skill),
+    ]) {
+      expect(text, contains(_designPath), reason: file);
     }
   });
 

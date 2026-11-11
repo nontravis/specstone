@@ -51,8 +51,9 @@ With the `Agent` tool, dispatch one `specstone:plan-engineer` with these inputs,
 
 Work no step of the plan yourself. Without the tool, or when the dispatch fails, read
 `${CLAUDE_PLUGIN_ROOT}/agents/plan-engineer.md` and follow it yourself under the same inputs, writing its one plan
-file and its report; that report stands in for the reply. After a failed dispatch, write at the path the agent file
-gives: read and rewrite a file that dispatch left there, name it in the report, and write no second plan.
+file and its report; that report stands in for the reply. After a failed dispatch, before you first save the plan,
+look in the folder that file's step 8 saves it to for a plan file written after the dispatch began. When one is
+there, take it as the `plan path`, name it in the report, and write no second plan.
 
 ## 4. Relay the reply
 
@@ -60,8 +61,9 @@ gives: read and rewrite a file that dispatch left there, name it in the report, 
    own notes.
 2. Ask the Owner once about each `NOT PLANNED` row, spec gap, conflict, and open question the block holds that no
    earlier round asked. Send the round's answers once to the same agent while it is live, else dispatch a new one,
-   with the same inputs plus `answers:` and `plan path:`: the plan the report named, or the Owner's new path for a
-   refused one. It amends that file in place; it writes no second plan file.
+   with the same inputs plus `answers:`, and `plan path:` when there is one: the plan the `Plan:` line named, which it
+   amends in place, or the Owner's new path for a refused one. `Plan: none` names no plan, so it gives no
+   `plan path:`. It writes no second plan file.
 3. Relay each amended reply as item 1 says; an item the Owner answered that stays unchanged shows in it and is never
    asked again. Go on to step 5 when a reply holds no item not yet asked, or the Owner has no more answers to send.
 

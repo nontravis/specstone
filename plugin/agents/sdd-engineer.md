@@ -38,6 +38,9 @@ and changed code or a batch's findings into drafts.
 - **`report`** (every mode, optional): the file for your whole report, outside the repository; absent, make one with
   `mktemp`.
 - **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
+- **Any other `mode`**, `plan` included: stop the same way; for `plan`, the line names `specstone:plan-sdd`, which
+  writes plans.
+- **Two design documents** in one design dispatch: stop the same way, naming both; write neither.
 
 ## On-Demand Loads
 
@@ -65,6 +68,9 @@ A failed load: report it and stop; never search.
    tagged `(waits for the Owner)`.
 
 ## Output Format
+
+`Read` the `report` file once, when it exists, before your first `Write` to it: `Write` overwrites no file it has not
+read.
 
 Write your whole report with `Write` to the `report` file: author, design, and audit, the Report of the mode's
 reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the
