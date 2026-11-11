@@ -32,7 +32,7 @@ costs a call the gate already makes.
   which docs a task builds is `specstone:plan-engineer`'s call alone, and it gives every other doc a row with no task.
 - **Target names given:** each an approved story, FR, NFR, or spec doc. Take them as named.
 - **No target, outside a brainstorm:** run the call below. Offer the Owner each story whose `draft` is `false`, by
-  name and title, and leave out every draft; the text output marks no draft. When none is left, say so and ask the
+  name and title, and leave out every draft. When none is left, say so and ask the
   Owner for target names. Dispatch nothing before the Owner picks or names targets.
 
 ```
@@ -52,8 +52,9 @@ With the `Agent` tool, dispatch one `specstone:plan-engineer` with these inputs,
 Work no step of the plan yourself. Without the tool, or when the dispatch fails, read
 `${CLAUDE_PLUGIN_ROOT}/agents/plan-engineer.md` and follow it yourself under the same inputs, writing its one plan
 file and its report; that report stands in for the reply. After a failed dispatch, before you first save the plan,
-look in the folder that file's step 8 saves it to for a plan file written after the dispatch began. When one is
-there, take it as the `plan path`, name it in the report, and write no second plan.
+look in the folder that file's step 8 saves it to for a plan file written after the dispatch began whose tasks name
+one of these targets. When one is there, take it as the `plan path`, name it in the report, and write no second plan.
+Amend no other file, since another session wrote it; with no match, pick a new path by step 8's rule.
 
 ## 4. Relay the reply
 
