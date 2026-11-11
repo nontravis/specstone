@@ -216,35 +216,117 @@ try {
         return $result
     }
 
-    # Returns the objects of a JSON list in $Lines, whichever way ConvertFrom-Json
-    # hands an array back (Windows PowerShell 5.1 does not unroll it).
+    # Returns $true when $Value is the string $Text. -ceq alone would filter an
+    # array or compare a number by its text.
+    function Test-ExactText($Value, [string]$Text) {
+        return ($Value -is [string]) -and ($Value -ceq $Text)
+    }
+
+    # Returns $true when the JSON list text $Text is read for sure: a top-level
+    # array that holds no array directly, no key written with an escape, and no
+    # key repeated in an object of the list (ignoring case, as a property lookup
+    # does); ConvertFrom-Json would hide each. It reads the strings and nesting,
+    # so a quote or brace inside a value never counts. Well-formedness is
+    # ConvertFrom-Json's to judge.
+    function Test-JsonKeysPlain([string]$Text) {
+        if ($Text -cnotmatch '\A\s*\[') {
+            return $false
+        }
+        $open = New-Object System.Collections.ArrayList
+        $previous = ''
+        foreach ($token in [regex]::Matches($Text, '"(?:[^"\\]|\\.)*"|[{}\[\]:]')) {
+            $current = $token.Value
+            if ($current -ceq '[') {
+                if ($open.Count -eq 1) {
+                    return $false
+                }
+                [void]$open.Add('[')
+            } elseif ($current -ceq '{') {
+                [void]$open.Add([System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase))
+            } elseif ($current -ceq '}' -or $current -ceq ']') {
+                if ($open.Count -eq 0) {
+                    return $false
+                }
+                $open.RemoveAt($open.Count - 1)
+            } elseif ($current -ceq ':') {
+                $key = $previous.Substring(1, $previous.Length - 2)
+                if ($key.Contains('\')) {
+                    return $false
+                }
+                if ($open.Count -eq 2 -and -not $open[1].Add($key)) {
+                    return $false
+                }
+            }
+            $previous = $current
+        }
+        return $true
+    }
+
+    # Returns $true when $Item is an object ConvertFrom-Json read from a JSON
+    # object, not a string, a number, or an array.
+    function Test-JsonObject($Item) {
+        return ($null -ne $Item) -and ($Item.PSObject.TypeNames[0] -ceq 'System.Management.Automation.PSCustomObject')
+    }
+
+    # Returns the objects of the JSON list in $Lines, whichever way
+    # ConvertFrom-Json hands an array back (Windows PowerShell 5.1 does not
+    # unroll it). Throws when the list is not read for sure: empty, not JSON,
+    # text around the JSON, a key that Test-JsonKeysPlain refuses, or an item
+    # that is not an object.
     function ConvertFrom-JsonList([string[]]$Lines) {
         $text = (@($Lines) -join "`n").Trim()
-        if ($text.Length -eq 0) {
-            return @()
+        if (-not (Test-JsonKeysPlain $text)) {
+            throw 'the list is not read for sure'
         }
         $parsed = $text | ConvertFrom-Json
         if ($null -eq $parsed) {
             return @()
         }
-        return @($parsed | ForEach-Object { $_ })
+        $items = @($parsed | ForEach-Object { $_ })
+        foreach ($item in $items) {
+            if (-not (Test-JsonObject $item)) {
+                throw 'an item of the list is not an object'
+            }
+        }
+        return $items
     }
 
-    # Returns the property $Name of $Item, or $null when it has none.
+    # Returns the property $Name of $Item, or $null when it has none. The key
+    # must match in case: a property lookup alone ignores it.
     function Get-Property($Item, [string]$Name) {
         if ($null -eq $Item) {
             return $null
         }
         $property = $Item.PSObject.Properties[$Name]
-        if ($null -eq $property) {
+        if ($null -eq $property -or $property.Name -cne $Name) {
             return $null
         }
         return $property.Value
     }
 
+    # Prints the remove, add, and install commands for the marketplace source $Wanted.
+    function Write-PluginCommands([string]$Wanted) {
+        Write-Host '  claude plugin marketplace remove specstone'
+        Write-Host "  claude plugin marketplace add $Wanted"
+        Write-Host '  claude plugin install specstone@specstone'
+    }
+
+    # Prints the commands of Write-PluginCommands under a line saying who runs them.
+    function Write-ManualPluginCommands([string]$Wanted) {
+        Write-Host 'To add the Specstone plugin to Claude Code, run (the first command only when a marketplace specstone already exists):'
+        Write-PluginCommands $Wanted
+    }
+
+    # Names the claude list command with $Arguments whose reply was not read
+    # for sure, then prints the commands for the source $Wanted.
+    function Write-UnreadableReply([string[]]$Arguments, [string]$Wanted) {
+        [Console]::Error.WriteLine("specstone: claude $($Arguments -join ' ') failed: its reply could not be read; run it by hand")
+        Write-ManualPluginCommands $Wanted
+    }
+
     # Runs a claude list command; returns its objects as one array, or $null
-    # after naming the failure.
-    function Get-ClaudeList([string]$Claude, [string[]]$Arguments) {
+    # after naming the failure or the reply that was not read for sure.
+    function Get-ClaudeList([string]$Claude, [string[]]$Arguments, [string]$Wanted) {
         $result = Invoke-Claude $Claude $Arguments $false
         if ($null -eq $result) {
             return $null
@@ -252,51 +334,126 @@ try {
         try {
             return , @(ConvertFrom-JsonList $result.Output)
         } catch {
-            [Console]::Error.WriteLine("specstone: claude $($Arguments -join ' ') failed: its output is not JSON; run it by hand")
+            Write-UnreadableReply $Arguments $Wanted
             return $null
         }
     }
 
-    # Adds the marketplace and installs the plugin through claude, skipping what
-    # is there, or prints the two commands when claude is not on the PATH. Never
+    # Returns $true when the marketplace entry $Entry is the one this script
+    # adds: source github, repo exactly nontravis/specstone. Any other entry
+    # is the Owner's own.
+    function Test-OfficialEntry($Entry) {
+        return (Test-ExactText (Get-Property $Entry 'source') 'github') -and (Test-ExactText (Get-Property $Entry 'repo') 'nontravis/specstone')
+    }
+
+    # Returns where the marketplace entry $Entry comes from, read from the key
+    # its source type names, else 'an unknown source'.
+    function Get-EntrySource($Entry) {
+        $source = Get-Property $Entry 'source'
+        $key = ''
+        if (Test-ExactText $source 'github') {
+            $key = 'repo'
+        } elseif ((Test-ExactText $source 'git') -or (Test-ExactText $source 'url')) {
+            $key = 'url'
+        } elseif ((Test-ExactText $source 'directory') -or (Test-ExactText $source 'file')) {
+            $key = 'path'
+        }
+        $found = $null
+        if ($key.Length -gt 0) {
+            $found = Get-Property $Entry $key
+        }
+        if ($found -is [string] -and $found.Length -gt 0) {
+            return Get-PrintableText $found
+        }
+        return 'an unknown source'
+    }
+
+    # Moves marketplace specstone to the source $Wanted. The remove also
+    # uninstalls the plugin. Returns $false after naming the command that failed.
+    function Move-Marketplace([string]$Claude, [string]$Wanted) {
+        $removed = Invoke-Claude $Claude @('plugin', 'marketplace', 'remove', 'specstone') $true
+        if ($null -eq $removed) {
+            return $false
+        }
+        $added = Invoke-Claude $Claude @('plugin', 'marketplace', 'add', $Wanted) $true
+        if ($null -eq $added) {
+            return $false
+        }
+        Write-Host "specstone: marketplace specstone re-added from $Wanted"
+        return $true
+    }
+
+    # Returns $true when one entry of the plugin list $Plugins holds both the id
+    # specstone@specstone and the scope user; project and local installs from
+    # other projects never count.
+    function Test-PluginInstalledForUser($Plugins) {
+        foreach ($item in $Plugins) {
+            if ((Test-ExactText (Get-Property $item 'id') 'specstone@specstone') -and (Test-ExactText (Get-Property $item 'scope') 'user')) {
+                return $true
+            }
+        }
+        return $false
+    }
+
+    # Puts marketplace specstone at the wanted source and installs the plugin
+    # through claude, skipping what is there, or prints the commands when claude
+    # is not on the PATH. A marketplace from another source stays, and a list
+    # reply that is not read for sure stops the step like a failed list. Never
     # fails the script: the CLI install stands.
     function Install-Plugin {
+        $wanted = 'nontravis/specstone'
+        $wantedRef = ''
+        if ($Version.Length -gt 0) {
+            $wanted = "$wanted#v$Version"
+            $wantedRef = "v$Version"
+        }
         $found = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($null -eq $found) {
-            Write-Host 'To add the Specstone plugin to Claude Code, run:'
-            Write-Host '  claude plugin marketplace add nontravis/specstone'
-            Write-Host '  claude plugin install specstone@specstone'
+            Write-ManualPluginCommands $wanted
             return
         }
         $claude = $found.Source
-        $marketplaces = Get-ClaudeList $claude @('plugin', 'marketplace', 'list', '--json')
+        $listMarketplaces = @('plugin', 'marketplace', 'list', '--json')
+        $marketplaces = Get-ClaudeList $claude $listMarketplaces $wanted
         if ($null -eq $marketplaces) {
             return
         }
-        $plugins = Get-ClaudeList $claude @('plugin', 'list', '--json')
+        $entries = @($marketplaces | Where-Object { Test-ExactText (Get-Property $_ 'name') 'specstone' })
+        $entry = $null
+        if ($entries.Count -eq 1) {
+            $entry = $entries[0]
+        }
+        if ($entries.Count -gt 1 -or ($null -ne $entry -and (Get-Property $entry 'source') -isnot [string])) {
+            Write-UnreadableReply $listMarketplaces $wanted
+            return
+        }
+        $plugins = Get-ClaudeList $claude @('plugin', 'list', '--json') $wanted
         if ($null -eq $plugins) {
             return
         }
-        $marketplaceAdded = $false
-        foreach ($item in $marketplaces) {
-            if ((Get-Property $item 'name') -ceq 'specstone') {
-                $marketplaceAdded = $true
-            }
-        }
-        # Project and local installs from other projects never count.
-        $pluginInstalled = $false
-        foreach ($item in $plugins) {
-            if ((Get-Property $item 'id') -ceq 'specstone@specstone' -and (Get-Property $item 'scope') -ceq 'user') {
-                $pluginInstalled = $true
-            }
-        }
-        if (-not $marketplaceAdded) {
-            $added = Invoke-Claude $claude @('plugin', 'marketplace', 'add', 'nontravis/specstone') $true
+        if ($null -eq $entry) {
+            $added = Invoke-Claude $claude @('plugin', 'marketplace', 'add', $wanted) $true
             if ($null -eq $added) {
                 return
             }
+        } else {
+            if (-not (Test-OfficialEntry $entry)) {
+                Write-Host "specstone: marketplace specstone comes from $(Get-EntrySource $entry), not nontravis/specstone; left as it is"
+                Write-PluginCommands $wanted
+            } else {
+                $ref = Get-Property $entry 'ref'
+                if ($ref -isnot [string]) {
+                    $ref = ''
+                }
+                if ($ref -cne $wantedRef) {
+                    if (-not (Move-Marketplace $claude $wanted)) {
+                        return
+                    }
+                    $plugins = @()
+                }
+            }
         }
-        if (-not $pluginInstalled) {
+        if (-not (Test-PluginInstalledForUser $plugins)) {
             $installed = Invoke-Claude $claude @('plugin', 'install', 'specstone@specstone') $true
             if ($null -eq $installed) {
                 return
