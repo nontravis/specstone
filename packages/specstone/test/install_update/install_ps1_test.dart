@@ -165,15 +165,18 @@ void main() {
   group('install.ps1', () {
     // The sandbox strips the environment of a PowerShell 5.1 child; one that
     // inherits the PowerShell 7 module folders of the runner loses
-    // Get-FileHash, and every install fails far from the cause.
+    // Get-FileHash, and every install fails far from the cause. The probe
+    // imports by name, as install.ps1 does, so it stays fast.
     test(
       'the sandbox PowerShell finds the cmdlets install.ps1 calls',
       () async {
         final sb = await createScriptSandbox();
         const names = ['Get-FileHash', 'Expand-Archive', 'Invoke-WebRequest'];
+        const importLine = 'Import-Module -Name Microsoft.PowerShell.Archive';
         final script = File('${sb.root.path}\\probe.ps1')
           ..writeAsStringSync(
             [
+              importLine,
               for (final name in names)
                 '"$name=\$([bool](Get-Command $name -ErrorAction Ignore))"',
             ].join('\r\n'),

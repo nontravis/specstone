@@ -80,25 +80,6 @@ jobs:
         with:
           sdk: 3.13.5
       - run: dart pub get --enforce-lockfile
-      # Windows PowerShell 5.1 writes its module analysis cache on a background
-      # thread about 13 s after a module is analyzed, so a child that lives
-      # shorter never leaves one. This child outlives that delay, so the suite's
-      # children (PSModuleAnalysisCachePath copies this file) start warm. The
-      # step never fails the job: the printed line says whether the file exists.
-      - name: Warm the Windows PowerShell module analysis cache
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $watch = [Diagnostics.Stopwatch]::StartNew()
-          powershell.exe -NoProfile -Command "Get-Command -ListImported | Out-Null; Get-Command Expand-Archive, Invoke-WebRequest, Get-Item | Out-Null; Get-Module -ListAvailable | Out-Null; Start-Sleep -Seconds 15"
-          $cache = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\PowerShell\ModuleAnalysisCache'
-          if (Test-Path -LiteralPath $cache) {
-            "ModuleAnalysisCache exists: $((Get-Item -LiteralPath $cache).Length) bytes"
-          } else {
-            "ModuleAnalysisCache is missing: $cache"
-          }
-          "warm-up took $($watch.ElapsedMilliseconds) ms"
-          exit 0
       - name: Test the PowerShell scripts
         working-directory: packages/specstone
         env:

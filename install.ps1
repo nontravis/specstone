@@ -16,6 +16,12 @@ try {
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
 
+    # Imports by name the modules this script calls cmdlets from. A cmdlet that
+    # command lookup has to find makes a Windows PowerShell 5.1 with no module
+    # analysis cache (a fresh profile, a CI runner) analyze every module folder
+    # first, about 25 s; a module named here is loaded straight from its folder.
+    Import-Module -Name Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility, Microsoft.PowerShell.Archive
+
     $releaseUrl = 'https://github.com/nontravis/specstone/releases/latest/download'
     $supported = 'macOS arm64, macOS x64, Linux x64, Windows x64'
     $tmp = ''
