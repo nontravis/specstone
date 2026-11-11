@@ -67,11 +67,16 @@ void main() {
       'HOME': testHome().path,
       'USERPROFILE': testHome().path,
     };
+    // The CLI writes UTF-8; Process.run decodes with the system code page by
+    // default, which turns the `·` of a naming line into two characters on
+    // Windows, so the batch file would hold naming lines with no base.
     final read = await Process.run(
       binary,
       ['get', story1, story3, fr31],
       workingDirectory: twin.path,
       environment: environment,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
     );
     final folder = await Directory.systemTemp.createTemp('specstone_batch_');
     addTearDown(() => folder.delete(recursive: true));
@@ -87,6 +92,7 @@ void main() {
       ['set', '--batch', batch.path],
       workingDirectory: twin.path,
       environment: environment,
+      stderrEncoding: utf8,
     );
     expect(written.exitCode, 0, reason: '${written.stderr}');
     const docs = [story1, story3, fr31];
