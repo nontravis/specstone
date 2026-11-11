@@ -17,8 +17,9 @@ void main() {
   // with its whitespace runs folded to one space.
   String flat(Object? text) => '$text'.replaceAll(RegExp(r'\s+'), ' ');
 
-  // Every test may write the real user PATH, so each one holds the lock and
-  // gets the PATH it found written back.
+  // A test that can write the real user PATH holds the lock and gets the PATH
+  // it found written back; a refusal before any removal writes nothing, so it
+  // is a plain `test`.
   void pathTest(String name, Future<void> Function() body) =>
       test(name, () => withUserPathLock(body));
 
@@ -209,7 +210,7 @@ void main() {
       );
     });
 
-    pathTest(
+    test(
       'f09/us03/fr01: with neither HOME nor USERPROFILE it refuses',
       () async {
         final sb = await createScriptSandbox();

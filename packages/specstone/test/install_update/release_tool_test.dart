@@ -6,7 +6,6 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import '../../../specstone_core/test/helpers/version_cases.dart';
 import '../helpers/release_repo.dart';
 
 const _check =
@@ -116,24 +115,21 @@ void main() {
     expect(await repo.state(), before);
   });
 
-  // L5: no argv can carry NUL, the OS cuts the argument there, so the
-  // in-process parse alone refuses a NUL entry (Task 2's tests).
-  test('$_check E01: every refused version refuses naming the form and the '
-      'current version', () async {
-    for (final bad in refusedVersions.where((v) => !v.contains('\u0000'))) {
+  // Every form of the Version is judged in process by release_version_test
+  // over the same lists; the tool hands its argument to that parse unchanged,
+  // so one plain case and one carrying a control character cross the process
+  // boundary here.
+  for (final bad in ['v1.2.0', '1.2.0\n']) {
+    test('$_check E01: ${jsonEncode(bad)} refuses naming the form and the '
+        'current version', () async {
       final r = await repo.release([bad]);
 
-      final label = jsonEncode(bad);
-      expect(r.exitCode, 1, reason: label);
-      expect(
-        r.stderr,
-        contains('MAJOR.MINOR.PATCH[-<pre-release>]'),
-        reason: label,
-      );
-      expect(r.stderr, contains('current version is 0.1.0'), reason: label);
-      expect(await repo.state(), before, reason: label);
-    }
-  });
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('MAJOR.MINOR.PATCH[-<pre-release>]'));
+      expect(r.stderr, contains('current version is 0.1.0'));
+      expect(await repo.state(), before);
+    });
+  }
 
   test('$_check E07: a pre-release above the current version passes '
       '--dry-run and changes nothing', () async {

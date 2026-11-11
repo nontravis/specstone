@@ -179,52 +179,63 @@ fi''');
         },
       );
 
-      for (final version in refusedVersions) {
-        // A NUL cannot cross an environment, so only the core test sees it.
-        if (version.isEmpty || version.contains('\u0000')) continue;
-        test('$chosen E02, install_cli_and_plugin S8: refuses '
-            '${jsonEncode(version)} before any download', () async {
-          final sb = await createScriptSandbox();
-          stubCurlServing(sb);
-          sb.installFake();
-          final before = sb.snapshot();
+      // The form check is shell code of its own, so every form runs through
+      // it; one sandbox serves them all, since a refusal changes nothing and
+      // an accepted form reaches the stubbed download and stops there.
+      test('$chosen E02, install_cli_and_plugin S8: every refused form is '
+          'refused before any download', () async {
+        final sb = await createScriptSandbox();
+        stubCurlServing(sb);
+        sb.installFake();
+        final before = sb.snapshot();
+
+        for (final version in refusedVersions) {
+          // A NUL cannot cross an environment, so only the core test sees it.
+          if (version.isEmpty || version.contains('\u0000')) continue;
+          final label = jsonEncode(version);
 
           final r = await sb.run(
             'install.sh',
             extra: {'SPECSTONE_VERSION': version},
           );
 
-          expect(r.exitCode, 1);
+          expect(r.exitCode, 1, reason: label);
           expect(
             r.stderr,
             'specstone: ${shownBytes(version)} '
             'is not a version of the form '
             'MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged\n',
+            reason: label,
           );
-          expect(sb.logOf('curl'), isEmpty);
-          expect(sb.snapshot(), before);
-        });
-      }
+          expect(sb.logOf('curl'), isEmpty, reason: label);
+          expect(sb.snapshot(), before, reason: label);
+        }
+      });
 
-      for (final version in acceptedVersions) {
-        test('$chosen: ${jsonEncode(version)} passes the form check and '
-            'fails as a download', () async {
-          final sb = await createScriptSandbox();
-          stubCurlFailing(sb);
+      test('$chosen: every accepted form passes the form check and fails as a '
+          'download', () async {
+        final sb = await createScriptSandbox();
+        stubCurlFailing(sb);
+
+        for (final (index, version) in acceptedVersions.indexed) {
+          final label = jsonEncode(version);
 
           final r = await sb.run(
             'install.sh',
             extra: {'SPECSTONE_VERSION': version},
           );
 
-          expect(r.exitCode, 1);
-          expect(r.stderr, downloadFailed);
+          expect(r.exitCode, 1, reason: label);
+          expect(r.stderr, downloadFailed, reason: label);
+          final log = sb.logOf('curl');
+          expect(log, hasLength(index + 1), reason: label);
           expect(
-            sb.logOf('curl').single,
+            log.last,
             endsWith('$releases/download/v$version/$asset'),
+            reason: label,
           );
-        });
-      }
+        }
+      });
 
       test('$chosen E03: a version no release carries fails as a failed '
           'download, the install unchanged', () async {

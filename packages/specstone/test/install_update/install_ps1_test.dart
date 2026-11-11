@@ -1,6 +1,6 @@
 @TestOn('windows')
 @Tags(['ps1'])
-@Timeout(Duration(minutes: 10))
+@Timeout(Duration(minutes: 3))
 library;
 
 import 'dart:convert';
@@ -43,8 +43,9 @@ void main() {
   // with its whitespace runs folded to one space.
   String flat(Object? text) => '$text'.replaceAll(RegExp(r'\s+'), ' ');
 
-  // Every test may write the real user PATH, so each one holds the lock and
-  // gets the PATH it found written back.
+  // A test that can write the real user PATH holds the lock and gets the PATH
+  // it found written back; a refusal or a failed download before the PATH step
+  // writes nothing, so it is a plain `test`.
   void pathTest(String name, Future<void> Function() body) =>
       test(name, () => withUserPathLock(body));
 
@@ -186,7 +187,7 @@ void main() {
       ]);
     });
 
-    pathTest('f09/us01/fr01/e03: Windows on ARM64 refuses naming the four '
+    test('f09/us01/fr01/e03: Windows on ARM64 refuses naming the four '
         'targets, exit 1', () async {
       final sb = await createScriptSandbox();
 
@@ -203,7 +204,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    pathTest('f09/us01/fr01: a 32-bit PowerShell on 64-bit Windows reads '
+    test('f09/us01/fr01: a 32-bit PowerShell on 64-bit Windows reads '
         'PROCESSOR_ARCHITEW6432 first', () async {
       final sb = await createScriptSandbox();
 
@@ -223,7 +224,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    pathTest('f09/us01/fr01: with neither HOME nor USERPROFILE it '
+    test('f09/us01/fr01: with neither HOME nor USERPROFILE it '
         'refuses', () async {
       final sb = await sandboxWith();
 
@@ -237,7 +238,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    pathTest('f09/us01/fr02/e03, f09/us01/s6: a damaged zip throws, exit 1, '
+    test('f09/us01/fr02/e03, f09/us01/s6: a damaged zip throws, exit 1, '
         'the install unchanged', () async {
       final sb = await sandboxWith(damaged: true);
       sb.installFake();
@@ -449,6 +450,13 @@ void main() {
       // to Invoke-Expression). A refusal prints whether its text was printable
       // ASCII before the host encodes it; the pipe run prints whether the
       // caller still holds `$Version`.
+      //
+      // The two `forms` modes run the script once per line of HARNESS_FORMS
+      // (a UTF-8 text in base64 per line) in one session, as `-File` does
+      // and as the iex line does with the line as its args, and print one
+      // line per form: `FORM <n> RAN`, or `FORM <n> PRINTABLE=<bool>
+      // CAUGHT=<message>`. Each PowerShell start costs seconds on a runner,
+      // so the form lists run here and not one process per form.
       const harness = r'''
 function Invoke-WebRequest {
   param([switch]$UseBasicParsing, [int]$TimeoutSec, [string]$Uri, [string]$OutFile)
@@ -468,6 +476,23 @@ if ($env:HARNESS_MODE -eq 'iex') {
 } elseif ($env:HARNESS_MODE -eq 'pipe') {
   Get-Content -Raw -LiteralPath $env:INSTALL_PS1 | Invoke-Expression
   'VERSION_DEFINED=' + ($null -ne (Get-Variable -Name Version -ErrorAction SilentlyContinue))
+} elseif ($env:HARNESS_MODE -eq 'forms' -or $env:HARNESS_MODE -eq 'iexforms') {
+  $installText = Get-Content -Raw -LiteralPath $env:INSTALL_PS1
+  $index = 0
+  foreach ($encoded in Get-Content -LiteralPath $env:HARNESS_FORMS) {
+    $form = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+    try {
+      if ($env:HARNESS_MODE -eq 'iexforms') {
+        Invoke-Expression "& {$installText} $form"
+      } else {
+        & $env:INSTALL_PS1 -Version $form
+      }
+      "FORM $index RAN"
+    } catch {
+      "FORM $index PRINTABLE=" + ($_.Exception.Message -cmatch '\A[\x20-\x7E]*\z') + ' CAUGHT=' + $_.Exception.Message
+    }
+    $index++
+  }
 } else {
   try {
     & $env:INSTALL_PS1 -Version $env:SPECSTONE_TEST_VERSION
@@ -502,6 +527,41 @@ if ($env:HARNESS_MODE -eq 'iex') {
             'STUB_WEB_FAIL': isDownloadFailing ? '1' : '',
           },
         );
+      }
+
+      // Runs every text of [forms] through one session of the script and
+      // returns the printed `FORM` lines, one per form, in order. A form of
+      // the iex shape is the line's argument text.
+      Future<List<String>> runForms(
+        ScriptSandbox sb,
+        List<String> forms, {
+        _Shape shape = _Shape.file,
+        bool isDownloadFailing = false,
+      }) async {
+        final file = File('${sb.root.path}\\harness.ps1')
+          ..writeAsStringSync(harness);
+        final encoded = [
+          for (final form in forms) base64.encode(utf8.encode(form)),
+        ];
+        final list = File('${sb.root.path}\\forms.txt')
+          ..writeAsStringSync('${encoded.join('\n')}\n');
+        final r = await sb.run(
+          file.path,
+          extra: {
+            'ARCHIVES': sb.archives.path,
+            'INSTALL_PS1': '${repoRoot().path}\\install.ps1',
+            'HARNESS_MODE': shape == _Shape.iex ? 'iexforms' : 'forms',
+            'HARNESS_FORMS': list.path,
+            'STUB_WEB_FAIL': isDownloadFailing ? '1' : '',
+          },
+        );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        final lines = [
+          for (final line in (r.stdout as String).split(RegExp(r'\r?\n')))
+            if (line.startsWith('FORM ')) line,
+        ];
+        expect(lines, hasLength(forms.length), reason: '${r.stdout}');
+        return lines;
       }
 
       Future<ScriptSandbox> sandboxServing(String version) async {
@@ -569,11 +629,37 @@ if ($env:HARNESS_MODE -eq 'iex') {
         },
       );
 
-      for (final version in refusedVersions) {
-        // An environment value cannot hold NUL; `-Version ''` is no version.
-        if (version.isEmpty || version.contains('\u0000')) continue;
-        pathTest('$chosen E02, install_cli_and_plugin S8: refuses '
-            '${named(version)} before any download', () async {
+      // Every refused form runs in one session; a NUL crosses in the base64
+      // text, which an environment value could not carry. `-Version ''` is no
+      // version.
+      test('$chosen E02, install_cli_and_plugin S8: every refused form is '
+          'refused before any download', () async {
+        final forms = [
+          for (final v in refusedVersions)
+            if (v.isNotEmpty) v,
+        ];
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final lines = await runForms(sb, forms);
+
+        for (final (index, version) in forms.indexed) {
+          expect(
+            flat(lines[index]),
+            flat('FORM $index PRINTABLE=True CAUGHT=${refusal(version)}'),
+            reason: named(version),
+          );
+        }
+        expect(sb.logOf('web'), isEmpty);
+        expect(sb.snapshot(), before);
+      });
+
+      // One plain form and one outside ASCII cross the real process boundary:
+      // the second is the one a host encoding could change.
+      for (final version in ['v1.2.0', '1.2.0-\u00e9']) {
+        test('$chosen E02, install_cli_and_plugin S8: a process given '
+            '${named(version)} refuses before any download', () async {
           final sb = await createScriptSandbox();
           sb.installFake();
           final before = sb.snapshot();
@@ -589,7 +675,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       }
 
       // The iex line reads a bare token; a NUL needs a quoted one.
-      for (final (iexVersion, argsText) in [
+      const iexForms = [
         ('v1.2.0', '-Version v1.2.0'),
         ('1.2', '-Version 1.2'),
         ('01.2.0', '-Version 01.2.0'),
@@ -597,31 +683,48 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ('1.2.0-beta.01', '-Version 1.2.0-beta.01'),
         ('1.2.0+build.5', '-Version 1.2.0+build.5'),
         ('1.2.0\u0000', '-Version "1.2.0`0"'),
-      ]) {
-        pathTest(
-          '$chosen E02 (iex line): refuses ${named(iexVersion)} as a throw, '
-          'the session goes on',
-          () async {
-            final sb = await createScriptSandbox();
-            sb.installFake();
-            final before = sb.snapshot();
+      ];
+      test('$chosen E02 (iex line): every refused form is a throw, the session '
+          'goes on', () async {
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
 
-            final r = await runHarness(
-              sb,
-              shape: _Shape.iex,
-              iexArgs: argsText,
-            );
+        final lines = await runForms(sb, [
+          for (final (_, argsText) in iexForms) argsText,
+        ], shape: _Shape.iex);
 
-            expect(r.exitCode, 0, reason: '${r.stderr}');
-            expect(flat(r.stdout), contains('CAUGHT=${refusal(iexVersion)}'));
-            expect(r.stdout, contains('PRINTABLE=True'));
-            expect(sb.logOf('web'), isEmpty);
-            expect(sb.snapshot(), before);
-          },
+        for (final (index, (version, _)) in iexForms.indexed) {
+          expect(
+            flat(lines[index]),
+            flat('FORM $index PRINTABLE=True CAUGHT=${refusal(version)}'),
+            reason: named(version),
+          );
+        }
+        expect(sb.logOf('web'), isEmpty);
+        expect(sb.snapshot(), before);
+      });
+
+      test('$chosen E02 (iex line): a process given a refused form throws and '
+          'the session goes on', () async {
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final r = await runHarness(
+          sb,
+          shape: _Shape.iex,
+          iexArgs: '-Version v1.2.0',
         );
-      }
 
-      pathTest('$chosen E02: a positional argument is the version, so one '
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains('CAUGHT=${refusal('v1.2.0')}'));
+        expect(r.stdout, contains('PRINTABLE=True'));
+        expect(sb.logOf('web'), isEmpty);
+        expect(sb.snapshot(), before);
+      });
+
+      test('$chosen E02: a positional argument is the version, so one '
           'outside the form is refused', () async {
         final sb = await sandboxWith();
         sb.installFake();
@@ -647,32 +750,38 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('web'), isEmpty);
       });
 
-      for (final version in acceptedVersions) {
-        pathTest(
-          '$chosen: ${named(version)} passes the form check and fails as a '
-          'download',
-          () async {
-            final sb = await createScriptSandbox();
+      test('$chosen: every accepted form passes the form check and fails as a '
+          'download', () async {
+        final sb = await createScriptSandbox();
 
-            final r = await runHarness(
-              sb,
-              version: version,
-              isDownloadFailing: true,
-            );
-
-            expect(r.exitCode, 1);
-            expect(flat(r.stderr), contains(downloadFailed));
-            expect(flat(r.stderr), isNot(contains(refusalTail)));
-            expect(
-              sb.logOf('web').single,
-              endsWith('$releases/download/v$version/$asset'),
-            );
-          },
+        final lines = await runForms(
+          sb,
+          acceptedVersions,
+          isDownloadFailing: true,
         );
-      }
+
+        final web = sb.logOf('web');
+        expect(web, hasLength(acceptedVersions.length));
+        for (final (index, version) in acceptedVersions.indexed) {
+          expect(
+            flat(lines[index]),
+            allOf(
+              startsWith('FORM $index PRINTABLE=True CAUGHT='),
+              contains(downloadFailed),
+              isNot(contains(refusalTail)),
+            ),
+            reason: named(version),
+          );
+          expect(
+            web[index],
+            endsWith('$releases/download/v$version/$asset'),
+            reason: named(version),
+          );
+        }
+      });
 
       for (final (shape, label) in versionShapes) {
-        pathTest('$chosen E03 ($label): a version no release carries fails as '
+        test('$chosen E03 ($label): a version no release carries fails as '
             'a failed download, the install unchanged', () async {
           final sb = await createScriptSandbox();
           sb.installFake();

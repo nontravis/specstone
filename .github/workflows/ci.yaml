@@ -82,4 +82,13 @@ jobs:
       - run: dart pub get --enforce-lockfile
       - name: Test the PowerShell scripts
         working-directory: packages/specstone
-        run: dart test --tags ps1
+        run: >-
+          dart test --tags ps1 -r expanded --timeout 3m
+          --file-reporter json:ps1-results.json
+      # The JSON file names every test with its start and end time, so a
+      # cancelled or timed-out run still shows which test it stood in.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ps1-results
+          path: packages/specstone/ps1-results.json
