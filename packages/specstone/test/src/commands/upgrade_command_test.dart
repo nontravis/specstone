@@ -601,7 +601,7 @@ void main() =>
 
     String irmLine(String version) =>
         'iex "& {\$(irm ${_rawBase}v$version/install.ps1)} '
-        '-Version $version"';
+        "-Version '$version'\"";
 
     for (final asWindows in [false, true]) {
       final host = asWindows ? 'Windows' : 'a POSIX host';

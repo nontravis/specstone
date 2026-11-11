@@ -2,7 +2,7 @@
 #   irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex
 # A version, such as the pre-release 1.2.0-beta.1, installs from the script of
 # its own tag:
-#   iex "& {$(irm https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.ps1)} -Version X.Y.Z"
+#   iex "& {$(irm https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.ps1)} -Version 'X.Y.Z'"
 # The whole body sits in one & { } block. A truncated stream does not parse, so
 # it runs nothing, and the strict mode and error preference set inside the block
 # never reach the caller's session. A refusal throws; it never calls exit, which

@@ -314,7 +314,7 @@ class UpgradeCommand extends SpecstoneCommand {
   // since `main` holds the last full release's script.
   String _installLineFor(ReleaseVersion version) => windows
       ? 'iex "& {\$(irm ${_rawContentBase}v$version/install.ps1)} '
-            '-Version $version"'
+            "-Version '$version'\""
       : 'curl -fsSL ${_rawContentBase}v$version/install.sh | '
             '$_pinnedVersionVariable=$version sh';
 
