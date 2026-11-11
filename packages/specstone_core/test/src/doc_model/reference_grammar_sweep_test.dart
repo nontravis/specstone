@@ -172,6 +172,16 @@ final _allowed = <_Allowed>[
     r"""RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:'""",
     'Scheme or drive prefix of a template file path.',
   ),
+  _core(
+    'executable_lookup.dart',
+    ".split(':'",
+    'Splits the POSIX PATH variable into folders.',
+  ),
+  _core(
+    'executable_lookup.dart',
+    r"""RegExp(r'^(?:[A-Za-z]:[\\/]|\\\\)'""",
+    'Windows drive or UNC prefix of a PATH folder.',
+  ),
 ];
 
 /// A `split`, `indexOf`, or `lastIndexOf` call whose argument is `#` or `:`.

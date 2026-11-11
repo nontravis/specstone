@@ -98,7 +98,15 @@ bool _isCovered(List<String> covers, String path) => covers.any(
 );
 
 bool _namesSomething(CheckContext context, String entry) =>
+    namesFileOrFolderFrom(context.codeRoot, entry);
+
+/// Whether [entry], in [normalCodeEntry]'s form, is a file or a folder from
+/// [base].
+///
+/// The one rule `check` and the migrate's `code_root` count resolve a
+/// `covers` or `code` entry by.
+bool namesFileOrFolderFrom(Directory base, String entry) =>
     FileSystemEntity.typeSync(
-      '${context.codeRoot.path}$_separator${normalCodeEntry(entry)}',
+      '${base.path}$_separator${normalCodeEntry(entry)}',
     ) !=
     FileSystemEntityType.notFound;

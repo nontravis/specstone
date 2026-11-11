@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/executable_lookup.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 
 /// Runs `git` with [arguments] in [workingDirectory].
@@ -82,12 +83,128 @@ ProcessResult _startGit(
   required String workingDirectory,
   Map<String, String>? environment,
 }) => Process.runSync(
-  'git',
+  _gitProgram(arguments),
   [..._explicitBareRepository, ...arguments],
   workingDirectory: workingDirectory,
-  environment: environment,
+  environment: gitChildEnvironment(
+    inherited: Platform.environment,
+    localVariables: _localEnvVars(),
+    own: environment,
+    ignoresCase: Platform.isWindows,
+  ),
+  includeParentEnvironment: false,
   stdoutEncoding: utf8,
 );
+
+/// Returns the one `git` this process starts, found on its absolute `PATH`
+/// entries only.
+///
+/// Throws [ProcessException], a git that cannot start, when none holds one:
+/// a bare `git` would also run one the current folder supplies.
+String _gitProgram(List<String> arguments) =>
+    findOnProcessPath('git') ??
+    (throw ProcessException(
+      'git',
+      arguments,
+      'no git on an absolute PATH entry',
+    ));
+
+/// The listed variables that stay in the child environment, as git's own
+/// `sanitize_repo_env` keeps them: `git -c` settings and config the
+/// environment supplies reach git through them.
+const _keptLocalVariables = {'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT'};
+
+/// Returns [inherited] without each of [localVariables] but
+/// [_keptLocalVariables], then with [own] on top.
+///
+/// A git hook or `git bisect run` exports the listed variables to point git at
+/// its own repository; dropping them has git run against the repository of its
+/// working folder. Names compare case-blind when [ignoresCase], as on Windows,
+/// where an [own] name also replaces each inherited name that differs from it
+/// in case.
+Map<String, String> gitChildEnvironment({
+  required Map<String, String> inherited,
+  required Iterable<String> localVariables,
+  Map<String, String>? own,
+  required bool ignoresCase,
+}) {
+  String fold(String name) => ignoresCase ? name.toUpperCase() : name;
+  final removed = {
+    for (final name in localVariables)
+      if (!_keptLocalVariables.contains(name)) fold(name),
+    for (final name in own?.keys ?? const <String>[]) fold(name),
+  };
+  return {
+    for (final MapEntry(:key, :value) in inherited.entries)
+      if (!removed.contains(fold(key))) key: value,
+    ...?own,
+  };
+}
+
+/// Returns the names a `git rev-parse --local-env-vars` [result] lists, one
+/// per non-empty line.
+///
+/// Throws [ProcessException] when git exited non-zero or listed no name, since
+/// git always lists at least `GIT_DIR`.
+List<String> localEnvVarsFrom(ProcessResult result) {
+  if (result.exitCode != 0) {
+    throw ProcessException(
+      'git',
+      _localEnvVarsArguments,
+      '${result.stderr}'.trim(),
+      result.exitCode,
+    );
+  }
+  final names = [
+    for (final line in const LineSplitter().convert('${result.stdout}'))
+      if (line.trim().isNotEmpty) line.trim(),
+  ];
+  if (names.isEmpty) {
+    throw const ProcessException(
+      'git',
+      _localEnvVarsArguments,
+      'listed no name',
+    );
+  }
+  return names;
+}
+
+const List<String> _localEnvVarsArguments = [
+  ..._explicitBareRepository,
+  'rev-parse',
+  '--local-env-vars',
+];
+
+/// What the one list query of this process returned: the names, or the failure.
+({List<String>? names, ProcessException? failure})? _localEnvVarsOutcome;
+
+/// Returns the listed variable names, asking git once per process.
+///
+/// The query runs with the inherited environment and outside [guardedGit], as
+/// `git --version` does, since it reads no repository. A failure is cached and
+/// thrown again on each call.
+List<String> _localEnvVars() {
+  final outcome = _localEnvVarsOutcome ??= _queryLocalEnvVars();
+  final failure = outcome.failure;
+  if (failure != null) throw failure;
+  return outcome.names!;
+}
+
+/// Runs the query in the temp folder, not in a caller's folder: the outcome is
+/// cached for every folder, so it must depend on git alone.
+({List<String>? names, ProcessException? failure}) _queryLocalEnvVars() {
+  try {
+    final result = Process.runSync(
+      _gitProgram(_localEnvVarsArguments),
+      _localEnvVarsArguments,
+      workingDirectory: Directory.systemTemp.path,
+      stdoutEncoding: utf8,
+    );
+    return (names: localEnvVarsFrom(result), failure: null);
+  } on ProcessException catch (failure) {
+    return (names: null, failure: failure);
+  }
+}
 
 /// The command a refusal tells the user to run again, when `migrate` is the one
 /// that refused.

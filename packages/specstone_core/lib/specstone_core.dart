@@ -24,6 +24,7 @@ export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
 export 'src/document_writing/write_session.dart' show WriteSession;
+export 'src/executable_lookup.dart' show findExecutable;
 export 'src/fault.dart';
 export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
 export 'src/index_query/bundle_render.dart' show answerContext;

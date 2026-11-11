@@ -9,6 +9,7 @@ import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
@@ -864,7 +865,7 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
   final journal = File(_join(projectRoot.path, MoveJournal.journalPath));
   if (!journal.existsSync()) return null;
   try {
-    return _stepsIn(journal.readAsBytesSync());
+    return _stepsIn(readPlanInput(journal));
   } on FileSystemException catch (error) {
     throw _notWritable('read', MoveJournal.journalPath, error);
   }
@@ -966,7 +967,7 @@ String? _firstOutside(
   if (!journal.existsSync()) return null;
   final List<int> bytes;
   try {
-    bytes = journal.readAsBytesSync();
+    bytes = readPlanInput(journal);
   } on FileSystemException catch (error) {
     throw _notWritable('read', MoveJournal.journalPath, error);
   }
@@ -1098,7 +1099,7 @@ int? _cursorOf(Directory projectRoot, List<JournalStep> steps) {
   if (!file.existsSync()) return null;
   final String text;
   try {
-    text = String.fromCharCodes(file.readAsBytesSync());
+    text = String.fromCharCodes(readPlanInput(file));
   } on FileSystemException catch (error) {
     throw _notWritable('read', MoveJournal.cursorPath, error);
   }

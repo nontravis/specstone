@@ -738,8 +738,160 @@ void main() {
     );
     expect(
       out.toString(),
-      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+      matches(
+        RegExp(
+          r'\n  \.specstone/config\.yaml: .*; code_root code \(1 of 2 paths\)\n',
+        ),
+      ),
     );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e05: init on a legacy root reached through a docs link '
+      'infers the same code_root as migrate run from that folder', () async {
+    final tree = await writeTree({
+      ...linkedAcme({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        '.gitignore': 'code/docs\n',
+      }),
+      // The code sits above the project root, at the repository top.
+      'lib/a.dart': 'class A {}\n',
+    });
+    if (!linkCodeDocs(tree)) return;
+    commitRepo(tree);
+    final code = Directory('${tree.path}/ws/code');
+    locateSetupTrust(code, homeDirectory: testHome()).record();
+    final initOut = StringBuffer();
+    final migrateOut = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: code,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: initOut,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(isA<WriteFault>()),
+    );
+    expect(
+      runMigrate(
+        MigrateRequest(
+          workingDirectory: code,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: true,
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: migrateOut,
+          runGit: runRealGit,
+        ),
+      ),
+      0,
+    );
+
+    final line = RegExp(
+      r'\n  \.specstone/config\.yaml: .*; code_root (\S+) \(1 of 2 paths\)\n',
+    );
+    expect(line.firstMatch(initOut.toString())?.group(1), '..');
+    expect(
+      line.firstMatch(migrateOut.toString())?.group(1),
+      line.firstMatch(initOut.toString())?.group(1),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: the legacy entry refuses untrusted roots before any '
+      'git call', () async {
+    final tree = await writeTree(linkedAcme({}));
+    if (!linkCodeDocs(tree)) return;
+    final calls = <List<String>>[];
+
+    expect(
+      () => _run(
+        Directory('${tree.path}/ws/code'),
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        runGit: (arguments, {required workingDirectory, environment}) {
+          calls.add(arguments);
+          return runRealGit(arguments, workingDirectory: workingDirectory);
+        },
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (f) => f.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      ),
+    );
+    expect(calls, isEmpty);
+  });
+
+  test('f06/us03/fr01/e02: the legacy entry refuses a dirty tree before the '
+      'plan prints', () async {
+    final root = await gitFixture(acmeLegacy);
+    File('${root.path}/notes.txt').writeAsStringSync('x\n');
+    final out = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: root,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: out,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.workingTreeDirty,
+        ),
+      ),
+    );
+    expect(out.toString(), isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: the legacy entry outside a git work tree, or in a '
+      'repository with no first commit, refuses git_work_tree_required '
+      'before the plan prints', () async {
+    final outside = await writeTree(acmeLegacy);
+    final unborn = await writeTree(acmeLegacy);
+    expect(git(unborn, ['init', '-q']).exitCode, 0);
+
+    for (final root in [outside, unborn]) {
+      final out = StringBuffer();
+
+      expect(
+        () => runInit(
+          InitRequest(
+            workingDirectory: root,
+            homeDirectory: testHome(),
+            templates: TemplateResolver(),
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => 'y',
+            out: out,
+            runGit: runRealGit,
+          ),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitWorkTreeRequired,
+          ),
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+    }
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '

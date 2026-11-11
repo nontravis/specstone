@@ -54,6 +54,11 @@ void main() {
       );
       expect(MigrateFaultCode.agentBlockMalformed.exitStatus, 65);
     });
+
+    test('f06/us01/fr03/e14: legacy_collision exits 65', () {
+      expect(MigrateFaultCode.legacyCollision.wire, 'legacy_collision');
+      expect(MigrateFaultCode.legacyCollision.exitStatus, 65);
+    });
   });
 
   group('MigrateFault', () {

@@ -11,6 +11,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove, rewriteDocLinksCounted;
 import 'package:specstone_core/src/document_writing/write_session.dart'
     show cannotRead;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -90,7 +91,7 @@ File docFileOf(Directory docsRoot, String docPath) {
 DocText? readDocFile(File file, {required String docPath}) {
   final List<int> bytes;
   try {
-    bytes = file.readAsBytesSync();
+    bytes = readPlanInput(file);
   } on FileSystemException catch (error) {
     throw cannotRead(docPath, error);
   }

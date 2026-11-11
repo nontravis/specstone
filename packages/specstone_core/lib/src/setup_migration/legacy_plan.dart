@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
@@ -15,10 +16,12 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
+import 'package:specstone_core/src/setup_migration/code_root_inference.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart'
     show LabelTree, numberLabelsPlanLine, withLabelAnchorsMoved;
@@ -43,6 +46,8 @@ const _docsFolder = 'docs/';
 const _specIndexPath = 'specs/INDEX.md';
 final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
+const _appliesToField = 'applies_to';
+const _coversField = 'covers';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -58,9 +63,11 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 ///
 /// Reads the files under `docs/prds` and `docs/specs`, the carried packs, and
 /// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`
-/// and a `TemplateFault` before it returns, so a refused run prints nothing.
-/// A created config names [linkFolder] as its `code_root` when more legacy
-/// `implements` paths name a file from there than from [root].
+/// or `legacy_collision` and a `TemplateFault` before it returns, so a refused
+/// run prints nothing. The plan's `inputs` hold every file it read.
+/// A created config, or a rewritten one with no `code_root:` key, names the
+/// folder from which the most cited code paths exist as its `code_root`
+/// (`write_project_files` E11).
 ///
 /// - [homeDirectory]: the personal pack home, or null.
 /// - [linkFolder]: the canonical folder whose `docs` link led to [root], or
@@ -70,6 +77,26 @@ RunPlan planLegacyRun(
   required TemplateResolver templates,
   required Directory? homeDirectory,
   Directory? linkFolder,
+}) {
+  final inputs = PlanInputs(root);
+  return inputs.collect(
+    () => _legacyRunOf(
+      root,
+      templates: templates,
+      homeDirectory: homeDirectory,
+      linkFolder: linkFolder,
+      inputs: inputs,
+    ),
+  );
+}
+
+/// Plans the legacy run of [root] while [inputs] records each file read.
+RunPlan _legacyRunOf(
+  Directory root, {
+  required TemplateResolver templates,
+  required Directory? homeDirectory,
+  required Directory? linkFolder,
+  required PlanInputs inputs,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
@@ -119,11 +146,19 @@ RunPlan planLegacyRun(
 
   final config = File.fromUri(root.uri.resolve(projectConfigPath));
   final existing = config.existsSync() ? ProjectConfig.read(root) : null;
-  final codeRoot =
-      existing?.codeRoot ??
-      (linkFolder == null
-          ? '.'
-          : _codeRootOf(root, linkFolder, originals.values));
+  final inferred = existing?.hasCodeRoot ?? false
+      ? null
+      : inferCodeRoot(
+          root,
+          linkFolder: linkFolder,
+          implementsEntries: [
+            for (final original in originals.values)
+              ..._entriesOf(original.lf, implementsField),
+          ],
+          coversEntries: [for (final work in titled.works) ...work.citedCovers],
+        );
+  final codeRoot = inferred?.value ?? existing?.codeRoot ?? '.';
+  final codeRootNote = _codeRootNoteOf(inferred);
   final agentFiles = _agentFilesOf(
     root,
     codeRoot: codeRoot,
@@ -135,6 +170,8 @@ RunPlan planLegacyRun(
           config,
           existing,
           pins,
+          codeRoot: codeRoot,
+          note: codeRootNote,
           agentFileRoots: agentFiles.agentFileRoots,
         );
 
@@ -160,9 +197,7 @@ RunPlan planLegacyRun(
             codeRoot: codeRoot,
             agentFileRoots: agentFiles.agentFileRoots,
           ),
-          note:
-              ': ${_pinList(pins)}'
-              '${codeRoot == '.' ? '' : '; code_root $codeRoot'}',
+          note: ': ${_pinList(pins)}$codeRootNote',
         ),
       if (!File.fromUri(root.uri.resolve(specstoneGitignorePath)).existsSync())
         PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
@@ -173,6 +208,7 @@ RunPlan planLegacyRun(
     left: legacy.left,
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
+    inputs: inputs,
     closingLine: legacyClosingLine,
     agentFiles: agentFiles,
   );
@@ -260,6 +296,10 @@ final class _Work {
   final List<String> changes = [];
   String note = '';
 
+  /// The `covers:` entries the run writes for the doc: a topic's legacy
+  /// `applies_to:` entries, an architecture doc's Spec map Code paths.
+  List<String> citedCovers = const [];
+
   /// Whether the doc is an API doc renamed to `API.md`, whose fingerprints
   /// need the rewritten FR texts.
   bool get awaitsFingerprints =>
@@ -277,33 +317,19 @@ Map<String, DocText> _originalsOf(Directory docsRoot, List<String> docPaths) =>
           docPath: ?readDocFile(docFileOf(docsRoot, docPath), docPath: docPath),
     };
 
-/// Returns the code root of a created config: [linkFolder] from [root] when
-/// more `implements` entries of [originals] name a file from it, else `.`.
-///
-/// An entry counts by [ImplementsEntry.namesFileFrom], the rule `check`
-/// resolves it by. A tie keeps `.`, as does a [linkFolder] whose path from
-/// [root] the config reader would refuse or no relative path reaches.
-String _codeRootOf(
-  Directory root,
-  Directory linkFolder,
-  Iterable<DocText> originals,
-) {
-  var fromRoot = 0;
-  var fromLink = 0;
-  for (final original in originals) {
-    for (final (:value, line: _, text: _) in DocLines.of(
-      original.lf,
-    ).entriesOf(implementsField)) {
-      if (value is! String) continue;
-      final entry = ImplementsEntry(value);
-      if (entry.namesFileFrom(root)) fromRoot++;
-      if (entry.namesFileFrom(linkFolder)) fromLink++;
-    }
-  }
-  if (fromLink <= fromRoot) return '.';
-  final relative = relativeFolderPath(root, linkFolder);
-  return relative != null && isCodeRootValue(relative) ? relative : '.';
-}
+/// Returns the plan line part naming [inferred], empty when the run cited no
+/// code path or inferred none.
+String _codeRootNoteOf(CodeRootChoice? inferred) =>
+    inferred == null || inferred.cited == 0
+    ? ''
+    : '; code_root ${inferred.value} '
+          '(${inferred.found} of ${inferred.cited} paths)';
+
+/// Returns the string entries of the frontmatter field [field] of [lf].
+List<String> _entriesOf(String lf, String field) => [
+  for (final (:value, line: _, text: _) in DocLines.of(lf).entriesOf(field))
+    if (value is String) value,
+];
 
 /// Applies the title, key, and covers rewrites to every markdown doc the run
 /// places or leaves.
@@ -339,6 +365,9 @@ _Titled _titledWorksOf(
   for (final work in works) {
     final kind = work.kind;
     if (kind == null) continue;
+    if (kind == LegacyKind.topic) {
+      work.citedCovers = _entriesOf(work.lf, _appliesToField);
+    }
     final rewrite = rewriteLegacyDoc(work.lf, kind, gnfrHeaders: carriedGnfr);
     work.lf = rewrite.lf;
     work.changes.addAll(rewrite.changes);
@@ -358,6 +387,7 @@ _Titled _titledWorksOf(
       final covers = coversOf(_folderOf(work.legacyPath), specMap);
       if (covers != null) {
         work.lf = withKeyBlock(work.lf, 'covers', covers.block);
+        work.citedCovers = _entriesOf(work.lf, _coversField);
         work.changes.add(covers.label);
       }
     }
@@ -555,29 +585,36 @@ bool _existsIn(Directory docsRoot, String path) =>
     FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
     FileSystemEntityType.notFound;
 
-/// Returns the config rewrite that sets the carried [pins] and keeps every
-/// other pin and the code root of the [existing] config, or null when the
-/// text stays.
+/// Returns the config rewrite that sets the carried [pins] and the [codeRoot]
+/// and keeps every other pin of the [existing] config, or null when the text
+/// stays.
 ///
-/// [agentFileRoots] is the full list the run leaves in the config.
+/// [codeRoot] is the config's own value, or the one inferred for a config with
+/// no key; a config that holds the key keeps its line, `.` included. [note]
+/// ends the plan line. [agentFileRoots] is the full list the run
+/// leaves in the config.
 PlannedRewrite? _configRewriteOf(
   File config,
   ProjectConfig existing,
   Map<String, PackVersion> pins, {
+  required String codeRoot,
+  required String note,
   required List<String> agentFileRoots,
 }) {
   final text = configText(
     {...existing.pins, ...pins},
-    codeRoot: existing.codeRoot,
+    codeRoot: codeRoot,
+    keepCodeRootKey: existing.hasCodeRoot,
     agentFileRoots: agentFileRoots,
   );
-  final current = config.readAsStringSync();
+  final current = utf8.decode(readPlanInput(config));
   if (text == current) return null;
   return PlannedRewrite(
     path: projectConfigPath,
     text: text,
     before: textHashOf(current),
     changes: ['pins'],
+    note: note,
   );
 }
 

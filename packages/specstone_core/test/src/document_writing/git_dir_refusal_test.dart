@@ -148,31 +148,41 @@ void main() {
     expect(out.toString(), isEmpty);
   }, skip: _skip);
 
-  test('delete --dry-run refuses a committed git dir on a git '
-      'before 2.38 and runs no command', () {
-    expectRefusedUntouched(
-      () => writeIn(
-        clone,
-        (s) => answerDeleteDryRun(s, const [_draft], runGit: _olderGit),
-      ),
-    );
+  test('delete --dry-run lists the unit of a committed git dir and runs no '
+      'command', () {
+    final answer = writeIn(clone, (s) => answerDeleteDryRun(s, const [_draft]));
+
+    expect(answer.json['files'], isNotEmpty);
+    expect(marker.existsSync(), isFalse, reason: 'a git command ran');
+    expect(treeBytes(Directory('${evil.path}/docs')), docsBefore);
   }, skip: _skip);
 
-  test('delete --yes --plan refuses a committed git dir on a '
-      'git before 2.38, before it compares the plan, and deletes nothing', () {
-    expectRefusedUntouched(
-      () => writeIn(
-        clone,
-        (s) => answerDelete(
-          s,
-          const [_draft],
-          confirmation: OwnerConfirmation.given,
-          readLine: () => null,
-          prompts: StringBuffer(),
-          planHash: 'not-the-plan',
-          runGit: _olderGit,
-        ),
+  test('delete --yes --plan removes the unit of a committed git dir and runs '
+      'no command', () {
+    final plan =
+        writeIn(
+              clone,
+              (s) => answerDeleteDryRun(s, const [_draft]),
+            ).json['plan']!
+            as String;
+
+    final answer = writeIn(
+      clone,
+      (s) => answerDelete(
+        s,
+        const [_draft],
+        confirmation: OwnerConfirmation.given,
+        readLine: () => null,
+        prompts: StringBuffer(),
+        planHash: plan,
       ),
+    );
+
+    expect(answer.json['removed'], isNotEmpty);
+    expect(marker.existsSync(), isFalse, reason: 'a git command ran');
+    expect(
+      treeBytes(Directory('${evil.path}/docs')).length,
+      lessThan(docsBefore.length),
     );
   }, skip: _skip);
 }

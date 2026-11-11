@@ -13,7 +13,8 @@ enum MigrateFaultCode {
   configExists('config_exists', 64),
   gitFailed('git_failed', 75),
   planMismatch('plan_mismatch', 75),
-  agentBlockMalformed('agent_block_malformed', 65);
+  agentBlockMalformed('agent_block_malformed', 65),
+  legacyCollision('legacy_collision', 65);
 
   new(this.wire, this.exitStatus);
 

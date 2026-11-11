@@ -37,13 +37,18 @@ const _yamlWords = {'true', 'false', 'null'};
 /// Returns the `config.yaml` text pinning each of [pins] (INV-15).
 ///
 /// Writes `packs:`, one pin per line in code point order of the name, then a
-/// `code_root:` line only when [codeRoot] is not `.`, then an
-/// `agent_file_roots:` list only when [agentFileRoots] is not empty; each
-/// scalar is quoted when plain YAML would read it as another value. Throws
-/// [ArgumentError] for an agent file root the reader would refuse.
+/// `code_root:` line only when [codeRoot] is not `.` or [keepCodeRootKey] is
+/// set, then an `agent_file_roots:` list only when [agentFileRoots] is not
+/// empty; each scalar is quoted when plain YAML would read it as another
+/// value. Throws [ArgumentError] for an agent file root the reader would
+/// refuse.
+///
+/// [keepCodeRootKey] keeps the line of a config that already holds the key,
+/// so an explicit `code_root: .` is not dropped.
 String configText(
   Map<String, PackVersion> pins, {
   String codeRoot = '.',
+  bool keepCodeRootKey = false,
   List<String> agentFileRoots = const [],
 }) {
   for (final root in agentFileRoots) {
@@ -57,7 +62,7 @@ String configText(
   }
   final names = pins.keys.toList()..sort(compareCodePoints);
   final lines = [for (final name in names) '  $name: ${pins[name]}\n'];
-  final codeRootLine = codeRoot == '.'
+  final codeRootLine = codeRoot == '.' && !keepCodeRootKey
       ? ''
       : 'code_root: ${_stringScalar(codeRoot)}\n';
   final rootLines = [

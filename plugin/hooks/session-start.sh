@@ -6,6 +6,25 @@
 # writes nothing else, and exits 0 on every path (a hook must never block a
 # session).
 
+# Keeps only the absolute entries of PATH, so no program is found in the
+# current folder or a relative folder; an empty entry means the current folder.
+# With none left, PATH is the system folders, since an empty PATH searches ".".
+absolute_path_only() {
+  local kept='' rest=${PATH:-}: entry
+  while [ -n "$rest" ]; do
+    entry=${rest%%:*}
+    rest=${rest#*:}
+    case "$entry" in
+      /*) kept=${kept:+$kept:}$entry ;;
+    esac
+  done
+  PATH=${kept:-/usr/bin:/bin}
+  export PATH
+}
+
+# Runs before any command, since a command could be found through PATH.
+absolute_path_only
+
 curl_line='curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/install.sh | sh'
 irm_line='irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex'
 

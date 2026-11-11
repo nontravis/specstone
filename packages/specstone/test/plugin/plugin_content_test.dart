@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone/src/command_runner.dart';
 import 'package:test/test.dart';
 
+import '../helpers/hook_command.dart';
 import '../helpers/plugin_content.dart';
 import '../helpers/temp_tree.dart';
 
@@ -188,12 +189,34 @@ void main() {
       {
         'matcher': 'Write|Edit',
         'hooks': [
-          {'type': 'command', 'command': 'specstone hook post-edit'},
+          {
+            'type': 'command',
+            'command': r'/bin/sh "${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"',
+          },
         ],
       },
     ]);
     final hook = SpecstoneCommandRunner().commands['hook'];
     expect(hook?.subcommands.keys, unorderedEquals(['post-edit']));
+  });
+
+  test('g8-r11: every script hooks.json names exists under hooks/', () {
+    final decoded = jsonDecode(
+      File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
+          .readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final scriptNamed = RegExp(r'/hooks/([\w.-]+\.sh)"$');
+
+    for (final event in (decoded['hooks'] as Map<String, dynamic>).keys) {
+      final name = scriptNamed.firstMatch(hookCommandOf(event))?.group(1);
+
+      expect(name, isNotNull, reason: '$event names no script under hooks/');
+      expect(
+        File.fromUri(pluginRoot().uri.resolve('hooks/$name')).existsSync(),
+        isTrue,
+        reason: '$event names hooks/$name',
+      );
+    }
   });
 
   _shippedFileTests();

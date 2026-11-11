@@ -10,12 +10,10 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
-import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
@@ -39,9 +37,10 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// when a file or its bytes change while the prompt waits, the list shows
 /// again. Under `--yes` the unit goes with no prompt, as after a `y`, but only
 /// while its file list hashes to [planHash], the plan line of the dry run the
-/// Owner saw ([answerDeleteDryRun]). Emptied folders go up to the docs root.
+/// Owner saw ([answerDeleteDryRun]); the hash covers the files alone, and no
+/// git runs. Emptied folders go up to the docs root.
 ///
-/// [targets] is non-empty. [runGit] replaces the real `git` process, for tests.
+/// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc,
 /// `owner_terminal_required` for a guarded unit the Owner cannot confirm,
 /// and `plan_mismatch` under `--yes` for a list that changed since the dry
@@ -54,14 +53,13 @@ ReadAnswer answerDelete(
   required String? Function() readLine,
   required StringSink prompts,
   String? planHash,
-  RunGit runGit = runRealGit,
 }) {
   var unit = _resolveTargets(session, targets);
   var dangling = _checkReferrers(session, unit);
   while (true) {
     final shown = _readUnit(session, unit.roots);
     if (confirmation == OwnerConfirmation.given &&
-        planHash != _planHashOf(session, shown, runGit)) {
+        planHash != _planHashOf(shown)) {
       throw WriteFault(
         WriteFaultCode.planMismatch,
         'the delete list is not the one the Owner saw in the dry run; run '
@@ -106,17 +104,13 @@ ReadAnswer answerDelete(
 /// is removed. The text ends with the `plan <hash>` line and
 /// `dry run: nothing removed`; the JSON holds `files` and `plan`.
 /// Warns of each link left to dangle, and throws, as [answerDelete] does
-/// before its prompt. [runGit] replaces the real `git` process, for tests.
-ReadAnswer answerDeleteDryRun(
-  WriteSession session,
-  List<String> targets, {
-  RunGit runGit = runRealGit,
-}) {
+/// before its prompt. It starts no git.
+ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
   final unit = _resolveTargets(session, targets);
   final dangling = _checkReferrers(session, unit);
   final unitFiles = _readUnit(session, unit.roots);
   final files = unitFiles.keys.toList();
-  final hash = _planHashOf(session, unitFiles, runGit);
+  final hash = _planHashOf(unitFiles);
   return ReadAnswer(
     text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
     json: {'files': files, 'plan': hash},
@@ -124,24 +118,27 @@ ReadAnswer answerDeleteDryRun(
   );
 }
 
-/// Returns the plan hash of a delete unit, with the HEAD of the docs' git.
+/// Returns the plan hash of a delete unit: its files alone.
 ///
 /// It covers each listed path with the hash of its text, as `bases.doc` hashes
-/// a doc, so an uncommitted edit to a listed file changes it too.
-String _planHashOf(WriteSession session, _UnitFiles files, RunGit runGit) =>
-    planHashOf(
-      [
-        for (final MapEntry(key: docPath, value: bytes) in files.entries)
-          '$docPath ${_textHashOf(bytes)}\n',
-      ].join(),
-      session.project.docsRoot,
-      runGit,
-    );
+/// a doc, so an edit to a listed file, committed or not, changes it.
+String _planHashOf(_UnitFiles files) => baseHashOf(
+  [
+    for (final MapEntry(key: docPath, value: bytes) in files.entries)
+      '$docPath ${_textHashOf(bytes)}\n',
+  ].join(),
+);
 
-/// Returns the `bases.doc` hash of [bytes]; a byte that is not UTF-8 decodes
-/// to U+FFFD, so any file of a unit hashes the same way each time.
-String _textHashOf(List<int> bytes) =>
-    baseHashOf(toLf(utf8.decode(bytes, allowMalformed: true)));
+/// Returns the `bases.doc` hash of [bytes] when they are UTF-8 text, else the
+/// hash of the bytes themselves, so no two different binary files hash alike.
+String _textHashOf(List<int> bytes) {
+  try {
+    return baseHashOf(toLf(utf8.decode(bytes)));
+  } on FormatException {
+    // Latin-1 maps each byte to one code point, so the text keeps every byte.
+    return baseHashOf(latin1.decode(bytes));
+  }
+}
 
 String _listOf(Iterable<String> docPaths) =>
     docPaths.map((docPath) => '$docPath\n').join();

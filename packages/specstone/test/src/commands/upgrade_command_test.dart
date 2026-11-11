@@ -371,6 +371,41 @@ void main() {
       expect(lines.last, restartLine);
     });
 
+    // CreateProcessW looks in the current folder before System32 for a bare
+    // `cmd.exe`, so a start that names no folder runs this stand-in.
+    test('f09/us02/fr03, G8-R8: a claude.cmd start runs the System32 cmd.exe, '
+        'never a cmd.exe in the current folder', () async {
+      await prepare();
+      final plant = File(
+        '${Directory.current.path}${Platform.pathSeparator}cmd.exe',
+      );
+      final source = File(fileIn('logs', 'marker.dart'))
+        ..writeAsStringSync(r'''
+import 'dart:io';
+
+void main() =>
+    File('${Platform.resolvedExecutable}.ran').writeAsStringSync('ran');
+''');
+      final marker = File('${plant.path}.ran');
+      addTearDown(() {
+        for (final file in [plant, marker]) {
+          if (file.existsSync()) file.deleteSync();
+        }
+      });
+      final compiled = await Process.run(Platform.resolvedExecutable, [
+        'compile',
+        'exe',
+        source.path,
+        '-o',
+        plant.path,
+      ]);
+      expect(compiled.exitCode, 0, reason: '${compiled.stderr}');
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(marker.existsSync(), isFalse);
+      expect(claudeLog(), [updateCommand.substring('claude '.length)]);
+    }, testOn: 'windows');
+
     test('f09/us02/fr03/e03: a failing plugin update names its first stderr '
         'line; exit 0', () async {
       await prepare(claudeExit: 1);
@@ -498,55 +533,4 @@ void main() {
       ]);
     });
   });
-
-  group('findOnPath', () {
-    late Directory root;
-
-    File touch(String folder, String name) =>
-        File(_join(root.path, folder, name))..createSync(recursive: true);
-
-    setUp(() async => root = await writeTree({}));
-
-    test('f09/us02/fr03: claude.exe wins over claude.cmd in one folder', () {
-      touch('a', 'claude.cmd');
-      final exe = touch('a', 'claude.exe');
-
-      expect(
-        findOnPath('claude', {'PATH': _join(root.path, 'a')}, windows: true),
-        exe.path,
-      );
-    });
-
-    test('f09/us02/fr03: an earlier folder wins, ";" separates, and an empty '
-        'entry is skipped', () {
-      touch('b', 'claude.exe');
-      final first = touch('a', 'claude.cmd');
-
-      expect(
-        findOnPath('claude', {
-          'PATH': ';${_join(root.path, 'a')};${_join(root.path, 'b')}',
-        }, windows: true),
-        first.path,
-      );
-    });
-
-    test(
-      'f09/us02/fr03: the Path key matches without case on Windows only',
-      () {
-        final exe = touch('a', 'claude.exe');
-        final env = {'Path': _join(root.path, 'a')};
-
-        expect(findOnPath('claude', env, windows: true), exe.path);
-        expect(findOnPath('claude', env, windows: false), isNull);
-      },
-    );
-
-    test('f09/us02/fr03: nothing found returns null', () {
-      expect(
-        findOnPath('claude', {'PATH': _join(root.path, 'a')}, windows: true),
-        isNull,
-      );
-      expect(findOnPath('claude', {}, windows: false), isNull);
-    });
-  }, testOn: '!windows');
 }
