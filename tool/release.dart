@@ -1,9 +1,11 @@
 // Releases a new specstone version from `develop`.
 //
 // Usage: dart run tool/release.dart X.Y.Z [--dry-run]
-// Contract: docs/specs/install_update/s02_api_release.md `## release.dart`.
+// Contract: the release operation of api:install_update/version_match.
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:specstone_core/release_version.dart';
 
 /// One place a release version lives.
 ///
@@ -23,7 +25,7 @@ final List<_VersionSpot> _spots = [
   _VersionSpot(
     'packages/specstone_core/lib/src/version.dart',
     'packages/specstone_core/lib/src/version.dart',
-    RegExp(r"(const String specstoneVersion = ')(\d+\.\d+\.\d+)(?=';)"),
+    RegExp("(const String specstoneVersion = ')($releaseVersionPattern)(?=';)"),
   ),
   _VersionSpot(
     'packages/specstone/pubspec.yaml',
@@ -50,7 +52,7 @@ final List<_VersionSpot> _spots = [
 const String _usage = 'usage: dart run tool/release.dart X.Y.Z [--dry-run]';
 const String _dryRunFlag = '--dry-run';
 
-final RegExp _versionForm = RegExp(r'^\d+\.\d+\.\d+$');
+const String _versionFormName = 'MAJOR.MINOR.PATCH[-<pre-release>]';
 const Duration _runPollInterval = Duration(seconds: 5);
 const int _runPollTries = 60;
 const Duration _viewPollInterval = Duration(seconds: 15);
@@ -336,37 +338,27 @@ Future<String> _readCiRuns(String sha) => _gh([
 
 Future<void> _checkVersionAboveCurrent(String root, String version) async {
   final current = _readCurrentVersion(root);
-  if (!_versionForm.hasMatch(version)) {
+  final next = ReleaseVersion.tryParse(version);
+  if (next == null) {
     throw _Refusal(
-      '$version is not in the form MAJOR.MINOR.PATCH; '
+      '$version is not a version of the form $_versionFormName; '
       'the current version is $current',
     );
   }
-  if (_compare(version, current) <= 0) {
+  if (next.compareTo(current) <= 0) {
     throw _Refusal(
       '$version is not greater than the current version $current; '
-      'give MAJOR.MINOR.PATCH above it',
+      'give a version above it',
     );
   }
 }
 
-String _readCurrentVersion(String root) {
-  final current = readSpots(root)[_spots.first.label]!;
-  if (current == _missing) {
+ReleaseVersion _readCurrentVersion(String root) {
+  final current = ReleaseVersion.tryParse(readSpots(root)[_spots.first.label]!);
+  if (current == null) {
     throw _Refusal('${_spots.first.path} holds no specstoneVersion constant');
   }
   return current;
-}
-
-/// Compares two `MAJOR.MINOR.PATCH` strings field by field.
-int _compare(String a, String b) {
-  final left = a.split('.').map(BigInt.parse).toList();
-  final right = b.split('.').map(BigInt.parse).toList();
-  for (var i = 0; i < left.length; i++) {
-    final order = left[i].compareTo(right[i]);
-    if (order != 0) return order;
-  }
-  return 0;
 }
 
 Future<void> _checkTagAbsent(String version) async {

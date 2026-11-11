@@ -1,12 +1,18 @@
 @TestOn('!windows')
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../specstone_core/test/helpers/version_cases.dart';
 import '../helpers/release_repo.dart';
 
+const _check =
+    'install_update/version_match/release_new_version/check_before_release';
+const _bump =
+    'install_update/version_match/release_new_version/bump_and_push_tag';
 const fetchLine =
     'fetch origin; check origin/main and local develop before moving any ref';
 const fastForwardLine =
@@ -63,19 +69,53 @@ void main() {
     expect(
       r.stderr,
       'release: 0.1.0 is not greater than the current version 0.1.0; '
-      'give MAJOR.MINOR.PATCH above it\n',
+      'give a version above it\n',
     );
     expect(await repo.state(), before);
   });
 
-  for (final bad in ['v0.2.0', '0.2']) {
-    test('f09/us04/fr01/e01: $bad refuses naming the form and the current '
-        'version', () async {
+  // An empty argument is the usage case, and an argument cannot hold a NUL:
+  // the process boundary cuts it there, leaving a valid version.
+  for (final bad in refusedVersions.where(
+    (v) => v.isNotEmpty && !v.contains('\u0000'),
+  )) {
+    test('$_check E01: ${jsonEncode(bad)} refuses naming the form and the '
+        'current version', () async {
       final r = await repo.release([bad]);
 
-      await expectRefusal(r, ['MAJOR.MINOR.PATCH', 'current version is 0.1.0']);
+      await expectRefusal(r, [
+        'MAJOR.MINOR.PATCH[-<pre-release>]',
+        'current version is 0.1.0',
+      ]);
     });
   }
+
+  test('$_check E07: a pre-release above the current version passes '
+      '--dry-run and changes nothing', () async {
+    final r = await repo.release(['0.2.0-beta.1', '--dry-run']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(await repo.state(), before);
+  });
+
+  test('$_check E08: the next version of a pre-release is above it in the '
+      'Version order', () async {
+    final pre = await createReleaseRepo(version: '0.2.0-beta.1');
+    final preBefore = await pre.state();
+
+    for (final next in ['0.2.0-beta.2', '0.2.0-rc.1', '0.2.0']) {
+      final r = await pre.release([next, '--dry-run']);
+
+      expect(r.exitCode, 0, reason: '$next: ${r.stderr}');
+    }
+    for (final below in ['0.2.0-beta.1', '0.2.0-alpha.1', '0.1.1']) {
+      final r = await pre.release([below]);
+
+      expect(r.exitCode, 1, reason: below);
+      expect(r.stderr, contains('current version 0.2.0-beta.1'), reason: below);
+    }
+    expect(await pre.state(), preBefore);
+  });
 
   test('f09/us04/fr01: versions compare field by field', () async {
     final other = await createReleaseRepo(
@@ -280,6 +320,35 @@ void main() {
     expect(await repo.git(['branch', '--show-current']), 'develop');
   });
 
+  test('$_bump E01, INV-1: a pre-release tags a commit that changes the four '
+      'files and leaves the root pubspec alone', () async {
+    final r = await repo.release(['0.2.0-beta.1']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final tagged = (await repo.originRefs())['refs/tags/v0.2.0-beta.1']!;
+    expect(
+      (await repo.git(['diff', '--name-only', '$tagged~1', tagged])).split('\n')
+        ..sort(),
+      [
+        'packages/specstone/pubspec.yaml',
+        'packages/specstone_core/lib/src/version.dart',
+        'packages/specstone_core/pubspec.yaml',
+        'plugin/.claude-plugin/plugin.json',
+      ],
+    );
+    expect(
+      await repo.git([
+        'diff',
+        '--name-only',
+        '$tagged~1',
+        tagged,
+        '--',
+        'pubspec.yaml',
+      ]),
+      isEmpty,
+    );
+  });
+
   test('f09/us04/fr02/e01, f09/us04/s8: a spot left behind refuses before the '
       'commit and undoes the bump', () async {
     repo = await createReleaseRepo(
@@ -310,6 +379,8 @@ workspace:
   - packages/specstone_core
   - packages/specstone
   - packages/other
+dependencies:
+  specstone_core:
 ''',
         'packages/other/pubspec.yaml': '''
 name: other
@@ -575,22 +646,36 @@ dependencies:
       },
     );
 
-    test(
-      'f09/us04/fr01: a suffixed specstoneVersion is not a version',
-      () async {
-        repo = await createReleaseRepo(
-          files: {
-            'packages/specstone_core/lib/src/version.dart':
-                "const String specstoneVersion = '0.1.0-beta';\n",
-          },
-        );
-        before = await repo.state();
+    test('$_check: a pre-release specstoneVersion literal is the current '
+        'version', () async {
+      repo = await createReleaseRepo(
+        files: {
+          'packages/specstone_core/lib/src/version.dart':
+              "const String specstoneVersion = '0.1.0-beta';\n",
+        },
+      );
+      before = await repo.state();
 
-        final r = await repo.release(['0.2.0']);
+      final r = await repo.release(['0.2.0', '--dry-run']);
 
-        await expectRefusal(r, ['holds no specstoneVersion constant']);
-      },
-    );
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(await repo.state(), before);
+    });
+
+    test('$_check: a specstoneVersion literal outside the form is no '
+        'version', () async {
+      repo = await createReleaseRepo(
+        files: {
+          'packages/specstone_core/lib/src/version.dart':
+              "const String specstoneVersion = '0.1.0-beta.01';\n",
+        },
+      );
+      before = await repo.state();
+
+      final r = await repo.release(['0.2.0']);
+
+      await expectRefusal(r, ['holds no specstoneVersion constant']);
+    });
 
     test('f09/us04/fr01: origin/main holding commits develop lacks refuses '
         'naming them', () async {
