@@ -1922,12 +1922,21 @@ void _planInputTests() {
     test("$_fr INV-4: an edit to a personal pack's home pack.yaml changes "
         'the hash', () async {
       final fixture = await _fixture();
+      // A path outside the project is recorded as the code builds it, native.
+      final separator = Platform.pathSeparator;
+      final packFile = [
+        '',
+        '.specstone',
+        'packs',
+        'acme',
+        'pack.yaml',
+      ].join(separator);
 
       await expectEditMoves(
-        '${fixture.home.path}/.specstone/packs/acme/pack.yaml',
+        '${fixture.home.path}$packFile',
         '# edited\n',
         plan: () => _plan(fixture),
-        recordedAs: '/.specstone/packs/acme/pack.yaml ',
+        recordedAs: '$packFile ',
       );
     });
 

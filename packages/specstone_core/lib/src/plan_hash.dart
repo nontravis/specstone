@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' show sha256;
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
@@ -127,22 +128,39 @@ final class PlanInputs {
     _tracked.putIfAbsent(path, () => isTracked);
   }
 
-  /// Returns the `/`-separated path of [absolute] from the project root, or
-  /// [absolute] itself when it lies outside.
-  String _keyOf(String absolute) {
-    for (final root in _rootPaths) {
-      if (!absolute.startsWith(root)) continue;
-      final relative = absolute.substring(root.length);
-      return Platform.isWindows ? relative.replaceAll(r'\', '/') : relative;
-    }
-    return absolute;
+  String _keyOf(String absolute) => pathFromRoots(absolute, _rootPaths);
+}
+
+/// Returns the `/`-separated path of [absolute] from the first of [roots] that
+/// holds it, or [absolute] itself when none does.
+///
+/// Windows accepts `/` and `\` alike, so [absolute] and each root are read in
+/// the native separator before they are compared. [isWindows] picks the style;
+/// it defaults to the running platform.
+String pathFromRoots(
+  String absolute,
+  Iterable<String> roots, {
+  bool? isWindows,
+}) {
+  final windows = isWindows ?? Platform.isWindows;
+  final separator = windows ? r'\' : '/';
+  final native = withNativeSeparators(absolute, isWindows: windows);
+  for (final root in roots) {
+    final nativeRoot = withNativeSeparators(root, isWindows: windows);
+    final prefix = nativeRoot.endsWith(separator)
+        ? nativeRoot
+        : '$nativeRoot$separator';
+    if (!native.startsWith(prefix)) continue;
+    final relative = native.substring(prefix.length);
+    return windows ? relative.replaceAll(r'\', '/') : relative;
   }
+  return absolute;
 }
 
 List<String> _sorted(Iterable<String> items) =>
     items.toList()..sort(compareCodePoints);
 
-/// Returns [root]'s absolute and canonical paths, each ending in a separator.
+/// Returns [root]'s absolute and canonical paths.
 List<String> _rootPathsOf(Directory root) {
   final paths = {root.absolute.path};
   try {
@@ -150,11 +168,5 @@ List<String> _rootPathsOf(Directory root) {
   } on FileSystemException {
     // A root that is gone keeps its absolute path alone.
   }
-  return [
-    for (final path in paths)
-      if (path.endsWith(Platform.pathSeparator))
-        path
-      else
-        '$path${Platform.pathSeparator}',
-  ];
+  return paths.toList();
 }

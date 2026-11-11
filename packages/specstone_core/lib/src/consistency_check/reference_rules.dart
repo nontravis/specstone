@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/link_places.dart'
     show sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show LinkSource, linkSourcesOf;
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -88,7 +89,7 @@ Iterable<Finding> _missingListedFiles(
   final folder = _folderOf(context, doc);
   for (final (:value, :line, text: _)
       in context.linesOf(doc).entriesOf(_filesField)) {
-    if (value is! String || File('$folder/$value').existsSync()) continue;
+    if (value is! String || _namesFileBeside(folder, value)) continue;
     yield context.finding(
       doc,
       FindingKind.listedFileMissing,
@@ -265,12 +266,18 @@ bool _anchorHeld(DocAnchors? anchors, String? named) =>
 /// Whether the file at [path] under the docs root exists and, when it is an
 /// indexed doc, holds the anchor [named].
 bool _fileHolds(CheckContext context, String path, String? named) {
-  if (!File('${context.docsRoot.path}/$path').existsSync()) return false;
+  if (!_namesFileBeside(context.docsRoot.path, path)) return false;
   final file = context.index.at(path);
   return named == null ||
       file == null ||
       _holds(context.contentOf(file).lineFacts.anchors, named);
 }
+
+/// Whether [path], `/`-separated, is a file under [folder]; a name Windows
+/// would trim ([hasWindowsDroppedEnd]) is none, so no OS finds a file there.
+bool _namesFileBeside(String folder, String path) =>
+    !hasWindowsDroppedEnd(path.split('/')) &&
+    File('$folder/$path').existsSync();
 
 bool _holds(DocAnchors? anchors, String anchor) =>
     anchors == null || anchors.holds(anchor);

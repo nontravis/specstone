@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/portable_path.dart';
 
 const _coversField = 'covers';
 const _codeField = 'code';
@@ -103,10 +104,17 @@ bool _namesSomething(CheckContext context, String entry) =>
 /// Whether [entry], in [normalCodeEntry]'s form, is a file or a folder from
 /// [base].
 ///
+/// An entry that holds a `\` or a name Windows would trim
+/// ([hasWindowsDroppedEnd]) names nothing: `\` is a separator on Windows alone,
+/// and the disk finds a trimmed name there alone.
+///
 /// The one rule `check` and the migrate's `code_root` count resolve a
 /// `covers` or `code` entry by.
-bool namesFileOrFolderFrom(Directory base, String entry) =>
-    FileSystemEntity.typeSync(
-      '${base.path}$_separator${normalCodeEntry(entry)}',
-    ) !=
-    FileSystemEntityType.notFound;
+bool namesFileOrFolderFrom(Directory base, String entry) {
+  final normal = normalCodeEntry(entry);
+  if (entry.contains(r'\') || hasWindowsDroppedEnd(normal.split(_separator))) {
+    return false;
+  }
+  return FileSystemEntity.typeSync('${base.path}$_separator$normal') !=
+      FileSystemEntityType.notFound;
+}

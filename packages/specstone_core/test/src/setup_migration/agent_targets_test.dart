@@ -28,7 +28,8 @@ Future<Directory> _base(Map<String, String> files) async {
 }
 
 Directory _at(Directory base, String path) => Directory(
-  Directory.fromUri(base.uri.resolve(path)).path.replaceAll(RegExp(r'/$'), ''),
+  Directory.fromUri(base.uri.resolve(path)).path
+      .replaceAll(RegExp(r'[\\/]$'), ''),
 );
 
 AgentFileInputs _inputs(
@@ -180,6 +181,23 @@ void main() {
           _at(base, 'proj/lib/').path,
           _at(base, 'proj/apps/web/').path,
         ],
+      );
+    });
+
+    test('$_write E15: an entry that is no relative / path names no folder, '
+        'so a drive letter does not throw and a backslash does not climb '
+        'out of the project', () async {
+      final base = await _base({'proj/lib/a.dart': '', 'shared/a.dart': ''});
+
+      final folders = codeRootFolders(
+        _at(base, 'proj/'),
+        codeRoot: '.',
+        codeEntries: [r'..\shared\', 'C:/x/', '/abs/', 'lib ', 'lib/'],
+      );
+
+      expect(
+        [for (final folder in folders) folder.path],
+        [_at(base, 'proj/').path, _at(base, 'proj/lib/').path],
       );
     });
 

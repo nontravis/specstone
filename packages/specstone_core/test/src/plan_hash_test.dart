@@ -318,4 +318,49 @@ void main() {
       );
     }, skip: hasGit ? null : 'git is not available');
   });
+
+  group('pathFromRoots', () {
+    test('f06 INV-4: on Windows a path that mixes `/` into a native root '
+        'still reads from that root', () {
+      expect(
+        pathFromRoots(r'C:\work\project/a/one.md', [
+          r'C:\work\project\',
+        ], isWindows: true),
+        'a/one.md',
+      );
+    });
+
+    test('f06 INV-4: on Windows a root without a trailing separator holds '
+        'its children, and a backslash in the key becomes `/`', () {
+      expect(
+        pathFromRoots(r'C:\work\project\a\one.md', [
+          'C:/work/project',
+        ], isWindows: true),
+        'a/one.md',
+      );
+    });
+
+    test('f06 INV-4: a path outside every root stays as given', () {
+      expect(
+        pathFromRoots(r'C:\home\.specstone/packs/acme/pack.yaml', [
+          r'C:\work\project\',
+        ], isWindows: true),
+        r'C:\home\.specstone/packs/acme/pack.yaml',
+      );
+    });
+
+    test('f06 INV-4: a sibling folder that shares a prefix is outside', () {
+      expect(
+        pathFromRoots('/work/project-two/a.md', ['/work/project']),
+        '/work/project-two/a.md',
+      );
+    });
+
+    test('f06 INV-4: on POSIX a backslash is part of a file name', () {
+      expect(
+        pathFromRoots(r'/work/project/a\b.md', ['/work/project']),
+        r'a\b.md',
+      );
+    });
+  });
 }

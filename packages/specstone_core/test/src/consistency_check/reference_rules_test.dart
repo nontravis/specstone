@@ -1,6 +1,8 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
@@ -57,6 +59,32 @@ void main() {
     ]);
     expect(report.findings.last.toJson()['target'], 'AUTH.md');
   });
+
+  test('f04/us02/fr05/e03, f04/us02/fr05/e05: a name that ends in a space is '
+      'no file on any OS, though a POSIX disk holds one', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/$rules': ruleDoc.replaceFirst(
+            '  - notes.md\n',
+            "  - 'notes.md '\n",
+          ),
+          'docs/prds/references/login_rules/spec.pdf': 'pdf',
+          'docs/prds/references/login_rules/notes.md ': 'text',
+          ...doc(
+            loginArchitecture,
+            '- Errors: see Components\n',
+            '- Errors: see Components\n- Auth: see ERROR.md ## Lifecycle\n',
+          ),
+          'docs/specs/f01_login/ERROR.md ': 'text',
+        },
+      ),
+    );
+    expect(spots(report), [
+      '$rules:6: listed_file_missing',
+      '$loginArchitecture:20: concerns_target_unresolved',
+    ]);
+  }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
   test('f04/us02/fr05/e04, f04/us02/fr05/e06: a sibling file, a section of the doc, or N/A resolves', () async {
     final report = checkOf(

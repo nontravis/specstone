@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -250,14 +251,16 @@ Iterable<Finding> _missingFileLinks(
   final root = context.docsRoot.path;
   final separator = Platform.pathSeparator;
   for (final place in context.linesOf(doc).fileLinks) {
+    final names = place.target.split('/');
     final onDisk = [
       if (root.endsWith(separator))
         root.substring(0, root.length - 1)
       else
         root,
-      ...place.target.split('/'),
+      ...names,
     ].join(separator);
-    if (FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound) {
+    if (!hasWindowsDroppedEnd(names) &&
+        FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound) {
       continue;
     }
     yield context.finding(

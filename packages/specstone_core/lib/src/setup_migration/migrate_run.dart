@@ -274,15 +274,8 @@ MigrateFault _inputChanged(String? input) {
 
 /// Returns the `/`-separated path of [absolute] from [root], [absolute] itself
 /// when it lies outside, or null when it is null.
-String? _fromRoot(Directory root, String? absolute) {
-  if (absolute == null) return null;
-  final prefix = root.absolute.path.endsWith(Platform.pathSeparator)
-      ? root.absolute.path
-      : '${root.absolute.path}${Platform.pathSeparator}';
-  if (!absolute.startsWith(prefix)) return absolute;
-  final relative = absolute.substring(prefix.length);
-  return Platform.isWindows ? relative.replaceAll(r'\', '/') : relative;
-}
+String? _fromRoot(Directory root, String? absolute) =>
+    absolute == null ? null : pathFromRoots(absolute, [root.absolute.path]);
 
 /// Refuses, in order and before any plan, roots that wait for the Owner's
 /// trust record, a [root] outside a git work tree, and, when [checksCleanTree],

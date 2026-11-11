@@ -728,7 +728,14 @@ void main() {
         'upgrade prompt waits is working_tree_dirty naming it, and nothing '
         'is written', () async {
       final (:project, :home) = await _upgradeFixture();
-      const added = '/.specstone/packs/acme/playbook.yaml';
+      // The refusal names a path outside the project as the code builds it.
+      final added = [
+        '',
+        '.specstone',
+        'packs',
+        'acme',
+        'playbook.yaml',
+      ].join(Platform.pathSeparator);
 
       expectRefusedNaming(project, added, () {
         File('${home.path}$added').writeAsStringSync('''

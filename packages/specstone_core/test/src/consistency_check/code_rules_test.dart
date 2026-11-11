@@ -3,6 +3,7 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
@@ -228,4 +229,21 @@ void main() {
       ['app/lib/other.dart'],
     );
   });
+
+  test(
+    'f04/us02/fr02/e01: an entry with a backslash or a name Windows trims '
+    'names nothing on any OS, though a POSIX disk holds such names',
+    () async {
+      final tree = await writeTree({'lib/a.dart': ''});
+      for (final name in [r'co\de', 'trail ', 'dot.']) {
+        File('${tree.path}/$name').writeAsStringSync('');
+      }
+
+      expect(namesFileOrFolderFrom(tree, 'lib/a.dart'), isTrue);
+      for (final entry in [r'co\de', 'trail ', 'dot.', 'lib/../trail ']) {
+        expect(namesFileOrFolderFrom(tree, entry), isFalse, reason: entry);
+      }
+    },
+    skip: Platform.isWindows ? 'Windows cannot hold such a name' : null,
+  );
 }

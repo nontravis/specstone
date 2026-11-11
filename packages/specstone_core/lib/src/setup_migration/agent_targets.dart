@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
@@ -70,6 +71,10 @@ Directory? repositoryTopOf(Directory folder) {
 
 /// Returns the folders of the code roots: [codeRoot] from [projectRoot], then
 /// each of [codeEntries] from [codeRoot], each once.
+///
+/// An entry that is no relative `/` path ([isPortableCodeEntry]) names no
+/// folder, as the code file lister reads it: a drive letter would throw on
+/// Windows, and a `\` would turn into a `/` and reach a folder above the root.
 List<Directory> codeRootFolders(
   Directory projectRoot, {
   required String codeRoot,
@@ -79,7 +84,8 @@ List<Directory> codeRootFolders(
   final folders = <String, Directory>{};
   for (final uri in [
     base,
-    for (final entry in codeEntries) base.resolveUri(Uri(path: entry)),
+    for (final entry in codeEntries.where(isPortableCodeEntry))
+      base.resolveUri(Uri(path: entry)),
   ]) {
     final folder = _canonicalOf(Directory.fromUri(uri));
     folders.putIfAbsent(folder.path, () => folder);

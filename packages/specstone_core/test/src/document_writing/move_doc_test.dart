@@ -1333,7 +1333,10 @@ void main() {
         final answer = IOOverrides.runWithIOOverrides(
           () => moveAll(root, [addItem, dropItem], 'shop/pay'),
           _CreateFileHook((path) {
-            if (raced || !path.endsWith('f02_pay/us03_add_item')) return;
+            if (raced ||
+                !path.replaceAll(r'\', '/').endsWith('f02_pay/us03_add_item')) {
+              return;
+            }
             raced = true;
             File('${root.path}/docs/$shop/f02_pay/us03_other/USER_STORY.md')
                 .createSync(recursive: true);

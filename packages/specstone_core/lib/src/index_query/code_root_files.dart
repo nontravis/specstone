@@ -1,8 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/project_config.dart'
-    show isCodeRootValue;
 
 const _separator = '/';
 const _dotName = '.';
@@ -32,8 +31,9 @@ String normalCodeEntry(String entry) {
 /// sorted by code point; an [entry] that names a file lists that file. Every
 /// path is in [normalCodeEntry]'s form.
 ///
-/// Lists nothing for an entry that is not a relative `/`-separated path, that
-/// leaves the code root, or that is or passes a link, so no caller reads or
+/// Lists nothing for an entry that is not a relative `/`-separated path
+/// ([isPortableCodeEntry]), that leaves the code root, or that is or passes a
+/// link, so no caller reads or
 /// writes a file outside the code root. Below the entry, names starting with
 /// a dot and links are skipped, and no file is read. A missing root yields
 /// none. A folder that exists but cannot be listed is passed to
@@ -43,7 +43,9 @@ List<String> filesUnderCodeRoot(
   String entry, {
   void Function(String folder)? onUnlistable,
 }) {
-  if (!isCodeRootValue(entry) || _passesLink(codeRoot, entry)) return const [];
+  if (!isPortableCodeEntry(entry) || _passesLink(codeRoot, entry)) {
+    return const [];
+  }
   final root = normalCodeEntry(entry);
   if (root == _parentSegment || root.startsWith('$_parentSegment/')) {
     return const [];
