@@ -204,13 +204,28 @@ claude_failed() {
   return 1
 }
 
-# Runs `claude` with the arguments given and keeps its stdout in $claude_out.
+# Sets claude_nul to 1 when the file $1 holds a NUL byte, else 0. A shell
+# variable cannot hold a NUL: `$(...)` would drop it and read "git<NUL>hub" as
+# "github", so the reply is counted before it is read.
+note_nul() {
+  nul_total=$(LC_ALL=C wc -c <"$1") || nul_total=0
+  nul_kept=$(LC_ALL=C tr -d '\000' <"$1" | LC_ALL=C wc -c) || nul_kept=0
+  claude_nul=0
+  if [ "$((nul_total))" -ne "$((nul_kept))" ]; then
+    claude_nul=1
+  fi
+}
+
+# Runs `claude` with the arguments given and keeps its stdout in $claude_out;
+# claude_nul says whether that stdout held a NUL byte, which $claude_out lacks.
 # On a non-zero exit names the command, then returns 1.
 run_claude() {
   claude_status=0
   claude_out=''
   # stdin comes from /dev/null so claude cannot swallow the rest of a piped script
-  claude_out=$(claude "$@" 2>"$tmp/claude.err" </dev/null) || claude_status=$?
+  claude "$@" >"$tmp/claude.out" 2>"$tmp/claude.err" </dev/null || claude_status=$?
+  claude_out=$(LC_ALL=C tr -d '\000' <"$tmp/claude.out") || claude_out=''
+  note_nul "$tmp/claude.out"
   if [ "$claude_status" -eq 0 ]; then
     return 0
   fi
@@ -481,12 +496,12 @@ install_plugin() {
     return 0
   fi
   run_claude plugin marketplace list --json || return 0
-  if ! entry=$(marketplace_entry "$claude_out"); then
+  if [ "$claude_nul" -eq 1 ] || ! entry=$(marketplace_entry "$claude_out"); then
     unreadable_reply "$wanted" plugin marketplace list --json
     return 0
   fi
   run_claude plugin list --json || return 0
-  if ! user_plugin=$(plugin_for_user "$claude_out"); then
+  if [ "$claude_nul" -eq 1 ] || ! user_plugin=$(plugin_for_user "$claude_out"); then
     unreadable_reply "$wanted" plugin list --json
     return 0
   fi

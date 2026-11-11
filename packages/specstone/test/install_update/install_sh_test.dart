@@ -1851,6 +1851,9 @@ esac''');
             '[{"name": "specstone", "source": "directory", "path": "/a\r/b"}]',
         'a raw tab inside a string':
             '[{"name": "specstone", "source": "directory", "path": "/a\t/b"}]',
+        'a NUL byte inside a string':
+            '[{"name": "specstone", "source": "git\u0000hub", '
+            '"repo": "nontravis/specstone"}]',
         'a nested object as source':
             '[{"name": "specstone", "source": {"kind": "github"}}]',
         'no source': '[{"name": "specstone", "repo": "nontravis/specstone"}]',
@@ -1895,6 +1898,40 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces]);
       });
 
+      test('$plugin E06: a NUL byte in a list reply stops the step for a '
+          'version too; the wanted source prints', () async {
+        for (final (listCommand, marketplaces, plugins) in [
+          (
+            listMarketplaces,
+            '[{"name": "specstone", "source": "git\u0000hub", '
+                '"repo": "nontravis/specstone"}]',
+            null,
+          ),
+          (
+            listPlugins,
+            officialList(),
+            '[{"id": "specstone@specstone\u0000"}]',
+          ),
+        ]) {
+          final sb = await sandboxWithClaude();
+
+          final r = await runReplying(
+            sb,
+            marketplaces: marketplaces,
+            plugins: plugins,
+            extra: {'SPECSTONE_VERSION': beta},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stderr, contains(unreadableLine(listCommand)));
+          expect(r.stdout, contains(noClaudeHeader + commandLines(betaSource)));
+          expect(sb.logOf('claude'), [
+            listMarketplaces,
+            if (plugins != null) listPlugins,
+          ]);
+        }
+      });
+
       final unreadablePlugins = <String, String>{
         'not JSON': 'not json at all',
         'an empty reply': '',
@@ -1903,6 +1940,8 @@ esac''');
             '[{"id": "specstone@specstone", "scope": "us\rer"}]',
         'a raw tab inside a string':
             '[{"id": "specstone@specstone", "scope": "us\ter"}]',
+        'a NUL byte inside a string':
+            '[{"id": "specstone@specstone", "scope": "us\u0000er"}]',
         'a repeated scope key':
             '[{"id": "specstone@specstone", "scope": "project", '
             '"scope": "user"}]',
