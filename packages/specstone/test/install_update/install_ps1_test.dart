@@ -3,11 +3,13 @@
 @Timeout(Duration(minutes: 10))
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../specstone_core/test/helpers/version_cases.dart';
 import '../helpers/built_cli.dart';
 import '../helpers/script_sandbox.dart';
 
@@ -410,14 +412,311 @@ void main() {
       expect(oldFilesUnder(sb), isEmpty);
     });
 
-    pathTest('f09/us01/fr01/e05: a version argument is ignored; the latest '
-        'archive installs', () async {
+    pathTest('f09/us01/fr01/e05: a positional argument is the version, so one '
+        'outside the form is refused', () async {
       final sb = await sandboxWith();
+      sb.installFake();
+      final before = sb.snapshot();
 
-      final r = await runInstall(sb, args: ['0.0.1']);
+      final r = await runInstall(sb, args: ['0.1']);
 
-      expect(r.exitCode, 0, reason: '${r.stderr}');
-      expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
+      expect(r.exitCode, 1);
+      expect(
+        flat(r.stderr),
+        contains(
+          'specstone: 0.1 is not a version of the form '
+          'MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged',
+        ),
+      );
+      expect(sb.snapshot(), before);
+    });
+
+    group('install by version', () {
+      const chosen =
+          'install_update/machine_install/install_cli_and_plugin/'
+          'install_chosen_version';
+      const releases = 'https://github.com/nontravis/specstone/releases';
+      const refusalTail =
+          ' is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; '
+          'the install is unchanged';
+      const downloadFailed =
+          'specstone: download failed for $asset; the install is unchanged';
+
+      // Refused values the shared list lacks: C1 and C0 controls the refusal
+      // must print as `?`, and letters that a case-folding match would take
+      // for ASCII (Kelvin sign, long s).
+      const extraRefused = [
+        '1.2.0\u0085',
+        '1.2.0\u009b',
+        '1.2.0\u001b]52;c;x\u0007',
+        '1.2.0-K',
+        '1.2.0-ſ',
+      ];
+
+      // A function shadows the cmdlet: it logs each URL and serves the file
+      // from ARCHIVES, or fails when STUB_WEB_FAIL is set. The script runs
+      // either as `-File` does (a `-Version` taken from the environment, so
+      // any character crosses intact) or as the API's `iex "& {...} args"`
+      // line, whose args text is HARNESS_ARGS.
+      const harness = r'''
+function Invoke-WebRequest {
+  param([switch]$UseBasicParsing, [int]$TimeoutSec, [string]$Uri, [string]$OutFile)
+  Add-Content -LiteralPath (Join-Path $env:STUB_LOG_DIR 'web.log') -Value $Uri
+  if ($env:STUB_WEB_FAIL) { throw 'web stub: 404' }
+  Copy-Item -LiteralPath (Join-Path $env:ARCHIVES ($Uri.Split('/')[-1])) -Destination $OutFile
+}
+if ($env:HARNESS_MODE -eq 'iex') {
+  $installText = Get-Content -Raw -LiteralPath $env:INSTALL_PS1
+  try {
+    Invoke-Expression "& {$installText} $env:HARNESS_ARGS"
+  } catch {
+    'CAUGHT=' + $_.Exception.Message
+    exit 0
+  }
+} else {
+  & $env:INSTALL_PS1 -Version $env:SPECSTONE_TEST_VERSION
+}
+''';
+
+      Future<ProcessResult> runHarness(
+        ScriptSandbox sb, {
+        bool isIex = false,
+        String? version,
+        String iexArgs = '',
+        bool isDownloadFailing = false,
+      }) {
+        final file = File('${sb.root.path}\\harness.ps1')
+          ..writeAsStringSync(harness);
+        return sb.run(
+          file.path,
+          extra: {
+            'ARCHIVES': sb.archives.path,
+            'INSTALL_PS1': '${repoRoot().path}\\install.ps1',
+            'HARNESS_MODE': isIex ? 'iex' : 'file',
+            'HARNESS_ARGS': iexArgs,
+            'SPECSTONE_TEST_VERSION': ?version,
+            'STUB_WEB_FAIL': isDownloadFailing ? '1' : '',
+          },
+        );
+      }
+
+      Future<ScriptSandbox> sandboxServing(String version) async {
+        final sb = await createScriptSandbox();
+        await sb.writeArchive('windows-x64', version: version);
+        return sb;
+      }
+
+      String refusal(String version) {
+        final shown = version.replaceAll(RegExp(r'[\x00-\x1f\x7f-\x9f]'), '?');
+        return 'specstone: $shown$refusalTail';
+      }
+
+      // The console code page may not carry a non-ASCII value back intact, so
+      // such a refusal is read by its form text alone.
+      void expectRefusal(String stderrText, String version) {
+        final isAscii = refusal(version).codeUnits.every((unit) => unit < 0x7f);
+        expect(
+          flat(stderrText),
+          contains(flat(isAscii ? refusal(version) : refusalTail)),
+        );
+      }
+
+      for (final (label, isIex, iexArgs) in [
+        ('-File', false, ''),
+        ('iex line', true, '-Version 1.2.0-beta.1'),
+      ]) {
+        pathTest(
+          '$chosen E01 ($label): the named version installs from its own '
+          'release',
+          () async {
+            final sb = await sandboxServing('1.2.0-beta.1');
+
+            final r = await runHarness(
+              sb,
+              isIex: isIex,
+              version: '1.2.0-beta.1',
+              iexArgs: iexArgs,
+            );
+
+            expect(r.exitCode, 0, reason: '${r.stderr}');
+            final log = sb.logOf('web');
+            expect(log, hasLength(2));
+            expect(
+              log.first,
+              endsWith('$releases/download/v1.2.0-beta.1/$asset'),
+            );
+            expect(
+              log.last,
+              endsWith('$releases/download/v1.2.0-beta.1/SHA256SUMS'),
+            );
+            expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.2.0-beta.1');
+          },
+        );
+      }
+
+      pathTest(
+        '$chosen E01: powershell -File install.ps1 -Version installs the '
+        'named version',
+        () async {
+          final sb = await sandboxServing('1.2.0-beta.1');
+
+          final r = await runInstall(sb, args: ['-Version', '1.2.0-beta.1']);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            flat(r.stdout),
+            contains('specstone 1.2.0-beta.1 installed in ${binDir(sb)}'),
+          );
+          expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.2.0-beta.1');
+        },
+      );
+
+      for (final version in [...refusedVersions, ...extraRefused]) {
+        // An environment value cannot hold NUL; `-Version ''` is no version.
+        if (version.isEmpty || version.contains('\u0000')) continue;
+        pathTest('$chosen E02, install_cli_and_plugin S8: refuses '
+            '${jsonEncode(version)} before any download', () async {
+          final sb = await createScriptSandbox();
+          sb.installFake();
+          final before = sb.snapshot();
+
+          final r = await runHarness(sb, version: version);
+
+          expect(r.exitCode, 1);
+          expectRefusal('${r.stderr}', version);
+          expect(sb.logOf('web'), isEmpty);
+          expect(sb.snapshot(), before);
+        });
+      }
+
+      for (final version in [
+        'v1.2.0',
+        '1.2',
+        '01.2.0',
+        '1.2.0-',
+        '1.2.0-beta.01',
+        '1.2.0+build.5',
+      ]) {
+        pathTest(
+          '$chosen E02 (iex line): refuses $version as a throw, the session '
+          'goes on',
+          () async {
+            final sb = await createScriptSandbox();
+            sb.installFake();
+            final before = sb.snapshot();
+
+            final r = await runHarness(
+              sb,
+              isIex: true,
+              iexArgs: '-Version $version',
+            );
+
+            expect(r.exitCode, 0, reason: '${r.stderr}');
+            expect(flat(r.stdout), contains('CAUGHT=${refusal(version)}'));
+            expect(sb.logOf('web'), isEmpty);
+            expect(sb.snapshot(), before);
+          },
+        );
+      }
+
+      for (final version in acceptedVersions) {
+        pathTest(
+          '$chosen: ${jsonEncode(version)} passes the form check and fails '
+          'as a download',
+          () async {
+            final sb = await createScriptSandbox();
+
+            final r = await runHarness(
+              sb,
+              version: version,
+              isDownloadFailing: true,
+            );
+
+            expect(r.exitCode, 1);
+            expect(flat(r.stderr), contains(downloadFailed));
+            expect(flat(r.stderr), isNot(contains(refusalTail)));
+            expect(
+              sb.logOf('web').single,
+              endsWith('$releases/download/v$version/$asset'),
+            );
+          },
+        );
+      }
+
+      pathTest('$chosen E03: a version no release carries fails as a failed '
+          'download, the install unchanged', () async {
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final r = await runHarness(
+          sb,
+          version: '9.9.9',
+          isDownloadFailing: true,
+        );
+
+        expect(r.exitCode, 1);
+        expect(flat(r.stderr), contains(downloadFailed));
+        expect(sb.snapshot(), before);
+      });
+
+      // `irm | iex` passes no argument; the API's line may pass an empty one.
+      for (final (label, isIex, iexArgs) in [
+        ('no argument, as irm | iex', true, ''),
+        ("-Version ''", true, "-Version ''"),
+        ('-File with no -Version', false, ''),
+      ]) {
+        pathTest(
+          '$chosen E04 ($label): no version fetches the latest release',
+          () async {
+            final sb = await sandboxServing('0.2.0');
+
+            final r = await runHarness(sb, isIex: isIex, iexArgs: iexArgs);
+
+            expect(r.exitCode, 0, reason: '${r.stderr}');
+            expect(
+              sb.logOf('web').first,
+              endsWith('$releases/latest/download/$asset'),
+            );
+            expect(versionOf('${binDir(sb)}\\specstone.exe'), '0.2.0');
+          },
+        );
+      }
+
+      pathTest(
+        '$chosen E05: the version already installed is named and nothing is '
+        'placed',
+        () async {
+          final sb = await sandboxServing('1.2.0-beta.1');
+          sb.installFake(version: '1.2.0-beta.1');
+          final before = sb.snapshot();
+
+          final r = await runHarness(sb, version: '1.2.0-beta.1');
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            flat(r.stdout),
+            contains('specstone 1.2.0-beta.1 is already installed'),
+          );
+          expect(r.stdout, isNot(contains('installed in')));
+          expect(r.stdout, isNot(contains('latest release')));
+          expect(sb.snapshot(), before);
+        },
+      );
+
+      pathTest('$chosen: a named version replaces an older CLI', () async {
+        final sb = await sandboxServing('1.2.0-beta.1');
+        sb.installFake();
+
+        final r = await runHarness(sb, version: '1.2.0-beta.1');
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          flat(r.stdout),
+          contains('specstone 1.2.0-beta.1 installed in ${binDir(sb)}'),
+        );
+        expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.2.0-beta.1');
+      });
     });
 
     pathTest('f09/us01/fr02/e01: a download that fails stops with the install '

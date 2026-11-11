@@ -1,10 +1,14 @@
 # Installs the Specstone CLI under ~\.specstone (Windows PowerShell 5.1):
 #   irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex
+# A version, such as the pre-release 1.2.0-beta.1, installs from the script of
+# its own tag:
+#   iex "& {$(irm https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.ps1)} -Version X.Y.Z"
 # The whole body sits in one & { } block. A truncated stream does not parse, so
 # it runs nothing, and the strict mode and error preference set inside the block
 # never reach the caller's session. A refusal throws; it never calls exit, which
 # would close the caller's window under iex.
 # Keep this file ASCII: Windows PowerShell 5.1 reads a file with no BOM as ANSI.
+param([string]$Version = '')
 & {
     Set-StrictMode -Version 3
     $ErrorActionPreference = 'Stop'
@@ -60,6 +64,22 @@
             throw "specstone: unsupported machine Windows $arch; supported: $supported"
         }
         return 'windows-x64'
+    }
+
+    # Returns $true when $Text is MAJOR.MINOR.PATCH[-<pre-release>] in the form
+    # of the CLI's Version. -cmatch with \A and \z and ASCII classes only: -match
+    # ignores case, $ matches before a final line feed, and \d matches digits of
+    # other scripts.
+    function Test-Version([string]$Text) {
+        $number = '(0|[1-9][0-9]*)'
+        $identifier = '(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+        return $Text -cmatch "\A$number\.$number\.$number(-$identifier(\.$identifier)*)?\z"
+    }
+
+    # Returns $Text with each control character (C0, DEL, and C1) as '?', so a
+    # refusal cannot move the cursor or rewrite the terminal.
+    function Get-PrintableText([string]$Text) {
+        return [regex]::Replace($Text, '[\x00-\x1F\x7F-\x9F]', '?')
     }
 
     # Downloads $Url to $Destination over TLS 1.2, which Windows PowerShell 5.1
@@ -419,6 +439,12 @@
     }
 
     $target = Get-Target
+    if ($Version.Length -gt 0) {
+        if (-not (Test-Version $Version)) {
+            throw "specstone: $(Get-PrintableText $Version) is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged"
+        }
+        $releaseUrl = "https://github.com/nontravis/specstone/releases/download/v$Version"
+    }
     $homeDir = Get-EnvText 'HOME'
     if ($homeDir.Length -eq 0) {
         $homeDir = Get-EnvText 'USERPROFILE'
@@ -473,7 +499,11 @@
             }
         }
         if ($oldVersion.Length -gt 0 -and $oldVersion -eq $newVersion) {
-            Write-Host "specstone $newVersion is already the latest release"
+            if ($Version.Length -gt 0) {
+                Write-Host "specstone $newVersion is already installed"
+            } else {
+                Write-Host "specstone $newVersion is already the latest release"
+            }
         } else {
             Install-Files $installDir
             Write-Host "specstone $newVersion installed in $installDir\bin"
