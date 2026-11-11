@@ -29,7 +29,8 @@ touches, the trade-off behind each choice, and its test.
   list whole. Workflow step 1 sorts them.
 - **`design document`** (optional): a path, read in Workflow step 4; no ground source.
 - **`plan path`** (optional): the plan an earlier run reported, or a failed one left, for the same targets, amended in
-  place with the Owner's answers, or the Owner's new path for a refused one.
+  place with the Owner's answers; or the Owner's new path, for a refused one or for a plan already written elsewhere
+  (Workflow step 8).
 - **`answers`** (optional): the Owner's answers on `NOT PLANNED` rows, spec gaps, and open questions. Run every step
   again on them: the Ground shows each doc as it now stands.
 - **`report`** (optional): the file for the whole report, outside the repository; absent, make one with `mktemp`.
@@ -101,7 +102,9 @@ is a spec gap: list it, never plan it.
      see it fail, write the code, run it and see it pass.
 7. **Every task**, either format, beyond the Ground's rules:
    - **No doc text**: it holds none of its doc's text (no statement, scenario, edge case, or table), and tells its
-     implementer to read the doc fresh with `specstone context <target> --for implement` before writing code.
+     implementer to read the doc fresh before writing code by its own read line, written out in the task:
+     `specstone context <target> --for implement`, the FR's story as `<target>` for an FR, then the doc to read in
+     that bundle. Never point to another task's line, or to one line set for a whole phase.
    - **Critical files**: it names each file it touches, each existing file and symbol one you opened.
    - **Trade-off**: it states the trade-off behind each implementation choice, such as a doc that can be built more
      than one way.
@@ -113,12 +116,17 @@ is a spec gap: list it, never plan it.
    - **A plan path inside the CheckedFolders** (the `prds/` or `specs/` folder a bundle header's path opens with), or
      a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a
      new `plan path`.
-   - **Else**: the one plan file, at a given `plan path`, else the plan skill's own path, else
+   - **Else**: the one plan file, at a given `plan path`, else as `<YYYY-MM-DD>-<slug>.md` in the plans folder the
+     project's instruction files (`CLAUDE.md`, `AGENTS.md`) name, else the plan skill's own path, else
      `docs/plans/<YYYY-MM-DD>-<slug>.md`. `Read` a file already there, such as one the plan skill saved or an earlier
-     run wrote, and amend it with `Edit`; make a new one with `Write`. Write no second plan file.
-9. **Check before reporting**: each approved FR of a target that gets a task is built by a task; no task quotes a
-   doc's text; each name a task cites is one a Ground bundle printed. Fix the plan until all three hold. List each
-   name no bundle printed, and each file or symbol not found, under `Findings:`, never cited.
+     run wrote, and amend it with `Edit`; make a new one with `Write`. When the Owner's new `plan path` moves a plan
+     already written, write the plan at the new path and name the old file under `Findings:`; delete no file. Write
+     no other plan file.
+9. **Check before reporting**: each approved FR of a target that gets a task is built by a task; no line of the
+   plan, its header and constraints as well as its tasks, quotes a doc's text (a constraint names the doc that states
+   its rule instead); each task carries its own read line (step 7); each name a task cites is one a Ground bundle
+   printed. Fix the plan until all four hold. List each name no bundle printed, and each file or symbol not found,
+   under `Findings:`, never cited.
 10. **Report**: per Output Format.
 
 ## Output Format
@@ -143,7 +151,8 @@ Findings: <items, or none>
   `approval_stale` FR a story target holds; one row with no task per other doc among `targets`.
 - **Open questions**: each spec gap, each conflict on behavior, a refused plan path, and each draft or
   `approval_stale` doc the plan only reads; `none` when empty.
-- **Findings**: each name no Ground bundle printed, each file or symbol not found, and a CLI error with its target.
+- **Findings**: each name no Ground bundle printed, each file or symbol not found, a CLI error with its target, and
+  the old plan file a new `plan path` left where it was.
 - **Every stop**, an early one included, writes the file and replies `Report: <path>` first.
 - **Old format**: under `Findings:`, that the project is still on the old format, and that `specstone migrate` moves
   it or the old skills still serve it.
@@ -159,7 +168,8 @@ Findings: <items, or none>
 
 **DON'T:**
 
-- Write or edit a PRD or spec doc by any tool, write any other file, or write a file by shell redirect.
+- Write or edit a PRD or spec doc by any tool, write any other file, write a file by shell redirect, or delete or
+  move any file, an old plan file included.
 - Run `specstone new`, `specstone set`, or `specstone approve`, or clear a draft flag.
 - Open a doc file by path, or list the CheckedFolders.
 - Invoke a skill at the plan skill's execution hand-off, or run a task of the plan.
