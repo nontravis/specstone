@@ -41,18 +41,22 @@ pick_target() {
   esac
 }
 
-# Succeeds when $1 is a version of the form MAJOR.MINOR.PATCH[-<pre-release>]
-# (semver without build metadata, ASCII only). A line break fails first, since
-# grep tests each line of its input alone.
-is_version() {
-  lf='
-'
-  cr=$(printf '\r')
+# Succeeds when $1 is a version of the form MAJOR.MINOR.PATCH[-<pre-release>].
+# The byte check comes first: grep tests each line alone and honors GREP_OPTIONS.
+is_version() (
+  LC_ALL=C
+  export LC_ALL
   case "$1" in
-    *"$lf"* | *"$cr"*) return 1 ;;
+    *[!0-9A-Za-z.-]*) return 1 ;;
   esac
   printf '%s\n' "$1" |
-    LC_ALL=C grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?'
+    GREP_OPTIONS='' grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?'
+)
+
+# Prints $1 with each control byte (C0 and DEL) as `?`, so a refusal cannot
+# move the cursor or rewrite the terminal.
+printable() {
+  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '[?*]'
 }
 
 # Prints the SHA-256 of the file named $1 in the folder $tmp as lower-case hex.
@@ -286,7 +290,7 @@ main() {
   target=$(pick_target)
   if [ -n "$version" ]; then
     is_version "$version" ||
-      fail "$version is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged"
+      fail "$(printable "$version") is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged"
     release_url="https://github.com/nontravis/specstone/releases/download/v$version"
   fi
   home_dir=${HOME:-${USERPROFILE:-}}

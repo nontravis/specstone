@@ -125,6 +125,19 @@ done
 cp "$ARCHIVES/${url##*/}" "$out"''');
       }
 
+      // Logs the environment of every grep call, then runs the real grep;
+      // STUB_GREP_STRIP_CR drops carriage returns from the form check's input,
+      // as BSD grep does.
+      void stubGrep(ScriptSandbox sandbox) {
+        sandbox.stub('grep', r'''
+echo "LC_ALL=${LC_ALL-unset} GREP_OPTIONS=${GREP_OPTIONS-unset} $*" >> "$STUB_LOG_DIR/grep.log"
+if [ "$1" = -Eqx ] && [ -n "${STUB_GREP_STRIP_CR:-}" ]; then
+  tr -d '\r' | /usr/bin/grep "$@"
+else
+  exec /usr/bin/grep "$@"
+fi''');
+      }
+
       Future<ScriptSandbox> sandboxServing(String version) async {
         final sb = await createScriptSandbox();
         await sb.writeArchive('linux-x64', version: version);
@@ -178,7 +191,8 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
           expect(r.exitCode, 1);
           expect(
             r.stderr,
-            'specstone: $version is not a version of the form '
+            'specstone: ${version.replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '?')} '
+            'is not a version of the form '
             'MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged\n',
           );
           expect(sb.logOf('curl'), isEmpty);
@@ -273,6 +287,86 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(r.stdout, isNot(contains('installed in')));
         expect(r.stdout, isNot(contains('latest release')));
         expect(sb.snapshot(), before);
+      });
+
+      test('$chosen: the form check runs grep with LC_ALL=C and an empty '
+          'GREP_OPTIONS', () async {
+        final sb = await createScriptSandbox();
+        stubGrep(sb);
+        stubCurlFailing(sb);
+
+        await sb.run(
+          'install.sh',
+          extra: {'SPECSTONE_VERSION': '1.2.0', 'GREP_OPTIONS': '-v'},
+        );
+
+        final check = sb.logOf('grep').where((line) => line.contains('-Eqx'));
+        expect(check, hasLength(1));
+        expect(check.single, startsWith('LC_ALL=C GREP_OPTIONS= -Eqx '));
+      });
+
+      test('$chosen: GREP_OPTIONS=-v neither lets a path through nor refuses '
+          'a version', () async {
+        final sb = await createScriptSandbox();
+        stubCurlFailing(sb);
+        const path = '1.2.0/../../../../evil/x/releases/download/v1';
+
+        final refused = await sb.run(
+          'install.sh',
+          extra: {'SPECSTONE_VERSION': path, 'GREP_OPTIONS': '-v'},
+        );
+        final accepted = await sb.run(
+          'install.sh',
+          extra: {'SPECSTONE_VERSION': '1.2.0', 'GREP_OPTIONS': '-v'},
+        );
+
+        expect(
+          refused.stderr,
+          'specstone: $path is not a version of the form '
+          'MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged\n',
+        );
+        expect(accepted.stderr, downloadFailed);
+        expect(sb.logOf('curl').single, endsWith('/v1.2.0/$asset'));
+      });
+
+      test(
+        '$chosen: a carriage return is refused even when grep drops it',
+        () async {
+          final sb = await createScriptSandbox();
+          stubGrep(sb);
+          stubCurlFailing(sb);
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {'SPECSTONE_VERSION': '1.2.0\r', 'STUB_GREP_STRIP_CR': '1'},
+          );
+
+          expect(r.exitCode, 1);
+          expect(r.stderr, startsWith('specstone: 1.2.0? is not a version'));
+          expect(sb.logOf('curl'), isEmpty);
+        },
+      );
+
+      test('$chosen: a named version replaces an older CLI', () async {
+        final sb = await sandboxServing('1.2.0-beta.1');
+        sb.installFake();
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            'ARCHIVES': sb.archives.path,
+            'SPECSTONE_VERSION': '1.2.0-beta.1',
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains(
+            'specstone 1.2.0-beta.1 installed in ${sb.home.path}/.specstone/bin',
+          ),
+        );
+        expect(installedVersion(sb), '1.2.0-beta.1');
       });
     });
 

@@ -54,6 +54,8 @@ const List<String> refusedVersions = [
   '1.2.0-00.beta',
   '1.2.0+build.5',
   '',
+  ' ',
+  '\n',
   ' 1.2.0',
   '1.2.0 ',
   '1.2.0\n',
