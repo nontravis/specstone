@@ -76,9 +76,12 @@ is a spec gap: list it, never plan it.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
      other targets.
-3. **Check**: run `specstone check` once, as `specstone check 2>&1 | grep approval_stale`, and read only those lines;
-   no line (`grep` exits 1) means no doc is stale, and no finding is a stop. Match each `approval_stale` line to a doc
-   by the file path a Ground bundle header printed (`==> <name> (<type>) · <path> <==`).
+3. **Check**: run `specstone check` once, as
+   `{ specstone check 2>&1; echo "exit=$?"; } | grep -E 'approval_stale|^exit='`, and read only those lines. Exit 0 or
+   1 is a finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is
+   an error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
+   Match each `approval_stale` line to a doc by the file path a Ground bundle header printed
+   (`==> <name> (<type>) · <path> <==`).
 4. **Design document**: when given, read it whole for what changed and why; the docs, never the document, say what
    each change now is.
 5. **Judge each doc** a Ground bundle printed by its own state alone: `draft: true` in its own frontmatter, and a step
@@ -169,8 +172,8 @@ Findings: <items, or none>
 
 **DO:**
 
-- Run `specstone context` for the Ground and one `specstone check`, piped to `grep approval_stale` (Workflow step 3),
-  and no other `specstone` command.
+- Run `specstone context` for the Ground and one `specstone check`, read through its `approval_stale` lines and its
+  exit code (Workflow step 3), and no other `specstone` command.
 - Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
 - Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.
