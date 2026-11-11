@@ -239,8 +239,8 @@ void main() {
           r"'STRICT=' + ($null -eq $notDefinedAnywhere); "
           r"'EAP=' + $ErrorActionPreference";
 
-      final r = await Process.run(
-        'powershell',
+      final r = await runPowerShell(
+        'iex-session',
         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
         environment: sb.env(),
         includeParentEnvironment: false,
@@ -262,8 +262,8 @@ void main() {
           "Get-Content -Raw '$script' | Invoke-Expression; "
           r"'PATH=' + $env:Path";
 
-      final r = await Process.run(
-        'powershell',
+      final r = await runPowerShell(
+        'iex-session',
         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
         environment: sb.env({'PATH': path}),
         includeParentEnvironment: false,

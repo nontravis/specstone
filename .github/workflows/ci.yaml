@@ -82,6 +82,8 @@ jobs:
       - run: dart pub get --enforce-lockfile
       - name: Test the PowerShell scripts
         working-directory: packages/specstone
+        env:
+          SPECSTONE_PS_TIMING: '1'
         run: >-
           dart test --tags ps1 -r expanded --timeout 3m
           --file-reporter json:ps1-results.json

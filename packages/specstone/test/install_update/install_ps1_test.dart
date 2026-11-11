@@ -2179,8 +2179,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
             "try { Get-Content -Raw '$script' | Invoke-Expression } "
             r"catch { 'CAUGHT=' + $_.Exception.Message }; "
             '$after';
-        return Process.run(
-          'powershell',
+        return runPowerShell(
+          'iex-session',
           ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
           environment: sb.env({...archiveEnv(sb), ...extra}),
           includeParentEnvironment: false,
@@ -2285,8 +2285,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
             "Get-Content -Raw '$script' | Invoke-Expression; "
             r"'PATH=' + $env:Path";
 
-        final r = await Process.run(
-          'powershell',
+        final r = await runPowerShell(
+          'iex-session',
           ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
           environment: sb.env({...archiveEnv(sb), 'PATH': path}),
           includeParentEnvironment: false,
@@ -2310,8 +2310,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
           r"'STRICT=' + ($null -eq $notDefinedAnywhere); "
           r"'EAP=' + $ErrorActionPreference";
 
-      final r = await Process.run(
-        'powershell',
+      final r = await runPowerShell(
+        'iex-session',
         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
         environment: sb.env(archiveEnv(sb)),
         includeParentEnvironment: false,

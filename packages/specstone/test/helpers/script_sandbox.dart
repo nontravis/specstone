@@ -95,6 +95,11 @@ final class ScriptSandbox {
             'TMP': _tmp.path,
             'STUB_LOG_DIR': logs.path,
             'PROCESSOR_ARCHITECTURE': 'AMD64',
+            // Without these a Windows PowerShell 5.1 child finds no module
+            // analysis cache and analyzes every module again on its first
+            // cmdlet. Nothing else of the user profile reaches the child.
+            'PSModulePath': ?Platform.environment['PSModulePath'],
+            _cacheVariable: _moduleAnalysisCachePath(),
           }
         : {
             'HOME': home.path,
@@ -224,6 +229,7 @@ final class ScriptSandbox {
     final path = _isAbsolute(script)
         ? script
         : '${repoRoot().path}$_separator$script';
+    final watch = Stopwatch()..start();
     final process = await Process.start(
       _windows ? 'powershell' : shell,
       _windows
@@ -238,12 +244,14 @@ final class ScriptSandbox {
     if (stdinText != null) process.stdin.write(stdinText);
     // A script that never reads stdin closes the pipe early; that is fine.
     await process.stdin.close().catchError((Object _) {});
-    return ProcessResult(
+    final result = ProcessResult(
       process.pid,
       await process.exitCode,
       await stdout,
       await stderr,
     );
+    if (_windows) _reportSpawn('run', watch);
+    return result;
   }
 
   static const _lenientUtf8 = Utf8Decoder(allowMalformed: true);
@@ -334,7 +342,7 @@ final class ScriptSandbox {
         '${_quiet}Copy-Item -Path "${from.path}\\*" '
         '-Destination "${to.path}" -Recurse';
     final result = _windows
-        ? await Process.run('powershell', ['-NoProfile', '-Command', copy])
+        ? await runPowerShell('copy', ['-NoProfile', '-Command', copy])
         : await Process.run('cp', ['-R', '${from.path}/.', to.path]);
     if (result.exitCode != 0) {
       throw StateError('copy of ${from.path} failed: ${result.stderr}');
@@ -354,7 +362,7 @@ final class ScriptSandbox {
         '[System.IO.Compression.ZipFile]::CreateFromDirectory('
         '"${stage.path}", "${archive.path}")';
     final result = zip
-        ? await Process.run('powershell', ['-NoProfile', '-Command', compress])
+        ? await runPowerShell('pack', ['-NoProfile', '-Command', compress])
         : await Process.run('tar', [
             '-czf',
             archive.path,
@@ -385,7 +393,7 @@ Future<UserPath?> readUserPath() async {
       r"$kind = $k.GetValueKind('Path'); "
       r'$b = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($v)); '
       r'"$kind $b" }';
-  final result = await Process.run('powershell', [
+  final result = await runPowerShell('read-path', [
     '-NoProfile',
     '-Command',
     script,
@@ -415,8 +423,8 @@ Future<void> writeUserPath(UserPath? path) async {
       r"$k.SetValue('Path', $v, $env:SPECSTONE_TEST_USER_PATH_KIND) } "
       r"elseif (@($k.GetValueNames()) -contains 'Path') { "
       r"$k.DeleteValue('Path') }";
-  final result = await Process.run(
-    'powershell',
+  final result = await runPowerShell(
+    'write-path',
     ['-NoProfile', '-Command', script],
     environment: {
       if (path != null) ...{
@@ -429,6 +437,69 @@ Future<void> writeUserPath(UserPath? path) async {
     throw StateError('writing the user PATH failed: ${result.stderr}');
   }
 }
+
+const _cacheVariable = 'PSModuleAnalysisCachePath';
+const _timingVariable = 'SPECSTONE_PS_TIMING';
+
+/// Runs `powershell` with [args] as `Process.run` does and, when
+/// `SPECSTONE_PS_TIMING=1`, prints the spawn's elapsed time under [role].
+///
+/// The child gets the suite's module analysis cache unless [environment]
+/// names one.
+Future<ProcessResult> runPowerShell(
+  String role,
+  List<String> args, {
+  Map<String, String>? environment,
+  bool includeParentEnvironment = true,
+  String? workingDirectory,
+}) async {
+  final watch = Stopwatch()..start();
+  final result = await Process.run(
+    'powershell',
+    args,
+    environment: {_cacheVariable: _moduleAnalysisCachePath(), ...?environment},
+    includeParentEnvironment: includeParentEnvironment,
+    workingDirectory: workingDirectory,
+  );
+  _reportSpawn(role, watch);
+  return result;
+}
+
+// The reporters attach the name of the running test to a printed line: the
+// expanded one prints it with the line, the JSON file names it by test id.
+void _reportSpawn(String role, Stopwatch watch) {
+  if (Platform.environment[_timingVariable] != '1') return;
+  // ignore: avoid_print, the expanded log names where the time of a slow ps1 test goes.
+  print('powershell $role: ${watch.elapsedMilliseconds} ms');
+}
+
+String? _cachePath;
+
+/// Returns the module analysis cache file the PowerShell children of this
+/// suite share.
+///
+/// A Windows PowerShell 5.1 child started without `LOCALAPPDATA` finds no
+/// cache and analyzes every module on its first cmdlet. The file is a copy of
+/// the runner's own cache, made once per suite into a folder the suite owns;
+/// without a source it is a path in that folder that no child has written yet.
+String _moduleAnalysisCachePath() {
+  final existing = _cachePath;
+  if (existing != null) return existing;
+  final folder = Directory.systemTemp.createTempSync('specstone_ps_cache_');
+  final target = File('${folder.path}${Platform.pathSeparator}$_cacheFile');
+  final localAppData = Platform.environment['LOCALAPPDATA'];
+  if (localAppData != null) {
+    final source = Directory(
+      '$localAppData${Platform.pathSeparator}Microsoft'
+      '${Platform.pathSeparator}Windows${Platform.pathSeparator}PowerShell',
+    );
+    final cache = File('${source.path}${Platform.pathSeparator}$_cacheFile');
+    if (cache.existsSync()) cache.copySync(target.path);
+  }
+  return _cachePath = target.path;
+}
+
+const _cacheFile = 'ModuleAnalysisCache';
 
 /// Runs [body] while holding an exclusive lock on the machine's user PATH.
 ///
