@@ -243,8 +243,9 @@ run_claude_live() {
 # holds id specstone@specstone and scope user, and exits 1 for a repeated id or
 # scope. mode `field`: the text is one object; prints the string value of its
 # key $2 (nothing when absent, repeated, or not a string). An escape in a value
-# other than \" \\ \/ stays as typed, so such a value never equals a plain one
-# and is read as another source.
+# other than \" and \\ stays as typed, and those two decode to a quote and a
+# backslash, so no escaped value equals the plain official one and an entry
+# written with an escape is read as another source.
 json_scan() {
   LC_ALL=C awk -v mode="$1" -v want="${2:-}" '
 function decode(raw,    out, k, c, m) {
@@ -253,7 +254,7 @@ function decode(raw,    out, k, c, m) {
     c = substr(raw, k, 1)
     if (c != "\\") { out = out c; continue }
     m = substr(raw, ++k, 1)
-    out = out (m == "\"" || m == "\\" || m == "/" ? "" : c) m
+    out = out (m == "\"" || m == "\\" ? "" : c) m
   }
   return out
 }

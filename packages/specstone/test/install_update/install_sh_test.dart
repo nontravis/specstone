@@ -1279,6 +1279,32 @@ esac''');
         });
       }
 
+      for (final (label, reply) in [
+        ('an empty list', '[]'),
+        (
+          'a list without specstone',
+          '[{"name": "other", "source": "github", "repo": "someone/other"}]',
+        ),
+      ]) {
+        test('$plugin: a version against $label adds the tag, then installs '
+            'the plugin', () async {
+          final sb = await sandboxWithClaude();
+
+          final r = await runWith(sb, {
+            'SPECSTONE_VERSION': beta,
+            'STUB_MARKETPLACES': reply,
+          });
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(sb.logOf('claude'), [
+            listMarketplaces,
+            listPlugins,
+            'plugin marketplace add $betaSource',
+            installPlugin,
+          ]);
+        });
+      }
+
       test('$plugin E01: the official marketplace with no ref needs nothing '
           'without a version', () async {
         final sb = await sandboxWithClaude();
@@ -1497,6 +1523,21 @@ esac''');
               'https://github.com/nontravis/specstone.git',
             ),
             (
+              'the near-miss repo nontravis/specstone-fork',
+              {'source': 'github', 'repo': 'nontravis/specstone-fork'},
+              'nontravis/specstone-fork',
+            ),
+            (
+              'the near-miss repo xnontravis/specstone',
+              {'source': 'github', 'repo': 'xnontravis/specstone'},
+              'xnontravis/specstone',
+            ),
+            (
+              'the near-miss repo nontravis/specstone.git',
+              {'source': 'github', 'repo': 'nontravis/specstone.git'},
+              'nontravis/specstone.git',
+            ),
+            (
               'a directory entry that names the official repo',
               {
                 'source': 'directory',
@@ -1617,8 +1658,8 @@ esac''');
         expect(r.stdout, isNot(contains('\u001b')));
       });
 
-      test('$plugin: an escaped slash in a repo is a slash, so the entry is '
-          'official', () async {
+      test('$plugin E11: an escaped slash in a repo stays as typed, so the '
+          'entry is another source', () async {
         final sb = await sandboxWithClaude();
 
         final r = await runWith(sb, {
@@ -1629,6 +1670,7 @@ esac''');
         });
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains(leftLine(r'nontravis\/specstone')));
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
@@ -1812,6 +1854,9 @@ esac''');
         'a repeated key':
             '[{"name": "specstone", "source": "github", '
             '"repo": "nontravis/specstone", "repo": "x/y"}]',
+        'a repeated key with the official value last':
+            '[{"name": "specstone", "source": "github", '
+            '"repo": "x/fork", "repo": "nontravis/specstone"}]',
         'an escaped key beside the official pair':
             '[{"name": "specstone", "source": "github", '
             r'"repo": "nontravis/specstone", "re\u0070o": "attacker/x"}]',
