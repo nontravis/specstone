@@ -305,6 +305,18 @@ void main() {
 
   Future<String> sha(String ref) => repo.git(['rev-parse', ref]);
 
+  // Throws when [ancestor] is not an ancestor of [descendant].
+  Future<void> expectAncestor(
+    ReleaseRepo r,
+    String ancestor,
+    String descendant,
+  ) => r.git(['merge-base', '--is-ancestor', ancestor, descendant]);
+
+  // HEAD's reflog records every switch, so a switch to main and back shows.
+  Future<bool> hasCheckedOutMain(ReleaseRepo r) async =>
+      RegExp(r'moving from \S+ to main')
+          .hasMatch(await r.git(['reflog', 'show', 'HEAD']));
+
   List<String> stderrLines(ProcessResult r) =>
       (r.stderr as String).trimRight().split('\n');
 
@@ -621,13 +633,7 @@ dependencies:
     expect(refs['refs/heads/main'], originMain);
     final tagged = refs['refs/tags/v0.2.0-beta.1']!;
     expect(refs['refs/heads/develop'], await sha('develop'));
-    // Throws when the tag is not an ancestor.
-    await repo.git([
-      'merge-base',
-      '--is-ancestor',
-      tagged,
-      refs['refs/heads/develop']!,
-    ]);
+    await expectAncestor(repo, tagged, refs['refs/heads/develop']!);
     expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
     expect(repo.ghCalls().skip(1), [
@@ -636,10 +642,11 @@ dependencies:
       'release view v0.2.0-beta.1 --json url --jq .url',
     ]);
     expect(await repo.git(['branch', '--show-current']), 'develop');
+    expect(await hasCheckedOutMain(repo), isFalse);
   });
 
-  test('$_land E07: an origin/main that moved during the wait stops a '
-      'pre-release nothing', () async {
+  test('$_land E07: an origin/main that moved during the wait does not stop '
+      'a pre-release', () async {
     final main = await sha('main');
 
     final r = await repo.release(
@@ -654,12 +661,13 @@ dependencies:
     expect(otherMain, isNot(main));
     expect(await sha('main'), main);
     expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
-    await repo.git([
-      'merge-base',
-      '--is-ancestor',
+    await expectAncestor(
+      repo,
       refs['refs/tags/v0.2.0-beta.1']!,
       refs['refs/heads/develop']!,
-    ]);
+    );
+    expect(await repo.git(['branch', '--show-current']), 'develop');
+    expect(await hasCheckedOutMain(repo), isFalse);
   });
 
   test('$_land E08: a rejected push of develop resets local develop and '
@@ -672,7 +680,7 @@ dependencies:
     final r = await repo.release(['0.2.0-beta.1']);
 
     expect(r.exitCode, 1);
-    expect(r.stderr, contains('git push origin develop'));
+    expect(r.stderr, contains('git push origin develop failed'));
     expect(stderrLines(r).last, resolveBeta);
     final after = await repo.originRefs();
     expect(after['refs/heads/main'], refs['refs/heads/main']);
@@ -685,13 +693,54 @@ dependencies:
       isNotEmpty,
     );
     expect(await repo.git(['status', '--porcelain']), isEmpty);
+    expect(
+      await repo.git(['branch', '--show-current']),
+      'release/0.2.0-beta.1',
+    );
+    expect(await hasCheckedOutMain(repo), isFalse);
   });
 
-  test('$_land E09: a full release from a develop holding a pre-release '
-      'moves main and develop in the atomic push', () async {
-    final pre = await createReleaseRepo(version: '0.2.0-beta.1');
+  test('$_land E08: a run again after the refused push lands develop '
+      'alone', () async {
+    await rejectPushes('refs/heads/develop');
+    final main = await sha('main');
+    final originMain = (await repo.originRefs())['refs/heads/main'];
+    expect((await repo.release(['0.2.0-beta.1'])).exitCode, 1);
+    File('${repo.origin.path}/hooks/pre-receive').deleteSync();
 
-    final r = await pre.release(['0.2.0']);
+    final r = await repo.release(['0.2.0-beta.1']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect((r.stdout as String).trimRight().split('\n').last, preReleased);
+    final refs = await repo.originRefs();
+    expect(refs['refs/heads/main'], originMain);
+    expect(await sha('main'), main);
+    expect(refs['refs/heads/develop'], await sha('develop'));
+    await expectAncestor(
+      repo,
+      refs['refs/tags/v0.2.0-beta.1']!,
+      refs['refs/heads/develop']!,
+    );
+    expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+    expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+  });
+
+  // The full release lands after a pre-release the way the docs state: `main`
+  // moves from the last full release, here the fixture's first commit.
+  Future<String> landBeta() async {
+    final lastFullRelease = await sha('main');
+    final r = await repo.release(['0.2.0-beta.1']);
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(await sha('main'), lastFullRelease);
+    return lastFullRelease;
+  }
+
+  test('$_land E09: a full release from a develop holding a pre-release '
+      'moves main from the last full release and develop in the atomic '
+      'push', () async {
+    final lastFullRelease = await landBeta();
+
+    final r = await repo.release(['0.2.0']);
 
     expect(r.exitCode, 0, reason: '${r.stderr}');
     expect(
@@ -700,16 +749,39 @@ dependencies:
       'https://github.com/nontravis/specstone/releases/tag/v0.2.0; '
       'main and develop pushed',
     );
-    final refs = await pre.originRefs();
+    final refs = await repo.originRefs();
     final tagged = refs['refs/tags/v0.2.0']!;
     expect(refs['refs/heads/main'], tagged);
-    await pre.git([
-      'merge-base',
-      '--is-ancestor',
-      tagged,
-      refs['refs/heads/develop']!,
-    ]);
+    expect(tagged, isNot(lastFullRelease));
+    await expectAncestor(repo, lastFullRelease, tagged);
+    await expectAncestor(repo, tagged, refs['refs/heads/develop']!);
     expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+    expect(await hasCheckedOutMain(repo), isTrue);
+  });
+
+  test('$_check E09: a full --dry-run over a develop holding a pre-release '
+      'prints the full-release landing lines', () async {
+    await landBeta();
+    final landed = await repo.state();
+
+    final r = await repo.release(['0.2.0', '--dry-run']);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(
+      r.stdout,
+      [
+        'create release/0.2.0 from develop',
+        'set 0.2.0 in the five version spots',
+        're-read the five spots; run dart pub get --enforce-lockfile',
+        'commit "chore: release 0.2.0"; tag v0.2.0 on it',
+        'push tag v0.2.0',
+        'wait for the release.yaml run of v0.2.0',
+        fetchLine,
+        fastForwardLine,
+        'push main and develop in one atomic push; delete release/0.2.0',
+      ].map((l) => '$l\n').join(),
+    );
+    expect(await repo.state(), landed);
   });
 
   test('$_land E05: local develop ahead of origin/develop refuses a '
@@ -737,6 +809,16 @@ dependencies:
     final after = await repo.originRefs();
     expect(after['refs/heads/main'], refs['refs/heads/main']);
     expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+    expect(
+      await repo.git(['log', '-1', '--format=%s', 'develop']),
+      'local-only',
+    );
+    expect(
+      await repo.git(['branch', '--show-current']),
+      'release/0.2.0-beta.1',
+    );
+    expect(await sha('release/0.2.0-beta.1'), after['refs/tags/v0.2.0-beta.1']);
+    expect(await hasCheckedOutMain(repo), isFalse);
   });
 
   group('first-run checks', () {
@@ -1375,13 +1457,55 @@ dependencies:
       final refs = await repo.originRefs();
       expect(refs['refs/heads/main'], originMain);
       expect(refs['refs/tags/v0.2.0-beta.1'], tagged);
-      await repo.git([
-        'merge-base',
-        '--is-ancestor',
-        tagged,
-        refs['refs/heads/develop']!,
-      ]);
+      await expectAncestor(repo, tagged, refs['refs/heads/develop']!);
       expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+      expect(await hasCheckedOutMain(repo), isFalse);
+    });
+
+    test('$_rerun: a fix pushed with release/0.2.0-beta.1 lands develop '
+        'alone and deletes the branch on origin', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+      final main = await sha('main');
+      final originMain = (await repo.originRefs())['refs/heads/main'];
+
+      final r = await repo.release(['0.2.0-beta.1']);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((r.stdout as String).trimRight().split('\n').last, preReleased);
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0-beta.1'], fix);
+      expect(refs['refs/heads/main'], originMain);
+      expect(await sha('main'), main);
+      await expectAncestor(repo, fix, refs['refs/heads/develop']!);
+      expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
+      expect(await hasCheckedOutMain(repo), isFalse);
+    });
+
+    test('$_rerun: a landing that pushed develop and kept the branch '
+        'resumes and deletes the branch', () async {
+      await repo.git(['push', '-q', 'origin', 'release/0.2.0-beta.1']);
+      await repo.git(['switch', 'develop']);
+      await repo.git(['merge', '--no-edit', 'release/0.2.0-beta.1']);
+      await repo.git(['push', '-q', 'origin', 'develop']);
+      await repo.git(['switch', 'release/0.2.0-beta.1']);
+      final main = await sha('main');
+      final refs = await repo.originRefs();
+
+      final r = await repo.release(
+        ['0.2.0-beta.1'],
+        gh: {'GH_STUB_RELEASE': 'present'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((r.stdout as String).trimRight().split('\n').last, preReleased);
+      final after = await repo.originRefs();
+      expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+      expect(after['refs/heads/main'], refs['refs/heads/main']);
+      expect(await sha('main'), main);
+      expect(after.keys.where((k) => k.contains('release/')), isEmpty);
       expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
     });
 
