@@ -1071,6 +1071,40 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       const listPlugins = 'plugin list --json';
       const addMarketplace = 'plugin marketplace add nontravis/specstone';
       const installPlugin = 'plugin install specstone@specstone';
+      const removeMarketplace = 'plugin marketplace remove specstone';
+      const plugin =
+          'install_update/machine_install/install_cli_and_plugin/'
+          'install_plugin';
+      const beta = '1.2.0-beta.1';
+      const betaSource = 'nontravis/specstone#v$beta';
+      const noClaudeHeader =
+          'To add the Specstone plugin to Claude Code, run (the first command '
+          'only when a marketplace specstone already exists):\n';
+
+      // A `marketplace list --json` reply shaped as a real claude prints it.
+      String marketplaceList(Map<String, Object?> entry) =>
+          const JsonEncoder.withIndent('  ').convert([
+            {
+              'name': 'specstone',
+              ...entry,
+              'installLocation': '/home/x/.claude/plugins/marketplaces/x',
+            },
+          ]);
+
+      String officialList({String? ref}) => marketplaceList({
+        'source': 'github',
+        'repo': 'nontravis/specstone',
+        'ref': ?ref,
+      });
+
+      String commandLines(String wanted) =>
+          '  claude plugin marketplace remove specstone\n'
+          '  claude plugin marketplace add $wanted\n'
+          '  claude plugin install specstone@specstone\n';
+
+      String leftLine(String source) =>
+          'specstone: marketplace specstone comes from $source, not '
+          'nontravis/specstone; left as it is\n';
 
       Future<ScriptSandbox> sandboxWithClaude() async {
         final sb = await sandboxWith();
@@ -1082,8 +1116,8 @@ if [ "$*" = "${STUB_FAIL:-}" ]; then
   exit 1
 fi
 case "$*" in
-  'plugin marketplace list --json') echo "${STUB_MARKETPLACES:-[]}" ;;
-  'plugin list --json') echo "${STUB_PLUGINS:-[]}" ;;
+  'plugin marketplace list --json') printf '%s\n' "${STUB_MARKETPLACES:-[]}" ;;
+  'plugin list --json') printf '%s\n' "${STUB_PLUGINS:-[]}" ;;
 esac''');
         return sb;
       }
@@ -1205,25 +1239,349 @@ esac''');
         expect(sb.logOf('claude'), contains(addMarketplace));
       });
 
-      test('f09/us01/fr05/e03, f09/us01/s3: no claude prints both commands; '
-          'the CLI stays; exit 0', () async {
-        final sb = await sandboxWith();
+      for (final (label, wanted, env) in [
+        ('without a version', 'nontravis/specstone', <String, String>{}),
+        ('with a version', betaSource, {'SPECSTONE_VERSION': beta}),
+      ]) {
+        test('$plugin E10, f09/us01/fr05/e03, f09/us01/s3: no claude prints '
+            'the remove, the add, and the install $label; the CLI stays; '
+            'exit 0', () async {
+          final sb = await sandboxWith();
 
-        final r = await runWith(sb);
+          final r = await runWith(sb, env);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, contains(noClaudeHeader + commandLines(wanted)));
+          expect(
+            File('${sb.home.path}/.specstone/bin/specstone').existsSync(),
+            isTrue,
+          );
+        });
+      }
+
+      test('$plugin E01: the official marketplace with no ref needs nothing '
+          'without a version', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': officialList(),
+          'STUB_PLUGINS': userPluginJson,
+        });
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+        expect(r.stdout, isNot(contains('re-added')));
+      });
+
+      test('$plugin E01: the official marketplace at the wanted ref needs '
+          'nothing with a version', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'SPECSTONE_VERSION': beta,
+          'STUB_MARKETPLACES': officialList(ref: 'v$beta'),
+          'STUB_PLUGINS': userPluginJson,
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('$plugin E01: the official marketplace at the wanted ref still '
+          'installs a missing plugin', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'SPECSTONE_VERSION': beta,
+          'STUB_MARKETPLACES': officialList(ref: 'v$beta'),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          installPlugin,
+        ]);
+      });
+
+      test('$plugin E08, install_cli_and_plugin S7: a pinned marketplace '
+          'with no version goes back to main', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': officialList(ref: 'v$beta'),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          removeMarketplace,
+          addMarketplace,
+          installPlugin,
+        ]);
         expect(
           r.stdout,
           contains(
-            'To add the Specstone plugin to Claude Code, run:\n'
-            '  claude plugin marketplace add nontravis/specstone\n'
-            '  claude plugin install specstone@specstone\n',
+            'specstone: marketplace specstone re-added from '
+            'nontravis/specstone\n',
           ),
         );
+      });
+
+      test('$plugin E08, install_cli_and_plugin S7: an unpinned marketplace '
+          'with a version moves to the tag', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'SPECSTONE_VERSION': beta,
+          'STUB_MARKETPLACES': officialList(),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          removeMarketplace,
+          'plugin marketplace add $betaSource',
+          installPlugin,
+        ]);
+        expect(
+          r.stdout,
+          contains(
+            'specstone: marketplace specstone re-added from $betaSource\n',
+          ),
+        );
+      });
+
+      test('$plugin E08: a marketplace at another tag moves to the wanted '
+          'tag', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'SPECSTONE_VERSION': beta,
+          'STUB_MARKETPLACES': officialList(ref: 'v1.1.1'),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          removeMarketplace,
+          'plugin marketplace add $betaSource',
+          installPlugin,
+        ]);
+      });
+
+      test('$plugin E08: the remove uninstalled the plugin, so the install '
+          'runs although the earlier list held it', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': officialList(ref: 'v$beta'),
+          'STUB_PLUGINS': userPluginJson,
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), contains(installPlugin));
+      });
+
+      test('$plugin E09: a failing add after the remove names the add; no '
+          'install; exit 0', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_FAIL': addMarketplace,
+          'STUB_MARKETPLACES': officialList(ref: 'v$beta'),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $addMarketplace failed: boom; run it by hand\n',
+          ),
+        );
+        expect(r.stdout, isNot(contains('re-added')));
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          removeMarketplace,
+          addMarketplace,
+        ]);
         expect(
           File('${sb.home.path}/.specstone/bin/specstone').existsSync(),
           isTrue,
         );
+      });
+
+      test('$plugin E09: a failing remove names the remove; no add, no '
+          'install; exit 0', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_FAIL': removeMarketplace,
+          'STUB_MARKETPLACES': officialList(ref: 'v$beta'),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $removeMarketplace failed: boom; run it by '
+            'hand\n',
+          ),
+        );
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          removeMarketplace,
+        ]);
+      });
+
+      // Each entry is the Owner's own source, never removed: E11 and Review
+      // Focus 3 (a path holding `}` and `"`, a repo that differs by case, a
+      // git source with a GitHub URL).
+      for (final (label, entry, source)
+          in <(String, Map<String, Object?>, String)>[
+            (
+              'a directory',
+              {'source': 'directory', 'path': '/work/specstone'},
+              '/work/specstone',
+            ),
+            (
+              'a fork',
+              {'source': 'github', 'repo': 'someone/specstone'},
+              'someone/specstone',
+            ),
+            (
+              'a directory path holding } and a quote',
+              {
+                'source': 'directory',
+                'path': '/work/a}b"c, "name": "specstone',
+              },
+              '/work/a}b"c, "name": "specstone',
+            ),
+            (
+              'a repo that differs by case',
+              {'source': 'github', 'repo': 'NonTravis/Specstone'},
+              'NonTravis/Specstone',
+            ),
+            (
+              'a git source with a GitHub URL',
+              {
+                'source': 'git',
+                'url': 'https://github.com/nontravis/specstone.git',
+              },
+              'https://github.com/nontravis/specstone.git',
+            ),
+          ]) {
+        for (final (suffix, wanted, env) in [
+          ('without a version', 'nontravis/specstone', <String, String>{}),
+          ('with a version', betaSource, {'SPECSTONE_VERSION': beta}),
+        ]) {
+          test('$plugin E11: $label is never removed $suffix; the commands '
+              'print; the install runs for a missing plugin', () async {
+            final sb = await sandboxWithClaude();
+
+            final r = await runWith(sb, {
+              ...env,
+              'STUB_MARKETPLACES': marketplaceList(entry),
+            });
+
+            expect(r.exitCode, 0, reason: '${r.stderr}');
+            expect(r.stdout, contains(leftLine(source) + commandLines(wanted)));
+            expect(sb.logOf('claude'), [
+              listMarketplaces,
+              listPlugins,
+              installPlugin,
+            ]);
+          });
+        }
+      }
+
+      test('$plugin E11: another source with the plugin installed runs no '
+          'install', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceList({
+            'source': 'directory',
+            'path': '/work/specstone',
+          }),
+          'STUB_PLUGINS': userPluginJson,
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains(leftLine('/work/specstone')));
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('$plugin E11: an entry with a repeated repo key is another '
+          'source', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES':
+              '[{"name": "specstone", "source": "github", '
+              '"repo": "nontravis/specstone", "repo": "x/y"}]',
+          'STUB_PLUGINS': userPluginJson,
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('left as it is\n'));
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('$plugin E11: an official-looking value inside another key does '
+          'not make the entry official', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceList({
+            'source': 'directory',
+            'path': '/w", "source": "github", "repo": "nontravis/specstone',
+          }),
+          'STUB_PLUGINS': userPluginJson,
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('left as it is\n'));
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('$plugin: a name written inside another entry is not '
+          'specstone', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceList({
+            'name': 'other',
+            'source': 'directory',
+            'path': '/w", "name": "specstone',
+          }),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          addMarketplace,
+          installPlugin,
+        ]);
+      });
+
+      test('$plugin: a list cut short removes nothing', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES':
+              '[{"name": "specstone", "source": "github", '
+              '"repo": "nontravis/specstone", "ref": "v$beta"',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), isNot(contains(removeMarketplace)));
       });
 
       test('f09/us01/fr05/e04: a failing install names its first stderr '
@@ -1510,7 +1868,9 @@ esac''');
         expect(
           r.stdout,
           contains(
-            'To add the Specstone plugin to Claude Code, run:\n'
+            'To add the Specstone plugin to Claude Code, run (the first '
+            'command only when a marketplace specstone already exists):\n'
+            '  claude plugin marketplace remove specstone\n'
             '  claude plugin marketplace add nontravis/specstone\n'
             '  claude plugin install specstone@specstone\n',
           ),

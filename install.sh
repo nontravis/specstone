@@ -231,10 +231,131 @@ run_claude_live() {
   claude_failed "$claude_status" "$@"
 }
 
-# Succeeds when the marketplace list $1 names a marketplace "specstone".
-marketplace_added() {
-  printf '%s\n' "$1" |
-    grep -Eq '"name"[[:space:]]*:[[:space:]]*"specstone"'
+# Reads the JSON text on stdin with a tokenizer that knows strings and
+# nesting, so a quote, brace, or key name inside a value never counts.
+# mode `entry`: the list is an array of objects; prints the one object whose
+# `name` is "specstone" on one line. mode `field`: the text is one object;
+# prints the string value of its key $2. Prints nothing when the text is not
+# well-formed JSON, the match is missing or not unique, or the value is not a
+# string. An escape other than \" \\ \/ stays as typed, so such a value never
+# equals a plain one and is read as another source.
+json_scan() {
+  LC_ALL=C awk -v mode="$1" -v want="${2:-}" '
+function decode(raw,    out, k, c, m) {
+  out = ""
+  for (k = 1; k <= length(raw); k++) {
+    c = substr(raw, k, 1)
+    if (c != "\\") { out = out c; continue }
+    m = substr(raw, ++k, 1)
+    out = out (m == "\"" || m == "\\" || m == "/" ? "" : c) m
+  }
+  return out
+}
+function reset(    k) {
+  for (k in cnt) delete cnt[k]
+  for (k in isstr) delete isstr[k]
+  for (k in val) delete val[k]
+}
+function inlist() { return mode != "entry" || kind[1] == "[" }
+function check_value() { if (st[depth] != "val" && st[depth] != "v0") bad = 1 }
+function note(isstring, v) {
+  if (depth == keydepth && kind[depth] == "{" && inlist()) {
+    cnt[curkey[depth]]++
+    isstr[curkey[depth]] = isstring
+    val[curkey[depth]] = v
+  }
+}
+function value(isstring, v) {
+  check_value()
+  if (bad) return
+  note(isstring, v)
+  st[depth] = "next"
+}
+function close_object() {
+  if (mode == "entry" && cnt["name"] == 1 && isstr["name"] && val["name"] == "specstone") {
+    matches++
+    entry = substr(text, start, i - start + 1)
+  }
+}
+{ text = (NR == 1 ? "" : text "\n") $0 }
+END {
+  n = length(text)
+  keydepth = (mode == "entry") ? 2 : 1
+  st[0] = "val"; kind[0] = "top"
+  depth = 0
+  i = 1
+  while (i <= n && !bad) {
+    c = substr(text, i, 1)
+    if (c == " " || c == "\t" || c == "\n" || c == "\r") { i++; continue }
+    if (c == "\"") {
+      for (j = i + 1; j <= n; j++) {
+        d = substr(text, j, 1)
+        if (d == "\\") j++
+        else if (d == "\"") break
+      }
+      if (j > n) { bad = 1; break }
+      raw = substr(text, i + 1, j - i - 1)
+      i = j + 1
+      if (index(raw, "\n") > 0) { bad = 1; break }
+      if (kind[depth] == "{" && (st[depth] == "k0" || st[depth] == "key")) {
+        curkey[depth] = raw
+        st[depth] = "colon"
+      } else value(1, decode(raw))
+      continue
+    }
+    if (c == "{" || c == "[") {
+      check_value()
+      note(0, "")
+      if (bad) break
+      depth++
+      kind[depth] = c
+      st[depth] = (c == "{") ? "k0" : "v0"
+      if (c == "{" && depth == keydepth && inlist()) { start = i; reset() }
+      i++
+      continue
+    }
+    if (c == "}" || c == "]") {
+      if (depth < 1 || kind[depth] != (c == "}" ? "{" : "[")) { bad = 1; break }
+      if (st[depth] != "next" && st[depth] != "k0" && st[depth] != "v0") { bad = 1; break }
+      if (c == "}" && depth == keydepth && inlist()) close_object()
+      st[--depth] = "next"
+      i++
+      continue
+    }
+    if (c == ",") {
+      if (depth < 1 || st[depth] != "next") { bad = 1; break }
+      st[depth] = (kind[depth] == "{") ? "key" : "val"
+      i++
+      continue
+    }
+    if (c == ":") {
+      if (kind[depth] != "{" || st[depth] != "colon") { bad = 1; break }
+      st[depth] = "val"
+      i++
+      continue
+    }
+    for (j = i; j <= n && substr(text, j, 1) ~ /[-+.0-9A-Za-z]/; j++) ;
+    lit = substr(text, i, j - i)
+    if (lit !~ /^(true|false|null|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?)$/) { bad = 1; break }
+    value(0, "")
+    i = j
+  }
+  if (bad || depth != 0 || st[0] != "next") exit
+  if (mode == "entry") {
+    if (matches == 1) { gsub(/[\r\n]+/, " ", entry); print entry }
+  } else if (cnt[want] == 1 && isstr[want]) print val[want]
+}'
+}
+
+# Prints the one object of the marketplace list $1 named "specstone" on one
+# line, else nothing.
+marketplace_entry() {
+  printf '%s\n' "$1" | json_scan entry
+}
+
+# Prints the string value of key $2 in the marketplace entry $1, else nothing.
+entry_field() {
+  printf '%s\n' "$1" | json_scan field "$2"
 }
 
 # Succeeds when one entry of the plugin list $1 holds both the id
@@ -245,23 +366,71 @@ plugin_installed_for_user() {
     grep -Eq '"scope"[[:space:]]*:[[:space:]]*"user"'
 }
 
-# Adds the marketplace and installs the plugin through claude, skipping what is
-# there, or prints the two commands when claude is not on the PATH. Never fails
-# the script: the CLI install stands.
+# Prints the remove, add, and install commands for the marketplace source $1.
+plugin_commands() {
+  printf '%s\n' \
+    '  claude plugin marketplace remove specstone' \
+    "  claude plugin marketplace add $1" \
+    '  claude plugin install specstone@specstone'
+}
+
+# Succeeds when the marketplace entry $1 is the one this script adds: source
+# github, repo exactly nontravis/specstone. Any other entry is the Owner's own.
+is_official_entry() {
+  [ "$(entry_field "$1" source)" = github ] &&
+    [ "$(entry_field "$1" repo)" = nontravis/specstone ]
+}
+
+# Prints where the marketplace entry $1 comes from: its repo, url, or path.
+entry_source() {
+  for key in repo url path source; do
+    found=$(entry_field "$1" "$key")
+    if [ -n "$found" ]; then
+      printable "$found"
+      printf '\n'
+      return 0
+    fi
+  done
+  echo 'an unknown source'
+}
+
+# Moves marketplace specstone to the source $1. The remove also uninstalls the
+# plugin. Returns 1 after naming the command that failed.
+readd_marketplace() {
+  run_claude_live plugin marketplace remove specstone || return 1
+  run_claude_live plugin marketplace add "$1" || return 1
+  printf '%s\n' "specstone: marketplace specstone re-added from $1"
+}
+
+# Puts marketplace specstone at the wanted source and installs the plugin
+# through claude, skipping what is there, or prints the commands when claude is
+# not on the PATH. A marketplace from another source stays. Never fails the
+# script: the CLI install stands.
 install_plugin() {
+  wanted='nontravis/specstone'
+  wanted_ref=''
+  if [ -n "$version" ]; then
+    wanted="$wanted#v$version"
+    wanted_ref="v$version"
+  fi
   if ! command -v claude >/dev/null 2>&1; then
-    printf '%s\n' \
-      'To add the Specstone plugin to Claude Code, run:' \
-      '  claude plugin marketplace add nontravis/specstone' \
-      '  claude plugin install specstone@specstone'
+    printf '%s\n' 'To add the Specstone plugin to Claude Code, run (the first command only when a marketplace specstone already exists):'
+    plugin_commands "$wanted"
     return 0
   fi
   run_claude plugin marketplace list --json || return 0
   marketplaces=$claude_out
   run_claude plugin list --json || return 0
   plugins=$claude_out
-  if ! marketplace_added "$marketplaces"; then
-    run_claude_live plugin marketplace add nontravis/specstone || return 0
+  entry=$(marketplace_entry "$marketplaces")
+  if [ -z "$entry" ]; then
+    run_claude_live plugin marketplace add "$wanted" || return 0
+  elif ! is_official_entry "$entry"; then
+    printf '%s\n' "specstone: marketplace specstone comes from $(entry_source "$entry"), not nontravis/specstone; left as it is"
+    plugin_commands "$wanted"
+  elif [ "$(entry_field "$entry" ref)" != "$wanted_ref" ]; then
+    readd_marketplace "$wanted" || return 0
+    plugins='[]'
   fi
   if ! plugin_installed_for_user "$plugins"; then
     run_claude_live plugin install specstone@specstone || return 0
