@@ -543,6 +543,94 @@ void main() {
 
       expect(choice, (value: '.', found: 0, cited: 1));
     }, skip: _windowsSkip);
+
+    test('g8-r9: a root that cannot be listed still infers from the other '
+        'candidates', () async {
+      final tree = await _tree({
+        'proj/lib/a.dart': '',
+        'proj/code/.git/HEAD': '',
+        'proj/code/lib/a.dart': '',
+        'proj/code/lib/b.dart': '',
+      });
+      final root = _at(tree, 'proj');
+      // Execute-only: the root can be entered but its children not listed.
+      Process.runSync('chmod', ['111', root.path]);
+      addTearDown(() => Process.runSync('chmod', ['755', root.path]));
+
+      final choice = _infer(root, implementsEntries: ['lib/a.dart']);
+
+      expect(choice, (value: '.', found: 1, cited: 1));
+    }, skip: _windowsSkip);
+
+    test(
+      'g8-r9: a .git link whose target is gone marks no repository',
+      () async {
+        final tree = await _tree({
+          'proj/keep.txt': '',
+          'proj/code/lib/a.dart': '',
+        });
+        if (!_linkOrSkip('${tree.path}/proj/code/.git', '../nowhere')) return;
+
+        final choice = _infer(
+          _at(tree, 'proj'),
+          implementsEntries: ['lib/a.dart'],
+        );
+
+        expect(choice, (value: '.', found: 0, cited: 1));
+      },
+    );
+
+    test('g8-r9: a child folder symlinked from outside the root is ranked '
+        'under its canonical path', () async {
+      final tree = await _tree({
+        'proj/keep.txt': '',
+        'outside/.git/HEAD': '',
+        'outside/lib/a.dart': '',
+      });
+      if (!_linkOrSkip('${tree.path}/proj/code', '../outside')) return;
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: '../outside', found: 1, cited: 1));
+    });
+
+    test('g8-r9: a repository two folders below the root is not a '
+        'candidate', () async {
+      final tree = await _tree({
+        'proj/keep.txt': '',
+        'proj/outer/inner/.git/HEAD': '',
+        'proj/outer/inner/lib/a.dart': '',
+      });
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: '.', found: 0, cited: 1));
+    });
+
+    test('g8-r9: a child repository that is also the link folder keeps the '
+        'link rank, so a tie with a folder above goes to it', () async {
+      final tree = await _tree({
+        _repositoryMark: '',
+        'a/lib/x.dart': '',
+        'a/proj/keep.txt': '',
+        'a/proj/code/.git/HEAD': '',
+        'a/proj/code/lib/x.dart': '',
+      });
+
+      final choice = _infer(
+        _at(tree, 'a/proj'),
+        link: _at(tree, 'a/proj/code'),
+        implementsEntries: ['lib/x.dart'],
+      );
+
+      expect(choice, (value: 'code', found: 1, cited: 1));
+    });
   });
 }
 

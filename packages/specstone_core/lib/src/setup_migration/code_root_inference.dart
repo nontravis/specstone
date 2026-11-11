@@ -89,21 +89,27 @@ List<({Directory folder, int rank})> _candidatesOf(
   return byPath.values.toList();
 }
 
-/// Returns the direct child folders of [root] that hold a `.git` entry.
+/// Returns the direct child folders of [root] that hold a `.git` entry; none
+/// when [root] cannot be listed, since a child is an optional candidate.
 Iterable<Directory> _childRepositories(Directory root) sync* {
-  if (!root.existsSync()) return;
-  for (final entity in root.listSync(followLinks: false)) {
+  for (final entity in _childrenOf(root)) {
     if (!FileSystemEntity.isDirectorySync(entity.path)) continue;
     final child = _canonicalOf(Directory(entity.path));
     if (_holdsGitEntry(child)) yield child;
   }
 }
 
+List<FileSystemEntity> _childrenOf(Directory root) {
+  try {
+    return root.listSync(followLinks: false);
+  } on FileSystemException {
+    return const [];
+  }
+}
+
+/// Holds when `.git` exists; a link counts only when its target does.
 bool _holdsGitEntry(Directory folder) =>
-    FileSystemEntity.typeSync(
-      folder.uri.resolve('.git').toFilePath(),
-      followLinks: false,
-    ) !=
+    FileSystemEntity.typeSync(folder.uri.resolve('.git').toFilePath()) !=
     FileSystemEntityType.notFound;
 
 /// Returns each folder above [folder] up to its repository top; none when
