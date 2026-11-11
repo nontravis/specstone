@@ -171,6 +171,27 @@ void main() {
       expect(scan.isMalformed, isTrue);
     });
 
+    test('$_fr E13: a BEGIN naming a pre-release version is a marker', () {
+      final scan = scanMarkers(
+        '<!-- BEGIN specstone v1.2.0-beta.1 -->\n$_end\n',
+      );
+
+      expect(scan.beginLine, 1);
+      expect(scan.endLine, 2);
+      expect(scan.isMalformed, isFalse);
+    });
+
+    for (final version in ['1.2.0-beta.01', '1.2', '1.2.0+build.5', '']) {
+      test('$_fr E13: a BEGIN naming "$version" is the Owner text', () {
+        final v = version.isEmpty ? '' : ' v$version';
+        final scan = scanMarkers('<!-- BEGIN specstone$v -->\n$_end\n');
+
+        expect(scan.beginLine, isNull);
+        expect(scan.endLine, 2);
+        expect(scan.isMalformed, isTrue);
+      });
+    }
+
     test(
       '$_fr E13: a marker with other text on its line is the Owner text',
       () {

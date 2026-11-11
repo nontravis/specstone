@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 
@@ -31,7 +32,9 @@ const _projectRule = '- Run `specstone get project` before any task.\n';
 const _endMarker = '<!-- END specstone -->';
 const _byteOrderMark = '\uFEFF';
 const _carriage = '\r';
-final _beginMarker = RegExp(r'^<!-- BEGIN specstone v\d+\.\d+\.\d+ -->$');
+final _beginMarker = RegExp(
+  '^<!-- BEGIN specstone v$releaseVersionPattern -->\$',
+);
 
 String _beginLine(String cliVersion) =>
     '<!-- BEGIN specstone v$cliVersion -->\n';
@@ -73,7 +76,7 @@ typedef MarkerScan = ({
 
 /// Finds the marker lines of [text] outside fenced code.
 ///
-/// A marker is a whole line: BEGIN with a `X.Y.Z` version, or END. The text
+/// A marker is a whole line: BEGIN with a Version, or END. The text
 /// is malformed unless it holds no marker, or one BEGIN and then one END, and
 /// closes every code fence: a block after an open fence would sit in code.
 /// An open fence makes `firstMarkerLine` the fence's opening line, whatever

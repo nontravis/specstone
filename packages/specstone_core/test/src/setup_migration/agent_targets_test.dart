@@ -35,9 +35,10 @@ AgentFileInputs _inputs(
   Directory base, {
   List<String> code = const [],
   List<String> roots = const [],
+  String cliVersion = specstoneVersion,
 }) => AgentFileInputs(
   projectRoot: _at(base, 'proj/'),
-  cliVersion: specstoneVersion,
+  cliVersion: cliVersion,
   codeRootFolders: [for (final folder in code) _at(base, folder)],
   agentFileRoots: roots,
 );
@@ -292,6 +293,57 @@ void main() {
         expect(plan.isEmpty, isTrue, reason: 'full: $full');
         expect(plan.line, isEmpty);
       }
+    });
+
+    test('$_write E04: files a pre-release CLI wrote plan no write for the '
+        'next pre-release', () async {
+      const first = '1.2.0-beta.1';
+      const next = '1.2.0-beta.2';
+      final base = await _base({
+        'proj/CLAUDE.md': 'Owner\n',
+        'proj/AGENTS.md': 'Owner\n',
+        'proj/.github/copilot-instructions.md': 'Owner\n',
+        'proj/.cursor/x.json': '{}',
+      });
+      _apply(
+        base,
+        planAgentWrites(_inputs(base, cliVersion: first), full: true),
+      );
+      final written = File.fromUri(_at(base, 'proj/').uri.resolve(_cursor))
+          .readAsStringSync();
+
+      expect(written, contains('<!-- BEGIN specstone v$first -->'));
+      for (final full in [true, false]) {
+        final plan = planAgentWrites(
+          _inputs(base, cliVersion: next),
+          full: full,
+        );
+
+        expect(_paths(plan), isEmpty, reason: 'full: $full');
+        expect(plan.isEmpty, isTrue, reason: 'full: $full');
+      }
+    });
+
+    test('$_write E03: a block body an older CLI wrote is replaced, the BEGIN '
+        'line naming the pre-release', () async {
+      const old =
+          '<!-- BEGIN specstone v1.2.0-beta.1 -->\n'
+          'old\n<!-- END specstone -->\n';
+      final base = await _base({'proj/AGENTS.md': 'before\n${old}after\n'});
+
+      final plan = planAgentWrites(
+        _inputs(base, cliVersion: '1.2.0-beta.2'),
+        full: false,
+      );
+
+      expect(
+        _writeAt(plan, 'AGENTS.md').text,
+        'before\n${inlineBlock(cliVersion: '1.2.0-beta.2')}after\n',
+      );
+      expect(
+        _writeAt(plan, 'AGENTS.md').text,
+        contains('<!-- BEGIN specstone v1.2.0-beta.2 -->\n'),
+      );
     });
 
     test('$_write E06: AGENT.md with other bytes is rewritten', () async {

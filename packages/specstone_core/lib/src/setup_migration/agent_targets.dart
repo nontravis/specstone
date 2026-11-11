@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -33,7 +34,9 @@ const _fenceMessage =
     'again';
 const _byteOrderMark = '﻿';
 final _separators = RegExp(r'[/\\]');
-final _beginVersion = RegExp(r'<!-- BEGIN specstone v\d+\.\d+\.\d+ -->');
+final _beginVersion = RegExp(
+  '<!-- BEGIN specstone v$releaseVersionPattern -->',
+);
 
 /// The pack versions from which the agent files are written once.
 ///
@@ -141,7 +144,7 @@ final class AgentFileInputs {
   /// The canonical project root.
   final Directory projectRoot;
 
-  /// The running CLI's `X.Y.Z`.
+  /// The running CLI's Version.
   final String cliVersion;
 
   /// The code root folders, from [codeRootFolders].

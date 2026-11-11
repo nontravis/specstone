@@ -60,6 +60,25 @@ void main() {
     ).readAsLinesSync();
     expect(source.where((line) => line.startsWith('import ')), isEmpty);
   });
+
+  test('install_update Version: every Dart reader of the form composes '
+      'releaseVersionPattern', () {
+    const packPins = 'lib/src/templates/pack_version.dart';
+    const triple = r'\d+\.\d+\.\d+';
+    final core = packageRoot().uri;
+    final readers = [
+      for (final folder in ['lib/', '../specstone/lib/', '../../tool/'])
+        for (final entity in Directory.fromUri(
+          core.resolve(folder),
+        ).listSync(recursive: true, followLinks: false))
+          if (entity is File &&
+              entity.path.endsWith('.dart') &&
+              !entity.uri.path.endsWith(packPins) &&
+              entity.readAsStringSync().contains(triple))
+            entity.path,
+    ];
+    expect(readers, isEmpty);
+  });
 }
 
 String _show(String text) {
