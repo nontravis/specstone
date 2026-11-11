@@ -409,6 +409,23 @@ void main() {
       },
     );
 
+    test('install_update/version_match session-start INV-9: a pre-release '
+        'plugin and CLI pair prints nothing; a different pre-release '
+        'mismatches', () async {
+      File(
+        '$pluginDir/.claude-plugin/plugin.json',
+      ).writeAsStringSync('{"name": "specstone", "version": "1.2.0-beta.1"}\n');
+
+      final same = await runHook(version: '1.2.0-beta.1');
+      expect(same.exitCode, 0);
+      expect(same.stdout, isEmpty);
+
+      expect(
+        message(await runHook(version: '1.2.0-beta.2')),
+        mismatch('1.2.0-beta.2', '1.2.0-beta.1'),
+      );
+    });
+
     test('f09/us05/fr02: a plugin version holding a backslash or a tab still '
         'gives valid JSON', () async {
       const plugin = '1.0\\q\tz';

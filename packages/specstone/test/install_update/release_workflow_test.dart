@@ -247,4 +247,60 @@ void main() {
       expect(r.exitCode, 1);
     });
   }, testOn: '!windows');
+
+  group('the publish step script', () {
+    late Directory work;
+
+    setUp(() {
+      work = Directory.systemTemp.createTempSync('publish_step_');
+      File('${work.path}/specstone-x.tar.gz').writeAsStringSync('archive');
+      _writeStub(work, 'gh', r'printf "%s\n" "$*" >> "$STUB_LOG"');
+      _writeStub(work, 'sha256sum', 'echo "0000  specstone-x.tar.gz"');
+    });
+
+    tearDown(() => work.deleteSync(recursive: true));
+
+    Future<String> publishedWith(String ref) async {
+      final step = _steps(_job(release, 'publish'))
+          .firstWhere((s) => '${s['run']}'.contains('gh release create'));
+      final log = File('${work.path}/gh.log');
+      final r = await Process.run(
+        'bash',
+        ['-c', '${step['run']}'],
+        workingDirectory: work.path,
+        environment: {
+          'PATH': '${work.path}/stubs:${Platform.environment['PATH']}',
+          'GITHUB_REF_NAME': ref,
+          'GITHUB_REPOSITORY': 'nontravis/specstone',
+          'STUB_LOG': log.path,
+        },
+      );
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      return log.readAsStringSync();
+    }
+
+    test('install_update/version_match/release_new_version/publish_on_tag '
+        'E06: a pre-release tag publishes a GitHub pre-release with generated '
+        'notes', () async {
+      final line = await publishedWith('v1.2.0-beta.1');
+
+      expect(line, contains('--prerelease'));
+      expect(line, contains('--generate-notes'));
+    });
+
+    test('install_update/version_match/release_new_version/publish_on_tag '
+        'E07: a release tag publishes a normal release', () async {
+      final line = await publishedWith('v1.2.0');
+
+      expect(line, contains('--generate-notes'));
+      expect(line, isNot(contains('--prerelease')));
+    });
+  }, testOn: '!windows');
+}
+
+void _writeStub(Directory work, String name, String body) {
+  final file = File('${work.path}/stubs/$name')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('#!/bin/sh\n$body\n');
+  Process.runSync('chmod', ['755', file.path]);
 }
