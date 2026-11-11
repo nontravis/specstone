@@ -676,7 +676,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
           );
 
           expect(
-            shape == _Shape.iex ? r.stdout : r.stderr,
+            flat(shape == _Shape.iex ? r.stdout : r.stderr),
             contains(downloadFailed),
           );
           expect(sb.snapshot(), before);
