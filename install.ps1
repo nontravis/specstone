@@ -277,9 +277,10 @@ try {
         return ''
     }
 
-    # Returns $true when no key of $Fields appears twice.
+    # Returns $true when no key of $Fields appears twice. get_Values() because
+    # a JSON key named Values would shadow the property.
     function Test-UniqueKeys($Fields) {
-        foreach ($field in $Fields.Values) {
+        foreach ($field in $Fields.get_Values()) {
             if ($field.Count -ne 1) {
                 return $false
             }

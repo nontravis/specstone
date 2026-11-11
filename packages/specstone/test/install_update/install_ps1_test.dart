@@ -1453,8 +1453,13 @@ if ($env:HARNESS_MODE -eq 'iex') {
             ),
             (
               'a non-ASCII path, shown as a question mark',
-              {'source': 'directory', 'path': '/w\u00e9z'},
-              '/w?z',
+              {'source': 'directory', 'path': '/work/café'},
+              '/work/caf?',
+            ),
+            (
+              'a repo holding a zero-width space, equal only by culture rules',
+              {'source': 'github', 'repo': 'nontravis/specstone\u200b'},
+              'nontravis/specstone?',
             ),
             (
               'a git url with user and token before the host',
@@ -1600,6 +1605,47 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(stdoutOf(r), contains('left as it is\n'));
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      pathTest(
+        '$plugin E06: a key named Values does not hide a repeated key',
+        () async {
+          final sb = await sandboxWithClaude(
+            marketplaces:
+                '[{"name": "specstone", "source": "github", "Values": 1, '
+                '"repo": "nontravis/specstone", "repo": "x/y"}]',
+          );
+
+          final r = await runInstall(sb);
+
+          expectUnreadable(
+            r,
+            sb,
+            list: listMarketplaces,
+            calls: [listMarketplaces],
+          );
+        },
+      );
+
+      // A lone CR splits a line of native output, so a raw CR inside a string
+      // reaches the walk as a line feed and the reply is refused; json_scan
+      // reads the CR. Both fail safe, and claude escapes it.
+      pathTest('$plugin E06: a raw carriage return inside a string stops the '
+          'step', () async {
+        final sb = await sandboxWithClaude(
+          marketplaces:
+              '[{"name": "specstone", "source": "directory", '
+              '"path": "/a\r/b"}]',
+        );
+
+        final r = await runInstall(sb);
+
+        expectUnreadable(
+          r,
+          sb,
+          list: listMarketplaces,
+          calls: [listMarketplaces],
+        );
       });
 
       // Only an entry's own keys are read: a key deeper in a value, even one
