@@ -246,7 +246,25 @@ install_plugin() {
   fi
 }
 
+# Keeps only the absolute entries of PATH, so no program is found in the
+# current folder or a relative folder; an empty entry means the current folder.
+# With none left, PATH is the system folders, since an empty PATH searches ".".
+absolute_path_only() {
+  kept=''
+  rest=${PATH:-}:
+  while [ -n "$rest" ]; do
+    entry=${rest%%:*}
+    rest=${rest#*:}
+    case "$entry" in
+      /*) kept=${kept:+$kept:}$entry ;;
+    esac
+  done
+  PATH=${kept:-/usr/bin:/bin}
+  export PATH
+}
+
 main() {
+  absolute_path_only
   target=$(pick_target)
   home_dir=${HOME:-${USERPROFILE:-}}
   if [ -z "$home_dir" ]; then

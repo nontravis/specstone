@@ -421,5 +421,67 @@ exec /bin/rm "$@"''');
       expect(r.stdout, '');
       expect(sb.snapshot(), isEmpty);
     });
+
+    group('PATH search (G8-R10)', () {
+      // Each name is planted in the run folder and in a relative `planted`
+      // folder; a planted program only records that it ran.
+      const plantedNames = ['mktemp', 'rm', 'grep', 'tail', 'awk', 'cmp'];
+
+      void plantPrograms() {
+        for (final folder in ['.', 'planted']) {
+          for (final name in plantedNames) {
+            final file = File('${sb.root.path}/$folder/$name')
+              ..createSync(recursive: true)
+              ..writeAsStringSync(
+                '#!/bin/sh\n: > "\$STUB_LOG_DIR/planted-$name.ran"\n',
+              );
+            Process.runSync('chmod', ['755', file.path]);
+          }
+        }
+      }
+
+      List<String> plantedThatRan() => [
+        for (final name in plantedNames)
+          if (File('${sb.logs.path}/planted-$name.ran').existsSync()) name,
+      ];
+
+      final pathsWithRelativeEntries = <String, String Function(String)>{
+        'a dot': (stubs) => '.:$stubs:/usr/bin:/bin',
+        'a leading empty entry': (stubs) => ':$stubs:/usr/bin:/bin',
+        'a middle empty entry': (stubs) => '$stubs::/usr/bin:/bin',
+        'a relative folder': (stubs) => 'planted:$stubs:/usr/bin:/bin',
+      };
+
+      for (final MapEntry(key: label, value: pathOf)
+          in pathsWithRelativeEntries.entries) {
+        test('$label on PATH never starts a program from there; the removal '
+            'still runs', () async {
+          sb.installFake();
+          profile('.zshrc', '$entry\n');
+          plantPrograms();
+
+          final r = await sb.run(
+            'uninstall.sh',
+            extra: {'PATH': pathOf(sb.stubs.path)},
+          );
+
+          expect(plantedThatRan(), isEmpty);
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+          expect(read('.zshrc'), '');
+        });
+      }
+
+      test(
+        'a PATH of relative entries only searches no relative folder',
+        () async {
+          plantPrograms();
+
+          await sb.run('uninstall.sh', extra: {'PATH': '.:planted:'});
+
+          expect(plantedThatRan(), isEmpty);
+        },
+      );
+    });
   });
 }

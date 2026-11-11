@@ -1160,5 +1160,84 @@ echo '[]'
         ]);
       }, skip: runsAsRoot ? rootSkip : null);
     });
+
+    group('PATH search (G8-R10)', () {
+      // Each name is planted in the run folder and in a relative `planted`
+      // folder; a planted program only records that it ran.
+      const plantedNames = ['claude', 'uname', 'mktemp', 'tar', 'awk', 'cp'];
+
+      void plantPrograms(ScriptSandbox sb) {
+        for (final folder in ['.', 'planted']) {
+          for (final name in plantedNames) {
+            final file = File('${sb.root.path}/$folder/$name')
+              ..createSync(recursive: true)
+              ..writeAsStringSync(
+                '#!/bin/sh\n: > "\$STUB_LOG_DIR/planted-$name.ran"\n',
+              );
+            Process.runSync('chmod', ['755', file.path]);
+          }
+        }
+      }
+
+      List<String> plantedThatRan(ScriptSandbox sb) => [
+        for (final name in plantedNames)
+          if (File('${sb.logs.path}/planted-$name.ran').existsSync()) name,
+      ];
+
+      void stubClaude(ScriptSandbox sb) {
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+case "$*" in
+  'plugin marketplace list --json' | 'plugin list --json') echo '[]' ;;
+esac''');
+      }
+
+      final pathsWithRelativeEntries = <String, String Function(String)>{
+        'a dot': (stubs) => '.:$stubs:/usr/bin:/bin',
+        'a leading empty entry': (stubs) => ':$stubs:/usr/bin:/bin',
+        'a middle empty entry': (stubs) => '$stubs::/usr/bin:/bin',
+        'a trailing empty entry': (stubs) => '$stubs:/usr/bin:/bin:',
+        'a relative folder': (stubs) => 'planted:$stubs:/usr/bin:/bin',
+      };
+
+      for (final MapEntry(key: label, value: pathOf)
+          in pathsWithRelativeEntries.entries) {
+        test('$label on PATH never starts a program from there; the absolute '
+            'claude runs', () async {
+          final sb = await sandboxWith();
+          stubClaude(sb);
+          plantPrograms(sb);
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': pathOf(sb.stubs.path)},
+          );
+
+          expect(plantedThatRan(sb), isEmpty);
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(sb.logOf('claude'), [
+            'plugin marketplace list --json',
+            'plugin list --json',
+            'plugin marketplace add nontravis/specstone',
+            'plugin install specstone@specstone',
+          ]);
+        });
+      }
+
+      test(
+        'a PATH of relative entries only searches no relative folder',
+        () async {
+          final sb = await sandboxWith();
+          plantPrograms(sb);
+
+          await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': '.:planted:'},
+          );
+
+          expect(plantedThatRan(sb), isEmpty);
+        },
+      );
+    });
   });
 }

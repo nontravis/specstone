@@ -250,5 +250,27 @@ void main() {
       expect(r.stdout, contains('STRICT=True'));
       expect((r.stdout as String).trim(), endsWith('EAP=Continue'));
     });
+
+    // The script starts no program by name, so a planted one cannot show the
+    // search; what a run shows is that the session's PATH comes back whole.
+    pathTest("G8-R10: irm | iex leaves the session's PATH as it was", () async {
+      final sb = await createScriptSandbox();
+      final script = '${repoRoot().path}\\uninstall.ps1';
+      final path = '.;;planted;${sb.env()['PATH']}';
+      final command =
+          "Get-Content -Raw '$script' | Invoke-Expression; "
+          r"'PATH=' + $env:Path";
+
+      final r = await Process.run(
+        'powershell',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+        environment: sb.env({'PATH': path}),
+        includeParentEnvironment: false,
+        workingDirectory: sb.root.path,
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((r.stdout as String).trim(), endsWith('PATH=$path'));
+    });
   });
 }

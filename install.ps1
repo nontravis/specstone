@@ -23,6 +23,33 @@
         return $value
     }
 
+    # Returns the PATH text $Text with only its absolute entries: a drive root
+    # such as C:\ or C:/, or a UNC path. It splits on each ';' outside double
+    # quotes and drops the quotes, as cmd.exe does, so an empty, '.', or
+    # relative entry (the current folder) is never searched.
+    function Get-AbsolutePathText([string]$Text) {
+        $kept = New-Object System.Collections.ArrayList
+        $entry = New-Object System.Text.StringBuilder
+        $isQuoted = $false
+        foreach ($character in ($Text + ';').ToCharArray()) {
+            if ($character -eq '"') {
+                $isQuoted = -not $isQuoted
+            } elseif ($character -eq ';' -and -not $isQuoted) {
+                $item = $entry.ToString()
+                if ($item -match '^([A-Za-z]:[\\/]|\\\\)') {
+                    if ($item.Contains(';')) {
+                        $item = '"' + $item + '"'
+                    }
+                    [void]$kept.Add($item)
+                }
+                [void]$entry.Clear()
+            } else {
+                [void]$entry.Append($character)
+            }
+        }
+        return ($kept.ToArray() -join ';')
+    }
+
     # Returns the release target for this machine, or refuses before any download.
     function Get-Target {
         $arch = Get-EnvText 'PROCESSOR_ARCHITEW6432'
@@ -404,6 +431,11 @@
 
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('specstone.' + [guid]::NewGuid().ToString('N'))
     $unpack = Join-Path $tmp 'unpack'
+    # Nothing above this line starts a program. From here every program, claude
+    # included, is searched on absolute PATH entries only; the finally below
+    # puts the caller's PATH back, as the block runs in the caller's session.
+    $savedPath = Get-EnvText 'Path'
+    $env:Path = Get-AbsolutePathText $savedPath
     try {
         try {
             New-Item -ItemType Directory -Path $tmp | Out-Null
@@ -445,6 +477,7 @@
         Add-UserPathEntry (Join-Path $installDir 'bin')
         Install-Plugin
     } finally {
+        $env:Path = $savedPath
         try {
             Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
         } catch {
