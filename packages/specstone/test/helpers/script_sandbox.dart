@@ -95,10 +95,14 @@ final class ScriptSandbox {
             'TMP': _tmp.path,
             'STUB_LOG_DIR': logs.path,
             'PROCESSOR_ARCHITECTURE': 'AMD64',
-            // Without these a Windows PowerShell 5.1 child finds no module
-            // analysis cache and analyzes every module again on its first
-            // cmdlet. Nothing else of the user profile reaches the child.
-            'PSModulePath': ?Platform.environment['PSModulePath'],
+            // The runner's own PSModulePath lists the module folders of the
+            // PowerShell 7 that runs the suite, whose copy of
+            // Microsoft.PowerShell.Utility a 5.1 child cannot import: its
+            // Get-FileHash is then missing. The child gets the module folder
+            // of its own PowerShell and no other, so no module of the
+            // runner image or the user profile is analyzed or loaded.
+            'PSModulePath':
+                '$systemRoot\\System32\\WindowsPowerShell\\v1.0\\Modules',
             _cacheVariable: _moduleAnalysisCachePath(),
           }
         : {

@@ -163,6 +163,31 @@ void main() {
   ];
 
   group('install.ps1', () {
+    // The sandbox strips the environment of a PowerShell 5.1 child; one that
+    // inherits the PowerShell 7 module folders of the runner loses
+    // Get-FileHash, and every install fails far from the cause.
+    test(
+      'the sandbox PowerShell finds the cmdlets install.ps1 calls',
+      () async {
+        final sb = await createScriptSandbox();
+        const names = ['Get-FileHash', 'Expand-Archive', 'Invoke-WebRequest'];
+        final script = File('${sb.root.path}\\probe.ps1')
+          ..writeAsStringSync(
+            [
+              for (final name in names)
+                '"$name=\$([bool](Get-Command $name -ErrorAction Ignore))"',
+            ].join('\r\n'),
+          );
+
+        final r = await sb.run(script.path);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        for (final name in names) {
+          expect(flat(r.stdout), contains('$name=True'));
+        }
+      },
+    );
+
     pathTest('f09/us01/fr01, fr02, fr03, f09/us01/s2: an empty home gets the '
         'CLI, the user PATH entry, and the plugin', () async {
       final sb = await sandboxWithClaude();
