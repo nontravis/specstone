@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -685,6 +686,9 @@ void main() {
         },
       );
       Link('${linked.path}/docs').createSync(outside.path);
+      // The trust gate runs before the volume probe; the Owner's record lets
+      // this docs root reach it.
+      RootTrust.locate(linked, homeDirectory: testHome()).record();
 
       expect(
         () => writeIn(
@@ -746,45 +750,36 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isFalse);
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test(
-    'f02/us04/fr03, dw-s03/inv9, HD1: a folder linked to another volume refuses before the journal',
-    () {
-      final outside = _otherVolume()!.createTempSync('specstone_folder_');
-      addTearDown(() => outside.deleteSync(recursive: true));
-      File('${outside.path}/note.md').writeAsStringSync('note\n');
-      Link('${root.path}/docs/prds/elsewhere').createSync(outside.path);
+  test('f02/us04/fr03, dw-s03/inv9, HD1: a folder linked out of the roots refuses before the journal', () {
+    final outside = Directory.systemTemp.createTempSync('specstone_folder_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    File('${outside.path}/note.md').writeAsStringSync('note\n');
+    Link('${root.path}/docs/prds/elsewhere').createSync(outside.path);
 
-      expect(
-        () => const MoveJournal([
-          MoveStep(
-            'docs/prds/elsewhere/note.md',
-            '$_trashDocs/prds/elsewhere/note.md',
-          ),
-        ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
-        throwsA(
-          isA<RenderFault>()
-              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
-              .having(
-                (e) => e.message,
-                'message',
-                startsWith('cannot move docs into .specstone/trash: '),
-              ),
+    expect(
+      () => const MoveJournal([
+        MoveStep(
+          'docs/prds/elsewhere/note.md',
+          '$_trashDocs/prds/elsewhere/note.md',
         ),
-      );
-      expect(dirExists(MoveJournal.trashPath), isFalse);
-      expect(File('${outside.path}/note.md').existsSync(), isTrue);
-      expect(
-        outside.listSync().map((e) => e.uri.pathSegments.last),
-        isNot(contains(startsWith('.specstone-probe-'))),
-      );
-      writeIn(root, (_) {});
-    },
-    skip: Platform.isWindows
-        ? 'links need privileges on Windows'
-        : _otherVolume() == null
-        ? 'no second volume: set SPECSTONE_OTHER_VOLUME'
-        : false,
-  );
+      ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith(
+                'its step path docs/prds/elsewhere/note.md leaves the '
+                'project and docs roots; ',
+              ),
+            ),
+      ),
+    );
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+    expect(File('${outside.path}/note.md').existsSync(), isTrue);
+    writeIn(root, (_) {});
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   test('f02/us04/fr03, dw-s03/inv9, HD1: a probe folder that cannot be removed does not hide the move', () {
     IOOverrides.runWithIOOverrides(
