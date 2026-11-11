@@ -134,6 +134,74 @@ void main() {
     );
   });
 
+  test('f06 INV-4: a read that fails keeps its path, relative as a successful '
+      'read is keyed, and the failure still throws', () async {
+    final root = await writeTree({'a.md': 'one\n'});
+    final inputs = PlanInputs(root);
+
+    expect(
+      () => inputs.collect(() {
+        readPlanInput(_in(root, 'a.md'));
+        readPlanInput(_in(root, 'sub/gone.md'));
+      }),
+      throwsA(isA<FileSystemException>()),
+    );
+
+    expect(inputs.firstUnreadable, 'sub/gone.md');
+    expect(inputs.lines, 'a.md ${_hex('one\n')}\n');
+  });
+
+  test('f06 INV-4: the first failed read is the one kept', () async {
+    final root = await writeTree({'a.md': 'one\n'});
+    final inputs = PlanInputs(root)
+      ..collect(() {
+        for (final path in ['first.md', 'second.md']) {
+          try {
+            readPlanInput(_in(root, path));
+          } on FileSystemException {
+            // The recorder keeps the first failure; the plan goes on.
+          }
+        }
+      });
+
+    expect(inputs.firstUnreadable, 'first.md');
+  });
+
+  test('f06 INV-4: no read failed, no path is kept', () async {
+    final root = await writeTree({'a.md': 'one\n'});
+
+    expect(_recorded(root, ['a.md']).firstUnreadable, isNull);
+  });
+
+  test('f06 INV-4: a failed read inside a plan that collects for itself is '
+      'kept by the recorder around it too', () async {
+    final root = await writeTree({'a.md': 'one\n'});
+    final outer = PlanInputs(root);
+    final inner = PlanInputs(root);
+
+    expect(
+      () => outer.collect(
+        () => inner.collect(() => readPlanInput(_in(root, 'gone.md'))),
+      ),
+      throwsA(isA<FileSystemException>()),
+    );
+
+    expect(inner.firstUnreadable, 'gone.md');
+    expect(outer.firstUnreadable, 'gone.md');
+  });
+
+  test('f06 INV-4: a failed read outside collect records nothing', () async {
+    final root = await writeTree({'a.md': 'one\n'});
+    final inputs = PlanInputs(root);
+
+    expect(
+      () => readPlanInput(_in(root, 'gone.md')),
+      throwsA(isA<FileSystemException>()),
+    );
+
+    expect(inputs.firstUnreadable, isNull);
+  });
+
   test('f06 INV-4: a tracked answer joins as one line per path, after the '
       'file lines, in code point order', () async {
     final root = await writeTree({'a.md': 'one\n'});

@@ -232,8 +232,10 @@ int _plannedRun(
 /// input that differs, or the plan alone when only its text does. A new plan
 /// that cannot read an input, a [FileSystemException], [TemplateFault], or
 /// [RenderFault], refuses the same way, naming the path or file the failure
-/// gives. A [MigrateFault] from the planner passes unchanged, with its own code
-/// as the first plan would: "A new plan that E06 refuses refuses as E06 says".
+/// gives, else the first input whose read failed, else the plan alone: an
+/// unreadable doc's [RenderFault] carries no file. A [MigrateFault] from the
+/// planner passes unchanged, with its own code as the first plan would: "A new
+/// plan that E06 refuses refuses as E06 says".
 RunPlan _replanMatching(
   MigrateRequest request,
   Directory root,
@@ -241,15 +243,16 @@ RunPlan _replanMatching(
   Directory? linkFolder,
   RunPlan shown,
 ) {
+  final recorder = PlanInputs(root);
   final RunPlan fresh;
   try {
-    fresh = _planOf(request, root, kind, linkFolder);
+    fresh = recorder.collect(() => _planOf(request, root, kind, linkFolder));
   } on FileSystemException catch (error) {
     throw _inputChanged(_fromRoot(root, error.path));
   } on TemplateFault catch (fault) {
-    throw _inputChanged(fault.file);
+    throw _inputChanged(fault.file ?? recorder.firstUnreadable);
   } on RenderFault catch (fault) {
-    throw _inputChanged(fault.file);
+    throw _inputChanged(fault.file ?? recorder.firstUnreadable);
   }
   final freshHash = planHashOf(fresh.toText(), fresh.inputs);
   if (freshHash == planHashOf(shown.toText(), shown.inputs)) return fresh;

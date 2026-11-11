@@ -688,7 +688,7 @@ void main() {
     }, skip: skipGit);
 
     test('f06/us01/fr02/e08: an ignored legacy doc made unreadable while the '
-        'prompt waits is working_tree_dirty naming the plan, and nothing is '
+        'prompt waits is working_tree_dirty naming that doc, and nothing is '
         'written', () async {
       const ignored = 'docs/prds/zz_local.md';
       final root = await gitFixture({
@@ -699,14 +699,10 @@ void main() {
       final file = File('${root.path}/$ignored');
       addTearDown(() => Process.runSync('chmod', ['644', file.path]));
 
-      // The read's RenderFault carries no file, so the refusal names the plan.
-      expectRefusedNaming(
-        root,
-        'the plan changed while the plan was shown',
-        () {
-          expect(Process.runSync('chmod', ['000', file.path]).exitCode, 0);
-        },
-      );
+      // The read's RenderFault carries no file; the recorded read names it.
+      expectRefusedNaming(root, ignored, () {
+        expect(Process.runSync('chmod', ['000', file.path]).exitCode, 0);
+      });
     }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : skipGit);
 
     test('f06/us02/fr02/e08: a runbook committed while an upgrade prompt '

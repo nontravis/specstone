@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
-/// The `Zone` key the active recorder runs under.
+/// The `Zone` key the active recorders run under, outermost first.
 final _recorderKey = Object();
 
 /// Returns the hash a dry run prints on its `plan <hash>` line.
@@ -19,9 +19,19 @@ String planHashOf(String planText, PlanInputs inputs) =>
 
 /// Reads the bytes of [file] and records them when a [PlanInputs.collect] runs.
 ///
-/// A path read twice keeps its first hash.
+/// A path read twice keeps its first hash. A read that throws a
+/// [FileSystemException] is recorded as [PlanInputs.firstUnreadable] on every
+/// active recorder, then rethrown.
 Uint8List readPlanInput(File file) {
-  final bytes = file.readAsBytesSync();
+  final Uint8List bytes;
+  try {
+    bytes = file.readAsBytesSync();
+  } on FileSystemException {
+    for (final recorder in _activeRecorders) {
+      recorder._recordUnreadable(file);
+    }
+    rethrow;
+  }
   _activeRecorder?._record(file, bytes);
   return bytes;
 }
@@ -34,7 +44,10 @@ void recordTrackedAnswer(String path, {required bool isTracked}) {
   _activeRecorder?._recordTracked(path, isTracked: isTracked);
 }
 
-PlanInputs? get _activeRecorder => Zone.current[_recorderKey] as PlanInputs?;
+List<PlanInputs> get _activeRecorders =>
+    Zone.current[_recorderKey] as List<PlanInputs>? ?? const [];
+
+PlanInputs? get _activeRecorder => _activeRecorders.lastOrNull;
 
 /// What a plan used: each file it read with the hash of its bytes, and each
 /// path it asked git about with the answer.
@@ -52,10 +65,25 @@ final class PlanInputs {
   final List<String> _rootPaths;
   final _hashes = <String, String>{};
   final _tracked = <String, bool>{};
+  String? _firstUnreadable;
 
   /// Runs [plan] with this recorder active and returns its result.
-  T collect<T>(T Function() plan) =>
-      Zone.current.fork(zoneValues: {_recorderKey: this}).run(plan);
+  ///
+  /// A plan that collects for itself while another recorder runs leaves that
+  /// recorder active, so it still learns of a read that failed.
+  T collect<T>(T Function() plan) => Zone.current
+      .fork(
+        zoneValues: {
+          _recorderKey: [..._activeRecorders, this],
+        },
+      )
+      .run(plan);
+
+  /// The path of the first file a read could not read, from the project root as
+  /// a recorded path is, or null when no read failed.
+  ///
+  /// A failed read adds no line to [lines]; the plan that hit it throws.
+  String? get firstUnreadable => _firstUnreadable;
 
   /// One `<path> <sha256 hex>` line per recorded file in code point order of
   /// path, then one `<path> tracked|untracked` line per path asked of git in
@@ -89,6 +117,10 @@ final class PlanInputs {
     _hashes.putIfAbsent(_keyOf(file.absolute.path), () {
       return sha256.convert(bytes).toString();
     });
+  }
+
+  void _recordUnreadable(File file) {
+    _firstUnreadable ??= _keyOf(file.absolute.path);
   }
 
   void _recordTracked(String path, {required bool isTracked}) {
