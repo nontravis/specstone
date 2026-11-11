@@ -626,6 +626,22 @@ See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_valida
     );
   });
 
+  test('f06/us01/fr04/e16: a mention of a name Windows would trim is left '
+      'as written, though a POSIX disk holds the file', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      legacyFrPath: '${acmeLegacy[legacyFrPath]}\nSee ../notes./a.md.\n',
+      'docs/prds/features/f01_login/us01_email_login/notes./a.md': 'x\n',
+    });
+
+    final text = _rewrite(
+      plan,
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+    ).text;
+
+    expect(text, contains('See ../notes./a.md.\n'));
+  }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
+
   test('f06/us01/fr04/e16: one mention is labelled in the singular', () async {
     final plan = await _plan({
       ...acmeLegacy,
