@@ -80,6 +80,22 @@ exit ${STUB_EXIT:-0}''');
       });
     }
 
+    test(
+      'a BASH_ENV file that runs a program never runs a planted one',
+      () async {
+        final envFile = File('${sb.root.path}/bash_env.sh')
+          ..writeAsStringSync('uname\n');
+
+        final r = await runPostEdit(
+          path: '.:${sb.stubs.path}:/usr/bin:/bin',
+          extra: {'BASH_ENV': envFile.path},
+        );
+
+        expect(plantedHookProgramsThatRan(sb), isEmpty);
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+      },
+    );
+
     test('a PATH of relative entries only starts no planted program', () async {
       final r = await runPostEdit(path: '.::bin');
 
