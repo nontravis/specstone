@@ -1549,22 +1549,6 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest('$plugin E11: a raw control character in a shown path prints '
-          'as a question mark', () async {
-        final sb = await sandboxWithClaude(
-          marketplaces:
-              '[{"name": "specstone", "source": "directory", '
-              '"path": "/w\u001b[2Jx"}]',
-          plugins: userPluginJson,
-        );
-
-        final r = await runInstall(sb);
-
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(stdoutOf(r), contains(leftLine('/w?[2Jx')));
-        expect(r.stdout, isNot(contains('\u001b')));
-      });
-
       // An escape other than \" and \\ stays as typed, so no escaped value
       // equals the plain official one (L19).
       for (final (label, repo) in <(String, String)>[
@@ -1627,26 +1611,36 @@ if ($env:HARNESS_MODE -eq 'iex') {
         },
       );
 
-      // A lone CR splits a line of native output, so a raw CR inside a string
-      // reaches the walk as a line feed and the reply is refused; json_scan
-      // reads the CR. Both fail safe, and claude escapes it.
-      pathTest('$plugin E06: a raw carriage return inside a string stops the '
-          'step', () async {
-        final sb = await sandboxWithClaude(
-          marketplaces:
-              '[{"name": "specstone", "source": "directory", '
-              '"path": "/a\r/b"}]',
-        );
+      // JSON forbids a raw control character inside a string, so the walk
+      // refuses any of them as json_scan does (L18, L20). A lone CR also
+      // splits a line of native output, so it may reach the walk as a line
+      // feed; the reply is refused either way.
+      for (final (label, path) in <(String, String)>[
+        ('an escape character', '/w\u001b[2Jx'),
+        ('a carriage return', '/a\r/b'),
+        ('a tab', '/a\t/b'),
+      ]) {
+        pathTest(
+          '$plugin E06: a raw $label inside a string stops the step',
+          () async {
+            final sb = await sandboxWithClaude(
+              marketplaces:
+                  '[{"name": "specstone", "source": "directory", '
+                  '"path": "$path"}]',
+              plugins: userPluginJson,
+            );
 
-        final r = await runInstall(sb);
+            final r = await runInstall(sb);
 
-        expectUnreadable(
-          r,
-          sb,
-          list: listMarketplaces,
-          calls: [listMarketplaces],
+            expectUnreadable(
+              r,
+              sb,
+              list: listMarketplaces,
+              calls: [listMarketplaces],
+            );
+          },
         );
-      });
+      }
 
       // Only an entry's own keys are read: a key deeper in a value, even one
       // written with a quote or a backslash, or one that PowerShell reserves

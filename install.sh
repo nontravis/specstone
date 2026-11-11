@@ -235,7 +235,8 @@ run_claude_live() {
 # nesting, so a quote, brace, or key name inside a value never counts. Exits 1
 # and prints nothing when the text is not read for sure: not well-formed, text
 # around the JSON, an entry key written with an escape (keys deeper in a value
-# are never read), or the wrong top-level shape.
+# are never read), a string holding a raw control character (U+0001 to U+001F,
+# as JSON forbids), or the wrong top-level shape.
 # mode `entry`: the text is the marketplace list; prints the object whose `name`
 # is "specstone" on one line (nothing when none), and exits 1 for two such
 # objects, a repeated key in it, or a `source` that is not one string.
@@ -315,7 +316,7 @@ END {
       if (j > n) { bad = 1; break }
       raw = substr(text, i + 1, j - i - 1)
       i = j + 1
-      if (index(raw, "\n") > 0) { bad = 1; break }
+      if (raw ~ /[\001-\037]/) { bad = 1; break }
       if (kind[depth] == "{" && (st[depth] == "k0" || st[depth] == "key")) {
         if (depth == keydepth && index(raw, "\\") > 0) { bad = 1; break }
         curkey[depth] = raw

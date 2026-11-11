@@ -1642,22 +1642,6 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin E11: a raw control byte in a shown path prints as a '
-          'question mark', () async {
-        final sb = await sandboxWithClaude();
-
-        final r = await runWith(sb, {
-          'STUB_MARKETPLACES':
-              '[{"name": "specstone", "source": "directory", '
-              '"path": "/w\u001b[2Jx"}]',
-          'STUB_PLUGINS': userPluginJson,
-        });
-
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(r.stdout, contains(leftLine('/w?[2Jx')));
-        expect(r.stdout, isNot(contains('\u001b')));
-      });
-
       test('$plugin E11: an escaped slash in a repo stays as typed, so the '
           'entry is another source', () async {
         final sb = await sandboxWithClaude();
@@ -1860,6 +1844,13 @@ esac''');
         'an escaped key beside the official pair':
             '[{"name": "specstone", "source": "github", '
             r'"repo": "nontravis/specstone", "re\u0070o": "attacker/x"}]',
+        'a raw escape character inside a string':
+            '[{"name": "specstone", "source": "directory", '
+            '"path": "/w\u001b[2Jx"}]',
+        'a raw carriage return inside a string':
+            '[{"name": "specstone", "source": "directory", "path": "/a\r/b"}]',
+        'a raw tab inside a string':
+            '[{"name": "specstone", "source": "directory", "path": "/a\t/b"}]',
         'a nested object as source':
             '[{"name": "specstone", "source": {"kind": "github"}}]',
         'no source': '[{"name": "specstone", "repo": "nontravis/specstone"}]',
@@ -1908,6 +1899,10 @@ esac''');
         'not JSON': 'not json at all',
         'an empty reply': '',
         'a top-level object': '{"id": "specstone@specstone"}',
+        'a raw carriage return inside a string':
+            '[{"id": "specstone@specstone", "scope": "us\rer"}]',
+        'a raw tab inside a string':
+            '[{"id": "specstone@specstone", "scope": "us\ter"}]',
         'a repeated scope key':
             '[{"id": "specstone@specstone", "scope": "project", '
             '"scope": "user"}]',

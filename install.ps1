@@ -294,15 +294,16 @@ try {
     # install.sh's json_scan does: it throws when the reply is not read for
     # sure (not well-formed, text around the JSON, a key written with an
     # escape at an entry's own depth, a top level that is not an array, or a
-    # string with a raw line feed). Mode `marketplaces`: Entry holds the keys
-    # of the one object named "specstone" (or $null), and the walk throws for
+    # string with a raw control character, U+0000 to U+001F). Mode
+    # `marketplaces`: Entry holds the keys of the one object named
+    # "specstone" (or $null), and the walk throws for
     # two such objects, a repeated key in it, a repeated name anywhere, or a
     # source that is not one string. Mode `plugins`: Installed is $true when
     # an object holds the id specstone@specstone and the scope user, and the
     # walk throws for a repeated id or scope. No other parser reads the reply,
     # so no parser can disagree with the walk about a key or a value.
     function Read-ClaudeList([string]$Reply, [string]$Mode) {
-        $tokens = [regex]::new('\G(?:(?<space>[ \t\r\n]+)|(?<string>"(?:[^"\\\n]|\\[^\n])*")|(?<mark>[{}\[\]:,])|(?<literal>true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?))')
+        $tokens = [regex]::new('\G(?:(?<space>[ \t\r\n]+)|(?<string>"(?:[^"\\\x00-\x1f]|\\[^\x00-\x1f])*")|(?<mark>[{}\[\]:,])|(?<literal>true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?))')
         $kind = [System.Collections.Generic.List[string]]::new()
         $state = [System.Collections.Generic.List[string]]::new()
         $keys = [System.Collections.Generic.List[string]]::new()
