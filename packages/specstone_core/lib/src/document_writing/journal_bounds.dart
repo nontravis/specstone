@@ -13,8 +13,7 @@ const _gitEntry = '.git';
 /// The 8.3 short name Windows may give a `.git` folder.
 const _gitShortName = 'git~1';
 
-/// The most times one folder path is walked again after a folder on it
-/// vanished mid-resolve.
+/// The most times one folder path is walked again after its resolve failed.
 const _maxResolveAttempts = 40;
 
 /// The dots and spaces Windows drops from the end of a file name.
@@ -31,13 +30,20 @@ final _windowsDroppedEnd = RegExp(r'[. ]+$');
 final class JournalBounds {
   /// Judges paths from a project root against its roots, canonical folders,
   /// and [agentFiles]: the canonical paths of the agent files a migrate
-  /// writes outside them.
-  new(this._projectRoot, this._roots, {Set<String> agentFiles = const {}})
-    : _agentFiles = agentFiles;
+  /// writes outside them. [resolve] reads the real path of an existing folder;
+  /// it defaults to the disk's answer, and a test passes a double.
+  new(
+    this._projectRoot,
+    this._roots, {
+    Set<String> agentFiles = const {},
+    String Function(String path) resolve = realPathOnDisk,
+  }) : _agentFiles = agentFiles,
+       _resolve = resolve;
 
   final Directory _projectRoot;
   final List<String> _roots;
   final Set<String> _agentFiles;
+  final String Function(String path) _resolve;
 
   /// The real folder of each folder path asked, by its path from the project
   /// root; null when it cannot be resolved.
@@ -71,8 +77,9 @@ final class JournalBounds {
     () => _resolvedFolder(segments),
   );
 
-  /// Resolves [segments] against the disk; a folder that vanishes between the
-  /// check and the resolve counts as missing, so the walk runs again.
+  /// Resolves [segments] against the disk; a resolve that fails or answers for
+  /// a folder deleted since the check walks again, so a folder gone counts as
+  /// missing and one made again resolves again.
   String? _resolvedFolder(List<String> segments) {
     for (var attempt = 0; attempt < _maxResolveAttempts; attempt++) {
       var existing = segments.length;
@@ -84,11 +91,14 @@ final class JournalBounds {
         return null;
       }
       try {
-        final real = Directory(_joined(segments.take(existing)))
-            .resolveSymbolicLinksSync();
+        final real = resolveExisting(
+          _joined(segments.take(existing)),
+          _resolve,
+        );
         return [real, ...missing].join(Platform.pathSeparator);
-      } on FileSystemException catch (error) {
-        if (!isNotFoundError(error)) return null;
+      } on FileSystemException {
+        // A folder deleted since the check: only a fresh walk tells gone from
+        // made again.
       }
     }
     return null;

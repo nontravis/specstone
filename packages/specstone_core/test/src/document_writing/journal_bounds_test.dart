@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
@@ -18,6 +19,12 @@ const _finish = 'document_writing/delete_doc_subtree/finish_interrupted_move';
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
+
+/// What Windows answered on CI for a file deleted while it was resolved.
+const _deletedAlias = r'C:\$Extend\$Deleted\002200000014DCAD7A7FE315';
+
+/// How many refused rounds a churn failure lists.
+const _refusalsShown = 5;
 
 /// Returns every entry under [root] as text: a file by its bytes, a link by
 /// its target, a folder by its name; nothing is followed.
@@ -151,19 +158,107 @@ void main() {
 
         var refused = 0;
         var rounds = 0;
+        final firstRefusals = <String>[];
         final watch = Stopwatch()..start();
         while (watch.elapsed < churnFor) {
           rounds++;
+          final answers = <String>[];
+          String recordAnswer(String asked) {
+            try {
+              final answer = realPathOnDisk(asked);
+              answers.add(answer);
+              return answer;
+            } on FileSystemException catch (error) {
+              answers.add('error ${error.osError?.errorCode} at $asked');
+              rethrow;
+            }
+          }
+
           // A fresh instance each round, since one remembers the folders asked.
-          if (!JournalBounds(root, [real]).holds('side-folder/x.md')) refused++;
+          final bounds = JournalBounds(root, [real], resolve: recordAnswer);
+          if (bounds.holds('side-folder/x.md')) continue;
+          refused++;
+          if (firstRefusals.length < _refusalsShown) {
+            firstRefusals.add(answers.join(', then '));
+          }
         }
         await churn;
 
         expect(rounds, greaterThan(0));
-        expect(refused, 0, reason: '$refused of $rounds judgments refused');
+        expect(
+          refused,
+          0,
+          reason:
+              '$refused of $rounds judgments refused; the resolves of the '
+              'first: ${firstRefusals.join('; ')}',
+        );
       });
     },
   );
+
+  group('$_finish E08: JournalBounds when the resolve answers for a folder '
+      'deleted meanwhile', () {
+    late Directory root;
+    late String real;
+    late String folder;
+
+    setUp(() async {
+      root = await writeTree({'side-folder/keep.txt': ''});
+      real = root.resolveSymbolicLinksSync();
+      folder = '${root.path}${Platform.pathSeparator}side-folder';
+    });
+
+    test('an NTFS deleted-file answer for a folder gone since counts as '
+        'missing', () {
+      String deleteThenAnswerAlias(String asked) {
+        if (asked != folder) return realPathOnDisk(asked);
+        Directory(asked).deleteSync(recursive: true);
+        return _deletedAlias;
+      }
+
+      final bounds = JournalBounds(root, [
+        real,
+      ], resolve: deleteThenAnswerAlias);
+
+      expect(bounds.holds('side-folder/x.md'), isTrue);
+    });
+
+    test('a failure for a folder gone since counts as missing, whatever its '
+        'code', () {
+      String deleteThenFail(String asked) {
+        if (asked != folder) return realPathOnDisk(asked);
+        Directory(asked).deleteSync(recursive: true);
+        throw FileSystemException('', asked, const OSError('denied', 5));
+      }
+
+      final bounds = JournalBounds(root, [real], resolve: deleteThenFail);
+
+      expect(bounds.holds('side-folder/x.md'), isTrue);
+    });
+
+    test('an NTFS deleted-file answer for a folder made again since '
+        'resolves the folder again', () {
+      var answered = false;
+      String answerAliasOnce(String asked) {
+        if (asked != folder || answered) return realPathOnDisk(asked);
+        answered = true;
+        return _deletedAlias;
+      }
+
+      final bounds = JournalBounds(root, [real], resolve: answerAliasOnce);
+
+      expect(bounds.holds('side-folder/x.md'), isTrue);
+    });
+
+    test('an NTFS deleted-file answer for a folder that stays refuses', () {
+      String answerAlias(String asked) =>
+          asked == folder ? _deletedAlias : realPathOnDisk(asked);
+
+      final bounds = JournalBounds(root, [real], resolve: answerAlias);
+
+      expect(bounds.holds('side-folder/x.md'), isFalse);
+    });
+  });
 
   group('$_finish E08: a refused replay changes nothing', () {
     late Directory root;

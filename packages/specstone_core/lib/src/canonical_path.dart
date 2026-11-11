@@ -53,7 +53,14 @@ bool _hasDrive(String path) =>
 /// after a missing name throws too, since that name may become a link. Windows
 /// collapses a `..` that lands on an existing folder before the disk sees it;
 /// one that lands on a missing name still throws.
-String canonicalPath(String path, {bool strict = false}) {
+///
+/// [resolve] reads the real path of an existing name; it defaults to the
+/// disk's answer, and a test passes a double.
+String canonicalPath(
+  String path, {
+  bool strict = false,
+  String Function(String path) resolve = realPathOnDisk,
+}) {
   final missing = <String>[];
   var existing = withoutTrailingSeparator(
     withNativeSeparators(File(path).absolute.path),
@@ -68,12 +75,13 @@ String canonicalPath(String path, {bool strict = false}) {
     }
     if (FileSystemEntity.typeSync(existing) != FileSystemEntityType.notFound) {
       try {
-        resolved = File(existing).resolveSymbolicLinksSync();
+        resolved = resolveExisting(existing, resolve);
         break;
-      } on FileSystemException catch (error) {
-        // A name gone since the check, such as a SQLite side file another
-        // connection closed: walk again, so it counts as missing.
-        if (!isNotFoundError(error) || hops >= _maxLinkHops) rethrow;
+      } on FileSystemException {
+        // A name deleted since the check, such as a SQLite side file another
+        // connection closed, fails or answers for the deleted file; whatever
+        // the code, only a fresh walk tells gone from made again.
+        if (hops >= _maxLinkHops) rethrow;
         continue;
       }
     }
@@ -117,6 +125,30 @@ String canonicalPath(String path, {bool strict = false}) {
   }
   return resolved;
 }
+
+/// Returns the real path of [path] as the disk resolves it.
+String realPathOnDisk(String path) => File(path).resolveSymbolicLinksSync();
+
+/// Returns the real path [resolve] gives for [path], a name just seen to
+/// exist.
+///
+/// A handle still open to a name deleted meanwhile makes Windows answer a
+/// place in the NTFS folder of deleted files (`C:\$Extend\$Deleted\...`).
+/// That answer throws a [FileSystemException], as a failed resolve does, so a
+/// caller walks the path again and reads the name as it stands now: gone, or
+/// made again.
+String resolveExisting(String path, String Function(String path) resolve) {
+  final real = resolve(path);
+  if (!_ntfsMetadataFolder.hasMatch(real)) return real;
+  throw FileSystemException('it was deleted while it was resolved', path);
+}
+
+/// The NTFS metadata folder, which holds the deleted files and never a file a
+/// user makes; NTFS reads its name in any case.
+final _ntfsMetadataFolder = RegExp(
+  r'^[A-Za-z]:\\\$Extend\\',
+  caseSensitive: false,
+);
 
 /// Returns the absolute path the link at [linkPath] names with [target], read
 /// from the folder of the link.

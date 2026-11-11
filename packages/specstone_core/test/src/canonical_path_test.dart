@@ -13,6 +13,9 @@ final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
 
+/// What Windows answered on CI for a file deleted while it was resolved.
+const _deletedAlias = r'C:\$Extend\$Deleted\002200000014DCAD7A7FE315';
+
 void main() {
   group('$_scope: canonicalPath follows a link to a target not made yet', () {
     late Directory base;
@@ -160,19 +163,85 @@ void main() {
 
       var refused = 0;
       var rounds = 0;
+      FileSystemException? firstRefusal;
       final watch = Stopwatch()..start();
       while (watch.elapsed < churnFor) {
         rounds++;
         try {
           expect(canonicalPath(path, strict: true), path);
-        } on FileSystemException {
+        } on FileSystemException catch (error) {
           refused++;
+          firstRefusal ??= error;
         }
       }
       await churn;
 
       expect(rounds, greaterThan(0));
-      expect(refused, 0, reason: '$refused of $rounds judgments refused');
+      expect(
+        refused,
+        0,
+        reason:
+            '$refused of $rounds judgments refused; the first: $firstRefusal',
+      );
+    });
+  });
+
+  group('$_scope: canonicalPath when the resolve answers for a name deleted '
+      'meanwhile', () {
+    late String path;
+
+    setUp(() async {
+      final base = await writeTree({'side-file': ''});
+      path =
+          '${base.resolveSymbolicLinksSync()}${Platform.pathSeparator}'
+          'side-file';
+    });
+
+    test('an NTFS deleted-file answer for a name gone since counts as '
+        'missing', () {
+      String deleteThenAnswerAlias(String asked) {
+        if (asked != path) return realPathOnDisk(asked);
+        File(asked).deleteSync();
+        return _deletedAlias;
+      }
+
+      expect(
+        canonicalPath(path, strict: true, resolve: deleteThenAnswerAlias),
+        path,
+      );
+    });
+
+    test('a failure for a name gone since counts as missing, whatever its '
+        'code', () {
+      String deleteThenFail(String asked) {
+        if (asked != path) return realPathOnDisk(asked);
+        File(asked).deleteSync();
+        throw FileSystemException('', asked, const OSError('denied', 5));
+      }
+
+      expect(canonicalPath(path, strict: true, resolve: deleteThenFail), path);
+    });
+
+    test('an NTFS deleted-file answer for a name made again since resolves '
+        'the name again', () {
+      var answered = false;
+      String answerAliasOnce(String asked) {
+        if (asked != path || answered) return realPathOnDisk(asked);
+        answered = true;
+        return _deletedAlias;
+      }
+
+      expect(canonicalPath(path, strict: true, resolve: answerAliasOnce), path);
+    });
+
+    test('an NTFS deleted-file answer for a name that stays throws', () {
+      String answerAlias(String asked) =>
+          asked == path ? _deletedAlias : realPathOnDisk(asked);
+
+      expect(
+        () => canonicalPath(path, resolve: answerAlias),
+        throwsA(isA<FileSystemException>()),
+      );
     });
   });
 
