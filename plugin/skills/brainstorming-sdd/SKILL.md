@@ -5,15 +5,15 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 
 # Brainstorm a change into an approved design
 
-A change this skill takes reaches the PRD and spec only after the Owner approves its design document. When the
-change only rewrites one section or field of a doc that already exists, and adds no story or FR, it is a small edit:
-use `specstone:update-sdd` instead.
+A change this skill takes reaches the PRD and spec only after the Owner approves its design document. A change that
+only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: use
+`specstone:update-sdd` instead.
 
 ## 1. Ground: the first call
 
 Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
 change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
-with `--summary` to add a story, and `project` to add a feature.
+with `--summary` to add a story, and `project` to add a feature. Without the `Agent` tool, pass no `--budget`.
 
 ```
 specstone context <target> --for design --budget 20000
@@ -24,11 +24,11 @@ specstone context <target> --for design --budget 20000
   whose call used it, mode `design`, and the change in a sentence, with no doc text; the whole sections it returns
   are the ground.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
-  or they keep using the old skills. Stop: run nothing more, and read or write no doc.
+  or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
-That call is the gate. Never look for `.specstone/` yourself first: the CLI searches upward from each folder, and a look
-at the working directory misses a root above it.
+That call is the gate. Never look for `.specstone/` first: the CLI searches upward, and a look at the working directory
+misses a root above it.
 
 For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
 questions, and show the Owner each answer; go on only after their yes.
