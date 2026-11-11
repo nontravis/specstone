@@ -1,0 +1,73 @@
+/// Version literals the form's readers share: core, release tool, install
+/// scripts, and upgrade test them against the same lists.
+library;
+
+/// Literals inside the Version form.
+const List<String> acceptedVersions = [
+  '1.2.0',
+  '1.2.0-beta.1',
+  '1.2.0-beta.2',
+  '1.2.0-rc.1',
+  '1.2.0-alpha.1',
+  '1.1.0',
+  '1.1.1',
+  '1.1.2',
+  '9.9.9',
+  '0.0.0',
+  '10.20.30',
+  '1.0.0-alpha-a.b-c-somethinglong',
+  '1.0.0-0A.is.legal',
+  '1.0.0-x.7.z.92',
+  '1.0.0--',
+  '18446744073709551616.0.0',
+];
+
+/// Literals outside the Version form.
+const List<String> refusedVersions = [
+  'v1.2.3',
+  'v1.2.0',
+  '1.2',
+  '01.2.0',
+  '1.2.0-',
+  '1.2.0-beta.01',
+  '1.2.0+build.5',
+  '',
+  ' 1.2.0',
+  '1.2.0 ',
+  '1.2.0\n',
+  '1.2.0\nx',
+  'x\n1.2.0',
+  '1.2.0\r',
+  '1.2.3.4',
+  '1.2.0-beta..1',
+  '1.2.0-beta.',
+  '1.2.0-beta_1',
+  '1.2.0-é',
+  '١.2.0',
+  '1.2.0-00',
+  'V1.2.0',
+  '-1.2.0',
+];
+
+/// Literals in the Version form, each below the next.
+const List<String> ascendingVersions = [
+  '1.0.0-alpha',
+  '1.0.0-alpha.1',
+  '1.0.0-alpha.beta',
+  '1.0.0-beta',
+  '1.0.0-beta.2',
+  '1.0.0-beta.11',
+  '1.0.0-rc.1',
+  '1.0.0',
+  '1.1.1',
+  '1.2.0-beta.1',
+  '1.2.0-beta.2',
+  '1.2.0-rc.1',
+  '1.2.0',
+  '1.9.0',
+  '1.10.0',
+  '2.0.0-9223372036854775807',
+  '2.0.0-9223372036854775808',
+  '2.0.0',
+  '18446744073709551616.0.0',
+];

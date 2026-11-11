@@ -56,6 +56,7 @@ export 'src/journeys/journey_answers.dart'
     show answerJourneyCode, answerJourneyPaths;
 export 'src/journeys/journey_generators.dart' show journeyGenerators;
 export 'src/journeys/unwalked.dart' show answerListUnwalked;
+export 'src/release_version.dart';
 export 'src/rendering/build_output.dart'
     show
         BuildResult,
