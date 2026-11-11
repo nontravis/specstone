@@ -412,11 +412,12 @@ class UpgradeCommand extends SpecstoneCommand {
       request.followRedirects = false;
       final response = await request.close().timeout(_idleTimeout);
       final status = response.statusCode;
-      final quiet = response.timeout(_idleTimeout);
+      // An error body is never read: the closed client drops it, so it cannot
+      // stall, fail to decode, or grow without a cap.
       if (status < 200 || status >= 300) {
-        await quiet.drain<void>();
         return (body: null, failure: 'HTTP $status');
       }
+      final quiet = response.timeout(_idleTimeout);
       // HttpClient throws on a body cut short, so a finished loop is complete.
       final body = BytesBuilder(copy: false);
       await for (final chunk in quiet) {

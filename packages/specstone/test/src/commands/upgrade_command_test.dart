@@ -548,9 +548,31 @@ void main() =>
         };
 
         expect(await fast(() => runner.run(['upgrade'])), 69);
-        expect(err.toString(), contains('could not fetch $scriptUrl'));
+        expect(
+          err.toString(),
+          'specstone upgrade could not fetch $scriptUrl: HTTP 502\n',
+        );
       },
     );
+
+    test('f09/us02/fr02: an error reply with a bad gzip body still names the '
+        'status, exit 69', () async {
+      await prepare();
+      handle = (request) async {
+        request.response
+          ..statusCode = HttpStatus.serviceUnavailable
+          ..headers.set(HttpHeaders.contentEncodingHeader, 'gzip')
+          ..add(utf8.encode('this is not gzip'));
+        await request.response.close();
+      };
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not fetch $scriptUrl: HTTP 503\n',
+      );
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
 
     test('f09/us02/fr02: a temp folder that cannot be created refuses, '
         'exit 69, before any request', () async {

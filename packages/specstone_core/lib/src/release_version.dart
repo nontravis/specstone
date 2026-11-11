@@ -1,6 +1,7 @@
-/// The form of a Specstone version, unanchored so each reader composes it.
+/// The form of a Specstone version, unanchored so the install scripts copy it.
 ///
-/// Semver 2.0.0 without build metadata, ASCII classes only.
+/// Semver 2.0.0 without build metadata, ASCII classes only. Dart readers of
+/// untrusted text parse through [ReleaseVersion.tryParse].
 const String releaseVersionPattern =
     r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
     '(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'

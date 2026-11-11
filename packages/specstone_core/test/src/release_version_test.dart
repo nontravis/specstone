@@ -102,8 +102,8 @@ void main() {
     });
   });
 
-  test('install_update Version: every Dart reader of the form composes '
-      'releaseVersionPattern', () {
+  test('install_update Version: no Dart file spells the version form by '
+      'hand; readers parse through ReleaseVersion.tryParse', () {
     const spellings = [
       r'\d+\.\d+\.\d+',
       r'[0-9]+\.[0-9]+\.[0-9]+',
