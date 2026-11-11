@@ -69,26 +69,30 @@ void main() {
     expect(
       r.stderr,
       'release: 0.1.0 is not greater than the current version 0.1.0; '
-      'give a version above it\n',
+      'give a version of the form MAJOR.MINOR.PATCH[-<pre-release>] above '
+      'it\n',
     );
     expect(await repo.state(), before);
   });
 
-  // An empty argument is the usage case, and an argument cannot hold a NUL:
-  // the process boundary cuts it there, leaving a valid version.
-  for (final bad in refusedVersions.where(
-    (v) => v.isNotEmpty && !v.contains('\u0000'),
-  )) {
-    test('$_check E01: ${jsonEncode(bad)} refuses naming the form and the '
-        'current version', () async {
+  // L5: no argv can carry NUL, the OS cuts the argument there, so the
+  // in-process parse alone refuses a NUL entry (Task 2's tests).
+  test('$_check E01: every refused version refuses naming the form and the '
+      'current version', () async {
+    for (final bad in refusedVersions.where((v) => !v.contains('\u0000'))) {
       final r = await repo.release([bad]);
 
-      await expectRefusal(r, [
-        'MAJOR.MINOR.PATCH[-<pre-release>]',
-        'current version is 0.1.0',
-      ]);
-    });
-  }
+      final label = jsonEncode(bad);
+      expect(r.exitCode, 1, reason: label);
+      expect(
+        r.stderr,
+        contains('MAJOR.MINOR.PATCH[-<pre-release>]'),
+        reason: label,
+      );
+      expect(r.stderr, contains('current version is 0.1.0'), reason: label);
+      expect(await repo.state(), before, reason: label);
+    }
+  });
 
   test('$_check E07: a pre-release above the current version passes '
       '--dry-run and changes nothing', () async {
@@ -668,6 +672,21 @@ dependencies:
         files: {
           'packages/specstone_core/lib/src/version.dart':
               "const String specstoneVersion = '0.1.0-beta.01';\n",
+        },
+      );
+      before = await repo.state();
+
+      final r = await repo.release(['0.2.0']);
+
+      await expectRefusal(r, ['holds no specstoneVersion constant']);
+    });
+
+    test('$_check: a specstoneVersion literal with a NUL after the version is '
+        'no version', () async {
+      repo = await createReleaseRepo(
+        files: {
+          'packages/specstone_core/lib/src/version.dart':
+              "const String specstoneVersion = '0.1.0\u0000';\n",
         },
       );
       before = await repo.state();

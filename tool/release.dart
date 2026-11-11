@@ -348,7 +348,7 @@ Future<void> _checkVersionAboveCurrent(String root, String version) async {
   if (next.compareTo(current) <= 0) {
     throw _Refusal(
       '$version is not greater than the current version $current; '
-      'give a version above it',
+      'give a version of the form $_versionFormName above it',
     );
   }
 }
