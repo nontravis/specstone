@@ -141,6 +141,29 @@ void main() {
     );
   });
 
+  group('repository tops', () {
+    test(
+      '$_write E15: a top whose folder name Windows would trim is left '
+      'out, so no agent_file_roots entry the config refuses is built',
+      () async {
+        final base = await _base({
+          'proj/vendor /.git/HEAD': 'ref\n',
+          'proj/vendor /lib/a': '',
+        });
+
+        final plan = planAgentWrites(
+          _inputs(base, code: ['proj/vendor /lib/']),
+          full: true,
+        );
+
+        expect(plan.addedRoots, isEmpty);
+        expect(plan.agentFileRoots, isEmpty);
+        expect(_paths(plan), isNot(contains('vendor /AGENTS.md')));
+      },
+      skip: Platform.isWindows ? 'Windows cannot hold such a name' : null,
+    );
+  });
+
   group('AgentWritePlan.writeSet', () {
     test('$_write E15: the canonical path of each write the plan lists, all '
         'inside the project root, and none of a top outside it', () async {

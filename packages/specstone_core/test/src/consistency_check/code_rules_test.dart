@@ -240,7 +240,13 @@ void main() {
       }
 
       expect(namesFileOrFolderFrom(tree, 'lib/a.dart'), isTrue);
-      for (final entry in [r'co\de', 'trail ', 'dot.', 'lib/../trail ']) {
+      for (final entry in [
+        r'co\de',
+        'trail ',
+        'dot.',
+        'lib/../trail ',
+        r'x\y/..',
+      ]) {
         expect(namesFileOrFolderFrom(tree, entry), isFalse, reason: entry);
       }
     },

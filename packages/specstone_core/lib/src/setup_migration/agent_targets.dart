@@ -635,6 +635,8 @@ Map<String, Directory> _qualifyingTops(
     final toRoot = relativeFolderPath(top, root);
     final path = relativeFolderPath(root, top);
     if (toRoot == null || path == null || !_isOutside(toRoot)) continue;
+    // A top the config reader would refuse as an `agent_file_roots` entry.
+    if (!isPortableCodeEntry(path)) continue;
     tops[path] = top;
   }
   final paths = tops.keys.toList()..sort(compareCodePoints);
