@@ -13,6 +13,10 @@ import '../../../specstone_core/test/helpers/version_cases.dart';
 import '../helpers/built_cli.dart';
 import '../helpers/script_sandbox.dart';
 
+// The shapes install.ps1 runs in: `-File`, the API's `iex "& {...}"` line,
+// and `irm | iex`.
+enum _Shape { file, iex, pipe }
+
 void main() {
   const asset = 'specstone-windows-x64.zip';
   const supported = 'supported: macOS arm64, macOS x64, Linux x64, Windows x64';
@@ -412,25 +416,6 @@ void main() {
       expect(oldFilesUnder(sb), isEmpty);
     });
 
-    pathTest('f09/us01/fr01/e05: a positional argument is the version, so one '
-        'outside the form is refused', () async {
-      final sb = await sandboxWith();
-      sb.installFake();
-      final before = sb.snapshot();
-
-      final r = await runInstall(sb, args: ['0.1']);
-
-      expect(r.exitCode, 1);
-      expect(
-        flat(r.stderr),
-        contains(
-          'specstone: 0.1 is not a version of the form '
-          'MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged',
-        ),
-      );
-      expect(sb.snapshot(), before);
-    });
-
     group('install by version', () {
       const chosen =
           'install_update/machine_install/install_cli_and_plugin/'
@@ -442,22 +427,18 @@ void main() {
       const downloadFailed =
           'specstone: download failed for $asset; the install is unchanged';
 
-      // Refused values the shared list lacks: C1 and C0 controls the refusal
-      // must print as `?`, and letters that a case-folding match would take
-      // for ASCII (Kelvin sign, long s).
-      const extraRefused = [
-        '1.2.0\u0085',
-        '1.2.0\u009b',
-        '1.2.0\u001b]52;c;x\u0007',
-        '1.2.0-K',
-        '1.2.0-ſ',
-      ];
+      // The shapes that carry a version: `powershell -File install.ps1
+      // -Version X` and the API's `iex "& {...} -Version X"` line.
+      const versionShapes = [(_Shape.file, '-File'), (_Shape.iex, 'iex line')];
 
       // A function shadows the cmdlet: it logs each URL and serves the file
-      // from ARCHIVES, or fails when STUB_WEB_FAIL is set. The script runs
-      // either as `-File` does (a `-Version` taken from the environment, so
-      // any character crosses intact) or as the API's `iex "& {...} args"`
-      // line, whose args text is HARNESS_ARGS.
+      // from ARCHIVES, or fails when STUB_WEB_FAIL is set. The script runs as
+      // `-File` does (a `-Version` taken from the environment, so any
+      // character crosses intact), as the API's `iex "& {...} args"` line
+      // (args text from HARNESS_ARGS), or as `irm | iex` does (the text piped
+      // to Invoke-Expression). A refusal prints whether its text was printable
+      // ASCII before the host encodes it; the pipe run prints whether the
+      // caller still holds `$Version`.
       const harness = r'''
 function Invoke-WebRequest {
   param([switch]$UseBasicParsing, [int]$TimeoutSec, [string]$Uri, [string]$OutFile)
@@ -471,18 +452,30 @@ if ($env:HARNESS_MODE -eq 'iex') {
     Invoke-Expression "& {$installText} $env:HARNESS_ARGS"
   } catch {
     'CAUGHT=' + $_.Exception.Message
+    'PRINTABLE=' + ($_.Exception.Message -cmatch '\A[\x20-\x7E]*\z')
     exit 0
   }
+} elseif ($env:HARNESS_MODE -eq 'pipe') {
+  Get-Content -Raw -LiteralPath $env:INSTALL_PS1 | Invoke-Expression
+  'VERSION_DEFINED=' + ($null -ne (Get-Variable -Name Version -ErrorAction SilentlyContinue))
 } else {
-  & $env:INSTALL_PS1 -Version $env:SPECSTONE_TEST_VERSION
+  try {
+    & $env:INSTALL_PS1 -Version $env:SPECSTONE_TEST_VERSION
+  } catch {
+    'PRINTABLE=' + ($_.Exception.Message -cmatch '\A[\x20-\x7E]*\z')
+    throw
+  }
 }
 ''';
 
+      // [version] goes to `-Version` as an environment value in the `-File`
+      // shape and as a bare token in the iex line; [iexArgs] replaces the
+      // line's arguments.
       Future<ProcessResult> runHarness(
         ScriptSandbox sb, {
-        bool isIex = false,
+        _Shape shape = _Shape.file,
         String? version,
-        String iexArgs = '',
+        String? iexArgs,
         bool isDownloadFailing = false,
       }) {
         final file = File('${sb.root.path}\\harness.ps1')
@@ -492,8 +485,9 @@ if ($env:HARNESS_MODE -eq 'iex') {
           extra: {
             'ARCHIVES': sb.archives.path,
             'INSTALL_PS1': '${repoRoot().path}\\install.ps1',
-            'HARNESS_MODE': isIex ? 'iex' : 'file',
-            'HARNESS_ARGS': iexArgs,
+            'HARNESS_MODE': shape.name,
+            'HARNESS_ARGS':
+                iexArgs ?? (version == null ? '' : '-Version $version'),
             'SPECSTONE_TEST_VERSION': ?version,
             'STUB_WEB_FAIL': isDownloadFailing ? '1' : '',
           },
@@ -506,25 +500,20 @@ if ($env:HARNESS_MODE -eq 'iex') {
         return sb;
       }
 
+      // The refusal shows only printable ASCII; every other character is `?`.
       String refusal(String version) {
-        final shown = version.replaceAll(RegExp(r'[\x00-\x1f\x7f-\x9f]'), '?');
+        final shown = version.replaceAll(RegExp(r'[^\x20-\x7e]'), '?');
         return 'specstone: $shown$refusalTail';
       }
 
-      // The console code page may not carry a non-ASCII value back intact, so
-      // such a refusal is read by its form text alone.
-      void expectRefusal(String stderrText, String version) {
-        final isAscii = refusal(version).codeUnits.every((unit) => unit < 0x7f);
-        expect(
-          flat(stderrText),
-          contains(flat(isAscii ? refusal(version) : refusalTail)),
-        );
-      }
+      // A test name holds no raw control or non-ASCII character.
+      String named(String version) => jsonEncode(version).replaceAllMapped(
+        RegExp(r'[^\x20-\x7e]'),
+        (match) =>
+            '\\u${match[0]!.codeUnitAt(0).toRadixString(16).padLeft(4, '0')}',
+      );
 
-      for (final (label, isIex, iexArgs) in [
-        ('-File', false, ''),
-        ('iex line', true, '-Version 1.2.0-beta.1'),
-      ]) {
+      for (final (shape, label) in versionShapes) {
         pathTest(
           '$chosen E01 ($label): the named version installs from its own '
           'release',
@@ -533,9 +522,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
             final r = await runHarness(
               sb,
-              isIex: isIex,
+              shape: shape,
               version: '1.2.0-beta.1',
-              iexArgs: iexArgs,
             );
 
             expect(r.exitCode, 0, reason: '${r.stderr}');
@@ -571,11 +559,11 @@ if ($env:HARNESS_MODE -eq 'iex') {
         },
       );
 
-      for (final version in [...refusedVersions, ...extraRefused]) {
+      for (final version in refusedVersions) {
         // An environment value cannot hold NUL; `-Version ''` is no version.
         if (version.isEmpty || version.contains('\u0000')) continue;
         pathTest('$chosen E02, install_cli_and_plugin S8: refuses '
-            '${jsonEncode(version)} before any download', () async {
+            '${named(version)} before any download', () async {
           final sb = await createScriptSandbox();
           sb.installFake();
           final before = sb.snapshot();
@@ -583,23 +571,26 @@ if ($env:HARNESS_MODE -eq 'iex') {
           final r = await runHarness(sb, version: version);
 
           expect(r.exitCode, 1);
-          expectRefusal('${r.stderr}', version);
+          expect(flat(r.stderr), contains(flat(refusal(version))));
+          expect(r.stdout, contains('PRINTABLE=True'));
           expect(sb.logOf('web'), isEmpty);
           expect(sb.snapshot(), before);
         });
       }
 
-      for (final version in [
-        'v1.2.0',
-        '1.2',
-        '01.2.0',
-        '1.2.0-',
-        '1.2.0-beta.01',
-        '1.2.0+build.5',
+      // The iex line reads a bare token; a NUL needs a quoted one.
+      for (final (iexVersion, argsText) in [
+        ('v1.2.0', '-Version v1.2.0'),
+        ('1.2', '-Version 1.2'),
+        ('01.2.0', '-Version 01.2.0'),
+        ('1.2.0-', '-Version 1.2.0-'),
+        ('1.2.0-beta.01', '-Version 1.2.0-beta.01'),
+        ('1.2.0+build.5', '-Version 1.2.0+build.5'),
+        ('1.2.0\u0000', '-Version "1.2.0`0"'),
       ]) {
         pathTest(
-          '$chosen E02 (iex line): refuses $version as a throw, the session '
-          'goes on',
+          '$chosen E02 (iex line): refuses ${named(iexVersion)} as a throw, '
+          'the session goes on',
           () async {
             final sb = await createScriptSandbox();
             sb.installFake();
@@ -607,22 +598,49 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
             final r = await runHarness(
               sb,
-              isIex: true,
-              iexArgs: '-Version $version',
+              shape: _Shape.iex,
+              iexArgs: argsText,
             );
 
             expect(r.exitCode, 0, reason: '${r.stderr}');
-            expect(flat(r.stdout), contains('CAUGHT=${refusal(version)}'));
+            expect(flat(r.stdout), contains('CAUGHT=${refusal(iexVersion)}'));
+            expect(r.stdout, contains('PRINTABLE=True'));
             expect(sb.logOf('web'), isEmpty);
             expect(sb.snapshot(), before);
           },
         );
       }
 
+      pathTest('$chosen E02: a positional argument is the version, so one '
+          'outside the form is refused', () async {
+        final sb = await sandboxWith();
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final r = await runInstall(sb, args: ['0.1']);
+
+        expect(r.exitCode, 1);
+        expect(flat(r.stderr), contains(refusal('0.1')));
+        expect(sb.snapshot(), before);
+      });
+
+      pathTest('$chosen E02: a refusal leaves the user PATH and the plugin '
+          'alone', () async {
+        final sb = await sandboxWithClaude();
+        final pathBefore = await readUserPath();
+
+        final r = await runHarness(sb, version: 'v1.2.0');
+
+        expect(r.exitCode, 1);
+        expect(await readUserPath(), pathBefore);
+        expect(sb.logOf('claude'), isEmpty);
+        expect(sb.logOf('web'), isEmpty);
+      });
+
       for (final version in acceptedVersions) {
         pathTest(
-          '$chosen: ${jsonEncode(version)} passes the form check and fails '
-          'as a download',
+          '$chosen: ${named(version)} passes the form check and fails as a '
+          'download',
           () async {
             final sb = await createScriptSandbox();
 
@@ -643,35 +661,41 @@ if ($env:HARNESS_MODE -eq 'iex') {
         );
       }
 
-      pathTest('$chosen E03: a version no release carries fails as a failed '
-          'download, the install unchanged', () async {
-        final sb = await createScriptSandbox();
-        sb.installFake();
-        final before = sb.snapshot();
+      for (final (shape, label) in versionShapes) {
+        pathTest('$chosen E03 ($label): a version no release carries fails as '
+            'a failed download, the install unchanged', () async {
+          final sb = await createScriptSandbox();
+          sb.installFake();
+          final before = sb.snapshot();
 
-        final r = await runHarness(
-          sb,
-          version: '9.9.9',
-          isDownloadFailing: true,
-        );
+          final r = await runHarness(
+            sb,
+            shape: shape,
+            version: '9.9.9',
+            isDownloadFailing: true,
+          );
 
-        expect(r.exitCode, 1);
-        expect(flat(r.stderr), contains(downloadFailed));
-        expect(sb.snapshot(), before);
-      });
+          expect(
+            shape == _Shape.iex ? r.stdout : r.stderr,
+            contains(downloadFailed),
+          );
+          expect(sb.snapshot(), before);
+        });
+      }
 
       // `irm | iex` passes no argument; the API's line may pass an empty one.
-      for (final (label, isIex, iexArgs) in [
-        ('no argument, as irm | iex', true, ''),
-        ("-Version ''", true, "-Version ''"),
-        ('-File with no -Version', false, ''),
+      for (final (label, shape, iexArgs) in [
+        ('irm | iex, no argument', _Shape.pipe, null),
+        ('iex line, no argument', _Shape.iex, ''),
+        ("iex line, -Version ''", _Shape.iex, "-Version ''"),
+        (r'-File, -Version $null', _Shape.file, null),
       ]) {
         pathTest(
           '$chosen E04 ($label): no version fetches the latest release',
           () async {
             final sb = await sandboxServing('0.2.0');
 
-            final r = await runHarness(sb, isIex: isIex, iexArgs: iexArgs);
+            final r = await runHarness(sb, shape: shape, iexArgs: iexArgs);
 
             expect(r.exitCode, 0, reason: '${r.stderr}');
             expect(
@@ -684,25 +708,58 @@ if ($env:HARNESS_MODE -eq 'iex') {
       }
 
       pathTest(
-        '$chosen E05: the version already installed is named and nothing is '
-        'placed',
+        '$chosen: irm | iex leaves no \$Version in the caller',
         () async {
-          final sb = await sandboxServing('1.2.0-beta.1');
-          sb.installFake(version: '1.2.0-beta.1');
-          final before = sb.snapshot();
+          final sb = await sandboxServing('0.2.0');
 
-          final r = await runHarness(sb, version: '1.2.0-beta.1');
+          final r = await runHarness(sb, shape: _Shape.pipe);
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(
-            flat(r.stdout),
-            contains('specstone 1.2.0-beta.1 is already installed'),
-          );
-          expect(r.stdout, isNot(contains('installed in')));
-          expect(r.stdout, isNot(contains('latest release')));
-          expect(sb.snapshot(), before);
+          expect(r.stdout, contains('VERSION_DEFINED=False'));
         },
       );
+
+      for (final (shape, label) in versionShapes) {
+        pathTest(
+          '$chosen E05 ($label): the version already installed is named and '
+          'nothing is placed',
+          () async {
+            final sb = await sandboxServing('1.2.0-beta.1');
+            sb.installFake(version: '1.2.0-beta.1');
+            final before = sb.snapshot();
+
+            final r = await runHarness(
+              sb,
+              shape: shape,
+              version: '1.2.0-beta.1',
+            );
+
+            expect(r.exitCode, 0, reason: '${r.stderr}');
+            expect(
+              flat(r.stdout),
+              contains('specstone 1.2.0-beta.1 is already installed'),
+            );
+            expect(r.stdout, isNot(contains('installed in')));
+            expect(r.stdout, isNot(contains('latest release')));
+            expect(sb.snapshot(), before);
+          },
+        );
+      }
+
+      pathTest('$chosen: a version that differs only in case is another '
+          'version and installs', () async {
+        final sb = await sandboxServing('1.0.0-A');
+        sb.installFake(version: '1.0.0-a');
+
+        final r = await runHarness(sb, version: '1.0.0-A');
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          flat(r.stdout),
+          contains('specstone 1.0.0-A installed in ${binDir(sb)}'),
+        );
+        expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.0.0-A');
+      });
 
       pathTest('$chosen: a named version replaces an older CLI', () async {
         final sb = await sandboxServing('1.2.0-beta.1');

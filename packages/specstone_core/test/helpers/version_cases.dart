@@ -80,6 +80,13 @@ const List<String> refusedVersions = [
   '1.2.0-00',
   'V1.2.0',
   '-1.2.0',
+  // Letters a case-folding match takes for ASCII: Kelvin sign, long s.
+  '1.2.0-\u212A',
+  '1.2.0-\u017F',
+  // C1 and C0 controls a refusal must not print as they are.
+  '1.2.0\u0085',
+  '1.2.0\u009B',
+  '1.2.0\u001B]52;c;x\u0007',
 ];
 
 /// Literals in the Version form, each below the next.

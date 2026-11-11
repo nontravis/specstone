@@ -6,9 +6,11 @@
 # The whole body sits in one & { } block. A truncated stream does not parse, so
 # it runs nothing, and the strict mode and error preference set inside the block
 # never reach the caller's session. A refusal throws; it never calls exit, which
-# would close the caller's window under iex.
+# would close the caller's window under iex. Under irm | iex the param binds
+# $Version in the caller's session, so the finally at the end removes it.
 # Keep this file ASCII: Windows PowerShell 5.1 reads a file with no BOM as ANSI.
 param([string]$Version = '')
+try {
 & {
     Set-StrictMode -Version 3
     $ErrorActionPreference = 'Stop'
@@ -76,10 +78,11 @@ param([string]$Version = '')
         return $Text -cmatch "\A$number\.$number\.$number(-$identifier(\.$identifier)*)?\z"
     }
 
-    # Returns $Text with each control character (C0, DEL, and C1) as '?', so a
-    # refusal cannot move the cursor or rewrite the terminal.
+    # Returns $Text with every character but printable ASCII as '?', so no
+    # host encoding can turn a shown character into a control that moves the
+    # cursor or rewrites the terminal.
     function Get-PrintableText([string]$Text) {
-        return [regex]::Replace($Text, '[\x00-\x1F\x7F-\x9F]', '?')
+        return [regex]::Replace($Text, '[^\x20-\x7E]', '?')
     }
 
     # Downloads $Url to $Destination over TLS 1.2, which Windows PowerShell 5.1
@@ -498,7 +501,7 @@ param([string]$Version = '')
                 $oldVersion = (@($oldProbe.Output) -join "`n").Trim()
             }
         }
-        if ($oldVersion.Length -gt 0 -and $oldVersion -eq $newVersion) {
+        if ($oldVersion.Length -gt 0 -and $oldVersion -ceq $newVersion) {
             if ($Version.Length -gt 0) {
                 Write-Host "specstone $newVersion is already installed"
             } else {
@@ -520,4 +523,7 @@ param([string]$Version = '')
             # the folder is in the system temp; Windows clears it later
         }
     }
+}
+} finally {
+    Remove-Variable -Name Version -Scope Local -ErrorAction SilentlyContinue
 }
