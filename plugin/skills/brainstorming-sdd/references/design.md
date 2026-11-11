@@ -9,12 +9,7 @@ and the PRD and spec docs carry the content once the Owner approves it.
 
 - **Brief**: the Owner's approved answers: the decisions, the rulings in the Owner's own words, the approach picked,
   and the open questions. Read it whole.
-- **A design path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
-  docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or spec
-  doc named as the file: write nothing but the agent's `report:` file; report the path as an open question.
-- **Any other design path**: the file to write, at the host brainstorm skill's own path for a design document, else
-  `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole: you amend it with `Edit` and never
-  write a second file.
+- **Design path**: the document to write or amend; step 2 judges it.
 
 ## 2. Ground each claim
 
@@ -24,6 +19,15 @@ for a change inside one story, the feature for one across stories, the feature w
 
 - **0:** the printed bundle is the ground. Cite only what it printed.
 - **Any other exit:** report the CLI's error and stop.
+
+Before any write, judge the design path by that bundle:
+
+- **A design path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
+  docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or spec
+  doc named as the file: write nothing but the agent's `report:` file; report the path as an open question.
+- **Any other design path**: the file to write, at the host brainstorm skill's own path for a design document, else
+  `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole: you amend it with `Edit` and never
+  write a second file.
 
 Cite each story, FR, and section by its Specstone name, `<type>:<name>#<section>`, never by file path or line. A
 claim in the brief that the docs contradict is an open question; a decision that changes what a doc says is a change,
