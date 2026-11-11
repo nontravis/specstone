@@ -43,6 +43,15 @@ const Duration _connectTimeout = Duration(seconds: 30);
 /// How long the script body may stay silent before the fetch gives up.
 const Duration _idleTimeout = Duration(seconds: 60);
 
+/// How many MiB a reply may hold before the read gives up.
+const int _maxReplyMiB = 1;
+
+/// The same limit in bytes.
+const int _maxReplyBytes = _maxReplyMiB * 1024 * 1024;
+
+/// How many characters of an untrusted tag an error message echoes.
+const int _maxEchoedTagLength = 64;
+
 /// The last line `specstone upgrade` prints.
 const String _restartLine =
     'Restart Claude Code to load the new CLI and plugin.';
@@ -112,11 +121,17 @@ String? unmanagedBinFolder(
   return same ? null : binFolder.path;
 }
 
-final RegExp _controlCharacter = RegExp(r'[\x00-\x1f\x7f-\x9f]');
+final RegExp _unprintable = RegExp(
+  r'[\x00-\x1f\x7f-\x9f]|\p{Cf}|\p{Zl}|\p{Zp}',
+  unicode: true,
+);
 
-// Replaces each control character of reply text, so it cannot drive the
-// terminal it is printed to.
-String _printable(String text) => text.replaceAll(_controlCharacter, '?');
+// Masks the control, format, and separator characters of reply text, so it
+// cannot drive the terminal or reorder the line it is printed on, and cuts it
+// to [_maxEchoedTagLength] characters.
+String _printable(String text) => String.fromCharCodes(
+  text.replaceAll(_unprintable, '?').runes.take(_maxEchoedTagLength),
+);
 
 // Resolves symlinks of an existing folder, so macOS `/var` and `/private/var`
 // compare equal; a missing folder falls back to its normalized absolute path.
@@ -380,6 +395,8 @@ class UpgradeCommand extends SpecstoneCommand {
     final client = HttpClient()..connectionTimeout = _connectTimeout;
     try {
       final request = await client.getUrl(url);
+      // A redirect could lead off GitHub, so a 3xx counts as a failed status.
+      request.followRedirects = false;
       final response = await request.close().timeout(_idleTimeout);
       final status = response.statusCode;
       final quiet = response.timeout(_idleTimeout);
@@ -387,11 +404,14 @@ class UpgradeCommand extends SpecstoneCommand {
         await quiet.drain<void>();
         return (body: null, failure: 'HTTP $status');
       }
-      // HttpClient throws on a body cut short, so a finished fold is complete.
-      final body = await quiet.fold(
-        BytesBuilder(copy: false),
-        (builder, chunk) => builder..add(chunk),
-      );
+      // HttpClient throws on a body cut short, so a finished loop is complete.
+      final body = BytesBuilder(copy: false);
+      await for (final chunk in quiet) {
+        body.add(chunk);
+        if (body.length > _maxReplyBytes) {
+          return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
+        }
+      }
       return (body: body.takeBytes(), failure: null);
     } on IOException catch (e) {
       return (body: null, failure: e is HttpException ? e.message : '$e');
