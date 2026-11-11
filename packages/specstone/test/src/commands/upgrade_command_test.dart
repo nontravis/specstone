@@ -12,6 +12,14 @@ import '../../helpers/temp_tree.dart';
 String _join(String first, [String? b, String? c, String? d]) =>
     [first, ?b, ?c, ?d].join('/');
 
+const _story = 'install_update/machine_install/upgrade_cli_and_plugin';
+const _keep = '$_story/keep_newer_prerelease';
+const _rerun = '$_story/rerun_install_script';
+const _refuse = '$_story/refuse_other_install';
+
+/// The raw-content root the install lines by version name.
+const _rawBase = 'https://raw.githubusercontent.com/nontravis/specstone/';
+
 void main() {
   late HttpServer server;
   late Uri base;
@@ -46,12 +54,15 @@ void main() {
     Map<String, String> env, {
     bool windows = false,
     Directory? workingDirectory,
+    String? runningVersion,
   }) => SpecstoneCommandRunner(
     out: out,
     err: err,
     workingDirectory: workingDirectory,
     upgrade: UpgradeCommand(
       scriptBase: base,
+      latestReleaseUrl: base.resolve('releases/latest'),
+      runningVersion: runningVersion,
       executable: executable,
       environment: env,
       windows: windows,
@@ -168,6 +179,21 @@ void main() {
     expect(requests, 1);
   }, testOn: 'windows');
 
+  test('$_refuse E02: a pre-release binary outside ~/.specstone/bin refuses '
+      'install_not_managed, exit 78, before any request', () async {
+    final root = await writeTree({});
+    final tools = Directory(_join(root.path, 'opt', 'tools'));
+    final exe = await makeExecutable(tools);
+    final runner = runnerFor(exe.path, {
+      'HOME': _join(root.path, 'home'),
+    }, runningVersion: '1.2.0-beta.1');
+
+    expect(await runner.run(['upgrade']), 78);
+    expect(err.toString(), contains('this one runs from ${tools.path}'));
+    expect(requests, 0);
+    expect(out.toString(), isEmpty);
+  });
+
   test('f09/us02/fr01: upgrade loads no templates', () async {
     final root = await writeTree({'.specstone/config.yaml': 'pins: [\n'});
     final tools = Directory(_join(root.path, 'opt', 'tools'));
@@ -189,16 +215,21 @@ void main() {
     late Directory root;
     late SpecstoneCommandRunner runner;
     late Uri scriptUrl;
+    late Uri releaseUrl;
+    late Future<void> Function(HttpRequest) releaseHandle;
 
     String fileIn(String folder, String name) => _join(root.path, folder, name);
 
     // Prepares a sandbox whose served script exits [scriptExit] and whose
     // `claude` stub exits [claudeExit]; [withClaude] false leaves it out.
+    // The release path answers through `releaseHandle`, no reply at first.
     Future<void> prepare({
       int scriptExit = 0,
       int claudeExit = 0,
       bool withClaude = true,
       bool asWindows = false,
+      String? runningVersion,
+      Map<String, String> extraEnv = const {},
     }) async {
       final sandbox = await createScriptSandbox();
       root = sandbox.root;
@@ -214,7 +245,13 @@ void main() {
       scriptUrl = base.resolve(
         asWindows || windows ? 'install.ps1' : 'install.sh',
       );
+      releaseUrl = base.resolve('releases/latest');
+      releaseHandle = (request) async {};
       handle = (request) async {
+        if (request.uri.path == releaseUrl.path) {
+          await releaseHandle(request);
+          return;
+        }
         request.response.write(script);
         await request.response.close();
       };
@@ -243,8 +280,23 @@ void main() {
           await Process.run('chmod', ['+x', stub.path]);
         }
       }
-      final env = sandbox.env({'CLAUDE_EXIT': '$claudeExit'});
-      runner = runnerFor(exe.path, env, windows: asWindows || windows);
+      final env = sandbox.env({'CLAUDE_EXIT': '$claudeExit', ...extraEnv});
+      runner = runnerFor(
+        exe.path,
+        env,
+        windows: asWindows || windows,
+        runningVersion: runningVersion,
+      );
+    }
+
+    // Answers the release path with [body] and [status].
+    void releaseReplies(String body, {int status = HttpStatus.ok}) {
+      releaseHandle = (request) async {
+        request.response
+          ..statusCode = status
+          ..write(body);
+        await request.response.close();
+      };
     }
 
     List<String> claudeLog() =>
@@ -506,6 +558,182 @@ void main() =>
         ),
       );
       expect(requests, 0);
+    });
+
+    String curlLine(String version) =>
+        'curl -fsSL ${_rawBase}v$version/install.sh | '
+        'SPECSTONE_VERSION=$version sh';
+
+    String irmLine(String version) =>
+        'iex "& {\$(irm ${_rawBase}v$version/install.ps1)} '
+        '-Version $version"';
+
+    for (final asWindows in [false, true]) {
+      final host = asWindows ? 'Windows' : 'a POSIX host';
+      test(
+        '$_keep E01, upgrade_cli_and_plugin S6: $host keeps a pre-release '
+        'newer than the latest release; two lines, exit 0, nothing run',
+        () async {
+          await prepare(runningVersion: '1.2.0-beta.1', asWindows: asWindows);
+          releaseReplies('{"tag_name": "v1.1.1"}');
+
+          expect(await runner.run(['upgrade']), 0);
+          final line = asWindows || windows
+              ? irmLine('1.2.0-beta.1')
+              : curlLine('1.2.0-beta.1');
+          expect(
+            out.toString(),
+            'specstone 1.2.0-beta.1 is newer than the latest release 1.1.1; '
+            'nothing to upgrade\n'
+            'To put the plugin on 1.2.0-beta.1 too, run: $line\n',
+          );
+          expect(err.toString(), isEmpty);
+          expect(paths, [releaseUrl.path]);
+          expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+          expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+        },
+      );
+    }
+
+    test('$_keep E02: a latest release above the pre-release runs the script '
+        'and the plugin update', () async {
+      await prepare(runningVersion: '1.2.0-beta.1');
+      releaseReplies('{"tag_name": "v1.2.0"}');
+
+      expect(await runner.run(['upgrade']), 0);
+      final ran = File(fileIn('logs', 'ran')).readAsStringSync().trim();
+      expect(ran, endsWith(windows ? 'install.ps1' : 'install.sh'));
+      expect(claudeLog(), [updateCommand.substring('claude '.length)]);
+      expect(out.toString().trimRight().split('\n').last, restartLine);
+      expect(paths, [releaseUrl.path, scriptUrl.path]);
+    });
+
+    test('$_keep E03: a binary with no pre-release part sends no release '
+        'request', () async {
+      await prepare(runningVersion: '1.1.1');
+      releaseReplies('{"tag_name": "v1.0.0"}');
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(paths, [scriptUrl.path]);
+    });
+
+    // Review Focus 4: every reply the request can get that names no release.
+    final unreadable = <(String, int, String, String)>[
+      (
+        'a rate-limit reply',
+        403,
+        '{"message": "API rate limit exceeded"}',
+        'HTTP 403',
+      ),
+      (
+        'a body that is not JSON',
+        200,
+        '<html>no</html>',
+        'the body is not JSON',
+      ),
+      (
+        'a body of several JSON documents',
+        200,
+        '{"tag_name": "v1.1.1"} {}',
+        'the body is not JSON',
+      ),
+      ('a JSON array', 200, '[{"tag_name": "v1.1.1"}]', 'no tag_name'),
+      ('no tag_name', 200, '{"name": "1.1.1"}', 'no tag_name'),
+      ('a tag_name that is no string', 200, '{"tag_name": 111}', 'no tag_name'),
+      (
+        'a tag_name without its v',
+        200,
+        '{"tag_name": "1.1.1"}',
+        'tag_name 1.1.1 is not v<Version>',
+      ),
+      (
+        'a tag_name of two fields',
+        200,
+        '{"tag_name": "v1.2"}',
+        'tag_name v1.2 is not v<Version>',
+      ),
+      (
+        'a tag_name with build metadata',
+        200,
+        '{"tag_name": "v1.2.0+build.5"}',
+        'tag_name v1.2.0+build.5 is not v<Version>',
+      ),
+      (
+        'a tag_name with a control character',
+        200,
+        r'{"tag_name": "v1.2\u001b[2J"}',
+        'tag_name v1.2?[2J is not v<Version>',
+      ),
+    ];
+    for (final (label, status, body, failure) in unreadable) {
+      test('$_keep E04: $label refuses install_script_failed, exit 69, '
+          'naming the URL; nothing ran', () async {
+        await prepare(runningVersion: '1.2.0-beta.1');
+        releaseReplies(body, status: status);
+
+        expect(await runner.run(['upgrade']), 69);
+        expect(
+          err.toString(),
+          'specstone upgrade could not read the latest release from '
+          '$releaseUrl: $failure\n',
+        );
+        expect(out.toString(), isEmpty);
+        expect(paths, [releaseUrl.path]);
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+        expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+      });
+    }
+
+    test('$_keep E04: a server that never answers refuses, exit 69, naming '
+        'the URL; nothing ran', () async {
+      await prepare(runningVersion: '1.2.0-beta.1');
+
+      expect(await fast(() => runner.run(['upgrade'])), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not read the latest release from '
+        '$releaseUrl: no data for 60 s\n',
+      );
+      expect(paths, [releaseUrl.path]);
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
+
+    test('$_keep E04: no server refuses, exit 69, naming the URL', () async {
+      await prepare(runningVersion: '1.2.0-beta.1');
+      await server.close(force: true);
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        startsWith(
+          'specstone upgrade could not read the latest release from '
+          '$releaseUrl: ',
+        ),
+      );
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
+
+    test('$_rerun E08: the script runs without an exported '
+        'SPECSTONE_VERSION', () async {
+      await prepare(
+        extraEnv: {
+          'SPECSTONE_VERSION': '1.2.0-beta.1',
+          if (windows) 'Specstone_Version': '1.2.0-beta.1',
+        },
+      );
+      final seen = fileIn('logs', 'seen');
+      final script = windows
+          ? 'if (Test-Path Env:SPECSTONE_VERSION) '
+                "{ Set-Content -Path '$seen' -Value \$env:SPECSTONE_VERSION } "
+                "else { Set-Content -Path '$seen' -Value unset }\n"
+          : "printf '%s\\n' \"\${SPECSTONE_VERSION-unset}\" > '$seen'\n";
+      handle = (request) async {
+        request.response.write(script);
+        await request.response.close();
+      };
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(File(seen).readAsStringSync().trim(), 'unset');
     });
 
     test('f09/us02/fr02/e05, nfr-pr01: only upgrade_command.dart opens a '
