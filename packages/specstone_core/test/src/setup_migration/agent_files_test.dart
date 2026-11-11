@@ -19,6 +19,10 @@ const _agentMd =
     '- Change docs only with `specstone set`, `new`, `move`, or `rename`. What '
     'an agent writes stays a draft until the\n'
     '  Owner runs `specstone approve`.\n'
+    "- Before writing a doc, read its type's guide with "
+    '`specstone guide <type>`; write each item in the shape it gives,\n'
+    '  and say each thing once, short enough that a person reads it in one '
+    'pass, with nothing left out.\n'
     '- Before writing any plan, ground it with '
     '`specstone context <story> --for implement`.\n'
     '- Cite a doc by its name (`<feature>/<story>`), never by a number label '
