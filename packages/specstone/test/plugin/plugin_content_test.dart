@@ -205,9 +205,73 @@ void main() {
   _batchGuideTests();
   _otherPluginSkillTests();
   _planTests();
+  _codeParseTests();
 }
 
 const _nameOnly = 'agent_plugin/ground_a_task/name_only_existing_commands';
+
+Future<List<String>> _skillProblemsOf(String markdown) async {
+  final root = await writeTree({'skills/x/SKILL.md': markdown});
+  return otherPluginSkillNames(root, shippedDocTypes());
+}
+
+const _otherSkill = "skills/x/SKILL.md: a:b is another plugin's skill";
+
+void _codeParseTests() {
+  test('$_nameOnly: a span wrapped over two lines is read whole, and the span '
+      'after it is still read', () async {
+    expect(await _skillProblemsOf('Run `specstone get\nfr:x` then `a:b`.'), [
+      _otherSkill,
+    ]);
+    expect(
+      await _problemsOf({'skills/x/SKILL.md': 'Run `specstone check\n--fix`.'}),
+      ['skills/x/SKILL.md: specstone check has no --fix'],
+    );
+  });
+
+  test('$_nameOnly: a ~~~ fence is a code block, so its text is no inline '
+      'span and its lines are checked', () async {
+    expect(await _skillProblemsOf('~~~\n`a:b`\n~~~\n'), isEmpty);
+    expect(
+      await _problemsOf({'skills/x/SKILL.md': '~~~sh\nspecstone nope\n~~~\n'}),
+      ['skills/x/SKILL.md: specstone has no command nope'],
+    );
+  });
+
+  test(
+    '$_nameOnly: a fence inside a list item or a quote is a code block',
+    () async {
+      expect(await _skillProblemsOf('- ```\n  `a:b`\n  ```\n'), isEmpty);
+      expect(await _skillProblemsOf('> ```\n> `a:b`\n> ```\n'), isEmpty);
+      expect(
+        await _problemsOf({
+          'skills/x/SKILL.md': '- ```sh\n  specstone nope\n  ```\n',
+        }),
+        ['skills/x/SKILL.md: specstone has no command nope'],
+      );
+      expect(
+        await _problemsOf({
+          'skills/x/SKILL.md': '> ```sh\n> specstone nope\n> ```\n',
+        }),
+        ['skills/x/SKILL.md: specstone has no command nope'],
+      );
+    },
+  );
+
+  test('$_nameOnly: a four-backtick fence holding a three-backtick line stays '
+      'one code block', () async {
+    expect(await _skillProblemsOf('````\n```\n`a:b`\n```\n````\n'), isEmpty);
+    expect(await _skillProblemsOf('````\n```\n````\n`a:b`\n'), [_otherSkill]);
+  });
+
+  test('$_nameOnly: an unclosed fence runs to the end of the file', () async {
+    expect(await _skillProblemsOf('`a:b`\n```\n`c:d`\n'), [_otherSkill]);
+    expect(
+      await _problemsOf({'skills/x/SKILL.md': '- ```sh\n  specstone nope\n'}),
+      ['skills/x/SKILL.md: specstone has no command nope'],
+    );
+  });
+}
 
 /// The spans E06 names that carry no skill-name form, or a doc type prefix.
 const _docCitations = [

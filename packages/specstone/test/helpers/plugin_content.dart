@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:markdown/markdown.dart';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 import 'package_root.dart';
 
-final _inlineSpan = RegExp(r'`([^`\n]+)`');
 final _specstoneCall = RegExp(r'\bspecstone\s+(\S+)');
 final _skillName = RegExp(r'^([a-z0-9-]+):[a-z0-9-]+$');
 final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
@@ -17,7 +18,7 @@ Directory pluginRoot() =>
 /// Returns the problems in every CLI call that `.md` files under `skills/` and
 /// `agents/` of [plugin] name, sorted.
 ///
-/// Scans inline code spans and fenced code lines. A `specstone <word>` must
+/// Scans inline code spans and code block lines. A `specstone <word>` must
 /// name a command of [runner], then one of its subcommands when it has any;
 /// each `--flag` after it must be an option of that command or `help`.
 List<String> unknownCliNames(Directory plugin, SpecstoneCommandRunner runner) {
@@ -34,7 +35,7 @@ List<String> unknownCliNames(Directory plugin, SpecstoneCommandRunner runner) {
   return problems.toList()..sort();
 }
 
-/// Returns the word after every `specstone ` in the code spans and fenced
+/// Returns the word after every `specstone ` in the code spans and code block
 /// lines of [markdown], in text order.
 List<String> cliCommands(String markdown) => [
   for (final scanned in _codeTexts(markdown))
@@ -64,7 +65,7 @@ Set<String> shippedDocTypes() {
 ///
 /// A span names a skill when its whole text is `<prefix>:<name>`, two words of
 /// lowercase letters, digits, and hyphens, and the prefix is neither
-/// `specstone` nor in [docTypes]. Fenced lines are never read: they hold whole
+/// `specstone` nor in [docTypes]. Code blocks are never read: they hold whole
 /// commands.
 List<String> otherPluginSkillNames(Directory plugin, Set<String> docTypes) {
   final problems = <String>{};
@@ -143,34 +144,50 @@ String _relativePath(Directory plugin, FileSystemEntity entity) {
   return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 }
 
-/// Yields each inline code span and each fenced code line of [markdown].
+/// Yields each inline code span and each line of a code block of [markdown],
+/// in text order, as the `markdown` package parses it.
 Iterable<String> _codeTexts(String markdown) sync* {
-  var fenced = false;
-  for (final line in markdown.replaceAll('\r\n', '\n').split('\n')) {
-    if (line.trimLeft().startsWith('```')) {
-      fenced = !fenced;
-    } else if (fenced) {
-      yield line;
+  for (final code in _codeOf(markdown)) {
+    if (code.isBlock) {
+      yield* LineSplitter.split(code.text);
     } else {
-      for (final span in _inlineSpan.allMatches(line)) {
-        yield span.group(1)!;
-      }
+      yield code.text;
     }
   }
 }
 
-/// Yields each inline code span of [markdown], fenced lines left out.
-Iterable<String> _inlineSpans(String markdown) sync* {
-  var fenced = false;
-  for (final line in markdown.replaceAll('\r\n', '\n').split('\n')) {
-    if (line.trimLeft().startsWith('```')) {
-      fenced = !fenced;
-    } else if (!fenced) {
-      for (final span in _inlineSpan.allMatches(line)) {
-        yield span.group(1)!;
+/// Yields each inline code span of [markdown], code blocks left out.
+Iterable<String> _inlineSpans(String markdown) => [
+  for (final code in _codeOf(markdown))
+    if (!code.isBlock) code.text,
+];
+
+typedef _Code = ({String text, bool isBlock});
+
+/// Returns each code block (fenced or indented) and inline code span of
+/// [markdown], in text order.
+List<_Code> _codeOf(String markdown) {
+  // encodeHtml off keeps code text as written: `<type>`, not `&lt;type&gt;`.
+  final document = Document(
+    extensionSet: ExtensionSet.gitHubFlavored,
+    encodeHtml: false,
+  );
+  final found = <_Code>[];
+  void walk(Iterable<Node> nodes) {
+    for (final node in nodes.whereType<Element>()) {
+      switch (node.tag) {
+        case 'pre':
+          found.add((text: node.textContent, isBlock: true));
+        case 'code':
+          found.add((text: node.textContent, isBlock: false));
+        default:
+          walk(node.children ?? const []);
       }
     }
   }
+
+  walk(document.parse(markdown));
+  return found;
 }
 
 String? _problemOf(
