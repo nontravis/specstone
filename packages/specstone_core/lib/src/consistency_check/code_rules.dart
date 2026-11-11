@@ -104,17 +104,14 @@ bool _namesSomething(CheckContext context, String entry) =>
 /// Whether [entry], in [normalCodeEntry]'s form, is a file or a folder from
 /// [base].
 ///
-/// An entry that holds a `\` or a name Windows would trim
-/// ([hasWindowsDroppedEnd]) names nothing: `\` is a separator on Windows alone,
-/// and the disk finds a trimmed name there alone.
+/// An entry that is no [isPortablePath] names nothing: `\` is a separator on
+/// Windows alone, and the disk finds a trimmed name there alone.
 ///
 /// The one rule `check` and the migrate's `code_root` count resolve a
 /// `covers` or `code` entry by.
 bool namesFileOrFolderFrom(Directory base, String entry) {
   final normal = normalCodeEntry(entry);
-  if (entry.contains(r'\') || hasWindowsDroppedEnd(normal.split(_separator))) {
-    return false;
-  }
-  return FileSystemEntity.typeSync('${base.path}$_separator$normal') !=
-      FileSystemEntityType.notFound;
+  return isPortablePath(normal) &&
+      FileSystemEntity.typeSync('${base.path}$_separator$normal') !=
+          FileSystemEntityType.notFound;
 }

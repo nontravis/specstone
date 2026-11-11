@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 
 /// A closing `.`, `,`, `;`, or `:` that prose adds after a path.
@@ -25,8 +26,8 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// A mention is prose text, plain or in a code span, that reads as a relative
 /// path from the doc at [docPath], read before the moves. Its `#` suffix, a
 /// closing mark, and a line suffix are not part of the path and stay. It
-/// changes only when [exists] holds for the path it names, given as
-/// [relativeFilePathOf] gives it, and the shared decision of
+/// changes only when that path is an [isPortablePath] and [exists] holds for
+/// it, given as [relativeFilePathOf] gives it, and the shared decision of
 /// [movedRelativePath] says the text no longer reaches the moved file. A
 /// token holding an escape, a web address, a path of dots alone, and a word
 /// with neither a `/` nor a file extension are not mentions. [exists] runs
@@ -122,7 +123,9 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
   final after = movedRelativePath(path, docPath, moves);
   if (after == null) return null;
   final target = relativeFilePathOf(path, docPath);
-  if (target == null || !exists(target)) return null;
+  if (target == null || !isPortablePath(target) || !exists(target)) {
+    return null;
+  }
   final text = path.endsWith('/') ? '$after/' : after;
   return text == path ? null : (path: path, text: text);
 }

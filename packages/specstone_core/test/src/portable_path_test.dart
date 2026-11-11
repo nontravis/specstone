@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show isPortableCodeEntry;
 import 'package:test/test.dart';
 
 void main() {
@@ -14,6 +16,20 @@ void main() {
       expect(hasWindowsDroppedEnd(['docs', 'API.md']), isFalse);
       expect(hasWindowsDroppedEnd(['.hidden', 'a b.md']), isFalse);
       expect(hasWindowsDroppedEnd(['..', '.', 'lib', '']), isFalse);
+    });
+  });
+
+  group('isPortablePath', () {
+    test('a backslash or a trimmed name makes a path non-portable', () {
+      for (final path in [r'a\b.md', r'..\x', 'a./b', 'lib ', 'a/b.']) {
+        expect(isPortablePath(path), isFalse, reason: path);
+      }
+    });
+
+    test('a plain path, `.` and `..` segments, and an empty one are', () {
+      for (final path in ['a/b.md', '../x/./y', '', '/abs', '.hidden/a b']) {
+        expect(isPortablePath(path), isTrue, reason: path);
+      }
     });
   });
 

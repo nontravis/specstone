@@ -84,6 +84,18 @@ void main() {
     expect(report.findings, isEmpty);
   });
 
+  test('f04/us02/fr01/e03: a pointer with a backslash or a name Windows trims '
+      'names no file on any OS, though a POSIX disk holds one', () async {
+    for (final pointer in [r'app\lib\login.dart', 'app/lib/login.dart.']) {
+      final root = await writeCheckProject(extra: fr(entry, pointer));
+      File('${root.path}/$pointer').writeAsStringSync('class SignInPage {}\n');
+
+      expect(spots(checkOf(root)), [
+        '$loginFr:10: implements_path_unresolved',
+      ], reason: pointer);
+    }
+  }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
+
   test('f04/us02/s7, f04/us02/fr01/e03: a pointer to a folder, or to nothing, names no file', () async {
     final folder = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib')),

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -222,11 +223,11 @@ String _readCodeRoot(YamlMap map) {
     file: projectConfigPath,
   );
   if (value == null) return '.';
-  if (!isCodeRootValue(value)) {
+  if (!isPortableCodeEntry(value)) {
     throw TemplateFault(
       FaultCode.unknownValue,
       'the key $_codeRootKey must be a non-empty relative path with / '
-      'separators',
+      'separators and no name ending in a space or a dot',
       file: projectConfigPath,
       key: _codeRootKey,
     );
@@ -236,11 +237,11 @@ String _readCodeRoot(YamlMap map) {
 
 List<String> _readAgentFileRoots(YamlMap map) {
   final roots = stringList(map, _agentFileRootsKey, file: projectConfigPath);
-  if (!roots.every(isCodeRootValue)) {
+  if (!roots.every(isPortableCodeEntry)) {
     throw TemplateFault(
       FaultCode.unknownValue,
       'the key $_agentFileRootsKey must hold non-empty relative paths with / '
-      'separators',
+      'separators and no name ending in a space or a dot',
       file: projectConfigPath,
       key: _agentFileRootsKey,
     );
@@ -255,6 +256,14 @@ List<String> _readAgentFileRoots(YamlMap map) {
 /// the empty string is refused.
 bool isCodeRootValue(String value) =>
     value.isNotEmpty && !_isAbsolute(value) && !value.contains(r'\');
+
+/// Whether [value] is a path entry that names the same place on every OS: an
+/// [isCodeRootValue] with no name that [hasWindowsDroppedEnd].
+///
+/// The gate for the config's `code_root` and `agent_file_roots`, and for each
+/// `code:` entry, so every reader of such a name finds the same folder.
+bool isPortableCodeEntry(String value) =>
+    isCodeRootValue(value) && isPortablePath(value);
 
 /// Whether [path] is rooted or starts with a drive letter, on any platform.
 ///

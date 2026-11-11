@@ -1,6 +1,3 @@
-import 'package:specstone_core/src/templates/project_config.dart'
-    show isCodeRootValue;
-
 const _separator = '/';
 
 /// Whether a name of [segments] ends in a space or a dot, `.` and `..` aside.
@@ -15,8 +12,11 @@ bool hasWindowsDroppedEnd(Iterable<String> segments) => segments.any(
       (segment.endsWith(' ') || segment.endsWith('.')),
 );
 
-/// Whether [entry], a `code:`, `covers:`, or `implements:` path, names the same
-/// place on every OS: a relative `/` path ([isCodeRootValue]) with no name
-/// that [hasWindowsDroppedEnd].
-bool isPortableCodeEntry(String entry) =>
-    isCodeRootValue(entry) && !hasWindowsDroppedEnd(entry.split(_separator));
+/// Whether the `/`-separated [path] names the same place on every OS.
+///
+/// A `\` is a separator on Windows alone, and a name ending in a space or a
+/// dot ([hasWindowsDroppedEnd]) is found there alone. A rule that checks a name
+/// from a doc or the config on disk refuses a path this rejects, so `check` and
+/// a run give the same answer on every OS.
+bool isPortablePath(String path) =>
+    !path.contains(r'\') && !hasWindowsDroppedEnd(path.split(_separator));

@@ -9,7 +9,7 @@ import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
-    show isCodeRootValue;
+    show isPortableCodeEntry;
 
 const _rootRank = 0;
 const _linkRank = 1;
@@ -166,5 +166,5 @@ int _isChildRepository(_Ranked candidate) =>
 /// refuse its path or none reaches it.
 String? _valueOf(Directory root, Directory folder) {
   final relative = relativeFolderPath(root, folder);
-  return relative != null && isCodeRootValue(relative) ? relative : null;
+  return relative != null && isPortableCodeEntry(relative) ? relative : null;
 }

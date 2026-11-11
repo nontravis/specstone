@@ -1,7 +1,8 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show isPortableCodeEntry;
 
 const _separator = '/';
 const _dotName = '.';

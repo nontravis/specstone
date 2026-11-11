@@ -8,7 +8,6 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/plan_hash.dart';
-import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
@@ -18,6 +17,8 @@ import 'package:specstone_core/src/setup_migration/project_root.dart'
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show isPortableCodeEntry;
 
 const _agentMdPath = '.specstone/AGENT.md';
 const _cursorFolder = '.cursor';

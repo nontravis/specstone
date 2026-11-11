@@ -244,6 +244,26 @@ void main() {
       },
     );
 
+    test(
+      'f04/us02/fr04/e11: a picture whose name holds a backslash or ends '
+      'in a dot is missing on any OS, though a POSIX disk holds the file',
+      () async {
+        for (final (href, name) in [
+          ('a%5Cb.png', r'a\b.png'),
+          ('flow.png.', 'flow.png.'),
+        ]) {
+          final project = await writeCheckProject(
+            extra: linking('![x]($href)'),
+          );
+          File('${project.path}/docs/prds/features/f01_login/$name')
+              .writeAsStringSync('png');
+
+          expect(missingOf(project), hasLength(1), reason: href);
+        }
+      },
+      skip: Platform.isWindows ? 'Windows cannot hold such a name' : null,
+    );
+
     test('f04/us02/fr04/e11, PS-R2: the target is reported as written while the escape is checked decoded', () async {
       final missing = await writeCheckProject(
         extra: linking('![flow](flow%20chart.png#top)'),

@@ -86,6 +86,23 @@ void main() {
     ]);
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
+  test('f04/us02/fr05/e03: a listed name with a backslash is no file on any '
+      'OS, though a POSIX disk holds one', () async {
+    final root = await writeCheckProject(
+      extra: {
+        'docs/$rules': ruleDoc.replaceFirst(
+          '  - notes.md\n',
+          "  - 'a\\b.pdf'\n",
+        ),
+        'docs/prds/references/login_rules/spec.pdf': 'pdf',
+      },
+    );
+    File('${root.path}/docs/prds/references/login_rules/a\\b.pdf')
+        .writeAsStringSync('text');
+
+    expect(spots(checkOf(root)), ['$rules:6: listed_file_missing']);
+  }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
+
   test('f04/us02/fr05/e04, f04/us02/fr05/e06: a sibling file, a section of the doc, or N/A resolves', () async {
     final report = checkOf(
       await writeCheckProject(

@@ -273,11 +273,10 @@ bool _fileHolds(CheckContext context, String path, String? named) {
       _holds(context.contentOf(file).lineFacts.anchors, named);
 }
 
-/// Whether [path], `/`-separated, is a file under [folder]; a name Windows
-/// would trim ([hasWindowsDroppedEnd]) is none, so no OS finds a file there.
+/// Whether [path], `/`-separated, is a file under [folder]; a path that is no
+/// [isPortablePath] is none, so no OS finds a file there.
 bool _namesFileBeside(String folder, String path) =>
-    !hasWindowsDroppedEnd(path.split('/')) &&
-    File('$folder/$path').existsSync();
+    isPortablePath(path) && File('$folder/$path').existsSync();
 
 bool _holds(DocAnchors? anchors, String anchor) =>
     anchors == null || anchors.holds(anchor);

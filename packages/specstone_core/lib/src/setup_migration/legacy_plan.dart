@@ -17,7 +17,6 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
 import 'package:specstone_core/src/plan_hash.dart';
-import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -582,13 +581,9 @@ void _rewriteRefs(
 
 /// Whether [path], from [docsRoot] and possibly leaving it, names a file or
 /// folder of the legacy tree.
-///
-/// A name Windows would trim ([hasWindowsDroppedEnd]) names none, so the run
-/// plans alike on every OS.
 bool _existsIn(Directory docsRoot, String path) =>
-    !hasWindowsDroppedEnd(path.split('/')) &&
     FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
-        FileSystemEntityType.notFound;
+    FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and the [codeRoot]
 /// and keeps every other pin of the [existing] config, or null when the text

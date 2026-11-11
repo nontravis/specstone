@@ -52,11 +52,12 @@ String configText(
   List<String> agentFileRoots = const [],
 }) {
   for (final root in agentFileRoots) {
-    if (!isCodeRootValue(root)) {
+    if (!isPortableCodeEntry(root)) {
       throw ArgumentError.value(
         root,
         'agentFileRoots',
-        'must be a non-empty relative path with / separators',
+        'must be a non-empty relative path with / separators and no name '
+            'ending in a space or a dot',
       );
     }
   }

@@ -259,7 +259,7 @@ Iterable<Finding> _missingFileLinks(
         root,
       ...names,
     ].join(separator);
-    if (!hasWindowsDroppedEnd(names) &&
+    if (isPortablePath(place.target) &&
         FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound) {
       continue;
     }

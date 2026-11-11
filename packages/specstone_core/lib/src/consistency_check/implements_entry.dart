@@ -25,7 +25,7 @@ extension type const ImplementsEntry(String text) {
 
   /// Whether [path] names a regular file from [base].
   bool namesFileFrom(Directory base) =>
-      !hasWindowsDroppedEnd(path.split('/')) &&
+      isPortablePath(path) &&
       FileSystemEntity.typeSync('${base.path}/$path') ==
           FileSystemEntityType.file;
 }

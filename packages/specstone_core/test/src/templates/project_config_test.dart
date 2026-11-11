@@ -162,6 +162,8 @@ void main() {
       ('a rooted path', 'code_root: /abs'),
       ('a drive-letter path', 'code_root: C:/abs'),
       ('a backslash', r"code_root: 'a\b'"),
+      ('a trailing dot', "code_root: 'src.'"),
+      ('a trailing space', "code_root: 'src '"),
       ('a non-string', 'code_root: [a]'),
       ('an empty string', "code_root: ''"),
     ]) {
@@ -222,6 +224,8 @@ void main() {
         ('a drive-letter entry', 'agent_file_roots: [C:/code]'),
         ('a backslash entry', r"agent_file_roots: ['..\stratum_ui']"),
         ('an empty entry', "agent_file_roots: ['']"),
+        ('an entry ending in a dot', "agent_file_roots: ['vendor/lib.']"),
+        ('an entry ending in a space', "agent_file_roots: ['vendor ']"),
         ('a non-string entry', 'agent_file_roots: [3]'),
       ]) {
         test(

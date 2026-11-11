@@ -49,6 +49,21 @@ void main() {
     );
   });
 
+  test('f02/us05/fr02/e10, M2: a mention of a name Windows would trim is left '
+      'as written, whatever the disk holds', () {
+    for (final mention in ['../notes./a.md', r'../notes\a.md']) {
+      expect(
+        rewrite(
+          'See $mention now\n',
+          docPath: 'prds/f/us01/a.md',
+          moves: [(from: 'prds/f/us01/a.md', to: 'prds/g/h/a.md')],
+        ),
+        isNull,
+        reason: mention,
+      );
+    }
+  });
+
   test('f02/us05/fr02/e10, M2: a plain mention follows the moved folder', () {
     expect(
       rewrite('# T\n\nSee ../us02_sign_out/USER_STORY.md now\n')?.lfText,
