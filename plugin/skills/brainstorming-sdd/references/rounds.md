@@ -8,8 +8,7 @@ A decision adds or changes behavior when it brings a new state, input, output, e
 rule (E12). Every other decision only words or records one.
 
 - **A refused design path**, reported as an open question with no document written: append nothing; dispatch
-  `mode: design` again with the brief's path and the Owner's new path in place of the refused one
-  (`agent_plugin/write_prd_and_spec/write_design_document` E01).
+  `mode: design` again with the brief's path and the Owner's new path in place of the refused one (E16).
 - **Only words or records**: append it to the design document's Rulings yourself, as design mode writes them, and
   dispatch nothing; the author, or the fix round under way, goes on (E07, E12).
 - **Adds or changes behavior**, or needs more PRD or spec grounding: add it to the brief and dispatch `mode: design`

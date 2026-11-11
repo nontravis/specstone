@@ -120,9 +120,10 @@ is a spec gap: list it, never plan it.
 8. **Write**, either format, taking the first case that holds:
    - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
      the sync task; `Plan:` reads `none`.
-   - **A plan path inside the CheckedFolders** (the `prds/` or `specs/` folder a bundle header's path opens with), or
-     a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a
-     new `plan path`.
+   - **A plan path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
+     docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or
+     spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a new
+     `plan path`.
    - **Else**: the one plan file, at a given `plan path`, else as `<YYYY-MM-DD>-<slug>.md` in the plans folder the
      project's instruction files (`CLAUDE.md`, `AGENTS.md`) name, else the plan skill's own path, else
      `docs/plans/<YYYY-MM-DD>-<slug>.md`. `Read` a file already there, such as one an earlier run wrote, and amend
