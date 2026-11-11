@@ -28,7 +28,7 @@ touches, the trade-off behind each choice, and its test.
   list whole. Workflow step 1 sorts them.
 - **`design document`** (optional): a path, read in Workflow step 4; no ground source.
 - **`plan path`** (optional): the plan an earlier run reported for the same targets, amended in place with the Owner's
-  answers.
+  answers, or the Owner's new path for a refused one.
 - **`answers`** (optional): the Owner's answers on `NOT PLANNED` rows, spec gaps, and open questions. Run every step
   again on them: the Ground shows each doc as it now stands.
 - **`report`** (optional): the file for the whole report, outside the repository; absent, make one with `mktemp`.
@@ -71,7 +71,8 @@ is a spec gap: list it, never plan it.
    - **0**: the bundle is the docs, as printed. When the host cuts it short and saves it to a file, `Read` that file
      in parts through its closing `==> bundle:` line.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
-   - **Any other non-zero**: stop; report the CLI's error and its target under `Findings:`.
+   - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
+     other targets.
 3. **Check**: run one bare `specstone check`; its findings are no stop. Match each `approval_stale` line to a doc by
    the file path a Ground bundle header printed (`==> <name> (<type>) · <path> <==`).
 4. **Design document**: when given, read it whole for what changed and why; the docs, never the document, say what
@@ -86,11 +87,13 @@ is a spec gap: list it, never plan it.
      A doc among `targets` that no task builds keeps its row with no task instead.
 6. **Plan format**: when your skill list holds a skill whose description says it writes an implementation plan from
    a spec, load it as the plan's format; where it conflicts, Specstone's rules win; none, follow the own procedure;
-   when two qualify, the one the project's CLAUDE.md names, else the first listed.
+   when two qualify, the one the project's CLAUDE.md names, else the first listed. A Specstone skill,
+   `specstone:plan-sdd` included, never qualifies.
    - **A skill qualifies**: load it with `Skill` after steps 1 to 5, and follow it for the header, the file map, the
      task size, and the steps; its own self-review still runs. Specstone's rules win where they differ: the Ground's
      order and rules, no doc text in a task, the last `specstone:sync-sdd` task, and the one plan file outside the
-     CheckedFolders. At its execution hand-off, stop and invoke nothing; go to step 9.
+     CheckedFolders. At its execution hand-off, stop and invoke nothing; steps 7 and 8 still bind the plan; then go to
+     step 9.
    - **None qualifies, the own procedure**: write a header (the goal, the design document's path when there is one,
      the constraints every task keeps), then numbered tasks with test-first steps: write the failing test, run it and
      see it fail, write the code, run it and see it pass.
@@ -102,11 +105,15 @@ is a spec gap: list it, never plan it.
      than one way.
 
    The plan's last task runs `specstone:sync-sdd` on the paths the plan changed.
-8. **Write**, either format: with `Write`, the one plan file, at the plan skill's own path, else
-   `docs/plans/<YYYY-MM-DD>-<slug>.md`; given a `plan path`, amend that file with `Edit` and write no second one. A
-   path inside the CheckedFolders (under the docs folder, in the first folder of a path a bundle header prints, such
-   as `prds/` or `specs/`), or a PRD or spec doc named as the file: write no plan, and list the path under open
-   questions.
+8. **Write**, either format, taking the first case that holds:
+   - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
+     the sync task; `Plan:` reads `none`.
+   - **A plan path inside the CheckedFolders** (the `prds/` or `specs/` folder a bundle header's path opens with), or
+     a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a
+     new `plan path`.
+   - **Else**: with `Write`, the one plan file, at the plan skill's own path, else `docs/plans/<YYYY-MM-DD>-<slug>.md`;
+     given a `plan path`, write there instead: amend its file with `Edit`, or `Write` it when none is there yet. Write
+     no second plan file.
 9. **Check before reporting**: each approved FR of a target that gets a task is built by a task; no task quotes a
    doc's text; each name a task cites is one a Ground bundle printed. Fix the plan until all three hold. List each
    name no bundle printed, and each file or symbol not found, under `Findings:`, never cited.
@@ -114,7 +121,8 @@ is a spec gap: list it, never plan it.
 
 ## Output Format
 
-Write the report, the block below, with `Write` to the `report` file. Then reply `Report: <path>` and, under it, the
+`Read` the `report` file once, when it exists, before your first `Write` to it: `Write` overwrites no file it has not
+read. Write the report, the block below, with `Write` to that file. Then reply `Report: <path>` and, under it, the
 same block, the relay block.
 
 ```
@@ -122,7 +130,7 @@ Plan: <path>, written or amended; none when no plan was written
 | Doc | Task |
 |-----|------|
 | <type>:<name> | <task number> |
-| <type>:<name> | NOT PLANNED: <draft, approval_stale, spec gap, or conflict> |
+| <type>:<name> | NOT PLANNED: <draft, approval_stale, spec gap, conflict, or CLI error> |
 | <type>:<name> | no task: <why no task builds its type> |
 Open questions:
 - <item>
