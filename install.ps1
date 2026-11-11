@@ -216,92 +216,223 @@ try {
         return $result
     }
 
-    # Returns $true when $Value is the string $Text. -ceq alone would filter an
-    # array or compare a number by its text.
-    function Test-ExactText($Value, [string]$Text) {
-        return ($Value -is [string]) -and ($Value -ceq $Text)
+    # Returns $true when the strings $First and $Second hold the same characters.
+    # -ceq compares by culture rules, which on Windows PowerShell 5.1 skip a NUL
+    # or a soft hyphen, so it can match a text that differs.
+    function Test-SameText([string]$First, [string]$Second) {
+        return [string]::Equals($First, $Second, [StringComparison]::Ordinal)
     }
 
-    # Returns $true when the JSON list text $Text is read for sure: a top-level
-    # array that holds no array directly, no key written with an escape, and no
-    # key repeated in an object of the list (ignoring case, as a property lookup
-    # does); ConvertFrom-Json would hide each. It reads the strings and nesting,
-    # so a quote or brace inside a value never counts. Well-formedness is
-    # ConvertFrom-Json's to judge.
-    function Test-JsonKeysPlain([string]$Text) {
-        if ($Text -cnotmatch '\A\s*\[') {
-            return $false
-        }
-        $open = New-Object System.Collections.ArrayList
-        $previous = ''
-        foreach ($token in [regex]::Matches($Text, '"(?:[^"\\]|\\.)*"|[{}\[\]:]')) {
-            $current = $token.Value
-            if ($current -ceq '[') {
-                if ($open.Count -eq 1) {
-                    return $false
-                }
-                [void]$open.Add('[')
-            } elseif ($current -ceq '{') {
-                [void]$open.Add([System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase))
-            } elseif ($current -ceq '}' -or $current -ceq ']') {
-                if ($open.Count -eq 0) {
-                    return $false
-                }
-                $open.RemoveAt($open.Count - 1)
-            } elseif ($current -ceq ':') {
-                $key = $previous.Substring(1, $previous.Length - 2)
-                if ($key.Contains('\')) {
-                    return $false
-                }
-                if ($open.Count -eq 2 -and -not $open[1].Add($key)) {
-                    return $false
-                }
+    # Returns the text of the JSON string $Raw (the characters between its
+    # quotes) as install.sh reads it: \" and \\ decode, and any other escape
+    # stays as typed, so no escaped value equals a plain one.
+    function ConvertFrom-JsonString([string]$Raw) {
+        return [regex]::Replace($Raw, '\\.', [System.Text.RegularExpressions.MatchEvaluator]{
+            param($escape)
+            if ($escape.Value -ceq '\"') {
+                return '"'
             }
-            $previous = $current
+            if ($escape.Value -ceq '\\') {
+                return '\'
+            }
+            return $escape.Value
+        })
+    }
+
+    # Records that the object being read holds the key $Key once more, with the
+    # kind of the latest value and, for a string, its text.
+    function Add-JsonField($Fields, [string]$Key, [bool]$IsString, [string]$Text) {
+        if ($Fields.ContainsKey($Key)) {
+            $field = $Fields[$Key]
+            $field.Count = $field.Count + 1
+            $field.IsString = $IsString
+            $field.Text = $Text
+        } else {
+            $Fields[$Key] = [pscustomobject]@{ Count = 1; IsString = $IsString; Text = $Text }
+        }
+    }
+
+    # Returns what Add-JsonField recorded for the key $Key, or $null.
+    function Get-JsonField($Fields, [string]$Key) {
+        if ($Fields.ContainsKey($Key)) {
+            return $Fields[$Key]
+        }
+        return $null
+    }
+
+    # Returns $true when the key $Key appears once in $Fields, holds a string,
+    # and that string is $Text.
+    function Test-FieldText($Fields, [string]$Key, [string]$Text) {
+        $field = Get-JsonField $Fields $Key
+        return ($null -ne $field) -and ($field.Count -eq 1) -and $field.IsString -and (Test-SameText $field.Text $Text)
+    }
+
+    # Returns the string value of the key $Key in the marketplace entry
+    # $Entry, or '' when it is missing, repeated, or not a string.
+    function Get-EntryText($Entry, [string]$Key) {
+        $field = Get-JsonField $Entry $Key
+        if ($null -ne $field -and $field.Count -eq 1 -and $field.IsString) {
+            return $field.Text
+        }
+        return ''
+    }
+
+    # Returns $true when no key of $Fields appears twice.
+    function Test-UniqueKeys($Fields) {
+        foreach ($field in $Fields.Values) {
+            if ($field.Count -ne 1) {
+                return $false
+            }
         }
         return $true
     }
 
-    # Returns $true when $Item is an object ConvertFrom-Json read from a JSON
-    # object, not a string, a number, or an array.
-    function Test-JsonObject($Item) {
-        return ($null -ne $Item) -and ($Item.PSObject.TypeNames[0] -ceq 'System.Management.Automation.PSCustomObject')
-    }
-
-    # Returns the objects of the JSON list in $Lines, whichever way
-    # ConvertFrom-Json hands an array back (Windows PowerShell 5.1 does not
-    # unroll it). Throws when the list is not read for sure: empty, not JSON,
-    # text around the JSON, a key that Test-JsonKeysPlain refuses, or an item
-    # that is not an object.
-    function ConvertFrom-JsonList([string[]]$Lines) {
-        $text = (@($Lines) -join "`n").Trim()
-        if (-not (Test-JsonKeysPlain $text)) {
-            throw 'the list is not read for sure'
-        }
-        $parsed = $text | ConvertFrom-Json
-        if ($null -eq $parsed) {
-            return @()
-        }
-        $items = @($parsed | ForEach-Object { $_ })
-        foreach ($item in $items) {
-            if (-not (Test-JsonObject $item)) {
-                throw 'an item of the list is not an object'
+    # Reads the claude list reply $Reply with a strict JSON grammar walk that
+    # knows strings and nesting, so a quote, brace, or key name inside a value
+    # never counts, and returns Entry and Installed. It accepts and refuses what
+    # install.sh's json_scan does: it throws when the reply is not read for
+    # sure (not well-formed, text around the JSON, a key written with an
+    # escape at an entry's own depth, a top level that is not an array, or a
+    # string with a raw line feed). Mode `marketplaces`: Entry holds the keys
+    # of the one object named "specstone" (or $null), and the walk throws for
+    # two such objects, a repeated key in it, a repeated name anywhere, or a
+    # source that is not one string. Mode `plugins`: Installed is $true when
+    # an object holds the id specstone@specstone and the scope user, and the
+    # walk throws for a repeated id or scope. No other parser reads the reply,
+    # so no parser can disagree with the walk about a key or a value.
+    function Read-ClaudeList([string]$Reply, [string]$Mode) {
+        $tokens = [regex]::new('\G(?:(?<space>[ \t\r\n]+)|(?<string>"(?:[^"\\\n]|\\[^\n])*")|(?<mark>[{}\[\]:,])|(?<literal>true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?))')
+        $kind = [System.Collections.Generic.List[string]]::new()
+        $state = [System.Collections.Generic.List[string]]::new()
+        $keys = [System.Collections.Generic.List[string]]::new()
+        $kind.Add('top')
+        $state.Add('val')
+        $keys.Add('')
+        $depth = 0
+        $fields = $null
+        $entry = $null
+        $entryCount = 0
+        $installed = $false
+        $at = 0
+        while ($at -lt $Reply.Length) {
+            $token = $tokens.Match($Reply, $at)
+            if (-not $token.Success) {
+                throw 'a character that JSON does not allow here'
+            }
+            $at += $token.Length
+            if ($token.Groups['space'].Success) {
+                continue
+            }
+            $isString = $false
+            $valueText = ''
+            $opens = ''
+            if ($token.Groups['string'].Success) {
+                $raw = $token.Value.Substring(1, $token.Length - 2)
+                if ($kind[$depth] -ceq '{' -and ($state[$depth] -ceq 'k0' -or $state[$depth] -ceq 'key')) {
+                    if ($depth -eq 2 -and $raw.Contains('\')) {
+                        throw 'a key written with an escape'
+                    }
+                    $keys[$depth] = $raw
+                    $state[$depth] = 'colon'
+                    continue
+                }
+                $isString = $true
+                $valueText = ConvertFrom-JsonString $raw
+            } elseif (-not $token.Groups['literal'].Success) {
+                $mark = $token.Value
+                if ($mark -ceq '}' -or $mark -ceq ']') {
+                    $expected = '['
+                    if ($mark -ceq '}') {
+                        $expected = '{'
+                    }
+                    if ($depth -lt 1 -or $kind[$depth] -cne $expected) {
+                        throw 'a closing mark that closes nothing'
+                    }
+                    if ($state[$depth] -cne 'next' -and $state[$depth] -cne 'k0' -and $state[$depth] -cne 'v0') {
+                        throw 'a closing mark where a value is due'
+                    }
+                    if ($mark -ceq '}' -and $depth -eq 2) {
+                        if ($Mode -ceq 'marketplaces') {
+                            $nameField = Get-JsonField $fields 'name'
+                            if ($null -ne $nameField -and $nameField.Count -gt 1) {
+                                throw 'a repeated name'
+                            }
+                            if (Test-FieldText $fields 'name' 'specstone') {
+                                $sourceField = Get-JsonField $fields 'source'
+                                if (-not (Test-UniqueKeys $fields) -or $null -eq $sourceField -or $sourceField.Count -ne 1 -or -not $sourceField.IsString) {
+                                    throw 'a specstone entry that is not read for sure'
+                                }
+                                $entryCount++
+                                $entry = $fields
+                            }
+                        } else {
+                            $idField = Get-JsonField $fields 'id'
+                            $scopeField = Get-JsonField $fields 'scope'
+                            if (($null -ne $idField -and $idField.Count -gt 1) -or ($null -ne $scopeField -and $scopeField.Count -gt 1)) {
+                                throw 'a repeated id or scope'
+                            }
+                            if ((Test-FieldText $fields 'id' 'specstone@specstone') -and (Test-FieldText $fields 'scope' 'user')) {
+                                $installed = $true
+                            }
+                        }
+                    }
+                    $kind.RemoveAt($depth)
+                    $state.RemoveAt($depth)
+                    $keys.RemoveAt($depth)
+                    $depth--
+                    $state[$depth] = 'next'
+                    continue
+                }
+                if ($mark -ceq ',') {
+                    if ($depth -lt 1 -or $state[$depth] -cne 'next') {
+                        throw 'a comma where none is due'
+                    }
+                    $state[$depth] = 'val'
+                    if ($kind[$depth] -ceq '{') {
+                        $state[$depth] = 'key'
+                    }
+                    continue
+                }
+                if ($mark -ceq ':') {
+                    if ($kind[$depth] -cne '{' -or $state[$depth] -cne 'colon') {
+                        throw 'a colon where none is due'
+                    }
+                    $state[$depth] = 'val'
+                    continue
+                }
+                $opens = $mark
+            }
+            if ($state[$depth] -cne 'val' -and $state[$depth] -cne 'v0') {
+                throw 'a value where none is due'
+            }
+            if ($depth -eq 0 -and $opens -cne '[') {
+                throw 'a top level that is not an array'
+            }
+            if ($depth -eq 2 -and $kind[$depth] -ceq '{') {
+                Add-JsonField $fields $keys[$depth] $isString $valueText
+            }
+            if ($opens.Length -eq 0) {
+                $state[$depth] = 'next'
+                continue
+            }
+            $depth++
+            $kind.Add($opens)
+            $state.Add('v0')
+            $keys.Add('')
+            if ($opens -ceq '{') {
+                $state[$depth] = 'k0'
+                if ($depth -eq 2) {
+                    $fields = [System.Collections.Generic.Dictionary[string, object]]::new()
+                }
             }
         }
-        return $items
-    }
-
-    # Returns the property $Name of $Item, or $null when it has none. The key
-    # must match in case: a property lookup alone ignores it.
-    function Get-Property($Item, [string]$Name) {
-        if ($null -eq $Item) {
-            return $null
+        if ($depth -ne 0 -or $state[0] -cne 'next') {
+            throw 'a reply that ends before its list does'
         }
-        $property = $Item.PSObject.Properties[$Name]
-        if ($null -eq $property -or $property.Name -cne $Name) {
-            return $null
+        if ($entryCount -gt 1) {
+            throw 'two entries named specstone'
         }
-        return $property.Value
+        return [pscustomobject]@{ Entry = $entry; Installed = $installed }
     }
 
     # Prints the remove, add, and install commands for the marketplace source $Wanted.
@@ -324,15 +455,16 @@ try {
         Write-ManualPluginCommands $Wanted
     }
 
-    # Runs a claude list command; returns its objects as one array, or $null
-    # after naming the failure or the reply that was not read for sure.
-    function Get-ClaudeList([string]$Claude, [string[]]$Arguments, [string]$Wanted) {
+    # Runs a claude list command and reads its reply per Read-ClaudeList with
+    # $Mode; returns what it read, or $null after naming the failure or the
+    # reply that was not read for sure.
+    function Get-ClaudeList([string]$Claude, [string[]]$Arguments, [string]$Wanted, [string]$Mode) {
         $result = Invoke-Claude $Claude $Arguments $false
         if ($null -eq $result) {
             return $null
         }
         try {
-            return , @(ConvertFrom-JsonList $result.Output)
+            return Read-ClaudeList (@($result.Output) -join "`n") $Mode
         } catch {
             Write-UnreadableReply $Arguments $Wanted
             return $null
@@ -340,32 +472,53 @@ try {
     }
 
     # Returns $true when the marketplace entry $Entry is the one this script
-    # adds: source github, repo exactly nontravis/specstone. Any other entry
-    # is the Owner's own.
+    # adds: source github, repo exactly nontravis/specstone, each written
+    # without an escape. Any other entry is the Owner's own.
     function Test-OfficialEntry($Entry) {
-        return (Test-ExactText (Get-Property $Entry 'source') 'github') -and (Test-ExactText (Get-Property $Entry 'repo') 'nontravis/specstone')
+        return (Test-FieldText $Entry 'source' 'github') -and (Test-FieldText $Entry 'repo' 'nontravis/specstone')
+    }
+
+    # Returns the url $Url without the userinfo (user or user:token) before
+    # the host.
+    function Remove-UrlUserinfo([string]$Url) {
+        $schemeEnd = $Url.IndexOf('://', [StringComparison]::Ordinal)
+        if ($schemeEnd -lt 0) {
+            return $Url
+        }
+        $rest = $Url.Substring($schemeEnd + 3)
+        $authorityEnd = $rest.IndexOfAny([char[]]'/?#')
+        if ($authorityEnd -lt 0) {
+            $authorityEnd = $rest.Length
+        }
+        $authority = $rest.Substring(0, $authorityEnd)
+        $hostName = $authority.Substring($authority.LastIndexOf([char]'@') + 1)
+        return $Url.Substring(0, $schemeEnd) + '://' + $hostName + $rest.Substring($authorityEnd)
     }
 
     # Returns where the marketplace entry $Entry comes from, read from the key
-    # its source type names, else 'an unknown source'.
+    # its source type names (a url without its userinfo), else 'an unknown
+    # source'.
     function Get-EntrySource($Entry) {
-        $source = Get-Property $Entry 'source'
+        $source = Get-EntryText $Entry 'source'
         $key = ''
-        if (Test-ExactText $source 'github') {
+        if (Test-SameText $source 'github') {
             $key = 'repo'
-        } elseif ((Test-ExactText $source 'git') -or (Test-ExactText $source 'url')) {
+        } elseif ((Test-SameText $source 'git') -or (Test-SameText $source 'url')) {
             $key = 'url'
-        } elseif ((Test-ExactText $source 'directory') -or (Test-ExactText $source 'file')) {
+        } elseif ((Test-SameText $source 'directory') -or (Test-SameText $source 'file')) {
             $key = 'path'
         }
-        $found = $null
+        $found = ''
         if ($key.Length -gt 0) {
-            $found = Get-Property $Entry $key
+            $found = Get-EntryText $Entry $key
         }
-        if ($found -is [string] -and $found.Length -gt 0) {
-            return Get-PrintableText $found
+        if ($found.Length -eq 0) {
+            return 'an unknown source'
         }
-        return 'an unknown source'
+        if ($key -ceq 'url') {
+            $found = Remove-UrlUserinfo $found
+        }
+        return Get-PrintableText $found
     }
 
     # Moves marketplace specstone to the source $Wanted. The remove also
@@ -381,18 +534,6 @@ try {
         }
         Write-Host "specstone: marketplace specstone re-added from $Wanted"
         return $true
-    }
-
-    # Returns $true when one entry of the plugin list $Plugins holds both the id
-    # specstone@specstone and the scope user; project and local installs from
-    # other projects never count.
-    function Test-PluginInstalledForUser($Plugins) {
-        foreach ($item in $Plugins) {
-            if ((Test-ExactText (Get-Property $item 'id') 'specstone@specstone') -and (Test-ExactText (Get-Property $item 'scope') 'user')) {
-                return $true
-            }
-        }
-        return $false
     }
 
     # Puts marketplace specstone at the wanted source and installs the plugin
@@ -413,47 +554,31 @@ try {
             return
         }
         $claude = $found.Source
-        $listMarketplaces = @('plugin', 'marketplace', 'list', '--json')
-        $marketplaces = Get-ClaudeList $claude $listMarketplaces $wanted
+        $marketplaces = Get-ClaudeList $claude @('plugin', 'marketplace', 'list', '--json') $wanted 'marketplaces'
         if ($null -eq $marketplaces) {
             return
         }
-        $entries = @($marketplaces | Where-Object { Test-ExactText (Get-Property $_ 'name') 'specstone' })
-        $entry = $null
-        if ($entries.Count -eq 1) {
-            $entry = $entries[0]
-        }
-        if ($entries.Count -gt 1 -or ($null -ne $entry -and (Get-Property $entry 'source') -isnot [string])) {
-            Write-UnreadableReply $listMarketplaces $wanted
-            return
-        }
-        $plugins = Get-ClaudeList $claude @('plugin', 'list', '--json') $wanted
+        $plugins = Get-ClaudeList $claude @('plugin', 'list', '--json') $wanted 'plugins'
         if ($null -eq $plugins) {
             return
         }
+        $entry = $marketplaces.Entry
+        $isInstalled = $plugins.Installed
         if ($null -eq $entry) {
             $added = Invoke-Claude $claude @('plugin', 'marketplace', 'add', $wanted) $true
             if ($null -eq $added) {
                 return
             }
-        } else {
-            if (-not (Test-OfficialEntry $entry)) {
-                Write-Host "specstone: marketplace specstone comes from $(Get-EntrySource $entry), not nontravis/specstone; left as it is"
-                Write-PluginCommands $wanted
-            } else {
-                $ref = Get-Property $entry 'ref'
-                if ($ref -isnot [string]) {
-                    $ref = ''
-                }
-                if ($ref -cne $wantedRef) {
-                    if (-not (Move-Marketplace $claude $wanted)) {
-                        return
-                    }
-                    $plugins = @()
-                }
+        } elseif (-not (Test-OfficialEntry $entry)) {
+            Write-Host "specstone: marketplace specstone comes from $(Get-EntrySource $entry), not nontravis/specstone; left as it is"
+            Write-PluginCommands $wanted
+        } elseif (-not (Test-SameText (Get-EntryText $entry 'ref') $wantedRef)) {
+            if (-not (Move-Marketplace $claude $wanted)) {
+                return
             }
+            $isInstalled = $false
         }
-        if (-not (Test-PluginInstalledForUser $plugins)) {
+        if (-not $isInstalled) {
             $installed = Invoke-Claude $claude @('plugin', 'install', 'specstone@specstone') $true
             if ($null -eq $installed) {
                 return
@@ -658,7 +783,7 @@ try {
                 $oldVersion = (@($oldProbe.Output) -join "`n").Trim()
             }
         }
-        if ($oldVersion.Length -gt 0 -and $oldVersion -ceq $newVersion) {
+        if ($oldVersion.Length -gt 0 -and (Test-SameText $oldVersion $newVersion)) {
             if ($Version.Length -gt 0) {
                 Write-Host "specstone $newVersion is already installed"
             } else {
