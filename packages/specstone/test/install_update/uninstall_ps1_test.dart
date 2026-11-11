@@ -235,6 +235,7 @@ void main() {
       // The script runs at the top scope, as `irm | iex` runs it; a leaked
       // strict mode would make the undefined variable throw.
       final command =
+          '$importSessionModules'
           "Get-Content -Raw '$script' | Invoke-Expression; "
           r"'STRICT=' + ($null -eq $notDefinedAnywhere); "
           r"'EAP=' + $ErrorActionPreference";
@@ -259,6 +260,7 @@ void main() {
       final script = '${repoRoot().path}\\uninstall.ps1';
       final path = '.;;planted;${sb.env()['PATH']}';
       final command =
+          '$importSessionModules'
           "Get-Content -Raw '$script' | Invoke-Expression; "
           r"'PATH=' + $env:Path";
 

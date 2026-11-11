@@ -485,7 +485,9 @@ void main() {
       // line per form: `FORM <n> RAN`, or `FORM <n> PRINTABLE=<bool>
       // CAUGHT=<message>`. Each PowerShell start costs seconds on a runner,
       // so the form lists run here and not one process per form.
-      const harness = r'''
+      const harness =
+          '$importSessionModules\n'
+          r'''
 function Invoke-WebRequest {
   param([switch]$UseBasicParsing, [int]$TimeoutSec, [string]$Uri, [string]$OutFile)
   Add-Content -LiteralPath (Join-Path $env:STUB_LOG_DIR 'web.log') -Value $Uri
@@ -2204,6 +2206,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       }) {
         final script = '${repoRoot().path}\\install.ps1';
         final command =
+            '$importSessionModules'
             "try { Get-Content -Raw '$script' | Invoke-Expression } "
             r"catch { 'CAUGHT=' + $_.Exception.Message }; "
             '$after';
@@ -2310,6 +2313,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         final script = '${repoRoot().path}\\install.ps1';
         final path = '.;${sb.stubs.path};$systemEntries';
         final command =
+            '$importSessionModules'
             "Get-Content -Raw '$script' | Invoke-Expression; "
             r"'PATH=' + $env:Path";
 
@@ -2328,13 +2332,16 @@ if ($env:HARNESS_MODE -eq 'iex') {
     });
 
     pathTest("f09/us01/fr01: irm | iex leaves the session's "
-        'ErrorActionPreference as it was', () async {
+        'ErrorActionPreference and module auto-loading as they were', () async {
       final sb = await sandboxWith();
       final script = '${repoRoot().path}\\install.ps1';
       // The script runs at the top scope, as `irm | iex` runs it; a leaked
-      // strict mode would make the undefined variable throw.
+      // strict mode would make the undefined variable throw, and a leaked
+      // $PSModuleAutoLoadingPreference would stop the session's auto-loading.
       final command =
+          '$importSessionModules'
           "Get-Content -Raw '$script' | Invoke-Expression; "
+          r"'AUTOLOAD=' + ($null -eq $PSModuleAutoLoadingPreference); "
           r"'STRICT=' + ($null -eq $notDefinedAnywhere); "
           r"'EAP=' + $ErrorActionPreference";
 
@@ -2347,6 +2354,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       );
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stdout, contains('AUTOLOAD=True'));
       expect(r.stdout, contains('STRICT=True'));
       expect((r.stdout as String).trim(), endsWith('EAP=Continue'));
     });

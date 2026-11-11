@@ -4,7 +4,7 @@
 # its own tag:
 #   iex "& {$(irm https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.ps1)} -Version 'X.Y.Z'"
 # The whole body sits in one & { } block. A truncated stream does not parse, so
-# it runs nothing, and the strict mode and error preference set inside the block
+# it runs nothing, and the strict mode and the preferences set inside the block
 # never reach the caller's session. A refusal throws; it never calls exit, which
 # would close the caller's window under iex. Under irm | iex the param binds
 # $Version in the caller's session, so the finally at the end removes it.
@@ -20,7 +20,11 @@ try {
     # command lookup has to find makes a Windows PowerShell 5.1 with no module
     # analysis cache (a fresh profile, a CI runner) analyze every module folder
     # first, about 25 s; a module named here is loaded straight from its folder.
+    # A lookup that finds nothing, such as Get-Command claude with no claude on
+    # the PATH, searches every module folder too, so module search is off from
+    # here: every cmdlet below comes from these modules or the core.
     Import-Module -Name Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility, Microsoft.PowerShell.Archive
+    $PSModuleAutoLoadingPreference = 'None'
 
     $releaseUrl = 'https://github.com/nontravis/specstone/releases/latest/download'
     $supported = 'macOS arm64, macOS x64, Linux x64, Windows x64'

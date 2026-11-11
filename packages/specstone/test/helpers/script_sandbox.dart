@@ -442,6 +442,14 @@ Future<void> writeUserPath(UserPath? path) async {
   }
 }
 
+/// Imports by name the modules of the cmdlets a test session calls before the
+/// script under test imports its own, such as `Get-Content` and
+/// `Invoke-Expression`: a sandbox child has no module analysis cache, so a
+/// cmdlet that command lookup has to find costs it about 20 s.
+const importSessionModules =
+    'Import-Module -Name Microsoft.PowerShell.Management, '
+    'Microsoft.PowerShell.Utility; ';
+
 const _cacheVariable = 'PSModuleAnalysisCachePath';
 const _timingVariable = 'SPECSTONE_PS_TIMING';
 
