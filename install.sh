@@ -1,11 +1,15 @@
 #!/bin/sh
 # Installs the Specstone CLI under ~/.specstone:
 #   curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/install.sh | sh
+# A version, such as the pre-release 1.2.0-beta.1, installs from the script of
+# its own tag:
+#   curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.sh | SPECSTONE_VERSION=X.Y.Z sh
 # The body sits in functions and `main "$@"` is the last line, so a truncated
 # stream runs nothing.
 set -eu
 
 release_url='https://github.com/nontravis/specstone/releases/latest/download'
+version=${SPECSTONE_VERSION:-}
 tmp=''
 install_dir=''
 
@@ -35,6 +39,20 @@ pick_target() {
       fail "unsupported machine $os $arch; supported: macOS arm64, macOS x64, Linux x64, Windows x64"
       ;;
   esac
+}
+
+# Succeeds when $1 is a version of the form MAJOR.MINOR.PATCH[-<pre-release>]
+# (semver without build metadata, ASCII only). A line break fails first, since
+# grep tests each line of its input alone.
+is_version() {
+  lf='
+'
+  cr=$(printf '\r')
+  case "$1" in
+    *"$lf"* | *"$cr"*) return 1 ;;
+  esac
+  printf '%s\n' "$1" |
+    LC_ALL=C grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?'
 }
 
 # Prints the SHA-256 of the file named $1 in the folder $tmp as lower-case hex.
@@ -266,6 +284,11 @@ absolute_path_only() {
 main() {
   absolute_path_only
   target=$(pick_target)
+  if [ -n "$version" ]; then
+    is_version "$version" ||
+      fail "$version is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged"
+    release_url="https://github.com/nontravis/specstone/releases/download/v$version"
+  fi
   home_dir=${HOME:-${USERPROFILE:-}}
   if [ -z "$home_dir" ]; then
     fail 'no home folder: HOME and USERPROFILE are unset'
@@ -293,7 +316,11 @@ main() {
   fi
   old_version=$("$install_dir/bin/specstone" --version 2>/dev/null || true)
   if [ -n "$old_version" ] && [ "$old_version" = "$new_version" ]; then
-    printf '%s\n' "specstone $new_version is already the latest release"
+    if [ -n "$version" ]; then
+      printf '%s\n' "specstone $new_version is already installed"
+    else
+      printf '%s\n' "specstone $new_version is already the latest release"
+    fi
   else
     place "$install_dir"
     printf '%s\n' "specstone $new_version installed in $install_dir/bin"

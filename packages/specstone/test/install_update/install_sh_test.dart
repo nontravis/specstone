@@ -1,10 +1,12 @@
 @TestOn('!windows')
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../specstone_core/test/helpers/version_cases.dart';
 import '../helpers/script_sandbox.dart';
 
 void main() {
@@ -98,6 +100,180 @@ void main() {
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect(installedVersion(sb), '0.2.0');
+    });
+
+    group('install by version', () {
+      const chosen =
+          'install_update/machine_install/install_cli_and_plugin/'
+          'install_chosen_version';
+      const releases = 'https://github.com/nontravis/specstone/releases';
+      const downloadFailed =
+          'specstone: download failed for $asset; the install is unchanged\n';
+
+      // Serves the archive folder by file name and logs every URL.
+      void stubCurlServing(ScriptSandbox sandbox) {
+        sandbox.stub('curl', r'''
+echo "$@" >> "$STUB_LOG_DIR/curl.log"
+out=''; url=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out=$2; shift ;;
+    http*) url=$1 ;;
+  esac
+  shift
+done
+cp "$ARCHIVES/${url##*/}" "$out"''');
+      }
+
+      Future<ScriptSandbox> sandboxServing(String version) async {
+        final sb = await createScriptSandbox();
+        await sb.writeArchive('linux-x64', version: version);
+        stubCurlServing(sb);
+        return sb;
+      }
+
+      test(
+        '$chosen E01: the named version installs from its own release',
+        () async {
+          final sb = await sandboxServing('1.2.0-beta.1');
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {
+              'ARCHIVES': sb.archives.path,
+              'SPECSTONE_VERSION': '1.2.0-beta.1',
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          final log = sb.logOf('curl');
+          expect(log, hasLength(2));
+          expect(
+            log.first,
+            endsWith('$releases/download/v1.2.0-beta.1/$asset'),
+          );
+          expect(
+            log.last,
+            endsWith('$releases/download/v1.2.0-beta.1/SHA256SUMS'),
+          );
+          expect(installedVersion(sb), '1.2.0-beta.1');
+        },
+      );
+
+      for (final version in refusedVersions) {
+        // A NUL cannot cross an environment, so only the core test sees it.
+        if (version.isEmpty || version.contains('\u0000')) continue;
+        test('$chosen E02, install_cli_and_plugin S8: refuses '
+            '${jsonEncode(version)} before any download', () async {
+          final sb = await createScriptSandbox();
+          stubCurlServing(sb);
+          sb.installFake();
+          final before = sb.snapshot();
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {'SPECSTONE_VERSION': version},
+          );
+
+          expect(r.exitCode, 1);
+          expect(
+            r.stderr,
+            'specstone: $version is not a version of the form '
+            'MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged\n',
+          );
+          expect(sb.logOf('curl'), isEmpty);
+          expect(sb.snapshot(), before);
+        });
+      }
+
+      for (final version in acceptedVersions) {
+        test('$chosen: ${jsonEncode(version)} passes the form check and '
+            'fails as a download', () async {
+          final sb = await createScriptSandbox();
+          stubCurlFailing(sb);
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {'SPECSTONE_VERSION': version},
+          );
+
+          expect(r.exitCode, 1);
+          expect(r.stderr, downloadFailed);
+          expect(
+            sb.logOf('curl').single,
+            endsWith('$releases/download/v$version/$asset'),
+          );
+        });
+      }
+
+      test('$chosen E03: a version no release carries fails as a failed '
+          'download, the install unchanged', () async {
+        final sb = await createScriptSandbox();
+        stubCurlFailing(sb);
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {'SPECSTONE_VERSION': '9.9.9'},
+        );
+
+        expect(r.exitCode, 1);
+        expect(r.stderr, downloadFailed);
+        expect(sb.snapshot(), before);
+      });
+
+      test(
+        '$chosen E04: an empty version fetches the latest release',
+        () async {
+          final sb = await sandboxServing('0.2.0');
+          // The sandbox drops an empty variable, so a wrapper sets it empty.
+          final wrapper = File('${sb.root.path}/empty_version.sh')
+            ..writeAsStringSync(
+              'SPECSTONE_VERSION=""\n'
+              'export SPECSTONE_VERSION\n'
+              'exec /bin/sh "${repoRoot().path}/install.sh"\n',
+            );
+
+          final r = await sb.run(
+            wrapper.path,
+            extra: {'ARCHIVES': sb.archives.path},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            sb.logOf('curl').first,
+            endsWith('$releases/latest/download/$asset'),
+          );
+          expect(installedVersion(sb), '0.2.0');
+        },
+      );
+
+      test('$chosen E05: the version already installed is named and '
+          'nothing is placed', () async {
+        final sb = await sandboxServing('1.2.0-beta.1');
+        sb.installFake(version: '1.2.0-beta.1');
+        File('${sb.home.path}/.zshrc')
+            .writeAsStringSync('export PATH="\$HOME/.specstone/bin:\$PATH"\n');
+        final before = sb.snapshot();
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            'ARCHIVES': sb.archives.path,
+            'SPECSTONE_VERSION': '1.2.0-beta.1',
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains('specstone 1.2.0-beta.1 is already installed'),
+        );
+        expect(r.stdout, isNot(contains('installed in')));
+        expect(r.stdout, isNot(contains('latest release')));
+        expect(sb.snapshot(), before);
+      });
     });
 
     for (final (os, machine, target) in [
