@@ -2,7 +2,8 @@
 /// scripts, and upgrade test them against the same lists.
 library;
 
-/// Literals inside the Version form.
+/// Literals inside the Version form, every entry of [ascendingVersions]
+/// included.
 const List<String> acceptedVersions = [
   '1.2.0',
   '1.2.0-beta.1',
@@ -20,6 +21,23 @@ const List<String> acceptedVersions = [
   '1.0.0-x.7.z.92',
   '1.0.0--',
   '18446744073709551616.0.0',
+  '1.0.0-1',
+  '1.0.0-0A',
+  '1.0.0-A',
+  '1.0.0-a',
+  '1.0.0-alpha',
+  '1.0.0-alpha.1',
+  '1.0.0-alpha.beta',
+  '1.0.0-beta',
+  '1.0.0-beta.2',
+  '1.0.0-beta.11',
+  '1.0.0-rc.1',
+  '1.0.0',
+  '1.9.0',
+  '1.10.0',
+  '2.0.0-9223372036854775807',
+  '2.0.0-9223372036854775808',
+  '2.0.0',
 ];
 
 /// Literals outside the Version form.
@@ -28,8 +46,12 @@ const List<String> refusedVersions = [
   'v1.2.0',
   '1.2',
   '01.2.0',
+  '1.02.0',
+  '1.2.00',
   '1.2.0-',
   '1.2.0-beta.01',
+  '1.2.0-beta.00',
+  '1.2.0-00.beta',
   '1.2.0+build.5',
   '',
   ' 1.2.0',
@@ -38,11 +60,20 @@ const List<String> refusedVersions = [
   '1.2.0\nx',
   'x\n1.2.0',
   '1.2.0\r',
+  '1.2.0\t',
+  '1.2.0\u0000',
+  '1.2. 0',
+  '.1.2.0',
+  '1..2.0',
   '1.2.3.4',
   '1.2.0-beta..1',
   '1.2.0-beta.',
+  '1.2.0-.beta',
+  '1.2.0-.',
   '1.2.0-beta_1',
   '1.2.0-é',
+  '1.2.0-１',
+  '1.2.0-a１',
   '١.2.0',
   '1.2.0-00',
   'V1.2.0',
@@ -51,6 +82,11 @@ const List<String> refusedVersions = [
 
 /// Literals in the Version form, each below the next.
 const List<String> ascendingVersions = [
+  '1.0.0-1',
+  '1.0.0--',
+  '1.0.0-0A',
+  '1.0.0-A',
+  '1.0.0-a',
   '1.0.0-alpha',
   '1.0.0-alpha.1',
   '1.0.0-alpha.beta',
@@ -60,6 +96,8 @@ const List<String> ascendingVersions = [
   '1.0.0-rc.1',
   '1.0.0',
   '1.1.1',
+  '1.1.2',
+  '1.2.0-alpha.1',
   '1.2.0-beta.1',
   '1.2.0-beta.2',
   '1.2.0-rc.1',

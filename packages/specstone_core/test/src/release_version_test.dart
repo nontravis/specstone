@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:specstone_core/release_version.dart';
 import 'package:test/test.dart';
 
+import '../helpers/package_root.dart';
 import '../helpers/version_cases.dart';
 
 void main() {
@@ -19,6 +22,10 @@ void main() {
       expect(anchored.hasMatch(text), isFalse);
     });
   }
+
+  test('install_update Version: every ascending entry is also accepted', () {
+    expect(acceptedVersions, containsAll(ascendingVersions));
+  });
 
   for (var i = 0; i + 1 < ascendingVersions.length; i++) {
     final below = ascendingVersions[i];
@@ -39,12 +46,26 @@ void main() {
     });
   }
 
-  for (final text in {...acceptedVersions, ...ascendingVersions}) {
+  for (final text in acceptedVersions) {
+    // A leading dash is refused, so a dash in an accepted entry always opens
+    // its pre-release part.
     test('install_update Version: isPreRelease of $text follows its dash', () {
       expect(ReleaseVersion.tryParse(text)!.isPreRelease, text.contains('-'));
     });
   }
+
+  test('install_update Version: the definition imports nothing', () {
+    final source = File.fromUri(
+      packageRoot().uri.resolve('lib/src/release_version.dart'),
+    ).readAsLinesSync();
+    expect(source.where((line) => line.startsWith('import ')), isEmpty);
+  });
 }
 
-String _show(String text) =>
-    "'${text.replaceAll('\n', r'\n').replaceAll('\r', r'\r')}'";
+String _show(String text) {
+  final escaped = text.replaceAllMapped(RegExp(r'[\x00-\x1f]'), (match) {
+    final code = match[0]!.codeUnitAt(0).toRadixString(16).padLeft(2, '0');
+    return '\\x$code';
+  });
+  return "'$escaped'";
+}
