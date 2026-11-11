@@ -690,10 +690,28 @@ void main() =>
         'tag_name v1.2??? is not v<Version>',
       ),
       (
+        'a tag_name with a C1 control character',
+        200,
+        r'{"tag_name": "v1.2\u0085"}',
+        'tag_name v1.2? is not v<Version>',
+      ),
+      (
+        'a tag_name with a non-ASCII letter',
+        200,
+        r'{"tag_name": "v1.2\u00e9"}',
+        'tag_name v1.2? is not v<Version>',
+      ),
+      (
+        'a tag_name with a character outside the BMP',
+        200,
+        r'{"tag_name": "v1.2\ud83d\ude00"}',
+        'tag_name v1.2? is not v<Version>',
+      ),
+      (
         'a tag_name of 200 characters',
         200,
         '{"tag_name": "v${'x' * 199}"}',
-        'tag_name v${'x' * 62}… is not v<Version>',
+        'tag_name v${'x' * 60}... is not v<Version>',
       ),
       (
         'a tag_name of exactly 64 characters',

@@ -53,6 +53,12 @@ const int _maxReplyBytes = _maxReplyMiB * 1024 * 1024;
 /// of a cut one included.
 const int _maxEchoedTagLength = 64;
 
+/// Ends an untrusted tag that an error message cuts.
+const String _cutMark = '...';
+
+/// The code point that stands for each character an error message hides.
+const int _maskRune = 0x3f;
+
 /// The last line `specstone upgrade` prints.
 const String _restartLine =
     'Restart Claude Code to load the new CLI and plugin.';
@@ -122,19 +128,23 @@ String? unmanagedBinFolder(
   return same ? null : binFolder.path;
 }
 
-final RegExp _unprintable = RegExp(
-  r'[\x00-\x1f\x7f-\x9f]|\p{Cf}|\p{Zl}|\p{Zp}',
-  unicode: true,
-);
-
-// Masks the control, format, and separator characters of reply text, so it
-// cannot drive the terminal or reorder the line it is printed on. A text over
-// [_maxEchoedTagLength] characters is cut to that length, the last one `…`.
+// Shows reply text as printable ASCII only, so it cannot drive the terminal or
+// reorder the line it is printed on: every other character, a whole code point
+// at a time, shows as `?`. A text over [_maxEchoedTagLength] characters is cut
+// to that length, the last characters being [_cutMark].
 String _printable(String text) {
-  final runes = text.replaceAll(_unprintable, '?').runes.toList();
-  if (runes.length <= _maxEchoedTagLength) return String.fromCharCodes(runes);
-  return '${String.fromCharCodes(runes.take(_maxEchoedTagLength - 1))}…';
+  final runes = text.runes.take(_maxEchoedTagLength + 1).toList();
+  final isCut = runes.length > _maxEchoedTagLength;
+  final kept = isCut
+      ? runes.take(_maxEchoedTagLength - _cutMark.length)
+      : runes;
+  final shown = String.fromCharCodes(
+    kept.map((rune) => _isPrintableAscii(rune) ? rune : _maskRune),
+  );
+  return isCut ? '$shown$_cutMark' : shown;
 }
+
+bool _isPrintableAscii(int rune) => rune >= 0x20 && rune <= 0x7e;
 
 // Resolves symlinks of an existing folder, so macOS `/var` and `/private/var`
 // compare equal; a missing folder falls back to its normalized absolute path.
