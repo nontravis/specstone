@@ -191,6 +191,27 @@ void main() {
       });
     }
 
+    test('$_fr E13: a BEGIN line holding a 3 MB version is read', () {
+      final preRelease = List.filled(1600000, 'a').join('.');
+      final core = '1' * 3000000;
+
+      for (final version in ['1.0.0-$preRelease', '$core.0.0']) {
+        final scan = scanMarkers('<!-- BEGIN specstone v$version -->\n$_end\n');
+
+        expect(scan.beginLine, 1);
+        expect(scan.isMalformed, isFalse);
+      }
+    });
+
+    test('$_fr E13: a BEGIN line holding a 3 MB non-version is Owner text', () {
+      for (final token in ['a' * 3000000, '1.0.0-${'a.' * 1600000}!']) {
+        final scan = scanMarkers('<!-- BEGIN specstone v$token -->\n$_end\n');
+
+        expect(scan.beginLine, isNull);
+        expect(scan.isMalformed, isTrue);
+      }
+    });
+
     test(
       '$_fr E13: a marker with other text on its line is the Owner text',
       () {

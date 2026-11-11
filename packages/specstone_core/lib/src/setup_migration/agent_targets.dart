@@ -34,9 +34,7 @@ const _fenceMessage =
     'again';
 const _byteOrderMark = '﻿';
 final _separators = RegExp(r'[/\\]');
-final _beginVersion = RegExp(
-  '<!-- BEGIN specstone v$releaseVersionPattern -->',
-);
+final _beginToken = RegExp(r'<!-- BEGIN specstone v(\S+) -->');
 
 /// The pack versions from which the agent files are written once.
 ///
@@ -486,8 +484,14 @@ final class _AgentFile {
     return '$bom${LineEnding.of(text).apply(expected)}';
   }
 
-  static String _withoutVersion(String text) =>
-      text.replaceFirst(_beginVersion, '');
+  static String _withoutVersion(String text) {
+    for (final match in _beginToken.allMatches(text)) {
+      if (ReleaseVersion.tryParse(match[1]!) != null) {
+        return text.replaceRange(match.start, match.end, '');
+      }
+    }
+    return text;
+  }
 }
 
 /// One folder that takes agent files: the project root or a repository top.

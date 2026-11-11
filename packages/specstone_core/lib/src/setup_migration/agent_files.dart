@@ -32,9 +32,7 @@ const _projectRule = '- Run `specstone get project` before any task.\n';
 const _endMarker = '<!-- END specstone -->';
 const _byteOrderMark = '\uFEFF';
 const _carriage = '\r';
-final _beginMarker = RegExp(
-  '^<!-- BEGIN specstone v$releaseVersionPattern -->\$',
-);
+final _beginMarker = RegExp(r'^<!-- BEGIN specstone v(\S+) -->$');
 
 String _beginLine(String cliVersion) =>
     '<!-- BEGIN specstone v$cliVersion -->\n';
@@ -91,7 +89,7 @@ MarkerScan scanMarkers(String text) {
   final ends = <int>[];
   for (var index = 0; index < lines.length; index++) {
     if (scan.fenced[index]) continue;
-    if (_beginMarker.hasMatch(lines[index])) begins.add(index + 1);
+    if (_isBeginLine(lines[index])) begins.add(index + 1);
     if (lines[index] == _endMarker) ends.add(index + 1);
   }
   final openFenceLine = _openFenceLine(lines, scan.openFence);
@@ -113,6 +111,12 @@ MarkerScan scanMarkers(String text) {
     openFenceLine: openFenceLine,
     isMalformed: !isWellFormed,
   );
+}
+
+/// Whether [line] is a BEGIN marker: its token after `v` is a Version.
+bool _isBeginLine(String line) {
+  final token = _beginMarker.firstMatch(line)?[1];
+  return token != null && ReleaseVersion.tryParse(token) != null;
 }
 
 /// Returns the 1-based line of the fence still open at the end, or null.

@@ -61,6 +61,47 @@ void main() {
     expect(source.where((line) => line.startsWith('import ')), isEmpty);
   });
 
+  group('install_update Version: a huge text', () {
+    // 1.6M identifiers (about 3.2 MB) overflowed the stack of the repeated
+    // group in the form; 3M digits made BigInt.parse take about a minute.
+    final identifiers = List.filled(1600000, 'a').join('.');
+    final digits = '1' * 3000000;
+
+    test('a pre-release of 1.6M identifiers parses', () {
+      final version = ReleaseVersion.tryParse('1.0.0-$identifiers');
+
+      expect(version, isNotNull);
+      expect(version!.isPreRelease, isTrue);
+      expect(version.compareTo(ReleaseVersion.tryParse('1.0.0')!), isNegative);
+    });
+
+    test(
+      'a pre-release of 1.6M identifiers with a bad last one is refused',
+      () {
+        expect(ReleaseVersion.tryParse('1.0.0-$identifiers.!'), isNull);
+        expect(ReleaseVersion.tryParse('1.0.0-$identifiers.'), isNull);
+      },
+    );
+
+    test('a core field of 3M digits parses and orders by value', () {
+      final big = ReleaseVersion.tryParse('$digits.0.0')!;
+      final bigger = ReleaseVersion.tryParse('${digits}0.0.0')!;
+
+      expect(big.compareTo(ReleaseVersion.tryParse('9.9.9')!), isPositive);
+      expect(big.compareTo(bigger), isNegative);
+      expect(big.compareTo(ReleaseVersion.tryParse('$digits.0.0')!), 0);
+    });
+
+    test('a numeric identifier of 3M digits orders by value', () {
+      final big = ReleaseVersion.tryParse('1.0.0-$digits')!;
+      final bigger = ReleaseVersion.tryParse('1.0.0-${digits}0')!;
+
+      expect(big.compareTo(bigger), isNegative);
+      expect(ReleaseVersion.tryParse('1.0.0-${'1' * 3000000}x'), isNotNull);
+      expect(ReleaseVersion.tryParse('1.0.0-0${'1' * 3000000}'), isNull);
+    });
+  });
+
   test('install_update Version: every Dart reader of the form composes '
       'releaseVersionPattern', () {
     const spellings = [
