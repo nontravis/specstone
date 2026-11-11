@@ -1196,7 +1196,6 @@ esac''');
         'a dot': (stubs) => '.:$stubs:/usr/bin:/bin',
         'a leading empty entry': (stubs) => ':$stubs:/usr/bin:/bin',
         'a middle empty entry': (stubs) => '$stubs::/usr/bin:/bin',
-        'a trailing empty entry': (stubs) => '$stubs:/usr/bin:/bin:',
         'a relative folder': (stubs) => 'planted:$stubs:/usr/bin:/bin',
       };
 
@@ -1223,6 +1222,30 @@ esac''');
           ]);
         });
       }
+
+      // The stubs and the real tools come first, so only the trailing empty
+      // entry can reach a planted `claude`; with no stub it is the only one.
+      test('a trailing empty entry on PATH finds no claude in the run '
+          'folder; the manual commands print', () async {
+        final sb = await sandboxWith();
+        plantPrograms(sb);
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {...archiveEnv(sb), 'PATH': '${sb.stubs.path}:/usr/bin:/bin:'},
+        );
+
+        expect(plantedThatRan(sb), isEmpty);
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains(
+            'To add the Specstone plugin to Claude Code, run:\n'
+            '  claude plugin marketplace add nontravis/specstone\n'
+            '  claude plugin install specstone@specstone\n',
+          ),
+        );
+      });
 
       test(
         'a PATH of relative entries only searches no relative folder',

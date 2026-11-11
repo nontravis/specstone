@@ -432,10 +432,15 @@
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('specstone.' + [guid]::NewGuid().ToString('N'))
     $unpack = Join-Path $tmp 'unpack'
     # Nothing above this line starts a program. From here every program, claude
-    # included, is searched on absolute PATH entries only; the finally below
-    # puts the caller's PATH back, as the block runs in the caller's session.
+    # included, is searched on absolute PATH entries only. cmd.exe also tries
+    # the current folder before PATH, for the bare `node` that claude.cmd runs;
+    # only NoDefaultCurrentDirectoryInExePath stops that. The finally below
+    # puts the caller's PATH and that variable back (it removes the variable
+    # when it was unset), as the block runs in the caller's session.
     $savedPath = Get-EnvText 'Path'
+    $savedNoCurrentFolder = [Environment]::GetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath')
     $env:Path = Get-AbsolutePathText $savedPath
+    [Environment]::SetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath', '1')
     try {
         try {
             New-Item -ItemType Directory -Path $tmp | Out-Null
@@ -478,6 +483,7 @@
         Install-Plugin
     } finally {
         $env:Path = $savedPath
+        [Environment]::SetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath', $savedNoCurrentFolder)
         try {
             Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
         } catch {

@@ -633,6 +633,108 @@ void main() {
         });
       }
 
+      // Runs install.ps1 as `irm | iex` does, in one PowerShell session that
+      // survives a refusal, then runs [after] in that same session.
+      Future<ProcessResult> runIex(
+        ScriptSandbox sb,
+        String after, {
+        Map<String, String> extra = const {},
+      }) {
+        final script = '${repoRoot().path}\\install.ps1';
+        final command =
+            "try { Get-Content -Raw '$script' | Invoke-Expression } "
+            r"catch { 'CAUGHT=' + $_.Exception.Message }; "
+            '$after';
+        return Process.run(
+          'powershell',
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+          environment: sb.env({...archiveEnv(sb), ...extra}),
+          includeParentEnvironment: false,
+          workingDirectory: sb.root.path,
+        );
+      }
+
+      const printNoCurrentFolder =
+          r"'NOCWD=<' + $env:NoDefaultCurrentDirectoryInExePath + '>'";
+
+      // The `.cmd` shim that npm writes runs a bare `node` when no node.exe
+      // sits beside it, and cmd.exe tries the current folder before PATH.
+      // The stub claude runs a bare `node`, which the stubs folder answers;
+      // the run folder holds a node.cmd that only records that it ran.
+      pathTest('a bare node that claude.cmd runs starts from the absolute '
+          'entry, never from the run folder', () async {
+        final sb = await sandboxWith();
+        sb
+          ..stub(
+            'claude',
+            [
+              r'>> "%STUB_LOG_DIR%\claude.log" echo %*',
+              'call node %*',
+              'exit /b 0',
+            ].join('\r\n'),
+          )
+          ..stub(
+            'node',
+            [r'>> "%STUB_LOG_DIR%\node.log" echo %*', 'echo []'].join('\r\n'),
+          );
+        File('${sb.root.path}\\node.cmd').writeAsStringSync(
+          '@echo off\r\n> "%STUB_LOG_DIR%\\planted-node.ran" echo ran\r\n',
+        );
+
+        final r = await runInstall(sb);
+
+        expect(File('${sb.logs.path}\\planted-node.ran').existsSync(), isFalse);
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('node'), [
+          listMarketplaces,
+          listPlugins,
+          addMarketplace,
+          installPlugin,
+        ]);
+      });
+
+      for (final MapEntry(key: label, value: before) in {
+        'unset': '',
+        'set to 0': '0',
+      }.entries) {
+        pathTest('irm | iex leaves NoDefaultCurrentDirectoryInExePath as it '
+            'was ($label)', () async {
+          final sb = await sandboxWith();
+
+          final r = await runIex(
+            sb,
+            printNoCurrentFolder,
+            extra: {'NoDefaultCurrentDirectoryInExePath': before},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect((r.stdout as String).trim(), endsWith('NOCWD=<$before>'));
+        });
+      }
+
+      pathTest('a refusal under irm | iex leaves PATH and '
+          'NoDefaultCurrentDirectoryInExePath as they were', () async {
+        final sb = await sandboxWith(damaged: true);
+        final path = '.;${sb.stubs.path};$systemEntries';
+
+        final r = await runIex(
+          sb,
+          "$printNoCurrentFolder; 'PATH=' + \$env:Path",
+          extra: {'PATH': path},
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          flat(r.stdout),
+          contains(
+            'CAUGHT=specstone: checksum mismatch for $asset; '
+            'the install is unchanged',
+          ),
+        );
+        expect(flat(r.stdout), contains('NOCWD=<>'));
+        expect((r.stdout as String).trim(), endsWith('PATH=$path'));
+      });
+
       pathTest("irm | iex leaves the session's PATH as it was", () async {
         final sb = await sandboxWith();
         plantClaude(sb);
