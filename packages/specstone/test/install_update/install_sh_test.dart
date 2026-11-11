@@ -1525,6 +1525,19 @@ esac''');
               '/w??z',
             ),
             (
+              'a git url with user and token before the host',
+              {
+                'source': 'git',
+                'url': 'https://user:token@example.com/specstone.git',
+              },
+              'https://example.com/specstone.git',
+            ),
+            (
+              'a git url with an at sign after the host',
+              {'source': 'git', 'url': 'https://token@example.com/a/b@c?x=y@z'},
+              'https://example.com/a/b@c?x=y@z',
+            ),
+            (
               'a source type with no key to read',
               {'source': 'settings'},
               'an unknown source',
@@ -1632,6 +1645,44 @@ esac''');
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, contains(leftLine(r'nontravis\u002fspecstone')));
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('$plugin: a key with a quote deeper in a marketplace entry does '
+          'not stop the step', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceList({
+            'source': 'github',
+            'repo': 'nontravis/specstone',
+            'settings': {r'we"ird\key': 1},
+          }),
+          'STUB_PLUGINS': userPluginJson,
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stderr, isEmpty);
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
+
+      test('$plugin: a key with a quote deeper in a plugin entry does not '
+          'stop the step', () async {
+        final sb = await sandboxWithClaude();
+
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': officialList(),
+          'STUB_PLUGINS': const JsonEncoder.withIndent('  ').convert([
+            {
+              'id': 'specstone@specstone',
+              'scope': 'user',
+              'mcpServers': {'we"ird': <String, Object?>{}},
+            },
+          ]),
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stderr, isEmpty);
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 

@@ -234,7 +234,8 @@ run_claude_live() {
 # Reads the JSON text on stdin with a tokenizer that knows strings and
 # nesting, so a quote, brace, or key name inside a value never counts. Exits 1
 # and prints nothing when the text is not read for sure: not well-formed, text
-# around the JSON, a key written with an escape, or the wrong top-level shape.
+# around the JSON, an entry key written with an escape (keys deeper in a value
+# are never read), or the wrong top-level shape.
 # mode `entry`: the text is the marketplace list; prints the object whose `name`
 # is "specstone" on one line (nothing when none), and exits 1 for two such
 # objects, a repeated key in it, or a `source` that is not one string.
@@ -315,7 +316,7 @@ END {
       i = j + 1
       if (index(raw, "\n") > 0) { bad = 1; break }
       if (kind[depth] == "{" && (st[depth] == "k0" || st[depth] == "key")) {
-        if (index(raw, "\\") > 0) { bad = 1; break }
+        if (depth == keydepth && index(raw, "\\") > 0) { bad = 1; break }
         curkey[depth] = raw
         st[depth] = "colon"
       } else value(1, decode(raw))
@@ -417,8 +418,20 @@ is_official_entry() {
     [ "$(entry_field "$1" repo)" = nontravis/specstone ]
 }
 
+# Prints the url $1 without the userinfo (user or user:token) before the host.
+strip_userinfo() {
+  case "$1" in
+    *://*)
+      url_rest=${1#*://}
+      url_authority=${url_rest%%[/?#]*}
+      printf '%s://%s%s\n' "${1%%://*}" "${url_authority##*@}" "${url_rest#"$url_authority"}"
+      ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
 # Prints where the marketplace entry $1 comes from, read from the key its
-# source type names, else `an unknown source`.
+# source type names (a url without its userinfo), else `an unknown source`.
 entry_source() {
   case "$(entry_field "$1" source)" in
     github) key=repo ;;
@@ -431,6 +444,9 @@ entry_source() {
     found=$(entry_field "$1" "$key") || found=''
   fi
   if [ -n "$found" ]; then
+    if [ "$key" = url ]; then
+      found=$(strip_userinfo "$found")
+    fi
     printable "$found"
     printf '\n'
   else
