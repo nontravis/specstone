@@ -94,24 +94,22 @@ void main() {
     },
   );
 
-  test(
-    '$_stale E02: a pre-release version in the BEGIN line is no finding',
-    () async {
-      const preRelease = '1.2.0-beta.1';
-      expect(
-        await _staleOf({
-          'CLAUDE.md':
-              'Owner\n${_imports().replaceFirst(specstoneVersion, preRelease)}',
-          'AGENTS.md': _inline().replaceFirst(specstoneVersion, preRelease),
-          _agentMd: agentMdText,
-          '.cursor/rules/specstone.mdc': cursorRulesText(
-            cliVersion: specstoneVersion,
-          ).replaceFirst(specstoneVersion, preRelease),
-        }),
-        isEmpty,
-      );
-    },
-  );
+  test('$_stale E02: files an earlier pre-release wrote are no finding for the '
+      'CLI as it ships', () async {
+    // Below every shipped version, so it never equals specstoneVersion.
+    const preRelease = '0.0.1-beta.1';
+    expect(preRelease, isNot(specstoneVersion));
+    expect(
+      await _staleOf({
+        'CLAUDE.md':
+            'Owner\n${importBlock(cliVersion: preRelease, agentMdPath: _agentMd, projectDocPath: 'docs/prds/PROJECT.md')}',
+        'AGENTS.md': inlineBlock(cliVersion: preRelease),
+        _agentMd: agentMdText,
+        '.cursor/rules/specstone.mdc': cursorRulesText(cliVersion: preRelease),
+      }),
+      isEmpty,
+    );
+  });
 
   test(
     '$_stale Output: a hand-edited block is one finding on its BEGIN line, no name',

@@ -63,20 +63,35 @@ void main() {
 
   test('install_update Version: every Dart reader of the form composes '
       'releaseVersionPattern', () {
-    const packPins = 'lib/src/templates/pack_version.dart';
-    const triple = r'\d+\.\d+\.\d+';
+    const spellings = [
+      r'\d+\.\d+\.\d+',
+      r'[0-9]+\.[0-9]+\.[0-9]+',
+      r'(\d+)\.(\d+)\.(\d+)',
+    ];
     final core = packageRoot().uri;
-    final readers = [
-      for (final folder in ['lib/', '../specstone/lib/', '../../tool/'])
+    final files = [
+      for (final folder in [
+        'lib/',
+        'tool/',
+        '../specstone/lib/',
+        '../specstone/bin/',
+        '../../tool/',
+      ])
         for (final entity in Directory.fromUri(
           core.resolve(folder),
         ).listSync(recursive: true, followLinks: false))
-          if (entity is File &&
-              entity.path.endsWith('.dart') &&
-              !entity.uri.path.endsWith(packPins) &&
-              entity.readAsStringSync().contains(triple))
-            entity.path,
+          if (entity is File && entity.path.endsWith('.dart')) entity,
     ];
+    final readers = [
+      for (final file in files)
+        if (spellings.any(file.readAsStringSync().contains)) file.path,
+    ];
+
+    expect(
+      files.map((file) => file.uri.path),
+      contains(endsWith('lib/src/release_version.dart')),
+      reason: 'the scan must visit the definition',
+    );
     expect(readers, isEmpty);
   });
 }

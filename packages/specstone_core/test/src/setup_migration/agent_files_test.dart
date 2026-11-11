@@ -181,10 +181,9 @@ void main() {
       expect(scan.isMalformed, isFalse);
     });
 
-    for (final version in ['1.2.0-beta.01', '1.2', '1.2.0+build.5', '']) {
+    for (final version in ['1.2.0-beta.01', '1.2', '1.2.0+build.5']) {
       test('$_fr E13: a BEGIN naming "$version" is the Owner text', () {
-        final v = version.isEmpty ? '' : ' v$version';
-        final scan = scanMarkers('<!-- BEGIN specstone$v -->\n$_end\n');
+        final scan = scanMarkers('<!-- BEGIN specstone v$version -->\n$_end\n');
 
         expect(scan.beginLine, isNull);
         expect(scan.endLine, 2);

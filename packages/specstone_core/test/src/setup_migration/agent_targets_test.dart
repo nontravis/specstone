@@ -340,11 +340,47 @@ void main() {
         _writeAt(plan, 'AGENTS.md').text,
         'before\n${inlineBlock(cliVersion: '1.2.0-beta.2')}after\n',
       );
-      expect(
-        _writeAt(plan, 'AGENTS.md').text,
-        contains('<!-- BEGIN specstone v1.2.0-beta.2 -->\n'),
-      );
     });
+
+    test(
+      '$_write E13: a .cursor rules file whose BEGIN line holds build '
+      'metadata is never up to date; one naming another pre-release is',
+      () async {
+        const version = '1.2.0-beta.1';
+        final rules = cursorRulesText(cliVersion: version);
+        final withBuild = await _base({
+          'proj/$_cursor': rules.replaceFirst('v$version', 'v1.2.0+build.5'),
+          'proj/.specstone/AGENT.md': agentMdText,
+        });
+        final withOther = await _base({
+          'proj/$_cursor': rules.replaceFirst('v$version', 'v1.2.0-beta.7'),
+          'proj/.specstone/AGENT.md': agentMdText,
+        });
+
+        expect(
+          () => planAgentWrites(
+            _inputs(withBuild, cliVersion: version),
+            full: false,
+          ),
+          throwsA(
+            isA<MigrateFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  MigrateFaultCode.agentBlockMalformed,
+                )
+                .having((f) => f.file, 'file', _cursor),
+          ),
+        );
+        expect(
+          planAgentWrites(
+            _inputs(withOther, cliVersion: version),
+            full: false,
+          ).isEmpty,
+          isTrue,
+        );
+      },
+    );
 
     test('$_write E06: AGENT.md with other bytes is rewritten', () async {
       final base = await _base({
