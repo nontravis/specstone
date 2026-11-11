@@ -18,13 +18,14 @@ work from text a plan or brief quotes.
   under it. Run one `specstone context <target> --for implement --budget 20000` on each cited NFR or spec doc itself.
   Never target the feature: its `implement` bundle lists only its stories' names, not the FRs the task cites. With the
   `Agent` tool, every tool call from the first CLI call counts toward three, a `Read` of a saved output included: run
-  the next call only while the calls so far, plus that call and its possible `Read`, stay within three. When the task
-  cites more than three stories, NFRs, and spec docs in all, the next call would pass three, or any call exits 1, give
-  `specstone:sdd-reader` every ID the task cites, `--summary` beside each ID whose call used it, and no doc text.
+  the next call only while the calls so far, plus that call and its possible `Read`, stay within three. With the
+  `Agent` tool, when the task cites more than three stories, NFRs, and spec docs in all, the next call would pass
+  three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites, `--summary` beside each ID whose
+  call used it, and no doc text.
 - **Budget:** pass `--budget 20000` only when you have the `Agent` tool. Without it, as in an implementer Subagent,
   make the same calls, the first included, with no `--budget`, and `Read` each saved output once. The CLI then prints
-  each whole bundle and exits 0, so nothing goes to `specstone:sdd-reader`, and these calls may pass three. This
-  holds in every mode.
+  each whole bundle and exits 0, so nothing goes to `specstone:sdd-reader`, and these calls may pass three. All of
+  this holds in every mode.
 - **Mode:**
 
 | Task                                | `--for`     |
@@ -63,10 +64,11 @@ That call is also the project gate. Never look for `.specstone/` first with `ls`
 CLI searches each folder upward, so a run from a subfolder of a project goes on as normal; a look at the working
 directory alone would stop there by mistake and cost a tool call.
 
-With the `Agent` tool, the bundle is in hand within three tool calls of the first CLI call. For one target, at or
-under the budget or with no `--budget`, its call does it, plus one `Read` when the host saved its output to a file:
-two calls at most. When a saved output is too long for one `Read`, read it in parts; those part reads are the only
-calls past the two.
+With the `Agent` tool, the bundle is in hand within three tool calls of the first CLI call.
+
+With or without the tool, one target takes two calls at most: its call, at or under the budget or with no `--budget`,
+plus one `Read` when the host saved its output to a file. When a saved output is too long for one `Read`, read it in
+parts; those part reads are the only calls past the two.
 
 ## Red flags
 
