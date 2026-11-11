@@ -203,6 +203,83 @@ void main() {
   _agentTests();
   _sizeFixTests();
   _batchGuideTests();
+  _otherPluginSkillTests();
+}
+
+const _nameOnly = 'agent_plugin/ground_a_task/name_only_existing_commands';
+
+/// The spans E06 names that carry no skill-name form, or a doc type prefix.
+const _docCitations = [
+  '`domain:document_writing#invariants`',
+  '`tech_stack:tech_stack`',
+  '`fr:<name>`',
+  '`<type>:<name>`',
+  '`<path>:<line>`',
+  '`project:project`',
+  '`gnfr:gnfr`',
+  '`features:features`',
+  '`specstone:plan-sdd`',
+];
+
+void _otherPluginSkillTests() {
+  test('$_nameOnly E05: a skill file naming superpowers:writing-plans fails '
+      'naming the file and the span', () async {
+    final root = await writeTree({
+      'skills/x/SKILL.md': 'Then run `superpowers:writing-plans`.',
+    });
+    expect(otherPluginSkillNames(root, shippedDocTypes()), [
+      "skills/x/SKILL.md: superpowers:writing-plans is another plugin's skill",
+    ]);
+  });
+
+  test('$_nameOnly E03: an agent file holding path:line fails naming the '
+      'file and the span', () async {
+    final root = await writeTree({
+      'agents/a.md': 'Cite each hit as `path:line`.',
+    });
+    expect(otherPluginSkillNames(root, shippedDocTypes()), [
+      "agents/a.md: path:line is another plugin's skill",
+    ]);
+  });
+
+  test('$_nameOnly E06: a doc citation, a placeholder, a doc-type prefix, and '
+      'a specstone skill pass', () async {
+    final root = await writeTree({
+      'skills/x/SKILL.md': 'Cite ${_docCitations.join(', ')}.',
+      'agents/a.md': 'Cite ${_docCitations.join(', ')}.',
+    });
+    expect(otherPluginSkillNames(root, shippedDocTypes()), isEmpty);
+  });
+
+  test('$_nameOnly: shippedDocTypes holds the doc types the packs define, '
+      'project, features, and gnfr among them', () {
+    expect(
+      shippedDocTypes(),
+      containsAll(['project', 'features', 'gnfr', 'fr', 'tech_stack']),
+    );
+  });
+
+  test('$_nameOnly: a fenced line and a span holding a space never have the '
+      'form, and a repeated span lists once', () async {
+    final root = await writeTree({
+      'skills/x/SKILL.md':
+          '```\nsuperpowers:writing-plans\n```\n'
+          '`superpowers:writing-plans now` `a:b` `a:b`\n',
+    });
+    expect(otherPluginSkillNames(root, shippedDocTypes()), [
+      "skills/x/SKILL.md: a:b is another plugin's skill",
+    ]);
+  });
+
+  test("$_nameOnly: no shipped agent file names another plugin's skill", () {
+    expect(
+      otherPluginSkillNames(
+        pluginRoot(),
+        shippedDocTypes(),
+      ).where((problem) => problem.startsWith('agents/')),
+      isEmpty,
+    );
+  });
 }
 
 typedef _Shipped = ({

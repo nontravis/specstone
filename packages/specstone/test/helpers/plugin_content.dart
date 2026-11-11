@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart';
 
 import 'package_root.dart';
 
 final _inlineSpan = RegExp(r'`([^`\n]+)`');
 final _specstoneCall = RegExp(r'\bspecstone\s+(\S+)');
+final _skillName = RegExp(r'^([a-z0-9-]+):[a-z0-9-]+$');
 final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
 
 /// Returns the shipped plugin folder, two levels above the specstone package.
@@ -38,6 +40,48 @@ List<String> cliCommands(String markdown) => [
   for (final scanned in _codeTexts(markdown))
     for (final call in _specstoneCall.allMatches(scanned)) call.group(1)!,
 ];
+
+/// Returns the id of each doc type the shipped packs define.
+///
+/// Read in a fresh folder outside any project, where every shipped pack loads.
+Set<String> shippedDocTypes() {
+  final empty = Directory.systemTemp.createTempSync('specstone_doc_types_');
+  try {
+    return {
+      for (final docType
+          in TemplateResolver()
+              .resolve(workingDirectory: empty, homeDirectory: null)
+              .docTypes)
+        docType.id,
+    };
+  } finally {
+    empty.deleteSync(recursive: true);
+  }
+}
+
+/// Returns one problem per inline code span in a `.md` file under `skills/` and
+/// `agents/` of [plugin] that names another plugin's skill, sorted.
+///
+/// A span names a skill when its whole text is `<prefix>:<name>`, two words of
+/// lowercase letters, digits, and hyphens, and the prefix is neither
+/// `specstone` nor in [docTypes]. Fenced lines are never read: they hold whole
+/// commands.
+List<String> otherPluginSkillNames(Directory plugin, Set<String> docTypes) {
+  final problems = <String>{};
+  for (final file in _markdownFiles(plugin)) {
+    final path = _relativePath(plugin, file);
+    for (final span in _inlineSpans(file.readAsStringSync())) {
+      final prefix = _skillName.firstMatch(span)?.group(1);
+      if (prefix == null ||
+          prefix == 'specstone' ||
+          docTypes.contains(prefix)) {
+        continue;
+      }
+      problems.add("$path: $span is another plugin's skill");
+    }
+  }
+  return problems.toList()..sort();
+}
 
 int _codePointsOf(File file) =>
     file.readAsStringSync().replaceAll('\r\n', '\n').runes.length;
@@ -108,6 +152,20 @@ Iterable<String> _codeTexts(String markdown) sync* {
     } else if (fenced) {
       yield line;
     } else {
+      for (final span in _inlineSpan.allMatches(line)) {
+        yield span.group(1)!;
+      }
+    }
+  }
+}
+
+/// Yields each inline code span of [markdown], fenced lines left out.
+Iterable<String> _inlineSpans(String markdown) sync* {
+  var fenced = false;
+  for (final line in markdown.replaceAll('\r\n', '\n').split('\n')) {
+    if (line.trimLeft().startsWith('```')) {
+      fenced = !fenced;
+    } else if (!fenced) {
       for (final span in _inlineSpan.allMatches(line)) {
         yield span.group(1)!;
       }
