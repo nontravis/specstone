@@ -49,7 +49,8 @@ const int _maxReplyMiB = 1;
 /// The same limit in bytes.
 const int _maxReplyBytes = _maxReplyMiB * 1024 * 1024;
 
-/// How many characters of an untrusted tag an error message echoes.
+/// How many characters of an untrusted tag an error message echoes, the mark
+/// of a cut one included.
 const int _maxEchoedTagLength = 64;
 
 /// The last line `specstone upgrade` prints.
@@ -127,11 +128,13 @@ final RegExp _unprintable = RegExp(
 );
 
 // Masks the control, format, and separator characters of reply text, so it
-// cannot drive the terminal or reorder the line it is printed on, and cuts it
-// to [_maxEchoedTagLength] characters.
-String _printable(String text) => String.fromCharCodes(
-  text.replaceAll(_unprintable, '?').runes.take(_maxEchoedTagLength),
-);
+// cannot drive the terminal or reorder the line it is printed on. A text over
+// [_maxEchoedTagLength] characters is cut to that length, the last one `…`.
+String _printable(String text) {
+  final runes = text.replaceAll(_unprintable, '?').runes.toList();
+  if (runes.length <= _maxEchoedTagLength) return String.fromCharCodes(runes);
+  return '${String.fromCharCodes(runes.take(_maxEchoedTagLength - 1))}…';
+}
 
 // Resolves symlinks of an existing folder, so macOS `/var` and `/private/var`
 // compare equal; a missing folder falls back to its normalized absolute path.
@@ -390,7 +393,7 @@ class UpgradeCommand extends SpecstoneCommand {
   }
 
   // Returns the body of one complete 2xx reply of [url], else why there is
-  // none: `HTTP <status>`, `no data for 60 s`, or the I/O message.
+  // none: `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
   Future<({List<int>? body, String? failure})> _get(Uri url) async {
     final client = HttpClient()..connectionTimeout = _connectTimeout;
     try {
@@ -415,6 +418,9 @@ class UpgradeCommand extends SpecstoneCommand {
       return (body: body.takeBytes(), failure: null);
     } on IOException catch (e) {
       return (body: null, failure: e is HttpException ? e.message : '$e');
+    } on FormatException catch (e) {
+      // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
+      return (body: null, failure: e.message);
     } on TimeoutException {
       return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
     } finally {

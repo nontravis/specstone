@@ -693,6 +693,12 @@ void main() =>
         'a tag_name of 200 characters',
         200,
         '{"tag_name": "v${'x' * 199}"}',
+        'tag_name v${'x' * 62}… is not v<Version>',
+      ),
+      (
+        'a tag_name of exactly 64 characters',
+        200,
+        '{"tag_name": "v${'x' * 63}"}',
         'tag_name v${'x' * 63} is not v<Version>',
       ),
       ('a 503 reply', 503, '{"tag_name": "v1.1.1"}', 'HTTP 503'),
@@ -767,6 +773,44 @@ void main() =>
       expect(
         err.toString(),
         'specstone upgrade could not fetch $scriptUrl: HTTP 302\n',
+      );
+      expect(paths, [scriptUrl.path]);
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+    });
+
+    test('$_keep E04: a 2xx gzip reply with garbage refuses, exit 69, naming '
+        'the URL; nothing ran', () async {
+      await prepare(runningVersion: '1.2.0-beta.1');
+      releaseSends(
+        utf8.encode('not gzip data'),
+        headers: {'content-encoding': 'gzip'},
+      );
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not read the latest release from '
+        '$releaseUrl: Filter error, bad data\n',
+      );
+      expect(paths, [releaseUrl.path]);
+      expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+    });
+
+    test('$_rerun E02: a 2xx gzip script reply with garbage refuses, exit '
+        '69, nothing ran', () async {
+      await prepare();
+      handle = (request) async {
+        request.response.headers.set('content-encoding', 'gzip');
+        request.response.write('not gzip data');
+        await request.response.close();
+      };
+
+      expect(await runner.run(['upgrade']), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not fetch $scriptUrl: '
+        'Filter error, bad data\n',
       );
       expect(paths, [scriptUrl.path]);
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
