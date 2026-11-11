@@ -100,14 +100,22 @@ void main() {
     },
   );
 
-  test('f08/us06/fr02/e03, f08/us06/s4: a design doc under docs/superpowers is not checked', () async {
-    final root = await writeCheckProject(
-      extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
-    );
-    final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
-    expect(result.status, 0);
-    expect(result.out, isEmpty);
-  });
+  test(
+    'api:agent_plugin: a design document under docs/designs gets no check',
+    () async {
+      final root = await writeCheckProject(
+        extra: {
+          'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
+        },
+      );
+      final result = await postEdit(
+        root,
+        abs(root, 'designs/2026-11-11-x-design.md'),
+      );
+      expect(result.status, 0);
+      expect(result.out, isEmpty);
+    },
+  );
 
   test('f08/us06/fr02/e04: a code file prints nothing', () async {
     final root = await writeCheckProject();
