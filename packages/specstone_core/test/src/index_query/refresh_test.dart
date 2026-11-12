@@ -612,7 +612,7 @@ void main() {
       final project = await writeLoginProject(
         extra: {
           recordLayer: recordDocType,
-          'docs/specs/flutter/login/IMPLEMENTATION.md': '# Login impl\n',
+          'docs/specs/login/IMPLEMENTATION.md': '# Login impl\n',
         },
       );
       Directory('${project.path}/flutter_lib').createSync();
@@ -621,15 +621,38 @@ void main() {
       File('${project.path}/.specstone/config.yaml').writeAsStringSync(
         configWith('  flutter:\n    code_root: flutter_lib\n'),
       );
-      expect(refresh(project).result.fullBuild, isTrue);
+      final first = refresh(project);
+      expect(first.result.fullBuild, isTrue);
+      expect(
+        first.store
+            .loadDocs()
+            .firstWhere((d) => d.docPath == 'specs/login/IMPLEMENTATION.md')
+            .target,
+        'flutter',
+        reason: 'the single named target fills the record doc',
+      );
       File('${project.path}/.specstone/config.yaml').writeAsStringSync(
         configWith(
           '  flutter:\n    code_root: flutter_lib\n'
           '  jaspr:\n    code_root: jaspr_lib\n',
         ),
       );
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue, reason: 'a second target rebuilds');
+      final second = refresh(project);
+      expect(
+        second.result.fullBuild,
+        isTrue,
+        reason: 'a second target rebuilds',
+      );
+      expect(
+        second.store
+            .loadDocs()
+            .firstWhere((d) => d.docPath == 'specs/login/IMPLEMENTATION.md')
+            .target,
+        isNull,
+        reason:
+            'the doc left at its one-target path matches nothing with '
+            'two targets (E23), so no target',
+      );
       File('${project.path}/.specstone/config.yaml').writeAsStringSync(
         configWith(
           '  flutter2:\n    code_root: flutter_lib\n'

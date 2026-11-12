@@ -362,6 +362,24 @@ void main() {
         ]);
       expect(store.readStamp(), isNull);
     });
+    test('domain:index_query INV-77: a meta row whose target_names holds no '
+        'JSON array of strings has no stamp, so it rebuilds', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(
+        binaryVersion: specstoneVersion,
+        docTypes: 'x',
+        targetNames: ['flutter'],
+      );
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      for (final value in ['not json', '[1, 2]', '"flutter"']) {
+        raw.execute('UPDATE meta SET target_names = ?', [value]);
+        expect(store.readStamp(), isNull, reason: value);
+      }
+    });
     test('f04/nfr-p03, s03/inv2: a stored doc loads back with its line facts and section counts', () async {
       const text =
           '---\nstatus: planned\n---\n\n# T\n\n## A\nx\n```\n## no\n```\n\n'

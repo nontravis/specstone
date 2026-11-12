@@ -12,13 +12,15 @@ import '../../helpers/temp_tree.dart';
 void main() {
   late MergedSet set;
   setUpAll(() async => set = await resolveSoftwareTech());
-  IndexedDoc doc(String path, String type, String name) => IndexedDoc(
-    docPath: path,
-    docTypeId: type,
-    name: name,
-    frontmatter: const {},
-    tokens: 0,
-  );
+  IndexedDoc doc(String path, String type, String name, {String? target}) =>
+      IndexedDoc(
+        docPath: path,
+        docTypeId: type,
+        name: name,
+        target: target,
+        frontmatter: const {},
+        tokens: 0,
+      );
 
   group('resolveParents', () {
     test('f01/us01/fr03/e01, s03/inv7: an FR has its story as parent, a story its feature', () {
@@ -53,6 +55,58 @@ void main() {
         'specs/f01_login/ARCHITECTURE.md': 'prds/features/f01_login/FEATURE.md',
         'specs/f02_login/API.md': 'prds/features/f01_login/FEATURE.md',
       });
+    });
+    test('index_query/read_current_docs/index_each_doc E22, s03/inv28: both '
+        'target twins take the shared feature as parent', () {
+      final targeted = MergedSet(
+        docTypes: const [
+          MergedDocType(
+            id: 'feature',
+            path: 'prds/features/f{nn}_{slug}/f{nn}_{slug}/FEATURE.md',
+            maxDepth: 1,
+            fields: [],
+            sections: [],
+            lint: MergedLint(),
+            files: [],
+          ),
+          MergedDocType(
+            id: 'architecture',
+            parent: 'feature',
+            path: 'specs/f{nn}_{slug}/f{nn}_{slug}/ARCHITECTURE.md',
+            isPerTarget: true,
+            fields: [],
+            sections: [],
+            lint: MergedLint(),
+            files: [],
+          ),
+        ],
+      );
+      final result = resolveParents([
+        doc(
+          'prds/features/f02_feedback/f03_toast/FEATURE.md',
+          'feature',
+          'feedback/toast',
+        ),
+        doc(
+          'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md',
+          'architecture',
+          'feedback/toast',
+          target: 'flutter',
+        ),
+        doc(
+          'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
+          'architecture',
+          'feedback/toast',
+          target: 'jaspr',
+        ),
+      ], targeted);
+      expect(result.parents, {
+        'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+            'prds/features/f02_feedback/f03_toast/FEATURE.md',
+        'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+            'prds/features/f02_feedback/f03_toast/FEATURE.md',
+      });
+      expect(result.warnings, isEmpty);
     });
     test('f01/us01/fr03/e10, s03/inv7: two candidate parents give no parent and a warning naming both', () {
       const story = 'prds/features/f01_login/us02_email_login/USER_STORY.md';

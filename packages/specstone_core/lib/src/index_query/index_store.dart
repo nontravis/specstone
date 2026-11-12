@@ -274,21 +274,42 @@ final class IndexStore {
     'SELECT target FROM links WHERE source = ? ORDER BY position',
   );
 
-  /// Returns the stamp the index was written under; null when none, or when
-  /// the index has another layout or no target-names column.
+  /// Returns the stamp the index was written under; null when none, when
+  /// the index has another layout, or when the row is damaged, so a
+  /// damaged index rebuilds whole instead of failing the read (INV-77).
   IndexStamp? readStamp() {
     final row = _db.select('SELECT * FROM meta').firstOrNull;
     if (row == null) return null;
     final hasTargetNames = row.keys.any((k) => k == 'target_names');
     if (!hasTargetNames || _layoutVersion != row['layout']) return null;
-    return IndexStamp(
-      binaryVersion: row['binary_version'] as String,
-      docTypes: row['doc_types'] as String,
-      targetNames: [
-        ...(jsonDecode(row['target_names'] as String) as List<Object?>)
-            .cast<String>(),
-      ],
-    );
+    if (row['target_names'] case final String text) {
+      final names = _namesOf(text);
+      if (names == null) return null;
+      return IndexStamp(
+        binaryVersion: row['binary_version'] as String,
+        docTypes: row['doc_types'] as String,
+        targetNames: names,
+      );
+    }
+    return null;
+  }
+
+  /// Returns the target names of a stored JSON array; null when [text] is
+  /// not a JSON array of strings, so a damaged row rebuilds.
+  static List<String>? _namesOf(String text) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(text);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! List) return null;
+    final names = <String>[];
+    for (final name in decoded) {
+      if (name is! String) return null;
+      names.add(name);
+    }
+    return names;
   }
 
   /// Returns the content hash of every stored doc by docPath.
