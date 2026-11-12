@@ -15,6 +15,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 const _frKey =
     'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
@@ -595,6 +597,181 @@ void main() {
         ).text.split('\n');
 
         expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
+      },
+    );
+  });
+
+  group('index_query/view_docs_tree/print_docs_tree, status per code target', () {
+    const featureText =
+        '---\nstatus: implemented\n---\n\n# Toast\n\n## Problem\nBurnt '
+        'toast.\n';
+    const showText =
+        '---\nstatus: implemented\n---\n\n# Agent sees a toast\n\n## Use '
+        'Case\nUse it.\n';
+    const swipeText =
+        '---\nstatus: implemented\n---\n\n# Agent swipes a toast away\n\n'
+        '## Use Case\nUse it.\n';
+    const archText = '# Toast architecture\n';
+
+    String record(String lines) => lines.isEmpty
+        ? '# Record\n'
+        : '---\nstatuses:\n$lines---\n\n# Record\n';
+
+    /// Returns the index of the two-target fixture: `feedback/toast`, its two
+    /// stories, its architecture doc in both targets, and each target's record.
+    Future<DocIndex> toastIndex({
+      String flutterStatuses = '',
+      String jasprStatuses = '',
+    }) async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              showText,
+          'docs/prds/features/f02_feedback/f03_toast/us02_swipe/USER_STORY.md':
+              swipeText,
+          'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
+          'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
+          'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': record(
+            flutterStatuses,
+          ),
+          'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': record(
+            jasprStatuses,
+          ),
+        }),
+      );
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('E15: each line holds each target status in targets order, a skipped story skipped', () async {
+      final index = await toastIndex(
+        flutterStatuses:
+            '  - toast/show:implemented\n  - toast/swipe:implemented\n',
+        jasprStatuses:
+            '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+      );
+
+      expect(
+        answerStructure(index, target: 'feedback/toast').text,
+        'feedback/toast (feature) — Toast · flutter: implemented, jaspr: '
+        'planned · ${tokenSizeOf(featureText)} tokens\n'
+        '  feedback/toast/show (user_story) — Agent sees a toast · flutter: '
+        'implemented, jaspr: planned · ${tokenSizeOf(showText)} tokens\n'
+        '  feedback/toast/swipe (user_story) — Agent swipes a toast away · '
+        'flutter: implemented, jaspr: skipped · '
+        '${tokenSizeOf(swipeText)} tokens\n'
+        '  feedback/toast (architecture) — Toast architecture · '
+        '${tokenSizeOf(archText)} tokens\n'
+        '  feedback/toast (architecture) — Toast architecture · '
+        '${tokenSizeOf(archText)} tokens\n',
+      );
+    });
+
+    test(
+      'E15: --json holds statuses, target name to status, in targets order',
+      () async {
+        final index = await toastIndex(
+          flutterStatuses:
+              '  - toast/show:implemented\n  - toast/swipe:implemented\n',
+          jasprStatuses:
+              '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+        );
+
+        final doc =
+            (answerStructure(index, target: 'feedback/toast').json['docs']!
+                    as List)
+                .cast<Map<String, Object?>>()
+                .single;
+        expect(doc.keys.toList(), [
+          'name',
+          'docType',
+          'path',
+          'title',
+          'statuses',
+          'draft',
+          'tokens',
+          'children',
+        ]);
+        expect(doc['statuses'], {'flutter': 'implemented', 'jaspr': 'planned'});
+        final swipe = (doc['children']! as List)
+            .cast<Map<String, Object?>>()
+            .singleWhere((c) => c['name'] == 'feedback/toast/swipe');
+        expect(swipe['statuses'], {
+          'flutter': 'implemented',
+          'jaspr': 'skipped',
+        });
+      },
+    );
+
+    test(
+      'E16: --target jaspr prints jaspr statuses alone and no flutter spec doc',
+      () async {
+        final index = await toastIndex(
+          flutterStatuses:
+              '  - toast/show:implemented\n  - toast/swipe:implemented\n',
+          jasprStatuses:
+              '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+        );
+
+        final lines = answerStructure(
+          index,
+          target: 'feedback/toast',
+          codeTarget: 'jaspr',
+        ).text.split('\n');
+        expect(
+          lines.where((l) => l.contains('flutter')),
+          isEmpty,
+          reason: 'no flutter status and no flutter spec doc',
+        );
+        expect(lines.first, contains(' · planned · '));
+        expect(
+          lines.where((l) => l.contains('(user_story)')).last,
+          contains(' · skipped · '),
+        );
+      },
+    );
+
+    test(
+      'E17: one target, named or not, shows its one status with no name',
+      () async {
+        final single = await toastIndex(
+          flutterStatuses:
+              '  - toast/show:implemented\n  - toast/swipe:implemented\n',
+        );
+        final plain = await indexWith();
+
+        expect(
+          answerStructure(
+            single,
+            target: 'feedback/toast',
+            codeTarget: 'flutter',
+          ).text.split('\n').first,
+          startsWith('feedback/toast (feature) — Toast · implemented · '),
+        );
+        expect(
+          answerStructure(plain, target: 'login').text.split('\n').first,
+          startsWith('login (feature) — Login · planned · '),
+        );
       },
     );
   });

@@ -5,6 +5,9 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 
 const _indent = '  ';
 
+const _storyType = 'user_story';
+const _frType = 'fr';
+
 typedef _SectionSize = ({String key, int chars, List<ItemFact> items});
 
 /// Returns the docs tree, or the subtree of every doc [target] addresses.
@@ -13,15 +16,28 @@ typedef _SectionSize = ({String key, int chars, List<ItemFact> items});
 /// subtree, then each folder of untyped docs. With one, [target] is resolved
 /// as [DocIndex.resolve] does and each resolved doc that another resolved
 /// doc's subtree already holds is left out. An untyped target prints its one
-/// line with no folder line.
+/// line with no folder line. [codeTarget], when given, keeps a name to that
+/// code target's docs and the shared docs, and the tree holds no other
+/// target's doc.
+///
+/// Each feature, story, and FR line holds its status in each code target, in
+/// [DocIndex.targetNames] order, `<target>: <status>` joined by `, `, or its
+/// one status alone with one target or with [codeTarget]; any other doc holds
+/// the status it writes, or none.
 ///
 /// When [target] resolves to one typed doc, that doc's line is followed by one
 /// line per section, its lead first when it holds text, and, under each, one
 /// per item, each with the characters the index stores for it, as `check`
 /// counts them in the doc as `format` lays it out; the doc's JSON object gains
 /// `sections`. No doc is laid out or counted again.
-ReadAnswer answerStructure(DocIndex index, {String? target}) {
-  final resolved = target == null ? null : index.resolve(target);
+ReadAnswer answerStructure(
+  DocIndex index, {
+  String? target,
+  String? codeTarget,
+}) {
+  final resolved = target == null
+      ? null
+      : index.resolve(target, codeTarget: codeTarget);
   final shown = resolved == null ? index.docs : _withoutNested(index, resolved);
   final sized = switch (resolved) {
     [final doc] when doc.isTyped => doc,
@@ -39,12 +55,14 @@ ReadAnswer answerStructure(DocIndex index, {String? target}) {
 
   final text = StringBuffer();
   for (final root in roots) {
-    _writeTree(text, index, root, 0, root == sized ? sizes : null);
+    _writeTree(text, index, root, 0, codeTarget, root == sized ? sizes : null);
   }
   for (final MapEntry(key: folder, value: docs) in folders.entries) {
     if (target == null) text.writeln(folder);
     for (final doc in docs) {
-      text.writeln('${target == null ? _indent : ''}${docLine(index, doc)}');
+      text.writeln(
+        '${target == null ? _indent : ''}${_docLine(index, doc, codeTarget)}',
+      );
     }
   }
 
@@ -53,17 +71,77 @@ ReadAnswer answerStructure(DocIndex index, {String? target}) {
     json: {
       'docs': [
         for (final root in roots)
-          _treeJson(index, root, root == sized ? sizes : null),
+          _treeJson(index, root, codeTarget, root == sized ? sizes : null),
       ],
       'untyped': [
         for (final MapEntry(key: folder, value: docs) in folders.entries)
           {
             'folder': folder,
-            'docs': [for (final doc in docs) docJson(index, doc)],
+            'docs': [for (final doc in docs) _docJson(index, doc, codeTarget)],
           },
       ],
     },
   );
+}
+
+/// Whether [doc] holds a status per code target: a feature, story, or FR.
+bool _isStatusTracked(IndexedDoc doc) => switch (doc.docTypeId) {
+  featureType || _storyType || _frType => true,
+  _ => false,
+};
+
+/// Returns the status part of [doc]'s line: each code target's status,
+/// `<target>: <status>` joined by `, ` in [DocIndex.targetNames] order, or the
+/// one status alone with one target or a picked one.
+String? _statusPart(DocIndex index, IndexedDoc doc, String? codeTarget) {
+  if (index.targetNames.length < 2 || codeTarget != null) {
+    return index.statusOf(doc, codeTarget: codeTarget);
+  }
+  if (!_isStatusTracked(doc)) return doc.writtenStatus;
+  return [
+    for (final name in index.targetNames)
+      '$name: ${index.statusOf(doc, codeTarget: name)}',
+  ].join(', ');
+}
+
+/// Returns [doc]'s line with each code target's status [index] computes.
+String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) {
+  final title = doc.title;
+  final parts = [
+    ?_statusPart(index, doc, codeTarget),
+    if (doc.isDraft) 'draft',
+    '${doc.tokens} tokens',
+  ];
+  return '${nameWithType(doc)}${title == null ? '' : ' — $title'}'
+      ' · ${parts.join(' · ')}';
+}
+
+/// Returns [doc]'s JSON object, its status per code target under `statuses`
+/// where [index] names two or more and no target is picked.
+Map<String, Object> _docJson(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) {
+  final typeId = doc.docTypeId;
+  final title = doc.title;
+  return {
+    'name': doc.name,
+    'docType': ?typeId,
+    'path': doc.docPath,
+    'title': ?title,
+    if (index.targetNames.length >= 2 &&
+        codeTarget == null &&
+        _isStatusTracked(doc))
+      'statuses': {
+        for (final name in index.targetNames)
+          name: ?index.statusOf(doc, codeTarget: name),
+      }
+    else
+      'status': ?index.statusOf(doc, codeTarget: codeTarget),
+    'draft': doc.isDraft,
+    'tokens': doc.tokens,
+  };
 }
 
 List<IndexedDoc> _withoutNested(DocIndex index, List<IndexedDoc> resolved) {
@@ -87,14 +165,29 @@ Map<String, List<IndexedDoc>> _untypedByFolder(List<IndexedDoc> docs) {
   return folders;
 }
 
+/// Returns the children of [doc] the tree holds: every child, or, with
+/// [codeTarget], the shared ones and that target's alone.
+List<IndexedDoc> _childrenShown(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) => [
+  for (final child in index.childrenOf(doc))
+    if (codeTarget == null ||
+        child.target == null ||
+        child.target == codeTarget)
+      child,
+];
+
 void _writeTree(
   StringBuffer text,
   DocIndex index,
   IndexedDoc doc,
   int depth,
+  String? codeTarget,
   List<_SectionSize>? sizes,
 ) {
-  text.writeln('${_indent * depth}${docLine(index, doc)}');
+  text.writeln('${_indent * depth}${_docLine(index, doc, codeTarget)}');
   for (final section in sizes ?? const <_SectionSize>[]) {
     text.writeln(
       '${_indent * (depth + 1)}${section.key} · ${section.chars} chars',
@@ -104,17 +197,18 @@ void _writeTree(
       text.writeln('${_indent * (depth + 2)}$label · ${item.chars} chars');
     }
   }
-  for (final child in index.childrenOf(doc)) {
-    _writeTree(text, index, child, depth + 1, null);
+  for (final child in _childrenShown(index, doc, codeTarget)) {
+    _writeTree(text, index, child, depth + 1, codeTarget, null);
   }
 }
 
 Map<String, Object> _treeJson(
   DocIndex index,
   IndexedDoc doc,
+  String? codeTarget,
   List<_SectionSize>? sizes,
 ) => {
-  ...docJson(index, doc),
+  ..._docJson(index, doc, codeTarget),
   if (sizes != null)
     'sections': [
       for (final section in sizes)
@@ -128,7 +222,8 @@ Map<String, Object> _treeJson(
         },
     ],
   'children': [
-    for (final child in index.childrenOf(doc)) _treeJson(index, child, null),
+    for (final child in _childrenShown(index, doc, codeTarget))
+      _treeJson(index, child, codeTarget, null),
   ],
 };
 
