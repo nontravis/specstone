@@ -93,14 +93,15 @@ exec "$(dirname "$0")/git_original" "$@"''');
 
   // Runs the tool and kills it after 30 s, so a tool that never exits fails
   // the test instead of hanging it.
-  Future<({int exitCode, String stderr})> runBounded({
+  Future<({int exitCode, String stdout, String stderr})> runBounded({
     Map<String, String> env = const {},
   }) async {
     final process = await repo.start(tool, env: env);
     addTearDown(() => process.kill(ProcessSignal.sigkill));
+    final output = StringBuffer();
     final errors = StringBuffer();
     final done = Future.wait([
-      process.stdout.drain<void>(),
+      process.stdout.transform(utf8.decoder).forEach(output.write),
       process.stderr.transform(utf8.decoder).forEach(errors.write),
     ]);
     final exitCode = await process.exitCode.timeout(
@@ -108,7 +109,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
       onTimeout: () => fail('the tool did not exit within 30 s'),
     );
     await done;
-    return (exitCode: exitCode, stderr: '$errors');
+    return (exitCode: exitCode, stdout: '$output', stderr: '$errors');
   }
 
   // Sends SIGINT to the tool once a stub has created `<logs>/<marker>` and
@@ -609,8 +610,8 @@ fi''');
     },
   );
 
-  test('$_fr statement: Ctrl-C during the moves waits for them and the '
-      'install completes', () async {
+  test('$_fr statement: Ctrl-C to the tool between the moves lets them end '
+      'and the install completes', () async {
     repo.sandbox.stub('mv', r'''
 touch "$STUB_LOG_DIR/moving"
 while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
@@ -624,6 +625,20 @@ exec /bin/mv "$@"''');
     expect(placedMark(), '# ${repo.sha('develop')} develop');
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('$_fr statement: a worktree that will not go after a good build says '
+      'the install is in place', () async {
+    failWorktreeRemove();
+
+    final result = await runBounded();
+
+    expect(result.exitCode, 1);
+    expect(result.stdout, installLine('develop', repo.shortSha('develop')));
+    expect(result.stderr, contains('the install is in place, but'));
+    expect(result.stderr, contains('stub: git worktree remove failed'));
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(buildTxt().existsSync(), isTrue);
   });
 
   test('$_fr statement: a temp folder that is already gone is reported and '

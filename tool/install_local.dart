@@ -40,14 +40,14 @@ Future<void> _installLocal(List<String> args) async {
   final home = _homeFrom(Platform.environment);
   if (home == null) {
     throw _Refusal(
-      'no home folder: HOME and USERPROFILE are unset; '
-      'the install is unchanged',
+      'no home folder: HOME and USERPROFILE are unset; $_unchanged',
     );
   }
   final install = Directory('${home.path}/.specstone');
   final shortCommit = await _git(['rev-parse', '--short', commit]);
   var interrupted = false;
   var placing = false;
+  var installed = false;
   // The watch keeps the tool alive after Ctrl-C, so the cleanup below runs and
   // a placement in progress ends; Ctrl-C also reaches the child of a build
   // step, whose failure ends the run.
@@ -68,18 +68,23 @@ Future<void> _installLocal(List<String> args) async {
         'installed specstone $version ($ref @ $shortCommit) '
         'in ${install.path}/bin',
       );
+      installed = true;
     }
   } on _Refusal catch (stepFailure) {
     failure = stepFailure;
   } finally {
-    cleanup = await _cleanUp(temp, watch);
+    final leftover = await _cleanUp(temp, watch);
+    // The install landed, so a failed cleanup says so beside its own text.
+    cleanup = leftover != null && installed
+        ? _Refusal('the install is in place, but ${leftover.message}')
+        : leftover;
   }
   // An interrupt outranks the step it killed, unless the placement had begun:
   // then the install may have changed, and the placement's own outcome stands.
   // A cleanup failure is reported only when nothing else failed, so it never
   // displaces the first refusal.
   final refusal = interrupted && !placing
-      ? _Refusal('interrupted; the install is unchanged')
+      ? _Refusal('interrupted; $_unchanged')
       : failure ?? cleanup;
   if (cleanup != null && cleanup != refusal) {
     stderr.writeln('install_local: ${cleanup.message}');
@@ -101,7 +106,7 @@ String _refFrom(List<String> args) => switch (args) {
 /// A ref that starts with `-` refuses without a `git` call: it could read as
 /// an option, and no branch, tag, or sha starts with one.
 Future<String> _commitOf(String ref) async {
-  final missing = _Refusal('branch not found: $ref; the install is unchanged');
+  final missing = _Refusal('branch not found: $ref; $_unchanged');
   if (ref.startsWith('-')) throw missing;
   // `--verify --quiet` exits 1 with no output when the ref names no commit;
   // any other failure, such as 128 outside a repository, is git's own.

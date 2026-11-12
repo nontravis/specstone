@@ -42,7 +42,7 @@ Future<String> compileInstallLocal() async {
 /// Creates a sandbox, a git checkout, and `dart` and `git` stubs; POSIX only.
 ///
 /// The checkout is `<sandbox.root>/check out/`, on `develop`, with
-/// `feature/example` one commit ahead; both delete by `addTearDown`.
+/// `feature/example` one commit ahead; both are deleted by `addTearDown`.
 Future<InstallLocalRepo> createInstallLocalRepo() async {
   final sandbox = await createScriptSandbox();
   final work = Directory('${sandbox.root.path}/check out');
