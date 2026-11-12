@@ -32,8 +32,20 @@ Future<void> _installLocal(List<String> args) async {
       'a local build installs on macOS and Linux only; nothing was changed',
     );
   }
-  final ref = _refFrom(args);
-  await _commitOf(ref);
+  final commit = await _commitOf(_refFrom(args));
+  var interrupted = false;
+  // The watch keeps the tool alive after Ctrl-C, so the `finally` below runs;
+  // Ctrl-C also reaches the child, whose failure ends the run.
+  final watch = ProcessSignal.sigint.watch().listen((_) => interrupted = true);
+  final temp = await Directory.systemTemp.createTemp('install_local_');
+  try {
+    final bundle = await _build(commit, temp);
+    await _versionOf(bundle);
+    if (interrupted) throw _Refusal('interrupted; the install is unchanged');
+  } finally {
+    await _removeTemp(temp);
+    await watch.cancel();
+  }
 }
 
 /// Returns the ref to build: `develop`, or the value of `--branch`.
@@ -62,13 +74,87 @@ Future<String> _commitOf(String ref) async {
   return commit;
 }
 
+/// Adds a detached worktree at [commit] in [temp] and builds the CLI there.
+///
+/// The build output sits beside the worktree, so deleting [temp] removes both.
+/// Returns the folder `dart build cli` fills with `bin/` and `lib/`.
+Future<Directory> _build(String commit, Directory temp) async {
+  final worktree = '${temp.path}/worktree';
+  final output = '${temp.path}/build';
+  await _git(['worktree', 'add', '--detach', worktree, commit]);
+  await _step('dart pub get', [
+    'pub',
+    'get',
+    '--enforce-lockfile',
+  ], workingDirectory: worktree);
+  await _step('dart build cli', [
+    'build',
+    'cli',
+    '-t',
+    'bin/specstone.dart',
+    '-o',
+    output,
+  ], workingDirectory: '$worktree/packages/specstone');
+  return Directory('$output/bundle');
+}
+
+/// Returns the version [bundle]'s binary prints for `--version`.
+Future<String> _versionOf(Directory bundle) async => (await _step(
+  'specstone --version',
+  ['--version'],
+  workingDirectory: bundle.path,
+  executable: '${bundle.path}/bin/specstone',
+)).trim();
+
+/// Runs [executable] (`dart`) with [args] and returns its stdout.
+///
+/// A start failure or an exit status other than 0 refuses with [name] and the
+/// step's own error output.
+Future<String> _step(
+  String name,
+  List<String> args, {
+  required String workingDirectory,
+  String executable = 'dart',
+}) async {
+  final ProcessResult result;
+  try {
+    result = await Process.run(
+      executable,
+      args,
+      workingDirectory: workingDirectory,
+    );
+  } on ProcessException catch (error) {
+    throw _Refusal('$name failed: ${error.message}');
+  }
+  if (result.exitCode != 0) {
+    throw _Refusal('$name failed: ${_failureText(result)}');
+  }
+  return result.stdout as String;
+}
+
+/// Removes the worktree under [temp], then [temp] itself.
+///
+/// The worktree is absent when `git worktree add` failed. `--force` is needed
+/// because the build leaves an untracked `.dart_tool/` in it.
+Future<void> _removeTemp(Directory temp) async {
+  final worktree = Directory('${temp.path}/worktree');
+  try {
+    if (worktree.existsSync()) {
+      await _git(['worktree', 'remove', '--force', worktree.path]);
+    }
+  } finally {
+    await temp.delete(recursive: true);
+  }
+}
+
 /// Returns the stdout of a `git` call, or refuses with its first error line.
 ///
 /// An exit status in [okExits] is not a failure.
 Future<String> _git(List<String> args, {Set<int> okExits = const {0}}) async {
   final result = await _run('git', args);
   if (!okExits.contains(result.exitCode)) {
-    throw _Refusal('git ${args.join(' ')} failed: ${_failureLine(result)}');
+    final line = LineSplitter.split(_failureText(result)).first.trim();
+    throw _Refusal('git ${args.join(' ')} failed: $line');
   }
   return (result.stdout as String).trimRight();
 }
@@ -81,12 +167,11 @@ Future<ProcessResult> _run(String executable, List<String> args) async {
   }
 }
 
-/// Returns the first non-empty stderr line, else the first stdout line.
-String _failureLine(ProcessResult result) {
+/// Returns the trimmed stderr, else the trimmed stdout, else the exit status.
+String _failureText(ProcessResult result) {
   for (final stream in [result.stderr, result.stdout]) {
-    for (final line in LineSplitter.split(stream as String)) {
-      if (line.trim().isNotEmpty) return line.trim();
-    }
+    final text = (stream as String).trim();
+    if (text.isNotEmpty) return text;
   }
   return 'exit code ${result.exitCode}';
 }
