@@ -3,6 +3,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The layers the resolver folded for one doc type, lowest first.
@@ -358,7 +359,7 @@ void _checkRecords(
       FaultCode.unknownValue,
       'a target owns a spec tree and its records, and this merged set holds '
       'no record doc type, no doc type with a field of type record_status',
-      file: '.specstone/config.yaml',
+      file: projectConfigPath,
       key: 'targets',
     );
   }
@@ -373,14 +374,15 @@ Never _throwSecondRecordHolder(
     for (final holder in holders)
       _writerOf(holder.id, _wroteRecordField, layerLists),
   ], loadIndex);
+  // Every holder's field traces to a parsed layer, `_writerOf` climbing the
+  // extends chain, so the writer file is always found.
+  final writer = file!;
   throw TemplateFault(
     FaultCode.unknownValue,
     'only one doc type holds a record_status field: '
     '${_joinIds([for (final h in holders) h.id])} do',
-    file: file,
-    key: file == null
-        ? 'fields.type'
-        : 'fields[${_recordFieldIndex(file, layerLists)}].type',
+    file: writer,
+    key: 'fields[${_recordFieldIndex(writer, layerLists)}].type',
     relatedFiles: related,
   );
 }
@@ -391,6 +393,9 @@ bool _wroteRecordField(DocTypeLayer layer) =>
     layer.fields.any((f) => f.type == FieldType.recordStatus);
 
 /// The `fields[<i>]` index of the `record_status` field [file] wrote.
+///
+/// [file] always holds the writer a holder's field traces to, so the scan
+/// always returns.
 int _recordFieldIndex(String file, Map<String, DocTypeLayers> layerLists) {
   for (final list in layerLists.values) {
     for (final entry in list) {
@@ -401,7 +406,7 @@ int _recordFieldIndex(String file, Map<String, DocTypeLayers> layerLists) {
       if (index != -1) return index;
     }
   }
-  return 0;
+  throw StateError('no layer of $file writes record_status');
 }
 
 bool Function(DocTypeLayer) _wroteField(String fieldId) =>

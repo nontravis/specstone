@@ -1122,6 +1122,35 @@ path: adr/{slug}.md
       expect(adr.pack, isNull);
     });
 
+    test('template_packs/add_doc_type/read_doc_type_file Input per_target, '
+        's03/inv12, tpl-s03/inv30: an extending doc type inherits the '
+        'per_target of its target', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+id: feature
+description: A feature
+path: features/{slug}/FEATURE.md
+per_target: true
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature')!.isPerTarget, isTrue);
+      expect(merged.lookup('adr')!.isPerTarget, isTrue);
+    });
+
     test('f03/us03/fr04/e05: an extending doc type writes its own parent and '
         'lint, the target keeps its own', () async {
       final project = await writeTree({

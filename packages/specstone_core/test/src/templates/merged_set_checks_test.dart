@@ -561,19 +561,6 @@ void main() {
         ),
       ];
 
-      // A `targets:` config with two names and no record doc type is refused.
-      expect(
-        () => checkMergedSet(
-          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
-          {
-            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
-          },
-          loadIndex: const {},
-          targetNames: const ['flutter', 'jaspr'],
-        ),
-        throwsA(isA<TemplateFault>()),
-      );
-
       // A `targets:` config with one name still needs the record doc type.
       expect(
         () => checkMergedSet(

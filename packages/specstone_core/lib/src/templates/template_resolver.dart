@@ -505,6 +505,7 @@ final class TemplateResolver {
       extendsId: targetId,
       path: null,
       maxDepth: null,
+      isPerTarget: target.isPerTarget,
       bundle: target.bundle == null ? null : List.unmodifiable(target.bundle!),
       generators: target.generators == null
           ? null
