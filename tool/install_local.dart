@@ -80,13 +80,15 @@ Future<void> main(List<String> args) async {
 }
 
 /// Prints `install_local: <message>` on stderr.
+Future<void> _say(String message) => _write(stderr, 'install_local: $message');
+
+/// Writes [line] to [sink], and drops it when nobody reads the sink.
 ///
-/// A stderr nobody reads, such as a closed terminal, drops the line: the tool
-/// must still clean up and exit.
-Future<void> _say(String message) async {
+/// A closed terminal must not stop the tool before it has cleaned up.
+Future<void> _write(IOSink sink, String line) async {
   try {
-    stderr.writeln('install_local: $message');
-    await stderr.flush();
+    sink.writeln(line);
+    await sink.flush();
   } on IOException {
     // Nowhere to print.
   }
@@ -124,7 +126,8 @@ Future<void> _installLocal(List<String> args) async {
     if (version != null && !interrupt.isRaised) {
       placing = true;
       await _place(bundle, install, _buildRecord(ref, commit, DateTime.now()));
-      stdout.writeln(
+      await _write(
+        stdout,
         'installed specstone $version ($ref @ $shortCommit) '
         'in ${install.path}/bin',
       );
@@ -361,12 +364,19 @@ Future<ProcessResult> _finish(Process process) async {
 
 /// Creates the folder that holds the worktree and the build output.
 ///
-/// The path is absolute with its symlinks resolved, as git records a worktree's
-/// path: git finds the entry of a worktree whose folder is gone only by that
-/// path.
+/// A system temp path that is not absolute is refused: it would put the
+/// worktree inside the checkout. The path has its symlinks resolved, as git
+/// records a worktree's path: git finds the entry of a worktree whose folder is
+/// gone only by that path.
 Future<Directory> _createTemp() async {
+  final system = Directory.systemTemp;
+  if (!system.isAbsolute) {
+    throw _Refusal(
+      'the temp folder ${system.path} is not an absolute path; $_unchanged',
+    );
+  }
   try {
-    final base = await Directory.systemTemp.absolute.resolveSymbolicLinks();
+    final base = await system.resolveSymbolicLinks();
     return await Directory(base).createTemp('install_local_');
   } on FileSystemException catch (error) {
     throw _Refusal(

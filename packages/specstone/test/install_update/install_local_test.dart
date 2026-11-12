@@ -864,4 +864,51 @@ exec "$(dirname "$0")/git_original" "$@"''');
       expect(repo.worktrees(), hasLength(1));
     },
   );
+
+  test('$_fr statement: a closed stdout after the placement still ends with '
+      'exit 0 and a removed worktree', () async {
+    repo.sandbox.stub('mv', r'''
+touch "$STUB_LOG_DIR/moving"
+while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
+exec /bin/mv "$@"''');
+    final release = File('${repo.sandbox.logs.path}/release');
+    final process = await repo.start(tool);
+    addTearDown(() {
+      if (!release.existsSync()) release.createSync();
+      process.kill(ProcessSignal.sigkill);
+    });
+    final errors = process.stderr.drain<void>();
+    final output = process.stdout.listen((_) {});
+    await waitFor(File('${repo.sandbox.logs.path}/moving').existsSync);
+
+    // Nobody reads the install line any more, as after a closed terminal.
+    await output.cancel();
+    release.createSync();
+
+    final exitCode = await process.exitCode.timeout(
+      const Duration(seconds: 30),
+    );
+    await errors;
+    expect(exitCode, 0);
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('$_fr E03: a relative TMPDIR is refused before any worktree and the '
+      'checkout stays as it was', () async {
+    Directory('${repo.work.path}/rel/tmp').createSync(recursive: true);
+    final stateBefore = await repo.checkoutState();
+
+    final result = await runBounded(env: {'TMPDIR': 'rel/tmp'});
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('not an absolute path'));
+    expect(result.stderr, contains(_unchangedText));
+    expect(await repo.checkoutState(), stateBefore);
+    expect(Directory('${repo.work.path}/rel/tmp').listSync(), isEmpty);
+    expect(repo.sandbox.snapshot(), before);
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.sandbox.logOf('dart'), isEmpty);
+  });
 }
