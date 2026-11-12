@@ -56,7 +56,8 @@ Future<InstallLocalRepo> createInstallLocalRepo() async {
 ///
 /// The `dart` and `git` stubs log each call to `dart.log` and `git.log`; the
 /// `dart` stub fails per `STUB_DART_PUB=fail` and `STUB_DART_BUILD=fail`, and
-/// waits for `<logs>/release` per `STUB_DART_BUILD=wait`.
+/// waits for `<logs>/release` per `STUB_DART_BUILD=wait`; under
+/// `STUB_DART_IGNORE=signals` it ignores INT, TERM, and HUP.
 final class InstallLocalRepo {
   new _(this.sandbox, this.work);
 
@@ -174,6 +175,7 @@ final String _realGit = () {
 
 const _dartStub = r'''
 echo "$PWD|$*" >> "$STUB_LOG_DIR/dart.log"
+if [ "$STUB_DART_IGNORE" = signals ]; then trap '' INT TERM HUP; fi
 case "$1 $2" in
   'pub get')
     if [ "$STUB_DART_PUB" = fail ]; then

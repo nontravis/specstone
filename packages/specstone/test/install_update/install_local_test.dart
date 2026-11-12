@@ -14,6 +14,7 @@ const _fr =
     'install_update/machine_install/install_local_build/'
     'build_and_place_branch';
 const _story = 'install_update/machine_install/install_local_build';
+const _unchangedText = 'the install is unchanged';
 
 void main() {
   late String tool;
@@ -28,6 +29,14 @@ void main() {
     before = repo.sandbox.snapshot();
   });
 
+  String installDir() => '${repo.sandbox.home.path}/.specstone';
+
+  // The names directly under the install folder.
+  List<String> installEntries() => [
+    for (final entry in Directory(installDir()).listSync())
+      entry.path.substring(installDir().length + 1),
+  ];
+
   // A refusal changes nothing: the install, the worktree list, and the temp
   // folder are as they were, and no build step ran.
   void expectNothingChanged() {
@@ -38,9 +47,10 @@ void main() {
   }
 
   // A failed or interrupted build leaves the install, the worktree list, and
-  // the temp folder as they were.
+  // the temp folder as they were, and no aside copy beside the install.
   void expectBuildLeftNothing() {
     expect(repo.sandbox.snapshot(), before);
+    expect(installEntries(), unorderedEquals(['bin', 'lib']));
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   }
@@ -70,24 +80,24 @@ fi''');
     }
   }
 
-  // Makes `git worktree remove` fail, and `git worktree prune` fail under
-  // `STUB_GIT_PRUNE=fail`; every other `git` call goes to the logging stub.
+  // Makes the first `git worktree remove` fail, and the second one too under
+  // `STUB_GIT_REMOVE_AGAIN=fail`; every other `git` call goes to the logging
+  // stub.
   void failWorktreeRemove() {
     final stubs = repo.sandbox.stubs.path;
     File('$stubs/git').renameSync('$stubs/git_original');
     repo.sandbox.stub('git', r'''
-case "$1 $2" in
-  'worktree remove')
+if [ "$1 $2" = 'worktree remove' ]; then
+  if [ ! -e "$STUB_LOG_DIR/first_remove" ]; then
+    touch "$STUB_LOG_DIR/first_remove"
     echo 'stub: git worktree remove failed' >&2
     exit 1
-    ;;
-  'worktree prune')
-    if [ "$STUB_GIT_PRUNE" = fail ]; then
-      echo 'stub: git worktree prune failed' >&2
-      exit 1
-    fi
-    ;;
-esac
+  fi
+  if [ "$STUB_GIT_REMOVE_AGAIN" = fail ]; then
+    echo 'stub: second git worktree remove failed' >&2
+    exit 1
+  fi
+fi
 exec "$(dirname "$0")/git_original" "$@"''');
   }
 
@@ -112,13 +122,15 @@ exec "$(dirname "$0")/git_original" "$@"''');
     return (exitCode: exitCode, stdout: '$output', stderr: '$errors');
   }
 
-  // Sends SIGINT to the tool once a stub has created `<logs>/<marker>` and
+  // Sends [signal] to the tool once a stub has created `<logs>/<marker>` and
   // waits for `<logs>/release`, lets that stub go once the tool says it saw the
-  // signal, and returns how the tool ended.
+  // signal (unless [releases] is false), and returns how the tool ended.
   Future<({int exitCode, String stdout, String stderr})> interruptAt(
     String marker,
-    Map<String, String> env,
-  ) async {
+    Map<String, String> env, {
+    ProcessSignal signal = ProcessSignal.sigint,
+    bool releases = true,
+  }) async {
     final release = File('${repo.sandbox.logs.path}/release');
     final process = await repo.start(tool, env: env);
     // Frees the stub's wait loop and the tool whichever way the test ends.
@@ -136,9 +148,9 @@ exec "$(dirname "$0")/git_original" "$@"''');
     await waitFor(File('${repo.sandbox.logs.path}/$marker').existsSync);
     expect(repo.tmpIsEmpty, isFalse);
     expect(repo.worktrees(), hasLength(2));
-    process.kill(ProcessSignal.sigint);
+    process.kill(signal);
     await waitFor(() => '$errors'.contains('interrupted; cleaning up'));
-    release.createSync();
+    if (releases) release.createSync();
 
     final exitCode = await process.exitCode.timeout(
       const Duration(seconds: 30),
@@ -147,10 +159,14 @@ exec "$(dirname "$0")/git_original" "$@"''');
     return (exitCode: exitCode, stdout: '$output', stderr: '$errors');
   }
 
-  // Sends SIGINT to the tool while its build waits.
-  Future<({int exitCode, String stdout, String stderr})>
-  interruptDuringBuild() =>
-      interruptAt('building', {'STUB_DART_BUILD': 'wait'});
+  // Sends SIGINT to the tool while its build waits; the build stub ignores
+  // the signal the tool passes on when [stubIgnoresSignals] is true.
+  Future<({int exitCode, String stdout, String stderr})> interruptDuringBuild({
+    bool stubIgnoresSignals = false,
+  }) => interruptAt('building', {
+    'STUB_DART_BUILD': 'wait',
+    if (stubIgnoresSignals) 'STUB_DART_IGNORE': 'signals',
+  });
 
   test(
     '$_fr E01: an unknown ref is refused by name before any worktree exists',
@@ -170,6 +186,17 @@ exec "$(dirname "$0")/git_original" "$@"''');
       expect(result.exitCode, isNot(0), reason: ref);
       expect(result.stderr, contains(ref), reason: ref);
       expect(repo.sandbox.logOf('git'), isEmpty, reason: ref);
+      expectNothingChanged();
+    }
+  });
+
+  test('$_fr E01: a range or a negated ref is refused by name, not taken as a '
+      'commit', () async {
+    for (final ref in ['develop..HEAD', '^develop']) {
+      final result = await repo.run(tool, args: ['--branch', ref]);
+
+      expect(result.exitCode, 1, reason: ref);
+      expect(result.stderr, contains('branch not found: $ref'), reason: ref);
       expectNothingChanged();
     }
   });
@@ -242,7 +269,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
     final worktree = RegExp('^${RegExp.escape(tmp)}/([^/]+)/worktree\$')
         .firstMatch(steps[0].dir);
     expect(worktree, isNotNull, reason: steps[0].dir);
-    final temp = '${repo.sandbox.root.path}/tmp/${worktree![1]}';
+    final temp = '$tmp/${worktree![1]}';
     expect(steps[0].args, 'pub get --enforce-lockfile');
     expect(steps[1].dir, '${steps[0].dir}/packages/specstone');
     expect(steps[1].args, 'build cli -t bin/specstone.dart -o $temp/build');
@@ -279,6 +306,25 @@ exec "$(dirname "$0")/git_original" "$@"''');
     expect((version.stdout as String).trim(), '0.9.0');
   });
 
+  test('$_story S3, $_fr E03: a dirty checkout on develop is equal across a '
+      'run of another branch', () async {
+    final bundleBinary = keepBundleBinary();
+    File('${repo.work.path}/marker.txt').writeAsStringSync('changed\n');
+    File('${repo.work.path}/staged.txt').writeAsStringSync('staged\n');
+    git(repo.work, ['add', 'staged.txt']);
+    File('${repo.work.path}/untracked.txt').writeAsStringSync('new\n');
+    final stateBefore = await repo.checkoutState();
+
+    final result = await repo.run(tool, args: ['--branch', 'feature/example']);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(await repo.checkoutState(), stateBefore);
+    expect(
+      bundleBinary.readAsLinesSync()[1],
+      '# ${repo.sha('feature/example')} feature',
+    );
+  });
+
   for (final (step, mode) in [
     ('pub get', 'STUB_DART_PUB'),
     ('build cli', 'STUB_DART_BUILD'),
@@ -295,36 +341,93 @@ exec "$(dirname "$0")/git_original" "$@"''');
     });
   }
 
-  test('$_fr statement: Ctrl-C during the build leaves no worktree and the '
-      'same snapshot()', () async {
-    final result = await interruptDuringBuild();
+  test('$_fr statement: Ctrl-C during a build that ignores it leaves no '
+      'worktree and the same snapshot()', () async {
+    final result = await interruptDuringBuild(stubIgnoresSignals: true);
 
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('interrupted; the install is unchanged'));
+    expect(repo.sandbox.logOf('dart'), hasLength(2));
     expectBuildLeftNothing();
   });
 
-  test('$_fr statement: Ctrl-C that also fails the build step is reported as '
-      'an interrupt', () async {
-    // The real child gets the same Ctrl-C and dies: the step fails.
+  test('$_fr statement: Ctrl-C passes to the build step; the step failure it '
+      'causes is printed beside the interrupt', () async {
+    // A shell waiting on `sleep` lets SIGINT pass unless it traps it.
     repo.sandbox.stub('dart', r'''
 if [ "$1" = build ]; then
+  trap 'echo "stub: dart build cli stopped" >&2; exit 130' INT
   touch "$STUB_LOG_DIR/building"
   while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
-  echo 'stub: dart build cli killed' >&2
-  exit 130
 fi''');
 
     final result = await interruptDuringBuild();
 
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('interrupted; the install is unchanged'));
-    expect(result.stderr, isNot(contains('dart build cli failed')));
+    expect(result.stderr, contains('dart build cli failed'));
+    expect(result.stderr, contains('stub: dart build cli stopped'));
     expectBuildLeftNothing();
   });
 
-  test('$_fr statement: a worktree that will not go is reported and the tool '
-      'exits', () async {
+  for (final (name, signal) in [
+    ('SIGTERM', ProcessSignal.sigterm),
+    ('SIGHUP', ProcessSignal.sighup),
+  ]) {
+    test('$_fr statement: $name during the build stops the build step, '
+        'removes the worktree, and keeps the install', () async {
+      final result = await interruptAt(
+        'building',
+        {'STUB_DART_BUILD': 'wait'},
+        signal: signal,
+        releases: false,
+      );
+
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('interrupted; the install is unchanged'));
+      expect(result.stderr, contains('dart build cli failed'));
+      expectBuildLeftNothing();
+    });
+  }
+
+  test('$_fr statement: SIGTERM during a build that ignores it ends after the '
+      'step, with no install', () async {
+    final result = await interruptAt('building', {
+      'STUB_DART_BUILD': 'wait',
+      'STUB_DART_IGNORE': 'signals',
+    }, signal: ProcessSignal.sigterm);
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('interrupted; the install is unchanged'));
+    expectBuildLeftNothing();
+  });
+
+  test('$_fr statement: SIGHUP with stderr closed still removes the worktree '
+      'and exits 1', () async {
+    final release = File('${repo.sandbox.logs.path}/release');
+    final process = await repo.start(tool, env: {'STUB_DART_BUILD': 'wait'});
+    addTearDown(() {
+      if (!release.existsSync()) release.createSync();
+      process.kill(ProcessSignal.sigkill);
+    });
+    final output = process.stdout.drain<void>();
+    final errors = process.stderr.listen((_) {});
+    await waitFor(File('${repo.sandbox.logs.path}/building').existsSync);
+
+    // Nobody reads the tool's stderr any more, as after a closed terminal.
+    await errors.cancel();
+    process.kill(ProcessSignal.sighup);
+
+    final exitCode = await process.exitCode.timeout(
+      const Duration(seconds: 30),
+    );
+    await output;
+    expect(exitCode, 1);
+    expectBuildLeftNothing();
+  });
+
+  test('$_fr statement: a worktree that will not go is reported, removed by a '
+      'second removal once its folder is gone, and the tool exits', () async {
     failWorktreeRemove();
 
     final result = await runBounded();
@@ -332,20 +435,34 @@ fi''');
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('git worktree remove'));
     expect(result.stderr, contains('stub: git worktree remove failed'));
+    expect(
+      repo.sandbox.logOf('git'),
+      anyElement(startsWith('worktree remove --force ')),
+    );
+    expect(
+      repo.sandbox.logOf('git'),
+      isNot(anyElement(startsWith('worktree prune'))),
+    );
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   });
 
-  test('$_fr statement: a failing prune joins the removal failure', () async {
-    failWorktreeRemove();
+  test(
+    '$_fr statement: a failing second removal joins the first failure',
+    () async {
+      failWorktreeRemove();
 
-    final result = await runBounded(env: {'STUB_GIT_PRUNE': 'fail'});
+      final result = await runBounded(env: {'STUB_GIT_REMOVE_AGAIN': 'fail'});
 
-    expect(result.exitCode, isNot(0));
-    expect(result.stderr, contains('stub: git worktree remove failed'));
-    expect(result.stderr, contains('stub: git worktree prune failed'));
-    expect(repo.tmpIsEmpty, isTrue);
-  });
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('stub: git worktree remove failed'));
+      expect(
+        result.stderr,
+        contains('stub: second git worktree remove failed'),
+      );
+      expect(repo.tmpIsEmpty, isTrue);
+    },
+  );
 
   test('$_fr E04: a failing build step stays the reported refusal when the '
       'worktree will not go either', () async {
@@ -361,16 +478,8 @@ fi''');
     expect(repo.tmpIsEmpty, isTrue);
   });
 
-  String installDir() => '${repo.sandbox.home.path}/.specstone';
-
   String installLine(String ref, String shortCommit) =>
       'installed specstone 0.9.0 ($ref @ $shortCommit) in ${installDir()}/bin\n';
-
-  // The names directly under the install folder.
-  List<String> installEntries() => [
-    for (final entry in Directory(installDir()).listSync())
-      entry.path.substring(installDir().length + 1),
-  ];
 
   // The second line of the placed binary: the stub's `# <commit> <marker>`.
   String placedMark() =>
@@ -436,6 +545,7 @@ fi''');
   test('$_fr input_output: a tag or a full commit installs and the line names '
       'it as given', () async {
     git(repo.work, ['tag', 'v0.9.0', 'feature/example']);
+    git(repo.work, ['tag', '-a', 'v1.0.0', '-m', 'annotated', 'develop']);
 
     final tagged = await repo.run(tool, args: ['--branch', 'v0.9.0']);
 
@@ -445,6 +555,13 @@ fi''');
       installLine('v0.9.0', repo.shortSha('feature/example')),
     );
     expect(placedMark(), '# ${repo.sha('feature/example')} feature');
+
+    final annotated = await repo.run(tool, args: ['--branch', 'v1.0.0']);
+
+    expect(annotated.exitCode, 0, reason: '${annotated.stderr}');
+    expect(annotated.stdout, installLine('v1.0.0', repo.shortSha('develop')));
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(buildTxt().readAsLinesSync().first, 'ref: v1.0.0');
 
     final commit = repo.sha('develop');
     final full = await repo.run(tool, args: ['--branch', commit]);
@@ -530,21 +647,36 @@ fi''');
     expect(File('${installDir()}/lib/libold.so').existsSync(), isFalse);
   });
 
-  test(
-    '$_fr input_output: a stale .lib.new from a killed run is not nested',
-    () async {
-      File('${installDir()}/.lib.new/stale.so')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('stale');
+  test('$_fr input_output: a stale .lib.new and .bin.new from a killed run '
+      'are not nested', () async {
+    File('${installDir()}/.lib.new/stale.so')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('stale');
+    File('${installDir()}/.bin.new').writeAsStringSync('stale');
 
-      final result = await repo.run(tool);
+    final result = await repo.run(tool);
 
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(File('${installDir()}/lib/stale.so').existsSync(), isFalse);
-      expect(Directory('${installDir()}/lib/lib').existsSync(), isFalse);
-      expect(installEntries(), unorderedEquals(['bin', 'lib']));
-    },
-  );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(File('${installDir()}/lib/stale.so').existsSync(), isFalse);
+    expect(Directory('${installDir()}/lib/lib').existsSync(), isFalse);
+    expect(Directory('${installDir()}/bin/bin').existsSync(), isFalse);
+    expect(installEntries(), unorderedEquals(['bin', 'lib']));
+  });
+
+  test('$_fr input_output: a stale .bin.new folder is not nested', () async {
+    File('${installDir()}/.bin.new/stale')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('stale');
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(Directory('${installDir()}/bin/bin').existsSync(), isFalse);
+    expect(File('${installDir()}/bin/stale').existsSync(), isFalse);
+    expect(installEntries(), unorderedEquals(['bin', 'lib']));
+  });
 
   test('$_fr E10: build.txt goes with lib/ under install.sh at 0.9.1 and '
       'uninstall.sh, and stays under install.sh at 0.9.0', () async {
@@ -565,6 +697,7 @@ fi''');
 
     expect(same.exitCode, 0, reason: '${same.stderr}');
     expect(buildTxt().existsSync(), isTrue);
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
 
     final removed = await sandbox.run('uninstall.sh');
 
@@ -575,6 +708,7 @@ fi''');
   for (final (label, env, unset) in [
     ('HOME unset', <String, String>{}, ['HOME']),
     ('HOME and USERPROFILE empty', {'HOME': '', 'USERPROFILE': ''}, <String>[]),
+    ('HOME is not an absolute path', {'HOME': 'rel/home'}, <String>[]),
   ]) {
     test(
       '$_fr design R6: no home exits 1 before any worktree, $label',
@@ -649,6 +783,7 @@ exec /bin/mv "$@"''');
     // it fails without any file permission trick.
     repo.sandbox.stub('git', r'''
 if [ "$1 $2" = 'worktree remove' ]; then
+  "$(dirname "$0")/git_original" "$@" || exit $?
   rm -rf "$(dirname "$4")"
   exit 0
 fi
@@ -662,4 +797,71 @@ exec "$(dirname "$0")/git_original" "$@"''');
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   });
+
+  test('$_fr E04: a temp folder that cannot be made is refused, not a crash, '
+      'and nothing changes', () async {
+    final missing = '${repo.sandbox.root.path}/no such tmp';
+
+    final result = await runBounded(env: {'TMPDIR': missing});
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, startsWith('install_local: '));
+    expect(result.stderr, contains(_unchangedText));
+    expect(result.stderr, isNot(contains('#0')));
+    expect(result.stdout, isEmpty);
+    expect(repo.sandbox.snapshot(), before);
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.sandbox.logOf('dart'), isEmpty);
+  });
+
+  test('$_fr E05: a .specstone that is a file fails the placement and '
+      'nothing changes', () async {
+    Directory(installDir()).deleteSync(recursive: true);
+    File(installDir()).writeAsStringSync('not a folder');
+    final untouched = repo.sandbox.snapshot();
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('could not place ${installDir()}'));
+    expect(result.stderr, contains(_unchangedText));
+    expect(repo.sandbox.snapshot(), untouched);
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('$_fr E04: a missing dart is refused naming the step and nothing '
+      'changes', () async {
+    File('${repo.sandbox.stubs.path}/dart').deleteSync();
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('dart pub get failed'));
+    expectNothingChanged();
+  });
+
+  test(
+    '$_fr input_output: a home and a temp folder with a space install',
+    () async {
+      final root = repo.sandbox.root.path;
+      final spacedTmp = await Directory('$root/my tmp').create();
+      final spacedHome = '$root/my home';
+
+      final result = await repo.run(
+        tool,
+        env: {'HOME': spacedHome, 'TMPDIR': spacedTmp.path},
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, contains('in $spacedHome/.specstone/bin\n'));
+      expect(
+        File('$spacedHome/.specstone/bin/specstone').readAsLinesSync()[1],
+        '# ${repo.sha('develop')} develop',
+      );
+      expect(File('$spacedHome/.specstone/lib/build.txt').existsSync(), isTrue);
+      expect(spacedTmp.listSync(), isEmpty);
+      expect(repo.worktrees(), hasLength(1));
+    },
+  );
 }
