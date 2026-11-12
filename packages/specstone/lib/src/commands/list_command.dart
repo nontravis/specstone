@@ -35,6 +35,7 @@ class ListCommand extends SpecstoneCommand {
         help: 'Keep user stories holding a scenario no journey walks.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -46,8 +47,8 @@ class ListCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone list <type> [--status <value>] [--draft] [--under <name>] '
-      '[--cites <id>] [--slug <alias>] [--no-implements] [--suspect] '
-      '[--unwalked] [--json]';
+      '[--cites <id>] [--slug <alias>] [--no-implements] [--target <name>] '
+      '[--suspect] [--unwalked] [--json]';
 
   @override
   Future<int> run() async {
@@ -70,6 +71,7 @@ class ListCommand extends SpecstoneCommand {
       cites: args.option('cites'),
       slug: args.option('slug'),
       noImplements: args.flag('no-implements'),
+      codeTarget: targetOf(args),
     );
     final unwalked = args.flag('unwalked');
     return runRead((session) {
