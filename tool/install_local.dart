@@ -10,6 +10,8 @@ const String _usage =
     'usage: dart run tool/install_local.dart [--branch <ref>]';
 const String _branchFlag = '--branch';
 const String _defaultRef = 'develop';
+const String _unchanged = 'the install is unchanged';
+const String _rerun = 'run install_local again';
 
 /// A failed check: printed as `install_local: <message>` on stderr, exit 1.
 final class _Refusal implements Exception {
@@ -33,10 +35,22 @@ Future<void> _installLocal(List<String> args) async {
       'a local build installs on macOS and Linux only; nothing was changed',
     );
   }
-  final commit = await _commitOf(_refFrom(args));
+  final ref = _refFrom(args);
+  final commit = await _commitOf(ref);
+  final home = _homeFrom(Platform.environment);
+  if (home == null) {
+    throw _Refusal(
+      'no home folder: HOME and USERPROFILE are unset; '
+      'the install is unchanged',
+    );
+  }
+  final install = Directory('${home.path}/.specstone');
+  final shortCommit = await _git(['rev-parse', '--short', commit]);
   var interrupted = false;
-  // The watch keeps the tool alive after Ctrl-C, so the cleanup below runs;
-  // Ctrl-C also reaches the child, whose failure ends the run.
+  var placing = false;
+  // The watch keeps the tool alive after Ctrl-C, so the cleanup below runs and
+  // a placement in progress ends; Ctrl-C also reaches the child of a build
+  // step, whose failure ends the run.
   final watch = ProcessSignal.sigint.watch().listen((_) {
     if (!interrupted) stderr.writeln('install_local: interrupted; cleaning up');
     interrupted = true;
@@ -46,15 +60,25 @@ Future<void> _installLocal(List<String> args) async {
   _Refusal? cleanup;
   try {
     final bundle = await _build(commit, temp);
-    await _versionOf(bundle);
+    final version = await _versionOf(bundle);
+    if (!interrupted) {
+      placing = true;
+      await _place(bundle, install, _buildRecord(ref, commit, DateTime.now()));
+      stdout.writeln(
+        'installed specstone $version ($ref @ $shortCommit) '
+        'in ${install.path}/bin',
+      );
+    }
   } on _Refusal catch (stepFailure) {
     failure = stepFailure;
   } finally {
     cleanup = await _cleanUp(temp, watch);
   }
-  // An interrupt outranks the step it killed; a cleanup failure is reported
-  // only when nothing else failed, so it never displaces the first refusal.
-  final refusal = interrupted
+  // An interrupt outranks the step it killed, unless the placement had begun:
+  // then the install may have changed, and the placement's own outcome stands.
+  // A cleanup failure is reported only when nothing else failed, so it never
+  // displaces the first refusal.
+  final refusal = interrupted && !placing
       ? _Refusal('interrupted; the install is unchanged')
       : failure ?? cleanup;
   if (cleanup != null && cleanup != refusal) {
@@ -113,6 +137,25 @@ Future<Directory> _build(String commit, Directory temp) async {
   return Directory('$output/bundle');
 }
 
+/// Returns the folder in `HOME`, else `USERPROFILE`, of [env].
+///
+/// An empty value counts as unset; null means no home. Duplicates
+/// `homeFrom` of the CLI package, which this script cannot import.
+Directory? _homeFrom(Map<String, String> env) {
+  for (final key in const ['HOME', 'USERPROFILE']) {
+    final value = env[key];
+    if (value != null && value.isNotEmpty) return Directory(value);
+  }
+  return null;
+}
+
+/// Returns the lines of `build.txt`: the ref, the full commit, and the UTC
+/// time of the build.
+String _buildRecord(String ref, String commit, DateTime builtAt) =>
+    'ref: $ref\n'
+    'commit: $commit\n'
+    'built: ${builtAt.toUtc().toIso8601String()}\n';
+
 /// Returns the version [bundle]'s binary prints for `--version`.
 Future<String> _versionOf(Directory bundle) async => (await _step(
   'specstone --version',
@@ -120,6 +163,81 @@ Future<String> _versionOf(Directory bundle) async => (await _step(
   workingDirectory: bundle.path,
   executable: '${bundle.path}/bin/specstone',
 )).trim();
+
+/// Replaces `lib/` then `bin/` of [install] with those of [bundle].
+///
+/// Each folder is copied aside first and moved in, as `install.sh` does, so a
+/// failed copy leaves the old install as it was and no existing file is
+/// written. [record] becomes `build.txt` in the copy of `lib/`. The aside
+/// copies go on every exit path, a stale one of an earlier run included.
+Future<void> _place(Directory bundle, Directory install, String record) async {
+  final lib = '${install.path}/lib';
+  final bin = '${install.path}/bin';
+  final libAside = '${install.path}/.lib.new';
+  final binAside = '${install.path}/.bin.new';
+  try {
+    await _placeStep(['mkdir', '-p', install.path], install.path, _unchanged);
+    await _placeStep(
+      ['rm', '-rf', libAside, binAside],
+      install.path,
+      _unchanged,
+    );
+    await _placeStep(
+      ['cp', '-R', '${bundle.path}/lib', libAside],
+      lib,
+      _unchanged,
+    );
+    try {
+      await File('$libAside/build.txt').writeAsString(record);
+    } on FileSystemException catch (error) {
+      throw _Refusal('could not place $lib: ${error.message}; $_unchanged');
+    }
+    await _placeStep(
+      ['cp', '-R', '${bundle.path}/bin', binAside],
+      bin,
+      _unchanged,
+    );
+    await _placeStep(['rm', '-rf', lib], lib, _rerun);
+    await _placeStep(['mv', libAside, lib], lib, _rerun);
+    await _placeStep(['rm', '-rf', bin], bin, _rerun);
+    await _placeStep(['mv', binAside, bin], bin, _rerun);
+  } finally {
+    await _removeAsides([libAside, binAside]);
+  }
+}
+
+/// Runs [command]; a failure refuses naming [folder] and ending with [outcome].
+Future<void> _placeStep(
+  List<String> command,
+  String folder,
+  String outcome,
+) async {
+  final reason = await _failureOf(command);
+  if (reason != null) {
+    throw _Refusal('could not place $folder: $reason; $outcome');
+  }
+}
+
+/// Deletes [asides]; a failure is printed, never thrown, so it cannot displace
+/// the refusal that ended the placement.
+Future<void> _removeAsides(List<String> asides) async {
+  final reason = await _failureOf(['rm', '-rf', ...asides]);
+  if (reason != null) {
+    stderr.writeln(
+      'install_local: could not remove ${asides.join(' and ')}: $reason',
+    );
+  }
+}
+
+/// Runs [command] and returns why it failed, or null when it exited 0.
+Future<String?> _failureOf(List<String> command) async {
+  try {
+    final result = await _run(command.first, command.sublist(1));
+    return result.exitCode == 0 ? null : _failureText(result);
+  } on _Refusal catch (refusal) {
+    return refusal.message;
+  }
+}
 
 /// Runs [executable] (`dart`) with [args] and returns its stdout.
 ///
@@ -170,25 +288,30 @@ Future<_Refusal?> _cleanUp(
 /// The worktree is absent when `git worktree add` failed. `--force` is needed
 /// because the build leaves an untracked `.dart_tool/` in it. When the removal
 /// fails, [temp] still goes and `git worktree prune` then drops the worktree's
-/// entry from the checkout; the refusal holds each failure.
+/// entry from the checkout; the refusal holds each failure, a delete of [temp]
+/// that fails included.
 Future<void> _removeTemp(Directory temp) async {
   final worktree = Directory('${temp.path}/worktree');
-  String? failure;
+  final failures = <String>[];
   if (worktree.existsSync()) {
     try {
       await _git(['worktree', 'remove', '--force', worktree.path]);
     } on _Refusal catch (refusal) {
-      failure = refusal.message;
+      failures.add(refusal.message);
     }
   }
-  await temp.delete(recursive: true);
-  if (failure == null) return;
+  try {
+    await temp.delete(recursive: true);
+  } on FileSystemException catch (error) {
+    failures.add('could not remove ${temp.path}: ${error.message}');
+  }
+  if (failures.isEmpty) return;
   try {
     await _git(['worktree', 'prune']);
   } on _Refusal catch (refusal) {
-    failure = '$failure; ${refusal.message}';
+    failures.add(refusal.message);
   }
-  throw _Refusal(failure);
+  throw _Refusal(failures.join('; '));
 }
 
 /// Returns the stdout of a `git` call, or refuses with its first error line.

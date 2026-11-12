@@ -111,23 +111,28 @@ exec "$(dirname "$0")/git_original" "$@"''');
     return (exitCode: exitCode, stderr: '$errors');
   }
 
-  // Sends SIGINT to the tool while its build waits, lets the build end once
-  // the tool says it saw the signal, and returns how the tool ended.
-  Future<({int exitCode, String stderr})> interruptDuringBuild() async {
+  // Sends SIGINT to the tool once a stub has created `<logs>/<marker>` and
+  // waits for `<logs>/release`, lets that stub go once the tool says it saw the
+  // signal, and returns how the tool ended.
+  Future<({int exitCode, String stdout, String stderr})> interruptAt(
+    String marker,
+    Map<String, String> env,
+  ) async {
     final release = File('${repo.sandbox.logs.path}/release');
-    final process = await repo.start(tool, env: {'STUB_DART_BUILD': 'wait'});
+    final process = await repo.start(tool, env: env);
     // Frees the stub's wait loop and the tool whichever way the test ends.
     addTearDown(() {
       if (!release.existsSync()) release.createSync();
       process.kill(ProcessSignal.sigkill);
     });
+    final output = StringBuffer();
     final errors = StringBuffer();
     final done = Future.wait([
-      process.stdout.drain<void>(),
+      process.stdout.transform(utf8.decoder).forEach(output.write),
       process.stderr.transform(utf8.decoder).forEach(errors.write),
     ]);
 
-    await waitFor(File('${repo.sandbox.logs.path}/building').existsSync);
+    await waitFor(File('${repo.sandbox.logs.path}/$marker').existsSync);
     expect(repo.tmpIsEmpty, isFalse);
     expect(repo.worktrees(), hasLength(2));
     process.kill(ProcessSignal.sigint);
@@ -138,8 +143,13 @@ exec "$(dirname "$0")/git_original" "$@"''');
       const Duration(seconds: 30),
     );
     await done;
-    return (exitCode: exitCode, stderr: '$errors');
+    return (exitCode: exitCode, stdout: '$output', stderr: '$errors');
   }
+
+  // Sends SIGINT to the tool while its build waits.
+  Future<({int exitCode, String stdout, String stderr})>
+  interruptDuringBuild() =>
+      interruptAt('building', {'STUB_DART_BUILD': 'wait'});
 
   test(
     '$_fr E01: an unknown ref is refused by name before any worktree exists',
@@ -346,6 +356,294 @@ fi''');
     expect(result.stderr, contains('dart build cli failed'));
     expect(result.stderr, contains('stub: dart build cli failed'));
     expect(result.stderr, contains('stub: git worktree remove failed'));
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  String installDir() => '${repo.sandbox.home.path}/.specstone';
+
+  String installLine(String ref, String shortCommit) =>
+      'installed specstone 0.9.0 ($ref @ $shortCommit) in ${installDir()}/bin\n';
+
+  // The names directly under the install folder.
+  List<String> installEntries() => [
+    for (final entry in Directory(installDir()).listSync())
+      entry.path.substring(installDir().length + 1),
+  ];
+
+  // The second line of the placed binary: the stub's `# <commit> <marker>`.
+  String placedMark() =>
+      File('${installDir()}/bin/specstone').readAsLinesSync()[1];
+
+  File buildTxt() => File('${installDir()}/lib/build.txt');
+
+  Map<String, String> binEntries(Map<String, String> snapshot) => {
+    for (final MapEntry(:key, :value) in snapshot.entries)
+      if (key.startsWith('.specstone/bin/')) key: value,
+  };
+
+  // Makes `cp` or `mv` fail when its arguments name [aside]; any other call
+  // goes to the real tool.
+  void failOn(String tool, String aside) => repo.sandbox.stub(
+    tool,
+    'case "\$*" in\n'
+    '  *$aside*) echo "stub: $tool failed" >&2; exit 1 ;;\n'
+    'esac\n'
+    'exec /bin/$tool "\$@"',
+  );
+
+  test('$_story S1: no ref installs develop and prints one line', () async {
+    Directory(installDir()).deleteSync(recursive: true);
+    final started = DateTime.now().toUtc();
+
+    final result = await repo.run(tool);
+
+    final finished = DateTime.now().toUtc();
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(result.stdout, installLine('develop', repo.shortSha('develop')));
+    expect(result.stderr, isEmpty);
+    final version = await Process.run('${installDir()}/bin/specstone', [
+      '--version',
+    ]);
+    expect(version.stdout, '0.9.0\n');
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    final record = buildTxt().readAsLinesSync();
+    expect(record, hasLength(3));
+    expect(record[0], 'ref: develop');
+    expect(record[1], 'commit: ${repo.sha('develop')}');
+    expect(record[2], startsWith('built: '));
+    final built = DateTime.parse(record[2].substring('built: '.length));
+    expect(built.isUtc, isTrue);
+    expect(built.isAfter(started.subtract(const Duration(seconds: 1))), isTrue);
+    expect(built.isBefore(finished.add(const Duration(seconds: 1))), isTrue);
+    expect(File('${installDir()}/lib/libsqlite3.so').existsSync(), isTrue);
+    expect(installEntries(), unorderedEquals(['bin', 'lib']));
+  });
+
+  test('$_story S2: --branch feature/example installs that branch', () async {
+    final result = await repo.run(tool, args: ['--branch', 'feature/example']);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(
+      result.stdout,
+      installLine('feature/example', repo.shortSha('feature/example')),
+    );
+    expect(placedMark(), '# ${repo.sha('feature/example')} feature');
+    expect(buildTxt().readAsLinesSync().first, 'ref: feature/example');
+  });
+
+  test('$_fr input_output: a tag or a full commit installs and the line names '
+      'it as given', () async {
+    git(repo.work, ['tag', 'v0.9.0', 'feature/example']);
+
+    final tagged = await repo.run(tool, args: ['--branch', 'v0.9.0']);
+
+    expect(tagged.exitCode, 0, reason: '${tagged.stderr}');
+    expect(
+      tagged.stdout,
+      installLine('v0.9.0', repo.shortSha('feature/example')),
+    );
+    expect(placedMark(), '# ${repo.sha('feature/example')} feature');
+
+    final commit = repo.sha('develop');
+    final full = await repo.run(tool, args: ['--branch', commit]);
+
+    expect(full.exitCode, 0, reason: '${full.stderr}');
+    expect(full.stdout, installLine(commit, repo.shortSha('develop')));
+    expect(placedMark(), '# $commit develop');
+    expect(buildTxt().readAsLinesSync().first, 'ref: $commit');
+  });
+
+  for (final folder in ['lib', 'bin']) {
+    test('$_fr E05: a $folder copy that fails keeps snapshot()', () async {
+      failOn('cp', '.$folder.new');
+
+      final result = await repo.run(tool);
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('${installDir()}/$folder'));
+      expect(result.stderr, contains('stub: cp failed'));
+      expect(repo.sandbox.snapshot(), before);
+      expect(installEntries(), unorderedEquals(['bin', 'lib']));
+      expect(repo.worktrees(), hasLength(1));
+      expect(repo.tmpIsEmpty, isTrue);
+    });
+  }
+
+  test('$_fr E06: a failed lib move leaves the old bin', () async {
+    failOn('mv', '.lib.new');
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('${installDir()}/lib'));
+    expect(result.stderr, contains('stub: mv failed'));
+    expect(binEntries(before), isNotEmpty);
+    expect(binEntries(repo.sandbox.snapshot()), binEntries(before));
+    expect(installEntries(), unorderedEquals(['bin']));
+  });
+
+  test('$_fr E06: a failed bin move is named', () async {
+    failOn('mv', '.bin.new');
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('${installDir()}/bin'));
+    expect(result.stderr, contains('stub: mv failed'));
+    expect(installEntries(), unorderedEquals(['lib']));
+  });
+
+  test('$_fr E07: packs stay', () async {
+    File('${installDir()}/packs/mine.md')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('mine');
+    final packed = repo.sandbox.snapshot();
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final after = repo.sandbox.snapshot();
+    expect(after['.specstone/packs/mine.md'], 'mine');
+    final changed = {
+      ...packed.keys,
+      ...after.keys,
+    }.where((key) => packed[key] != after[key]);
+    expect(changed, isNotEmpty);
+    expect(
+      changed,
+      everyElement(
+        anyOf(startsWith('.specstone/lib/'), startsWith('.specstone/bin/')),
+      ),
+    );
+  });
+
+  test('$_fr E08: installFake at 0.9.0 is replaced by the build', () async {
+    repo.sandbox.installFake(version: '0.9.0');
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(buildTxt().existsSync(), isTrue);
+    expect(File('${installDir()}/lib/libold.so').existsSync(), isFalse);
+  });
+
+  test(
+    '$_fr input_output: a stale .lib.new from a killed run is not nested',
+    () async {
+      File('${installDir()}/.lib.new/stale.so')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('stale');
+
+      final result = await repo.run(tool);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(File('${installDir()}/lib/stale.so').existsSync(), isFalse);
+      expect(Directory('${installDir()}/lib/lib').existsSync(), isFalse);
+      expect(installEntries(), unorderedEquals(['bin', 'lib']));
+    },
+  );
+
+  test('$_fr E10: build.txt goes with lib/ under install.sh at 0.9.1 and '
+      'uninstall.sh, and stays under install.sh at 0.9.0', () async {
+    final sandbox = repo.sandbox;
+    final archiveEnv = {'SPECSTONE_ARCHIVE_DIR': sandbox.archives.path};
+    expect((await repo.run(tool)).exitCode, 0);
+    expect(buildTxt().existsSync(), isTrue);
+
+    await sandbox.writeArchive('linux-x64', version: '0.9.1');
+    final upgraded = await sandbox.run('install.sh', extra: archiveEnv);
+
+    expect(upgraded.exitCode, 0, reason: '${upgraded.stderr}');
+    expect(buildTxt().existsSync(), isFalse);
+
+    expect((await repo.run(tool)).exitCode, 0);
+    await sandbox.writeArchive('linux-x64', version: '0.9.0');
+    final same = await sandbox.run('install.sh', extra: archiveEnv);
+
+    expect(same.exitCode, 0, reason: '${same.stderr}');
+    expect(buildTxt().existsSync(), isTrue);
+
+    final removed = await sandbox.run('uninstall.sh');
+
+    expect(removed.exitCode, 0, reason: '${removed.stderr}');
+    expect(Directory('${installDir()}/lib').existsSync(), isFalse);
+  });
+
+  for (final (label, env, unset) in [
+    ('HOME unset', <String, String>{}, ['HOME']),
+    ('HOME and USERPROFILE empty', {'HOME': '', 'USERPROFILE': ''}, <String>[]),
+  ]) {
+    test(
+      '$_fr design R6: no home exits 1 before any worktree, $label',
+      () async {
+        final result = await repo.run(tool, env: env, unset: unset);
+
+        expect(result.exitCode, 1);
+        expect(result.stderr, contains('HOME'));
+        expect(repo.sandbox.logOf('dart'), isEmpty);
+        expect(
+          repo.sandbox.logOf('git'),
+          isNot(anyElement(startsWith('worktree'))),
+        );
+        expect(repo.sandbox.snapshot(), before);
+        expect(repo.worktrees(), hasLength(1));
+        expect(repo.tmpIsEmpty, isTrue);
+      },
+    );
+  }
+
+  test(
+    '$_fr input_output: with HOME unset, USERPROFILE names the home',
+    () async {
+      final result = await repo.run(
+        tool,
+        env: {'USERPROFILE': repo.sandbox.home.path},
+        unset: ['HOME'],
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, contains('in ${installDir()}/bin\n'));
+      expect(buildTxt().existsSync(), isTrue);
+    },
+  );
+
+  test('$_fr statement: Ctrl-C during the moves waits for them and the '
+      'install completes', () async {
+    repo.sandbox.stub('mv', r'''
+touch "$STUB_LOG_DIR/moving"
+while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
+exec /bin/mv "$@"''');
+
+    final result = await interruptAt('moving', const {});
+
+    expect(result.exitCode, 0, reason: result.stderr);
+    expect(result.stdout, installLine('develop', repo.shortSha('develop')));
+    expect(result.stderr, isNot(contains('unchanged')));
+    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('$_fr statement: a temp folder that is already gone is reported and '
+      'the failing step stays the first refusal', () async {
+    final stubs = repo.sandbox.stubs.path;
+    File('$stubs/git').renameSync('$stubs/git_original');
+    // A removal that also deletes the temp folder, so the tool's own delete of
+    // it fails without any file permission trick.
+    repo.sandbox.stub('git', r'''
+if [ "$1 $2" = 'worktree remove' ]; then
+  rm -rf "$(dirname "$4")"
+  exit 0
+fi
+exec "$(dirname "$0")/git_original" "$@"''');
+
+    final result = await runBounded(env: {'STUB_DART_BUILD': 'fail'});
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('dart build cli failed'));
+    expect(result.stderr, contains('could not remove'));
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   });
