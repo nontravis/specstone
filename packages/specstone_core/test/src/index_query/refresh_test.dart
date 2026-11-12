@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 /// Refreshes the index of the project at [path] in the calling isolate and
@@ -365,10 +366,10 @@ void main() {
       expect(facts.lineCount, greaterThan(0));
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 14);
     });
     test(
-      'domain:index_query INV-2: an index at layout 2 is rebuilt to layout 13',
+      'domain:index_query INV-2: an index at layout 2 is rebuilt to layout 14',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -379,11 +380,11 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 14);
       },
     );
     test(
-      'domain:index_query INV-2: an index at layout 3 is rebuilt to layout 13',
+      'domain:index_query INV-2: an index at layout 3 is rebuilt to layout 14',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -394,12 +395,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 14);
       },
     );
     test(
       'domain:index_query INV-2: an index at layout 4, with no banned-pattern '
-      'matches, is rebuilt to layout 13 with them',
+      'matches, is rebuilt to layout 14 with them',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -411,12 +412,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 14);
         expect(after.select('SELECT banned_matches FROM docs'), hasLength(25));
       },
     );
     test('domain:index_query INV-2: an index at layout 5, its banned-pattern '
-        'matches from the old backtick pairing, is rebuilt to layout 13 with '
+        'matches from the old backtick pairing, is rebuilt to layout 14 with '
         'them recomputed', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -428,7 +429,7 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 14);
       expect(
         after.select(
           "SELECT doc_path FROM docs WHERE banned_matches = 'stale'",
@@ -436,7 +437,7 @@ void main() {
         isEmpty,
       );
     });
-    test('domain:index_query INV-2: an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 13', () async {
+    test('domain:index_query INV-2: an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 14', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -446,11 +447,11 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 14);
     });
     test(
       'consistency_check/find_template_breaks/report_open_tbrs: an index at '
-      'layout 11 is rebuilt to layout 13 with the TBR markers filled',
+      'layout 11 is rebuilt to layout 14 with the TBR markers filled',
       () async {
         final project = await writeLoginProject(
           extra: {'docs/note.md': '# N\n\nTBR \u2014 pick a value.\n'},
@@ -466,11 +467,11 @@ void main() {
         ]);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 14);
       },
     );
     test('domain:index_query INV-2: an index at layout 12, with no item facts, '
-        'is rebuilt in full to layout 13 with them', () async {
+        'is rebuilt in full to layout 14 with them', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -488,9 +489,9 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 14);
     });
-    test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 13', () async {
+    test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 14', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -507,7 +508,7 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 13);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 14);
     });
     test(
       'f04/nfr-p03, s03/inv2: an index at the current layout is not rebuilt',
@@ -595,6 +596,63 @@ void main() {
       });
       expect(await peer, isFalse);
       expect(refresh(project).result.hashed, 1);
+    });
+    test('f01/us01/fr02/e14, s03/inv2: a target renamed or removed rebuilds '
+        'the whole index; a code_root change alone does not', () async {
+      const recordLayer = '.specstone/templates/implementation.yaml';
+      const recordDocType =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/{slug}/IMPLEMENTATION.md\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n';
+      final project = await writeLoginProject(
+        extra: {
+          recordLayer: recordDocType,
+          'docs/specs/flutter/login/IMPLEMENTATION.md': '# Login impl\n',
+        },
+      );
+      Directory('${project.path}/flutter_lib').createSync();
+      String configWith(String targets) =>
+          '${shippedPinsConfig()}targets:\n$targets';
+      File('${project.path}/.specstone/config.yaml').writeAsStringSync(
+        configWith('  flutter:\n    code_root: flutter_lib\n'),
+      );
+      expect(refresh(project).result.fullBuild, isTrue);
+      File('${project.path}/.specstone/config.yaml').writeAsStringSync(
+        configWith(
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+        ),
+      );
+      final (:result, store: _) = refresh(project);
+      expect(result.fullBuild, isTrue, reason: 'a second target rebuilds');
+      File('${project.path}/.specstone/config.yaml').writeAsStringSync(
+        configWith(
+          '  flutter2:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+        ),
+      );
+      expect(
+        refresh(project).result.fullBuild,
+        isTrue,
+        reason: 'a renamed target rebuilds',
+      );
+      File('${project.path}/.specstone/config.yaml').writeAsStringSync(
+        configWith(
+          '  flutter2:\n    code_root: flutter_lib2\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+        ),
+      );
+      Directory('${project.path}/flutter_lib2').createSync();
+      expect(
+        refresh(project).result.fullBuild,
+        isFalse,
+        reason: 'a code_root change alone rebuilds nothing (INV-2)',
+      );
     });
     test('f01/us01/fr02/e02, s03/inv2: an edit under .specstone/templates/ rebuilds the whole index', () async {
       final project = await writeLoginProject(

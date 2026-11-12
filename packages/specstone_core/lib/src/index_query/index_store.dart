@@ -40,14 +40,16 @@ const _notWritableMessage =
 /// banned-match, and item-facts JSON, and how that JSON is computed. An index
 /// of another layout is then rebuilt instead of failing a read (INV-2). An
 /// older build's reset recreates the meta row without it, so its index is
-/// rebuilt too. Layout 13 added `item_facts`: an index of layout 12 holds no
-/// item counts, so it is rebuilt instead of read as one with none.
-const _layoutVersion = 13;
+/// rebuilt too. Layout 14 added the `target` column and the stamp's
+/// `target_names`: an index of layout 13 holds neither, so it is rebuilt
+/// instead of read as one with none.
+const _layoutVersion = 14;
 
 const _schema = '''
 CREATE TABLE meta (
   binary_version TEXT NOT NULL,
   doc_types TEXT NOT NULL,
+  target_names TEXT NOT NULL,
   layout INTEGER NOT NULL,
   checked_at INTEGER
 );
@@ -56,6 +58,7 @@ CREATE TABLE docs (
   doc_path TEXT NOT NULL UNIQUE,
   doc_type_id TEXT,
   name TEXT NOT NULL,
+  target TEXT,
   parent_path TEXT,
   parent_warning TEXT,
   title TEXT,
@@ -113,19 +116,26 @@ const _tables = ['meta', 'docs', 'sections', 'links', 'doc_search'];
 /// - `mode`: the permission and type bits.
 typedef FileStatKey = ({int size, int modified, int changed, int mode});
 
-/// The pair of values that decides whether an index is still current.
+/// The values that decide whether an index is still current.
 ///
 /// An index written under another stamp is dropped and rebuilt.
 final class IndexStamp {
-  const new({required this.binaryVersion, required this.docTypes});
+  const new({
+    required this.binaryVersion,
+    required this.docTypes,
+    this.targetNames = const [],
+  });
 
-  /// Returns the stamp of this binary under the merged doc types of [set].
-  static IndexStamp of(MergedSet set) => IndexStamp(
-    binaryVersion: specstoneVersion,
-    docTypes: contentHashOf(
-      utf8.encode(jsonEncode([for (final t in set.docTypes) t.toJson()])),
-    ),
-  );
+  /// Returns the stamp of this binary under the merged doc types of [set] and
+  /// the config's [targetNames], in config order (INV-2).
+  static IndexStamp of(MergedSet set, {List<String> targetNames = const []}) =>
+      IndexStamp(
+        binaryVersion: specstoneVersion,
+        docTypes: contentHashOf(
+          utf8.encode(jsonEncode([for (final t in set.docTypes) t.toJson()])),
+        ),
+        targetNames: targetNames,
+      );
 
   /// The version of the binary that wrote the index.
   final String binaryVersion;
@@ -133,16 +143,29 @@ final class IndexStamp {
   /// The SHA-256 of the merged doc types as hex.
   final String docTypes;
 
+  /// The config's target names in `targets:` order; empty with one unnamed
+  /// target, so a rename, add, or removal gives another stamp.
+  final List<String> targetNames;
+
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
   bool operator ==(Object other) =>
       other is IndexStamp &&
       other.binaryVersion == binaryVersion &&
-      other.docTypes == docTypes;
+      other.docTypes == docTypes &&
+      _sameNames(other.targetNames);
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
-  int get hashCode => Object.hash(binaryVersion, docTypes);
+  int get hashCode => Object.hash(binaryVersion, docTypes, targetNames.length);
+
+  bool _sameNames(List<String> other) {
+    if (targetNames.length != other.length) return false;
+    for (final (i, name) in targetNames.indexed) {
+      if (other[i] != name) return false;
+    }
+    return true;
+  }
 }
 
 /// One full-text hit.
@@ -252,14 +275,19 @@ final class IndexStore {
   );
 
   /// Returns the stamp the index was written under; null when none, or when
-  /// the index has another layout.
+  /// the index has another layout or no target-names column.
   IndexStamp? readStamp() {
-    // `*`, so a meta row of another layout reads with no column error.
     final row = _db.select('SELECT * FROM meta').firstOrNull;
-    if (row == null || _layoutVersion != row['layout']) return null;
+    if (row == null) return null;
+    final hasTargetNames = row.keys.any((k) => k == 'target_names');
+    if (!hasTargetNames || _layoutVersion != row['layout']) return null;
     return IndexStamp(
       binaryVersion: row['binary_version'] as String,
       docTypes: row['doc_types'] as String,
+      targetNames: [
+        ...(jsonDecode(row['target_names'] as String) as List<Object?>)
+            .cast<String>(),
+      ],
     );
   }
 
@@ -340,9 +368,14 @@ final class IndexStore {
     _db
       ..execute(_schema)
       ..execute(
-        'INSERT INTO meta (binary_version, doc_types, layout) '
-        'VALUES (?, ?, ?)',
-        [stamp.binaryVersion, stamp.docTypes, _layoutVersion],
+        'INSERT INTO meta (binary_version, doc_types, target_names, layout) '
+        'VALUES (?, ?, ?, ?)',
+        [
+          stamp.binaryVersion,
+          stamp.docTypes,
+          jsonEncode(stamp.targetNames),
+          _layoutVersion,
+        ],
       );
   }
 
@@ -352,14 +385,16 @@ final class IndexStore {
     final content = parsed.content;
     deleteDoc(doc.docPath);
     _db.execute(
-      'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
-      'tokens, formatted, approval_hash, ord, warnings, content_hash, text, '
-      'frontmatter_text, head, line_facts, banned_matches, item_facts) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO docs (doc_path, doc_type_id, name, target, title, '
+      'frontmatter, tokens, formatted, approval_hash, ord, warnings, '
+      'content_hash, text, frontmatter_text, head, line_facts, '
+      'banned_matches, item_facts) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
         doc.name,
+        doc.target,
         doc.title,
         jsonEncode(doc.frontmatter),
         doc.tokens,
@@ -480,15 +515,15 @@ final class IndexStore {
   /// A doc's warnings are its own followed by its parent warning.
   List<IndexedDoc> loadDocs() => [
     for (final row in _db.select(
-      'SELECT doc_path, doc_type_id, name, parent_path, parent_warning, '
-      'title, frontmatter, tokens, formatted, approval_hash, ord, warnings '
-      'FROM docs '
-      'ORDER BY ord, doc_path',
+      'SELECT doc_path, doc_type_id, name, target, parent_path, '
+      'parent_warning, title, frontmatter, tokens, formatted, approval_hash, '
+      'ord, warnings FROM docs ORDER BY ord, doc_path',
     ))
       IndexedDoc(
         docPath: row['doc_path'] as String,
         docTypeId: row['doc_type_id'] as String?,
         name: row['name'] as String,
+        target: row['target'] as String?,
         parentPath: row['parent_path'] as String?,
         title: row['title'] as String?,
         frontmatter: Map<String, Object?>.from(

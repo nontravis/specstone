@@ -110,6 +110,12 @@ final _allowed = <_Allowed>[
     """.indexOf(':'""",
     'Cuts the `path:line` of an `implements` entry, a code path.',
   ),
+  // A record entry line, not a doc reference.
+  _core(
+    'index_query/record_entries.dart',
+    """.indexOf(':'""",
+    'Cuts a record entry line at its `:` marks, no reference.',
+  ),
   _core(
     'index_query/link_blocks.dart',
     r"""RegExp(r'^#+$'""",

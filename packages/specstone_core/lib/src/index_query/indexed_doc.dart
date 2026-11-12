@@ -95,6 +95,7 @@ final class IndexedDoc {
     required this.docPath,
     this.docTypeId,
     required this.name,
+    this.target,
     this.parentPath,
     this.title,
     required this.frontmatter,
@@ -113,6 +114,13 @@ final class IndexedDoc {
 
   /// The name the doc answers to in a query.
   final String name;
+
+  /// The code target a per-target doc belongs to: the one whose pattern set
+  /// matched with two or more targets, else the single target when named.
+  ///
+  /// Null for a shared doc, a doc of a doc type that is not per-target, and
+  /// an untyped doc (INV-26).
+  final String? target;
 
   /// The docPath of the doc this one nests under; null for a root doc.
   final String? parentPath;
@@ -237,13 +245,18 @@ final class ParsedDoc {
 
 /// Parses the file [bytes] at [docPath] into its index entry and content.
 ///
-/// Invalid UTF-8 decodes with replacement characters, and invalid frontmatter
-/// YAML leaves no values; each adds a warning instead of failing. A doc that is
-/// not UTF-8, which format skips, is not laid out and has no `formatted` value.
+/// [codeTarget] names the project's one target when it has exactly one and it
+/// is named, so a per-target doc stores it (E24); null leaves a per-target
+/// doc's target unset, as a project with one unnamed target or no code root
+/// stores no name. Invalid UTF-8 decodes with replacement characters, and
+/// invalid frontmatter YAML leaves no values; each adds a warning instead of
+/// failing. A doc that is not UTF-8, which format skips, is not laid out and
+/// has no `formatted` value.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
+  String? codeTarget,
 }) {
   final warnings = <String>[];
   final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
@@ -310,6 +323,9 @@ ParsedDoc parseIndexedDoc({
     docPath: docPath,
     docTypeId: docType?.id,
     name: docNameOf(docPath, docType, target: target),
+    target: docType != null && docType.isPerTarget
+        ? (target ?? codeTarget)
+        : null,
     title: doc.title,
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),

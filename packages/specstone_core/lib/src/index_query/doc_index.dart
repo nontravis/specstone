@@ -23,18 +23,28 @@ const _docsPrefix = 'docs/';
 ///
 /// Every list it returns is in tree order.
 final class DocIndex {
-  new(this.set, this.docs, this._store, this._docPathOfFile)
-    : _byPath = {for (final doc in docs) doc.docPath: doc},
-      _children = _childrenByParent(docs),
-      _byName = _groupBy(docs, (doc) => doc.name),
-      _byTypeAndName = _groupBy(docs, (doc) => '${doc.docTypeId}:${doc.name}'),
-      _chainTypes = _chainTypeIds(set);
+  new(
+    this.set,
+    this.docs,
+    this._store,
+    this._docPathOfFile, {
+    List<String> targetNames = const [],
+  }) : _byPath = {for (final doc in docs) doc.docPath: doc},
+       _children = _childrenByParent(docs),
+       _byName = _groupBy(docs, (doc) => doc.name),
+       _byTypeAndName = _groupBy(docs, (doc) => '${doc.docTypeId}:${doc.name}'),
+       _chainTypes = _chainTypeIds(set),
+       targetNames = List.unmodifiable(targetNames);
 
   /// The merged doc types of the project.
   final MergedSet set;
 
   /// Every doc in tree order.
   final List<IndexedDoc> docs;
+
+  /// The config's target names, in config order; empty with one unnamed
+  /// target.
+  final List<String> targetNames;
 
   final IndexStore _store;
 
