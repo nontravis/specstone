@@ -30,6 +30,7 @@ class ContextCommand extends SpecstoneCommand {
         help: 'Leave out the docs that join through `bundle:` lists.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -41,7 +42,7 @@ class ContextCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone context [<target> | --code <path>] --for <mode> [--budget N] '
-      '[--summary] [--no-project] [--json]';
+      '[--summary] [--no-project] [--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -123,6 +124,7 @@ class ContextCommand extends SpecstoneCommand {
           mode,
           noProject: noProject,
           summary: summary,
+          codeTarget: targetOf(args),
         ),
         label: target,
         byCode: false,

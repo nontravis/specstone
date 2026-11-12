@@ -4,6 +4,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
@@ -239,5 +241,107 @@ void main() {
         RegExp(r'^- shop/pay \(feature\) · \d+ tokens$', multiLine: true),
       ),
     );
+  });
+
+  group('f01/us05/fr01, per code target', () {
+    /// Writes the two-target fixture of pick_bundle_docs E23: the feature
+    /// `feedback/toast`, its story `show`, and its architecture doc in both
+    /// targets.
+    Future<Directory> writeToastProject({
+      Map<String, String> extra = const {},
+    }) => writeReadProject(
+      extra: {
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        '.specstone/templates/tech_stack.yaml':
+            'id: tech_stack\nper_target: true\n',
+        '.specstone/config.yaml':
+            'packs:\n'
+            '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+            'targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+        'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '# Toast\n',
+        'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+            '# Agent sees a toast\n',
+        'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+            '# Toast architecture\n',
+        'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+            '# Toast architecture\n',
+        'docs/specs/flutter/TECH_STACK.md': '# Toast stack\n',
+        'docs/specs/jaspr/TECH_STACK.md': '# Toast stack\n',
+        'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+        'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+        ...extra,
+      },
+    );
+
+    test('f01/us05/fr01/e23: implement with two targets and no --target exits 64 naming them', () async {
+      final (:runner, :out, :err) = readRunner(await writeToastProject());
+      expect(
+        await runner.run([
+          'context',
+          'feedback/toast/show',
+          '--for',
+          'implement',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--for implement needs --target with two or more code targets; '
+        'the targets are flutter, jaspr\n',
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('f01/us05/fr01/e24: --target jaspr prints jaspr spec docs and no flutter doc', () async {
+      final (:runner, :out, :err) = readRunner(await writeToastProject());
+      expect(
+        await runner.run([
+          'context',
+          'feedback/toast/show',
+          '--for',
+          'implement',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
+        ),
+      );
+      expect(out.toString(), isNot(contains('flutter')));
+      expect(err.toString(), isEmpty);
+    });
   });
 }
