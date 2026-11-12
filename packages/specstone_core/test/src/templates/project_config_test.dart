@@ -365,6 +365,12 @@ void main() {
           '  flutter: stratum_ui\n',
         ),
         (
+          'a null target value',
+          FaultCode.unknownValue,
+          'targets.flutter',
+          '  flutter:\n',
+        ),
+        (
           'a key other than code_root in a target',
           FaultCode.unknownKey,
           'targets.flutter.name',

@@ -41,7 +41,6 @@ final class Target {
 final class DocsProject {
   new _({
     required this.trust,
-    required this.codeRoot,
     required this.targets,
     required this.stampsHaveRun,
     required this.matcher,
@@ -68,13 +67,9 @@ final class DocsProject {
     );
     final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
-    final targets = List<CodeTarget>.unmodifiable(config.targets);
     return DocsProject._(
       trust: trust,
-      codeRoot: Directory(
-        canonicalPath('${projectRoot.path}$_separator${config.codeRoot}'),
-      ),
-      targets: targets,
+      targets: List<CodeTarget>.unmodifiable(config.targets),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
       matcher: DocTypeMatcher(set),
       set: set,
@@ -94,14 +89,9 @@ final class DocsProject {
   /// The canonical `<project root>/docs/`, which may not exist.
   Directory get docsRoot => trust.docsRoot;
 
-  /// The folder code paths are written from: the project root joined with
-  /// `code_root`.
-  ///
-  /// Canonical when it exists; otherwise the joined path with its existing
-  /// part canonical and `..` applied, so a docs-only checkout still opens.
-  /// With `targets:` this is the first target's root; [codeRootOf] resolves
-  /// each target's own root.
-  final Directory codeRoot;
+  /// The folder code paths are written from: the first [targets] entry's
+  /// root, resolved as [codeRootOf] resolves it.
+  Directory get codeRoot => codeRootOf(targets.first);
 
   /// The config's code targets, in config order.
   final List<CodeTarget> targets;
@@ -113,7 +103,10 @@ final class DocsProject {
   ];
 
   /// Returns [target]'s code root as the project root joined with its
-  /// `code_root`, canonical as [codeRoot] is.
+  /// `code_root`.
+  ///
+  /// Canonical when it exists; otherwise the joined path with its existing
+  /// part canonical and `..` applied, so a docs-only checkout still opens.
   Directory codeRootOf(CodeTarget target) => Directory(
     canonicalPath('${projectRoot.path}$_separator${target.codeRoot}'),
   );
