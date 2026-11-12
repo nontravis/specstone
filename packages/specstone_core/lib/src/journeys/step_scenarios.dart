@@ -11,12 +11,19 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _storyType = 'user_story';
 
 /// Returns the first `user_story` doc in tree order whose Name is [identity],
-/// or null; among [codeTarget]'s docs and the shared docs when given.
-IndexedDoc? storyNamed(DocIndex index, String identity, {String? codeTarget}) =>
-    index
-        .ofTypeNamed(_storyType, identity)
-        .where((doc) => doc.target == null || doc.target == codeTarget)
-        .firstOrNull;
+/// or null; among [codeTarget]'s docs and the shared docs when [codeTarget]
+/// is given, among every target's docs without it (INV-26).
+IndexedDoc? storyNamed(DocIndex index, String identity, {String? codeTarget}) {
+  final docs = index
+      .ofTypeNamed(_storyType, identity)
+      .where(
+        (doc) =>
+            codeTarget == null ||
+            doc.target == null ||
+            doc.target == codeTarget,
+      );
+  return docs.firstOrNull;
+}
 
 /// Returns the story an `fr` under [ownStory] traces through [ref].
 ///

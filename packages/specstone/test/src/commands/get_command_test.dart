@@ -594,5 +594,36 @@ void main() {
         );
       },
     );
+    test('E19: --paths with no --target resolves the step in a two-target '
+        'project', () async {
+      final project = await writeTargetedProject(
+        extra: {
+          '.specstone/templates/user_story.yaml':
+              'id: user_story\nper_target: true\n'
+              'path: specs/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md\n',
+          'docs/prds/journeys/sign_in/JOURNEY.md':
+              '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+              '### 1. Open the page\nstep: feedback/toast/show S1\n',
+          'docs/specs/flutter/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              '# Show toast\n\n## Acceptance Criteria\n'
+              '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+              'on flutter\n',
+          'docs/specs/jaspr/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              '# Show toast\n\n## Acceptance Criteria\n'
+              '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+              'on jaspr\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(await runner.run(['get', 'sign_in', '--paths']), 0);
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        allOf(
+          contains('1. Open the page — feedback/toast/show S1'),
+          contains('- **Then** the Agent sees it on flutter'),
+        ),
+      );
+    });
   });
 }
