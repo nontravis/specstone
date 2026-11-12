@@ -1,9 +1,11 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -247,6 +249,274 @@ void main() {
           },
         );
       }
+    });
+
+    group('targets', () {
+      test('template_packs/pin_pack_versions/read_project_config E23: two '
+          'targets read in file order, each with its own code root', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\n'
+          'targets:\n  flutter:\n    code_root: stratum_ui\n'
+          '  jaspr:\n    code_root: jaspr-stratum-ui\n',
+        );
+
+        final config = ProjectConfig.read(root);
+
+        expect(config.targets, [
+          const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+          const CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
+        ]);
+      });
+
+      test(
+        'template_packs/pin_pack_versions/read_project_config E24, s03/inv29: '
+        'targets beside code_root is unknown_value at code_root',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ncode_root: lib\n'
+            'targets:\n  flutter:\n    code_root: stratum_ui\n',
+          );
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'code_root',
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        },
+      );
+
+      for (final (name, line) in [
+        ('an empty map', 'targets: {}'),
+        ('a null value', 'targets:'),
+        ('a list value', 'targets: [flutter]'),
+        ('a scalar value', 'targets: flutter'),
+      ]) {
+        test('template_packs/pin_pack_versions/read_project_config E25, s03/inv29: '
+            'targets as $name is unknown_value at targets', () async {
+          final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'targets',
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        });
+      }
+
+      for (final (name, key, line) in [
+        (
+          'an upper-case name',
+          'targets.Flutter',
+          '  Flutter:\n    code_root: a\n',
+        ),
+        (
+          'a hyphenated name',
+          'targets.jaspr-ui',
+          '  jaspr-ui:\n    code_root: a\n',
+        ),
+      ]) {
+        test('template_packs/pin_pack_versions/read_project_config E26, s03/inv29: '
+            '$name is unknown_key', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ntargets:\n$line',
+          );
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(
+                FaultCode.unknownKey,
+                key: key,
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        });
+      }
+
+      test(
+        'Review Focus 1: a name differing from another only in letter case is '
+        'refused by the slug rule, so no two spec trees share a folder',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\n'
+            'targets:\n  flutter:\n    code_root: a\n'
+            '  Flutter:\n    code_root: b\n',
+          );
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(_fault(FaultCode.unknownKey, key: 'targets.Flutter')),
+          );
+        },
+      );
+
+      for (final (name, code, key, line) in [
+        (
+          'a scalar target value',
+          FaultCode.unknownValue,
+          'targets.flutter',
+          '  flutter: stratum_ui\n',
+        ),
+        (
+          'a key other than code_root in a target',
+          FaultCode.unknownKey,
+          'targets.flutter.name',
+          '  flutter:\n    code_root: a\n    name: x\n',
+        ),
+        (
+          'an absolute code_root',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          '  flutter:\n    code_root: /srv/code\n',
+        ),
+        (
+          'a code_root with a backslash',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          "  flutter:\n    code_root: 'a\\b'\n",
+        ),
+        (
+          'an empty code_root',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          "  flutter:\n    code_root: ''\n",
+        ),
+        (
+          'a non-string code_root',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          '  flutter:\n    code_root: 3\n',
+        ),
+      ]) {
+        test(
+          'template_packs/pin_pack_versions/read_project_config E27: $name',
+          () async {
+            final root = await _withConfig(
+              'packs:\n  prd-core: 1.0.0\ntargets:\n$line',
+            );
+
+            expect(
+              () => ProjectConfig.read(root),
+              throwsA(
+                _fault(
+                  code,
+                  key: key,
+                ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+              ),
+            );
+          },
+        );
+      }
+
+      test(
+        'template_packs/pin_pack_versions/read_project_config E27: a target '
+        'with no code_root key reads the project root, as code_root does',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter: {}\n',
+          );
+
+          expect(ProjectConfig.read(root).targets, [
+            const CodeTarget('flutter', codeRoot: '.'),
+          ]);
+        },
+      );
+
+      test(
+        'template_packs/pin_pack_versions/read_project_config E28, s03/inv29: '
+        'two targets whose code roots name one folder are unknown_value '
+        'naming both',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\n'
+            'targets:\n  flutter:\n    code_root: .\n'
+            '  jaspr:\n    code_root: ./\n',
+          );
+
+          Object? thrown;
+          try {
+            ProjectConfig.read(root);
+          } on TemplateFault catch (fault) {
+            thrown = fault;
+          }
+
+          expect(
+            thrown,
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.key, 'key', 'targets')
+                .having((f) => f.code.exitStatus, 'exitStatus', 78)
+                .having((f) => f.message, 'message', contains('flutter'))
+                .having((f) => f.message, 'message', contains('jaspr')),
+          );
+        },
+      );
+
+      test(
+        'template_packs/pin_pack_versions/read_project_config E29: one entry '
+        'gives one named target and codeRoot reads its root',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter:\n'
+            '    code_root: stratum_ui\n',
+          );
+
+          final config = ProjectConfig.read(root);
+
+          expect(config.targets, [
+            const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+          ]);
+          expect(config.codeRoot, 'stratum_ui');
+          expect(config.hasCodeRoot, isFalse);
+        },
+      );
+
+      test(
+        'template_packs/pin_pack_versions/read_project_config E30: targets in '
+        'a merged set with no record doc type is unknown_value at targets',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\n'
+            'targets:\n  flutter:\n    code_root: stratum_ui\n',
+          );
+          final set = await fixtureDocTypes();
+
+          expect(
+            () => ProjectConfig.read(root, mergedSet: set),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'targets',
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        },
+      );
+
+      test(
+        'template_packs/pin_pack_versions/read_project_config: no targets key '
+        'gives one unnamed target at code_root',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ncode_root: stratum_ui\n',
+          );
+
+          final config = ProjectConfig.read(root);
+
+          expect(config.targets, [
+            const CodeTarget(null, codeRoot: 'stratum_ui'),
+          ]);
+          expect(config.codeRoot, 'stratum_ui');
+        },
+      );
     });
 
     test(

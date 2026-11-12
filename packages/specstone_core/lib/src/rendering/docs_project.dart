@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -41,6 +42,7 @@ final class DocsProject {
   new _({
     required this.trust,
     required this.codeRoot,
+    required this.targets,
     required this.stampsHaveRun,
     required this.matcher,
     required this.set,
@@ -66,11 +68,13 @@ final class DocsProject {
     );
     final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
+    final targets = List<CodeTarget>.unmodifiable(config.targets);
     return DocsProject._(
       trust: trust,
       codeRoot: Directory(
         canonicalPath('${projectRoot.path}$_separator${config.codeRoot}'),
       ),
+      targets: targets,
       stampsHaveRun: approval.stampsHaveRun(config.pins),
       matcher: DocTypeMatcher(set),
       set: set,
@@ -95,7 +99,24 @@ final class DocsProject {
   ///
   /// Canonical when it exists; otherwise the joined path with its existing
   /// part canonical and `..` applied, so a docs-only checkout still opens.
+  /// With `targets:` this is the first target's root; [codeRootOf] resolves
+  /// each target's own root.
   final Directory codeRoot;
+
+  /// The config's code targets, in config order.
+  final List<CodeTarget> targets;
+
+  /// The named targets, in config order; empty with one unnamed target.
+  List<String> get targetNames => [
+    for (final target in targets)
+      if (target.name != null) target.name!,
+  ];
+
+  /// Returns [target]'s code root as the project root joined with its
+  /// `code_root`, canonical as [codeRoot] is.
+  Directory codeRootOf(CodeTarget target) => Directory(
+    canonicalPath('${projectRoot.path}$_separator${target.codeRoot}'),
+  );
 
   /// Throws `output_not_writable` unless the Owner trusts the roots and a
   /// write to [path] lands inside the project or docs root and below no `.git`

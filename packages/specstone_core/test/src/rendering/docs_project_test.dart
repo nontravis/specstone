@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -138,6 +139,55 @@ void main() {
             78,
           ),
         ),
+      );
+    });
+
+    test(
+      'template_packs/pin_pack_versions/read_project_config E23: a two-target '
+      'config opens with two CodeTargets in config order',
+      () async {
+        final root = await fixtureProject({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.1.0\n'
+              'targets:\n  flutter:\n    code_root: stratum_ui\n'
+              '  jaspr:\n    code_root: jaspr-stratum-ui\n',
+          'stratum_ui/lib/a.dart': '',
+          'jaspr-stratum-ui/lib/b.dart': '',
+        });
+
+        final project = _open(root);
+
+        expect(project.targets, [
+          const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+          const CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
+        ]);
+        expect(project.targetNames, ['flutter', 'jaspr']);
+        expect(
+          project.codeRootOf(project.targets.first).path,
+          _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
+        );
+        expect(
+          project.codeRootOf(project.targets.last).path,
+          _dir(root, 'jaspr-stratum-ui').resolveSymbolicLinksSync(),
+        );
+      },
+    );
+
+    test('template_packs/pin_pack_versions/read_project_config: a code_root '
+        'config opens with one unnamed target', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: stratum_ui\n',
+        'stratum_ui/lib/a.dart': '',
+      });
+
+      final project = _open(root);
+
+      expect(project.targets, [const CodeTarget(null, codeRoot: 'stratum_ui')]);
+      expect(project.targetNames, isEmpty);
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
       );
     });
 
