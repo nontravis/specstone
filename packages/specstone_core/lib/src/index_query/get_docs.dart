@@ -15,11 +15,12 @@ final _spaceTabEnd = RegExp(r'[ \t]+$');
 /// Returns the text of each doc [names] address, or of one section of each.
 ///
 /// Blocks print in argument order, each doc once; every name is resolved
-/// before any prints. Throws an [IndexFault], or an [IndexFaults] when the
-/// names hold faults of two or more codes, each fault naming every name it
-/// covers.
-ReadAnswer answerGet(DocIndex index, List<String> names) {
-  final blocks = _printedOnce(_readAll(index, names));
+/// before any prints. [codeTarget], when given, keeps each name to that code
+/// target's docs and the shared docs. Throws an [IndexFault], or an
+/// [IndexFaults] when the names hold faults of two or more codes, each fault
+/// naming every name it covers.
+ReadAnswer answerGet(DocIndex index, List<String> names, {String? codeTarget}) {
+  final blocks = _printedOnce(_readAll(index, names, codeTarget));
   return ReadAnswer(
     text: [for (final block in blocks) block.printed].join('\n'),
     json: {
@@ -43,14 +44,18 @@ ReadAnswer answerGet(DocIndex index, List<String> names) {
 ///
 /// A name's fault is an [IndexFault], or the `doc_type_unknown`
 /// [TemplateFault] `resolve` throws; any other fault propagates.
-List<List<_GetBlock>> _readAll(DocIndex index, List<String> names) {
+List<List<_GetBlock>> _readAll(
+  DocIndex index,
+  List<String> names,
+  String? codeTarget,
+) {
   final reads = <List<_GetBlock>>[];
   final groups = <String, _FaultGroup>{};
   void collect(SpecstoneFault fault, String code, String message) =>
       (groups[code] ??= _FaultGroup(fault)).messages.add(message);
   for (final name in names) {
     try {
-      reads.add(_readName(index, name));
+      reads.add(_readName(index, name, codeTarget));
     } on IndexFault catch (fault) {
       collect(fault, fault.code.wire, fault.message);
     } on TemplateFault catch (fault) {
@@ -103,11 +108,11 @@ List<_GetBlock> _printedOnce(List<List<_GetBlock>> reads) {
 }
 
 /// Returns the blocks one [address] reads, one per doc it holds a part of.
-List<_GetBlock> _readName(DocIndex index, String address) {
+List<_GetBlock> _readName(DocIndex index, String address, String? codeTarget) {
   final (docPart: name, sectionKey: key) = index.splitAddress(address);
 
   final blocks = <_GetBlock>[];
-  for (final doc in index.resolve(name)) {
+  for (final doc in index.resolve(name, codeTarget: codeTarget)) {
     final content = index.contentOf(doc);
     final docType = index.typeOf(doc);
     if (key == null) {

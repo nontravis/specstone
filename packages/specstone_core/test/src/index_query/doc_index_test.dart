@@ -357,6 +357,120 @@ void main() {
       expect(done.statusOf(done.at(shopFeature)!), 'implemented');
     });
   });
+  group('target-scoped names', () {
+    const featurePath = 'prds/features/f02_feedback/f03_toast/FEATURE.md';
+    const flutterArch = 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md';
+    const jasprArch = 'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md';
+
+    /// Returns the index of a two-target fixture: the feature `feedback/toast`,
+    /// its architecture doc in both targets, its domain doc in flutter alone.
+    Future<DocIndex> nameTargets() async {
+      final root = await writeTree({
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/templates/domain.yaml': 'id: domain\nper_target: true\n',
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        '.specstone/templates/feature.yaml': 'max_depth: 1\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/$featurePath': '# Toast\n\n## Problem\nBurnt toast.\n',
+        'docs/$flutterArch': '# Toast architecture\n',
+        'docs/$jasprArch': '# Toast architecture\n',
+        'docs/specs/flutter/f02_feedback/f03_toast/DOMAIN.md':
+            '# Toast domain\n',
+        'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+        'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+      });
+      final session = openSession(root);
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('index_query/read_doc_section/resolve_doc_name E19: a typed name two targets twin resolves to both, in tree order', () async {
+      final twins = await nameTargets();
+      expect(paths(twins.resolve('architecture:feedback/toast')), [
+        flutterArch,
+        jasprArch,
+      ]);
+    });
+    test("index_query/read_doc_section/resolve_doc_name E20: a name stays in its target, a bare name gives the feature and that target's spec docs", () async {
+      final scoped = await nameTargets();
+      expect(
+        paths(
+          scoped.resolve('architecture:feedback/toast', codeTarget: 'jaspr'),
+        ),
+        [jasprArch],
+      );
+      expect(
+        () => scoped.resolve('domain:feedback/toast', codeTarget: 'jaspr'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no domain doc carries the name feedback/toast',
+              ),
+        ),
+      );
+      expect(paths(scoped.resolve('feedback/toast', codeTarget: 'jaspr')), [
+        featurePath,
+        jasprArch,
+      ]);
+    });
+    test('index_query/read_doc_section/resolve_doc_name E21: a DocPath names its doc whatever target the flag names', () async {
+      final cross = await nameTargets();
+      expect(
+        paths(
+          cross.resolve(
+            'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
+            codeTarget: 'jaspr',
+          ),
+        ),
+        ['specs/flutter/f02_feedback/f03_toast/DOMAIN.md'],
+      );
+    });
+    test('index_query/read_doc_section/resolve_doc_name E22: a target targets: holds none of, or any target where it names none, is argument_invalid', () async {
+      final named = await nameTargets();
+      expect(
+        () => named.resolve('architecture:feedback/toast', codeTarget: 'web'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target web: the code targets are flutter, jaspr',
+              ),
+        ),
+      );
+      expect(
+        () => index.resolve('login', codeTarget: 'flutter'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target flutter: this project names no code target',
+              ),
+        ),
+      );
+    });
+  });
   group('status per code target', () {
     // The fixture writes `status: implemented` on every doc, so the tests
     // prove the per-target record reads replace it (INV-29), and the no-record

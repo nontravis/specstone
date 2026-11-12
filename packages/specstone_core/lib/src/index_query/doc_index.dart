@@ -113,18 +113,37 @@ final class DocIndex {
   /// doc is refused, so a whole-doc command never acts on a doc the caller
   /// meant to narrow.
   ///
-  /// Throws an [IndexFault] `argument_invalid` for such a suffix, a
-  /// [TemplateFault] for a doc type id the set lacks and an [IndexFault]
-  /// `doc_not_found` when no doc carries the name.
-  List<IndexedDoc> resolve(String address) {
+  /// [codeTarget], when given, must be one of [targetNames] and keeps a name
+  /// to that target's docs and the shared docs (INV-26); a path names its doc
+  /// whatever target.
+  ///
+  /// Throws an [IndexFault] `argument_invalid` for a code target [targetNames]
+  /// holds none of, or for such a suffix, a [TemplateFault] for a doc type id
+  /// the set lacks and an [IndexFault] `doc_not_found` when no doc carries
+  /// the name.
+  List<IndexedDoc> resolve(String address, {String? codeTarget}) {
+    _checkCodeTarget(codeTarget);
     if (_atPath(address) case final doc?) return [doc];
     final docPart = _beforeSuffix(address);
-    if (docPart == null) return _named(address);
+    if (docPart == null) return _named(address, codeTarget);
     // Throws the not-found fault when the text before the suffix names no doc.
-    if (_atPath(docPart) == null) _named(docPart);
+    if (_atPath(docPart) == null) _named(docPart, codeTarget);
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       '$address: this command takes no #<section key> or @<hash>',
+    );
+  }
+
+  /// Throws `argument_invalid` for [codeTarget], unless [targetNames] holds
+  /// it or it is null.
+  void _checkCodeTarget(String? codeTarget) {
+    if (codeTarget == null || targetNames.contains(codeTarget)) return;
+    final held = targetNames.join(', ');
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      held.isEmpty
+          ? '--target $codeTarget: this project names no code target'
+          : '--target $codeTarget: the code targets are $held',
     );
   }
 
@@ -157,12 +176,15 @@ final class DocIndex {
     return hash == null ? null : address.substring(0, hash.start);
   }
 
-  List<IndexedDoc> _named(String address) {
+  List<IndexedDoc> _named(String address, String? codeTarget) {
     final read = readDocAddress(address);
     final typeId = read.typeId;
     if (typeId == null) {
-      return _byName[read.body] ??
-          _notFound('no doc carries the name ${read.body}');
+      final docs = _targeted(_byName[read.body], codeTarget);
+      if (docs != null && docs.isEmpty) {
+        _notFound('no doc carries the name ${read.body}');
+      }
+      return docs ?? _notFound('no doc carries the name ${read.body}');
     }
     if (set.lookup(typeId) == null) {
       throw TemplateFault(
@@ -170,8 +192,21 @@ final class DocIndex {
         'Could not find a doc type named "$typeId".',
       );
     }
-    return _byTypeAndName['$typeId:${read.body}'] ??
-        _notFound('no $typeId doc carries the name ${read.body}');
+    final docs = _targeted(_byTypeAndName['$typeId:${read.body}'], codeTarget);
+    if (docs != null && docs.isEmpty) {
+      _notFound('no $typeId doc carries the name ${read.body}');
+    }
+    return docs ?? _notFound('no $typeId doc carries the name ${read.body}');
+  }
+
+  /// Returns [docs] filtered to the shared docs and [codeTarget]'s; [docs]
+  /// itself, null included, with no target given.
+  List<IndexedDoc>? _targeted(List<IndexedDoc>? docs, String? codeTarget) {
+    if (docs == null || codeTarget == null) return docs;
+    return [
+      for (final doc in docs)
+        if (doc.target == null || doc.target == codeTarget) doc,
+    ];
   }
 
   /// Returns the doc [address] names as a path, or null when none.

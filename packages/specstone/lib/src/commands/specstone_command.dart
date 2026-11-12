@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
@@ -20,6 +21,18 @@ abstract class SpecstoneCommand extends Command<int> {
 
   @override
   void printUsage() => specstoneRunner.out.writeln(usage);
+
+  /// Adds the shared `--target` option a command that resolves a doc address
+  /// takes: the code target its names stay in.
+  void addTargetOption() {
+    argParser.addOption(
+      'target',
+      help: "Keep names to one code target's docs and the shared docs.",
+    );
+  }
+
+  /// Returns the code target `--target` names, or null when the flag is off.
+  String? targetOf(ArgResults args) => args.option('target');
 
   /// Writes [fault] to `err` and returns its exit status.
   ///

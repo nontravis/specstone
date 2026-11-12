@@ -1,10 +1,61 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:test/test.dart';
 
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
+
+/// The config text pinning both shipped packs with the targets [targets].
+String targetedConfig(Map<String, String> targets) {
+  final versions = shippedPackVersions();
+  final pins = [
+    for (final pack in ['prd-core', 'software-tech'])
+      '  $pack: ${versions[pack]}\n',
+  ];
+  final entries = [
+    for (final e in targets.entries) '  ${e.key}:\n    code_root: ${e.value}\n',
+  ];
+  return 'packs:\n${pins.join()}targets:\n${entries.join()}';
+}
+
+/// Writes a two-target fixture: the feature `feedback/toast`, its
+/// architecture doc in both targets, the domain doc in flutter alone.
+Future<Directory> writeTargetedProject() => writeReadProject(
+  extra: {
+    '.specstone/templates/architecture.yaml':
+        'id: architecture\nper_target: true\n',
+    '.specstone/templates/domain.yaml': 'id: domain\nper_target: true\n',
+    '.specstone/templates/implementation.yaml':
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n',
+    '.specstone/templates/feature.yaml': 'max_depth: 1\n',
+    '.specstone/config.yaml': targetedConfig({
+      'flutter': 'flutter_lib',
+      'jaspr': 'jaspr_lib',
+    }),
+    'flutter_lib/.keep': '',
+    'jaspr_lib/.keep': '',
+    'docs/prds/features/f02_feedback/f03_toast/FEATURE.md':
+        '---\nvision:\n  - PV-01\n---\n\n# Toast\n\n## Problem\nBurnt toast.\n',
+    'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+        '# Toast architecture\n',
+    'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+        '# Toast architecture\n',
+    'docs/specs/flutter/f02_feedback/f03_toast/DOMAIN.md': '# Toast domain\n',
+    'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+    'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+  },
+);
 
 void main() {
   test('f01/us04/s1, f01/us04/fr02: get login prints the feature and its spec doc and exits 0', () async {
@@ -365,5 +416,107 @@ void main() {
         hasLength(1),
       );
     });
+  });
+
+  group('index_query/read_doc_section/resolve_doc_name, --target', () {
+    test("E19 to E21: --target jaspr keeps the name to jaspr's docs and the "
+        'shared docs, a path whatever the target', () async {
+      final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+      expect(
+        await runner.run([
+          'get',
+          'architecture:feedback/toast',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        startsWith(
+          '==> feedback/toast (architecture) · '
+          'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md · base ',
+        ),
+      );
+      out.clear();
+      expect(
+        await runner.run([
+          'get',
+          'feedback/toast',
+          '--target',
+          'jaspr',
+          '--json',
+        ]),
+        0,
+      );
+      expect(
+        [
+          for (final doc
+              in (jsonDecode(out.toString()) as Map)['docs']! as List)
+            (doc as Map)['path'],
+        ],
+        [
+          'prds/features/f02_feedback/f03_toast/FEATURE.md',
+          'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
+        ],
+      );
+      out.clear();
+      expect(
+        await runner.run([
+          'get',
+          'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains(
+          'specs/flutter/f02_feedback/f03_toast/'
+          'DOMAIN.md',
+        ),
+      );
+    });
+    test(
+      'E20: a name only another target holds is doc_not_found, exit 64',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+        expect(
+          await runner.run([
+            'get',
+            'domain:feedback/toast',
+            '--target',
+            'jaspr',
+            '--json',
+          ]),
+          64,
+        );
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'doc_not_found',
+          'message': 'no domain doc carries the name feedback/toast',
+        });
+      },
+    );
+    test(
+      'E22: a target targets: holds none of is argument_invalid, exit 64',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+        expect(
+          await runner.run([
+            'get',
+            'feedback/toast',
+            '--target',
+            'web',
+            '--json',
+          ]),
+          64,
+        );
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'argument_invalid',
+          'message': '--target web: the code targets are flutter, jaspr',
+        });
+      },
+    );
   });
 }

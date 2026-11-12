@@ -16,6 +16,7 @@ class GetCommand extends SpecstoneCommand {
         negatable: false,
         help: 'Print the code each step of a journey reaches.',
       );
+    addTargetOption();
   }
 
   @override
@@ -73,7 +74,7 @@ class GetCommand extends SpecstoneCommand {
       return switch ((paths, code)) {
         (true, _) => answerJourneyPaths(session.index, rest.first),
         (_, true) => answerJourneyCode(session.index, rest.first),
-        _ => answerGet(session.index, rest),
+        _ => answerGet(session.index, rest, codeTarget: targetOf(args)),
       };
     }, asJson: asJson);
   }
