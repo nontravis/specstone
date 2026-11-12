@@ -544,7 +544,7 @@ void main() {
       expect(plain.statusOf(plain.at(shopPath)!), 'implemented');
       expect(plain.statusOf(plain.at(storyPath)!), 'implemented');
     });
-    test('f01/us02/fr02/e13: a skip above a feature skips it and each story under it there, while the other target computes from its own records', () async {
+    test("f01/us02/fr02/e07: a target's record skips the feature and each of its stories there, while the other target computes from its own records", () async {
       final skipped = await targeted(
         records: {
           'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
@@ -560,6 +560,23 @@ void main() {
         'skipped',
       );
       expect(skipped.statusOf(shop, codeTarget: 'jaspr'), 'planned');
+    });
+    test('f01/us02/fr02/e13: a skip on an ancestor record skips the nested feature itself, which holds no record of its own there', () async {
+      final skipped = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - ":skipped:no shop on the web"\n',
+          ),
+        },
+      );
+      final cart = skipped.at(cartPath)!;
+      expect(cart.docTypeId, 'feature');
+      expect(skipped.statusOf(cart, codeTarget: 'flutter'), 'skipped');
+      expect(
+        skipped.statusOf(skipped.at(storyPath)!, codeTarget: 'flutter'),
+        'skipped',
+        reason: 'a skip above a feature skips each of its stories too',
+      );
     });
     test('f01/us02/fr02/e08: every story skipped with no feature entry gives skipped there', () async {
       final allSkipped = await targeted(
