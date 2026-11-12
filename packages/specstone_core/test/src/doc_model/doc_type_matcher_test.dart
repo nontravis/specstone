@@ -291,5 +291,62 @@ void main() {
         2,
       );
     });
+
+    test('doc_model/s03/rule-20: a shared nesting type keeps the plain depth '
+        'check beside per-target types', () {
+      final matcher = DocTypeMatcher(
+        MergedSet(
+          docTypes: [
+            docType(
+              'feature',
+              'prds/features/f{nn}_{slug}/FEATURE.md',
+              maxDepth: 3,
+            ),
+            _docType(
+              'architecture',
+              'specs/f{nn}_{slug}/ARCHITECTURE.md',
+              perTarget: true,
+            ),
+          ],
+        ),
+        targetNames: const ['flutter', 'jaspr'],
+      );
+
+      expect(
+        matcher.match('specs/flutter/f01_a/ARCHITECTURE.md'),
+        isA<MatchedDocType>(),
+      );
+      expect(
+        matcher.depthPastLimit('prds/features/f01_a/f01_b/FEATURE.md'),
+        isNull,
+      );
+    });
+
+    test('doc_model/s03/rule-20: a per-target nesting type reads the depth '
+        'past its limit under a target folder', () {
+      final matcher = DocTypeMatcher(
+        MergedSet(
+          docTypes: [
+            docType(
+              'feature',
+              'specs/f{nn}_{slug}/FEATURE.md',
+              maxDepth: 3,
+            ).copyWith(isPerTarget: true),
+          ],
+        ),
+        targetNames: const ['flutter', 'jaspr'],
+      );
+
+      const tooDeep = 'specs/flutter/f01_a/f01_b/f01_c/f01_d/f01_e/FEATURE.md';
+      expect(matcher.depthPastLimit(tooDeep), 4);
+      expect(matcher.depthPastLimit('specs/flutter/f01_a/FEATURE.md'), isNull);
+      // The plain path is none of a per-target type's patterns (RULE-20).
+      expect(
+        matcher.depthPastLimit(
+          'specs/f01_a/f01_b/f01_c/f01_d/f01_e/FEATURE.md',
+        ),
+        isNull,
+      );
+    });
   });
 }

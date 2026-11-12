@@ -163,12 +163,22 @@ void main() {
       );
     });
 
-    test('doc_model/s03/rule-20: a one-segment pattern takes the target as a '
+    test('doc_model/s03/rule-20: a two-segment pattern takes the target as a '
         'folder of its own', () {
       expect(
         PathPattern('specs/TECH_STACK.md').forTarget('jaspr').source,
         'specs/jaspr/TECH_STACK.md',
       );
+    });
+
+    test('doc_model/s03/rule-20: a pattern with no folder inserts the target '
+        'folder beside it, so each target matches its own doc', () {
+      final targeted = PathPattern('{slug}.md').forTarget('jaspr');
+
+      expect(targeted.source, 'jaspr/{slug}.md');
+      expect(targeted.matches('jaspr/deploy.md'), isTrue);
+      expect(targeted.matches('deploy.md'), isFalse);
+      expect(targeted.matches('flutter/deploy.md'), isFalse);
     });
   });
 

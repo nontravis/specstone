@@ -188,6 +188,9 @@ final class ProjectConfig {
   /// whose code root is `code_root:`'s.
   final List<CodeTarget> targets;
 
+  /// The named targets, in config order; empty with one unnamed target.
+  List<String> get targetNames => targetNamesOf(targets);
+
   /// The folder code paths are written from, relative to the project root:
   /// the first [targets] entry's code root.
   ///

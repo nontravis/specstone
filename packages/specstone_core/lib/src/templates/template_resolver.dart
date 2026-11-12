@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
@@ -61,15 +60,12 @@ final class TemplateResolver {
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
-    return _merge(parsed, projectLayers, targetNames: _targetNames(config));
+    return _merge(
+      parsed,
+      projectLayers,
+      targetNames: config?.targetNames ?? const [],
+    );
   }
-
-  /// The config's target names, empty when the config reads no `targets:` key
-  /// or no config was read at all.
-  List<String> _targetNames(ProjectConfig? config) => [
-    for (final target in config?.targets ?? const <CodeTarget>[])
-      if (target.name != null) target.name!,
-  ];
 
   /// Returns the manifest of each pack in [names] at the version this
   /// Specstone or the home folder carries, keyed by name.

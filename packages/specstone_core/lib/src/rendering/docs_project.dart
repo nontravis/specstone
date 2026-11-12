@@ -67,15 +67,11 @@ final class DocsProject {
     );
     final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
-    final targetNames = [
-      for (final target in config.targets)
-        if (target.name != null) target.name!,
-    ];
     return DocsProject._(
       trust: trust,
       targets: List<CodeTarget>.unmodifiable(config.targets),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
-      matcher: DocTypeMatcher(set, targetNames: targetNames),
+      matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
     );
   }
@@ -101,10 +97,7 @@ final class DocsProject {
   final List<CodeTarget> targets;
 
   /// The named targets, in config order; empty with one unnamed target.
-  List<String> get targetNames => [
-    for (final target in targets)
-      if (target.name != null) target.name!,
-  ];
+  List<String> get targetNames => targetNamesOf(targets);
 
   /// Returns [target]'s code root as the project root joined with its
   /// `code_root`.

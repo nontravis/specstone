@@ -35,7 +35,8 @@ final class AmbiguousDocType extends DocTypeMatch {
 /// Finds the doc type of a DocPath from the path patterns of a [MergedSet].
 final class DocTypeMatcher {
   new(MergedSet set, {List<String> targetNames = const []})
-    : _candidates = [
+    : _targetNames = targetNames,
+      _candidates = [
         for (final docType in set.docTypes)
           for (final path in docType.paths)
             if (docType.isPerTarget && targetNames.length > 1)
@@ -49,10 +50,13 @@ final class DocTypeMatcher {
   /// One (doc type, pattern, target) entry per path pattern, in set order.
   final List<(MergedDocType, PathPattern, String?)> _candidates;
 
+  /// The target names the per-target patterns expand into.
+  final List<String> _targetNames;
+
   final MergedDocType? _nesting;
 
-  /// The over-limit pattern per depth, compiled on first use.
-  final Map<int, PathPattern> _overDeepPatterns = {};
+  /// The over-limit pattern per (target, depth), compiled on first use.
+  final Map<(String?, int), PathPattern> _overDeepPatterns = {};
 
   /// Returns the doc type whose pattern matches [docPath], or why none does.
   DocTypeMatch match(String docPath) {
@@ -69,18 +73,29 @@ final class DocTypeMatcher {
 
   /// Returns the depth of [docPath] when it reads the nesting type's `path`
   /// with its segment repeated more than `max_depth` times; null otherwise.
+  ///
+  /// A per-target nesting type reads one check per target name (RULE-20), so
+  /// its plain pattern checks nothing.
   int? depthPastLimit(String docPath) {
     final nesting = _nesting;
     final path = nesting?.path;
     if (nesting == null || path == null) return null;
     final segment = nestingSegmentOf(path, nesting);
     if (segment == null) return null;
+    final targets = nesting.isPerTarget && _targetNames.length > 1
+        ? _targetNames
+        : const <String?>[null];
     final extra = docPath.split('/').length - path.split('/').length;
-    for (var depth = nesting.maxDepth! + 1; depth <= extra; depth++) {
-      final pattern = _overDeepPatterns[depth] ??= PathPattern(
-        pathAtDepth(path, segment, depth),
-      );
-      if (pattern.matches(docPath)) return depth;
+    for (final target in targets) {
+      final base = target == null
+          ? path
+          : PathPattern(path).forTarget(target).source;
+      for (var depth = nesting.maxDepth! + 1; depth <= extra; depth++) {
+        final pattern = _overDeepPatterns[(target, depth)] ??= PathPattern(
+          pathAtDepth(base, segment, depth),
+        );
+        if (pattern.matches(docPath)) return depth;
+      }
     }
     return null;
   }

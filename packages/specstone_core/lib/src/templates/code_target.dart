@@ -26,3 +26,10 @@ final class CodeTarget {
   @override
   String toString() => 'CodeTarget($name, $codeRoot)';
 }
+
+/// Returns the named targets of [targets], in order; empty with one unnamed
+/// target.
+List<String> targetNamesOf(Iterable<CodeTarget> targets) => [
+  for (final target in targets)
+    if (target.name != null) target.name!,
+];
