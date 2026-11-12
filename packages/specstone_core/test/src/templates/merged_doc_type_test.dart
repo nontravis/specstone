@@ -21,7 +21,7 @@ fields:
   - id: draft
     description: Content the Owner has not approved.
   - id: approved
-    description: The Owner approved the doc at least once; written only by approve.
+    description: The Owner approved the doc at least once; written only by approve and the hash stamps.
   - id: reference
     description: Reference docs the doc cites.
 sections:
@@ -104,9 +104,10 @@ final s02FeatureJson = <String, Object>{
     },
     {
       'id': 'approved',
-      'type': 'boolean',
+      'type': 'string',
       'description':
-          'The Owner approved the doc at least once; written only by approve.',
+          'The Owner approved the doc at least once; '
+          'written only by approve and the hash stamps.',
     },
     {
       'id': 'reference',
@@ -193,6 +194,18 @@ void main() {
       final unset = _merge(_featureLayer);
       expect(unset.toJson().containsKey('maxDepth'), isFalse);
       expect(unset.nests, isFalse);
+    });
+
+    test('template_packs/read_writing_guide/print_merged_schema E05: toJson '
+        'prints maxItemChars only when a layer sets it', () {
+      final unset = _merge(_featureLayer).toJson();
+      expect(
+        (unset['lint']! as Map<String, Object?>).containsKey('maxItemChars'),
+        isFalse,
+      );
+
+      final set = _merge(_featureLayer, 'lint: {max_item_chars: 900}').toJson();
+      expect((set['lint']! as Map<String, Object?>)['maxItemChars'], 900);
     });
 
     test('f03/us01/fr03: the merged schema matches the s02 example', () {

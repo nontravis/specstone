@@ -1,5 +1,6 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
@@ -42,20 +43,34 @@ Future<String> _build(
 /// Returns the anchor of the section whose body starts with `<h1>[title]`.
 String _anchorOf(String html, String title) {
   final match = RegExp(
-    '<section class="doc" id="(doc-\\d+)"><h1>${RegExp.escape(title)}</h1>',
+    '<section class="doc" id="(doc-\\d+)"><h1[^>]*>${RegExp.escape(title)}</h1>',
   ).firstMatch(html);
   expect(match, isNotNull, reason: 'no section titled "$title"');
   return match!.group(1)!;
 }
 
+const _noAnchors = DocAnchors(headingSlugs: [], htmlIds: {});
+
+/// Returns the anchor sets of `a/b/c.md` (holding [markdown]) and `a/d.md`.
+Map<String, DocAnchors> _docAnchorsOf(String markdown) => {
+  'a/b/c.md': anchorsOfBody(markdown) ?? _noAnchors,
+  'a/d.md': _noAnchors,
+};
+
 String _rewritten(
   String markdown, {
   String docPath = 'a/b/c.md',
   Map<String, String> anchors = const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
+  Map<String, DocAnchors>? docAnchors,
 }) {
   final nodes = Document(extensionSet: ExtensionSet.gitHubFlavored)
       .parse(markdown);
-  rewriteLinks(nodes, docPath: docPath, anchors: anchors);
+  rewriteLinks(
+    nodes,
+    docPath: docPath,
+    anchors: anchors,
+    anchorsAt: (path) => (docAnchors ?? _docAnchorsOf(markdown))[path],
+  );
   return renderToHtml(nodes).trim();
 }
 
@@ -223,7 +238,151 @@ void main() {
           Doc.parse(markdown),
           docPath: 'a/b/c.md',
           anchors: anchors ?? const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
+          anchorsAt: (path) =>
+              _docAnchorsOf(Doc.parse(markdown).afterFrontmatter)[path],
         ).html;
+
+    test('resolve_links E04: a bare fragment reaches a span id and an a name '
+        'behind the doc prefix', () {
+      final html = body(
+        '<span id="note">x</span> <a name="n2"></a>\n\n[1](#note) [2](#n2)\n',
+      );
+
+      expect(html, contains('<span id="doc-1-note">'));
+      expect(html, contains('<a name="doc-1-n2">'));
+      expect(html, contains('<a href="#doc-1-note">1</a>'));
+      expect(html, contains('<a href="#doc-1-n2">2</a>'));
+    });
+
+    test('resolve_links E05: footnote links reach their mates and a written '
+        '#fn-1 names no anchor', () {
+      final html = body('$footnote\n[a](#fn-1)');
+
+      expect(html, contains('<a href="#doc-1-fn-1" id="doc-1-fnref-1">'));
+      expect(html, contains('<li id="doc-1-fn-1">'));
+      expect(html, contains('<a href="#doc-1-fnref-1"'));
+      expect(html, contains('<a href="#doc-1">a</a>'));
+    });
+
+    test('resolve_links E07: a fragment naming no anchor goes to the doc', () {
+      final html = body('[a](#nope)');
+
+      expect(html, contains('<a href="#doc-1">a</a>'));
+    });
+
+    test('resolve_links E08: a link to another doc reaches the prefixed id of '
+        'its heading or body id, else the doc anchor', () {
+      const markdown =
+          '[a](../d.md#target) [b](../d.md#box) [c](../d.md) '
+          '[d](../d.md#nope) [e](../d.md#)';
+      final html = renderDocBody(
+        Doc.parse(markdown),
+        docPath: 'a/b/c.md',
+        anchors: const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
+        anchorsAt: (path) => path == 'a/d.md'
+            ? const DocAnchors(headingSlugs: ['target'], htmlIds: {'box'})
+            : null,
+      ).html;
+
+      expect(html, contains('<a href="#doc-2-target">a</a>'));
+      expect(html, contains('<a href="#doc-2-box">b</a>'));
+      expect(html, contains('<a href="#doc-2">c</a>'));
+      expect(html, contains('<a href="#doc-2">d</a>'));
+      expect(html, contains('<a href="#doc-2">e</a>'));
+    });
+
+    test('resolve_links E11: two ## Notes headings carry notes and notes-1 '
+        'and a link reaches the second', () {
+      final html = body('## Notes\n\n## Notes\n\n[x](#notes-1)');
+
+      expect(html, contains('<h2 id="doc-1-notes">Notes</h2>'));
+      expect(html, contains('<h2 id="doc-1-notes-1">Notes</h2>'));
+      expect(html, contains('<a href="#doc-1-notes-1">x</a>'));
+    });
+
+    test('resolve_links E11, P2: a title equal to a body heading takes the '
+        'first slug and the body heading the next', () {
+      final html = body('# Notes\n\n## Notes\n\n[x](#notes-1)');
+
+      expect(html, startsWith('<h1 id="doc-1-notes">Notes</h1>'));
+      expect(html, contains('<h2 id="doc-1-notes-1">Notes</h2>'));
+      expect(html, contains('<a href="#doc-1-notes-1">x</a>'));
+    });
+
+    test('resolve_links E11, R60: a doc renders from its one body parse, and '
+        'the anchor set it returns is the set check reads, so a later doc '
+        'link needs no second parse', () {
+      for (final markdown in [
+        '# Title\n\n## A & B\n\n## A & B\n\n<a id="box"></a>\n',
+        '\n# Notes\n\n## Notes\n\n[x](#notes-1)\n',
+        '## No title\n\n[x](../d.md)\n',
+        'Intro.\n# Late title\n\n## After\n',
+      ]) {
+        final rendered = renderDocBody(
+          Doc.parse(markdown),
+          docPath: 'a/b/c.md',
+          anchors: const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
+          anchorsAt: (_) => _noAnchors,
+        );
+        expect(
+          rendered.anchors.toJson(),
+          anchorsOfBody(markdown)!.toJson(),
+          reason: markdown,
+        );
+      }
+    });
+
+    test('resolve_links E11: every heading id equals the doc anchor and the '
+        'anchorsOf slug, slug for slug', () {
+      const markdown =
+          '# Title\n\n## A & B\n\n### `move` - FR-01\n\n## A & B\n\n'
+          '## [link](x.md) and *em*\n\n#### Setext\n';
+      final slugs = anchorsOfBody(markdown)!.headingSlugs;
+      final html = body(markdown);
+
+      final ids = [
+        for (final m in RegExp(r'<h\d id="([^"]+)"').allMatches(html))
+          m.group(1)!,
+      ];
+      expect(ids, [for (final slug in slugs) 'doc-1-$slug']);
+    });
+
+    test('resolve_links E12: a target the grammar cannot read shows as text '
+        'as written', () {
+      final html = body('[x](http://h:abc/x.md)');
+
+      expect(
+        html,
+        contains(
+          '<span class="outside-link">x (<code>http://h:abc/x.md</code>)</span>',
+        ),
+      );
+      expect(html, isNot(contains('<a href=')));
+    });
+
+    test('resolve_links E11, P2: a title line inside a raw html block makes no '
+        'heading, so the body keeps every heading and its slug', () {
+      final html = body('<div>\n# T\n</div>\n\n# Later\n\n[x](#later)');
+
+      expect(html, contains('<h1 id="doc-1-later">Later</h1>'));
+      expect(html, contains('<a href="#doc-1-later">x</a>'));
+    });
+
+    test('resolve_links E11, P2: headings before the title line keep their '
+        'own slugs', () {
+      final html = body('## Pre\n\n# T\n\n## Post\n\n[x](#post)');
+
+      expect(html, startsWith('<h2 id="doc-1-pre">Pre</h2>'));
+      expect(html, contains('<h2 id="doc-1-post">Post</h2>'));
+      expect(html, contains('<a href="#doc-1-post">x</a>'));
+    });
+
+    test('resolve_links E13: an empty fragment reaches the doc top', () {
+      final html = body('[top](#) [x](../d.md#)');
+
+      expect(html, contains('<a href="#doc-1">top</a>'));
+      expect(html, contains('<a href="#doc-2">x</a>'));
+    });
 
     test('f05/us02/fr03: every id is prefixed with the doc anchor, and the '
         'footnote links follow', () {
@@ -252,7 +411,7 @@ void main() {
         'anchor', () {
       final html = body('$footnote\n[a](#fn-1) [b](#nope) [c](#)');
 
-      expect(html, contains('<a href="#doc-1-fn-1">a</a>'));
+      expect(html, contains('<a href="#doc-1">a</a>'));
       expect(html, contains('<a href="#doc-1">b</a>'));
       expect(html, contains('<a href="#doc-1">c</a>'));
     });
@@ -416,14 +575,15 @@ void main() {
       expect('href="#doc-1"'.allMatches(html), hasLength(3));
     });
 
-    test('f05/us02/fr03/e04, s03/inv23, FM8: a single-quoted and an upper-case '
-        'href reach the scoped fragment', () {
+    test('f05/us02/fr03/e04, s03/inv23, P3: scopeIds rewrites ids and names '
+        'only, so a raw html href stays as written', () {
       final html = body(
         '<div id="a">x</div>\n\n<a href=\'#a\'>1</a> <a HREF="#a">2</a>\n',
       );
 
-      expect(html, contains("<a href='#doc-1-a'>1</a>"));
-      expect(html, contains('<a HREF="#doc-1-a">2</a>'));
+      expect(html, contains('<div id="doc-1-a">'));
+      expect(html, contains("<a href='#a'>1</a>"));
+      expect(html, contains('<a HREF="#a">2</a>'));
     });
 
     test('f05/us02/fr03/e07, s03/inv23, FM8: an unterminated comment leaves '

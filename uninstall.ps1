@@ -11,6 +11,12 @@
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
 
+    # Imports by name the modules this script calls cmdlets from. A cmdlet that
+    # command lookup has to find makes a Windows PowerShell 5.1 with no module
+    # analysis cache (a fresh profile, a CI runner) analyze every module folder
+    # first, about 25 s; a module named here is loaded straight from its folder.
+    Import-Module -Name Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility, CimCmdlets
+
     # Returns the environment variable $Name, or '' when it is unset.
     function Get-EnvText([string]$Name) {
         $value = [Environment]::GetEnvironmentVariable($Name)
@@ -18,6 +24,33 @@
             return ''
         }
         return $value
+    }
+
+    # Returns the PATH text $Text with only its absolute entries: a drive root
+    # such as C:\ or C:/, or a UNC path. It splits on each ';' outside double
+    # quotes and drops the quotes, as cmd.exe does, so an empty, '.', or
+    # relative entry (the current folder) is never searched.
+    function Get-AbsolutePathText([string]$Text) {
+        $kept = New-Object System.Collections.ArrayList
+        $entry = New-Object System.Text.StringBuilder
+        $isQuoted = $false
+        foreach ($character in ($Text + ';').ToCharArray()) {
+            if ($character -eq '"') {
+                $isQuoted = -not $isQuoted
+            } elseif ($character -eq ';' -and -not $isQuoted) {
+                $item = $entry.ToString()
+                if ($item -match '^([A-Za-z]:[\\/]|\\\\)') {
+                    if ($item.Contains(';')) {
+                        $item = '"' + $item + '"'
+                    }
+                    [void]$kept.Add($item)
+                }
+                [void]$entry.Clear()
+            } else {
+                [void]$entry.Append($character)
+            }
+        }
+        return ($kept.ToArray() -join ';')
     }
 
     # Loads the Win32 calls this script needs, once per session.
@@ -248,24 +281,33 @@
     $binDir = Join-Path $installDir 'bin'
     $libDir = Join-Path $installDir 'lib'
 
-    # Check every file before any delete, so a refusal leaves the install whole.
-    $present = @(foreach ($folder in @($binDir, $libDir)) {
-        if (Test-Path -LiteralPath $folder) {
-            $folder
+    # Nothing above this line starts a program. From here every program is
+    # searched on absolute PATH entries only; the finally below puts the
+    # caller's PATH back, as the block runs in the caller's session.
+    $savedPath = Get-EnvText 'Path'
+    $env:Path = Get-AbsolutePathText $savedPath
+    try {
+        # Check every file before any delete, so a refusal leaves the install whole.
+        $present = @(foreach ($folder in @($binDir, $libDir)) {
+            if (Test-Path -LiteralPath $folder) {
+                $folder
+            }
+        })
+        $locked = @(Get-LockedFile $present)
+        if ($locked.Count -gt 0) {
+            throw (Get-RefusalMessage $present $locked)
         }
-    })
-    $locked = @(Get-LockedFile $present)
-    if ($locked.Count -gt 0) {
-        throw (Get-RefusalMessage $present $locked)
-    }
 
-    $results = @((Remove-Folder $binDir), (Remove-Folder $libDir), (Remove-UserPathEntry $binDir))
-    $failed = $results -contains 'failed'
-    if (-not $failed -and -not ($results -contains 'removed')) {
-        Write-Host 'specstone: nothing to remove'
-    }
-    Write-Host 'claude plugin uninstall specstone@specstone'
-    if ($failed) {
-        throw 'specstone: the uninstall is incomplete; the lines above name what stays'
+        $results = @((Remove-Folder $binDir), (Remove-Folder $libDir), (Remove-UserPathEntry $binDir))
+        $failed = $results -contains 'failed'
+        if (-not $failed -and -not ($results -contains 'removed')) {
+            Write-Host 'specstone: nothing to remove'
+        }
+        Write-Host 'claude plugin uninstall specstone@specstone'
+        if ($failed) {
+            throw 'specstone: the uninstall is incomplete; the lines above name what stays'
+        }
+    } finally {
+        $env:Path = $savedPath
     }
 }

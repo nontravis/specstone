@@ -17,8 +17,8 @@ String _scenario(int n) =>
     '- **Then** c$n';
 
 String _lines(int n) => switch (n) {
-  1 => loginScenario1.substring(loginScenario1.indexOf('\n') + 1),
-  2 => loginScenario2.substring(loginScenario2.indexOf('\n') + 1),
+  1 => loginScenario1.substring(loginScenario1.indexOf('\n') + 1).trimLeft(),
+  2 => loginScenario2.substring(loginScenario2.indexOf('\n') + 1).trimLeft(),
   _ => _scenario(n).substring(_scenario(n).indexOf('\n') + 1),
 };
 
@@ -333,6 +333,36 @@ void main() {
 
       expect('  $frName (fr)'.allMatches(answer.text), hasLength(2));
     });
+
+    test(
+      'f10/us03/fr01/e08: FRs of a sibling story and of another feature '
+      "tracing the step are listed after the story's own, in tree order",
+      () async {
+        String fr(String title, String entry) =>
+            '---\ntraced_from:\n  - S1\n  - $entry\nimplements:\n'
+            '  - app/lib/$title.dart:$title\n---\n\n# $title\n\n'
+            '## Statement\nThe system shall.\n';
+        const sibling = 'docs/prds/features/f01_login/us02_reset_password';
+        const other = 'docs/prds/features/f02_billing/us01_invoice';
+        final answer = await _code(
+          [_step('1', 2)],
+          extra: {
+            '$sibling/USER_STORY.md': '# Reset\n\n## Use Case\nReset.\n',
+            '$sibling/fr01_send_link.md': fr('sendLink', '$_story#S2'),
+            '$other/USER_STORY.md': '# Invoice\n\n## Use Case\nInvoice.\n',
+            '$other/fr01_charge.md': fr('charge', '$_story#S2'),
+          },
+        );
+
+        final order = [
+          frName,
+          'login/reset_password/send_link (fr)',
+          'billing/invoice/charge (fr)',
+        ].map(answer.text.indexOf).toList();
+        expect(order, everyElement(isNonNegative));
+        expect(order, [...order]..sort());
+      },
+    );
 
     test('f10/us03/fr01/e04: an implements entry naming a missing file '
         'prints as written', () async {

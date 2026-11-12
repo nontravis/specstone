@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/portable_path.dart';
+
 /// The frontmatter field whose entries point at code.
 const implementsField = 'implements';
 
@@ -23,6 +25,7 @@ extension type const ImplementsEntry(String text) {
 
   /// Whether [path] names a regular file from [base].
   bool namesFileFrom(Directory base) =>
+      isPortablePath(path) &&
       FileSystemEntity.typeSync('${base.path}/$path') ==
-      FileSystemEntityType.file;
+          FileSystemEntityType.file;
 }

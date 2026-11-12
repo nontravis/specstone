@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
@@ -99,14 +100,35 @@ void main() {
     },
   );
 
-  test('f08/us06/fr02/e03, f08/us06/s4: a design doc under docs/superpowers is not checked', () async {
-    final root = await writeCheckProject(
-      extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
-    );
-    final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
-    expect(result.status, 0);
-    expect(result.out, isEmpty);
-  });
+  test(
+    'api:agent_plugin: a design document under docs/designs gets no check',
+    () async {
+      final root = await writeCheckProject(
+        extra: {
+          'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
+        },
+      );
+      final result = await postEdit(
+        root,
+        abs(root, 'designs/2026-11-11-x-design.md'),
+      );
+      expect(result.status, 0);
+      expect(result.out, isEmpty);
+    },
+  );
+
+  test(
+    'api:agent_plugin: a design document under a nested docs/superpowers/specs '
+    'folder gets no check',
+    () async {
+      final root = await writeCheckProject(
+        extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
+      );
+      final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
+      expect(result.status, 0);
+      expect(result.out, isEmpty);
+    },
+  );
 
   test('f08/us06/fr02/e04: a code file prints nothing', () async {
     final root = await writeCheckProject();
@@ -143,6 +165,53 @@ void main() {
     expect(context, matches(RegExp(r'^prds/notes\.md:\d+: untyped_doc: ')));
     expect(context, endsWith('\n1 finding'));
   });
+
+  test('consistency_check/find_template_breaks/print_findings E08: an owner '
+      "finding's line keeps its tag in the hook context", () async {
+    final root = await writeCheckProject(
+      extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+    );
+    final result = await postEdit(root, abs(root, loginStory));
+    expect(result.status, 0);
+    final decoded = jsonDecode(result.out) as Map<String, Object?>;
+    final context =
+        (decoded['hookSpecificOutput']!
+                as Map<String, Object?>)['additionalContext']!
+            as String;
+    expect(context, contains(': approval_stale: '));
+    expect(context, endsWith(' (waits for the Owner)\n1 finding'));
+  });
+
+  test(
+    'consistency_check/find_suspect_links/report_suspect_links E12: a suspect '
+    'finding holds its upstream block, then the fingerprint, in the hook '
+    'context',
+    () async {
+      final edited = loginScenario2.replaceFirst(
+        'wrong password',
+        'wrong pass',
+      );
+      final root = await writeCheckProject(
+        extra: doc(loginStory, loginScenario2, edited),
+      );
+      final result = await postEdit(root, abs(root, loginFr));
+      expect(result.status, 0);
+      final decoded = jsonDecode(result.out) as Map<String, Object?>;
+      final context =
+          (decoded['hookSpecificOutput']!
+                  as Map<String, Object?>)['additionalContext']!
+              as String;
+      final block = printedBlockOf(edited);
+      expect(
+        context,
+        endsWith(
+          '${block.split('\n').map((l) => '    $l\n').join()}'
+          '    fingerprint ${fingerprintOf(edited)}\n1 finding',
+        ),
+      );
+      expect(context.split('\n').first, isNot(contains(fingerprintOf(edited))));
+    },
+  );
 
   test("f08/us06/fr02/e08, f08/us06/s6: the platform's separators read as the same DocPath", () async {
     final root = await writeCheckProject(extra: _brokenStory());

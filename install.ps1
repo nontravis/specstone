@@ -1,14 +1,30 @@
 # Installs the Specstone CLI under ~\.specstone (Windows PowerShell 5.1):
 #   irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex
+# A version, such as the pre-release 1.2.0-beta.1, installs from the script of
+# its own tag:
+#   iex "& {$(irm https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.ps1)} -Version 'X.Y.Z'"
 # The whole body sits in one & { } block. A truncated stream does not parse, so
-# it runs nothing, and the strict mode and error preference set inside the block
+# it runs nothing, and the strict mode and the preferences set inside the block
 # never reach the caller's session. A refusal throws; it never calls exit, which
-# would close the caller's window under iex.
+# would close the caller's window under iex. Under irm | iex the param binds
+# $Version in the caller's session, so the finally at the end removes it.
 # Keep this file ASCII: Windows PowerShell 5.1 reads a file with no BOM as ANSI.
+param([string]$Version = '')
+try {
 & {
     Set-StrictMode -Version 3
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
+
+    # Imports by name the modules this script calls cmdlets from. A cmdlet that
+    # command lookup has to find makes a Windows PowerShell 5.1 with no module
+    # analysis cache (a fresh profile, a CI runner) analyze every module folder
+    # first, about 25 s; a module named here is loaded straight from its folder.
+    # A lookup that finds nothing, such as Get-Command claude with no claude on
+    # the PATH, searches every module folder too, so module search is off from
+    # here: every cmdlet below comes from these modules or the core.
+    Import-Module -Name Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility, Microsoft.PowerShell.Archive
+    $PSModuleAutoLoadingPreference = 'None'
 
     $releaseUrl = 'https://github.com/nontravis/specstone/releases/latest/download'
     $supported = 'macOS arm64, macOS x64, Linux x64, Windows x64'
@@ -23,6 +39,33 @@
         return $value
     }
 
+    # Returns the PATH text $Text with only its absolute entries: a drive root
+    # such as C:\ or C:/, or a UNC path. It splits on each ';' outside double
+    # quotes and drops the quotes, as cmd.exe does, so an empty, '.', or
+    # relative entry (the current folder) is never searched.
+    function Get-AbsolutePathText([string]$Text) {
+        $kept = New-Object System.Collections.ArrayList
+        $entry = New-Object System.Text.StringBuilder
+        $isQuoted = $false
+        foreach ($character in ($Text + ';').ToCharArray()) {
+            if ($character -eq '"') {
+                $isQuoted = -not $isQuoted
+            } elseif ($character -eq ';' -and -not $isQuoted) {
+                $item = $entry.ToString()
+                if ($item -match '^([A-Za-z]:[\\/]|\\\\)') {
+                    if ($item.Contains(';')) {
+                        $item = '"' + $item + '"'
+                    }
+                    [void]$kept.Add($item)
+                }
+                [void]$entry.Clear()
+            } else {
+                [void]$entry.Append($character)
+            }
+        }
+        return ($kept.ToArray() -join ';')
+    }
+
     # Returns the release target for this machine, or refuses before any download.
     function Get-Target {
         $arch = Get-EnvText 'PROCESSOR_ARCHITEW6432'
@@ -33,6 +76,23 @@
             throw "specstone: unsupported machine Windows $arch; supported: $supported"
         }
         return 'windows-x64'
+    }
+
+    # Returns $true when $Text is MAJOR.MINOR.PATCH[-<pre-release>] in the form
+    # of the CLI's Version. -cmatch with \A and \z and ASCII classes only: -match
+    # ignores case, $ matches before a final line feed, and \d matches digits of
+    # other scripts.
+    function Test-Version([string]$Text) {
+        $number = '(0|[1-9][0-9]*)'
+        $identifier = '(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+        return $Text -cmatch "\A$number\.$number\.$number(-$identifier(\.$identifier)*)?\z"
+    }
+
+    # Returns $Text with every character but printable ASCII as '?', so no
+    # host encoding can turn a shown character into a control that moves the
+    # cursor or rewrites the terminal.
+    function Get-PrintableText([string]$Text) {
+        return [regex]::Replace($Text, '[^\x20-\x7E]', '?')
     }
 
     # Downloads $Url to $Destination over TLS 1.2, which Windows PowerShell 5.1
@@ -166,87 +226,371 @@
         return $result
     }
 
-    # Returns the objects of a JSON list in $Lines, whichever way ConvertFrom-Json
-    # hands an array back (Windows PowerShell 5.1 does not unroll it).
-    function ConvertFrom-JsonList([string[]]$Lines) {
-        $text = (@($Lines) -join "`n").Trim()
-        if ($text.Length -eq 0) {
-            return @()
-        }
-        $parsed = $text | ConvertFrom-Json
-        if ($null -eq $parsed) {
-            return @()
-        }
-        return @($parsed | ForEach-Object { $_ })
+    # Returns $true when the strings $First and $Second hold the same characters.
+    # -ceq compares by culture rules, which on Windows PowerShell 5.1 skip a NUL
+    # or a soft hyphen, so it can match a text that differs.
+    function Test-SameText([string]$First, [string]$Second) {
+        return [string]::Equals($First, $Second, [StringComparison]::Ordinal)
     }
 
-    # Returns the property $Name of $Item, or $null when it has none.
-    function Get-Property($Item, [string]$Name) {
-        if ($null -eq $Item) {
-            return $null
-        }
-        $property = $Item.PSObject.Properties[$Name]
-        if ($null -eq $property) {
-            return $null
-        }
-        return $property.Value
+    # Returns the text of the JSON string $Raw (the characters between its
+    # quotes) as install.sh reads it: \" and \\ decode, and any other escape
+    # stays as typed, so no escaped value equals a plain one.
+    function ConvertFrom-JsonString([string]$Raw) {
+        return [regex]::Replace($Raw, '\\.', [System.Text.RegularExpressions.MatchEvaluator]{
+            param($escape)
+            if ($escape.Value -ceq '\"') {
+                return '"'
+            }
+            if ($escape.Value -ceq '\\') {
+                return '\'
+            }
+            return $escape.Value
+        })
     }
 
-    # Runs a claude list command; returns its objects as one array, or $null
-    # after naming the failure.
-    function Get-ClaudeList([string]$Claude, [string[]]$Arguments) {
+    # Records that the object being read holds the key $Key once more, with the
+    # kind of the latest value and, for a string, its text.
+    function Add-JsonField($Fields, [string]$Key, [bool]$IsString, [string]$Text) {
+        if ($Fields.ContainsKey($Key)) {
+            $field = $Fields[$Key]
+            $field.Count = $field.Count + 1
+            $field.IsString = $IsString
+            $field.Text = $Text
+        } else {
+            $Fields[$Key] = [pscustomobject]@{ Count = 1; IsString = $IsString; Text = $Text }
+        }
+    }
+
+    # Returns what Add-JsonField recorded for the key $Key, or $null.
+    function Get-JsonField($Fields, [string]$Key) {
+        if ($Fields.ContainsKey($Key)) {
+            return $Fields[$Key]
+        }
+        return $null
+    }
+
+    # Returns $true when the key $Key appears once in $Fields, holds a string,
+    # and that string is $Text.
+    function Test-FieldText($Fields, [string]$Key, [string]$Text) {
+        $field = Get-JsonField $Fields $Key
+        return ($null -ne $field) -and ($field.Count -eq 1) -and $field.IsString -and (Test-SameText $field.Text $Text)
+    }
+
+    # Returns the string value of the key $Key in the marketplace entry
+    # $Entry, or '' when it is missing, repeated, or not a string.
+    function Get-EntryText($Entry, [string]$Key) {
+        $field = Get-JsonField $Entry $Key
+        if ($null -ne $field -and $field.Count -eq 1 -and $field.IsString) {
+            return $field.Text
+        }
+        return ''
+    }
+
+    # Returns $true when no key of $Fields appears twice. get_Values() because
+    # a JSON key named Values would shadow the property.
+    function Test-UniqueKeys($Fields) {
+        foreach ($field in $Fields.get_Values()) {
+            if ($field.Count -ne 1) {
+                return $false
+            }
+        }
+        return $true
+    }
+
+    # Reads the claude list reply $Reply with a strict JSON grammar walk that
+    # knows strings and nesting, so a quote, brace, or key name inside a value
+    # never counts, and returns Entry and Installed. It accepts and refuses what
+    # install.sh's json_scan does: it throws when the reply is not read for
+    # sure (not well-formed, text around the JSON, a key written with an
+    # escape at an entry's own depth, a top level that is not an array, or a
+    # string with a raw control character, U+0000 to U+001F). Mode
+    # `marketplaces`: Entry holds the keys of the one object named
+    # "specstone" (or $null), and the walk throws for
+    # two such objects, a repeated key in it, a repeated name anywhere, or a
+    # source that is not one string. Mode `plugins`: Installed is $true when
+    # an object holds the id specstone@specstone and the scope user, and the
+    # walk throws for a repeated id or scope. No other parser reads the reply,
+    # so no parser can disagree with the walk about a key or a value.
+    function Read-ClaudeList([string]$Reply, [string]$Mode) {
+        $tokens = [regex]::new('\G(?:(?<space>[ \t\r\n]+)|(?<string>"(?:[^"\\\x00-\x1f]|\\[^\x00-\x1f])*")|(?<mark>[{}\[\]:,])|(?<literal>true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?))')
+        $kind = [System.Collections.Generic.List[string]]::new()
+        $state = [System.Collections.Generic.List[string]]::new()
+        $keys = [System.Collections.Generic.List[string]]::new()
+        $kind.Add('top')
+        $state.Add('val')
+        $keys.Add('')
+        $depth = 0
+        $fields = $null
+        $entry = $null
+        $entryCount = 0
+        $installed = $false
+        $at = 0
+        while ($at -lt $Reply.Length) {
+            $token = $tokens.Match($Reply, $at)
+            if (-not $token.Success) {
+                throw 'a character that JSON does not allow here'
+            }
+            $at += $token.Length
+            if ($token.Groups['space'].Success) {
+                continue
+            }
+            $isString = $false
+            $valueText = ''
+            $opens = ''
+            if ($token.Groups['string'].Success) {
+                $raw = $token.Value.Substring(1, $token.Length - 2)
+                if ($kind[$depth] -ceq '{' -and ($state[$depth] -ceq 'k0' -or $state[$depth] -ceq 'key')) {
+                    if ($depth -eq 2 -and $raw.Contains('\')) {
+                        throw 'a key written with an escape'
+                    }
+                    $keys[$depth] = $raw
+                    $state[$depth] = 'colon'
+                    continue
+                }
+                $isString = $true
+                $valueText = ConvertFrom-JsonString $raw
+            } elseif (-not $token.Groups['literal'].Success) {
+                $mark = $token.Value
+                if ($mark -ceq '}' -or $mark -ceq ']') {
+                    $expected = '['
+                    if ($mark -ceq '}') {
+                        $expected = '{'
+                    }
+                    if ($depth -lt 1 -or $kind[$depth] -cne $expected) {
+                        throw 'a closing mark that closes nothing'
+                    }
+                    if ($state[$depth] -cne 'next' -and $state[$depth] -cne 'k0' -and $state[$depth] -cne 'v0') {
+                        throw 'a closing mark where a value is due'
+                    }
+                    if ($mark -ceq '}' -and $depth -eq 2) {
+                        if ($Mode -ceq 'marketplaces') {
+                            $nameField = Get-JsonField $fields 'name'
+                            if ($null -ne $nameField -and $nameField.Count -gt 1) {
+                                throw 'a repeated name'
+                            }
+                            if (Test-FieldText $fields 'name' 'specstone') {
+                                $sourceField = Get-JsonField $fields 'source'
+                                if (-not (Test-UniqueKeys $fields) -or $null -eq $sourceField -or $sourceField.Count -ne 1 -or -not $sourceField.IsString) {
+                                    throw 'a specstone entry that is not read for sure'
+                                }
+                                $entryCount++
+                                $entry = $fields
+                            }
+                        } else {
+                            $idField = Get-JsonField $fields 'id'
+                            $scopeField = Get-JsonField $fields 'scope'
+                            if (($null -ne $idField -and $idField.Count -gt 1) -or ($null -ne $scopeField -and $scopeField.Count -gt 1)) {
+                                throw 'a repeated id or scope'
+                            }
+                            if ((Test-FieldText $fields 'id' 'specstone@specstone') -and (Test-FieldText $fields 'scope' 'user')) {
+                                $installed = $true
+                            }
+                        }
+                    }
+                    $kind.RemoveAt($depth)
+                    $state.RemoveAt($depth)
+                    $keys.RemoveAt($depth)
+                    $depth--
+                    $state[$depth] = 'next'
+                    continue
+                }
+                if ($mark -ceq ',') {
+                    if ($depth -lt 1 -or $state[$depth] -cne 'next') {
+                        throw 'a comma where none is due'
+                    }
+                    $state[$depth] = 'val'
+                    if ($kind[$depth] -ceq '{') {
+                        $state[$depth] = 'key'
+                    }
+                    continue
+                }
+                if ($mark -ceq ':') {
+                    if ($kind[$depth] -cne '{' -or $state[$depth] -cne 'colon') {
+                        throw 'a colon where none is due'
+                    }
+                    $state[$depth] = 'val'
+                    continue
+                }
+                $opens = $mark
+            }
+            if ($state[$depth] -cne 'val' -and $state[$depth] -cne 'v0') {
+                throw 'a value where none is due'
+            }
+            if ($depth -eq 0 -and $opens -cne '[') {
+                throw 'a top level that is not an array'
+            }
+            if ($depth -eq 2 -and $kind[$depth] -ceq '{') {
+                Add-JsonField $fields $keys[$depth] $isString $valueText
+            }
+            if ($opens.Length -eq 0) {
+                $state[$depth] = 'next'
+                continue
+            }
+            $depth++
+            $kind.Add($opens)
+            $state.Add('v0')
+            $keys.Add('')
+            if ($opens -ceq '{') {
+                $state[$depth] = 'k0'
+                if ($depth -eq 2) {
+                    $fields = [System.Collections.Generic.Dictionary[string, object]]::new()
+                }
+            }
+        }
+        if ($depth -ne 0 -or $state[0] -cne 'next') {
+            throw 'a reply that ends before its list does'
+        }
+        if ($entryCount -gt 1) {
+            throw 'two entries named specstone'
+        }
+        return [pscustomobject]@{ Entry = $entry; Installed = $installed }
+    }
+
+    # Prints the remove, add, and install commands for the marketplace source $Wanted.
+    function Write-PluginCommands([string]$Wanted) {
+        Write-Host '  claude plugin marketplace remove specstone'
+        Write-Host "  claude plugin marketplace add $Wanted"
+        Write-Host '  claude plugin install specstone@specstone'
+    }
+
+    # Prints the commands of Write-PluginCommands under a line saying who runs them.
+    function Write-ManualPluginCommands([string]$Wanted) {
+        Write-Host 'To add the Specstone plugin to Claude Code, run (the first command only when a marketplace specstone already exists):'
+        Write-PluginCommands $Wanted
+    }
+
+    # Names the claude list command with $Arguments whose reply was not read
+    # for sure, then prints the commands for the source $Wanted.
+    function Write-UnreadableReply([string[]]$Arguments, [string]$Wanted) {
+        [Console]::Error.WriteLine("specstone: claude $($Arguments -join ' ') failed: its reply could not be read; run it by hand")
+        Write-ManualPluginCommands $Wanted
+    }
+
+    # Runs a claude list command and reads its reply per Read-ClaudeList with
+    # $Mode; returns what it read, or $null after naming the failure or the
+    # reply that was not read for sure.
+    function Get-ClaudeList([string]$Claude, [string[]]$Arguments, [string]$Wanted, [string]$Mode) {
         $result = Invoke-Claude $Claude $Arguments $false
         if ($null -eq $result) {
             return $null
         }
         try {
-            return , @(ConvertFrom-JsonList $result.Output)
+            return Read-ClaudeList (@($result.Output) -join "`n") $Mode
         } catch {
-            [Console]::Error.WriteLine("specstone: claude $($Arguments -join ' ') failed: its output is not JSON; run it by hand")
+            Write-UnreadableReply $Arguments $Wanted
             return $null
         }
     }
 
-    # Adds the marketplace and installs the plugin through claude, skipping what
-    # is there, or prints the two commands when claude is not on the PATH. Never
+    # Returns $true when the marketplace entry $Entry is the one this script
+    # adds: source github, repo exactly nontravis/specstone, each written
+    # without an escape. Any other entry is the Owner's own.
+    function Test-OfficialEntry($Entry) {
+        return (Test-FieldText $Entry 'source' 'github') -and (Test-FieldText $Entry 'repo' 'nontravis/specstone')
+    }
+
+    # Returns the url $Url without the userinfo (user or user:token) before
+    # the host.
+    function Remove-UrlUserinfo([string]$Url) {
+        $schemeEnd = $Url.IndexOf('://', [StringComparison]::Ordinal)
+        if ($schemeEnd -lt 0) {
+            return $Url
+        }
+        $rest = $Url.Substring($schemeEnd + 3)
+        $authorityEnd = $rest.IndexOfAny([char[]]'/?#')
+        if ($authorityEnd -lt 0) {
+            $authorityEnd = $rest.Length
+        }
+        $authority = $rest.Substring(0, $authorityEnd)
+        $hostName = $authority.Substring($authority.LastIndexOf([char]'@') + 1)
+        return $Url.Substring(0, $schemeEnd) + '://' + $hostName + $rest.Substring($authorityEnd)
+    }
+
+    # Returns where the marketplace entry $Entry comes from, read from the key
+    # its source type names (a url without its userinfo), else 'an unknown
+    # source'.
+    function Get-EntrySource($Entry) {
+        $source = Get-EntryText $Entry 'source'
+        $key = ''
+        if (Test-SameText $source 'github') {
+            $key = 'repo'
+        } elseif ((Test-SameText $source 'git') -or (Test-SameText $source 'url')) {
+            $key = 'url'
+        } elseif ((Test-SameText $source 'directory') -or (Test-SameText $source 'file')) {
+            $key = 'path'
+        }
+        $found = ''
+        if ($key.Length -gt 0) {
+            $found = Get-EntryText $Entry $key
+        }
+        if ($found.Length -eq 0) {
+            return 'an unknown source'
+        }
+        if ($key -ceq 'url') {
+            $found = Remove-UrlUserinfo $found
+        }
+        return Get-PrintableText $found
+    }
+
+    # Moves marketplace specstone to the source $Wanted. The remove also
+    # uninstalls the plugin. Returns $false after naming the command that failed.
+    function Move-Marketplace([string]$Claude, [string]$Wanted) {
+        $removed = Invoke-Claude $Claude @('plugin', 'marketplace', 'remove', 'specstone') $true
+        if ($null -eq $removed) {
+            return $false
+        }
+        $added = Invoke-Claude $Claude @('plugin', 'marketplace', 'add', $Wanted) $true
+        if ($null -eq $added) {
+            return $false
+        }
+        Write-Host "specstone: marketplace specstone re-added from $Wanted"
+        return $true
+    }
+
+    # Puts marketplace specstone at the wanted source and installs the plugin
+    # through claude, skipping what is there, or prints the commands when claude
+    # is not on the PATH. A marketplace from another source stays, and a list
+    # reply that is not read for sure stops the step like a failed list. Never
     # fails the script: the CLI install stands.
     function Install-Plugin {
+        $wanted = 'nontravis/specstone'
+        $wantedRef = ''
+        if ($Version.Length -gt 0) {
+            $wanted = "$wanted#v$Version"
+            $wantedRef = "v$Version"
+        }
         $found = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($null -eq $found) {
-            Write-Host 'To add the Specstone plugin to Claude Code, run:'
-            Write-Host '  claude plugin marketplace add nontravis/specstone'
-            Write-Host '  claude plugin install specstone@specstone'
+            Write-ManualPluginCommands $wanted
             return
         }
         $claude = $found.Source
-        $marketplaces = Get-ClaudeList $claude @('plugin', 'marketplace', 'list', '--json')
+        $marketplaces = Get-ClaudeList $claude @('plugin', 'marketplace', 'list', '--json') $wanted 'marketplaces'
         if ($null -eq $marketplaces) {
             return
         }
-        $plugins = Get-ClaudeList $claude @('plugin', 'list', '--json')
+        $plugins = Get-ClaudeList $claude @('plugin', 'list', '--json') $wanted 'plugins'
         if ($null -eq $plugins) {
             return
         }
-        $marketplaceAdded = $false
-        foreach ($item in $marketplaces) {
-            if ((Get-Property $item 'name') -ceq 'specstone') {
-                $marketplaceAdded = $true
-            }
-        }
-        # Project and local installs from other projects never count.
-        $pluginInstalled = $false
-        foreach ($item in $plugins) {
-            if ((Get-Property $item 'id') -ceq 'specstone@specstone' -and (Get-Property $item 'scope') -ceq 'user') {
-                $pluginInstalled = $true
-            }
-        }
-        if (-not $marketplaceAdded) {
-            $added = Invoke-Claude $claude @('plugin', 'marketplace', 'add', 'nontravis/specstone') $true
+        $entry = $marketplaces.Entry
+        $isInstalled = $plugins.Installed
+        if ($null -eq $entry) {
+            $added = Invoke-Claude $claude @('plugin', 'marketplace', 'add', $wanted) $true
             if ($null -eq $added) {
                 return
             }
+        } elseif (-not (Test-OfficialEntry $entry)) {
+            Write-Host "specstone: marketplace specstone comes from $(Get-EntrySource $entry), not nontravis/specstone; left as it is"
+            Write-PluginCommands $wanted
+        } elseif (-not (Test-SameText (Get-EntryText $entry 'ref') $wantedRef)) {
+            if (-not (Move-Marketplace $claude $wanted)) {
+                return
+            }
+            $isInstalled = $false
         }
-        if (-not $pluginInstalled) {
+        if (-not $isInstalled) {
             $installed = Invoke-Claude $claude @('plugin', 'install', 'specstone@specstone') $true
             if ($null -eq $installed) {
                 return
@@ -392,6 +736,12 @@
     }
 
     $target = Get-Target
+    if ($Version.Length -gt 0) {
+        if (-not (Test-Version $Version)) {
+            throw "specstone: $(Get-PrintableText $Version) is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged"
+        }
+        $releaseUrl = "https://github.com/nontravis/specstone/releases/download/v$Version"
+    }
     $homeDir = Get-EnvText 'HOME'
     if ($homeDir.Length -eq 0) {
         $homeDir = Get-EnvText 'USERPROFILE'
@@ -404,6 +754,16 @@
 
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('specstone.' + [guid]::NewGuid().ToString('N'))
     $unpack = Join-Path $tmp 'unpack'
+    # Nothing above this line starts a program. From here every program, claude
+    # included, is searched on absolute PATH entries only. cmd.exe also tries
+    # the current folder before PATH, for the bare `node` that claude.cmd runs;
+    # only NoDefaultCurrentDirectoryInExePath stops that. The finally below
+    # puts the caller's PATH and that variable back (it removes the variable
+    # when it was unset), as the block runs in the caller's session.
+    $savedPath = Get-EnvText 'Path'
+    $savedNoCurrentFolder = [Environment]::GetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath')
+    $env:Path = Get-AbsolutePathText $savedPath
+    [Environment]::SetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath', '1')
     try {
         try {
             New-Item -ItemType Directory -Path $tmp | Out-Null
@@ -435,8 +795,12 @@
                 $oldVersion = (@($oldProbe.Output) -join "`n").Trim()
             }
         }
-        if ($oldVersion.Length -gt 0 -and $oldVersion -eq $newVersion) {
-            Write-Host "specstone $newVersion is already the latest release"
+        if ($oldVersion.Length -gt 0 -and (Test-SameText $oldVersion $newVersion)) {
+            if ($Version.Length -gt 0) {
+                Write-Host "specstone $newVersion is already installed"
+            } else {
+                Write-Host "specstone $newVersion is already the latest release"
+            }
         } else {
             Install-Files $installDir
             Write-Host "specstone $newVersion installed in $installDir\bin"
@@ -445,10 +809,15 @@
         Add-UserPathEntry (Join-Path $installDir 'bin')
         Install-Plugin
     } finally {
+        $env:Path = $savedPath
+        [Environment]::SetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath', $savedNoCurrentFolder)
         try {
             Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
         } catch {
             # the folder is in the system temp; Windows clears it later
         }
     }
+}
+} finally {
+    Remove-Variable -Name Version -Scope Local -ErrorAction SilentlyContinue
 }

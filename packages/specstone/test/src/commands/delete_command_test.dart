@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 /// Returns the hash on the `plan <hash>` line `delete --dry-run` prints for
@@ -42,7 +43,7 @@ void main() {
     expect(error['code'], 'owner_terminal_required');
     expect(
       error['message'],
-      'fr:login/email_login/validate_credentials holds approved docs; '
+      'fr:login/email_login/validate_credentials holds guarded docs; '
       'only the Owner deletes them, at an interactive terminal, or with '
       "--yes after the Owner's ok in the chat",
     );
@@ -261,7 +262,10 @@ void main() {
     final root = await writeWriteProject(extra: untyped);
     final (:runner, :out, :err) = writeRunner(root);
     expect(await runner.run(['delete', notes]), 77);
-    expect(err.toString(), contains('only the Owner deletes them'));
+    expect(
+      err.toString(),
+      contains('holds guarded docs; only the Owner deletes them'),
+    );
     expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
   });
   test('f02/us04/s8, f02/us04/fr04/e03: at a terminal the Owner sees the list and the prompt, then the removed paths', () async {
@@ -401,7 +405,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone delete <target> [<target> …] '
+        'Usage: specstone delete <target> … '
         '[--dry-run | --yes --plan <hash>] [--json]',
       ),
     );
@@ -436,5 +440,55 @@ void main() {
       '$story3: docs outside user_story:login/reset_password link into it; also $journey\n',
     );
     expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+  });
+
+  group('through the built CLI', () {
+    late String binary;
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test('f02/us04/fr06/e08: delete --dry-run and then delete --yes --plan '
+        'start no git, with PATH an empty folder', () async {
+      final root = await writeWriteProject();
+      final emptyPath = Directory.systemTemp.createTempSync('specstone_path_');
+      addTearDown(() => emptyPath.deleteSync(recursive: true));
+      // A `git` that leaves a mark where a started git would be found; the
+      // shell builtin `:` writes it, since `touch` is not on this PATH.
+      final marker = File('${emptyPath.path}/git_started');
+      if (!Platform.isWindows) {
+        final stub = File('${emptyPath.path}/git')
+          ..writeAsStringSync('#!/bin/sh\n: > "${marker.path}"\nexit 1\n');
+        expect(Process.runSync('chmod', ['+x', stub.path]).exitCode, 0);
+      }
+      final home = testHome().path;
+      final environment = {
+        'PATH': emptyPath.path,
+        'HOME': home,
+        'USERPROFILE': home,
+      };
+      Future<ProcessResult> run(List<String> args) => Process.run(
+        binary,
+        ['delete', fr11Target, ...args],
+        workingDirectory: root.path,
+        environment: environment,
+      );
+
+      final dry = await run(['--dry-run', '--json']);
+      expect(dry.exitCode, 0, reason: '${dry.stderr}');
+      final hash = (jsonDecode('${dry.stdout}') as Map)['plan']! as String;
+
+      final yes = await run(['--yes', '--plan', hash]);
+      expect(yes.exitCode, 0, reason: '${yes.stderr}');
+      expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
+      expect(
+        marker.existsSync(),
+        isFalse,
+        reason: 'a git process started',
+        skip: Platform.isWindows
+            ? 'Windows runs no sh stub, so a started git leaves no mark'
+            : null,
+      );
+    });
   });
 }

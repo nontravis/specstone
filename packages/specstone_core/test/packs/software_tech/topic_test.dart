@@ -68,4 +68,13 @@ void main() {
       'word, and cites its four sources', () {
     expectSpecLint(topic);
   });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one bullet per rule as '
+      'its item shape', () {
+    expectItemShape(
+      topic,
+      'Write one rule per ID: one bullet per rule, each rule one sentence.',
+    );
+  });
 }

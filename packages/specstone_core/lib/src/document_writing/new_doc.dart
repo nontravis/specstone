@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -23,15 +24,15 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Refuses [lfText] whose frontmatter holds an `approved` key of any value.
 ///
-/// Only `specstone approve` writes the mark, so `new` never takes it from
-/// stdin.
+/// Only `specstone approve` and the hash stamps write the mark, so `new`
+/// never takes it from stdin.
 void _refuseApprovedMark(String lfText) {
   final marked =
       Doc.parse(lfText).frontmatter?.any((b) => b.name == 'approved') ?? false;
   if (!marked) return;
   throw WriteFault(
     WriteFaultCode.fieldNotWritable,
-    'approved is written only by specstone approve',
+    approvedNotWritableMessage,
     key: 'approved',
   );
 }
@@ -50,9 +51,11 @@ typedef NewDocFill = String Function(
 /// below `max_depth`; [slug] fills `{slug}`; a non-empty [text] is the doc,
 /// forced to `draft: true`. Under the session lock, [generators] and
 /// [firstConfirmations] fill it, then an exclusive create writes it.
-/// Throws [TemplateFault] `doc_type_unknown`, [IndexFault] `argument_missing`
+/// Throws [TemplateFault] `doc_type_unknown` for [docTypeId] or a [parent]
+/// that names another doc type id, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
-/// not take, or a [parent] already at `max_depth`, [WriteFault] `doc_exists`
+/// not take, a [parent] already at `max_depth`, or a [text] that holds a naming
+/// line at column 0 outside fenced code, [WriteFault] `doc_exists`
 /// when the doc is there and `field_not_writable` when [text] holds an
 /// `approved` key, and [RenderFault] `output_not_writable` when the disk
 /// refuses, after removing what this call created.
@@ -83,7 +86,7 @@ ReadAnswer answerNew(
 
   final parentDoc = parent == null
       ? null
-      : session.target('$parentTypeId:$parent');
+      : session.parentTarget(parent, parentTypeId!);
   final (parentShape, parentValues) = parentDoc == null
       ? (null, const <String>[])
       : _shapeOfParent(set, parentTypeId!, parentDoc);
@@ -95,7 +98,10 @@ ReadAnswer answerNew(
         '$docTypeId has no path to create a doc at depth $depth',
       ));
   final title = slug ?? parentDoc?.name.split('/').last ?? docType.id;
-  if (text.isNotEmpty) _refuseApprovedMark(toLf(text));
+  if (text.isNotEmpty) {
+    refuseNamingLine(toLf(text), 'the text');
+    _refuseApprovedMark(toLf(text));
+  }
   final given = text.isEmpty
       ? skeletonOf(docType, title)
       : markDraft(toLf(text), docType);
@@ -131,7 +137,7 @@ ReadAnswer answerNew(
       if (firstConfirmations != null) {
         lfText = firstConfirmations(lfText, docType, session.index);
       }
-      session.writeDoc(docPath, lfText, lineEnding);
+      lfText = session.writeDoc(docPath, lfText, lineEnding);
     } on Object {
       _remove(claimed, created);
       rethrow;
@@ -177,7 +183,8 @@ void _checkArguments(
   if (declaredParent != null && parent == null) {
     throw IndexFault(
       IndexFaultCode.argumentMissing,
-      '${docType.id} needs --parent, the name of a $declaredParent',
+      '${docType.id} needs --parent: a $declaredParent named by '
+      '<doc type>:<name>, a bare name, or a path',
     );
   }
   if (shape.slugged && slug == null) {
@@ -356,9 +363,12 @@ void _remove(File? file, List<Directory> created) {
   }
 }
 
-/// Returns the template skeleton of [docType]: a draft frontmatter with each
-/// required field empty, the [title], and each required section.
-String skeletonOf(MergedDocType docType, String title) {
+/// Returns the laid-out template skeleton of [docType]: a draft frontmatter
+/// with each required field empty, the [title], and each required section.
+String skeletonOf(MergedDocType docType, String title) =>
+    layOutDoc(_rawSkeletonOf(docType, title), docType);
+
+String _rawSkeletonOf(MergedDocType docType, String title) {
   final buffer = StringBuffer('---\ndraft: true\n');
   for (final field in docType.fields) {
     if (field.required) buffer.write('${field.id}:\n');

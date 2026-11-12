@@ -1,12 +1,16 @@
 // The test titles and literals are plan values kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
+import '../../../../specstone_core/test/helpers/relative_link.dart';
+import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 /// Returns `<address>@<hash>`, the hash `get --json` prints as bases.doc.
@@ -43,12 +47,8 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(out.toString(), contains('approve? [y/n/q] '));
     final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
-    expect(text, contains('approved: true'));
+    expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
-  });
-  test('f02/us03/fr01: approve takes no --json', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(await runner.run(['approve', '--json']), 64);
   });
   test(
     'ms-r10: at a terminal, two names walk the drafts under either',
@@ -91,7 +91,7 @@ void main() {
       'approved feature:signup\n',
     );
     final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
-    expect(text, contains('approved: true'));
+    expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
   test('ms-r10: --yes with no name is a usage error, exit 64', () async {
@@ -123,9 +123,8 @@ void main() {
     expect(
       err.toString(),
       startsWith(
-        '--yes needs each draft as <type>:<name>@<hash>, the hash row of '
-        'specstone approve --dry-run (bases.doc of specstone get --json); '
-        'got architecture:signup.\n',
+        '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
+        'specstone get --json; got architecture:signup.\n',
       ),
     );
     expect(File('${root.path}/docs/$signupFeature').readAsStringSync(), before);
@@ -212,7 +211,13 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone approve [<name> …] [--dry-run] [--context <n>] | <type>:<name>@<hash> … --yes',
+        'Usage: specstone approve [<name> …] [--dry-run] [--context <n> | --json] | <name>@<hash> … --yes',
+      ),
+    );
+    expect(
+      out.toString().replaceAll(RegExp(r'\s+'), ' '),
+      contains(
+        '--json With --dry-run, print the drafts as one JSON object in place of the views.',
       ),
     );
   });
@@ -250,6 +255,144 @@ void main() {
       64,
     );
   });
+  group('document_writing/approve_drafts/print_drafts_for_chat E09', () {
+    for (final (args, message) in [
+      (['--json'], '--json goes only with --dry-run.'),
+      (
+        ['--yes', '--json', 'a@0123456789ab'],
+        '--json goes only with --dry-run.',
+      ),
+      (
+        ['--dry-run', '--json', '--context', '0'],
+        '--json goes without --context.',
+      ),
+      (
+        ['--dry-run', '--json', '--yes', 'a@0123456789ab'],
+        '--dry-run goes without --yes.',
+      ),
+    ]) {
+      test(
+        'approve ${args.join(' ')} is a usage error, exit 64, and prints nothing',
+        () async {
+          final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+
+          expect(await runner.run(['approve', ...args]), 64);
+
+          expect(out.toString(), isEmpty);
+          expect(err.toString(), startsWith('$message\n'));
+        },
+      );
+    }
+  });
+  group('document_writing/approve_drafts/print_drafts_for_chat E10', () {
+    test('--dry-run --json prints one object holding each draft and the count, the drafts and hashes its view prints', () async {
+      final root = await writeWriteProject();
+      var (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', 'login', '--dry-run']), 0);
+      final view = out.toString();
+
+      (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', 'login', '--dry-run', '--json']), 0);
+
+      expect(err.toString(), isEmpty);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final drafts = (json['drafts']! as List).cast<Map<String, Object?>>();
+      expect(json['count'], drafts.length);
+      expect(drafts, isNotEmpty);
+      expect('### Draft '.allMatches(view), hasLength(drafts.length));
+      for (final draft in drafts) {
+        expect(draft, contains('name'));
+        expect(draft, contains('dropped'));
+        expect(draft, contains('new'));
+        expect(view, contains('`${draft['hash']}`'));
+        expect(view, contains('`docs/${draft['docPath']}`'));
+      }
+    });
+    test(
+      'no draft in scope prints an empty list and a count of 0, exit 0',
+      () async {
+        final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+
+        expect(
+          await runner.run([
+            'approve',
+            'architecture:login',
+            '--dry-run',
+            '--json',
+          ]),
+          0,
+        );
+
+        expect(jsonDecode(out.toString()), {
+          'drafts': <Object>[],
+          'count': 0,
+          'warnings': <Object>[],
+        });
+      },
+    );
+    test("roots awaiting the Owner's record refuse with exit 73 and the JSON error on stderr, and print no JSON", () async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          if (key.startsWith('docs/'))
+            'ext/${key.substring(5)}': value
+          else
+            'src/clone/$key': value,
+      });
+      createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+      final (:runner, :out, :err) = writeRunner(
+        Directory('${base.path}/src/clone'),
+      );
+
+      expect(await runner.run(['approve', '--dry-run', '--json']), 73);
+
+      expect(out.toString(), isEmpty);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'output_not_writable'),
+      );
+    }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
+  });
+  test('ms-r10: a @<hash> without --yes on a non-terminal is a usage error, exit 64', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    final named = _seen(root, 'feature:signup');
+    expect(await runner.run(['approve', named]), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      startsWith('$named: a @<hash> goes only with --yes.\n'),
+    );
+  });
+  test(
+    'R70: a doc path holding @ names the doc, so --dry-run reads it',
+    () async {
+      final root = await writeWriteProject(
+        extra: {'docs/prds/a@b.md': '---\ndraft: true\n---\n\n# A\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', 'prds/a@b.md', '--dry-run']), 0);
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), 'no draft waits for approval\n');
+    },
+  );
+  test(
+    'R70: --yes on a doc path holding @ names the doc and asks for the hash',
+    () async {
+      const name = 'prds/a@0123456789ab.md';
+      final root = await writeWriteProject(
+        extra: {'docs/$name': '---\ndraft: true\n---\n\n# A\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', name, '--yes']), 64);
+      expect(
+        err.toString(),
+        startsWith(
+          '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
+          'specstone get --json; got $name.\n',
+        ),
+      );
+    },
+  );
   test('f02/us03/fr05/e07: --context rules', () async {
     final root = await writeWriteProject();
     final seen = _seen(root, 'feature:signup');
@@ -330,6 +473,70 @@ void main() {
       expect(out.toString(), isNot(contains('\x1b[')));
     },
   );
+  test('document_writing/approve_drafts/show_changes_since_approval E17: --dry-run on a layout-only draft shows no change', () async {
+    const compact =
+        '| Component | Responsibility |\n|---|---|\n| Signup form | Collects the email |\n';
+    const padded =
+        '| Component   | Responsibility |\n|-------------|----------------|\n| Signup form | Collects the email |\n';
+    String arch(String mark, String table) =>
+        '---\n$mark---\n\n# Signup architecture\n\n## Components\n\n$table';
+    final root = await writeWriteProject(
+      extra: {'docs/$signupArch': arch('approved: true\n', compact)},
+    );
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(root, 'approved');
+    File('${root.path}/docs/$signupArch')
+        .writeAsStringSync(arch('draft: true\n', padded));
+    commitAll(root, 'padded as a draft');
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['approve', '--dry-run', 'architecture:signup']),
+      0,
+    );
+    expect(out.toString(), contains('| changes | none |'));
+    expect(out.toString(), contains('no change since the approved copy'));
+  });
+  test('document_writing/approve_drafts/show_changes_since_approval E23: --dry-run lists the sentence dropped and the one new, and not the one moved', () async {
+    String story(String mark, String useCase) =>
+        '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'
+        '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story2': story(
+          'approved: true\n',
+          'Sign out. Clears the cookie. Ends the session.',
+        ),
+      },
+    );
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(root, 'approved');
+    File('${root.path}/docs/$story2')
+        .writeAsStringSync(story('draft: true\n', 'Sign out. Warns the user.'));
+    File('${root.path}/docs/prds/d01_context.md').writeAsStringSync(
+      '# Context\n\n## Features\n'
+      'See [signup](features/f02_signup/FEATURE.md). Ends the session.\n',
+    );
+    commitAll(root, 'edited as a draft');
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['approve', '--dry-run', 'user_story:login/sign_out']),
+      0,
+    );
+
+    expect(out.toString(), contains('| dropped | 1 sentence dropped |\n'));
+    expect(out.toString(), contains('| new     | 1 sentence new |\n'));
+    expect(
+      out.toString(),
+      endsWith(
+        '\n```\n\nDropped sentences:\n- Clears the cookie.\n\n'
+        'New sentences:\n- Warns the user.\n',
+      ),
+    );
+    expect(out.toString(), isNot(contains('- Ends the session.')));
+  });
   group('--context reaches the view', () {
     Future<Directory> editedDraft() async {
       final root = await writeWriteProject(
@@ -387,5 +594,110 @@ void main() {
         expect(out.toString().contains(kept), shown);
       }
     });
+  });
+
+  group('what awaits approval, through the built CLI', () {
+    late String binary;
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<ProcessResult> run(Directory root, List<String> args) =>
+        Process.run(binary, args, workingDirectory: root.path);
+
+    String editedStory(String text) =>
+        text.replaceFirst('Sign out.\n', 'Sign out of every device.\n');
+
+    test('f02/us03/s12: an approved story edited in an editor is walked, its view showing the edit', () async {
+      final root = await writeWriteProject();
+      File('${root.path}/docs/$story2').writeAsStringSync(
+        editedStory(File('${root.path}/docs/$story2').readAsStringSync()),
+      );
+      final shown = await run(root, ['approve', '--dry-run']);
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      expect(shown.stdout, contains('`docs/$story2`'));
+      expect(shown.stdout, contains('+Sign out of every device.'));
+    });
+
+    test('f02/us03/s13: a layout change keeps the approval, so the story is not walked', () async {
+      final root = await writeWriteProject();
+      final arch = File('${root.path}/docs/$loginArch');
+      arch.writeAsStringSync(
+        arch.readAsStringSync().replaceFirst(
+          '| Component | Responsibility |\n|---|---|\n| Login form | Collects the email and the password |\n',
+          '| Component  | Responsibility                       |\n|------------|--------------------------------------|\n| Login form | Collects the email and the password  |\n',
+        ),
+      );
+      final shown = await run(root, ['approve', '--dry-run']);
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      expect(shown.stdout, isNot(contains('`docs/$loginArch`')));
+    });
+
+    test('f02/us03/s14: a story made in an editor with neither mark is walked, and its approval writes the hash', () async {
+      const made = '# Reset password\n\n## Use Case\n\nReset a password.\n';
+      final root = await writeWriteProject(extra: {'docs/$story3': made});
+      final shown = await run(root, ['approve', '--dry-run']);
+      expect(shown.stdout, contains('`docs/$story3`'));
+      final hash = RegExp(r'\| hash +\| `([0-9a-f]{12})`').firstMatch(
+        (await run(root, [
+              'approve',
+              '--dry-run',
+              'user_story:login/reset_password',
+            ])).stdout
+            as String,
+      );
+      expect(hash, isNotNull);
+      final approved = await run(root, [
+        'approve',
+        'user_story:login/reset_password@${hash!.group(1)}',
+        '--yes',
+      ]);
+      expect(approved.exitCode, 0, reason: '${approved.stderr}');
+      final text = File('${root.path}/docs/$story3').readAsStringSync();
+      expect(text, matches(RegExp(r'^---\napproved: "[0-9a-f]{12}"\n---\n')));
+      expect(text, isNot(contains('draft:')));
+      final after = await run(root, [
+        'approve',
+        '--dry-run',
+        'user_story:login/reset_password',
+      ]);
+      expect(after.stdout, isNot(contains('`docs/$story3`')));
+    });
+
+    test("f06/us01/fr02/e15: --dry-run shows the changes against the project's own committed copy under an exported GIT_INDEX_FILE and GIT_DIR", () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\nThey stay signed in.\n',
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      File('${root.path}/docs/$signupFeature').writeAsStringSync(
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\nThey stay signed in.\n',
+      );
+      commitAll(root, 'edited as a draft');
+      final other = await writeTree({'elsewhere.txt': 'another repository\n'});
+      expect(git(other, ['init', '-q']).exitCode, 0);
+      final junkIndex = File('${other.path}/junk-index')
+        ..writeAsStringSync('not an index\n');
+      const args = ['approve', '--dry-run', 'feature:signup'];
+
+      final plain = await run(root, args);
+      final exported = await Process.run(
+        binary,
+        args,
+        workingDirectory: root.path,
+        environment: {
+          'GIT_INDEX_FILE': junkIndex.path,
+          'GIT_DIR': '${other.path}/.git',
+        },
+      );
+
+      expect(plain.exitCode, 0, reason: '${plain.stderr}');
+      expect(plain.stdout, contains('+Users sign up.'));
+      expect(exported.exitCode, 0, reason: '${exported.stderr}');
+      expect(exported.stdout, plain.stdout);
+    }, skip: hasGit ? null : 'git is not available');
   });
 }

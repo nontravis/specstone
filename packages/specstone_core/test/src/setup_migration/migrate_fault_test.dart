@@ -45,9 +45,52 @@ void main() {
       expect(MigrateFaultCode.planMismatch.wire, 'plan_mismatch');
       expect(MigrateFaultCode.planMismatch.exitStatus, 75);
     });
+
+    test('setup_migration/set_up_new_project/write_agent_files E05: '
+        'agent_block_malformed exits 65', () {
+      expect(
+        MigrateFaultCode.agentBlockMalformed.wire,
+        'agent_block_malformed',
+      );
+      expect(MigrateFaultCode.agentBlockMalformed.exitStatus, 65);
+    });
+
+    test('f06/us01/fr03/e14: legacy_collision exits 65', () {
+      expect(MigrateFaultCode.legacyCollision.wire, 'legacy_collision');
+      expect(MigrateFaultCode.legacyCollision.exitStatus, 65);
+    });
   });
 
   group('MigrateFault', () {
+    test('setup_migration error envelope: a fault with a line prints '
+        '<file>:<line>: <message> and carries line in its JSON', () {
+      final fault = MigrateFault(
+        MigrateFaultCode.agentBlockMalformed,
+        'a',
+        file: 'CLAUDE.md',
+        line: 4,
+        more: [
+          MigrateFault(
+            MigrateFaultCode.agentBlockMalformed,
+            'b',
+            file: 'AGENTS.md',
+            line: 9,
+          ),
+        ],
+      );
+
+      expect(fault.toText(), 'CLAUDE.md:4: a\nAGENTS.md:9: b');
+      expect(fault.toJson(), {
+        'error': {
+          'code': 'agent_block_malformed',
+          'message': 'a',
+          'file': 'CLAUDE.md',
+          'line': 4,
+        },
+      });
+      expect(fault.exitStatus, 65);
+    });
+
     test('f06/us02/fr03/e03: a fault with more entries prints one line '
         'each', () {
       final fault = MigrateFault(

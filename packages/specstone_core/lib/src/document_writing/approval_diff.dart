@@ -11,32 +11,48 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 /// Each hunk is `@@ -<a>[,<n>] +<b>[,<m>] @@` then its lines prefixed by a
 /// space, `-`, or `+`; a count of 1 is left out and a zero count names the
 /// line before the change. Equal texts give `''`.
-String approvalDiff(String oldText, String newText, {int? context}) {
-  if (context != null && context < 0) {
-    throw ArgumentError.value(
-      context,
-      'context',
-      'must be a whole number from 0',
-    );
-  }
-  final before = _linesOf(oldText);
-  final after = _linesOf(newText);
-  final ops = _opsOf(before, after);
-  final shown = context == null
-      ? _shownByUnit(ops, _unitStarts(oldText), _unitStarts(newText))
-      : _shownByDistance(ops, context);
+String approvalDiff(String oldText, String newText, {int? context}) =>
+    LineDiff(oldText, newText).hunks(context: context);
 
-  final out = StringBuffer();
-  var runStart = -1;
-  for (var k = 0; k <= ops.length; k++) {
-    final inRun = k < ops.length && shown[k];
-    if (inRun && runStart < 0) runStart = k;
-    if (!inRun && runStart >= 0) {
-      _writeHunk(out, ops.sublist(runStart, k));
-      runStart = -1;
+/// The line diff of two texts, found once and shown with any [hunks] context.
+final class LineDiff {
+  new(this._oldText, this._newText)
+    : _ops = _opsOf(_linesOf(_oldText), _linesOf(_newText));
+
+  final String _oldText;
+  final String _newText;
+  final List<_Op> _ops;
+
+  /// Whether the texts differ in any line, read as LF as [approvalDiff] reads
+  /// them.
+  bool get isEmpty => !_ops.any((op) => op.isChange);
+
+  /// Returns the unified hunks of the diff, as [approvalDiff] does for
+  /// [context].
+  String hunks({int? context}) {
+    if (context != null && context < 0) {
+      throw ArgumentError.value(
+        context,
+        'context',
+        'must be a whole number from 0',
+      );
     }
+    final shown = context == null
+        ? _shownByUnit(_ops, _unitStarts(_oldText), _unitStarts(_newText))
+        : _shownByDistance(_ops, context);
+
+    final out = StringBuffer();
+    var runStart = -1;
+    for (var k = 0; k <= _ops.length; k++) {
+      final inRun = k < _ops.length && shown[k];
+      if (inRun && runStart < 0) runStart = k;
+      if (!inRun && runStart >= 0) {
+        _writeHunk(out, _ops.sublist(runStart, k));
+        runStart = -1;
+      }
+    }
+    return out.toString();
   }
-  return out.toString();
 }
 
 /// The part of a doc a [ChangedUnit] names.

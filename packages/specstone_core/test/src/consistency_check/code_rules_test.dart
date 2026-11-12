@@ -3,6 +3,7 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
@@ -27,8 +28,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$techStack:3: code_uncovered',
-      '$techStack:3: code_uncovered',
+      '$techStack:4: code_uncovered',
+      '$techStack:4: code_uncovered',
     ]);
     expect(
       report.findings.last.message,
@@ -38,6 +39,20 @@ void main() {
       [for (final f in report.findings) f.toJson()['path']],
       ['app/lib/login.dart', 'app/lib/main.dart'],
     );
+  });
+
+  test('consistency_check/find_broken_pointers/report_uncovered_code: a ./ covers entry reaches the files of a ./ code entry', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(techStack, '  - app/lib/\n', '  - ./app/lib/\n'),
+          ...doc(loginArchitecture, '  - app/lib/\n', '  - ./app/lib/\n'),
+          'app/lib/src/a.dart': '',
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.codeUncovered), isEmpty);
+    expect(spots(report, FindingKind.coversPathMissing), isEmpty);
   });
 
   test('code_root: covers and code resolve under the code folder; code_uncovered names a path from it', () async {
@@ -55,8 +70,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$techStack:3: code_uncovered',
-      '$techStack:3: code_uncovered',
+      '$techStack:4: code_uncovered',
+      '$techStack:4: code_uncovered',
     ]);
     expect(
       [for (final f in report.findings) f.toJson()['path']],
@@ -130,8 +145,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$techStack:3: code_uncovered',
-      '$techStack:4: code_root_missing',
+      '$techStack:4: code_uncovered',
+      '$techStack:5: code_root_missing',
     ]);
   });
 
@@ -150,13 +165,13 @@ void main() {
       await writeCheckProject(extra: narrow('app/lib/login/')),
     );
     expect(spots(moved, FindingKind.coversPathMissing), [
-      '$loginArchitecture:3: covers_path_missing',
+      '$loginArchitecture:4: covers_path_missing',
     ]);
     expect(
       moved.findings
           .firstWhere((f) => f.kind == FindingKind.coversPathMissing)
           .textLine,
-      '$loginArchitecture:3: covers_path_missing: app/lib/login/ names nothing on disk',
+      '$loginArchitecture:4: covers_path_missing: app/lib/login/ names nothing on disk',
     );
   });
 
@@ -171,7 +186,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.codeUncovered), [
-      '$techStack:3: code_uncovered',
+      '$techStack:4: code_uncovered',
     ]);
   });
 
@@ -191,11 +206,50 @@ void main() {
       addTearDown(() => Process.runSync('chmod', ['755', path]));
       final report = checkOf(project);
       expect(spots(report, FindingKind.codeUncovered), [
-        '$techStack:3: code_uncovered',
+        '$techStack:4: code_uncovered',
       ]);
       expect(report.warnings, [
         'app/lib/sealed: cannot list the folder; files under it are not checked for covers',
       ]);
     },
+  );
+
+  test('consistency_check/find_broken_pointers/report_uncovered_code: a code entry that names a file is checked for covers as that file', () async {
+    final uncovered = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(techStack, '- app/lib/\n', '- app/lib/other.dart\n'),
+          ...narrow('app/lib/login.dart'),
+          'app/lib/other.dart': '',
+        },
+      ),
+    );
+    expect(
+      [for (final f in uncovered.findings) f.toJson()['path']],
+      ['app/lib/other.dart'],
+    );
+  });
+
+  test(
+    'f04/us02/fr02/e01: an entry with a backslash or a name Windows trims '
+    'names nothing on any OS, though a POSIX disk holds such names',
+    () async {
+      final tree = await writeTree({'lib/a.dart': ''});
+      for (final name in [r'co\de', 'trail ', 'dot.']) {
+        File('${tree.path}/$name').writeAsStringSync('');
+      }
+
+      expect(namesFileOrFolderFrom(tree, 'lib/a.dart'), isTrue);
+      for (final entry in [
+        r'co\de',
+        'trail ',
+        'dot.',
+        'lib/../trail ',
+        r'x\y/..',
+      ]) {
+        expect(namesFileOrFolderFrom(tree, entry), isFalse, reason: entry);
+      }
+    },
+    skip: Platform.isWindows ? 'Windows cannot hold such a name' : null,
   );
 }

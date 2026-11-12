@@ -35,6 +35,10 @@ round the rest batch always runs, even with no finding, and names `tech_stack:te
 `report:`, one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work
 no step of the procedure yourself.
 
+An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
+that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item per `size-fix.md`. In any other
+run the finding waits for the Owner.
+
 Without the tool, or when a dispatch fails, read `references/procedure.md` beside this file
 (`${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md`) and follow it yourself: without the tool,
 over every finding this skill takes; after a failed dispatch, for each batch no agent took.
@@ -45,13 +49,17 @@ When you followed the procedure yourself, its report stands in for item 1; on no
 in for item 4.
 
 1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes.
-2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
+2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation. Ask the Owner to approve each split
+   proposal; on ok, run its commands yourself, in run order
+   (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
    one command naming each path once, each still quoted, with each path `specstone:bootstrap-prd` left waiting on a
    file this round merged, and get the Owner's word on it per `specstone:expert-sdd`. On exit 64, dispatch again each
    batch whose file a listed referrer names, with those referrers.
-5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless the last reports
-   name it as one that clears with no write or waits on the Owner, or it waits on `specstone:bootstrap-prd`, such as
-   a finding on a file that a `prds/` untyped doc it left still names. With none left, stop.
+5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
+   `(waits for the Owner)`, the last reports name it as one that clears with no write, or it waits on
+   `specstone:bootstrap-prd`, such as a finding on a file that a `prds/` untyped doc it left still names. With none
+   left, stop; first, in a run that did not name `item_over_limit`, list under `Waits on the Owner:` each
+   `item_over_limit` finding no report's `Waits on the Owner:` line named.

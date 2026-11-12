@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/shipped_pins.dart';
@@ -17,6 +19,9 @@ final String _journal = jsonEncode(
   ]).toJson(),
 );
 
+const _laidOutFeature = '## Problem\n\nn\n\n## Benefit hypothesis\n\ng\n';
+const _offLayoutFeature = '## Benefit hypothesis\n\ng\n\n\n## Problem\n\nn\n';
+
 RunKind _choose(Directory root, {Directory? home}) =>
     chooseRun(root, templates: TemplateResolver(), homeDirectory: home);
 
@@ -25,6 +30,17 @@ Matcher _pinNewer() => throwsA(
       .having((f) => f.code, 'code', FaultCode.packPinNewer)
       .having((f) => f.key, 'key', 'packs.prd-core'),
 );
+
+const _findRoot = 'setup_migration/migrate_legacy_docs/find_project_root';
+
+Future<Directory> _project(Map<String, String> files) async {
+  final base = await writeTree({
+    for (final entry in files.entries) 'proj/${entry.key}': entry.value,
+  });
+  return Directory.fromUri(base.uri.resolve('proj/'));
+}
+
+String _inline() => inlineBlock(cliVersion: specstoneVersion);
 
 void main() {
   test('f06/us01/fr01/e07: a pending migrate journal is resume', () async {
@@ -51,6 +67,37 @@ void main() {
       'are none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
+    });
+
+    expect(_choose(root), RunKind.none);
+  });
+
+  test('setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+      'and every typed doc laid out is none', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_a/FEATURE.md': _laidOutFeature,
+    });
+
+    expect(_choose(root), RunKind.none);
+  });
+
+  test('setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+      'and one typed doc off its layout is upgrade', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_a/FEATURE.md': _laidOutFeature,
+      'docs/prds/features/f02_b/FEATURE.md': _offLayoutFeature,
+    });
+
+    expect(_choose(root), RunKind.upgrade);
+  });
+
+  test('setup_migration/migrate_legacy_docs/find_project_root E04: a doc '
+      'format refuses alone is none', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_a/FEATURE.md': '## Notes\nx   \n',
     });
 
     expect(_choose(root), RunKind.none);
@@ -101,5 +148,113 @@ void main() {
     });
 
     expect(_choose(root, home: home), RunKind.upgrade);
+  });
+
+  group('agent file drift with every pin equal', () {
+    test('$_findRoot E04: a stale block is an upgrade', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.specstone/AGENT.md': agentMdText,
+        'AGENTS.md': 'top\n${_inline().replaceFirst('Rules', 'Rule')}',
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test(
+      '$_findRoot E04: agent files as the CLI writes them are none',
+      () async {
+        final root = await _project({
+          '.specstone/config.yaml': shippedPinsConfig(),
+          '.specstone/AGENT.md': agentMdText,
+          'AGENTS.md': _inline(),
+        });
+
+        expect(_choose(root), RunKind.none);
+      },
+    );
+
+    test('$_findRoot E10: an import block naming a missing AGENT.md is an '
+        'upgrade', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'CLAUDE.md': importBlock(
+          cliVersion: specstoneVersion,
+          agentMdPath: '.specstone/AGENT.md',
+          projectDocPath: 'docs/prds/PROJECT.md',
+        ),
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('$_findRoot E10: a repository top the config does not list is an '
+        'upgrade', () async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: other\n',
+        'proj/other/.git/HEAD': 'ref\n',
+      });
+
+      expect(
+        _choose(Directory.fromUri(base.uri.resolve('proj/'))),
+        RunKind.upgrade,
+      );
+    });
+
+    test('$_findRoot R99: a repository top outside the project root, which '
+        'no run writes, is none', () async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: ../other\n',
+        'other/.git/HEAD': 'ref\n',
+      });
+
+      expect(
+        _choose(Directory.fromUri(base.uri.resolve('proj/'))),
+        RunKind.none,
+      );
+    });
+
+    test('$_findRoot E10: a repository top a code entry reaches, found in a '
+        'tech stack doc, is an upgrade', () async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml': shippedPinsConfig(),
+        'proj/docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - other/\n---\n# Tech stack\n',
+        'proj/other/.git/HEAD': 'ref\n',
+      });
+
+      expect(
+        _choose(Directory.fromUri(base.uri.resolve('proj/'))),
+        RunKind.upgrade,
+      );
+    });
+
+    test('$_findRoot E11: a repository top the config lists is none', () async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: other\n'
+            'agent_file_roots:\n  - other\n',
+        'proj/other/.git/HEAD': 'ref\n',
+      });
+
+      expect(
+        _choose(Directory.fromUri(base.uri.resolve('proj/'))),
+        RunKind.none,
+      );
+    });
+
+    test(
+      '$_findRoot E11: malformed markers are an upgrade, not a refusal',
+      () async {
+        final root = await _project({
+          '.specstone/config.yaml': shippedPinsConfig(),
+          'AGENTS.md': '<!-- BEGIN specstone v1.0.0 -->\nno end line\n',
+        });
+
+        expect(_choose(root), RunKind.upgrade);
+      },
+    );
   });
 }

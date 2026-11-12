@@ -29,7 +29,7 @@ void main() {
         await writeCheckProject(extra: fr('  - S2\n', '  - $entry\n')),
       );
       expect(spots(report, FindingKind.scenarioTraceUnresolved), [
-        '$loginFr:3: scenario_trace_unresolved',
+        '$loginFr:4: scenario_trace_unresolved',
       ]);
       expect(
         report.findings
@@ -54,7 +54,7 @@ void main() {
       await writeCheckProject(extra: doc(loginNf, 'overrides: NFR-P01\n', '')),
     );
     expect(spots(noOverride, FindingKind.overrideKindMismatch), [
-      '$loginNf:2: override_kind_mismatch',
+      '$loginNf:3: override_kind_mismatch',
     ]);
     final addWithOne = checkOf(
       await writeCheckProject(
@@ -62,7 +62,7 @@ void main() {
       ),
     );
     expect(spots(addWithOne, FindingKind.overrideKindMismatch), [
-      '$loginNf:2: override_kind_mismatch',
+      '$loginNf:3: override_kind_mismatch',
     ]);
   });
 
@@ -73,7 +73,74 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.overrideUnresolved), [
-      '$loginNf:3: override_unresolved',
+      '$loginNf:4: override_unresolved',
+    ]);
+  });
+
+  test(
+    'f04/us03/fr01/e06, RULE-12: a lettered NFR heading keys no block, so an '
+    'override of its written form is override_unresolved',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...doc(
+              gnfrDoc,
+              '### NFR-P01 — Sign-in time',
+              '### NFR-P01a — Sign-in time',
+            ),
+            ...doc(loginNf, 'overrides: NFR-P01', 'overrides: NFR-P01a'),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.overrideUnresolved), [
+        '$loginNf:4: override_unresolved',
+      ]);
+    },
+  );
+
+  test('f04/us03/fr02/e05, RULE-12: a lettered project heading keys no block, '
+      'so a goal or Serves entry of its written form is unresolved', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(projectDoc, '### PG-01 — ', '### PG-01a — '),
+          ...doc(loginFeature, 'PG-01', 'PG-01a'),
+        },
+      ),
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved &&
+              f.path == loginFeature)
+            f.toJson()['id'],
+      ],
+      ['PG-01a'],
+    );
+  });
+
+  test('f04/us03/fr01/e06: an NFR heading key is the ID the grammar reads, '
+      'as item IDs read it: a tab or no-break space ends it, an unreadable '
+      'one keys nothing', () async {
+    final noBreakSpace = String.fromCharCode(0x00A0);
+    final unresolved = <String, List<String>>{};
+    for (final heading in [
+      '### NFR-P01\tx — Sign-in time',
+      '### NFR-P01${noBreakSpace}x — Sign-in time',
+      '### NFR-P1a1 — Sign-in time',
+    ]) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(gnfrDoc, '### NFR-P01 — Sign-in time', heading),
+        ),
+      );
+      unresolved[heading] = spots(report, FindingKind.overrideUnresolved);
+    }
+    expect(unresolved.values, [
+      isEmpty,
+      isEmpty,
+      ['$loginNf:4: override_unresolved'],
     ]);
   });
 
@@ -100,7 +167,10 @@ void main() {
         ),
       ),
     );
-    expect(report.findings, isEmpty);
+    expect(
+      report.findings.where((f) => f.kind != FindingKind.formatDrift),
+      isEmpty,
+    );
   });
 
   test(
@@ -127,8 +197,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:12: role_unresolved',
-      'prds/personas/buyer/PERSONA.md:2: role_unresolved',
+      '$loginStory:14: role_unresolved',
+      'prds/personas/buyer/PERSONA.md:3: role_unresolved',
     ]);
     expect(
       report.findings
@@ -138,6 +208,40 @@ void main() {
     );
   });
 
+  test(
+    'f04/us03/fr02/e12: an "As an" role line reads as an "As a" one',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginStory,
+            '- **As a** Agent who signs in',
+            '- **As an** Intruder who signs in',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.roleUnresolved), [
+        '$loginStory:14: role_unresolved',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.roleUnresolved)
+            .toJson()['role'],
+        'Intruder',
+      );
+      final known = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginStory,
+            '- **As a** Agent who signs in',
+            '- **As an** Agent who signs in',
+          ),
+        ),
+      );
+      expect(spots(known, FindingKind.roleUnresolved), isEmpty);
+    },
+  );
+
   test('f04/us03/s5, f04/us03/fr02/e04: a story goal its feature does not cite is vision_goal_widened', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -146,12 +250,12 @@ void main() {
           ...doc(
             projectDoc,
             'Halve the password resets.\n',
-            'Halve the password resets.\n### PG-03 — More\n**Serves:** PV-01\nMore.\n',
+            'Halve the password resets.\n\n### PG-03 — More\n\n**Serves:** PV-01\nMore.\n',
           ),
         },
       ),
     );
-    expect(spots(report), ['$loginStory:3: vision_goal_widened']);
+    expect(spots(report), ['$loginStory:4: vision_goal_widened']);
     expect(report.findings.single.toJson()['id'], 'PG-03');
     expect(
       report.findings.single.message,
@@ -166,8 +270,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$loginStory:3: vision_goal_unresolved',
-      '$loginStory:3: vision_goal_widened',
+      '$loginStory:4: vision_goal_unresolved',
+      '$loginStory:4: vision_goal_widened',
     ]);
   });
 
@@ -181,12 +285,12 @@ void main() {
       await writeCheckProject(without: {'docs/$projectDoc'}),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:12: role_unresolved',
+      '$loginStory:14: role_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginFeature:2: vision_goal_unresolved',
-      '$loginFeature:4: vision_goal_unresolved',
-      '$loginStory:3: vision_goal_unresolved',
+      '$loginFeature:3: vision_goal_unresolved',
+      '$loginFeature:5: vision_goal_unresolved',
+      '$loginStory:4: vision_goal_unresolved',
     ]);
   });
 
@@ -214,8 +318,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginFeature:2: vision_goal_unresolved',
-      '$loginFeature:4: vision_goal_unresolved',
+      '$loginFeature:3: vision_goal_unresolved',
+      '$loginFeature:5: vision_goal_unresolved',
     ]);
     expect(
       report.findings
@@ -232,7 +336,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.goalServesMissing), [
-      '$projectDoc:15: goal_serves_missing',
+      '$projectDoc:20: goal_serves_missing',
     ]);
     expect(
       report.findings
@@ -280,14 +384,63 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$projectDoc:16: vision_goal_unresolved',
-      '$projectDoc:16: vision_goal_unresolved',
+      '$projectDoc:22: vision_goal_unresolved',
+      '$projectDoc:22: vision_goal_unresolved',
     ]);
     expect(
       report.findings
           .where((f) => f.kind == FindingKind.visionGoalUnresolved)
           .map((f) => f.toJson()['id']),
       ['PG-01', 'PV-07'],
+    );
+  });
+
+  test('f04/us03/fr02/e09: a lettered or unreadable Serves ID is read '
+      'whole through the grammar and is vision_goal_unresolved', () async {
+    final unresolved = <String, List<Object?>>{};
+    for (final line in [
+      '**Serves:** PV-01, PV-09a',
+      '**Serves:** PV-01 and PV-1é',
+      '**Serves:** PV-09a',
+      '**Serves:** PV-01, PV-1a1',
+    ]) {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(projectDoc, '**Serves:** PV-01', line),
+        ),
+      );
+      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+      unresolved[line] = [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved) f.toJson()['id'],
+      ];
+    }
+    expect(unresolved, {
+      '**Serves:** PV-01, PV-09a': ['PV-09a'],
+      '**Serves:** PV-01 and PV-1é': ['PV-1é'],
+      '**Serves:** PV-09a': ['PV-09a'],
+      '**Serves:** PV-01, PV-1a1': ['PV-1a1'],
+    });
+  });
+
+  test('f04/us03/fr02/e05: a project heading ID is read through the grammar, '
+      'so an unreadable heading names no goal a feature may list', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(projectDoc, '### PG-01 — ', '### PG-1a1 — '),
+          ...doc(loginFeature, 'PG-01', 'PG-1a1'),
+        },
+      ),
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved &&
+              f.path == loginFeature)
+            f.toJson()['id'],
+      ],
+      ['PG-1a1'],
     );
   });
 
@@ -301,7 +454,7 @@ void main() {
           ),
         );
         expect(spots(report, FindingKind.goalServesMissing), [
-          '$projectDoc:15: goal_serves_missing',
+          '$projectDoc:20: goal_serves_missing',
         ]);
         expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
       }
@@ -321,7 +474,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.goalServesMissing), [
-        '$projectDoc:15: goal_serves_missing',
+        '$projectDoc:20: goal_serves_missing',
       ]);
     },
   );
@@ -367,7 +520,7 @@ void main() {
       ),
     );
     expect(spots(extra, FindingKind.frTraceUnresolved), [
-      '$loginApi:12: fr_trace_unresolved',
+      '$loginApi:14: fr_trace_unresolved',
     ]);
     expect(
       extra.findings
@@ -385,7 +538,7 @@ void main() {
       ),
     );
     expect(spots(withSlug, FindingKind.frTraceUnresolved), [
-      '$loginApi:11: fr_trace_unresolved',
+      '$loginApi:13: fr_trace_unresolved',
     ]);
   });
 
@@ -409,7 +562,7 @@ void main() {
     );
 
     expect(spots(report, FindingKind.frTraceUnresolved), [
-      '$shopApi:11: fr_trace_unresolved',
+      '$shopApi:12: fr_trace_unresolved',
     ]);
     expect(
       report.findings
@@ -464,8 +617,8 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/specs/f03_billing/API.md':
-              '# Billing API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
-              '| pay/charge | `charge` |\n\n## Operations\nNone.\n',
+              '# Billing API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
+              '| pay/charge | `charge` |\n\n## Operations\n\nNone.\n',
         },
       ),
     );
@@ -516,7 +669,7 @@ void main() {
               'sections:\n  - id: roles\n    disabled: true\n',
           ...doc(
             projectDoc,
-            '## Role\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
+            '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
             '',
           ),
           'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Buyer\npriority: primary\nbasis: proto\n---\n\n# Buyer\n',
@@ -566,10 +719,10 @@ void main() {
     );
     expect(spots(report, FindingKind.roleUnresolved), isEmpty);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginStory:3: vision_goal_unresolved',
+      '$loginStory:4: vision_goal_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalWidened), [
-      '$loginStory:3: vision_goal_widened',
+      '$loginStory:4: vision_goal_widened',
     ]);
     final unresolvedReviewer = checkOf(
       await writeCheckProject(
@@ -589,7 +742,7 @@ void main() {
       ),
     );
     expect(spots(unresolvedReviewer, FindingKind.roleUnresolved), [
-      '$loginStory:12: role_unresolved',
+      '$loginStory:14: role_unresolved',
     ]);
   });
 
@@ -629,7 +782,7 @@ void main() {
       );
 
       expect(spots(report, FindingKind.visionGoalWidened), [
-        '$cartFeature:4: vision_goal_widened',
+        '$cartFeature:5: vision_goal_widened',
       ]);
       final finding = report.findings.firstWhere(
         (f) => f.kind == FindingKind.visionGoalWidened,
@@ -662,7 +815,7 @@ void main() {
       );
 
       expect(spots(report, FindingKind.visionGoalWidened), [
-        '$deepFeature:4: vision_goal_widened',
+        '$deepFeature:5: vision_goal_widened',
       ]);
     });
 
@@ -686,5 +839,68 @@ void main() {
         expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
       },
     );
+  });
+
+  group('sibling-story traces', () {
+    Future<List<String>> unresolvedWith(String entry) async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            'docs/$cartAddFr': nestedFiles()['docs/$cartAddFr']!.replaceFirst(
+              'traced_from:\n  - S1\n',
+              'traced_from:\n  - S1\n  - $entry\n',
+            ),
+          },
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.scenarioTraceUnresolved)
+            '${f.path}:${f.line} ${f.toJson()['entry']}',
+      ];
+    }
+
+    test('f04/us03/fr01/e08: a scenario of a sibling story resolves', () async {
+      expect(await unresolvedWith('shop/cart/drop_item#S1'), isEmpty);
+    });
+
+    test('f04/us03/fr01/e09: a story of another feature is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('shop/pay/card#S1'), [
+        '$cartAddFr:4 shop/pay/card#S1',
+      ]);
+    });
+
+    test('f04/us03/fr01/e10: a sibling story with no such scenario is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('shop/cart/drop_item#S9'), [
+        '$cartAddFr:4 shop/cart/drop_item#S9',
+      ]);
+    });
+
+    test('f04/us03/fr01/e04: a story that no doc carries is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('shop/cart/nothing#S1'), [
+        '$cartAddFr:4 shop/cart/nothing#S1',
+      ]);
+    });
+
+    test('f04/us03/fr01/e04: a lettered scenario number is scenario_trace_unresolved', () async {
+      expect(await unresolvedWith('S6a'), ['$cartAddFr:4 S6a']);
+    });
+
+    test('f04/us03/fr01/e09: two stories whose feature doc is gone are no siblings', () async {
+      const other = 'prds/features/f01_login/us02_reset/USER_STORY.md';
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...fr('  - S2\n', '  - S2\n  - login/reset#S1\n'),
+            'docs/$other': checkProjectFiles()['docs/$loginStory']!,
+          },
+          without: {'docs/$loginFeature'},
+        ),
+        docPath: loginFr,
+      );
+      expect(spots(report, FindingKind.scenarioTraceUnresolved), [
+        '$loginFr:4: scenario_trace_unresolved',
+      ]);
+    });
   });
 }

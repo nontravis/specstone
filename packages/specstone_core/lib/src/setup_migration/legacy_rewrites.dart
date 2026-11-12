@@ -3,15 +3,19 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
     show rewritePathMentions;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove, rewriteDocLinksCounted;
 import 'package:specstone_core/src/document_writing/write_session.dart'
     show cannotRead;
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 
 final _numberedTitle = RegExp(r'^[A-Z][A-Z0-9]*-\d+ — ');
@@ -51,8 +55,9 @@ const _headerRenames = <LegacyKind, (String, String)>{
   LegacyKind.api: ('FR ↔ endpoint trace', 'FR trace'),
 };
 
-/// A doc file as LF text with the line style and byte order mark it came with.
-typedef DocText = ({String lf, LineEnding ending, bool bom});
+/// A doc file as LF text with the line style and byte order mark it came with,
+/// and the [textHashOf] its text had.
+typedef DocText = ({String lf, LineEnding ending, bool bom, String hash});
 
 /// Reads UTF-8 [bytes] into LF text, the byte order mark dropped from it.
 DocText readDocText(List<int> bytes) {
@@ -61,21 +66,32 @@ DocText readDocText(List<int> bytes) {
     lf: toLf(text),
     ending: LineEnding.of(text),
     bom: startsWithUtf8Bom(bytes),
+    hash: textHashOf(text),
   );
+}
+
+/// Returns the file of [docPath] under [docsRoot], possibly leaving it.
+///
+/// A path is joined as text: a URI reads `#` in a doc name as a fragment.
+File docFileOf(Directory docsRoot, String docPath) {
+  final root = docsRoot.path;
+  final separator = Platform.pathSeparator;
+  final base = root.endsWith(separator) ? root : '$root$separator';
+  return File('$base${docPath.split('/').join(separator)}');
 }
 
 /// Reads the doc [file] at [docPath] into LF text, or returns null when its
 /// bytes are not UTF-8 text.
 ///
 /// A run moves a doc it gets null for untouched and rewrites none of it, as
-/// it does a file that is not `.md` (US-01 FR-03 E13).
+/// it does a file that is not `.md` (`setup_migration/migrate_legacy_docs/move_legacy_files` E15).
 ///
 /// Throws [RenderFault] `output_not_writable` naming [docPath] when the file
 /// cannot be read.
 DocText? readDocFile(File file, {required String docPath}) {
   final List<int> bytes;
   try {
-    bytes = file.readAsBytesSync();
+    bytes = readPlanInput(file);
   } on FileSystemException catch (error) {
     throw cannotRead(docPath, error);
   }
@@ -111,8 +127,10 @@ final class DocRewrite {
 
 /// Rewrites the title, keys, and sections of one legacy doc of [kind].
 ///
-/// A doc line the legacy mapping does not name stays byte-equal. [gnfrHeaders]
-/// are the section headers of the `gnfr` doc type.
+/// A doc line the edge cases of
+/// `fr:setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links` do
+/// not name stays byte-equal. [gnfrHeaders] are the section headers of the
+/// `gnfr` doc type.
 DocRewrite rewriteLegacyDoc(
   String lf,
   LegacyKind kind, {
@@ -250,7 +268,7 @@ String _withoutIndexes(String lf) {
     if (index < 0) break;
     text = withoutSection(text, index);
   }
-  // A legacy doc that ended in a blank line keeps one (f06/us01/fr04/e12);
+  // A legacy doc that ended in a blank line keeps one (`setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links` E12);
   // `withoutSection` ends a doc whose last section went in one newline.
   final keepsBlankTail = lf.endsWith('\n\n') && !text.endsWith('\n\n');
   return keepsBlankTail && text != lf ? '$text\n' : text;
@@ -283,3 +301,19 @@ String _withCoversKey(String lf) {
   );
   return withKeyBlock(lf, 'applies_to', covers);
 }
+
+/// Returns [lf], the doc that [legacyPath] held before the move, with each
+/// legacy ID and number label that [tree] maps to one doc converted to that
+/// doc's name, and the ones it keeps as `<line>` and label as written
+/// (`rewrite_titles_keys_and_links` E18, E19).
+///
+/// A label reads against the place [legacyPath] gives; the lines are those of
+/// [lf].
+({String lf, List<({int line, String label})> kept}) convertLegacyLabels(
+  LabelTree tree, {
+  required String legacyPath,
+  required String lf,
+}) => convertLabelsIn(lf, (label, before) {
+  final target = tree.resolve(label, citingDocPath: legacyPath, before: before);
+  return target == null ? null : tree.nameOf(target);
+}, legacyIds: true);

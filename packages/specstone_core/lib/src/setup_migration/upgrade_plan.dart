@@ -1,31 +1,63 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show codeRootFiles, projectPathOfCodeFile;
+import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:yaml/yaml.dart';
 
 const _docsFolder = 'docs/';
 const _commit1Message = 'move docs to their new pack paths';
 const _commit2Message = 'upgrade pack pins';
+const _layoutOnlyHeader = 'pack upgrade: pins unchanged, layout only';
+const _layoutOnlyCommit2Message = 'lay docs out as format writes them';
+const _agentOnlyHeader = 'pack upgrade: pins unchanged, agent files only';
+const _agentOnlyCommit2Message = 'refresh the Specstone agent files';
+const _layoutAndAgentHeader =
+    'pack upgrade: pins unchanged, layout and agent files';
+const _layoutAndAgentCommit2Message =
+    'lay docs out and refresh the Specstone agent files';
+const _agentFileRootsKey = 'agent_file_roots';
+const _renumberChange = 'renumber ids';
+const _labelChange = 'convert number labels';
+const _stampChange = 'stamp approvals';
+
+/// The byte-order mark as the one character a written text starts with.
+const _bom = '\uFEFF';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -33,17 +65,46 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 ///
 /// Selects every pinned pack's steps, refuses an override the new versions
 /// leave dangling, then plans the moves, the section and field renames in the
-/// docs and the overrides, the link rewrites, and the new pins. Writes
-/// nothing. Throws `MigrateFault` `override_dangling`, `MigrateFault`
-/// `upgrade_collision` listing every move and rename collision at once, and a
-/// `TemplateFault` before it returns, so a refused run prints nothing.
-/// [homeDirectory] is the personal pack home, or null.
+/// docs and the overrides, the link rewrites, the renumber pass, the label
+/// pass, each typed doc laid out as `format` lays it out, the agent files
+/// step, and the new pins. With every pin equal the plan holds the layout pass
+/// and the agent files step alone. Writes nothing. Throws `MigrateFault`
+/// `override_dangling`, `MigrateFault` `upgrade_collision` listing every move
+/// and rename collision at once, `agent_block_malformed`, and a
+/// `TemplateFault` before it returns, so a refused run prints nothing. When
+/// [runsOneTimePasses] holds, the renumber and label passes run and the agent
+/// files step is the full upsert; otherwise the step refreshes what exists.
+/// [homeDirectory] is the personal pack home, or null. [runGit] lists the
+/// files the project's git tracks, which the label pass reads under the
+/// `code:` roots. The plan's `inputs` hold every file it read and that listing.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  RunGit runGit = runRealGit,
 }) {
-  final pins = ProjectConfig.read(root).pins;
+  final inputs = PlanInputs(root);
+  return inputs.collect(
+    () => _upgradeRunOf(
+      root,
+      templates: templates,
+      homeDirectory: homeDirectory,
+      runGit: runGit,
+      inputs: inputs,
+    ),
+  );
+}
+
+/// Plans the upgrade of [root] while [inputs] records each file read.
+RunPlan _upgradeRunOf(
+  Directory root, {
+  required TemplateResolver templates,
+  required Directory? homeDirectory,
+  required RunGit runGit,
+  required PlanInputs inputs,
+}) {
+  final config = ProjectConfig.read(root);
+  final pins = config.pins;
   final available = templates.availableManifests(
     pins.keys,
     homeDirectory: homeDirectory,
@@ -87,16 +148,13 @@ RunPlan planUpgradeRun(
   ]);
 
   final matcher = DocTypeMatcher(finalSet);
-  final docRewrites = <PlannedRewrite>[];
+  final works = <_DocWork>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
   final renameCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
-    final original = readDocFile(
-      File.fromUri(docsRoot.uri.resolve(path)),
-      docPath: path,
-    );
+    final original = readDocFile(docFileOf(docsRoot, path), docPath: path);
     if (original == null) continue;
     final match = matcher.match(plannedPath);
     final docTypeId = match is MatchedDocType ? match.docType.id : null;
@@ -160,16 +218,80 @@ RunPlan planUpgradeRun(
         linkLines.add('$plannedPath: $label');
       }
     }
-    if (lf == original.lf) continue;
-    docRewrites.add(
-      PlannedRewrite(
-        path: '$_docsFolder$plannedPath',
-        text: writtenText(original, lf),
-        changes: changes,
+    works.add(
+      _DocWork(
+        plannedPath,
+        original,
+        match is MatchedDocType ? match.docType : null,
+        lf,
+        changes,
       ),
     );
   }
   _throwCollisions([...moveCollisions, ...renameCollisions]);
+
+  // The passes read every doc's text after the steps and link rewrites (P5).
+  final isOneTime = runsOneTimePasses(upgrades);
+  final renumber = isOneTime ? _renumberPassOf(works) : null;
+  final renumbered = <String>[];
+  for (final work in works) {
+    final lf = renumber?.apply(work.plannedPath, work.lf) ?? work.lf;
+    if (lf != work.lf) work.changes.add(_renumberChange);
+    renumbered.add(lf);
+  }
+  final plannedAgentFiles = _agentFilesOf(root, upgrades, set: finalSet);
+  final labels = isOneTime
+      ? _planLabelPass(
+          root,
+          config: config,
+          set: finalSet,
+          agentWrites: plannedAgentFiles,
+          docs: [
+            for (final (index, work) in works.indexed)
+              (docPath: work.plannedPath, lf: renumbered[index]),
+          ],
+          runGit: runGit,
+          docTypes: {for (final work in works) work.plannedPath: ?work.docType},
+        )
+      : null;
+  final laidOutPaths = <String>[];
+  final laidOut = <String>[];
+  for (final (index, work) in works.indexed) {
+    var lf = renumbered[index];
+    final converted = labels?.pass.apply(work.plannedPath, lf) ?? lf;
+    if (converted != lf) work.changes.add(_labelChange);
+    lf = layOutDoc(converted, work.docType);
+    if (lf != converted) laidOutPaths.add(work.plannedPath);
+    laidOut.add(lf);
+  }
+  final stamps = StampPass.plan(
+    [
+      for (final work in works)
+        (docPath: work.plannedPath, lf: work.original.lf, type: work.docType),
+    ],
+    [
+      for (final (index, work) in works.indexed)
+        (docPath: work.plannedPath, lf: laidOut[index], type: work.docType),
+    ],
+    pins: pins,
+    restampsFingerprints: isOneTime,
+  );
+  final docRewrites = <PlannedRewrite>[];
+  final writtenLf = <String, String>{};
+  for (final (index, work) in works.indexed) {
+    final lf = stamps.apply(work.plannedPath, laidOut[index]);
+    writtenLf[work.plannedPath] = lf;
+    if (lf != laidOut[index]) work.changes.add(_stampChange);
+    if (lf == work.original.lf) continue;
+    docRewrites.add(
+      PlannedRewrite(
+        path: '$_docsFolder${work.plannedPath}',
+        text: writtenText(work.original, lf),
+        before: work.original.hash,
+        changes: work.changes,
+      ),
+    );
+  }
 
   final overrideRewrites = [
     for (final file in overrideFiles)
@@ -177,12 +299,20 @@ RunPlan planUpgradeRun(
         PlannedRewrite(
           path: file.path,
           text: writtenText(file.original, file.lf),
+          before: file.original.hash,
           changes: [
             for (final index in file.changedBy) _describe(steps[index].step),
           ],
         ),
   ];
-  final configRewrite = _configRewriteOf(root, upgrades);
+  final agentFiles = labels?.agentFiles ?? plannedAgentFiles;
+  final configRewrite = _configRewriteOf(
+    root,
+    upgrades,
+    agentFileRoots: agentFiles.addedRoots.isEmpty
+        ? null
+        : agentFiles.agentFileRoots,
+  );
 
   String shownAt(int index) {
     final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
@@ -207,22 +337,66 @@ RunPlan planUpgradeRun(
     for (final upgrade in upgrades) '${upgrade.pack} ${upgrade.target}',
   ];
 
+  final arePinsUnchanged = upgrades.isEmpty;
+  final (:header, :commit2Message) = arePinsUnchanged
+      ? _pinsUnchangedTitles(
+          laysOut: laidOutPaths.isNotEmpty,
+          writesAgentFiles: !agentFiles.isEmpty,
+        )
+      : (
+          header: 'pack upgrade: ${upgraded.join(', ')}',
+          commit2Message: _commit2Message,
+        );
   return RunPlan(
-    header: 'pack upgrade: ${upgraded.join(', ')}',
+    header: header,
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...docRewrites, ...overrideRewrites, configRewrite],
+    rewrites: [
+      ...docRewrites,
+      ...?labels?.codeRewrites,
+      ...overrideRewrites,
+      ?configRewrite,
+    ],
     creates: const [],
     left: const [],
     commit1Message: _commit1Message,
-    commit2Message: _commit2Message,
+    commit2Message: commit2Message,
+    inputs: inputs,
     rewriteLines: [
       ...stepLines,
       ...linkLines,
-      '$projectConfigPath: ${pinned.join(', ')}',
+      ?renumber?.planLine,
+      ?labels?.pass.planLineOn(writtenLf),
+      ?formatLayoutLine(laidOutPaths),
+      ?stamps.planLine,
+      if (agentFiles.line.isNotEmpty) agentFiles.line,
+      if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
     ],
+    agentFiles: agentFiles,
   );
 }
+
+/// Returns the plan header and commit 2 message of a run that moves no pin.
+///
+/// A run with neither the layout pass nor an agent file write is titled as
+/// layout only.
+({String header, String commit2Message}) _pinsUnchangedTitles({
+  required bool laysOut,
+  required bool writesAgentFiles,
+}) => switch ((laysOut, writesAgentFiles)) {
+  (true, true) => (
+    header: _layoutAndAgentHeader,
+    commit2Message: _layoutAndAgentCommit2Message,
+  ),
+  (false, true) => (
+    header: _agentOnlyHeader,
+    commit2Message: _agentOnlyCommit2Message,
+  ),
+  (_, false) => (
+    header: _layoutOnlyHeader,
+    commit2Message: _layoutOnlyCommit2Message,
+  ),
+};
 
 /// One override file, with the text the selected steps leave it.
 final class _OverrideFile {
@@ -255,7 +429,7 @@ List<_OverrideFile> _renamedOverrides(
   for (final layer in layers) {
     final file = _OverrideFile(
       layer.file,
-      readDocText(File.fromUri(root.uri.resolve(layer.file)).readAsBytesSync()),
+      readDocText(readPlanInput(File.fromUri(root.uri.resolve(layer.file)))),
     );
     for (final (index, (:step, from: _)) in steps.indexed) {
       if (step.docType != layer.docTypeId) continue;
@@ -327,20 +501,301 @@ String _withScalarsReplaced(String lf, List<(YamlScalar, String)> edits) {
   return text;
 }
 
-PlannedRewrite _configRewriteOf(Directory root, List<PackUpgrade> upgrades) {
+/// Plans the agent files step of the upgrade of [root] to [upgrades].
+AgentWritePlan _agentFilesOf(
+  Directory root,
+  List<PackUpgrade> upgrades, {
+  required MergedSet set,
+}) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  final config = ProjectConfig.read(projectRoot);
+  return planAgentWrites(
+    AgentFileInputs(
+      projectRoot: projectRoot,
+      cliVersion: specstoneVersion,
+      codeRootFolders: codeFoldersOf(
+        projectRoot,
+        set,
+        codeRoot: config.codeRoot,
+      ),
+      agentFileRoots: config.agentFileRoots,
+    ),
+    full: runsOneTimePasses(upgrades),
+  );
+}
+
+/// Whether [upgrades] move a prd-core or software-tech pin up from below the
+/// version this binary carries: the one trigger of every one-time pass
+/// (apply_steps_and_pins E14, E18); group 3's D18 pass reads it too (R54).
+bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
+  final since = agentFilesSince[upgrade.pack];
+  return since != null && upgrade.pin.compareTo(since) < 0;
+});
+
+/// Plans the renumber pass over every doc of [works], typed or not.
+RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([
+  for (final work in works)
+    (docPath: work.plannedPath, lf: work.lf, type: work.docType),
+]);
+
+/// The label pass of a run and the rewrites of the code files it changes.
+/// The label pass, the code files it rewrites, and the agent file writes
+/// with the label conversion composed into each agent file it also converts.
+typedef _LabelPlan = ({
+  LabelPass pass,
+  List<PlannedRewrite> codeRewrites,
+  AgentWritePlan agentFiles,
+});
+
+/// Plans the label pass over [docs], the run's docs after the renumber pass,
+/// and the files under the `code:` roots that hold a label.
+///
+/// A code file converts only when the project's git tracks it and its path
+/// lies inside the project root, since commit 2 holds nothing else; a label in
+/// any other file stays and is listed (E27). Git is asked only when a code
+/// file holds a label. A file that is no UTF-8 text is skipped.
+///
+/// A code file that [agentWrites] also writes is read as the agent write
+/// leaves it, and its conversion becomes that agent write, so each path gets
+/// one write: two from one `before` text would make the guard skip one.
+_LabelPlan _planLabelPass(
+  Directory root, {
+  required ProjectConfig config,
+  required MergedSet set,
+  required AgentWritePlan agentWrites,
+  required List<({String docPath, String lf})> docs,
+  required RunGit runGit,
+  required Map<String, MergedDocType> docTypes,
+}) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  final codeRoot = codeRootFolders(
+    projectRoot,
+    codeRoot: config.codeRoot,
+    codeEntries: const [],
+  ).first;
+  final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
+  final agentByFile = {
+    for (final write in [...agentWrites.rootWrites, ...agentWrites.topWrites])
+      if (!write.isNew)
+        File('${projectRoot.path}${Platform.pathSeparator}${write.path}')
+                .resolveSymbolicLinksSync():
+            write,
+  };
+  final agentAt = <String, AgentWrite>{};
+  final labelled = <String, _CodeFile>{};
+  for (final codePath in codeRootFiles(
+    codeRoot,
+    codeEntriesOnDisk(projectRoot, set),
+  )) {
+    final projectPath = projectPathOfCodeFile(
+      codePath,
+      projectRoot: projectRoot,
+      docsRoot: docsRoot,
+      codeRoot: codeRoot,
+    );
+    if (projectPath == null) continue;
+    final onDisk = _readCodeFile(codeRoot, codePath);
+    if (onDisk == null) continue;
+    final agentWrite = agentByFile[_realPathOf(codeRoot, codePath)];
+    final original = agentWrite == null
+        ? onDisk
+        : (
+            text: agentWrite.text.startsWith(_bom)
+                ? agentWrite.text.substring(_bom.length)
+                : agentWrite.text,
+            bom: onDisk.bom,
+            hash: onDisk.hash,
+          );
+    if (holdsNumberLabel(projectPath, original.text)) {
+      labelled[projectPath] = original;
+      if (agentWrite != null) agentAt[projectPath] = agentWrite;
+    }
+  }
+  final tracked = labelled.isEmpty
+      ? const <String>{}
+      : _trackedPaths(projectRoot, runGit);
+  for (final path in labelled.keys) {
+    recordTrackedAnswer(path, isTracked: tracked.contains(path));
+  }
+  final convertible = {
+    for (final path in labelled.keys)
+      if (tracked.contains(path) && _isInsideProject(path)) path,
+  };
+  final pass = LabelPass.plan(
+    docs,
+    [for (final path in convertible) (path: path, text: labelled[path]!.text)],
+    untrackedCodeFiles: [
+      for (final MapEntry(:key, :value) in labelled.entries)
+        if (!convertible.contains(key)) (path: key, text: value.text),
+    ],
+    docTypes: docTypes,
+  );
+  String textOf(String path, String converted) =>
+      '${labelled[path]!.bom ? _bom : ''}$converted';
+  final composed = <AgentWrite, String>{
+    for (final MapEntry(:key, :value) in pass.codeFiles.entries)
+      ?agentAt[key]: textOf(key, value),
+  };
+  AgentWrite withComposed(AgentWrite write) => switch (composed[write]) {
+    final text? => AgentWrite(
+      path: write.path,
+      text: text,
+      isNew: write.isNew,
+      before: write.before,
+      isAtTop: write.isAtTop,
+    ),
+    null => write,
+  };
+  return (
+    pass: pass,
+    codeRewrites: [
+      for (final MapEntry(:key, :value) in pass.codeFiles.entries)
+        if (!agentAt.containsKey(key))
+          PlannedRewrite(
+            path: key,
+            text: textOf(key, value),
+            before: labelled[key]!.hash,
+            changes: const [_labelChange],
+          ),
+    ],
+    agentFiles: AgentWritePlan(
+      rootWrites: [for (final w in agentWrites.rootWrites) withComposed(w)],
+      topWrites: [for (final w in agentWrites.topWrites) withComposed(w)],
+      agentFileRoots: agentWrites.agentFileRoots,
+      addedRoots: agentWrites.addedRoots,
+      writeSet: agentWrites.writeSet,
+      skipped: agentWrites.skipped,
+    ),
+  );
+}
+
+/// Returns the canonical path of the code file [codePath] under [codeRoot].
+String _realPathOf(Directory codeRoot, String codePath) =>
+    File([codeRoot.path, ...codePath.split('/')].join(Platform.pathSeparator))
+        .resolveSymbolicLinksSync();
+
+/// A code file as decoded: its text with every line end as written, whether
+/// it began with a byte order mark, and the [textHashOf] of its text.
+typedef _CodeFile = ({String text, bool bom, String hash});
+
+/// Reads the code file at [codePath] under [codeRoot], or null when it cannot
+/// be read or is no UTF-8 text.
+_CodeFile? _readCodeFile(Directory codeRoot, String codePath) {
+  final file = File(
+    '${codeRoot.path}${Platform.pathSeparator}'
+    '${codePath.split('/').join(Platform.pathSeparator)}',
+  );
+  try {
+    final bytes = readPlanInput(file);
+    final text = utf8.decode(bytes);
+    return (text: text, bom: startsWithUtf8Bom(bytes), hash: textHashOf(text));
+  } on FileSystemException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+}
+
+/// Whether [projectPath], a normalized path from the project root, lies
+/// inside it.
+bool _isInsideProject(String projectPath) =>
+    projectPath != '..' && !projectPath.startsWith('../');
+
+/// Returns the paths under [projectRoot] that the project's git tracks, from
+/// one listing intersected locally, so no `code:` entry reaches git; none
+/// when git cannot start or [projectRoot] is no work tree.
+Set<String> _trackedPaths(Directory projectRoot, RunGit runGit) {
+  try {
+    final result = runGit([
+      'ls-files',
+      '-z',
+    ], workingDirectory: projectRoot.path);
+    if (result.exitCode != 0) return const {};
+    return {
+      for (final path in (result.stdout as String).split('\x00'))
+        if (path.isNotEmpty) path,
+    };
+  } on ProcessException {
+    return const {};
+  }
+}
+
+/// One doc of the run, with its text after the steps and link rewrites.
+final class _DocWork {
+  new(this.plannedPath, this.original, this.docType, this.lf, this.changes);
+
+  /// The DocPath after the moves.
+  final String plannedPath;
+
+  /// The file as read.
+  final DocText original;
+
+  final MergedDocType? docType;
+
+  /// The LF text after the steps and link rewrites.
+  final String lf;
+
+  /// The labels of the changes made so far, in the order they apply.
+  final List<String> changes;
+}
+
+/// Returns the rewrite of `config.yaml` that moves the pins of [upgrades] and
+/// sets `agent_file_roots` to [agentFileRoots] when it is not null, every other
+/// byte kept, or null when neither changes.
+PlannedRewrite? _configRewriteOf(
+  Directory root,
+  List<PackUpgrade> upgrades, {
+  required List<String>? agentFileRoots,
+}) {
+  if (upgrades.isEmpty && agentFileRoots == null) return null;
   final original = readDocText(
-    File.fromUri(root.uri.resolve(projectConfigPath)).readAsBytesSync(),
+    readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
   );
   final packs =
       (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;
-  final text = _withScalarsReplaced(original.lf, [
+  var text = _withScalarsReplaced(original.lf, [
     for (final upgrade in upgrades)
       (packs.nodes[upgrade.pack]! as YamlScalar, '${upgrade.target}'),
   ]);
+  if (agentFileRoots != null) text = _withAgentFileRoots(text, agentFileRoots);
   return PlannedRewrite(
     path: projectConfigPath,
     text: writtenText(original, text),
-    changes: ['pins'],
+    before: original.hash,
+    changes: [
+      if (upgrades.isNotEmpty) 'pins',
+      if (agentFileRoots != null) _agentFileRootsKey,
+    ],
+  );
+}
+
+/// Returns [text] with the `agent_file_roots` entry set to [roots]: replaced
+/// in place when present, else appended.
+///
+/// The replacement covers through the end of the value's last line, so a null
+/// value (the bare key) and an end-of-line comment on the value both leave a
+/// valid list; the comment is dropped.
+String _withAgentFileRoots(String text, List<String> roots) {
+  final block = configText(
+    const {},
+    agentFileRoots: roots,
+  ).substring('packs:\n'.length);
+  final map = loadYamlNode(text) as YamlMap;
+  final value = map.nodes[_agentFileRootsKey];
+  if (value == null) return '${text.endsWith('\n') ? text : '$text\n'}$block';
+  final key = map.nodes.keys.firstWhere(
+    (key) => (key as YamlNode).value == _agentFileRootsKey,
+  ) as YamlNode;
+  var valueEnd = value.span.end.offset;
+  if (valueEnd > 0 && text[valueEnd - 1] == '\n') {
+    // A block-style list's span ends past its last newline.
+    valueEnd -= 1;
+  }
+  final newline = text.indexOf('\n', valueEnd);
+  return text.replaceRange(
+    key.span.start.offset,
+    newline == -1 ? text.length : newline + 1,
+    block,
   );
 }
 
@@ -452,19 +907,30 @@ MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
       file: source,
     );
 
+String _exactPath(String path) => path;
+
 /// Orders [moves] so a move whose target is another move's original path runs
 /// after that move.
 ///
-/// A cycle, such as two docs trading places, has no such order;
-/// [RunPlan.journalSteps] parks one of its moves in the stage.
-List<PathMove> orderedMoves(List<PathMove> moves) {
-  final bySource = {for (final move in moves) move.from: move};
+/// [keyOf] maps a path to the key two paths are compared by; a move waits for
+/// every move whose original path has its target's key. A cycle, such as two
+/// docs trading places, has no such order; [RunPlan.journalSteps] parks one of
+/// its moves in the stage.
+List<PathMove> orderedMoves(
+  List<PathMove> moves, {
+  String Function(String path) keyOf = _exactPath,
+}) {
+  final bySource = <String, List<PathMove>>{};
+  for (final move in moves) {
+    (bySource[keyOf(move.from)] ??= []).add(move);
+  }
   final ordered = <PathMove>[];
   final placed = <String>{};
   void place(PathMove move) {
     if (!placed.add(move.from)) return;
-    final blocker = bySource[move.to];
-    if (blocker != null && blocker.from != move.from) place(blocker);
+    for (final blocker in bySource[keyOf(move.to)] ?? const <PathMove>[]) {
+      if (blocker.from != move.from) place(blocker);
+    }
     ordered.add(move);
   }
 

@@ -1,24 +1,36 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:markdown/markdown.dart';
+import 'package:specstone_core/src/atomic_write.dart' show isReadOnly;
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/doc_model/markdown_body.dart';
-import 'package:specstone_core/src/document_writing/link_destinations.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show markdownExtension, readsNameMentions;
+import 'package:specstone_core/src/doc_model/percent_decode.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show skippedLineOf;
+import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/link_places.dart'
+    show hrefDestinationsOf;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
-    show RenderFault;
+    show RenderFault, RenderFaultCode;
+import 'package:specstone_core/src/setup_migration/agent_targets.dart'
+    show codeEntriesOnDisk;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -28,27 +40,30 @@ export 'package:specstone_core/src/document_writing/moved_paths.dart'
 /// The byte-order mark as the one character a journal step's text carries.
 const _bom = '\uFEFF';
 
-/// A comment that ends a YAML value; `#` opens it only after a space.
-const _trailingComment = r'(?<tail>\s+#.*)?';
+const _backslash = 0x5C;
+const _openParen = 0x28;
+const _closeParen = 0x29;
+const _lessThan = 0x3C;
+const _encodedOpenParen = '%28';
+const _encodedCloseParen = '%29';
 
 /// Returns [lfText] with each doc link set to the path [moves] leave its
 /// target at, or null when no link changes.
 ///
 /// [docPath] is where the doc sits before the moves. A link is a relative
 /// target of any extension, or a folder, that the markdown parser reports,
-/// whether it stays under the docs root or leaves it; its new href is the
-/// relative path between the moved doc and the moved target, with the `?` or
-/// `#` part and a folder's trailing `/` kept. A link whose relative path is
-/// unchanged, a web address, another scheme, and a rooted path keep their
-/// text.
+/// whether it stays under the docs root or leaves it; its new path is the
+/// relative path between the moved doc and the moved target, a folder's
+/// trailing `/` kept. A link whose relative path is unchanged, a web address,
+/// another scheme, and a rooted path keep their text.
 ///
 /// Only the text after the frontmatter is read, as the doc model does, so a
-/// link-shaped frontmatter value keeps every byte. The parser reports no
-/// source positions, so each `](` or `]:` destination is taken as spelled,
-/// read alone for the href the parser makes of that spelling, and replaced
-/// only when a probe parse, with that span swapped for a unique name, still
-/// yields a link to the name. An href in a code span or a fenced block keeps
-/// every byte. All proven occurrences change in one pass.
+/// link-shaped frontmatter value keeps every byte. Each inline link's and
+/// each definition's destination as written moves by the href the parser
+/// gives it (see [hrefDestinationsOf]), so an href in a code span or a fenced
+/// block keeps every byte; only the path it is written with changes, its `?`
+/// or `#` part kept as written (see [destinationPartsOf]). All of them change
+/// in one pass.
 String? rewriteDocLinks(
   String lfText, {
   required String docPath,
@@ -64,17 +79,25 @@ String? rewriteDocLinks(
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
   if (!body.contains('](') && !body.contains(']:')) return null;
-  final edits = <({int start, int end, String text})>[];
-  for (final span in destinationsIn(body)) {
-    final href = _hrefOfSpelling(
-      body.substring(span.start, span.end),
-      span.angle,
-    );
-    final newHref = href == null ? null : _movedHref(href, docPath, moves);
-    if (newHref != null && _yieldsLinkAt(body, span.start, span.end)) {
-      edits.add((start: span.start, end: span.end, text: newHref));
-    }
-  }
+  final (:destinations, linksRead: _) = hrefDestinationsOf(
+    body,
+    linkScanOf(body, firstLine: 1),
+    canMove: (href) => _movedPath(href, docPath, moves) != null,
+  );
+  final edits = [
+    for (final (:start, :end, :href, :kind) in destinations)
+      if (_movedPath(href, docPath, moves) case final newPath?)
+        (
+          start: start,
+          end: end,
+          text: _withPath(
+            body.substring(start, end),
+            kind,
+            newPath,
+            isAngle: _isAngleBracketed(body, start, kind),
+          ),
+        ),
+  ];
   if (edits.isEmpty) return null;
   edits.sort((a, b) => b.start.compareTo(a.start));
   var result = body;
@@ -85,6 +108,87 @@ String? rewriteDocLinks(
     lfText: lfText.substring(0, lfText.length - body.length) + result,
     count: edits.length,
   );
+}
+
+/// Returns [written], a [kind] destination as written, with [path] in place
+/// of the path it is written with, its `?` or `#` part kept (see
+/// [destinationPartsOf]).
+///
+/// A destination inside angle brackets, [isAngle], keeps the path's parens as
+/// written. A bare one, inline or of a definition, ends at the first `)` no
+/// `(` before it opened. There the path's parens are written `%28` and `%29`,
+/// which decode the same, and each `)` of the kept part that a `(` of the old
+/// path opened takes a `\`, so the link and its href stay.
+String _withPath(
+  String written,
+  DestinationKind kind,
+  String path, {
+  required bool isAngle,
+}) {
+  final pathEnd = destinationPartsOf(written, kind).pathEnd;
+  final kept = written.substring(pathEnd);
+  if (isAngle) return '$path$kept';
+  final balanced = path
+      .replaceAll('(', _encodedOpenParen)
+      .replaceAll(')', _encodedCloseParen);
+  final opened = _parensOpenedIn(written.substring(0, pathEnd));
+  return '$balanced${_closersEscaped(kept, opened)}';
+}
+
+/// Returns whether the [kind] destination of [body] that starts at [start]
+/// is inside angle brackets; a definition's range leaves them out, and a bare
+/// destination never follows a `<`.
+bool _isAngleBracketed(String body, int start, DestinationKind kind) =>
+    switch (kind) {
+      DestinationKind.angleInline => true,
+      DestinationKind.inline => false,
+      DestinationKind.definition =>
+        start > 0 && body.codeUnitAt(start - 1) == _lessThan,
+    };
+
+/// Returns how many parens [text], part of a bare destination, leaves open;
+/// a backslash takes the unit after it out of the count, as `markdown` reads.
+int _parensOpenedIn(String text) {
+  var open = 0;
+  for (var i = 0; i < text.length; i++) {
+    switch (text.codeUnitAt(i)) {
+      case _backslash:
+        i++;
+      case _openParen:
+        open++;
+      case _closeParen:
+        open--;
+    }
+  }
+  return open;
+}
+
+/// Returns [text] with a `\` before each `)` that closes one of [opened]
+/// parens opened before it.
+String _closersEscaped(String text, int opened) {
+  if (opened == 0) return text;
+  final out = StringBuffer();
+  var open = 0;
+  var unclosed = opened;
+  for (var i = 0; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    if (unit == _backslash && i + 1 < text.length) {
+      out.write(text.substring(i, i + 2));
+      i++;
+      continue;
+    }
+    if (unit == _openParen) open++;
+    if (unit == _closeParen) {
+      if (open > 0) {
+        open--;
+      } else if (unclosed > 0) {
+        unclosed--;
+        out.writeCharCode(_backslash);
+      }
+    }
+    out.writeCharCode(unit);
+  }
+  return out.toString();
 }
 
 /// Returns [lfText] with each `doc_ref` value in [renamed] set to its new
@@ -117,18 +221,23 @@ String? rewriteDocRefs(
   return result == lfText ? null : result;
 }
 
-/// Returns the journal writes that keep every link and `doc_ref` true.
+/// Returns the sorted journal writes that keep every link, `doc_ref`, and
+/// doc-name mention true, in docs and in code files under the `code:` roots.
 ///
-/// Candidates are docs that link under a moved path, move and hold a link or
-/// path mention a rewrite changes, or, for [renamed], name a renamed doc; a
-/// lenient read keeps a non-UTF-8 doc naming nothing renamed from blocking.
-/// Steps hold the rewritten text, sorted by path, with draft marks untouched.
+/// A non-UTF-8 code file is skipped, as a doc naming nothing renamed is; a
+/// doc whose hash matched its `approved:` value is re-stamped, a code file
+/// never. Draft marks stay untouched.
+///
+/// A code file whose path leaves the project root is never written (R99):
+/// when it holds a mention to rewrite, its path from the project root goes to
+/// [onSkipped] as the warning line, and no step is planned for it.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
   Map<(String, String), String> renamed = const {},
+  void Function(String line)? onSkipped,
 }) {
   final index = session.index;
   final candidates = <String, IndexedDoc>{};
@@ -144,6 +253,7 @@ List<WriteStep> planRewrites(
       candidates[doc.docPath] = doc;
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
+        _mentionsRenamedDoc(index, doc, renamed) ||
         _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
     }
@@ -151,8 +261,88 @@ List<WriteStep> planRewrites(
   final steps = [
     for (final doc in candidates.values)
       ?_stepFor(session, doc, moves, renamed),
+    ..._codeFileSteps(session, renamed, onSkipped),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
+}
+
+/// Returns the writes of the code files under the `code:` roots that hold a
+/// doc-name mention of a doc in [renamed].
+///
+/// A markdown file is read as a doc is, any other file by its comment lines;
+/// a file that is no UTF-8 text, cannot be read, or sits in the docs folder
+/// is left out. A code file is never stamped and never marked draft.
+List<WriteStep> _codeFileSteps(
+  WriteSession session,
+  Map<(String, String), String> renamed,
+  void Function(String line)? onSkipped,
+) {
+  if (renamed.isEmpty) return const [];
+  final project = session.project;
+  final paths = codeRootFiles(
+    project.codeRoot,
+    codeEntriesOnDisk(project.projectRoot, project.set),
+  );
+  return [
+    for (final path in paths) ?_codeFileStep(session, path, renamed, onSkipped),
+  ];
+}
+
+WriteStep? _codeFileStep(
+  WriteSession session,
+  String codePath,
+  Map<(String, String), String> renamed,
+  void Function(String line)? onSkipped,
+) {
+  final extension = _extensionOf(codePath);
+  if (!readsNameMentions(extension)) return null;
+  final project = session.project;
+  final file = File(
+    '${project.codeRoot.path}${Platform.pathSeparator}'
+    '${codePath.split('/').join(Platform.pathSeparator)}',
+  );
+  final projectPath = projectPathOfCodeFile(
+    codePath,
+    projectRoot: project.projectRoot,
+    docsRoot: project.docsRoot,
+    codeRoot: project.codeRoot,
+  );
+  if (projectPath == null) return null;
+  final String raw;
+  final List<int> bytes;
+  try {
+    bytes = file.readAsBytesSync();
+    raw = utf8.decode(bytes);
+  } on FileSystemException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+  final text = rewriteNameMentions(raw, extension, renamed);
+  if (text == null) return null;
+  if (_leavesProject(projectPath)) {
+    onSkipped?.call(skippedLineOf(projectPath));
+    return null;
+  }
+  if (isReadOnly(file)) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $projectPath: read-only',
+    );
+  }
+  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
+  return WriteStep(projectPath, '$bom$text', before: textHashOf(raw));
+}
+
+/// Whether the ProjectPath [path] leaves the project root.
+bool _leavesProject(String path) => path == '..' || path.startsWith('../');
+
+/// Returns the extension of [path], a `.` and the letters after its last
+/// one, or an empty string for a name with none.
+String _extensionOf(String path) {
+  final name = path.substring(path.lastIndexOf('/') + 1);
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot);
 }
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path
@@ -225,22 +415,44 @@ WriteStep? _stepFor(
   final refs =
       rewriteDocRefs(mentioned ?? lfText, fields: fields, renamed: renamed) ??
       mentioned;
+  final named =
+      rewriteNameMentions(refs ?? lfText, markdownExtension, renamed) ?? refs;
   final text =
       rewriteLinkLabels(
-        refs ?? lfText,
+        named ?? lfText,
         docType: session.index.typeOf(doc),
         featureName: session.index.parentOf(doc)?.name,
         newFeatureName: _newParentName(session, doc, renamed),
         renamed: renamed,
       ) ??
-      refs;
+      named;
   if (text == null) return null;
   session.requireWritable(doc.docPath);
   final bom = startsWithUtf8Bom(bytes) ? _bom : '';
+  final writtenPath = movedPath(doc.docPath, moves);
+  final writtenType = session.docTypeAt(writtenPath);
+  final laidOut = layOutDoc(text, writtenType);
+  final stamped = _wasApproved(lfText, session.docTypeAt(doc.docPath))
+      ? withApprovalHash(laidOut, writtenType)
+      : laidOut;
   return WriteStep(
-    session.projectPathOf(movedPath(doc.docPath, moves)),
-    '$bom${LineEnding.of(raw).apply(text)}',
+    session.projectPathOf(writtenPath),
+    '$bom${LineEnding.of(raw).apply(stamped)}',
+    before: textHashOf(raw),
   );
+}
+
+/// Whether [lfText], the doc as the step reads it under the lock, is no draft
+/// and its `approved:` value is the hash of its content under [docType], so a
+/// rewrite of its references re-stamps it (a stale hash stays).
+///
+/// Read from the bytes the step rewrites, not the index: an edit made after
+/// the session opened stays stale.
+bool _wasApproved(String lfText, MergedDocType? docType) {
+  final fields = ApprovalFields.of(Doc.parse(lfText));
+  return !fields.isDraft &&
+      fields.approvedValue is String &&
+      fields.approvedValue == approvalHashOf(lfText, docType);
 }
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null
@@ -285,6 +497,19 @@ bool _namesRenamedLabel(
       null;
 }
 
+/// Whether [doc] holds a doc-name mention of a doc that [renamed] renames.
+bool _mentionsRenamedDoc(
+  DocIndex index,
+  IndexedDoc doc,
+  Map<(String, String), String> renamed,
+) =>
+    renamed.isNotEmpty &&
+    index
+        .contentOf(doc)
+        .lineFacts
+        .nameMentions
+        .any((m) => renamedNameOf(m.address, renamed) != null);
+
 /// Whether [doc] carries a `doc_ref` value that [renamed] renames.
 bool _namesRenamedDoc(
   DocIndex index,
@@ -323,61 +548,26 @@ String? _newName(
   return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
 }
 
-/// Returns the hrefs of every link and image the markdown parser finds in
-/// [lfText].
-///
-/// Returns none when the parser fails on it, so no span of it proves a link.
-Set<String> _hrefsOf(String lfText) {
-  final nodes = parseMarkdown(lfText);
-  if (nodes == null) return const {};
-  final hrefs = <String>{};
-  void visit(List<Node> nodes) {
-    for (final node in nodes) {
-      if (node is! Element) continue;
-      final href = switch (node.tag) {
-        'a' => node.attributes['href'] ?? '',
-        'img' => node.attributes['src'],
-        _ => null,
-      };
-      if (href != null) hrefs.add(href);
-      final children = node.children;
-      if (children != null) visit(children);
-    }
-  }
-
-  visit(nodes);
-  return hrefs;
-}
-
-/// Returns the href the markdown parser makes of [raw] alone, or null when it
-/// does not make exactly one link of it.
-String? _hrefOfSpelling(String raw, bool angle) {
-  final hrefs = _hrefsOf(angle ? '[x](<$raw>)' : '[x]($raw)');
-  return hrefs.length == 1 ? hrefs.single : null;
-}
-
-/// Whether swapping `[start, end)` of [lfText] for a unique name yields a
-/// link to that name, which proves the span is a link's href.
-bool _yieldsLinkAt(String lfText, int start, int end) {
-  final probe = 'specstone-probe-$start.md';
-  return _hrefsOf(lfText.replaceRange(start, end, probe)).contains(probe);
-}
-
-/// Returns [href] after [moves], or null when the link keeps its text.
+/// Returns the path part of [href] after [moves], encoded, or null when the
+/// link keeps its text.
 ///
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
-String? _movedHref(String href, String docPath, List<PathMove> moves) {
-  final cut = href.indexOf(RegExp('[?#]'));
-  final path = cut < 0 ? href : href.substring(0, cut);
+String? _movedPath(String href, String docPath, List<PathMove> moves) {
+  if (readLinkTarget(href) case RelativeLink(:final pathEnd)) {
+    return _movedRelativePath(href.substring(0, pathEnd), docPath, moves);
+  }
+  return null;
+}
+
+String? _movedRelativePath(String path, String docPath, List<PathMove> moves) {
   // Re-encoding the decoded path would turn an escape that is not UTF-8 into
   // U+FFFD, so the link keeps the bytes the author wrote.
   if (!percentDecodesCleanly(path)) return null;
   final after = movedRelativePath(path, docPath, moves);
   if (after == null) return null;
   final slash = path.endsWith('/') ? '/' : '';
-  final encoded = after.split('/').map(Uri.encodeComponent).join('/');
-  return cut < 0 ? '$encoded$slash' : '$encoded$slash${href.substring(cut)}';
+  return '${after.split('/').map(Uri.encodeComponent).join('/')}$slash';
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.
@@ -389,64 +579,9 @@ String _renameInBlock(
   MergedField field,
   Map<(String, String), String> renamed,
 ) {
-  final lines = text.split('\n');
-  final keyLine = lines.indexWhere((line) => !_isTrivia(line));
-  final keyRest = RegExp(r'^(\s*:\s*)(.*)$');
-  for (var i = keyLine; i >= 0 && i < lines.length; i++) {
-    final line = lines[i];
-    if (_isTrivia(line)) continue;
-    final match = i == keyLine
-        ? line.startsWith(key)
-              ? keyRest.firstMatch(line.substring(key.length))
-              : null
-        : RegExp(r'^(\s*-\s+)(.*)$').firstMatch(line);
-    if (match == null) continue;
-    final head = i == keyLine ? key + match[1]! : match[1]!;
-    lines[i] = head + _renameValues(match[2]!, field, renamed);
-  }
-  return lines.join('\n');
-}
-
-bool _isTrivia(String line) =>
-    line.trim().isEmpty || line.trimLeft().startsWith('#');
-
-/// Returns [region], the text after `key:` or `- `, with renamed values set.
-String _renameValues(
-  String region,
-  MergedField field,
-  Map<(String, String), String> renamed,
-) {
-  final flow = RegExp(r'^\[(?<items>[^\]]*)\](?<tail>\s*(?:#.*)?)$');
-  final flowMatch = flow.firstMatch(region);
-  if (flowMatch != null) {
-    final items = flowMatch.namedGroup('items')!.split(',').map((item) {
-      final token = item.trim();
-      final renamedToken = _renameToken(token, field, renamed);
-      return item.replaceFirst(token, renamedToken);
-    });
-    return '[${items.join(',')}]${flowMatch.namedGroup('tail')}';
-  }
-  final scalar = RegExp(
-    '^(?<token>"[^"]*"|\'[^\']*\'|\\S.*?)$_trailingComment\\s*\$',
-  ).firstMatch(region);
-  if (scalar == null) return region;
-  final token = scalar.namedGroup('token')!;
-  return _renameToken(token, field, renamed) + region.substring(token.length);
-}
-
-/// Returns [token], a scalar as written with its quotes, renamed if needed.
-String _renameToken(
-  String token,
-  MergedField field,
-  Map<(String, String), String> renamed,
-) {
-  final quote =
-      token.length >= 2 &&
-          (token.startsWith('"') || token.startsWith("'")) &&
-          token.endsWith(token[0])
-      ? token[0]
-      : '';
-  final value = quote.isEmpty ? token : token.substring(1, token.length - 1);
-  final name = _newName(field, value, renamed);
-  return name == null ? token : '$quote$name$quote';
+  return renameKeyBlockValues(
+    text,
+    key,
+    (value) => _newName(field, value, renamed),
+  );
 }

@@ -10,7 +10,8 @@ const _says = <String, List<String>>{
   'fr_trace': ['FR', 'operation', 'operationId', 'command'],
   'operations': [
     '###',
-    '`<operation>` — FR-<NN>',
+    '`<operation>` ``',
+    'no FR label',
     'Request example',
     'Response example',
     'success',
@@ -74,5 +75,15 @@ void main() {
   test('f03/us07/fr03: api caps 400 lines, bans no word, and cites its four '
       'sources', () {
     expectSpecLint(api);
+  });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one ### per operation '
+      'as its item shape', () {
+    expectItemShape(
+      api,
+      'Write one rule per ID: one `###` per operation, each rule one '
+      'sentence.',
+    );
   });
 }

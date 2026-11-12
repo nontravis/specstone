@@ -14,7 +14,9 @@ import '../../helpers/temp_tree.dart';
 ProcessResult _gitMissing(
   List<String> arguments, {
   required String workingDirectory,
-}) => throw const ProcessException('git', []);
+  Map<String, String>? environment,
+}) =>
+    throw const ProcessException('git', [], 'no git on an absolute PATH entry');
 
 void main() {
   test('f06/us01/fr02/e03, f06/us01/s12: a folder outside git is '
@@ -56,26 +58,39 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e03: git missing is git_work_tree_required', () async {
+  test('f06/us01/fr02/e03: git missing is git_work_tree_required, naming why '
+      'git cannot start', () async {
     final root = await writeTree(acmeLegacy);
+    const workTreeText =
+        'the project is not in a git work tree with a first commit; '
+        'put the project under git, git init and a first commit, '
+        'then run specstone migrate again';
+    const expected =
+        '$workTreeText; git cannot start: no git on an absolute '
+        'PATH entry';
 
-    expect(
-      () => requireGitWorkTree(root, _gitMissing),
-      throwsA(
-        isA<MigrateFault>().having(
-          (f) => f.code,
-          'code',
-          MigrateFaultCode.gitWorkTreeRequired,
+    for (final check in [requireGitWorkTree, requireCleanWorkTree]) {
+      expect(
+        () => check(root, _gitMissing),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.gitWorkTreeRequired,
+              )
+              .having((f) => f.exitStatus, 'exit', 78)
+              .having((f) => f.message, 'message', expected),
         ),
-      ),
-    );
+      );
+    }
   });
 
   group('f06/us01/fr02/e03: the git version floor', () {
     /// A `RunGit` that prints [version] for `git --version` and runs the real
     /// `git` for every other call.
     RunGit gitAt(String version) =>
-        (arguments, {required workingDirectory}) =>
+        (arguments, {required workingDirectory, environment}) =>
             arguments.first == '--version'
             ? ProcessResult(0, 0, '$version\n', '')
             : runRealGit(arguments, workingDirectory: workingDirectory);
@@ -194,6 +209,7 @@ void main() {
     ProcessResult failing(
       List<String> arguments, {
       required String workingDirectory,
+      Map<String, String>? environment,
     }) => ProcessResult(0, 128, '', 'fatal: not a git repository');
 
     expect(

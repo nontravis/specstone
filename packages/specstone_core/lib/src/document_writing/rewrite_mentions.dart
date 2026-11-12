@@ -1,9 +1,15 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
-import 'package:specstone_core/src/document_writing/link_destinations.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show nameMentionsInFile;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DocAddress;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 
 /// A closing `.`, `,`, `;`, or `:` that prose adds after a path.
 final _closingMark = RegExp(r'[.,;:]$');
@@ -20,8 +26,8 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// A mention is prose text, plain or in a code span, that reads as a relative
 /// path from the doc at [docPath], read before the moves. Its `#` suffix, a
 /// closing mark, and a line suffix are not part of the path and stay. It
-/// changes only when [exists] holds for the path it names, given as
-/// [relativeFilePathOf] gives it, and the shared decision of
+/// changes only when that path is an [isPortablePath] and [exists] holds for
+/// it, given as [relativeFilePathOf] gives it, and the shared decision of
 /// [movedRelativePath] says the text no longer reaches the moved file. A
 /// token holding an escape, a web address, a path of dots alone, and a word
 /// with neither a `/` nor a file extension are not mentions. [exists] runs
@@ -74,11 +80,16 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
   );
 }
 
-/// Returns, per character of [body], whether a link destination covers it.
+/// Returns, per character of [body], whether a link destination the link
+/// scan reads, inline or in a definition, covers it, as the mention scan
+/// reads them.
 List<bool> _destinationMask(String body) {
   final mask = List.filled(body.length, false);
-  for (final span in destinationsIn(body)) {
-    mask.fillRange(span.start, span.end, true);
+  for (final (:start, :end, link: _, kind: _) in linkScanOf(
+    body,
+    firstLine: 1,
+  ).destinations) {
+    mask.fillRange(start, end, true);
   }
   return mask;
 }
@@ -112,7 +123,9 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
   final after = movedRelativePath(path, docPath, moves);
   if (after == null) return null;
   final target = relativeFilePathOf(path, docPath);
-  if (target == null || !exists(target)) return null;
+  if (target == null || !isPortablePath(target) || !exists(target)) {
+    return null;
+  }
   final text = path.endsWith('/') ? '$after/' : after;
   return text == path ? null : (path: path, text: text);
 }
@@ -134,4 +147,61 @@ String? _pathOf(String token) {
   final shaped = path.contains('/') || _extension.hasMatch(path);
   // Prose carries no percent escape, and the path resolver would decode one.
   return named && shaped && !path.contains('%') ? path : null;
+}
+
+/// Returns [text], a file of [extension], with the Name of each doc-name
+/// mention of a doc in [renamed] set to its new name, or null when none
+/// changes.
+///
+/// [renamed] maps `(doc type id, old name)` to the new name. The mention's
+/// `<doc type>:` prefix and `#<section key>` stay as written; a bare name
+/// takes the rename only when every renamed doc called so agrees on one new
+/// name. Mentions are read as [nameMentionsInFile] reads them from the text
+/// with `\r\n` as `\n`, and every byte outside a changed Name, line ends
+/// included, stays.
+String? rewriteNameMentions(
+  String text,
+  String extension,
+  Map<(String, String), String> renamed,
+) {
+  if (renamed.isEmpty || !text.contains('`')) return null;
+  final edits = <({int line, int column, int length, String text})>[];
+  for (final mention in nameMentionsInFile(toLf(text), extension)) {
+    final name = renamedNameOf(mention.address, renamed);
+    if (name == null) continue;
+    final address = mention.address;
+    final prefix = address.typeId == null ? '' : '${address.typeId}:';
+    final kept = mention.text.substring(address.docPart.length);
+    edits.add((
+      line: mention.line,
+      column: mention.column,
+      length: mention.text.length,
+      text: '$prefix$name$kept',
+    ));
+  }
+  if (edits.isEmpty) return null;
+  final lines = text.split('\n');
+  for (final edit in edits.reversed) {
+    final line = lines[edit.line - 1];
+    lines[edit.line - 1] =
+        line.substring(0, edit.column) +
+        edit.text +
+        line.substring(edit.column + edit.length);
+  }
+  return lines.join('\n');
+}
+
+/// Returns the new name of the doc [address] names, or null when it names no
+/// renamed doc or, bare, names renamed docs that disagree.
+String? renamedNameOf(
+  DocAddress address,
+  Map<(String, String), String> renamed,
+) {
+  final typeId = address.typeId;
+  if (typeId != null) return renamed[(typeId, address.body)];
+  final names = {
+    for (final MapEntry(:key, :value) in renamed.entries)
+      if (key.$2 == address.body) value,
+  };
+  return names.length == 1 ? names.single : null;
 }

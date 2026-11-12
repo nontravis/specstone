@@ -1,15 +1,48 @@
 // The expected lines are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+
+const _frKey =
+    'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+const _frTarget = 'fr:login/email_login/validate_credentials';
+const _storyKey = 'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+
+String _padded(String start, int length) => start.padRight(length, '.');
+
+final _e09Fr =
+    '---\nstatus: implemented\ntraced_from:\n  - S1\n  - S2\n'
+    'implements:\n  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n'
+    '# Validate credentials\n\n## Statement\n'
+    '${_padded('The system shall check the email and the password.', 165)}\n\n'
+    '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
+    '${_padded('2. E02 — An unknown email → refused', 121)}\n';
+
+final String _leadFr = _e09Fr.replaceFirst(
+  '# Validate credentials\n\n',
+  '# Validate credentials\n\n${_padded('The lead says what the check covers.', 681)}\n\n',
+);
+
+/// The `sections` of the doc [target] names, as `--json` prints them.
+List<Map<String, Object?>> _jsonSections(DocIndex index, String target) =>
+    ((answerStructure(index, target: target).json['docs']! as List)
+                .cast<Map<String, Object?>>()
+                .single['sections']!
+            as List)
+        .cast<Map<String, Object?>>();
 
 void main() {
   late DocIndex index;
@@ -96,6 +129,7 @@ void main() {
         'status',
         'draft',
         'tokens',
+        'sections',
         'children',
       ]);
       expect(
@@ -154,6 +188,414 @@ void main() {
         '    shop/pay/card (user_story)',
         '    shop/pay/refund (user_story)',
       ],
+    );
+  });
+
+  group('index_query/view_docs_tree/print_docs_tree', () {
+    late DocIndex e09;
+    setUpAll(() async => e09 = await indexWith({_frKey: _e09Fr}));
+
+    test('E09: a typed doc target prints each section and item with its characters', () async {
+      expect(
+        answerStructure(e09, target: _frTarget).text,
+        'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_e09Fr)} tokens\n'
+        '  statement · 179 chars\n'
+        '    line 14 · 165 chars\n'
+        '  edge_cases · 243 chars\n'
+        '    E01 · 106 chars\n'
+        '    E02 · 121 chars\n',
+      );
+    });
+
+    test(
+      'E09: --json gives the doc object sections with key, chars, and items',
+      () async {
+        final json = answerStructure(e09, target: _frTarget).json;
+        final doc = (json['docs']! as List).single as Map<String, Object?>;
+
+        expect(doc.keys.toList(), [
+          'name',
+          'docType',
+          'path',
+          'title',
+          'status',
+          'draft',
+          'tokens',
+          'sections',
+          'children',
+        ]);
+        expect(doc['sections'], [
+          {
+            'key': 'statement',
+            'chars': 179,
+            'items': [
+              {'line': 14, 'chars': 165},
+            ],
+          },
+          {
+            'key': 'edge_cases',
+            'chars': 243,
+            'items': [
+              {'id': 'E01', 'line': 18, 'chars': 106},
+              {'id': 'E02', 'line': 19, 'chars': 121},
+            ],
+          },
+        ]);
+      },
+    );
+
+    test('E11: a lead prints first as _lead with its items, as text', () async {
+      final index = await indexWith({_frKey: _leadFr});
+      expect(
+        answerStructure(index, target: _frTarget).text,
+        'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_leadFr)} tokens\n'
+        '  _lead · 681 chars\n'
+        '    line 12 · 681 chars\n'
+        '  statement · 179 chars\n'
+        '    line 16 · 165 chars\n'
+        '  edge_cases · 243 chars\n'
+        '    E01 · 106 chars\n'
+        '    E02 · 121 chars\n',
+      );
+    });
+
+    test(
+      'E11: a lead gives the first sections entry key _lead under --json',
+      () async {
+        final index = await indexWith({_frKey: _leadFr});
+        final sections = _jsonSections(index, _frTarget);
+
+        expect(sections.first, {
+          'key': '_lead',
+          'chars': 681,
+          'items': [
+            {'line': 12, 'chars': 681},
+          ],
+        });
+        expect(
+          [for (final s in sections) s['key']],
+          ['_lead', 'statement', 'edge_cases'],
+        );
+      },
+    );
+
+    test(
+      'E12: a lead that holds no text prints no _lead line and no _lead entry',
+      () async {
+        final text = answerStructure(e09, target: _frTarget).text;
+
+        expect(text, isNot(contains('_lead')));
+        expect(
+          [for (final s in _jsonSections(e09, _frTarget)) s['key']],
+          ['statement', 'edge_cases'],
+        );
+      },
+    );
+
+    test('E12: a lead of blank lines only prints no _lead line', () async {
+      final blank = _e09Fr.replaceFirst(
+        '# Validate credentials\n\n',
+        '# Validate credentials\n\n   \n\n',
+      );
+      final index = await indexWith({_frKey: blank});
+
+      expect(
+        answerStructure(index, target: _frTarget).text,
+        isNot(contains('_lead')),
+      );
+    });
+
+    test(
+      'E11: a doc with no title line takes its whole head as the lead',
+      () async {
+        final untitled = _leadFr.replaceFirst('# Validate credentials\n\n', '');
+        final index = await indexWith({_frKey: untitled});
+
+        expect(_jsonSections(index, _frTarget), [
+          {
+            'key': '_lead',
+            'chars': 681,
+            'items': [
+              {'line': 10, 'chars': 681},
+            ],
+          },
+          {
+            'key': 'statement',
+            'chars': 179,
+            'items': [
+              {'line': 14, 'chars': 165},
+            ],
+          },
+          {
+            'key': 'edge_cases',
+            'chars': 243,
+            'items': [
+              {'id': 'E01', 'line': 18, 'chars': 106},
+              {'id': 'E02', 'line': 19, 'chars': 121},
+            ],
+          },
+        ]);
+      },
+    );
+
+    test('E09: sections out of template order print in file order with the laid-out item lines', () async {
+      final shuffled = _e09Fr.replaceFirst(
+        RegExp(r'## Statement\n.*\n\n## Edge cases\n.*\n.*\n', dotAll: true),
+        '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
+        '${_padded('2. E02 — An unknown email → refused', 121)}\n\n'
+        '## Statement\n${_padded('The system shall check the email and the password.', 165)}\n',
+      );
+      final index = await indexWith({_frKey: shuffled});
+
+      expect(_jsonSections(index, _frTarget), [
+        {
+          'key': 'edge_cases',
+          'chars': 243,
+          'items': [
+            {'id': 'E01', 'line': 18, 'chars': 106},
+            {'id': 'E02', 'line': 19, 'chars': 121},
+          ],
+        },
+        {
+          'key': 'statement',
+          'chars': 179,
+          'items': [
+            {'line': 14, 'chars': 165},
+          ],
+        },
+      ]);
+    });
+
+    test('E09: a doc with a repeated header keeps each section its own items, counted on disk', () async {
+      final repeated = _e09Fr.replaceFirst(
+        '## Edge cases',
+        '## Statement\nsecond\n\n## Edge cases',
+      );
+      final index = await indexWith({_frKey: repeated});
+
+      expect(_jsonSections(index, _frTarget), [
+        {
+          'key': 'statement',
+          'chars': 178,
+          'items': [
+            {'line': 13, 'chars': 165},
+          ],
+        },
+        {
+          'key': 'statement',
+          'chars': 19,
+          'items': [
+            {'line': 16, 'chars': 6},
+          ],
+        },
+        {
+          'key': 'edge_cases',
+          'chars': 242,
+          'items': [
+            {'id': 'E01', 'line': 19, 'chars': 106},
+            {'id': 'E02', 'line': 20, 'chars': 121},
+          ],
+        },
+      ]);
+    });
+
+    test('E09: a lettered item ID prints as a line, never as an ID', () async {
+      final lettered = _e09Fr.replaceFirst('2. E02 —', '2. E02a —');
+      final index = await indexWith({_frKey: lettered});
+      final lines = answerStructure(index, target: _frTarget).text.split('\n');
+
+      expect(lines, contains('    E01 · 106 chars'));
+      expect(lines, contains(matches(RegExp(r'^    line 19 · \d+ chars$'))));
+      expect(lines.where((l) => l.contains('E02a')), isEmpty);
+    });
+
+    test('E10: a name that several docs carry prints the tree with no section line', () async {
+      final text = answerStructure(e09, target: 'login').text;
+
+      expect(text, isNot(contains(' chars')));
+      expect(answerStructure(e09).text, isNot(contains(' chars')));
+      expect(
+        answerStructure(e09, target: 'login').json.toString(),
+        isNot(contains('sections')),
+      );
+    });
+
+    test('E10: feature:login prints the feature sections and items, then its subtree', () async {
+      final lines = answerStructure(
+        e09,
+        target: 'feature:login',
+      ).text.trim().split('\n');
+
+      expect(lines.first, startsWith('login (feature)'));
+      expect(lines[1], matches(RegExp(r'^  problem · \d+ chars$')));
+      expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
+      expect(lines.where((l) => l.contains('(user_story)')), hasLength(2));
+      expect(
+        lines.where((l) => l.contains(' (') && l.contains(' tokens')),
+        hasLength(11),
+      );
+    });
+
+    test('Review Focus: each printed section count is the SectionCounts.chars check compares', () async {
+      final doc = e09.resolve(_frTarget).single;
+      final content = e09.contentOf(doc);
+      final stored = {
+        for (final (i, section) in content.sections.indexed)
+          section.key: content.lineFacts.sectionCounts[i].chars,
+      };
+      final sections =
+          (answerStructure(e09, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+
+      expect({
+        for (final s in sections.cast<Map<String, Object?>>())
+          s['key']: s['chars'],
+      }, stored);
+    });
+
+    test(
+      'E09: a scenario heading prints as Scenario <n> by its number value',
+      () async {
+        final index = await indexWith({
+          _storyKey:
+              '---\nstatus: planned\n---\n\n# Agent signs in with email\n\n## Acceptance Criteria\n'
+              '### Scenario 01 — [happy] Sign in\n- **Given** a user\n- **When** it signs in\n',
+        });
+        final lines = answerStructure(
+          index,
+          target: 'user_story:login/email_login',
+        ).text.split('\n');
+
+        expect(lines[1], startsWith('  acceptance_criteria · '));
+        expect(lines[2], matches(RegExp(r'^    Scenario 1 · \d+ chars$')));
+        expect(lines[3], matches(RegExp(r'^    line \d+ · \d+ chars$')));
+      },
+    );
+
+    test('E09: counts and lines are those of the laid-out text', () async {
+      final drifted = _e09Fr.replaceFirst(
+        '## Statement\n',
+        '## Statement\n\n\n',
+      );
+      final index = await indexWith({_frKey: drifted});
+      final doc = index.resolve(_frTarget).single;
+      final laid = layOutDoc(
+        toLf(index.contentOf(doc).text),
+        index.typeOf(doc),
+      ).split('\n');
+      final json =
+          (answerStructure(index, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+      final statement = (json.first as Map<String, Object?>)['items']! as List;
+
+      expect(laid, isNot(drifted.split('\n')));
+      expect(
+        laid[((statement.single as Map)['line']! as int) - 1],
+        startsWith('The system shall'),
+      );
+      expect((statement.single as Map)['chars'], 165);
+    });
+
+    test('domain:consistency_check INV-14: a doc the formatter refuses counts its text as on disk', () async {
+      final refused = _e09Fr.replaceFirst(
+        '## Edge cases',
+        '## Mystery\nx\n\n## Edge cases',
+      );
+      final index = await indexWith({_frKey: refused});
+      final doc = index.resolve(_frTarget).single;
+      final disk = refused.split('\n');
+      final content = index.contentOf(doc);
+      final sections =
+          (answerStructure(index, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+
+      expect(layOutDoc(refused, index.typeOf(doc)), refused);
+      expect(
+        [for (final s in sections) (s as Map)['key']],
+        ['statement', 'mystery', 'edge_cases'],
+      );
+      expect(
+        [for (final s in sections) (s as Map)['chars']],
+        [for (final c in content.lineFacts.sectionCounts) c.chars],
+      );
+      final first = ((sections.last as Map)['items']! as List).first as Map;
+      expect(disk[(first['line']! as int) - 1], startsWith('1. E01'));
+    });
+
+    test('domain:consistency_check INV-14: a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
+      const before =
+          '# Validate credentials\n\n## Statement\nThe system shall check ';
+      const after =
+          ' the email.\n\n## Edge cases\n1. E01 — A wrong password → refused\n';
+      final project = await writeLoginProject();
+      File(
+        '${project.path}/$_frKey',
+      ).writeAsBytesSync([...utf8.encode(before), 0xFF, ...utf8.encode(after)]);
+      final session = openSession(project);
+      addTearDown(session.close);
+      final index = session.index;
+      final doc = index.resolve(_frTarget).single;
+      final stored = index.contentOf(doc).lineFacts.sectionCounts;
+      final sections =
+          (answerStructure(index, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+      final statement = (sections.first as Map)['items']! as List;
+      final disk = index.contentOf(doc).text.split('\n');
+
+      expect(doc.formatted, isNull);
+      expect(
+        [for (final s in sections) (s as Map)['chars']],
+        [for (final c in stored) c.chars],
+      );
+      expect(
+        disk[((statement.single as Map)['line']! as int) - 1],
+        startsWith('The system shall'),
+      );
+      expect((statement.single as Map)['line'], 4);
+    });
+
+    test(
+      'E09: an item with an emoji counts one character per code point',
+      () async {
+        const item = '2. E02 — 😀 a wrong email → refused';
+        final index = await indexWith({
+          _frKey: _e09Fr.replaceFirst(RegExp(r'2\. E02.*\n'), '$item\n'),
+        });
+        final sections =
+            (answerStructure(index, target: _frTarget).json['docs']! as List)
+                    .cast<Map<String, Object?>>()
+                    .single['sections']!
+                as List;
+        final items = (sections.last as Map)['items']! as List;
+
+        expect((items.last as Map)['chars'], item.runes.length);
+        expect(item.runes.length, lessThan(item.length));
+      },
+    );
+
+    test(
+      'E09: a scenario heading check does not read prints as a line',
+      () async {
+        final index = await indexWith({
+          _storyKey:
+              '---\nstatus: planned\n---\n\n# Agent signs in with email\n\n## Acceptance Criteria\n'
+              '### **Scenario 1** — [happy] Sign in\n- **Given** a user\n',
+        });
+        final lines = answerStructure(
+          index,
+          target: 'user_story:login/email_login',
+        ).text.split('\n');
+
+        expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
+      },
     );
   });
 }

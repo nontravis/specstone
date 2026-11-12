@@ -10,12 +10,10 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
-import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
@@ -30,7 +28,7 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// the order given, and the first refusal refuses the call. A doc outside the
 /// unit that refers to a doc inside it refuses the delete, and no file moves,
 /// except an untyped doc outside the checked folders, such as a plan: its link
-/// is left to dangle, and the answer warns of each such link. An approved
+/// is left to dangle, and the answer warns of each such link. A guarded
 /// `.md` file in the unit (an untyped one included) leaves the delete to the
 /// Owner, as [confirmation] says. At a terminal [prompts] lists
 /// the files and asks, one answer from [readLine] outside the lock; anything
@@ -39,11 +37,12 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// when a file or its bytes change while the prompt waits, the list shows
 /// again. Under `--yes` the unit goes with no prompt, as after a `y`, but only
 /// while its file list hashes to [planHash], the plan line of the dry run the
-/// Owner saw ([answerDeleteDryRun]). Emptied folders go up to the docs root.
+/// Owner saw ([answerDeleteDryRun]); the hash covers the files alone, and no
+/// git runs. Emptied folders go up to the docs root.
 ///
 /// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc,
-/// `owner_terminal_required` for an approved unit the Owner cannot confirm,
+/// `owner_terminal_required` for a guarded unit the Owner cannot confirm,
 /// and `plan_mismatch` under `--yes` for a list that changed since the dry
 /// run; an `IndexFault` for an address that names neither one typed doc nor an
 /// untyped doc's DocPath; `index_busy` when another call holds the lock.
@@ -60,20 +59,21 @@ ReadAnswer answerDelete(
   while (true) {
     final shown = _readUnit(session, unit.roots);
     if (confirmation == OwnerConfirmation.given &&
-        planHash != _planHashOf(session, shown)) {
+        planHash != _planHashOf(shown)) {
       throw WriteFault(
         WriteFaultCode.planMismatch,
         'the delete list is not the one the Owner saw in the dry run; run '
         'specstone delete --dry-run again, show it, and ask for a new ok',
       );
     }
-    final approved = _holdsApprovedDoc(shown);
-    if (approved) {
+    final guarded = _holdsGuardedDoc(shown);
+    if (guarded) {
       confirmation.refuseIfMissing(
-        '${unit.subject} holds approved docs; only the Owner deletes them,',
+        '${unit.subject} holds guarded docs; only the Owner deletes them,',
       );
     }
-    if (approved && confirmation.prompts) {
+    if (guarded && confirmation.prompts) {
+      session.journalTarget.requireTrusted();
       MoveJournal.requireHomeFolder(
         session.journalTarget.homeDirectory,
         session.project.projectRoot,
@@ -104,13 +104,13 @@ ReadAnswer answerDelete(
 /// is removed. The text ends with the `plan <hash>` line and
 /// `dry run: nothing removed`; the JSON holds `files` and `plan`.
 /// Warns of each link left to dangle, and throws, as [answerDelete] does
-/// before its prompt.
+/// before its prompt. It starts no git.
 ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
   final unit = _resolveTargets(session, targets);
   final dangling = _checkReferrers(session, unit);
   final unitFiles = _readUnit(session, unit.roots);
   final files = unitFiles.keys.toList();
-  final hash = _planHashOf(session, unitFiles);
+  final hash = _planHashOf(unitFiles);
   return ReadAnswer(
     text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
     json: {'files': files, 'plan': hash},
@@ -118,23 +118,27 @@ ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
   );
 }
 
-/// Returns the plan hash of a delete unit, with the HEAD of the docs' git.
+/// Returns the plan hash of a delete unit: its files alone.
 ///
 /// It covers each listed path with the hash of its text, as `bases.doc` hashes
-/// a doc, so an uncommitted edit to a listed file changes it too.
-String _planHashOf(WriteSession session, _UnitFiles files) => planHashOf(
+/// a doc, so an edit to a listed file, committed or not, changes it.
+String _planHashOf(_UnitFiles files) => baseHashOf(
   [
     for (final MapEntry(key: docPath, value: bytes) in files.entries)
       '$docPath ${_textHashOf(bytes)}\n',
   ].join(),
-  session.project.docsRoot,
-  runRealGit,
 );
 
-/// Returns the `bases.doc` hash of [bytes]; a byte that is not UTF-8 decodes
-/// to U+FFFD, so any file of a unit hashes the same way each time.
-String _textHashOf(List<int> bytes) =>
-    baseHashOf(toLf(utf8.decode(bytes, allowMalformed: true)));
+/// Returns the `bases.doc` hash of [bytes] when they are UTF-8 text, else the
+/// hash of the bytes themselves, so no two different binary files hash alike.
+String _textHashOf(List<int> bytes) {
+  try {
+    return baseHashOf(toLf(utf8.decode(bytes)));
+  } on FormatException {
+    // Latin-1 maps each byte to one code point, so the text keeps every byte.
+    return baseHashOf(latin1.decode(bytes));
+  }
+}
 
 String _listOf(Iterable<String> docPaths) =>
     docPaths.map((docPath) => '$docPath\n').join();
@@ -219,9 +223,9 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
 ///
 /// A history file, such as a plan, is an untyped doc outside the checked
 /// folders: no write repoints it and no check reads it, so its link dangles.
-/// A mention is a path written in text, never a reference, so it dangles
-/// without blocking. Throws [WriteFault] `doc_referenced` when any other doc
-/// outside the unit refers to a doc inside it.
+/// A mention, a path written in text or a doc-name mention in a code span
+/// (RULE-11), dangles without blocking. Throws [WriteFault] `doc_referenced`
+/// when any other doc outside the unit refers to a doc inside it.
 List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
   final inUnit = {for (final root in unit.roots) ..._filesUnder(session, root)};
   final checkedFolders = checkedFoldersOf(session.index.set);
@@ -250,10 +254,14 @@ List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
 /// delete before this runs.
 List<String> _mentionWarnings(WriteSession session, Set<String> inUnit) {
   final warnings = <String>[];
-  for (final doc in session.index.docs) {
-    if (!inUnit.contains(doc.docPath)) continue;
+  final unit = [
+    for (final doc in session.index.docs)
+      if (inUnit.contains(doc.docPath)) doc,
+  ];
+  final mentionsByDoc = mentionsOfEach(session.index, unit);
+  for (final doc in unit) {
     final from = {
-      for (final mention in mentionsOf(session.index, doc))
+      for (final mention in mentionsByDoc[doc.docPath]!)
         if (mention.doc.isTyped && !inUnit.contains(mention.doc.docPath))
           mention.doc.docPath,
     };
@@ -375,10 +383,10 @@ _UnitFiles _readUnit(WriteSession session, List<String> roots) {
   return files;
 }
 
-/// Whether a `.md` file of [files] was ever approved.
+/// Whether a `.md` file of [files] is guarded (INV-7).
 ///
-/// Bytes that are not UTF-8 cannot show a draft, so they count as approved.
-bool _holdsApprovedDoc(_UnitFiles files) {
+/// Bytes that are not UTF-8 cannot show a draft, so they count as guarded.
+bool _holdsGuardedDoc(_UnitFiles files) {
   for (final MapEntry(:key, :value) in files.entries) {
     if (!key.endsWith('.md')) continue;
     final String text;
@@ -387,7 +395,7 @@ bool _holdsApprovedDoc(_UnitFiles files) {
     } on FormatException {
       return true;
     }
-    if (approvalOf(Doc.parse(toLf(text))) == .approved) return true;
+    if (isGuarded(ApprovalFields.of(Doc.parse(toLf(text))))) return true;
   }
   return false;
 }

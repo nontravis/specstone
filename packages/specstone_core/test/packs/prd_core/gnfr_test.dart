@@ -133,4 +133,19 @@ void main() {
     expect(gnfr.bundle, ['implement', 'design']);
     expect(gnfr.sections.where((s) => s.query != null), isEmpty);
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        gnfr,
+        'Write one rule per `NFR-*` ID, keep its bound in its '
+        'Statement, and leave mechanics to the spec docs.\n'
+        "Keep the trace in the entry's `**Traced from:**` bullet, "
+        'never in the Statement.',
+      );
+    },
+  );
 }

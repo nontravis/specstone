@@ -41,4 +41,17 @@ enum OwnerConfirmation {
       '$lead $ownerConfirmationWays',
     );
   }
+
+  /// Refuses unless the command asks the Owner at the terminal.
+  ///
+  /// For a command that takes no `--yes`: an agent cannot confirm it. Throws
+  /// [WriteFault] `owner_terminal_required` for any way but [prompt]; its
+  /// message is [lead] followed by the one way the Owner confirms.
+  void requireTerminal(String lead) {
+    if (prompts) return;
+    throw WriteFault(
+      WriteFaultCode.ownerTerminalRequired,
+      '$lead at an interactive terminal',
+    );
+  }
 }

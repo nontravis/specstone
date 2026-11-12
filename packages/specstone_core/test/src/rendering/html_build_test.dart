@@ -25,11 +25,11 @@ const _frPath = '$_featureDir/us01_a/functional_requirements/fr02_y.md';
 const _frDocPath = '$_featureDir/us01_a/functional_requirements/fr02_y.md';
 const _frNoTitlePath = '$_featureDir/us01_a/functional_requirements/fr03_z.md';
 const _feature =
-    '# F-05 — Rendering\n\n## Feature name\n- **Human:** Rendering\n\n'
-    '## Feature goal\n- **why:** share docs\n';
+    '# F-05 — Rendering\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+    '## Feature goal\n\n- **why:** share docs\n';
 const _story =
-    '# Story one\n\n## Summary\nFormat docs.\n\n'
-    '## Acceptance Criteria\nDone.\n';
+    '# Story one\n\n## Summary\n\nFormat docs.\n\n'
+    '## Acceptance Criteria\n\nDone.\n';
 const _statusRow = '<tr><th>status</th><td>planned</td></tr>';
 
 Future<HtmlBuild> _build(
@@ -111,7 +111,7 @@ void main() {
       expect(
         build.html,
         contains(
-          '<h1>F-05 — Rendering</h1>\n'
+          '<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>\n'
           '<table class="frontmatter">$_statusRow</table>',
         ),
       );
@@ -135,11 +135,33 @@ void main() {
     ]);
   });
 
+  test('rendering/format_docs/leave_missing_sections: a doc lacking a section '
+      'raises no template warning', () async {
+    final build = await _build({
+      _featurePath: '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n',
+    });
+
+    expect(build.warnings, isEmpty);
+  });
+
+  test('rendering/format_docs/normalize_layout_whitespace: layout drift '
+      'raises the template warning', () async {
+    final build = await _build({
+      _featurePath:
+          '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
+          '## Feature goal\n\n- **why:** share docs\n',
+    });
+
+    expect(build.warnings, [
+      'docs/$_featurePath does not match its template; run specstone format',
+    ]);
+  });
+
   test('f05/us02/fr02/e01, s03/inv11: a doc with an unknown header is '
       'rendered, with the same warning', () async {
     final build = await _build({_storyPath: '$_story\n## Notes\nx\n'});
 
-    expect(build.html, contains('<h2>Notes</h2>'));
+    expect(build.html, contains('<h2 id="doc-1-notes">Notes</h2>'));
     expect(build.warnings, [
       'docs/$_storyPath does not match its template; run specstone format',
     ]);
@@ -152,7 +174,10 @@ void main() {
     });
 
     expect(build.warnings, isEmpty);
-    expect(build.html, contains('<h1>F-05 — Rendering</h1>'));
+    expect(
+      build.html,
+      contains('<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>'),
+    );
   });
 
   test('f05/us02/fr02/e02: a draft shows its label after the frontmatter '
@@ -168,7 +193,7 @@ void main() {
     );
     expect(
       html.indexOf('<p class="draft">Draft</p>'),
-      lessThan(html.indexOf('<h2>Feature name</h2>')),
+      lessThan(html.indexOf('<h2 id="doc-1-feature-name">Feature name</h2>')),
     );
   });
 
@@ -328,7 +353,7 @@ void main() {
       hasLength(1),
     );
     expect(html, contains('<section class="doc" id="doc-2">'));
-    expect(html, contains('<h1>Story one</h1>'));
+    expect(html, contains('<h1 id="doc-2-story-one">Story one</h1>'));
   });
 
   test('f05/us02/fr02: an unclosed <title lang=x> or <STYLE media=print> in '
@@ -350,7 +375,7 @@ void main() {
     expect(RegExp('<style').allMatches(page), hasLength(1));
     expect(RegExp('<textarea').allMatches(page), isEmpty);
     expect(html, contains('<section class="doc" id="doc-3">'));
-    expect(html, contains('<h1>Req</h1>'));
+    expect(html, contains('<h1 id="doc-3-req">Req</h1>'));
   });
 
   test('f05/us02/fr02: an unclosed <noscript> or <TEMPLATE id=x> and their end '
@@ -497,5 +522,19 @@ void main() {
         'docs/$_featureDir/us01_a/: cannot be read; skipped',
       ]);
     }, skip: unreadablePathSkipReason() ?? false);
+  });
+
+  test('resolve_links E08: a link to another doc reaches the prefixed id of '
+      'its heading, end to end', () async {
+    final build = await _build({
+      _storyPath: _story.replaceFirst(
+        '\n\n',
+        '\n\n[x](../us02_b/USER_STORY.md#summary)\n\n',
+      ),
+      '$_featureDir/us02_b/USER_STORY.md': _story,
+    }, target: 'docs/$_featureDir');
+
+    expect(build.html, contains('href="#doc-2-summary"'));
+    expect(build.html, contains('id="doc-2-summary"'));
   });
 }

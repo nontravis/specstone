@@ -56,4 +56,19 @@ void main() {
       expect(sectionOf(features, key).template, value, reason: key);
     }
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        features,
+        'Write one rule per ID; in a section with no IDs, one '
+        'rule per item, with mechanics left to the spec docs.\n'
+        'Keep a bound in the rule it limits, never in the '
+        'diagram or a row.',
+      );
+    },
+  );
 }

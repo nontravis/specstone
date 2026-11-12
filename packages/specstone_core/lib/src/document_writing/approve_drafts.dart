@@ -1,16 +1,19 @@
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/sentences.dart'
+    show heldTextOf, sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _prompt = 'approve? [y/n/q] ';
 const _nothingWaits = 'no draft waits for approval\n';
@@ -25,12 +28,16 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// writes only when its bytes are those the Owner saw, else the draft shows
 /// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
-/// `draft` and adds `approved: true` unless the doc already holds it.
-/// Reads every selected draft before the first view shows.
+/// `draft` and writes the doc's ApprovalHash as `approved:`.
+/// Reads every selected draft, the approved copy of each, and every doc of the
+/// tree once, before the first view shows; with no draft waiting it reads none
+/// of them.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries,
-/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
-/// not UTF-8, both before any draft shows, and `index_busy` when another call
-/// holds the lock; approvals already written stay.
+/// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
+/// cannot be read, or a draft that is not UTF-8, all before any draft shows,
+/// `output_not_writable` for roots the Owner has not recorded, before git runs
+/// or a draft shows, and `index_busy` when another call holds the lock;
+/// approvals already written stay.
 void approveDrafts(
   WriteSession session, {
   List<String> names = const [],
@@ -45,13 +52,14 @@ void approveDrafts(
     out.write(_nothingWaits);
     return;
   }
-  final lookup = history ?? const ApprovalHistory();
+  _requireTrusted(session, drafts);
+  final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   for (final (at, (:doc, bytes: _)) in drafts.indexed) {
     String viewOf(List<int> bytes) => _viewOf(
       session,
       doc,
       bytes,
-      lookup,
+      reads,
       position: at + 1,
       count: drafts.length,
       context: context,
@@ -65,10 +73,14 @@ void approveDrafts(
 ///
 /// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks for
 /// [names]. The text is their views joined by a blank line, else `no draft
-/// waits for approval`; the JSON is `{}`. It takes no lock.
+/// waits for approval`; the JSON is `drafts` (see [draftViewJson]) and their
+/// `count`, `{"drafts": [], "count": 0}` for none. It takes no lock, and with
+/// no draft waiting it reads no doc of the tree.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
-/// `RenderFault` `output_not_writable` for a draft that cannot be read or is
-/// not UTF-8, both before any view prints.
+/// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
+/// cannot be read, or a draft that is not UTF-8, all before any view prints,
+/// and `output_not_writable` for roots the Owner has not recorded, before git
+/// runs.
 ReadAnswer approveDryRun(
   WriteSession session, {
   List<String> names = const [],
@@ -77,23 +89,33 @@ ReadAnswer approveDryRun(
   ApprovalHistory? history,
 }) {
   final drafts = _shownDraftsUnder(session, names);
-  final lookup = history ?? const ApprovalHistory();
+  if (drafts.isEmpty) {
+    return const ReadAnswer(
+      text: _nothingWaits,
+      json: {'drafts': <Object>[], 'count': 0},
+    );
+  }
+  _requireTrusted(session, drafts);
+  final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
-    for (final (at, (:doc, :bytes)) in drafts.indexed)
-      _viewOf(
-        session,
-        doc,
-        bytes,
-        lookup,
-        position: at + 1,
-        count: drafts.length,
-        context: context,
-        color: color,
-      ),
+    for (final (:doc, :bytes) in drafts)
+      _draftViewOf(session, doc, bytes, reads),
   ];
   return ReadAnswer(
-    text: views.isEmpty ? _nothingWaits : views.join('\n'),
-    json: const {},
+    text: [
+      for (final (at, view) in views.indexed)
+        renderApprovalView(
+          view,
+          position: at + 1,
+          count: views.length,
+          context: context,
+          color: color,
+        ),
+    ].join('\n'),
+    json: {
+      'drafts': [for (final view in views) draftViewJson(view)],
+      'count': views.length,
+    },
   );
 }
 
@@ -153,7 +175,7 @@ ReadAnswer approveNamed(WriteSession session, List<SeenDraft> seen) {
 /// `draft_not_found` for a doc that is no draft.
 IndexedDoc _draftAt(WriteSession session, String name) {
   final doc = session.target(name);
-  if (!doc.isDraft) {
+  if (!_waitsForApproval(session, doc)) {
     throw WriteFault(
       WriteFaultCode.draftNotFound,
       '$name is no draft waiting for approval',
@@ -177,11 +199,12 @@ WriteFault _changedSinceSeen(List<IndexedDoc> changed) => WriteFault(
 
 String _addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
 
-/// Returns the typed drafts in tree order: all of them when [names] is empty,
-/// else those under any of [names], each once.
+/// Returns the typed docs that await approval in tree order: all of them when
+/// [names] is empty, else those under any of [names], each once.
 ///
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries.
-List<IndexedDoc> _draftsUnder(DocIndex index, List<String> names) {
+List<IndexedDoc> _draftsUnder(WriteSession session, List<String> names) {
+  final index = session.index;
   final selected = names.isEmpty
       ? null
       : {
@@ -190,12 +213,24 @@ List<IndexedDoc> _draftsUnder(DocIndex index, List<String> names) {
         };
   return [
     for (final doc in index.docs)
-      if (_waitsForApproval(doc) && (selected?.contains(doc.docPath) ?? true))
+      if (_waitsForApproval(session, doc) &&
+          (selected?.contains(doc.docPath) ?? true))
         doc,
   ];
 }
 
-bool _waitsForApproval(IndexedDoc doc) => doc.isTyped && doc.isDraft;
+bool _waitsForApproval(WriteSession session, IndexedDoc doc) => awaitsApproval(
+  ApprovalFields.ofIndexed(doc),
+  doc.approvalHash,
+  stampsHaveRun: session.project.stampsHaveRun,
+);
+
+/// Throws `output_not_writable` unless the Owner trusts the roots, before git
+/// runs or a view shows: an approval written there would be refused anyway.
+void _requireTrusted(WriteSession session, List<_ShownDraft> drafts) => session
+    .project
+    .trust
+    .requireTrusted(session.projectPathOf(drafts.first.doc.docPath));
 
 /// A draft and the bytes of its file at selection.
 typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
@@ -204,7 +239,7 @@ typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
 /// is gone, so the numbers `Draft n/m` count only drafts the Owner can see.
 List<_ShownDraft> _shownDraftsUnder(WriteSession session, List<String> names) {
   final shown = <_ShownDraft>[];
-  for (final doc in _draftsUnder(session.index, names)) {
+  for (final doc in _draftsUnder(session, names)) {
     final bytes = session.readDocBytes(doc.docPath);
     if (bytes != null) shown.add((doc: doc, bytes: bytes));
   }
@@ -248,36 +283,156 @@ String? _answer(String? Function() readLine, StringSink out) {
   }
 }
 
+/// What a run reads once, before its first view: the approved copy of each
+/// shown draft, the two texts a sentence is looked for in, and which approved
+/// sentences the tree holds, found in one pass over it for the whole run.
+///
+/// A re-shown draft reads its new bytes, and nothing else is read again.
+final class _RunReads {
+  new _(this._lookups, this._approved, this._treeHeld)
+    : _tree = joinHeldTexts(_treeHeld.values),
+      _runCopies = heldTextsOf(_approved.values),
+      _approvedSentences = {
+        for (final MapEntry(:key, :value) in _approved.entries)
+          key: sentencesOf(value),
+      } {
+    _treeHolds = heldSentencesIn([
+      for (final sentences in _approvedSentences.values) ...sentences,
+    ], _tree);
+  }
+
+  /// Reads the approved copy of each of [drafts] through [history], then the
+  /// text of every doc the index lists, typed or not, as on disk.
+  ///
+  /// Throws `RenderFault` `output_not_writable` for a doc that cannot be read.
+  factory read(
+    WriteSession session,
+    List<_ShownDraft> drafts,
+    ApprovalHistory history,
+  ) {
+    final lookups = <String, ApprovalLookup>{};
+    final approved = <String, String>{};
+    for (final (:doc, bytes: _) in drafts) {
+      final lookup = history.lastApproved(
+        session.project.projectRoot,
+        session.projectPathOf(doc.docPath),
+        docType: session.index.typeOf(doc),
+      );
+      lookups[doc.docPath] = lookup;
+      if (lookup case ApprovedCopy(:final text)) {
+        approved[doc.docPath] = comparableTextOf(
+          text,
+          session.index.typeOf(doc),
+        );
+      }
+    }
+    return _RunReads._(lookups, approved, {
+      for (final doc in session.index.docs)
+        doc.docPath: heldTextOf(_textOnDisk(session, doc.docPath)),
+    });
+  }
+
+  final Map<String, ApprovalLookup> _lookups;
+
+  /// The laid-out approved copy of each draft whose lookup found one.
+  final Map<String, String> _approved;
+
+  /// The held text of each doc of the tree, by DocPath.
+  final Map<String, String> _treeHeld;
+
+  final String _tree;
+  final String _runCopies;
+
+  /// The sentences of each approved copy, by DocPath.
+  final Map<String, List<String>> _approvedSentences;
+
+  /// The approved sentences of every draft of the run that [_tree] holds.
+  late final Set<String> _treeHolds;
+
+  /// Returns what git said about the approved copy of [doc].
+  ApprovalLookup lookupOf(IndexedDoc doc) => _lookups[doc.docPath]!;
+
+  /// Returns the sentences [doc] dropped and added, [text] being its draft as
+  /// shown now.
+  SentenceChanges changesOf(IndexedDoc doc, String text, MergedDocType? type) {
+    final held = heldTextOf(toLf(text));
+    final draft = comparableTextOf(text, type);
+    if (held != _treeHeld[doc.docPath]) {
+      return sentenceChangesOf(
+        draft: draft,
+        approved: _approved[doc.docPath],
+        tree: joinHeldTexts({..._treeHeld, doc.docPath: held}.values),
+        runCopies: _runCopies,
+      );
+    }
+    return sentenceChangesGiven(
+      draft: draft,
+      approvedSentences: _approvedSentences[doc.docPath] ?? const [],
+      treeHeld: _treeHolds,
+      runCopies: _runCopies,
+    );
+  }
+}
+
+/// Returns the LF text of [docPath] as it is on disk, or `''` for a file gone;
+/// invalid UTF-8 reads as replacement characters, since this doc is only looked
+/// in.
+String _textOnDisk(WriteSession session, String docPath) {
+  try {
+    return toLf(
+      utf8.decode(
+        session.fileOf(docPath).readAsBytesSync(),
+        allowMalformed: true,
+      ),
+    );
+  } on PathNotFoundException {
+    return '';
+  } on FileSystemException catch (error) {
+    throw cannotRead(docPath, error);
+  }
+}
+
+/// Returns the draft [doc] holding [bytes], as the view and the JSON show it.
+DraftView _draftViewOf(
+  WriteSession session,
+  IndexedDoc doc,
+  List<int> bytes,
+  _RunReads reads,
+) {
+  final type = session.index.typeOf(doc);
+  final text = utf8.decode(bytes);
+  return DraftView(
+    name: doc.name,
+    // `_waitsForApproval` kept only typed drafts, so the type id is set.
+    docType: doc.docTypeId!,
+    mergedType: type,
+    title: doc.title,
+    status: session.index.statusOf(doc),
+    docPath: doc.docPath,
+    projectPath: session.projectPathOf(doc.docPath),
+    text: text,
+    lookup: reads.lookupOf(doc),
+    sentences: reads.changesOf(doc, text, type),
+  );
+}
+
 /// Returns the approval view of the typed draft [doc] holding [bytes].
 String _viewOf(
   WriteSession session,
   IndexedDoc doc,
   List<int> bytes,
-  ApprovalHistory history, {
+  _RunReads reads, {
   required int position,
   required int count,
   required int? context,
   required bool color,
-}) {
-  final projectPath = session.projectPathOf(doc.docPath);
-  final draft = DraftView(
-    name: doc.name,
-    // `_waitsForApproval` kept only typed drafts, so the type id is set.
-    docType: doc.docTypeId!,
-    title: doc.title,
-    status: session.index.statusOf(doc),
-    projectPath: projectPath,
-    text: utf8.decode(bytes),
-    lookup: history.lastApproved(session.project.projectRoot, projectPath),
-  );
-  return renderApprovalView(
-    draft,
-    position: position,
-    count: count,
-    context: context,
-    color: color,
-  );
-}
+}) => renderApprovalView(
+  _draftViewOf(session, doc, bytes, reads),
+  position: position,
+  count: count,
+  context: context,
+  color: color,
+);
 
 /// Writes the approval under the lock; returns false when the bytes changed.
 bool _approveIfUnchanged(
@@ -294,15 +449,12 @@ bool _approveIfUnchanged(
   });
 }
 
-/// Writes [bytes] of [doc] back without `draft`, adding `approved: true`
-/// unless the doc holds it; runs under the lock.
+/// Writes [bytes] of [doc] back without `draft`, with the ApprovalHash of its
+/// content as `approved:`; runs under the lock.
 void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
   final text = utf8.decode(bytes);
-  final lfText = toLf(text);
-  final undrafted = withKeyBlock(lfText, 'draft', null);
-  final approved = holdsApproved(Doc.parse(lfText))
-      ? undrafted
-      : withKeyBlock(undrafted, 'approved', 'approved: true\n');
+  final undrafted = withKeyBlock(toLf(text), 'draft', null);
+  final approved = withApprovalHash(undrafted, session.index.typeOf(doc));
   session.writeDoc(doc.docPath, approved, LineEnding.of(text));
 }
 

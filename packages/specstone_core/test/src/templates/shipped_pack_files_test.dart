@@ -32,4 +32,27 @@ void main() {
       }
     },
   );
+
+  test('template_packs/write_spec_docs_from_software_tech/ship_software_tech_pack: '
+      'the shipped software-tech pack is 1.4.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.4.0');
+  });
+
+  test('template_packs/write_prd_docs_from_prd_core/ship_prd_core_pack: '
+      'the shipped prd-core pack is 1.7.0, so the guide text rides it', () {
+    expect(shippedPackVersions()['prd-core'], '1.7.0');
+  });
+
+  test('template_packs/write_prd_docs_from_prd_core/'
+      'write_shipped_writing_guides E05: the shipped feature type names the '
+      'three size findings', () {
+    final feature = utf8.decode(shippedPackFiles['prd-core/feature.yaml']!);
+    for (final finding in [
+      'chars_over_limit',
+      'lines_over_limit',
+      'item_over_limit',
+    ]) {
+      expect(feature, contains('`$finding`'));
+    }
+  });
 }

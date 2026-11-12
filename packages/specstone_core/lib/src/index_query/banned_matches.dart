@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -125,7 +126,7 @@ final class SearchLine {
       raw.substring(start + ticks, end - ticks),
   ];
 
-  late final List<_CodeSpan> _spans = _codeSpansOf(raw);
+  late final List<CodeSpan> _spans = codeSpansOf(raw);
 
   String _blankSpans() {
     if (_spans.isEmpty) return raw;
@@ -139,48 +140,4 @@ final class SearchLine {
     }
     return (blanked..write(raw.substring(from))).toString();
   }
-}
-
-/// One code span of a line: the offsets of its first and one past its last
-/// backtick, and the length of the backtick run that opens and closes it.
-typedef _CodeSpan = ({int start, int end, int ticks});
-
-/// Returns each code span of [line], in order.
-List<_CodeSpan> _codeSpansOf(String line) {
-  // indexOf, not a RegExp: the regex engine tries every offset of a pattern
-  // that opens with one character.
-  final spans = <_CodeSpan>[];
-  var open = line.indexOf('`');
-  while (open >= 0) {
-    final ticks = _runLengthAt(line, open);
-    final close = _closerOf(line, open + ticks, ticks);
-    if (close < 0) {
-      open = line.indexOf('`', open + ticks);
-      continue;
-    }
-    spans.add((start: open, end: close + ticks, ticks: ticks));
-    open = line.indexOf('`', close + ticks);
-  }
-  return spans;
-}
-
-/// Returns the offset of the first run of exactly [ticks] backticks in [line]
-/// at or after [from], or -1.
-int _closerOf(String line, int from, int ticks) {
-  var at = line.indexOf('`', from);
-  while (at >= 0) {
-    final run = _runLengthAt(line, at);
-    if (run == ticks) return at;
-    at = line.indexOf('`', at + run);
-  }
-  return -1;
-}
-
-/// Returns the length of the backtick run that starts at [at] in [line].
-int _runLengthAt(String line, int at) {
-  var end = at;
-  while (end < line.length && line.codeUnitAt(end) == 0x60) {
-    end++;
-  }
-  return end - at;
 }

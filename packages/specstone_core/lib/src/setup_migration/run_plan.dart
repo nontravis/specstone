@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _docsPrefix = 'docs/';
 
@@ -8,17 +13,30 @@ const _docsPrefix = 'docs/';
 /// before any step.
 const specstoneGitignorePath = '.specstone/.gitignore';
 
+/// Returns the plan line naming the docs the layout pass rewrites, or null
+/// when [docPaths] is empty.
+///
+/// [docPaths] are DocPaths, shown in code point order.
+String? formatLayoutLine(Iterable<String> docPaths) {
+  final sorted = docPaths.toList()..sort(compareCodePoints);
+  return sorted.isEmpty ? null : 'format layout: ${sorted.join(', ')}';
+}
+
 /// A doc commit 2 rewrites in place.
 final class PlannedRewrite {
   const new({
     required this.path,
     required this.text,
+    required this.before,
     required this.changes,
     this.note = '',
   });
 
   /// The ProjectPath of the doc, after the moves.
   final String path;
+
+  /// The [textHashOf] of the file's text when the plan was made.
+  final String before;
 
   /// The text as written to disk.
   final String text;
@@ -47,7 +65,7 @@ final class PlannedCreate {
 
 /// What a `specstone migrate` run moves, rewrites, and creates.
 final class RunPlan {
-  const new({
+  new({
     required this.header,
     required this.moves,
     required this.prunes,
@@ -56,8 +74,10 @@ final class RunPlan {
     required this.left,
     required this.commit1Message,
     required this.commit2Message,
+    required this.inputs,
     this.rewriteLines,
     this.closingLine,
+    this.agentFiles,
   });
 
   /// The first line the plan prints.
@@ -87,15 +107,26 @@ final class RunPlan {
   /// The message of commit 2.
   final String commit2Message;
 
+  /// The files the planner read, each with the hash of its bytes.
+  final PlanInputs inputs;
+
   /// The lines printed under `commit 2, rewrites:` in place of [rewrites].
   final List<String>? rewriteLines;
 
   /// What an applied run prints after its commit lines.
   final String? closingLine;
 
+  /// The agent file writes the run adds after every other write, or null.
+  ///
+  /// Root files join commit 2; top files lie outside both commits. Its plan
+  /// line prints once: where [rewriteLines] holds it, else last under
+  /// `commit 2, creates:`.
+  final AgentWritePlan? agentFiles;
+
   /// Returns the plan as the lines `migrate --dry-run` prints.
   String toText() {
     final rewriteBlock = rewriteLines ?? _rewriteLines();
+    final agentLine = agentFiles?.line ?? '';
     final buffer = StringBuffer('$header\n');
     void block(String title, Iterable<String> lines) {
       if (lines.isEmpty) return;
@@ -111,6 +142,7 @@ final class RunPlan {
     block('commit 2, rewrites:', rewriteBlock);
     block('commit 2, creates:', [
       for (final create in creates) '${_shown(create.path)}${create.note}',
+      if (agentLine.isNotEmpty && !rewriteBlock.contains(agentLine)) agentLine,
     ]);
     block('left in place for specstone check:', left);
     return buffer.toString();
@@ -122,7 +154,42 @@ final class RunPlan {
   /// then commit 2. No step deletes a file (INV-6). Commit 1 carries each move
   /// once as a ProjectPath pair, its stage hops left out, so a tracked file
   /// moved onto an ignored path still commits as a rename.
-  List<JournalStep> journalSteps({required String base}) {
+  ///
+  /// An agent file reached through a symbolic link, of the file or of a folder
+  /// above it, gets its step on the real path from [projectRoot], so the link
+  /// stays a link. The plan lists no agent file whose real path lies outside
+  /// the project (R99), so each step lands inside the project root.
+  ///
+  /// Throws [StateError] when two text steps land on one path: both would
+  /// carry one `before` text, so the first would make the second skip.
+  List<JournalStep> journalSteps({
+    required String base,
+    required Directory projectRoot,
+  }) {
+    final steps = _journalSteps(base: base, projectRoot: projectRoot);
+    final written = <String>{};
+    for (final step in steps) {
+      final path = switch (step) {
+        WriteStep(:final path) || CreateStep(:final path) => path,
+        _ => null,
+      };
+      if (path != null && !written.add(path)) {
+        throw StateError('two steps of the run write $path');
+      }
+    }
+    return steps;
+  }
+
+  List<JournalStep> _journalSteps({
+    required String base,
+    required Directory projectRoot,
+  }) {
+    final agentWrites = [
+      for (final write in agentFiles?.rootWrites ?? const <AgentWrite>[])
+        (write: write, path: _realPath(write.path, projectRoot)),
+      for (final write in agentFiles?.topWrites ?? const <AgentWrite>[])
+        (write: write, path: _realPath(write.path, projectRoot)),
+    ];
     final movedPaths = [
       for (final move in moves) ...[
         '$_docsPrefix${move.from}',
@@ -132,6 +199,8 @@ final class RunPlan {
     final commit2Paths = {
       for (final rewrite in rewrites) rewrite.path,
       for (final create in creates) create.path,
+      for (final (:write, :path) in agentWrites)
+        if (!write.isAtTop) path,
       specstoneGitignorePath,
     };
     return [
@@ -147,14 +216,57 @@ final class RunPlan {
               (from: '$_docsPrefix${move.from}', to: '$_docsPrefix${move.to}'),
           ],
         ),
-      for (final rewrite in rewrites) WriteStep(rewrite.path, rewrite.text),
+      for (final rewrite in rewrites)
+        WriteStep(rewrite.path, rewrite.text, before: rewrite.before),
       for (final create in creates) CreateStep(create.path, create.text),
+      for (final (:write, :path) in agentWrites)
+        if (write.before case final before?)
+          WriteStep(path, write.text, before: before)
+        else
+          CreateStep(path, write.text),
       CommitStep(
         message: commit2Message,
         paths: commit2Paths.toList(),
         base: base,
       ),
     ];
+  }
+
+  /// Returns [path] with every symbolic link on it resolved, as a
+  /// `/`-separated path from [projectRoot].
+  ///
+  /// The part of [path] that does not exist yet stays as written, and a path
+  /// that cannot be resolved stays whole.
+  static String _realPath(String path, Directory projectRoot) {
+    final sep = Platform.pathSeparator;
+    final segments = path.split('/');
+    var existing = segments.length;
+    while (existing > 0 &&
+        FileSystemEntity.typeSync(
+              '${projectRoot.path}$sep${segments.take(existing).join(sep)}',
+            ) ==
+            FileSystemEntityType.notFound) {
+      existing--;
+    }
+    try {
+      final root = projectRoot.resolveSymbolicLinksSync().split(sep);
+      final real = Directory(
+        '${projectRoot.path}$sep${segments.take(existing).join(sep)}',
+      ).resolveSymbolicLinksSync().split(sep);
+      var shared = 0;
+      while (shared < root.length &&
+          shared < real.length &&
+          root[shared] == real[shared]) {
+        shared++;
+      }
+      return [
+        for (var i = shared; i < root.length; i++) '..',
+        ...real.skip(shared),
+        ...segments.skip(existing),
+      ].join('/');
+    } on FileSystemException {
+      return path;
+    }
   }
 
   /// Returns one [MoveStep] per move, in order, except that a move onto the

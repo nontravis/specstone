@@ -18,11 +18,12 @@ Set<String> checkedFoldersOf(MergedSet set) => {
     if (type.path case final path?) path.split(_pathSeparator).first,
 };
 
-/// Returns the findings of an untyped [doc] in a checked folder (FR-06).
+/// Returns the findings of an untyped [doc] in a checked folder
+/// (`consistency_check/find_template_breaks/report_untyped_docs`).
 ///
 /// A doc that two or more doc types match is `doc_type_ambiguous`; one past
 /// the nesting limit is `nesting_over_limit`; any other is `untyped_doc`. A
-/// doc type ambiguity states the F-01 warning it reports.
+/// doc type ambiguity states the `index_query` warning it reports.
 Iterable<Finding> checkDocType(CheckContext context, IndexedDoc doc) sync* {
   final nesting = context.index.set.nestingType;
   final limit = nesting?.maxDepth;
@@ -63,11 +64,12 @@ Iterable<Finding> checkDocType(CheckContext context, IndexedDoc doc) sync* {
   );
 }
 
-/// Returns the tree findings of [doc] in a checked folder (FR-07).
+/// Returns the tree findings of [doc] in a checked folder
+/// (`consistency_check/find_template_breaks/report_tree_problems`).
 ///
 /// Invalid UTF-8 applies to any doc. A typed doc also reports a repeated order
-/// number, candidate parents, and a missing parent. Each states the F-01
-/// warning it reports.
+/// number, candidate parents, and a missing parent. Each states the
+/// `index_query` warning it reports.
 Iterable<Finding> checkTree(CheckContext context, IndexedDoc doc) sync* {
   final notUtf8 = '${doc.docPath}: not UTF-8 text; ';
   final utf8Warnings = doc.warnings.where((w) => w.startsWith(notUtf8));
@@ -85,7 +87,8 @@ Iterable<Finding> checkTree(CheckContext context, IndexedDoc doc) sync* {
   if (context.hasNoParent(doc)) yield _parentProblem(context, doc);
 }
 
-/// Returns a `file_unreadable` finding for each file F-01 could not read.
+/// Returns a `file_unreadable` finding for each file `index_query` could not
+/// read.
 ///
 /// Only a file in a checked folder and in [scope] is reported; a folder that
 /// cannot be read stays a warning (PD9).

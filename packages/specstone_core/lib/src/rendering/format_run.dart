@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -37,6 +36,7 @@ final class FileResult {
     this.unclosedFence = false,
     this.openBlock,
     this.openBlockKind,
+    this.changesStructure = false,
   });
 
   /// The doc's path, relative to the project root.
@@ -63,8 +63,12 @@ final class FileResult {
   /// The generator kind that [openBlock] names.
   final String? openBlockKind;
 
+  /// Whether laying the doc out would change its frontmatter or its sections.
+  final bool changesStructure;
+
   /// Returns the wire form; a list prints only when it is not empty,
-  /// `unclosedFence` only when true, and `openBlock` only when set.
+  /// `unclosedFence` and `changesStructure` only when true, and `openBlock`
+  /// only when set.
   Map<String, Object> toJson() => {
     'path': path,
     'status': status.name,
@@ -73,6 +77,7 @@ final class FileResult {
     if (docTypes.isNotEmpty) 'docTypes': docTypes,
     if (unclosedFence) 'unclosedFence': true,
     'openBlock': ?openBlock,
+    if (changesStructure) 'changesStructure': true,
   };
 
   String get _reasons => [
@@ -81,6 +86,7 @@ final class FileResult {
     if (docTypes.isNotEmpty) 'doc types ${docTypes.join(', ')} match this path',
     if (unclosedFence) 'unclosed code fence',
     if (openBlockKind != null) 'open generated block $openBlockKind',
+    if (changesStructure) 'layout would change the doc structure',
   ].join('; ');
 }
 
@@ -231,6 +237,9 @@ FileResult _formatReadable<R>(
       :final unknownHeaders,
       :final duplicateHeaders,
       :final unclosedFence,
+      :final openBlock,
+      :final openBlockKind,
+      :final changesStructure,
     ):
       return FileResult(
         path: read.path,
@@ -238,27 +247,21 @@ FileResult _formatReadable<R>(
         unknownHeaders: unknownHeaders,
         duplicateHeaders: duplicateHeaders,
         unclosedFence: unclosedFence,
+        openBlock: openBlock,
+        openBlockKind: openBlockKind,
+        changesStructure: changesStructure,
       );
     case Formatted(:final text):
       var finalText = text;
       if (blocks != null && read.docType.listedGenerators.isNotEmpty) {
-        final generated = runGenerators(
-          Doc.parse(text),
+        // The formatted text is laid out, and the inserted pair carries its
+        // own layout whitespace, so no second layout pass runs here.
+        finalText = fillGeneratedBlocks(
+          text,
           read.docType,
           blocks.run.registry,
           blocks.resolver,
         );
-        switch (writeGeneratedBlocks(text, read.docType, generated)) {
-          case OpenBlock(:final kind, :final marker):
-            return FileResult(
-              path: read.path,
-              status: FileStatus.refused,
-              openBlock: marker,
-              openBlockKind: kind,
-            );
-          case BlocksWritten(:final lfText):
-            finalText = lfText;
-        }
       }
       if (finalText == toLf(read.text)) {
         return FileResult(path: read.path, status: FileStatus.unchanged);

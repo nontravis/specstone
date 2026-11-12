@@ -6,6 +6,7 @@ description: |-
   Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
   A rule set writes Rules, a component writes Interface, and a topic that is both writes both; no field names the kind.
   Write tables and ID'd bullets in the order of the code's own structure, and point at code instead of copying it.
+  Write one rule per ID: one bullet per rule, each rule one sentence.
 path: specs/topics/{slug}.md
 fields:
   - id: covers

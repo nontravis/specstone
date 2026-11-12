@@ -4,6 +4,8 @@ description: |-
   Title it `# <Feature name> domain`, such as `# Rendering domain`, with no number.
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
   Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Write one rule per ID: one bullet per invariant, each rule one sentence.
+  A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, such as `architecture:rendering#components`.
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
 sections:
@@ -25,10 +27,17 @@ sections:
     required: true
     prefix_id: INV-
     description: |-
-      Write each invariant as a bullet, never a numbered item, led by a bold `INV-<N>` ID.
-      Keep IDs append-only and never reused; a deleted invariant retires its ID.
-      Write numbers and checkable conditions, such as `timeout 10 s`, not adjectives.
-      Name the enforcing aggregate root and the consistency, immediate or eventual, in each invariant.
+      Write each invariant as `- **INV-<N>** <one sentence>`, never a numbered item; IDs are append-only, never reused.
+      Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
+      Write numbers and checkable conditions; keep a bound, such as `timeout 10 s`, in the invariant it bounds.
+      Leave mechanics to the feature's ARCHITECTURE and a case the system does not handle to `known_limits`.
+      Write no trace tag; the DOMAIN's `reference` field holds its trace.
+  - id: known_limits
+    header: Known limits
+    description: |-
+      Write this section only when the system leaves a case unhandled.
+      Write one bullet per case the system does not handle, and say what happens then.
+      Keep a bound an invariant enforces, such as `timeout 10 s`, in that invariant, not here.
   - id: lifecycle
     header: Lifecycle
     description: |-

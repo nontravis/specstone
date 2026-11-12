@@ -6,19 +6,25 @@ export 'src/consistency_check/check_run.dart' show runCheck;
 export 'src/consistency_check/finding.dart' show Finding, FindingKind;
 export 'src/consistency_check/suspect_list.dart' show answerListSuspect;
 export 'src/consistency_check/tree_rules.dart' show checkedFoldersOf;
+export 'src/doc_model/reference_grammar.dart' show DocAddress, readDocAddress;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
     show SeenDraft, approveDrafts, approveDryRun, approveNamed;
+export 'src/document_writing/batch_fault.dart' show BatchEntry, BatchFault;
+export 'src/document_writing/batch_file.dart'
+    show ParsedBatch, parseBatchFile, readBatchFile;
 export 'src/document_writing/delete_doc.dart'
     show answerDelete, answerDeleteDryRun;
 export 'src/document_writing/move_doc.dart'
     show answerMove, answerRename, answerReorder;
 export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
+export 'src/document_writing/set_batch.dart' show answerSetBatch;
 export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
 export 'src/document_writing/write_session.dart' show WriteSession;
+export 'src/executable_lookup.dart' show findExecutable;
 export 'src/fault.dart';
 export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
 export 'src/index_query/bundle_render.dart' show answerContext;
@@ -26,7 +32,8 @@ export 'src/index_query/code_bundle.dart'
     show CodePath, pickCodeBundle, resolveCodePath;
 export 'src/index_query/doc_index.dart' show DocIndex;
 export 'src/index_query/get_docs.dart' show answerGet;
-export 'src/index_query/index_fault.dart' show IndexFault, IndexFaultCode;
+export 'src/index_query/index_fault.dart'
+    show IndexFault, IndexFaultCode, IndexFaults;
 export 'src/index_query/index_store.dart' show indexBusyTimeout;
 export 'src/index_query/indexed_doc.dart' show IndexedDoc;
 export 'src/index_query/list_docs.dart' show ListFilters, answerList;
@@ -49,6 +56,7 @@ export 'src/journeys/journey_answers.dart'
     show answerJourneyCode, answerJourneyPaths;
 export 'src/journeys/journey_generators.dart' show journeyGenerators;
 export 'src/journeys/unwalked.dart' show answerListUnwalked;
+export 'src/release_version.dart';
 export 'src/rendering/build_output.dart'
     show
         BuildResult,
@@ -67,6 +75,7 @@ export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
     show MigrateFault, MigrateFaultCode;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
+export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
 export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';

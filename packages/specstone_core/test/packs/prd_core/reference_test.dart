@@ -38,4 +38,19 @@ void main() {
       contains('a newer edition replaced it'),
     );
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        reference,
+        'Write one rule per ID; in a section with no IDs, one '
+        'rule per item, with mechanics left to the spec docs.\n'
+        'Keep a bound in the item it limits, and the trace to the '
+        'source in `source:` and `files:`, never in the summary.',
+      );
+    },
+  );
 }

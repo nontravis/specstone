@@ -13,7 +13,8 @@ final _frPath = RegExp(
 );
 
 /// The result of [writeFirstFingerprints].
-typedef FirstFingerprints = ({String lf, String? label});
+/// `entries` counts the `confirmed` entries it added.
+typedef FirstFingerprints = ({String lf, String? label, int entries});
 
 /// One FR file of the feature as a trace cell can name it (PD11).
 final class _NamedFr {
@@ -58,7 +59,7 @@ FirstFingerprints writeFirstFingerprints(
   final index = doc.sections.indexWhere(
     (section) => section.headerText == _traceHeader,
   );
-  if (index < 0) return (lf: lf, label: null);
+  if (index < 0) return (lf: lf, label: null, entries: 0);
   final list = readConfirmedList(doc);
 
   final lines = doc.afterFrontmatter.split('\n');
@@ -71,11 +72,11 @@ FirstFingerprints writeFirstFingerprints(
     lines[at] = lines[at].replaceFirst(row.cell, hit.ref);
     hits[hit.ref] = hit.path;
   }
-  if (hits.isEmpty) return (lf: lf, label: null);
+  if (hits.isEmpty) return (lf: lf, label: null, entries: 0);
 
   final frontmatterLength = lf.length - doc.afterFrontmatter.length;
   final renamed = lf.substring(0, frontmatterLength) + lines.join('\n');
-  if (list == null) return (lf: renamed, label: _cellsLabel);
+  if (list == null) return (lf: renamed, label: _cellsLabel, entries: 0);
   final added = [
     for (final MapEntry(key: ref, value: path) in hits.entries)
       '$ref ${fingerprintOf(_statementOf(featureFrs[path]!))}',
@@ -83,6 +84,7 @@ FirstFingerprints writeFirstFingerprints(
   return (
     lf: withConfirmedEntries(renamed, list, added),
     label: 'confirmed (${hits.length})',
+    entries: hits.length,
   );
 }
 

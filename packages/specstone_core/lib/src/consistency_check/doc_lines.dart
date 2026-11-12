@@ -41,10 +41,12 @@ final class DocLines {
   /// The LF lines without their `\n`.
   late final List<String> lines = lfLinesOf(toLf(_content.text));
 
-  /// The number of LF lines.
+  /// The lines of the text `format` lays out for a typed doc, else of the LF
+  /// text.
   int get lineCount => _facts.lineCount;
 
-  /// The code points of the LF text.
+  /// The code points of the text `format` lays out for a typed doc, else of
+  /// the LF text.
   int get charCount => _facts.charCount;
 
   /// The doc links that resolve to another `.md` doc, in source order.
@@ -52,6 +54,9 @@ final class DocLines {
 
   /// The relative links that are no doc link, in source order.
   List<LinkPlace> get fileLinks => _facts.fileLinks;
+
+  /// The number labels of the body at their file lines, in source order.
+  List<LabelPlace> get numberLabels => _facts.numberLabels;
 
   /// The header line of each section, in the order of `Doc.sections`.
   List<int> get sectionLines => _facts.sectionLines;
@@ -84,6 +89,18 @@ final class DocLines {
   int? keyLine(String key) {
     final entry = _keyEntry(key);
     return entry == null ? null : _lineOf(entry.key);
+  }
+
+  /// The value of [key] as written: a string as itself, any other value, a
+  /// list or a map included, as its source text.
+  ///
+  /// Null when [key] is absent or holds no value.
+  String? writtenValueOf(String key) {
+    final node = _keyEntry(key)?.value;
+    if (node == null || node.value == null) return null;
+    return node is YamlScalar && node.value is String
+        ? node.value! as String
+        : node.span.text.trimRight();
   }
 
   /// Each item of the list value of [key], or its one scalar, with lines.

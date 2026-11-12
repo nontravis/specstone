@@ -12,7 +12,9 @@ enum MigrateFaultCode {
   overrideDangling('override_dangling', 78),
   configExists('config_exists', 64),
   gitFailed('git_failed', 75),
-  planMismatch('plan_mismatch', 75);
+  planMismatch('plan_mismatch', 75),
+  agentBlockMalformed('agent_block_malformed', 65),
+  legacyCollision('legacy_collision', 65);
 
   new(this.wire, this.exitStatus);
 
@@ -32,6 +34,7 @@ final class MigrateFault implements SpecstoneFault {
     this.code,
     this.message, {
     this.file,
+    this.line,
     this.key,
     this.relatedFiles = const [],
     this.more = const [],
@@ -45,6 +48,9 @@ final class MigrateFault implements SpecstoneFault {
 
   /// The path the fault concerns, relative to the project root.
   final String? file;
+
+  /// The 1-based line in [file] the fault concerns, when one applies.
+  final int? line;
 
   /// The key the fault concerns inside [file], when one applies.
   final String? key;
@@ -61,13 +67,15 @@ final class MigrateFault implements SpecstoneFault {
   /// Returns the JSON envelope `{'error': {...}}` of this entry; [more] is
   /// not part of it.
   ///
-  /// `file` and `key` appear when set; `relatedFiles` appears when not empty.
+  /// `file`, `line`, and `key` appear when set; `relatedFiles` appears when
+  /// not empty.
   @override
   Map<String, Object> toJson() => {
     'error': {
       'code': code.wire,
       'message': message,
       'file': ?file,
+      'line': ?line,
       'key': ?key,
       if (relatedFiles.isNotEmpty) 'relatedFiles': relatedFiles,
     },
@@ -76,7 +84,7 @@ final class MigrateFault implements SpecstoneFault {
   /// Returns this entry's line, then each of [more] on its own line.
   ///
   /// An entry reads [message] alone without a file, else
-  /// `<file>[: <key>]: <message>[; also <f1>, <f2>]`.
+  /// `<file>[:<line>][: <key>]: <message>[; also <f1>, <f2>]`.
   @override
   String toText() =>
       [_entryText(), for (final next in more) next.toText()].join('\n');
@@ -84,7 +92,8 @@ final class MigrateFault implements SpecstoneFault {
   String _entryText() {
     final file = this.file;
     if (file == null) return message;
-    final located = key == null ? '$file: $message' : '$file: $key: $message';
+    final place = line == null ? file : '$file:$line';
+    final located = key == null ? '$place: $message' : '$place: $key: $message';
     return relatedFiles.isEmpty
         ? located
         : '$located; also ${relatedFiles.join(', ')}';

@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -7,6 +8,14 @@ import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+
+const _frType = 'fr';
+const _tracedFromKey = 'traced_from';
+
+/// The inbound story maps of each index, built on first use: an index is
+/// one read snapshot, so a delete unit's [referrersOf] calls share them.
+final _journeysByStoryOf = Expando<Map<String, List<IndexedDoc>>>();
+final _tracedByStoryOf = Expando<Map<String, List<IndexedDoc>>>();
 
 /// One reference as printed: its text line and its JSON object.
 final class _Ref {
@@ -40,19 +49,22 @@ final class _Ref {
 /// then the lines that mention its file.
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
-/// links to, each story a journey step names, and the `implements` and
-/// `covers` pointers as written. Inbound holds the docs whose `doc_ref` value
-/// reaches the doc, then those linking to it, then the journeys with a step
-/// naming it, each group in tree order of the referring docs. Mentions holds
-/// each line of another typed doc that names the doc's file in text (see
-/// [mentionsOf]); Untyped mentions holds those of untyped docs, which no write
-/// takes as a target. Throws an [IndexFault] when no doc carries the name.
+/// links to, each story a journey step or an `fr`'s `traced_from` entry names,
+/// and the `implements` and `covers` pointers as written. Inbound holds the
+/// docs whose `doc_ref` value reaches the doc, then those linking to it, then
+/// the journeys with a step naming it, then the `fr` docs tracing it, each
+/// group in tree order of the referring docs. Mentions holds each line of
+/// another typed doc that names the doc's file in text or holds a doc-name
+/// mention of it (see [mentionsOf]);
+/// Untyped mentions holds those of untyped docs, which no write takes as a
+/// target. Throws an [IndexFault] when no doc carries the name.
 ReadAnswer answerRefs(DocIndex index, String address) {
   final inboundByPath = _inboundByPath(index);
   final journeysByStory = _journeysByStory(index);
+  final tracedByStory = _tracedByStory(index);
   final answers = [
     for (final doc in index.resolve(address))
-      _answerFor(index, doc, inboundByPath, journeysByStory),
+      _answerFor(index, doc, inboundByPath, journeysByStory, tracedByStory),
   ];
   return ReadAnswer(
     text: [for (final answer in answers) answer.text].join(),
@@ -67,6 +79,7 @@ ReadAnswer answerRefs(DocIndex index, String address) {
   IndexedDoc doc,
   Map<String, List<_Ref>> inboundByPath,
   Map<String, List<IndexedDoc>> journeysByStory,
+  Map<String, List<IndexedDoc>> tracedByStory,
 ) {
   final outbound = _outbound(index, doc);
   final inbound = [
@@ -74,6 +87,8 @@ ReadAnswer answerRefs(DocIndex index, String address) {
     for (final from in index.linkingTo(doc)) _Ref.toDoc('link', from),
     for (final from in journeysByStory[doc.docPath] ?? const <IndexedDoc>[])
       _Ref.toDoc('step', from),
+    for (final from in tracedByStory[doc.docPath] ?? const <IndexedDoc>[])
+      _Ref.toDoc('traced_from', from),
   ];
   final allMentions = mentionsOf(index, doc);
   final mentions = [
@@ -108,21 +123,24 @@ ReadAnswer answerRefs(DocIndex index, String address) {
 }
 
 /// Returns the outbound references of [doc]: its `doc_ref` fields in field
-/// order, the docs it links to, the stories its steps name, then the
-/// `implements` and `covers` pointers.
+/// order, the docs it links to, the stories its steps and `traced_from` entries
+/// name, then the `implements` and `covers` pointers. A value naming [doc]
+/// itself is left out.
 List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
   final refs = <_Ref>[];
   for (final field in _docRefFields(index, doc)) {
-    for (final value in doc.valuesOf(field.id)) {
+    for (final value in doc.valuesOf(field.id).toSet()) {
       refs.addAll([
         for (final target in _carrying(index, field, value))
-          _Ref.toDoc(field.id, target),
+          if (target.docPath != doc.docPath) _Ref.toDoc(field.id, target),
       ]);
     }
   }
   refs.addAll([
     for (final target in index.linkedFrom(doc)) _Ref.toDoc('link', target),
     for (final story in _stepTargets(index, doc)) _Ref.toDoc('step', story),
+    for (final story in _tracedStories(index, doc))
+      _Ref.toDoc('traced_from', story),
   ]);
   for (final id in const ['implements', 'covers']) {
     refs.addAll([
@@ -138,8 +156,9 @@ Map<String, List<_Ref>> _inboundByPath(DocIndex index) {
   final inbound = <String, List<_Ref>>{};
   for (final doc in index.docs) {
     for (final field in _docRefFields(index, doc)) {
-      for (final value in doc.valuesOf(field.id)) {
+      for (final value in doc.valuesOf(field.id).toSet()) {
         for (final target in _carrying(index, field, value)) {
+          if (target.docPath == doc.docPath) continue;
           (inbound[target.docPath] ??= []).add(_Ref.toDoc(field.id, doc));
         }
       }
@@ -166,11 +185,43 @@ List<IndexedDoc> _stepTargets(DocIndex index, IndexedDoc doc) {
 
 /// Returns, per story DocPath, the journeys with a step naming the story, in
 /// tree order.
-Map<String, List<IndexedDoc>> _journeysByStory(DocIndex index) {
+Map<String, List<IndexedDoc>> _journeysByStory(DocIndex index) =>
+    _journeysByStoryOf[index] ??= _journeysByStoryBuilt(index);
+
+Map<String, List<IndexedDoc>> _journeysByStoryBuilt(DocIndex index) {
   final byStory = <String, List<IndexedDoc>>{};
   for (final journey in index.docs) {
     for (final story in _stepTargets(index, journey)) {
       (byStory[story.docPath] ??= []).add(journey);
+    }
+  }
+  return byStory;
+}
+
+/// Returns the stories the `traced_from` entries `<story Name>#S<N>` of the
+/// `fr` [doc] name, each once, in entry order; empty for a doc that is no `fr`.
+///
+/// A story of another feature counts: only `check` limits an entry to siblings.
+List<IndexedDoc> _tracedStories(DocIndex index, IndexedDoc doc) {
+  if (doc.docTypeId != _frType) return const [];
+  final stories = <String, IndexedDoc>{};
+  for (final entry in doc.valuesOf(_tracedFromKey)) {
+    final name = readScenarioRef(entry)?.storyName;
+    final story = name == null ? null : storyNamed(index, name);
+    if (story != null) stories.putIfAbsent(story.docPath, () => story);
+  }
+  return stories.values.toList();
+}
+
+/// Returns, per story DocPath, the `fr` docs tracing it, in tree order.
+Map<String, List<IndexedDoc>> _tracedByStory(DocIndex index) =>
+    _tracedByStoryOf[index] ??= _tracedByStoryBuilt(index);
+
+Map<String, List<IndexedDoc>> _tracedByStoryBuilt(DocIndex index) {
+  final byStory = <String, List<IndexedDoc>>{};
+  for (final fr in index.docs) {
+    for (final story in _tracedStories(index, fr)) {
+      (byStory[story.docPath] ??= []).add(fr);
     }
   }
   return byStory;
@@ -207,7 +258,8 @@ String _groupLines(List<_Ref> refs) => refs.isEmpty
 
 /// Returns the docs that refer to [doc]: first those whose `doc_ref` value
 /// reaches it, then those linking to it, then the journeys with a step naming
-/// it, each once and in tree order.
+/// it, then the `fr` docs whose `traced_from` names it, each once and in tree
+/// order.
 ///
 /// These are the inbound references `answerRefs` prints for [doc].
 List<IndexedDoc> referrersOf(DocIndex index, IndexedDoc doc) {
@@ -222,6 +274,9 @@ List<IndexedDoc> referrersOf(DocIndex index, IndexedDoc doc) {
       if (seen.add(from.docPath)) from,
     for (final from
         in _journeysByStory(index)[doc.docPath] ?? const <IndexedDoc>[])
+      if (seen.add(from.docPath)) from,
+    for (final from
+        in _tracedByStory(index)[doc.docPath] ?? const <IndexedDoc>[])
       if (seen.add(from.docPath)) from,
   ];
 }

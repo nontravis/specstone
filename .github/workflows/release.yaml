@@ -157,4 +157,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha256sum specstone-* > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes specstone-* SHA256SUMS
+          flags=()
+          case "${GITHUB_REF_NAME#v}" in
+            *-*) flags+=(--prerelease) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes "${flags[@]}" specstone-* SHA256SUMS

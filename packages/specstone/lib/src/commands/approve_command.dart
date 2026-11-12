@@ -2,7 +2,7 @@ import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Walks the drafts and approves each one at the Owner's `y`, or approves the
-/// drafts named `<type>:<name>@<hash>` under `--yes`.
+/// drafts named `<name>@<hash>` under `--yes`.
 class ApproveCommand extends WriteCommand {
   new() {
     argParser
@@ -26,6 +26,13 @@ class ApproveCommand extends WriteCommand {
         help:
             'Show n lines around each change, in place of the whole changed '
             'unit.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help:
+            'With --dry-run, print the drafts as one JSON object in place of '
+            'the views.',
       );
   }
 
@@ -39,8 +46,8 @@ class ApproveCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone approve [<name> …] [--dry-run] [--context <n>] '
-      '| <type>:<name>@<hash> … --yes';
+      'specstone approve [<name> …] [--dry-run] [--context <n> | --json] '
+      '| <name>@<hash> … --yes';
 
   @override
   Future<int> run() async {
@@ -49,18 +56,26 @@ class ApproveCommand extends WriteCommand {
     final yes = args.flag('yes');
     final dryRun = args.flag('dry-run');
     final contextArg = args.option('context');
+    final asJson = args.flag('json');
     if (dryRun && yes) {
       usageException('--dry-run goes without --yes.');
     }
     if (contextArg != null && yes) {
       usageException('--context goes without --yes.');
     }
+    if (asJson && !dryRun) {
+      usageException('--json goes only with --dry-run.');
+    }
+    if (asJson && contextArg != null) {
+      usageException('--json goes without --context.');
+    }
     final context = contextArg == null ? null : _contextOf(contextArg);
     if (yes && names.isEmpty) {
       usageException('--yes needs the names of the drafts it approves.');
     }
     if (!yes) {
-      for (final name in names.where((name) => name.contains('@'))) {
+      // Only a `.md` file is a doc, so a name ending `@<12 hex>` is no path.
+      for (final name in names.where(_seenDraft.hasMatch)) {
         usageException('$name: a @<hash> goes only with --yes.');
       }
     }
@@ -73,7 +88,7 @@ class ApproveCommand extends WriteCommand {
           context: context,
           color: color,
         ),
-        asJson: false,
+        asJson: asJson,
       );
     }
     final seen = yes ? names.map(_seenDraftOf).toList() : const <SeenDraft>[];
@@ -113,16 +128,15 @@ class ApproveCommand extends WriteCommand {
     return value;
   }
 
-  /// Returns the draft and hash of an `--yes` [arg], `<type>:<name>@<hash>`.
+  /// Returns the draft and hash of an `--yes` [arg], `<name>@<hash>`.
   ///
   /// Throws a usage error for an [arg] with no 12-hex `@<hash>`.
   SeenDraft _seenDraftOf(String arg) {
     final match = _seenDraft.firstMatch(arg);
     if (match == null) {
       usageException(
-        '--yes needs each draft as <type>:<name>@<hash>, the hash row of '
-        'specstone approve --dry-run (bases.doc of specstone get --json); '
-        'got $arg.',
+        '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
+        'specstone get --json; got $arg.',
       );
     }
     return (name: match[1]!, hash: match[2]!);

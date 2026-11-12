@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/document_writing/home_record.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 
 // MARK: - Constants
 
@@ -10,9 +11,6 @@ import 'package:specstone_core/src/atomic_write.dart';
 const _recordsFolder = '.specstone/journals';
 
 const _journalKey = 'journal';
-
-/// The key a later release reads for the files a run writes outside the
-/// roots; no 1.1 journal step writes one, so the list stays empty.
 const _agentFilesKey = 'agentFiles';
 
 // MARK: - JournalRecords
@@ -22,7 +20,8 @@ const _agentFilesKey = 'agentFiles';
 /// A journal a git clone carries is not one of them, so a replay trusts only
 /// a journal whose SHA-256 is recorded here, outside every work tree. Each
 /// record is one file under `<home>/.specstone/journals/`, named by the
-/// SHA-256 of the canonical project root and holding the journal's digest.
+/// SHA-256 of the canonical project root and holding the journal's digest
+/// and the agent files its run writes outside the roots.
 final class JournalRecords {
   /// Returns the records under [homeDirectory]; null keeps none, so no
   /// journal is trusted and none is written. A home folder that is not
@@ -33,17 +32,24 @@ final class JournalRecords {
   /// The user's home folder, or null when the environment names none.
   final Directory? homeDirectory;
 
-  /// Records [journal], the bytes of the journal file, for [projectRoot].
+  /// Records [journal], the bytes of the journal file, for [projectRoot],
+  /// with [agentFiles]: the canonical paths of the agent files its run writes,
+  /// each inside the project root (R99).
   ///
   /// Throws [FileSystemException] when there is no usable home folder or the
   /// record cannot be written.
-  void record(Directory projectRoot, List<int> journal) {
+  void record(
+    Directory projectRoot,
+    List<int> journal, {
+    Set<String> agentFiles = const {},
+  }) {
     requireHome(projectRoot);
     final file = _fileOf(projectRoot)!;
-    file.parent.createSync(recursive: true);
+    final folder = file.parent..createSync(recursive: true);
+    restrictToOwner(folder);
     final record = {
-      _journalKey: _digestOf(journal),
-      _agentFilesKey: <String>[],
+      _journalKey: digestOf(journal),
+      _agentFilesKey: agentFiles.toList()..sort(compareCodePoints),
     };
     writeFileAtomic(file, utf8.encode(jsonEncode(record)));
   }
@@ -56,20 +62,27 @@ final class JournalRecords {
     }
   }
 
-  /// Whether [journal], the bytes of the journal file, is the one recorded
-  /// for [projectRoot].
-  bool holds(Directory projectRoot, List<int> journal) {
+  /// Returns the agent files recorded with [journal], the bytes of the
+  /// journal file, for [projectRoot]; null when the record holds another
+  /// journal or none, so [journal] is not trusted.
+  Set<String>? agentFilesOf(Directory projectRoot, List<int> journal) {
     final file = _fileOf(projectRoot);
-    if (file == null) return false;
+    if (file == null) return null;
     try {
       return switch (jsonDecode(file.readAsStringSync())) {
-        {_journalKey: final String digest} => digest == _digestOf(journal),
-        _ => false,
+        {
+          _journalKey: final String digest,
+          _agentFilesKey: final List<Object?> paths,
+        }
+            when digest == digestOf(journal) &&
+                paths.every((path) => path is String) =>
+          {...paths.cast<String>()},
+        _ => null,
       };
     } on FileSystemException {
-      return false;
+      return null;
     } on FormatException {
-      return false;
+      return null;
     }
   }
 
@@ -84,38 +97,12 @@ final class JournalRecords {
   }
 
   File? _fileOf(Directory projectRoot) {
-    final home = homeDirectory;
-    if (home == null || !home.isAbsolute) return null;
-    final root = projectRoot.resolveSymbolicLinksSync();
-    final canonicalHome = _canonical(home);
-    if (canonicalHome == root ||
-        canonicalHome.startsWith('$root${Platform.pathSeparator}')) {
-      return null;
-    }
-    final key = _digestOf(utf8.encode(projectRoot.resolveSymbolicLinksSync()));
-    return File(
-      [
-        home.path,
-        ..._recordsFolder.split('/'),
-        key,
-      ].join(Platform.pathSeparator),
+    String root() => projectRoot.resolveSymbolicLinksSync();
+    return homeRecordFile(
+      homeDirectory,
+      folder: _recordsFolder,
+      key: root,
+      keepOut: () => [root()],
     );
   }
 }
-
-/// Returns the canonical path of [folder], resolving its nearest folder that
-/// exists and appending the rest, since a home folder may not exist yet.
-String _canonical(Directory folder) {
-  final missing = <String>[];
-  var existing = folder.absolute;
-  while (!existing.existsSync() && existing.parent.path != existing.path) {
-    missing.insert(0, existing.uri.pathSegments.lastWhere((s) => s.isNotEmpty));
-    existing = existing.parent;
-  }
-  return [
-    existing.resolveSymbolicLinksSync(),
-    ...missing,
-  ].join(Platform.pathSeparator);
-}
-
-String _digestOf(List<int> bytes) => sha256.convert(bytes).toString();

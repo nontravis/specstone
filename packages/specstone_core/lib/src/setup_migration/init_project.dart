@@ -4,18 +4,26 @@ import 'dart:io';
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show warnOnStderr;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
+import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
+    show docFileOf;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 
 /// What one `specstone init` call runs with.
 final class InitRequest {
@@ -28,6 +36,7 @@ final class InitRequest {
     required this.out,
     this.planHash,
     this.runGit = runRealGit,
+    this.warn = warnOnStderr,
   });
 
   /// The folder the new project root is taken from.
@@ -55,6 +64,10 @@ final class InitRequest {
 
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
+
+  /// Reports one warning line, such as an agent file the run leaves outside
+  /// the project root; writes it to stderr unless replaced.
+  final void Function(String line) warn;
 }
 
 /// Runs `specstone init` and returns its exit status.
@@ -63,10 +76,14 @@ final class InitRequest {
 /// so a nested project stays possible (INV-1). A root holding the config
 /// refuses `config_exists`; a root holding the legacy context doc enters the
 /// legacy migrate run at its git checks (F6-D15); otherwise the drafts are
-/// written and the config last (F6-D23). Throws a `SpecstoneFault` for a
+/// written and the config last (F6-D23). A root reached through a `docs` link
+/// that leaves the folder, or whose docs folder lies outside it, is written
+/// only once the Owner trusted it: the scaffold refuses `output_not_writable`
+/// naming the config before any write. Throws a `SpecstoneFault` for a
 /// refused run, `output_not_writable` naming the file the disk refuses.
 int runInit(InitRequest request) {
   final root = rootThroughDocsLink(request.workingDirectory);
+  requireSpecstoneFolder(root);
   if (File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
     throw MigrateFault(
       MigrateFaultCode.configExists,
@@ -82,6 +99,11 @@ int runInit(InitRequest request) {
       linkFolder: _linkFolderOf(request.workingDirectory, root),
     );
   }
+  RootTrust.at(
+    folder: _linkFolderOf(request.workingDirectory, root) ?? root,
+    root: root,
+    homeDirectory: request.homeDirectory,
+  ).requireTrusted(projectConfigPath);
   return _scaffold(root, request);
 }
 
@@ -97,6 +119,7 @@ MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
       out: request.out,
       planHash: request.planHash,
       runGit: request.runGit,
+      warn: request.warn,
     );
 
 /// Returns [folder], canonical, when it is not [root], else null.
@@ -108,33 +131,36 @@ Directory? _linkFolderOf(Directory folder, Directory root) {
   return own.path == root.path ? null : own;
 }
 
-/// Writes each singular draft, then the config last (PD16, F6-D23).
+/// Plans the agent files, writes each singular draft, then the agent files,
+/// then the config last (PD16, F6-D23).
 ///
 /// Keeps each draft that already exists and names it `kept`; starts no git
-/// process, so the new files stay untracked (E06).
+/// process, so the new files stay untracked (E06). Throws
+/// `agent_block_malformed` before the first write.
 int _scaffold(Directory root, InitRequest request) {
   final (:set, :pins) = request.templates.resolveCarriedPinned(
     packNames: carriedPacks,
     homeDirectory: request.homeDirectory,
   );
+  final agentPlan = _planAgentFiles(root, set);
+  agentPlan.skipped.forEach(request.warn);
+  final docsRoot = Directory.fromUri(root.uri.resolve('docs/'));
   for (final docType in singularDocTypes(set)) {
-    final file = File.fromUri(root.uri.resolve('docs/${docType.path}'));
+    final path = docType.path;
+    if (path == null) continue;
+    final file = docFileOf(docsRoot, path);
     if (file.existsSync()) {
-      request.out.writeln('kept docs/${docType.path}: exists');
+      request.out.writeln('kept docs/$path: exists');
       continue;
     }
-    _writeNew(
-      root,
-      file,
-      skeletonOf(docType, docType.id),
-      shown: 'docs/${docType.path}',
-    );
-    request.out.writeln('created docs/${docType.path} (draft)');
+    _writeNew(root, file, skeletonOf(docType, docType.id), shown: 'docs/$path');
+    request.out.writeln('created docs/$path (draft)');
   }
+  _writeAgentFiles(root, agentPlan, request.out);
   _writeNew(
     root,
     File.fromUri(root.uri.resolve(projectConfigPath)),
-    configText(pins),
+    configText(pins, agentFileRoots: agentPlan.agentFileRoots),
     shown: projectConfigPath,
   );
   final list = [
@@ -145,26 +171,61 @@ int _scaffold(Directory root, InitRequest request) {
   return 0;
 }
 
+/// Returns the full agent file plan of a new project at [root].
+AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return planAgentWrites(
+    AgentFileInputs(
+      projectRoot: projectRoot,
+      cliVersion: specstoneVersion,
+      codeRootFolders: codeFoldersOf(projectRoot, set, codeRoot: '.'),
+      agentFileRoots: const [],
+    ),
+    full: true,
+  );
+}
+
+/// Writes each file of [plan] and prints `created <path>` or `updated <path>`.
+///
+/// A symbolic-link instruction file is written through to its target, so the
+/// path stays a link.
+void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
+  for (final write in [...plan.rootWrites, ...plan.topWrites]) {
+    _writeNew(
+      root,
+      docFileOf(root, write.path),
+      write.text,
+      shown: write.path,
+      followLink: true,
+    );
+    out.writeln('${write.isNew ? 'created' : 'updated'} ${write.path}');
+  }
+}
+
 /// Writes [text] to [file] of the project at [root], creating its folders.
 ///
-/// A file that leads outside the project or docs root, or into `.git`, is
-/// refused before any folder is made. Throws [RenderFault]
-/// `output_not_writable` naming [shown], the file's ProjectPath, when the
-/// disk refuses.
+/// Writes through a symbolic link when [followLink]. A file that leads outside
+/// the project or docs root, or into `.git`, is refused before any folder is
+/// made. Throws [RenderFault] `output_not_writable` naming [shown], the file's
+/// ProjectPath, when the disk refuses.
 void _writeNew(
   Directory root,
   File file,
   String text, {
   required String shown,
+  bool followLink = false,
 }) {
-  requireWritableTarget(
-    file.path,
-    projectRoot: root,
-    docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
-  );
   try {
+    final target = followLink && _isLink(file)
+        ? File(file.resolveSymbolicLinksSync())
+        : file;
+    requireWritableTarget(
+      target.path,
+      projectRoot: root,
+      docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
+    );
     file.parent.createSync(recursive: true);
-    writeFileAtomic(file, utf8.encode(text));
+    writeFileAtomic(target, utf8.encode(text));
   } on FileSystemException catch (error) {
     throw RenderFault(
       RenderFaultCode.outputNotWritable,
@@ -172,3 +233,7 @@ void _writeNew(
     );
   }
 }
+
+bool _isLink(File file) =>
+    FileSystemEntity.typeSync(file.path, followLinks: false) ==
+    FileSystemEntityType.link;

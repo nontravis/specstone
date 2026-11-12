@@ -2,8 +2,13 @@ import 'dart:typed_data';
 
 import 'package:markdown/markdown.dart'
     show
+        BlockParser,
         BlockquoteSyntax,
         CodeBlockSyntax,
+        Document,
+        DummyBlockSyntax,
+        EmptyBlockSyntax,
+        ExtensionSet,
         FencedCodeBlockSyntax,
         FootnoteDefSyntax,
         HeaderSyntax,
@@ -12,19 +17,34 @@ import 'package:markdown/markdown.dart'
         LinkReferenceDefinitionSyntax,
         SetextHeaderSyntax,
         UnorderedListSyntax;
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show
+        CellRange,
+        isTableDelimiterRow,
+        tableCellRanges,
+        tableColumnCount,
+        tableHeadCells;
+import 'package:specstone_core/src/index_query/case_folding.g.dart';
 
 /// The inline text of a body and the definitions its links resolve against.
 ///
 /// `text` is the body with every code unit markdown never reads as inline text
 /// blanked to a space, line ends and length kept; `leaves` are the inline text
 /// ranges in source order; `definitions` maps `linkLabel(label)` to the
-/// destination as written, angle brackets dropped, the first definition of a
-/// label winning.
+/// destination as written, the first definition of a label winning;
+/// `footnoteLabels` holds each footnote definition's label, lowercased.
 typedef LeafText = ({
   String text,
   List<({int start, int end})> leaves,
-  Map<String, String> definitions,
+  Map<String, WrittenDestination> definitions,
+  Set<String> footnoteLabels,
+  List<({int start, int end})> definitionLabels,
+  List<({int start, int end})> definitionDestinations,
 });
+
+/// A link destination as written, angle brackets dropped, and whether angle
+/// brackets enclose it.
+typedef WrittenDestination = ({String shown, bool angle});
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
 // upgrade that changes one changes the scan with it.
@@ -39,14 +59,24 @@ final RegExp _definitionStart = const LinkReferenceDefinitionSyntax().pattern;
 final RegExp _blockquote = const BlockquoteSyntax().pattern;
 final RegExp _listItem = const UnorderedListSyntax().pattern;
 
+/// The patterns of the block syntaxes `markdown` tries, its blank-line and
+/// paragraph ones left out: a line one matches ends a footnote definition
+/// (`FootnoteDefSyntax.parseChildLines`).
+final List<RegExp> _footnoteEnds = [
+  for (final syntax in BlockParser(
+    const [],
+    Document(extensionSet: ExtensionSet.gitHubFlavored),
+  ).blockSyntaxes)
+    if (syntax.pattern != const EmptyBlockSyntax().pattern &&
+        syntax.pattern != const DummyBlockSyntax().pattern)
+      syntax.pattern,
+];
+
+/// The indent a footnote definition's continuation line loses.
+const _footnoteIndent = '    ';
+
 /// `ListSyntax.parseTaskListItem`'s checkbox (`list_syntax.dart:93`).
 final _checkbox = RegExp(r'^ {0,3}\[([ xX])\][ \t]');
-
-/// `markdown`'s `tablePattern` (`patterns.dart:53`), which `markdown.dart` does
-/// not export.
-final _tableDelimiter = RegExp(
-  r'^[ ]{0,3}\|?([ \t]*:?\-+:?[ \t]*\|[ \t]*)+([ \t]|[ \t]*:?\-+:?[ \t]*)?$',
-);
 
 /// `HtmlBlockSyntax`'s end conditions (`html_block_syntax.dart:29-39`), by the
 /// start condition they close; null ends the block at the next blank line.
@@ -80,7 +110,6 @@ const _greaterThan = 0x3E;
 const _openBracket = 0x5B;
 const _backslash = 0x5C;
 const _closeBracket = 0x5D;
-const _pipe = 0x7C;
 
 /// Returns the [LeafText] of [lfBody], a doc text with LF line ends.
 ///
@@ -139,6 +168,9 @@ LeafText leafTextOf(String lfBody) {
     text: String.fromCharCodes(units),
     leaves: sink.leaves,
     definitions: sink.definitions,
+    footnoteLabels: sink.footnoteLabels,
+    definitionLabels: sink.definitionLabels,
+    definitionDestinations: sink.definitionDestinations,
   );
 }
 
@@ -158,10 +190,20 @@ bool _isBlankLine(String line) {
   return true;
 }
 
-/// Returns [text] as a definition label: trimmed, each run of blanks one
-/// space, lowercased.
-String linkLabel(String text) =>
-    text.trim().replaceAll(_blankRun, ' ').toLowerCase();
+/// Returns [text] as a definition label, as `markdown`'s `normalizeLinkLabel`
+/// makes it: trimmed, each run of blanks one space, and each UTF-16 unit
+/// folded by [markdownCaseFolding].
+///
+/// The fold goes unit by unit, so a character outside the BMP, written as two
+/// units, never folds, and `ẞ` folds to `ss`.
+String linkLabel(String text) {
+  var label = text.trim().replaceAll(_blankRun, ' ');
+  for (var i = 0; i < label.length; i++) {
+    final folded = markdownCaseFolding[label[i]];
+    if (folded != null) label = label.replaceRange(i, i + 1, folded);
+  }
+  return label;
+}
 
 /// What ends the paragraph a line meets.
 enum _Stop {
@@ -178,7 +220,15 @@ enum _Stop {
 /// What the block passes of one body produce together.
 final class _Sink {
   final leaves = <({int start, int end})>[];
-  final definitions = <String, String>{};
+  final definitions = <String, WrittenDestination>{};
+
+  /// The label of each footnote definition, lowercased.
+  final footnoteLabels = <String>{};
+
+  /// The body ranges of each definition's label, brackets left out, and of
+  /// its destination as written, angle brackets left out.
+  final definitionLabels = <({int start, int end})>[];
+  final definitionDestinations = <({int start, int end})>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
   /// reads the rest. A leaf that spans lines holds them, so they are blanked
@@ -226,7 +276,7 @@ final class _BlockPass {
   final List<bool?> _endsBlock;
 
   final List<({int start, int end})> leaves;
-  final Map<String, String> definitions;
+  final Map<String, WrittenDestination> definitions;
 
   /// The first line of the open paragraph, or -1.
   var _paragraph = -1;
@@ -285,6 +335,7 @@ final class _BlockPass {
     final line = _lines[i];
     if (_opensFence(line) ||
         _headsTable(i) ||
+        _footnote.hasMatch(line) ||
         _isBlankLine(line) ||
         _endsHtml(line) ||
         _blockquote.hasMatch(line) ||
@@ -336,7 +387,7 @@ final class _BlockPass {
   bool _headsTable(int i) {
     final next = i + 1;
     if (next >= _lines.length) return false;
-    return _delimiters[next] ??= _tableDelimiter.hasMatch(_lines[next]);
+    return _delimiters[next] ??= isTableDelimiterRow(_lines[next]);
   }
 
   /// Starts the block at line [i], where no paragraph is open, in the order
@@ -350,6 +401,7 @@ final class _BlockPass {
       if (end != null) return end;
     }
     if (_startsListItem(line)) return _readList(i);
+    if (_footnote.hasMatch(line)) return _readFootnote(i);
     if (_isBlankLine(line)) return i + 1;
     if (_htmlStart.hasMatch(line)) return _skipHtml(i);
     if (_atxHeading.hasMatch(line)) {
@@ -359,7 +411,7 @@ final class _BlockPass {
     if (_indentedCode.hasMatch(line)) return _skipIndentedCode(i);
     if (_blockquote.hasMatch(line)) return _readQuote(i);
     if (_thematicBreak.hasMatch(line)) return i + 1;
-    if (_definitionStart.hasMatch(line) && !_footnote.hasMatch(line)) {
+    if (_definitionStart.hasMatch(line)) {
       final next = _readDefinition(i);
       if (next != null) return next;
     }
@@ -388,6 +440,38 @@ final class _BlockPass {
       listParent: listParent,
       setextDisabled: setextDisabled,
     ).run();
+  }
+
+  /// Reads the footnote definition that starts at line [i] as
+  /// `FootnoteDefSyntax` does, reads its child lines, and returns the line
+  /// after it.
+  ///
+  /// The `[^label]:` and the blanks after it are cut, and so is the indent of
+  /// a line indented four spaces. A line that matches a block syntax, or any
+  /// line after a blank one that is not so indented, ends the definition.
+  int _readFootnote(int i) {
+    final opener = _footnote.firstMatch(_lines[i])!;
+    _sink.footnoteLabels.add(opener[2]!.toLowerCase());
+    final child = <_ChildLine>[];
+    _cut(child, i, opener[0]!.length);
+    var afterBlank = false;
+    var j = i + 1;
+    for (; j < _lines.length; j++) {
+      final line = _lines[j];
+      if (line.trim().isEmpty) {
+        child.add((text: line, start: _starts[j]));
+        afterBlank = true;
+      } else if (line.startsWith(_footnoteIndent)) {
+        _cut(child, j, _footnoteIndent.length);
+        afterBlank = false;
+      } else if (afterBlank || _footnoteEnds.any((e) => e.hasMatch(line))) {
+        break;
+      } else {
+        child.add((text: line, start: _starts[j]));
+      }
+    }
+    _readChildren(child);
+    return j;
   }
 
   /// Reads the blockquote that starts at line [i] as
@@ -694,102 +778,22 @@ final class _BlockPass {
   /// line after it, or null when the head row has more or fewer cells than the
   /// delimiter row has columns (`TableSyntax.parse`).
   int? _readTable(int i) {
-    final columns = _columnCount(_lines[i + 1]);
-    final head = _cellsOf(_lines[i]);
-    if (head.length != columns) return null;
+    final head = tableHeadCells(_lines[i], _lines[i + 1]);
+    if (head == null) return null;
+    final columns = tableColumnCount(_lines[i + 1]);
     _addCells(i, head, columns);
     var j = i + 2;
     while (j < _lines.length && !_endsBlockAt(j)) {
-      _addCells(j, _cellsOf(_lines[j]), columns);
+      _addCells(j, tableCellRanges(_lines[j]), columns);
       j++;
     }
     return j;
   }
 
-  void _addCells(int line, List<({int start, int end})> cells, int columns) {
+  void _addCells(int line, List<CellRange> cells, int columns) {
     for (var c = 0; c < cells.length && c < columns; c++) {
       _addLeaf(line, cells[c].start, cells[c].end);
     }
-  }
-
-  /// Returns the number of columns of the delimiter [row]
-  /// (`TableSyntax._parseAlignments`).
-  int _columnCount(String row) {
-    var columns = 0;
-    var started = false;
-    var hitDash = false;
-    for (var i = 0; i < row.length; i++) {
-      final unit = row.codeUnitAt(i);
-      if (unit == _space || unit == _tab || (!started && unit == _pipe)) {
-        continue;
-      }
-      started = true;
-      if (unit == _pipe) {
-        columns++;
-        hitDash = false;
-      } else {
-        hitDash = true;
-      }
-    }
-    return hitDash ? columns + 1 : columns;
-  }
-
-  /// Returns the line ranges of the cells of the table [row], split at an
-  /// unescaped pipe (`TableSyntax._parseRow`).
-  List<({int start, int end})> _cellsOf(String row) {
-    final cells = <({int start, int end})>[];
-    void add(int start, int end) {
-      cells.add((
-        start: start,
-        end: start + row.substring(start, end).trimRight().length,
-      ));
-    }
-
-    var index = _pastOpeningPipe(row);
-    var start = index;
-    while (true) {
-      if (index >= row.length) {
-        add(start, row.length);
-        break;
-      }
-      final unit = row.codeUnitAt(index);
-      if (unit == _backslash) {
-        if (index == row.length - 1) {
-          add(start, row.length);
-          break;
-        }
-        index += 2;
-      } else if (unit == _pipe) {
-        add(start, index);
-        index = _pastBlanks(row, index + 1);
-        start = index;
-        if (index >= row.length) break;
-      } else {
-        index++;
-      }
-    }
-    return cells;
-  }
-
-  int _pastBlanks(String row, int from) {
-    var index = from;
-    while (index < row.length) {
-      final unit = row.codeUnitAt(index);
-      if (unit != _space && unit != _tab) break;
-      index++;
-    }
-    return index;
-  }
-
-  int _pastOpeningPipe(String row) {
-    var index = 0;
-    while (index < row.length) {
-      final unit = row.codeUnitAt(index);
-      if (unit == _pipe) index = _pastBlanks(row, index + 1);
-      if (unit != _space && unit != _tab) break;
-      index++;
-    }
-    return index;
   }
 
   /// Reads the definition that starts at line [first] as
@@ -819,6 +823,7 @@ final class _BlockPass {
       cursor.advance();
       if (cursor.isDone) return null;
     }
+    final labelEnd = cursor.mark;
     final label = cursor.textFrom(labelStart);
     if (label.trim().isEmpty) return null;
     cursor.advance();
@@ -828,9 +833,12 @@ final class _BlockPass {
       ..skipBlanks(lineFeeds: true);
     if (cursor.isDone) return null;
     final String destination;
-    if (cursor.unit == _lessThan) {
+    final (int, int) destinationStart;
+    final (int, int) destinationEnd;
+    final angle = cursor.unit == _lessThan;
+    if (angle) {
       cursor.advance();
-      final start = cursor.mark;
+      final start = destinationStart = cursor.mark;
       while (true) {
         final unit = cursor.unit;
         if (unit == _backslash) {
@@ -845,10 +853,11 @@ final class _BlockPass {
         cursor.advance();
         if (cursor.isDone) return null;
       }
+      destinationEnd = cursor.mark;
       destination = cursor.textFrom(start);
       cursor.advance();
     } else {
-      final start = cursor.mark;
+      final start = destinationStart = cursor.mark;
       var parens = 0;
       while (true) {
         final unit = cursor.unit;
@@ -871,6 +880,7 @@ final class _BlockPass {
         cursor.advance();
         if (cursor.isDone) break;
       }
+      destinationEnd = cursor.mark;
       destination = cursor.textFrom(start);
     }
     var blanks = cursor.skipBlanks();
@@ -891,9 +901,20 @@ final class _BlockPass {
     }
     final next = cursor.isRestBlank ? cursor.line + 1 : cursor.line;
     if (next <= first) return null;
-    definitions.putIfAbsent(linkLabel(label), () => destination);
+    definitions.putIfAbsent(
+      linkLabel(label),
+      () => (shown: destination, angle: angle),
+    );
+    _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
+    _sink.definitionDestinations.add(
+      _rangeOf(destinationStart, destinationEnd),
+    );
     return next;
   }
+
+  /// The body range from the cursor mark [start] to the mark [end].
+  ({int start, int end}) _rangeOf((int, int) start, (int, int) end) =>
+      (start: _starts[start.$1] + start.$2, end: _starts[end.$1] + end.$2);
 
   /// Skips the title at the cursor and returns whether there is one
   /// (`LinkParser._parseTitle`).

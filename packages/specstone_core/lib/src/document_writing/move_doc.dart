@@ -46,7 +46,8 @@ int parsePlace(String? value) {
 /// doc and `position_out_of_range` for a place outside 1 to the sibling
 /// count; an `IndexFault` for a bad address or [place], or `doc_not_found`
 /// when the doc is gone from disk; `index_busy` when another call holds the
-/// lock.
+/// lock; `RenderFault` `output_not_writable` for roots the Owner has not
+/// recorded, naming the journal, before any rewrite is planned.
 ReadAnswer answerReorder(
   WriteSession session,
   String address, {
@@ -74,6 +75,7 @@ ReadAnswer answerReorder(
       wanted: wanted,
     );
     if (moves.isEmpty) return _answerFor(session, moves, const []);
+    session.journalTarget.requireTrusted();
     final rewrites = planRewrites(session, moves);
     MoveJournal([..._stageSteps(session, moves), ...rewrites])
         .run(session.journalTarget);
@@ -93,7 +95,8 @@ ReadAnswer answerReorder(
 /// [slug] or a path on disk is where the renamed segment would land; an
 /// `IndexFault` for a missing or bad [slug] or a bad address, or
 /// `doc_not_found` when the doc is gone from disk; `index_busy` when another
-/// call holds the lock.
+/// call holds the lock; `RenderFault` `output_not_writable` for roots the
+/// Owner has not recorded, naming the journal, before any rewrite is planned.
 ReadAnswer answerRename(
   WriteSession session,
   String address, {
@@ -118,31 +121,52 @@ ReadAnswer answerRename(
   return session.locked(() {
     final moves = _renameMoves(session, target, docType, shape, slug);
     if (moves.isEmpty) return _answerFor(session, moves, const []);
+    session.journalTarget.requireTrusted();
     final renamed = _renamedNames(session, moves);
-    final rewrites = planRewrites(session, moves, renamed: renamed);
+    final skipped = <String>[];
+    final rewrites = planRewrites(
+      session,
+      moves,
+      renamed: renamed,
+      onSkipped: skipped.add,
+    );
     MoveJournal([
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
     ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites);
+    return _answerFor(session, moves, rewrites, warnings: skipped);
   });
 }
 
 /// The doc type `move` takes, as `rewrite_labels.dart` names it.
 const _storyType = 'user_story';
 
-/// Moves the story [address] names to be the last story of [under], slug
-/// kept, and rewrites every reference to it. A story already there stays.
+/// Moves the stories [addresses] name to be the last stories of [under], in
+/// the order given, slugs kept, and rewrites every reference to them in one
+/// pass through one journal.
+///
+/// A story named twice moves once; a story already in [under] stays. Every
+/// target is checked before the lock, so one refused target moves none.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// `doc_exists` for a clash; an `IndexFault` for a missing or unknown
-/// [under] or a feature that holds sub-features.
+/// `doc_exists` for a clash, among the targets too; an `IndexFault` for no
+/// target, a missing or unknown [under] or a feature that holds sub-features;
+/// a `TemplateFault` `doc_type_unknown` when [under] names a doc type id the
+/// set lacks; `RenderFault` `output_not_writable` for roots the Owner has not
+/// recorded, naming the journal, before any rewrite is planned.
 ReadAnswer answerMove(
   WriteSession session,
-  String address, {
+  List<String> addresses, {
   required String? under,
 }) {
+  if (addresses.isEmpty) {
+    throw missingArgument(
+      'move',
+      'a target',
+      'specstone move user_story:login/reset_password --under account',
+    );
+  }
   if (under == null) {
     throw missingArgument(
       'move',
@@ -150,34 +174,57 @@ ReadAnswer answerMove(
       'specstone move user_story:login/reset_password --under account',
     );
   }
-  final target = session.target(address);
+  final targets = _distinct([for (final a in addresses) session.target(a)]);
   final docType =
-      session.index.typeOf(target) ??
-      (throw StateError('${target.docPath} has no doc type'));
-  if (docType.id != _storyType) {
+      session.index.typeOf(targets.first) ??
+      (throw StateError('${targets.first.docPath} has no doc type'));
+  for (final target in targets) {
+    final targetType = session.index.typeOf(target);
+    if (targetType?.id == _storyType) continue;
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
-      '${docType.id} docs cannot move; move takes a $_storyType',
+      '${targetType?.id} docs cannot move; move takes a $_storyType',
     );
   }
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
-  final newParent = session.target('$parentTypeId:$under');
-  if (session.index.parentOf(target)?.docPath == newParent.docPath) {
-    return _answerFor(session, const [], const []);
-  }
+  final newParent = session.parentTarget(under, parentTypeId);
+  final stories = [
+    for (final target in targets)
+      if (session.index.parentOf(target)?.docPath != newParent.docPath) target,
+  ];
+  if (stories.isEmpty) return _answerFor(session, const [], const []);
   _checkTakesStory(session, newParent, parentTypeId);
+  // Refuse before the lock; the numbers are taken again inside it, since a
+  // concurrent `new` can claim one in between.
+  _storyMoves(session, stories, docType, newParent);
   return session.locked(() {
-    final moves = [_storyMove(session, target, docType, newParent)];
+    final moves = _storyMoves(session, stories, docType, newParent);
+    session.journalTarget.requireTrusted();
     final renamed = _renamedNames(session, moves);
-    final rewrites = planRewrites(session, moves, renamed: renamed);
+    final skipped = <String>[];
+    final rewrites = planRewrites(
+      session,
+      moves,
+      renamed: renamed,
+      onSkipped: skipped.add,
+    );
     MoveJournal([
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
     ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites);
+    return _answerFor(session, moves, rewrites, warnings: skipped);
   });
+}
+
+/// Returns [targets] without a doc named twice, first mention first.
+List<IndexedDoc> _distinct(List<IndexedDoc> targets) {
+  final seen = <String>{};
+  return [
+    for (final target in targets)
+      if (seen.add(target.docPath)) target,
+  ];
 }
 
 /// Throws [IndexFault] `argument_invalid` when [parent] holds a doc of the
@@ -198,23 +245,18 @@ void _checkTakesStory(
   );
 }
 
-/// Returns the move that puts [story] last among the stories of [newParent],
-/// its slug kept.
+/// Returns the moves that put [stories] last among the stories of
+/// [newParent], in order, each slug kept.
 ///
-/// Throws [WriteFault] `doc_exists` as [_checkNoClash] does.
-PathMove _storyMove(
+/// Throws [WriteFault] `doc_exists` when two stories carry one slug, naming
+/// the first of them, or as [_checkNoClash] does.
+List<PathMove> _storyMoves(
   WriteSession session,
-  IndexedDoc story,
+  List<IndexedDoc> stories,
   MergedDocType docType,
   IndexedDoc newParent,
 ) {
   final set = session.index.set;
-  final shape =
-      DocPathShape.ofDoc(docType, set, story.docPath) ??
-      (throw StateError('${story.docPath} does not match its doc type'));
-  final slug =
-      shape.matchOwn(story.docPath.split('/')[shape.ownIndex])?.slug ??
-      (throw StateError('${story.docPath} carries no slug'));
   final parentType =
       set.lookup(newParent.docTypeId!) ??
       (throw StateError('${newParent.docPath} has no doc type'));
@@ -235,25 +277,44 @@ PathMove _storyMove(
     parentValues,
   );
   final highest = siblings.fold(0, (top, s) => max(top, s.number ?? 0));
-  final newDocPath = landedShape.build([
-    ...parentValues,
-    ...landedShape.ownValues(number: padNumber(highest + 1), slug: slug),
-  ]);
-  final move = (
-    from: shape.ownPathOf(story.docPath),
-    to: landedShape.ownPathOf(newDocPath),
-  );
-  _checkNoClash(
-    session,
-    docType,
-    landedShape,
-    parentValues,
-    siblings,
-    slug: slug,
-    newDocPath: newDocPath,
-    moves: [move],
-  );
-  return move;
+  final firstOfSlug = <String, IndexedDoc>{};
+  final moves = <PathMove>[];
+  for (final story in stories) {
+    final shape =
+        DocPathShape.ofDoc(docType, set, story.docPath) ??
+        (throw StateError('${story.docPath} does not match its doc type'));
+    final slug =
+        shape.matchOwn(story.docPath.split('/')[shape.ownIndex])?.slug ??
+        (throw StateError('${story.docPath} carries no slug'));
+    final first = firstOfSlug[slug];
+    if (first != null) {
+      throw _existsFault(docType, first.docPath, first.docPath);
+    }
+    firstOfSlug[slug] = story;
+    final newDocPath = landedShape.build([
+      ...parentValues,
+      ...landedShape.ownValues(
+        number: padNumber(highest + 1 + moves.length),
+        slug: slug,
+      ),
+    ]);
+    final move = (
+      from: shape.ownPathOf(story.docPath),
+      to: landedShape.ownPathOf(newDocPath),
+    );
+    _checkNoClash(
+      session,
+      docType,
+      landedShape,
+      parentValues,
+      siblings,
+      slug: slug,
+      newDocPath: newDocPath,
+      moves: [move],
+    );
+    moves.add(move);
+  }
+  return moves;
 }
 
 /// Returns the fault for a doc type that [shape] gives no slug to: a spec
@@ -514,9 +575,12 @@ String _stepPath(WriteSession session, String docPath) {
 ReadAnswer _answerFor(
   WriteSession session,
   List<PathMove> moves,
-  List<WriteStep> rewrites,
-) {
-  final rewritten = [for (final step in rewrites) session.docPathOf(step.path)];
+  List<WriteStep> rewrites, {
+  List<String> warnings = const [],
+}) {
+  final rewritten = [
+    for (final step in rewrites) session.listedPathOf(step.path),
+  ];
   return ReadAnswer(
     text: [
       for (final move in moves) 'moved ${move.from} to ${move.to}\n',
@@ -528,5 +592,6 @@ ReadAnswer _answerFor(
       ],
       'rewritten': rewritten,
     },
+    warnings: warnings,
   );
 }

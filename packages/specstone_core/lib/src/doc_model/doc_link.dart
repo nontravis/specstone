@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 /// Where a markdown link points, relative to the doc that holds it.
 sealed class DocLinkTarget;
@@ -8,10 +8,26 @@ final class WebTarget extends DocLinkTarget;
 
 /// A doc under the docs root.
 final class DocTarget extends DocLinkTarget {
-  new(this.docPath);
+  new(this.docPath, {this.anchor, this.rawAnchor});
 
   /// The docPath the link resolves to.
   final String docPath;
+
+  /// The fragment the link carries, decoded (RULE-7); null with no `#`; `''`
+  /// for `#` alone (the doc's top, RULE-13).
+  final String? anchor;
+
+  /// The fragment as written, escapes kept; null with no `#`.
+  final String? rawAnchor;
+}
+
+/// A target the grammar cannot read (RULE-11); [shown] is the href as
+/// written.
+final class UnreadableTarget extends DocLinkTarget {
+  new(this.shown);
+
+  /// The href as written.
+  final String shown;
 }
 
 /// Anything else: another scheme, a rooted path, or a path above the docs root.
@@ -22,94 +38,30 @@ final class OutsideTarget extends DocLinkTarget {
   final String shown;
 }
 
-/// Decodes the percent escapes of [text]: each `%` followed by two hex
-/// digits becomes that byte, every other character its UTF-8 bytes, and the
-/// bytes decode as UTF-8 with U+FFFD for a sequence that is not UTF-8.
-///
-/// A `%` not followed by two hex digits stays as written.
-String percentDecoded(String text) {
-  final bytes = _percentDecodedBytes(text);
-  return bytes == null ? text : utf8.decode(bytes, allowMalformed: true);
-}
-
-/// Whether the escapes of [text] decode to valid UTF-8, so [percentDecoded]
-/// writes no U+FFFD that [text] did not hold.
-///
-/// A caller that re-encodes the decoded text must keep [text] when this is
-/// false, or the original bytes are lost.
-bool percentDecodesCleanly(String text) {
-  final bytes = _percentDecodedBytes(text);
-  if (bytes == null) return true;
-  try {
-    utf8.decode(bytes);
-    return true;
-  } on FormatException {
-    return false;
-  }
-}
-
-/// Returns the bytes [text] stands for once each escape is a byte, or null
-/// when [text] holds no escape.
-List<int>? _percentDecodedBytes(String text) {
-  final firstPercent = text.indexOf('%');
-  // A text with no escape decodes to itself, so most hrefs pay nothing.
-  if (firstPercent < 0) return null;
-  final bytes = <int>[];
-  // Literal text is encoded a run at a time: a character outside the BMP is
-  // two code units, and encoding each alone would turn it into two U+FFFD.
-  var runStart = 0;
-  for (var i = firstPercent; i < text.length; i++) {
-    if (text.codeUnitAt(i) != 0x25 || i + 2 >= text.length) continue;
-    final byte = _hexByteAt(text, i + 1);
-    if (byte == null) continue;
-    bytes
-      ..addAll(utf8.encode(text.substring(runStart, i)))
-      ..add(byte);
-    i += 2;
-    runStart = i + 1;
-  }
-  bytes.addAll(utf8.encode(text.substring(runStart)));
-  return bytes;
-}
-
-/// Returns the byte the two hex digits at [start] and [start] + 1 name, or
-/// null when either is not a hex digit.
-int? _hexByteAt(String text, int start) {
-  var byte = 0;
-  for (var i = start; i < start + 2; i++) {
-    final digit = text.codeUnitAt(i);
-    final value = switch (digit) {
-      >= 0x30 && <= 0x39 => digit - 0x30,
-      >= 0x41 && <= 0x46 => digit - 0x37,
-      >= 0x61 && <= 0x66 => digit - 0x57,
-      _ => null,
-    };
-    if (value == null) return null;
-    byte = byte * 16 + value;
-  }
-  return byte;
-}
-
-/// Resolves [href], written in the doc at [docPath], to its target.
+/// Resolves [href], written in the doc at [docPath], to its target, reading
+/// [href] through the reference grammar (RULE-11).
 ///
 /// An escape that is not UTF-8 reads as U+FFFD, so such a link resolves like
-/// any other path; reading `uri.pathSegments` instead threw a FormatException
-/// on its strict UTF-8 decode.
+/// any other path.
 DocLinkTarget resolveDocLink(String href, String docPath) {
-  final uri = Uri.tryParse(href);
-  if (uri == null) return OutsideTarget(href);
-  if (uri.hasScheme) {
-    final scheme = uri.scheme;
-    return scheme == 'http' || scheme == 'https'
-        ? WebTarget()
-        : OutsideTarget(href);
+  switch (readLinkTarget(href)) {
+    case UnreadableLink():
+      return UnreadableTarget(href);
+    case SchemeLink(:final scheme):
+      return scheme == 'http' || scheme == 'https'
+          ? WebTarget()
+          : OutsideTarget(href);
+    case AuthorityLink() || RootedLink():
+      return OutsideTarget(href);
+    case RelativeLink(:final segments, :final anchor, :final rawAnchor):
+      // An empty path (`#frag`, `?q`) names the doc itself.
+      if (segments.isEmpty) {
+        return DocTarget(docPath, anchor: anchor, rawAnchor: rawAnchor);
+      }
+      final resolved = _resolveSegments(segments, docPath);
+      if (resolved == null || resolved.isEmpty) return OutsideTarget(href);
+      return DocTarget(resolved, anchor: anchor, rawAnchor: rawAnchor);
   }
-  if (uri.hasAuthority || uri.path.startsWith('/')) return OutsideTarget(href);
-  // An empty path (`#frag`, `?q`) names the doc itself.
-  if (uri.path.isEmpty) return DocTarget(docPath);
-  final resolved = _resolveSegments(_decodedSegmentsOf(uri), docPath);
-  if (resolved == null || resolved.isEmpty) return OutsideTarget(href);
-  return DocTarget(resolved);
 }
 
 /// Returns the path [href], written in the doc at [docPath], reaches from
@@ -123,26 +75,14 @@ DocLinkTarget resolveDocLink(String href, String docPath) {
 /// path, an empty path, a path whose walk ends at the docs root itself, and a
 /// segment holding an encoded slash.
 String? relativeFilePathOf(String href, String docPath) {
-  final uri = Uri.tryParse(href);
-  if (uri == null ||
-      uri.hasScheme ||
-      uri.hasAuthority ||
-      uri.path.isEmpty ||
-      uri.path.startsWith('/')) {
-    return null;
+  if (readLinkTarget(href) case RelativeLink(:final segments)) {
+    // An empty path (`#frag`, `?q`) names no file.
+    if (segments.isEmpty) return null;
+    final path = _resolveSegments(segments, docPath, keepParents: true);
+    return path == null || path.isEmpty ? null : path;
   }
-  final path = _resolveSegments(
-    _decodedSegmentsOf(uri),
-    docPath,
-    keepParents: true,
-  );
-  return path == null || path.isEmpty ? null : path;
+  return null;
 }
-
-/// Returns the percent-decoded segments of [uri]'s path.
-List<String> _decodedSegmentsOf(Uri uri) => [
-  for (final segment in uri.path.split('/')) percentDecoded(segment),
-];
 
 /// The folder name of the docs root under the project root.
 const docsFolderName = 'docs';

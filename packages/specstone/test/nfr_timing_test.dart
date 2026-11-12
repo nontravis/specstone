@@ -7,9 +7,87 @@ import 'dart:io';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../specstone_core/test/helpers/shipped_pins.dart';
 import 'helpers/baseline_tree.dart';
 import 'helpers/best_of.dart';
 import 'helpers/built_cli.dart';
+
+const _approveDocCount = 2000;
+const _approveDraftCount = 20;
+const _sentencesPerDoc = 55;
+const _droppedPerDraft = 10;
+const _added = 'Added one. Added two. Added three. Added four. Added five.';
+const _filler = 'the amber birch cedar delta ember fjord grove haven iris';
+const _commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+
+/// Returns a doc body of the first [keep] of [_sentencesPerDoc] sentences, 5 KB
+/// in all.
+///
+/// Sentence `n` is unique to doc [doc] and holds an em dash, so the held text
+/// is UTF-16 as a real project's is.
+String _sentencesOfDoc(int doc, {required int keep}) => [
+  for (var n = 0; n < keep; n++)
+    'Doc $doc says item $n is held in this project \u2014 $_filler.',
+].join(' ');
+
+String _feature(int k, String status, String body) =>
+    '---\n$status\n---\n\n# Feature $k\n\n## Problem\n\n$body\n';
+
+String _featurePath(int k) =>
+    'docs/prds/features/f${(k + 1).toString().padLeft(2, '0')}_x/FEATURE.md';
+
+/// Writes a project of [_approveDocCount] docs of about 5 KB.
+///
+/// [_approveDraftCount] of them are features that are drafts now, with
+/// [_droppedPerDraft] sentences dropped and five added since the approved
+/// copy; the others are notes.
+Directory _writeApproveProject() {
+  final root = Directory.systemTemp.createTempSync('specstone_approve_');
+  addTearDown(() => root.deleteSync(recursive: true));
+  void write(String path, String text) => File('${root.path}/$path')
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(text);
+  write('.specstone/config.yaml', shippedPinsConfig());
+  for (var k = 0; k < _approveDraftCount; k++) {
+    final kept = _sentencesOfDoc(k, keep: _sentencesPerDoc - _droppedPerDraft);
+    write(_featurePath(k), _feature(k, 'draft: true', '$kept $_added'));
+  }
+  for (var k = _approveDraftCount; k < _approveDocCount; k++) {
+    write(
+      'docs/notes/n_$k.md',
+      '# Note $k\n\n${_sentencesOfDoc(k, keep: _sentencesPerDoc)}\n',
+    );
+  }
+  return root;
+}
+
+/// A git that holds one approved commit of each feature of the project.
+///
+/// The run is timed without a git process, since git's own time is not what
+/// the approve view's sentence lookup costs.
+ProcessResult _approvedHistory(
+  List<String> arguments, {
+  required String workingDirectory,
+  Map<String, String>? environment,
+}) {
+  ProcessResult answer(String stdout) => ProcessResult(0, 0, stdout, '');
+  switch (arguments.first) {
+    case 'rev-parse':
+      return answer('\n');
+    case 'log':
+      return answer('$_commit\x00\n${arguments.last}\x00');
+    default: // show <commit>:<path>
+      final path = arguments.last.substring(_commit.length + 1);
+      final k = int.parse(RegExp(r'f(\d+)_x').firstMatch(path)![1]!) - 1;
+      return answer(
+        _feature(
+          k,
+          'approved: true',
+          _sentencesOfDoc(k, keep: _sentencesPerDoc),
+        ),
+      );
+  }
+}
 
 void main() {
   late Directory project;
@@ -116,6 +194,33 @@ void main() {
         () => timed(call, exitCodes: {0, 1}),
         label: 'check calls',
       ),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
+  test('approve --dry-run builds the views of 20 drafts of 55 sentences over '
+      '2,000 docs of 5 KB within 2 s in the fastest of five runs', () {
+    final root = _writeApproveProject();
+    Duration build() {
+      final watch = Stopwatch()..start();
+      final answer = WriteSession.run(
+        (session) => approveDryRun(
+          session,
+          history: ApprovalHistory(runGit: _approvedHistory),
+        ),
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      watch.stop();
+      expect(answer.json['count'], _approveDraftCount);
+      expect(answer.text, contains('$_droppedPerDraft sentences dropped'));
+      return watch.elapsed;
+    }
+
+    build(); // warm-up: the index is current after it
+    expect(
+      bestOf(timingRuns, build, label: 'approve view runs'),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });

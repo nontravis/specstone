@@ -32,7 +32,9 @@ jobs:
           git diff --exit-code -- lib/src/templates/shipped_packs.g.dart
           dart run tool/generate_mermaid_script.dart
           git diff --exit-code -- lib/src/rendering/mermaid_script.g.dart
-          test -z "$(git status --porcelain -- lib/src/templates/ lib/src/rendering/)"
+          dart run tool/generate_agent_text.dart
+          git diff --exit-code -- lib/src/setup_migration/agent_text.g.dart
+          test -z "$(git status --porcelain -- lib/src/templates/ lib/src/rendering/ lib/src/setup_migration/)"
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
 
@@ -71,7 +73,9 @@ jobs:
 
   test-scripts-windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    # WORKAROUND: about 30 install.ps1 runs still take ~20 s each on a cold Windows PowerShell 5.1 (cause unconfirmed,
+    # Specstone fix item 79), so the job needs ~16-20 min; remove when those runs take under ~3 s.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
@@ -80,4 +84,15 @@ jobs:
       - run: dart pub get --enforce-lockfile
       - name: Test the PowerShell scripts
         working-directory: packages/specstone
-        run: dart test --tags ps1
+        env:
+          SPECSTONE_PS_TIMING: '1'
+        run: >-
+          dart test --tags ps1 -r expanded --timeout 3m
+          --file-reporter json:ps1-results.json
+      # The JSON file names every test with its start and end time, so a
+      # cancelled or timed-out run still shows which test it stood in.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ps1-results
+          path: packages/specstone/ps1-results.json

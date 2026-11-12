@@ -7,6 +7,24 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
+  test(
+    'f01/us04/fr01/e14: reorder takes a bare name one doc carries',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run(['reorder', 'login/reset_password', '--to', '1']),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith(
+          'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
+        ),
+      );
+    },
+  );
+
   test('f02/us05/s1: reorder prints moved and rewrote lines', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
@@ -120,7 +138,7 @@ void main() {
         err.toString(),
         contains(
           'Expected one target, got 2.\n\n'
-          'Usage: specstone reorder (<type>:<name> | <path>) --to <n> '
+          'Usage: specstone reorder <doc address> --to <n> '
           '[--json]\n',
         ),
       );
@@ -156,4 +174,29 @@ void main() {
       );
     },
   );
+
+  test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: reorder writes a rewritten typed doc laid out', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '1',
+      ]),
+      0,
+    );
+    final text = readDoc(
+      root,
+      'prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md',
+    );
+    expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+    expect(text, isNot(contains('\n\n\n')));
+    expect(text, contains('draft: true\n'));
+  });
 }

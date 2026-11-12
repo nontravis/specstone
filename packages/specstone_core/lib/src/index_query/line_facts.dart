@@ -1,6 +1,14 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart'
+    show holdsLinkSyntax, parseLinkFreeBody, parseMarkdownTree;
+import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show readDocAddress;
+import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/index_query/section_counts.dart'
+    show SectionCounts;
 import 'package:yaml/yaml.dart';
 
 const _space = 0x20;
@@ -10,6 +18,27 @@ const _tilde = 0x7E;
 /// The warning for [docPath] whose markdown the parser fails on.
 String markdownUnparsedWarning(String docPath) =>
     '$docPath: the markdown parser failed; its links are not indexed';
+
+/// Returns the warning [links], the links of the doc at [docPath], give it:
+/// [markdownUnparsedWarning] when the parser failed (null [links]), a
+/// warning when the link scan and the parser list its links differently,
+/// and null otherwise.
+///
+/// The second keeps a doc whose links a move or the see rule cannot read
+/// from passing in silence (R74).
+String? linkWarningOf(String docPath, LinkPlaces? links) {
+  if (links == null) return markdownUnparsedWarning(docPath);
+  if (links.readersAgree) return null;
+  return '$docPath: the link scan and the markdown parser list its links '
+      'differently; a move or rename leaves its inline links as written, and '
+      'check skips its see links';
+}
+
+/// Returns how many lines of [lfText], the text [doc] parses, come before the
+/// text after its frontmatter: the frontmatter lines, delimiters included.
+int linesBeforeBodyOf(Doc doc, String lfText) => _lineCount(
+  lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+);
 
 /// The 1-based file lines `first` through `last`, both included.
 typedef LineRange = ({int first, int last});
@@ -53,6 +82,12 @@ final class LineFacts {
   const new({
     required this.links,
     required this.fileLinks,
+    required this.selfLinks,
+    required this.unreadableLinks,
+    required this.nameMentions,
+    required this.numberLabels,
+    required this.tbrMarkers,
+    required this.anchors,
     required this.sectionLines,
     required this.sectionCounts,
     required this.fenced,
@@ -64,38 +99,97 @@ final class LineFacts {
   /// Computes the facts of [lfText], its [doc] at [docPath], and the
   /// [sectionCounts] of each section of [doc].
   ///
-  /// [lfText] is the file text with LF line ends, and [frontmatterErrorLine]
-  /// is `FrontmatterYaml.errorLine` of its frontmatter. A body the markdown
-  /// parser fails on has no links, and [markdownUnparsedWarning] joins
-  /// [warnings].
+  /// [lfText] is the file text with LF line ends; every line number comes from
+  /// it, while [lineCount] and [charCount] measure [countedText].
+  /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
+  /// frontmatter. [bodyNumberLabels] are the number labels of the body, by
+  /// 0-based body line, and [bodyTbrMarkers] its TBR markers, by the same
+  /// line. A body whose parse fails has no links and an unknown
+  /// anchor set; [markdownUnparsedWarning] joins [warnings] only when the body
+  /// holds link syntax, as at base — a body with no link syntax is never
+  /// parsed for links, so it never warns. [linkWarningOf] gives the warning.
   factory of({
     required String lfText,
+    required String countedText,
     required String docPath,
     required Doc doc,
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
+    required List<({int line, String written})> bodyNumberLabels,
+    required List<({int line, String rest})> bodyTbrMarkers,
     required List<String> warnings,
   }) {
-    final prefix = doc.frontmatter == null
-        ? ''
-        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length);
-    final bodyStart = _lineCount(prefix);
-    final whole = scanText(lfText);
-    final links = linkPlacesOf(
-      doc.afterFrontmatter,
-      docPath: docPath,
-      firstLine: bodyStart + 1,
-    );
-    if (links == null) warnings.add(markdownUnparsedWarning(docPath));
+    final bodyStart = linesBeforeBodyOf(doc, lfText);
+    final whole = scanText(countedText);
+    final body = doc.afterFrontmatter;
+    // One gate and one parse per doc, failed or not: a link-syntax body
+    // shares its full parse between the links and the anchors, so a failed
+    // parse is the links and the anchors both; any other body never parses
+    // its prose.
+    final hasLinks = holdsLinkSyntax(body);
+    final linkTree = hasLinks ? parseMarkdownTree(body) : null;
+    final links = !hasLinks
+        ? noLinks
+        : linkTree == null
+        ? null
+        : linkPlacesOf(
+            body,
+            docPath: docPath,
+            firstLine: bodyStart + 1,
+            tree: linkTree,
+          );
+    if (linkWarningOf(docPath, links) case final warning?) {
+      warnings.add(warning);
+    }
+    final anchorNodes = hasLinks ? linkTree?.nodes : parseLinkFreeBody(body);
     return LineFacts(
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],
+      selfLinks: links?.selfLinks ?? const [],
+      unreadableLinks: links?.unreadableLinks ?? const [],
+      nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
+      numberLabels: [
+        for (final (:line, :written) in bodyNumberLabels)
+          (line: bodyStart + line + 1, written: written),
+      ],
+      tbrMarkers: [
+        for (final (:line, :rest) in bodyTbrMarkers)
+          (line: bodyStart + line + 1, rest: rest),
+      ],
+      anchors: anchorNodes == null ? null : anchorsOf(anchorNodes),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
+      lineCount: _lineCount(countedText, breaks: whole.breaks),
+      charCount: countedText.length - whole.pairs,
+      frontmatterErrorLine: frontmatterErrorLine,
+    );
+  }
+
+  /// Computes the section lines and fenced lines of [lfText], whose [doc] is
+  /// parsed, for a reader of item IDs and blocks that reads nothing else.
+  ///
+  /// No markdown parse runs: links are empty, anchors unknown, and section
+  /// counts empty, so only [sectionLines], [fenced], and the counts of lines
+  /// and characters hold.
+  factory structureOf({required String lfText, required Doc doc}) {
+    final bodyStart = linesBeforeBodyOf(doc, lfText);
+    final whole = scanText(lfText);
+    return LineFacts(
+      links: const [],
+      fileLinks: const [],
+      selfLinks: const [],
+      unreadableLinks: const [],
+      nameMentions: const [],
+      numberLabels: const [],
+      tbrMarkers: const [],
+      anchors: null,
+      sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
+      sectionCounts: const [],
+      fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
       lineCount: _lineCount(lfText, breaks: whole.breaks),
       charCount: lfText.length - whole.pairs,
-      frontmatterErrorLine: frontmatterErrorLine,
+      frontmatterErrorLine: null,
     );
   }
 
@@ -106,9 +200,32 @@ final class LineFacts {
     required List<SectionCounts> sectionCounts,
   }) {
     final fenced = json['fenced']! as List<Object?>;
+    final anchors = json['anchors'] as Map<String, Object?>?;
     return LineFacts(
       links: _placesOfJson(json['links']!),
       fileLinks: _placesOfJson(json['file_links']!),
+      selfLinks: _placesOfJson(json['self_links']!),
+      unreadableLinks: _placesOfJson(json['unreadable_links']!),
+      nameMentions: _mentionsOfJson(json['name_mentions']!),
+      numberLabels: [
+        for (final label
+            in (json['number_labels']! as List<Object?>).cast<List<Object?>>())
+          (line: label[0]! as int, written: label[1]! as String),
+      ],
+      tbrMarkers: [
+        for (final marker
+            in (json['tbr_markers']! as List<Object?>).cast<List<Object?>>())
+          (line: marker[0]! as int, rest: marker[1]! as String),
+      ],
+      anchors: anchors == null
+          ? null
+          : DocAnchors(
+              headingSlugs: (anchors['headings']! as List<Object?>)
+                  .cast<String>(),
+              htmlIds: (anchors['ids']! as List<Object?>)
+                  .cast<String>()
+                  .toSet(),
+            ),
       sectionLines: (json['sections']! as List<Object?>).cast<int>(),
       sectionCounts: sectionCounts,
       fenced: [
@@ -129,6 +246,31 @@ final class LineFacts {
   /// the root.
   final List<LinkPlace> fileLinks;
 
+  /// The links that name the doc itself, a bare `#anchor` included, in source
+  /// order.
+  final List<LinkPlace> selfLinks;
+
+  /// The links whose target the grammar cannot read, in source order; each
+  /// target is the href as written.
+  final List<LinkPlace> unreadableLinks;
+
+  /// The doc-name mentions of the body, in source order (RULE-11); `line` is
+  /// the file line.
+  final List<NameMention> nameMentions;
+
+  /// The number labels of the body as `number_label` reads them (R82), in
+  /// source order; `line` is the file line.
+  final List<LabelPlace> numberLabels;
+
+  /// The `TBR —` markers of the body outside fenced code and code spans, in
+  /// source order; `line` is the file line and `rest` the line's text after
+  /// the marker, trimmed.
+  final List<TbrMarkerPlace> tbrMarkers;
+
+  /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
+  /// be computed, never a stand-in for an empty one.
+  final DocAnchors? anchors;
+
   /// The header line of each section, in the order of `Doc.sections`.
   final List<int> sectionLines;
 
@@ -141,10 +283,12 @@ final class LineFacts {
   /// The runs of fenced code lines, fence lines included, in file order.
   final List<LineRange> fenced;
 
-  /// The lines of the LF text.
+  /// The lines of the text `format` lays out for a typed doc, else of the LF
+  /// text.
   final int lineCount;
 
-  /// The code points of the LF text.
+  /// The code points of the text `format` lays out for a typed doc, else of
+  /// the LF text.
   final int charCount;
 
   /// The line the YAML parser names, 1 when the frontmatter is no mapping.
@@ -176,6 +320,18 @@ final class LineFacts {
   Map<String, Object?> toJson() => {
     'links': _placesToJson(links),
     'file_links': _placesToJson(fileLinks),
+    'self_links': _placesToJson(selfLinks),
+    'unreadable_links': _placesToJson(unreadableLinks),
+    'name_mentions': [
+      for (final m in nameMentions) [m.line, m.column, m.text],
+    ],
+    'number_labels': [
+      for (final label in numberLabels) [label.line, label.written],
+    ],
+    'tbr_markers': [
+      for (final marker in tbrMarkers) [marker.line, marker.rest],
+    ],
+    'anchors': anchors?.toJson(),
     'sections': sectionLines,
     'fenced': [
       for (final range in fenced) [range.first, range.last],
@@ -186,6 +342,35 @@ final class LineFacts {
   };
 }
 
+/// A number label at its file line, as it is written.
+typedef LabelPlace = ({int line, String written});
+
+/// A TBR marker at its file line, with the line's text after it.
+typedef TbrMarkerPlace = ({int line, String rest});
+
+/// Returns the mentions of [body], whose lines start at file line
+/// `bodyStart + 1`.
+List<NameMention> _mentionsFrom(String body, int bodyStart) => [
+  for (final m in nameMentionsInMarkdown(body))
+    (
+      line: bodyStart + m.line,
+      column: m.column,
+      text: m.text,
+      address: m.address,
+    ),
+];
+
+/// Returns the mentions [json] holds, as `LineFacts.toJson` wrote them.
+List<NameMention> _mentionsOfJson(Object json) => [
+  for (final m in (json as List<Object?>).cast<List<Object?>>())
+    (
+      line: m[0]! as int,
+      column: m[1]! as int,
+      text: m[2]! as String,
+      address: readDocAddress(m[2]! as String),
+    ),
+];
+
 /// Returns the places [json] holds, as [_placesToJson] wrote them.
 List<LinkPlace> _placesOfJson(Object json) => [
   for (final place in (json as List<Object?>).cast<List<Object?>>())
@@ -193,12 +378,14 @@ List<LinkPlace> _placesOfJson(Object json) => [
       target: place[0]! as String,
       line: place[1]! as int,
       shown: place[2]! as String,
+      anchor: place[3] as String?,
     ),
 ];
 
 /// Returns [places] as JSON values.
-List<List<Object>> _placesToJson(List<LinkPlace> places) => [
-  for (final place in places) [place.target, place.line, place.shown],
+List<List<Object?>> _placesToJson(List<LinkPlace> places) => [
+  for (final place in places)
+    [place.target, place.line, place.shown, place.anchor],
 ];
 
 /// Returns the lines of [text], using [breaks] as its `\n` count when known.

@@ -172,10 +172,10 @@ void main() {
     );
     const missing = FindingKind.linkTargetMissing;
     expect(spots(checkOf(project, target: 'architecture:login'), missing), [
-      '$loginArchitecture:9: link_target_missing',
+      '$loginArchitecture:11: link_target_missing',
     ]);
     expect(spots(checkOf(project, target: 'api:login'), missing), [
-      '$loginApi:15: link_target_missing',
+      '$loginApi:19: link_target_missing',
     ]);
   });
 
@@ -195,7 +195,7 @@ void main() {
     );
     final report = checkOf(project, target: 'feature:login');
     expect(spots(report, FindingKind.linkTargetMissing), [
-      '$loginApi:15: link_target_missing',
+      '$loginApi:19: link_target_missing',
     ]);
     expect(spots(report, FindingKind.untypedDoc), [
       'prds/features/f01_login/notes.md:1: untyped_doc',
@@ -230,7 +230,7 @@ void main() {
         checkOf(project, target: 'fr:login/email_login/check_password'),
         FindingKind.fieldUndeclared,
       ),
-      ['$loginFr:5: field_undeclared'],
+      ['$loginFr:6: field_undeclared'],
     );
   });
 
@@ -379,6 +379,90 @@ void main() {
             !p.startsWith('prds/features/f02_shop/f01_cart/') &&
             !p.startsWith('specs/f02_shop/f01_cart/'),
       ),
+      isEmpty,
+    );
+  });
+  test('consistency_check/find_template_breaks/report_stale_agent_blocks E08: a check with a target holds no agent_block_stale', () async {
+    final project = await writeCheckProject(
+      extra: {'.specstone/AGENT.md': 'hand edit\n'},
+    );
+
+    expect(spots(checkOf(project), FindingKind.agentBlockStale), [
+      '.specstone/AGENT.md:1: agent_block_stale',
+    ]);
+    expect(
+      spots(checkOf(project, target: 'login'), FindingKind.agentBlockStale),
+      isEmpty,
+    );
+  });
+
+  test('consistency_check/find_template_breaks/print_findings INV-14: an agent file finding sorts by path with the doc findings', () async {
+    final project = await writeCheckProject(
+      extra: {'.specstone/AGENT.md': 'hand edit\n'},
+    );
+    final paths = [for (final f in checkOf(project).findings) f.path];
+
+    expect(paths, contains('.specstone/AGENT.md'));
+    expect(paths, [...paths]..sort());
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+      'finding counts, sorts, and exits 1 beside an agent finding', () async {
+    final project = await writeCheckProject(
+      extra: {
+        '.specstone/AGENT.md': 'hand edit\n',
+        'docs/prds/d01_context.md': '# Context\n',
+      },
+    );
+    final report = checkOf(project);
+
+    expect(
+      {for (final f in report.findings) f.kind: f.waitsFor},
+      {
+        FindingKind.agentBlockStale: WaitsFor.owner,
+        FindingKind.untypedDoc: WaitsFor.agent,
+      },
+    );
+    expect(report.exitStatus, 1);
+    expect(report.json['count'], 2);
+    expect(report.text, contains('2 findings\n'));
+    expect(
+      report.text
+          .split('\n')
+          .where((l) => l.endsWith(' (waits for the Owner)')),
+      hasLength(1),
+    );
+  });
+
+  test('consistency_check/find_template_breaks/report_open_tbrs: the run '
+      'reports an open TBR of each typed doc in scope, counted and exit 1, '
+      'and none outside the target', () async {
+    const open = 'TBR \u2014 2 s';
+    final project = await writeCheckProject(
+      extra: {
+        ...fr(checkPasswordStatement, '$checkPasswordStatement $open'),
+        'docs/prds/features/f02_signup/FEATURE.md': '# Sign up\n',
+      },
+    );
+    final whole = checkOf(project);
+    final tbr = [
+      for (final f in whole.findings)
+        if (f.kind == FindingKind.tbrOpen) f,
+    ];
+
+    expect(tbr, hasLength(1));
+    expect(tbr.single.path, loginFr);
+    expect(tbr.single.waitsFor, WaitsFor.owner);
+    expect(whole.exitStatus, 1);
+    expect(
+      whole.text,
+      contains('${tbr.single.textLine} (waits for the Owner)\n'),
+    );
+    expect(spots(checkOf(project, target: 'login'), FindingKind.tbrOpen), [
+      '$loginFr:${tbr.single.line}: tbr_open',
+    ]);
+    expect(
+      spots(checkOf(project, target: 'feature:signup'), FindingKind.tbrOpen),
       isEmpty,
     );
   });

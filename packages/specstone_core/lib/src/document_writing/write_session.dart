@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -13,8 +14,10 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom, utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show projectConfigPath;
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -42,9 +45,7 @@ final class WriteSession {
   /// move journal, runs [body], and closes the index.
   ///
   /// The journal replays inside the write lock before any name resolves, so
-  /// [body] sees the tree the interrupted command meant to leave. Only a
-  /// journal recorded under [homeDirectory] by a run on this machine replays;
-  /// any other is refused with `output_not_writable`.
+  /// [body] sees the tree the interrupted command meant to leave.
   /// [homeDirectory] is where user-level doc types are read from; null reads
   /// none. A fault from the project, the templates, the replay, or [body]
   /// propagates unchanged.
@@ -132,30 +133,23 @@ final class WriteSession {
   String docPathOf(String projectPath) =>
       projectPath.substring(_docsPrefix.length);
 
-  static const _namePrompt =
-      'name the doc as <doc type>:<name> or by its path, '
-      'such as user_story:login/email_login';
+  /// Returns [projectPath] as a write is listed: a doc by its DocPath, any
+  /// other file, a code file, by its project path.
+  String listedPathOf(String projectPath) => projectPath.startsWith(_docsPrefix)
+      ? docPathOf(projectPath)
+      : projectPath;
 
   /// Returns the one typed doc [address] names.
   ///
-  /// [address] is `<doc type>:<name>` or a path to the doc, as
-  /// [DocIndex.resolve] reads it; a bare name is ambiguous across doc types
-  /// and refuses.
-  /// Throws [IndexFault] `argument_invalid` for a bare name, found or
-  /// not, or a name two docs carry, `untyped_target` for a doc with no doc
-  /// type, and `doc_not_found` when a typed name matches
-  /// none; a `TemplateFault` for an unknown doc type id passes through.
+  /// [address] is `<doc type>:<name>`, a bare name, or a path to the doc, as
+  /// [DocIndex.resolve] reads it.
+  /// Throws [IndexFault] `untyped_target` for a doc with no doc type, before
+  /// any doc-type test, `argument_invalid` for an address that names 2 or
+  /// more docs, listing each as `<doc type>:<name>` or, when that names 2
+  /// docs, its DocPath, and `doc_not_found` when it names none; a
+  /// `TemplateFault` for an unknown doc type id passes through.
   IndexedDoc target(String address) {
-    final bare = !address.contains(':');
-    final List<IndexedDoc> found;
-    try {
-      found = index.resolve(address);
-    } on IndexFault catch (fault) {
-      if (bare && fault.code == IndexFaultCode.docNotFound) {
-        throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
-      }
-      rethrow;
-    }
+    final found = index.resolve(address);
     final typed = [
       for (final doc in found)
         if (doc.docTypeId != null) doc,
@@ -167,18 +161,46 @@ final class WriteSession {
         'migrate it to one before a write',
       );
     }
-    // A path names one doc; only a name may span doc types.
-    if (bare && index.carriesName(address)) {
-      throw IndexFault(IndexFaultCode.argumentInvalid, _namePrompt);
-    }
     if (typed.length > 1) {
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
         '$address names ${typed.length} docs: '
-        '${typed.map((doc) => doc.docPath).join(', ')}',
+        '${typed.map(index.addressOf).join(', ')}',
       );
     }
     return typed.single;
+  }
+
+  /// Returns the one doc of [parentTypeId] among the docs [value] names.
+  ///
+  /// [value] is read as any target, as [target] reads it, and only the docs of
+  /// [parentTypeId] count.
+  /// Throws [IndexFault] `doc_not_found` naming [value] when none counts and
+  /// `argument_invalid` listing each as `<doc type>:<name>` or, when that names
+  /// 2 docs, its DocPath, when 2 or more count; a `TemplateFault` for a doc
+  /// type id the set lacks and `argument_invalid` for a `#` or `@` suffix pass
+  /// through from [DocIndex.resolve].
+  IndexedDoc parentTarget(String value, String parentTypeId) {
+    final List<IndexedDoc> named;
+    try {
+      named = index.resolve(value);
+    } on IndexFault catch (fault) {
+      if (fault.code != IndexFaultCode.docNotFound) rethrow;
+      throw _noParent(parentTypeId, value);
+    }
+    final parents = [
+      for (final doc in named)
+        if (doc.docTypeId == parentTypeId) doc,
+    ];
+    if (parents.isEmpty) throw _noParent(parentTypeId, value);
+    if (parents.length > 1) {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        '$value names ${parents.length} $parentTypeId docs: '
+        '${parents.map(index.addressOf).join(', ')}',
+      );
+    }
+    return parents.single;
   }
 
   /// Runs [act] inside the index write lock and returns its result.
@@ -239,19 +261,22 @@ final class WriteSession {
     );
   }
 
-  /// Writes [lfText] to [docPath] in [lineEnding], replacing the file whole.
+  /// Writes [lfText] to [docPath] in [lineEnding], laid out for its doc type,
+  /// and returns the LF text written.
   ///
-  /// A BOM that the last [readDocBytes] of [docPath] saw is kept.
+  /// An untyped doc, and one the formatter refuses, are written as given. A
+  /// BOM that the last [readDocBytes] of [docPath] saw is kept.
   /// Throws [RenderFault] `output_not_writable` when the file is read-only or
   /// the disk refuses, and [ArgumentError] for a [docPath] that is not a `.md`
   /// path under the docs root.
-  void writeDoc(String docPath, String lfText, LineEnding lineEnding) {
+  String writeDoc(String docPath, String lfText, LineEnding lineEnding) {
     _requireDocPath(docPath);
     requireWritable(docPath);
+    final laidOut = layOutDoc(lfText, docTypeAt(docPath));
     try {
       writeFileAtomic(fileOf(docPath), [
         if (_bomDocs.contains(docPath)) ...utf8Bom,
-        ...utf8.encode(lineEnding.apply(lfText)),
+        ...utf8.encode(lineEnding.apply(laidOut)),
       ]);
     } on FileSystemException catch (error) {
       final reason = error.osError?.message ?? error.message;
@@ -260,7 +285,15 @@ final class WriteSession {
         'cannot write $docPath: $reason',
       );
     }
+    return laidOut;
   }
+
+  /// Returns the doc type the matcher gives [docPath], or null when untyped.
+  MergedDocType? docTypeAt(String docPath) =>
+      switch (project.matcher.match(docPath)) {
+        MatchedDocType(:final docType) => docType,
+        _ => null,
+      };
 
   void _requireDocPath(String docPath) {
     final segments = docPath.split('/');
@@ -296,8 +329,8 @@ void _refuseMigratePending(
 }) {
   var folder = workingDirectory.absolute;
   while (true) {
-    // A journal behind a linked `.specstone` is never read; the index open
-    // refuses such a folder.
+    // A journal behind a linked `.specstone` is never read; the project open
+    // refuses such a folder when it holds the config.
     final isRealFolder =
         FileSystemEntity.typeSync(
           '${folder.path}${Platform.pathSeparator}.specstone',
@@ -358,4 +391,9 @@ ReadSession _openReplayed({
 RenderFault cannotRead(String path, FileSystemException error) => RenderFault(
   RenderFaultCode.outputNotWritable,
   'cannot read $path: ${error.osError?.message ?? error.message}',
+);
+
+IndexFault _noParent(String parentTypeId, String value) => IndexFault(
+  IndexFaultCode.docNotFound,
+  'no $parentTypeId doc carries the name $value',
 );

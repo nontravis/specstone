@@ -59,7 +59,7 @@ CodePath resolveCodePath(
   );
 }
 
-/// Returns the bundle [code] holds for [mode] (us05 FR-04).
+/// Returns the bundle [code] holds for [mode] (`index_query/get_task_bundle/bundle_docs_for_code_path`).
 ///
 /// The spec match is the doc whose `covers:` entry is the longest prefix of
 /// [code]; the traced docs are those whose `implements:` entries name [code]

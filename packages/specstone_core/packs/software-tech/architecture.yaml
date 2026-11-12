@@ -5,6 +5,8 @@ description: |-
   Aim for under 150 lines; keep one file per feature spec folder.
   Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
   Write no code samples; this doc describes structure, and the implementation belongs in code.
+  Write one rule per ID: one Components row per component, each rule one sentence.
+  A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, such as `architecture:rendering#components`.
 path: specs/f{nn}_{slug}/ARCHITECTURE.md
 parent: feature
 fields:
@@ -30,7 +32,7 @@ sections:
     required: true
     description: |-
       Write one table with the columns Component, Responsibility, Tech, Owns, and an optional Code path.
-      Give every diagram box a row, and every row a diagram box; write no prose outside the table.
+      Write one row per component: every diagram box is a row, and every row a box; write no prose outside the table.
       Name the technology in Tech, so the Agent picks a library without opening the tech stack doc.
       Fill Code path with the folder or file of the component, so the Agent finds which component owns a file.
   - id: interaction

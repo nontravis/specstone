@@ -174,7 +174,8 @@ void main() {
       'job and stay out of the main Windows step', () {
     final job = _job(ci, 'test-scripts-windows');
     expect(job['runs-on'], 'windows-latest');
-    expect(job['timeout-minutes'], 20);
+    // 30 while ci.yaml's WORKAROUND (fix item 79) holds; 20 once it goes.
+    expect(job['timeout-minutes'], 30);
     expect(_runText(job), contains('dart test --tags ps1'));
     final main = _steps(_job(ci, 'test'));
     final windowsStep = main.singleWhere(
@@ -247,4 +248,71 @@ void main() {
       expect(r.exitCode, 1);
     });
   }, testOn: '!windows');
+
+  group('the publish step script', () {
+    late Directory work;
+
+    setUp(() {
+      work = Directory.systemTemp.createTempSync('publish_step_');
+      File('${work.path}/specstone-x.tar.gz').writeAsStringSync('archive');
+      _writeStub(work, 'gh', r'printf "%s\n" "$*" >> "$STUB_LOG"');
+      _writeStub(work, 'sha256sum', 'echo "0000  specstone-x.tar.gz"');
+    });
+
+    tearDown(() => work.deleteSync(recursive: true));
+
+    Future<String> publishedWith(String ref) async {
+      final step = _steps(_job(release, 'publish'))
+          .firstWhere((s) => '${s['run']}'.contains('gh release create'));
+      final log = File('${work.path}/gh.log');
+      final r = await Process.run(
+        'bash',
+        ['-e', '-c', '${step['run']}'],
+        workingDirectory: work.path,
+        environment: {
+          'PATH': '${work.path}/stubs:${Platform.environment['PATH']}',
+          'GITHUB_REF_NAME': ref,
+          'GITHUB_REPOSITORY': 'nontravis/specstone',
+          'STUB_LOG': log.path,
+        },
+      );
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      return log.readAsStringSync();
+    }
+
+    void expectCreateLine(String log, String tag) {
+      expect(log, contains('release create $tag '));
+      expect(log, contains('--verify-tag'));
+      expect(log, contains('--generate-notes'));
+      expect(log, endsWith('specstone-x.tar.gz SHA256SUMS\n'));
+    }
+
+    for (final tag in ['v1.2.0-beta.1', 'v1.2.0-rc.1', 'v1.2.0-alpha-1']) {
+      test(
+        'install_update/version_match/release_new_version/publish_on_tag '
+        'E06: $tag publishes a GitHub pre-release with generated notes',
+        () async {
+          final log = await publishedWith(tag);
+
+          expectCreateLine(log, tag);
+          expect(log, contains('--prerelease'));
+        },
+      );
+    }
+
+    test('install_update/version_match/release_new_version/publish_on_tag '
+        'E07: a release tag publishes a normal release', () async {
+      final log = await publishedWith('v1.2.0');
+
+      expectCreateLine(log, 'v1.2.0');
+      expect(log, isNot(contains('--prerelease')));
+    });
+  }, testOn: '!windows');
+}
+
+void _writeStub(Directory work, String name, String body) {
+  final file = File('${work.path}/stubs/$name')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('#!/bin/sh\n$body\n');
+  Process.runSync('chmod', ['755', file.path]);
 }

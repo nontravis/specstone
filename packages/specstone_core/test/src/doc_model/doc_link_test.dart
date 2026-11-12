@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -76,6 +77,47 @@ void main() {
 
     test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
+    });
+
+    test('f04/us02/fr04/e21: a WHATWG-unreadable href is an '
+        'UnreadableTarget', () {
+      expect(
+        resolveDocLink('http://h:abc/x.md', from),
+        isA<UnreadableTarget>(),
+      );
+    });
+
+    test('f04/us02/fr04/e03: a link to a doc carries its anchor', () {
+      final target = resolveDocLink(
+        '../../d03_non_functional.md#performance',
+        'prds/f/us01/fr01.md',
+      ) as DocTarget;
+      expect(target.docPath, 'prds/d03_non_functional.md');
+      expect(target.anchor, 'performance');
+    });
+
+    test('f04/us02/fr04/e16: a bare fragment resolves against the linking '
+        'doc with its anchor', () {
+      final target = resolveDocLink('#rules', from) as DocTarget;
+      expect(target.docPath, from);
+      expect(target.anchor, 'rules');
+    });
+
+    test('f04/us02/fr04/e22: an empty fragment resolves with anchor ""', () {
+      final target = resolveDocLink('#', from) as DocTarget;
+      expect(target.docPath, from);
+      expect(target.anchor, '');
+    });
+
+    test('a doc link keeps its fragment as written in rawAnchor', () {
+      final target = resolveDocLink('x.md#caf%C3%A9', from) as DocTarget;
+      expect(target.anchor, 'caf\u00e9');
+      expect(target.rawAnchor, 'caf%C3%A9');
+    });
+
+    test('a doc link with no fragment has anchor null', () {
+      final target = resolveDocLink('USER_STORY.md', from) as DocTarget;
+      expect(target.anchor, isNull);
     });
 
     test('f04/us02/fr04/e10, M1: a path out of the docs root and back in '

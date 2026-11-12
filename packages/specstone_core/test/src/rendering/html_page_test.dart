@@ -30,6 +30,7 @@ String _body(Doc doc) => renderDocBody(
   doc,
   docPath: 'doc.md',
   anchors: const {'doc.md': 'doc-1'},
+  anchorsAt: (_) => null,
 ).html;
 
 void main() {
@@ -223,21 +224,23 @@ void main() {
         Doc.parse('---\nstatus: planned\n---\n# F-05 — Rendering\n\nBody.\n'),
       );
 
-      expect(html, startsWith('<h1>F-05 — Rendering</h1>'));
+      expect(
+        html,
+        startsWith('<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>'),
+      );
       expect(html, contains('<table class="frontmatter">$_statusRow</table>'));
       expect(
         html.indexOf('</h1>'),
         lessThan(html.indexOf('<table class="frontmatter">')),
       );
       expect(html, contains('<p>Body.</p>'));
-      expect(html, isNot(contains('<h1>F-05 — Rendering</h1>\n<h1>')));
-      expect(RegExp('<h1>').allMatches(html), hasLength(1));
+      expect(RegExp('<h1').allMatches(html), hasLength(1));
     });
 
     test('f05/us02/fr02: escapes a key, a value, and the title', () {
       final html = _body(Doc.parse('---\n"a<b": x & y\n---\n# T <i>\n'));
 
-      expect(html, contains('<h1>T &lt;i&gt;</h1>'));
+      expect(html, contains('<h1 id="doc-1-t-">T &lt;i&gt;</h1>'));
       expect(html, contains('<tr><th>&quot;a&lt;b&quot;</th><td>x &amp; y'));
     });
 
@@ -267,25 +270,25 @@ void main() {
         'fenced line equal to it', () {
       final html = _body(Doc.parse('```\n# T\n```\n# T\n\nBody.\n'));
 
-      expect(html, startsWith('<h1>T</h1>'));
+      expect(html, startsWith('<h1 id="doc-1-t">T</h1>'));
       expect(html, contains('<code># T\n</code>'));
-      expect(RegExp('<h1>').allMatches(html), hasLength(1));
+      expect(RegExp('<h1').allMatches(html), hasLength(1));
     });
 
     test('f05/us02/fr02: a doc without frontmatter has no table', () {
       final html = _body(Doc.parse('# T\n\nBody.\n'));
 
       expect(html, isNot(contains('<table')));
-      expect(html, startsWith('<h1>T</h1>'));
+      expect(html, startsWith('<h1 id="doc-1-t">T</h1>'));
     });
 
     test('f05/us02/fr02: a doc without a title line has no h1 and keeps its '
         'body', () {
       final html = _body(Doc.parse('Intro.\n\n## Section\ntext\n'));
 
-      expect(html, isNot(contains('<h1>')));
+      expect(html, isNot(contains('<h1')));
       expect(html, contains('<p>Intro.</p>'));
-      expect(html, contains('<h2>Section</h2>'));
+      expect(html, contains('<h2 id="doc-1-section">Section</h2>'));
     });
 
     test('f05/us02/fr02/e02: a draft shows its label after the table and '

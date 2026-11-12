@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "specstone hook post-edit"
+            "command": "/bin/sh \"${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh\""
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+            "command": "/bin/sh \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-launcher.sh\"",
             "timeout": 10
           }
         ]

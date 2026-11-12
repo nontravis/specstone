@@ -1,17 +1,38 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _storyType = 'user_story';
 
-/// Returns the `user_story` doc whose Name is [identity], or null.
-IndexedDoc? storyNamed(DocIndex index, String identity) => index.docs
-    .where((doc) => doc.docTypeId == _storyType && doc.name == identity)
-    .firstOrNull;
+/// Returns the first `user_story` doc in tree order whose Name is [identity],
+/// or null.
+IndexedDoc? storyNamed(DocIndex index, String identity) =>
+    index.ofTypeNamed(_storyType, identity).firstOrNull;
+
+/// Returns the story an `fr` under [ownStory] traces through [ref].
+///
+/// [ownStory] for an own-story ref; else the story Named by [ref] when it
+/// shares the feature of [ownStory] (a story with no feature doc has no
+/// siblings); null for a story of another feature or
+/// of no doc.
+IndexedDoc? tracedStoryOf(
+  DocIndex index,
+  IndexedDoc ownStory,
+  ScenarioRef ref,
+) {
+  final name = ref.storyName;
+  if (name == null) return ownStory;
+  final story = storyNamed(index, name);
+  if (story == null) return null;
+  final feature = ownStory.parentPath;
+  return feature != null && story.parentPath == feature ? story : null;
+}
 
 /// Returns the scenario block [target] names, heading line included.
 ///
@@ -23,10 +44,16 @@ String? scenarioBlockOf(DocIndex index, StepTarget target) {
   return storyScenarioBlocks(index, story)[target.scenarioLabel];
 }
 
-/// Returns the lines of [block] after its heading line.
+/// Returns the lines of [block] after its heading line, in the format layout.
+///
+/// Leaves out the blank line under the heading and the whitespace at the end,
+/// as the fingerprint reads the block.
 String scenarioCopyOf(String block) {
   final newline = block.indexOf('\n');
-  return newline < 0 ? '' : block.substring(newline + 1);
+  if (newline < 0) return '';
+  final laidOut = layOutText(block.substring(newline + 1), underHeading: true);
+  final withoutGap = laidOut.startsWith('\n') ? laidOut.substring(1) : laidOut;
+  return withoutGap.trimRight();
 }
 
 /// Reads the steps of the journey [doc], parsed against [docType].

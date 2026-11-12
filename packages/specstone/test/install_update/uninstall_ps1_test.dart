@@ -17,8 +17,9 @@ void main() {
   // with its whitespace runs folded to one space.
   String flat(Object? text) => '$text'.replaceAll(RegExp(r'\s+'), ' ');
 
-  // Every test may write the real user PATH, so each one holds the lock and
-  // gets the PATH it found written back.
+  // A test that can write the real user PATH holds the lock and gets the PATH
+  // it found written back; a refusal before any removal writes nothing, so it
+  // is a plain `test`.
   void pathTest(String name, Future<void> Function() body) =>
       test(name, () => withUserPathLock(body));
 
@@ -209,7 +210,7 @@ void main() {
       );
     });
 
-    pathTest(
+    test(
       'f09/us03/fr01: with neither HOME nor USERPROFILE it refuses',
       () async {
         final sb = await createScriptSandbox();
@@ -234,12 +235,13 @@ void main() {
       // The script runs at the top scope, as `irm | iex` runs it; a leaked
       // strict mode would make the undefined variable throw.
       final command =
+          '$importSessionModules'
           "Get-Content -Raw '$script' | Invoke-Expression; "
           r"'STRICT=' + ($null -eq $notDefinedAnywhere); "
           r"'EAP=' + $ErrorActionPreference";
 
-      final r = await Process.run(
-        'powershell',
+      final r = await runPowerShell(
+        'iex-session',
         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
         environment: sb.env(),
         includeParentEnvironment: false,
@@ -249,6 +251,29 @@ void main() {
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect(r.stdout, contains('STRICT=True'));
       expect((r.stdout as String).trim(), endsWith('EAP=Continue'));
+    });
+
+    // The script starts no program by name, so a planted one cannot show the
+    // search; what a run shows is that the session's PATH comes back whole.
+    pathTest("G8-R10: irm | iex leaves the session's PATH as it was", () async {
+      final sb = await createScriptSandbox();
+      final script = '${repoRoot().path}\\uninstall.ps1';
+      final path = '.;;planted;${sb.env()['PATH']}';
+      final command =
+          '$importSessionModules'
+          "Get-Content -Raw '$script' | Invoke-Expression; "
+          r"'PATH=' + $env:Path";
+
+      final r = await runPowerShell(
+        'iex-session',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+        environment: sb.env({'PATH': path}),
+        includeParentEnvironment: false,
+        workingDirectory: sb.root.path,
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((r.stdout as String).trim(), endsWith('PATH=$path'));
     });
   });
 }

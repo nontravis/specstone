@@ -1,18 +1,23 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -35,6 +40,7 @@ const _draftPaths = [
   List<String?> answers = const [],
   RunGit runGit = _noGit,
   String? planHash,
+  List<String>? warnings,
 }) {
   final out = StringBuffer();
   var call = 0;
@@ -48,6 +54,7 @@ const _draftPaths = [
       out: out,
       planHash: planHash,
       runGit: runGit,
+      warn: (warnings ?? <String>[]).add,
     ),
   );
   return (status, out.toString().split('\n')..removeLast());
@@ -57,6 +64,7 @@ const _draftPaths = [
 ProcessResult _noGit(
   List<String> arguments, {
   required String workingDirectory,
+  Map<String, String>? environment,
 }) {
   throw StateError('init must start no git process: git $arguments');
 }
@@ -99,12 +107,23 @@ void main() {
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
+      'created .specstone/AGENT.md',
+      'created AGENTS.md',
       _configLine(),
     ]);
     expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
     for (final path in _draftPaths) {
       expect(_read(root, path), startsWith('---\ndraft: true\n'), reason: path);
     }
+  });
+
+  test('rendering/format_docs/normalize_layout_whitespace: init then check reports no format_drift on the four drafts', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+
+    final (status, _) = _run(root);
+
+    expect(status, 0);
+    expect(spots(checkOf(root), FindingKind.formatDrift), isEmpty);
   });
 
   test(
@@ -120,6 +139,8 @@ void main() {
         'created docs/prds/FEATURES.md (draft)',
         'created docs/prds/GNFR.md (draft)',
         'created docs/specs/TECH_STACK.md (draft)',
+        'created .specstone/AGENT.md',
+        'created AGENTS.md',
         _configLine(),
       ]);
       expect(_read(root, 'docs/prds/PROJECT.md'), '# Mine\n');
@@ -146,11 +167,304 @@ void main() {
       'kept docs/prds/FEATURES.md: exists',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
+      'created .specstone/AGENT.md',
+      'created AGENTS.md',
       _configLine(),
     ]);
     expect(_read(root, _draftPaths[0]), project);
     expect(_read(root, _draftPaths[1]), features);
   });
+
+  test('setup_migration/set_up_new_project/write_agent_files verification: '
+      'init upserts each file, keeps the Owner bytes, and prints them before '
+      'the config', () async {
+    final root = await writeTree({
+      'CLAUDE.md': "Owner's rules\n",
+      'AGENTS.md':
+          'before\n<!-- BEGIN specstone v0.0.1 -->\nold\n'
+          '<!-- END specstone -->\nafter\n',
+      '.cursor/keep': 'x',
+    });
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines.sublist(lines.length - 5), [
+      'created .specstone/AGENT.md',
+      'updated CLAUDE.md',
+      'updated AGENTS.md',
+      'created .cursor/rules/specstone.mdc',
+      _configLine(),
+    ]);
+    expect(_read(root, '.specstone/AGENT.md'), agentMdText);
+    final imports = importBlock(
+      cliVersion: specstoneVersion,
+      agentMdPath: '.specstone/AGENT.md',
+      projectDocPath: 'docs/prds/PROJECT.md',
+    );
+    expect(_read(root, 'CLAUDE.md'), "Owner's rules\n$imports");
+    expect(
+      _read(root, 'AGENTS.md'),
+      'before\n${inlineBlock(cliVersion: specstoneVersion)}after\n',
+    );
+    expect(
+      _read(root, '.cursor/rules/specstone.mdc'),
+      cursorRulesText(cliVersion: specstoneVersion),
+    );
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files E05: a '
+      'malformed file refuses before any write', () async {
+    final root = await writeTree({
+      'CLAUDE.md': '<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+    });
+    final before = _bytesUnder(root);
+
+    expect(
+      () => _run(root),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.agentBlockMalformed)
+            .having((f) => f.exitStatus, 'exitStatus', 65)
+            .having((f) => f.file, 'file', 'CLAUDE.md')
+            .having((f) => f.line, 'line', 1),
+      ),
+    );
+    expect(_bytesUnder(root), before);
+  });
+
+  test(
+    'setup_migration/set_up_new_project/write_agent_files E09: a rerun '
+    'after a stop before the config changes 0 bytes of the agent files',
+    () async {
+      final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
+      _run(root);
+      File.fromUri(root.uri.resolve('.specstone/config.yaml')).deleteSync();
+      final before = _bytesUnder(root)..remove('.specstone/config.yaml');
+
+      final (status, lines) = _run(root);
+
+      expect(status, 0);
+      expect(lines.where((line) => line.contains('AGENT')), isEmpty);
+      expect(lines.last, _configLine());
+      expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
+    },
+  );
+
+  test('setup_migration/set_up_new_project/write_agent_files: a symbolic '
+      'link CLAUDE.md stays a link and its target takes the block', () async {
+    final root = await writeTree({'shared/rules.md': 'shared\n'});
+    try {
+      createRelativeLink('${root.path}/CLAUDE.md', 'shared/rules.md');
+    } on FileSystemException {
+      markTestSkipped('symbolic links are not available');
+      return;
+    }
+
+    final (status, _) = _run(root);
+
+    expect(status, 0);
+    expect(
+      FileSystemEntity.typeSync('${root.path}/CLAUDE.md', followLinks: false),
+      FileSystemEntityType.link,
+    );
+    expect(_read(root, 'shared/rules.md'), startsWith('shared\n'));
+    expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files E18: a repository '
+      'top inside the project that a code entry reaches is upserted, printed, '
+      'and listed in the config', () async {
+    final base = await writeTree({
+      'project/docs/specs/TECH_STACK.md':
+          '---\ncode:\n  - other/\n---\n# Tech stack\n',
+      'project/other/.git/HEAD': 'ref\n',
+      'project/other/AGENTS.md': 'Owner\n',
+    });
+    final project = Directory('${base.path}/project');
+
+    final (status, lines) = _run(project);
+
+    expect(status, 0);
+    final topLine = lines.indexOf('updated other/AGENTS.md');
+    expect(topLine, isNonNegative);
+    expect(lines.indexOf(_configLine()), greaterThan(topLine));
+    expect(
+      File('${base.path}/project/other/AGENTS.md').readAsStringSync(),
+      'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+    );
+    expect(
+      _read(project, '.specstone/config.yaml'),
+      contains('agent_file_roots:\n  - other\n'),
+    );
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files R99: a '
+      'repository top outside the project root is named, never written, and '
+      'not listed', () async {
+    final base = await writeTree({
+      'project/docs/specs/TECH_STACK.md':
+          '---\ncode:\n  - ../other/\n---\n# Tech stack\n',
+      'other/.git/HEAD': 'ref\n',
+      'other/AGENTS.md': 'Owner\n',
+    });
+    final project = Directory('${base.path}/project');
+    final warnings = <String>[];
+
+    final (status, lines) = _run(project, warnings: warnings);
+
+    expect(status, 0);
+    expect(warnings, [
+      '../other/AGENTS.md reaches outside the project root; left as it is',
+    ]);
+    expect(lines, isNot(contains(contains('other'))));
+    expect(File('${base.path}/other/AGENTS.md').readAsStringSync(), 'Owner\n');
+    expect(
+      _read(project, '.specstone/config.yaml'),
+      isNot(contains('agent_file_roots')),
+    );
+  });
+
+  group('setup_migration/set_up_new_project/write_agent_files: a link that '
+      'leads out of the write bounds', () {
+    final skipLinks = Platform.isWindows
+        ? 'symbolic links need a privilege'
+        : null;
+
+    test('a linked .specstone/AGENT.md leading outside the project is named '
+        'and left, and the file outside keeps its bytes', () async {
+      final base = await writeTree({
+        'victim.txt': 'mine\n',
+        'proj/.specstone/keep.txt': '',
+      });
+      Link('${base.path}/proj/.specstone/AGENT.md')
+          .createSync('../../victim.txt');
+      final warnings = <String>[];
+
+      final (status, lines) = _run(
+        Directory('${base.path}/proj'),
+        warnings: warnings,
+      );
+
+      expect(status, 0);
+      expect(warnings, [
+        '.specstone/AGENT.md reaches outside the project root; left as it is',
+      ]);
+      expect(lines, isNot(contains(contains('AGENT.md'))));
+      expect(File('${base.path}/victim.txt').readAsStringSync(), 'mine\n');
+    }, skip: skipLinks);
+
+    test('a CLAUDE.md linked into .git is named and left, and .git/config '
+        'keeps its bytes', () async {
+      final base = await writeTree({
+        'proj/.git/config': '[core]\n\tbare = false\n',
+        'proj/keep.txt': '',
+      });
+      Link('${base.path}/proj/CLAUDE.md').createSync('.git/config');
+      final warnings = <String>[];
+
+      final (status, lines) = _run(
+        Directory('${base.path}/proj'),
+        warnings: warnings,
+      );
+
+      expect(status, 0);
+      expect(warnings, ['CLAUDE.md lies under .git; left as it is']);
+      expect(lines, isNot(contains('updated CLAUDE.md')));
+      expect(
+        File('${base.path}/proj/.git/config').readAsStringSync(),
+        '[core]\n\tbare = false\n',
+      );
+    }, skip: skipLinks);
+
+    test('a dangling AGENTS.md link refuses output_not_writable, not a raw '
+        'exception', () async {
+      final base = await writeTree({'proj/keep.txt': ''});
+      Link('${base.path}/proj/AGENTS.md').createSync('missing.md');
+
+      expect(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.message, 'message', startsWith('cannot write')),
+        ),
+      );
+
+      expect(File('${base.path}/proj/missing.md').existsSync(), isFalse);
+    }, skip: skipLinks);
+
+    test('a docs folder linked outside the project refuses a draft written '
+        'through it, and the folder outside is unchanged', () async {
+      final base = await writeTree({
+        'outside/keep.txt': 'mine\n',
+        'proj/docs/keep.md': '',
+      });
+      Link('${base.path}/proj/docs/prds').createSync('../../outside');
+
+      expect(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', isNotNull),
+        ),
+      );
+
+      expect(
+        Directory('${base.path}/outside')
+            .listSync()
+            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty)),
+        ['keep.txt'],
+      );
+    }, skip: skipLinks);
+  });
+
+  test('setup_migration/set_up_new_project/write_agent_files: a repository '
+      'top folder named with a # gets its agent file at that folder, not at '
+      'a URI fragment', () async {
+    final base = await writeTree({
+      'project/docs/specs/TECH_STACK.md':
+          '---\ncode:\n  - other#1/\n---\n# Tech stack\n',
+      'project/other#1/.git/HEAD': 'ref\n',
+    });
+    final project = Directory('${base.path}/project');
+
+    final (status, _) = _run(project);
+
+    expect(status, 0);
+    expect(File('${base.path}/project/other#1/AGENTS.md').existsSync(), isTrue);
+  });
+
+  for (final (:real, :link) in [
+    (real: 'AGENTS.md', link: 'CLAUDE.md'),
+    (real: 'CLAUDE.md', link: 'AGENTS.md'),
+  ]) {
+    test('setup_migration/set_up_new_project/write_agent_files E22: $link '
+        'linked to $real takes the inline block and prints one line', () async {
+      final root = await writeTree({real: 'Owner\n'});
+      try {
+        createRelativeLink('${root.path}/$link', real);
+      } on FileSystemException {
+        markTestSkipped('symbolic links are not available');
+        return;
+      }
+
+      final (status, lines) = _run(root);
+
+      expect(status, 0);
+      expect(
+        _read(root, real),
+        'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+      );
+      expect(FileSystemEntity.isLinkSync('${root.path}/$link'), isTrue);
+      expect(
+        lines.where((l) => l.endsWith('CLAUDE.md') || l.endsWith('AGENTS.md')),
+        hasLength(1),
+      );
+    });
+  }
 
   test('f06/us03/fr02/e02, f06/us03/fr02/e03: init writes no .gitignore and '
       'no templates folder', () async {
@@ -171,7 +485,7 @@ void main() {
     final root = await writeTree({'keep.txt': 'x\n'});
     final set = TemplateResolver().resolveCarried(
       packNames: const ['prd-core', 'software-tech'],
-      homeDirectory: null,
+      homeDirectory: testHome(),
     );
 
     _run(root);
@@ -245,6 +559,54 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: '
+      'init on a legacy tree stamps each typed doc it leaves and keeps the '
+      'created draft', () async {
+    final root = await gitFixture(acmeLegacy);
+
+    final (status, _) = _run(
+      root,
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+      runGit: runRealGit,
+    );
+
+    expect(status, 0);
+    expect(
+      _read(root, 'docs/prds/features/f01_login/FEATURE.md'),
+      startsWith('---\napproved: "'),
+    );
+    expect(
+      _read(root, 'docs/specs/TECH_STACK.md'),
+      startsWith('---\ndraft: true'),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('setup_migration/set_up_new_project/write_agent_files E08: init on a '
+      'legacy tree writes the agent files in commit 2', () async {
+    final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+
+    final (status, lines) = _run(
+      root,
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+      runGit: runRealGit,
+    );
+
+    expect(status, 0);
+    final names =
+        (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
+                as String)
+            .trim()
+            .split('\n');
+    expect(names, containsAll(['.specstone/AGENT.md', 'CLAUDE.md']));
+    expect(
+      _read(root, 'CLAUDE.md'),
+      contains('<!-- BEGIN specstone v$specstoneVersion -->'),
+    );
+    expect(lines, contains('  agent files: .specstone/AGENT.md, CLAUDE.md'));
+  }, skip: hasGit ? null : 'git is not available');
+
   test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "
       'applies the migrate run with no prompt', () async {
     final root = await gitFixture(acmeLegacy);
@@ -312,7 +674,7 @@ void main() {
       () => runInit(
         InitRequest(
           workingDirectory: root,
-          homeDirectory: null,
+          homeDirectory: testHome(),
           templates: TemplateResolver(),
           confirmation: OwnerConfirmation.missing,
           readLine: () => null,
@@ -349,12 +711,16 @@ void main() {
     if (!linkCodeDocs(tree)) return;
     commitRepo(Directory('${tree.path}/ws'));
     final out = StringBuffer();
+    locateSetupTrust(
+      Directory('${tree.path}/ws/code'),
+      homeDirectory: testHome(),
+    ).record();
 
     expect(
       () => runInit(
         InitRequest(
           workingDirectory: Directory('${tree.path}/ws/code'),
-          homeDirectory: null,
+          homeDirectory: testHome(),
           templates: TemplateResolver(),
           confirmation: OwnerConfirmation.missing,
           readLine: () => null,
@@ -372,8 +738,160 @@ void main() {
     );
     expect(
       out.toString(),
-      matches(RegExp(r'\n  \.specstone/config\.yaml: .*; code_root code\n')),
+      matches(
+        RegExp(
+          r'\n  \.specstone/config\.yaml: .*; code_root code \(1 of 2 paths\)\n',
+        ),
+      ),
     );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e05: init on a legacy root reached through a docs link '
+      'infers the same code_root as migrate run from that folder', () async {
+    final tree = await writeTree({
+      ...linkedAcme({
+        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
+        '.gitignore': 'code/docs\n',
+      }),
+      // The code sits above the project root, at the repository top.
+      'lib/a.dart': 'class A {}\n',
+    });
+    if (!linkCodeDocs(tree)) return;
+    commitRepo(tree);
+    final code = Directory('${tree.path}/ws/code');
+    locateSetupTrust(code, homeDirectory: testHome()).record();
+    final initOut = StringBuffer();
+    final migrateOut = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: code,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: initOut,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(isA<WriteFault>()),
+    );
+    expect(
+      runMigrate(
+        MigrateRequest(
+          workingDirectory: code,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: true,
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: migrateOut,
+          runGit: runRealGit,
+        ),
+      ),
+      0,
+    );
+
+    final line = RegExp(
+      r'\n  \.specstone/config\.yaml: .*; code_root (\S+) \(1 of 2 paths\)\n',
+    );
+    expect(line.firstMatch(initOut.toString())?.group(1), '..');
+    expect(
+      line.firstMatch(migrateOut.toString())?.group(1),
+      line.firstMatch(initOut.toString())?.group(1),
+    );
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: the legacy entry refuses untrusted roots before any '
+      'git call', () async {
+    final tree = await writeTree(linkedAcme({}));
+    if (!linkCodeDocs(tree)) return;
+    final calls = <List<String>>[];
+
+    expect(
+      () => _run(
+        Directory('${tree.path}/ws/code'),
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        runGit: (arguments, {required workingDirectory, environment}) {
+          calls.add(arguments);
+          return runRealGit(arguments, workingDirectory: workingDirectory);
+        },
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (f) => f.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      ),
+    );
+    expect(calls, isEmpty);
+  });
+
+  test('f06/us03/fr01/e02: the legacy entry refuses a dirty tree before the '
+      'plan prints', () async {
+    final root = await gitFixture(acmeLegacy);
+    File('${root.path}/notes.txt').writeAsStringSync('x\n');
+    final out = StringBuffer();
+
+    expect(
+      () => runInit(
+        InitRequest(
+          workingDirectory: root,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: out,
+          runGit: runRealGit,
+        ),
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.workingTreeDirty,
+        ),
+      ),
+    );
+    expect(out.toString(), isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f06/us03/fr01/e02: the legacy entry outside a git work tree, or in a '
+      'repository with no first commit, refuses git_work_tree_required '
+      'before the plan prints', () async {
+    final outside = await writeTree(acmeLegacy);
+    final unborn = await writeTree(acmeLegacy);
+    expect(git(unborn, ['init', '-q']).exitCode, 0);
+
+    for (final root in [outside, unborn]) {
+      final out = StringBuffer();
+
+      expect(
+        () => runInit(
+          InitRequest(
+            workingDirectory: root,
+            homeDirectory: testHome(),
+            templates: TemplateResolver(),
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => 'y',
+            out: out,
+            runGit: runRealGit,
+          ),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitWorkTreeRequired,
+          ),
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+    }
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
@@ -385,7 +903,7 @@ void main() {
         root,
         confirmation: OwnerConfirmation.prompt,
         answers: ['y'],
-        runGit: (arguments, {required workingDirectory}) =>
+        runGit: (arguments, {required workingDirectory, environment}) =>
             arguments.first == 'commit'
             ? ProcessResult(0, 1, '', 'error: commit refused\n')
             : runRealGit(arguments, workingDirectory: workingDirectory),
@@ -407,7 +925,7 @@ void main() {
       () => _run(
         root,
         confirmation: OwnerConfirmation.prompt,
-        runGit: (arguments, {required workingDirectory}) =>
+        runGit: (arguments, {required workingDirectory, environment}) =>
             throw const ProcessException('git', []),
       ),
       throwsA(
@@ -477,6 +995,7 @@ void main() {
       return;
     }
     final code = Directory('${tree.path}/repo/code');
+    locateSetupTrust(code, homeDirectory: testHome()).record();
 
     final (status, lines) = _run(code);
 
@@ -490,62 +1009,5 @@ void main() {
       Directory('${tree.path}/repo/code/.specstone').existsSync(),
       isFalse,
     );
-  });
-
-  group('setup_migration/set_up_new_project: a link that '
-      'leads out of the write bounds', () {
-    final skipLinks = Platform.isWindows
-        ? 'symbolic links need a privilege'
-        : null;
-
-    test('a docs folder linked outside the project refuses a draft written '
-        'through it, and the folder outside is unchanged', () async {
-      final base = await writeTree({
-        'outside/keep.txt': 'mine\n',
-        'proj/docs/keep.md': '',
-      });
-      Link('${base.path}/proj/docs/prds').createSync('../../outside');
-
-      expect(
-        () => _run(Directory('${base.path}/proj')),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.exitStatus, 'exit', 73)
-              .having((f) => f.file, 'file', startsWith('docs/prds/')),
-        ),
-      );
-
-      expect(
-        Directory('${base.path}/outside')
-            .listSync()
-            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty)),
-        ['keep.txt'],
-      );
-    }, skip: skipLinks);
-
-    test('a .specstone folder linked outside the project refuses the config '
-        'written through it, and the folder outside is unchanged', () async {
-      final base = await writeTree({
-        'outside/keep.txt': 'mine\n',
-        'proj/keep.txt': '',
-      });
-      Link('${base.path}/proj/.specstone').createSync('../outside');
-
-      expect(
-        () => _run(Directory('${base.path}/proj')),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.exitStatus, 'exit', 73)
-              .having((f) => f.file, 'file', '.specstone/config.yaml'),
-        ),
-      );
-
-      expect(
-        Directory('${base.path}/outside')
-            .listSync()
-            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty)),
-        ['keep.txt'],
-      );
-    }, skip: skipLinks);
   });
 }

@@ -1,3 +1,4 @@
+import 'package:markdown/markdown.dart' show markdownToHtml;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:test/test.dart';
 
@@ -91,6 +92,21 @@ void main() {
         expect(doc.frontmatter![2].valueText, '"x"');
       },
     );
+
+    test('doc_model: indentedValueText keeps the indent of a list and '
+        'drops comment lines and trailing blank lines', () {
+      final doc = Doc.parse(
+        '---\n# note\nvision:\n  - PV-01\n  # inner\n  - PV-02\n\n'
+        'date: 2026-10-23 # c\nempty:\n"q k": [a, b]\n---\n',
+      );
+      final values = [for (final b in doc.frontmatter!) b.indentedValueText];
+
+      expect(values, ['  - PV-01\n  - PV-02', '2026-10-23 # c', '', '[a, b]']);
+      expect(
+        Doc.parse('---\n# note\n---\n').frontmatter!.single.indentedValueText,
+        '',
+      );
+    });
 
     test('doc_model/s03/inv6: blank lines above a key join that key and '
         'the blocks cover every line', () {
@@ -220,6 +236,68 @@ void main() {
       final doc = Doc.parse('## A\n   ```\n## in\n## in too\n');
 
       expect(_headers(doc), ['A']);
+    });
+
+    test('rendering/format_docs/match_section_headers: a ## line inside a '
+        'fence nested in a list item is not a section', () {
+      final doc = Doc.parse(
+        '# T\n\n## A\n\n- item\n\n    ```\n    ## not a section\n'
+        '  ## not one either\n    ```\n## B\n',
+      );
+
+      expect(_headers(doc), ['A', 'B']);
+      expect(doc.hasUnclosedFence, isFalse);
+    });
+
+    test('rendering/format_docs/match_section_headers: a fence nested in a '
+        'list item or a block quote ends where its container ends', () {
+      for (final text in [
+        '## A\n- item\n  ```\n  code\n## B\n',
+        '## A\n> ```\n> code\n## B\n',
+        '## A\n- > ```\n  > code\n## B\n',
+      ]) {
+        final doc = Doc.parse(text);
+
+        expect(_headers(doc), ['A', 'B'], reason: text);
+        expect(doc.hasUnclosedFence, isFalse, reason: text);
+      }
+    });
+
+    test('rendering/format_docs/match_section_headers E04: a fence nested in '
+        'a list item that runs to the end is unclosed', () {
+      expect(
+        Doc.parse('## A\n- item\n\n    ```\n    code\n').hasUnclosedFence,
+        isTrue,
+      );
+    });
+
+    test('rendering/format_docs/match_section_headers: fencedLines marks the '
+        'lines of a fence nested in a container', () {
+      expect(
+        fencedLines(['- a', '', '    ```', '    x', '    ```', '  after']),
+        [false, false, true, true, true, false],
+      );
+      expect(fencedLines(['> ```', '> x', 'after', '```']), [
+        true,
+        true,
+        false,
+        true,
+      ]);
+    });
+
+    test('doc_model/doc: blockScan reads a thematic break with tabs between '
+        'its marks as markdown does, one that ends the paragraph above it', () {
+      for (final rule in ['*\t*\t*', '- -\t-', '_\t_ _\t', '---\t']) {
+        expect(
+          markdownToHtml('> quote\n$rule\n'),
+          contains('<hr />'),
+          reason: rule,
+        );
+        expect(blockScan(['> quote', rule]).continuesParagraph, [
+          false,
+          false,
+        ], reason: rule);
+      }
     });
 
     test('f05/us01/fr04: hasUnclosedFence is true when the text ends inside '

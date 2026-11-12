@@ -7,12 +7,14 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 
 export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show BodyLine;
@@ -40,6 +42,12 @@ final class CheckContext {
 
   /// The folder code paths are written from, `code_root` of the config.
   Directory get codeRoot => _session.project.codeRoot;
+
+  /// Whether the config pins a pack at or above the approval stamps.
+  bool get stampsHaveRun => _session.project.stampsHaveRun;
+
+  /// The merged doc types of the project.
+  MergedSet get set => _session.project.set;
 
   /// The docs root folder, `<project root>/docs/`.
   Directory get docsRoot => _session.project.docsRoot;
@@ -93,6 +101,7 @@ final class CheckContext {
     FindingKind kind, {
     required int line,
     required String message,
+    WaitsFor? waitsFor,
     Map<String, Object> keys = const {},
   }) => Finding(
     kind: kind,
@@ -100,6 +109,7 @@ final class CheckContext {
     name: doc.isTyped ? doc.name : null,
     line: line,
     message: message,
+    waitsFor: waitsFor,
     keys: keys,
   );
 
@@ -110,7 +120,7 @@ final class CheckContext {
   /// Returns the template section the held section [index] of [doc] maps to,
   /// or null.
   ///
-  /// Both headers compare by `headerKey`, as F-05's `format` matches them.
+  /// Both headers compare by `headerKey`, as `rendering/format_docs` matches them.
   MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
       _heldTemplatesOf(doc)[index];
 
@@ -228,14 +238,28 @@ final class CheckContext {
 
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
-      for (final (i, line) in linesOf(doc).lines.indexed)
-        if (!linesOf(doc).isFenced(i + 1))
-          if (_nfrHeading.firstMatch(line) case final heading?)
-            heading.group(1)!,
+      for (final (:key, lines: _) in _itemHeadingBlocksOf(doc)) key,
   };
 
-  /// Returns the ID of each `###` heading with a ` — ` of every `project` doc.
+  /// Returns the ID of each `###` item heading of every `project` doc, as
+  /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
+
+  /// Returns the `###` blocks of each held section of [doc] whose template
+  /// sets `prefix_id`, keyed by the ID the grammar reads at the heading
+  /// (RULE-12); a lettered or unreadable ID keys no block.
+  Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
+    IndexedDoc doc,
+  ) sync* {
+    for (final (i, template) in _heldTemplatesOf(doc).indexed) {
+      final prefix = template?.prefixId;
+      if (prefix == null) continue;
+      yield* headingBlocksOf(
+        bodyLinesOf(doc, i),
+        (heading) => _itemKeyOf(heading, prefix),
+      );
+    }
+  }
 
   Iterable<IndexedDoc> get _projectDocs =>
       index.docs.where((doc) => doc.docTypeId == _projectType);
@@ -253,22 +277,16 @@ final class CheckContext {
     final statements = <String, ({String path, String text})>{};
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
-      for (var i = 0; i < contentOf(doc).sections.length; i++) {
-        for (final (:key, :lines) in headingBlocksOf(
-          bodyLinesOf(doc, i),
-          _nfrHeading,
-          (match) => match.group(1)!,
-        )) {
-          final statement = lines
-              .where((line) => !line.fenced)
-              .map((line) => line.text.trim())
-              .where((text) => text.startsWith(_statementPrefix))
-              .firstOrNull;
-          statements.putIfAbsent(
-            key,
-            () => (path: doc.docPath, text: statement ?? ''),
-          );
-        }
+      for (final (:key, :lines) in _itemHeadingBlocksOf(doc)) {
+        final statement = lines
+            .where((line) => !line.fenced)
+            .map((line) => line.text.trim())
+            .where((text) => text.startsWith(_statementPrefix))
+            .firstOrNull;
+        statements.putIfAbsent(
+          key,
+          () => (path: doc.docPath, text: statement ?? ''),
+        );
       }
     }
     return statements;
@@ -330,4 +348,11 @@ const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
-final _nfrHeading = RegExp(r'^### (\S+) — ');
+
+/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
+/// other heading, a lettered ID, and an unreadable ID (RULE-12).
+String? _itemKeyOf(String heading, String prefix) {
+  final text = itemHeadingTextOf(heading);
+  final id = text == null ? null : readItemId(text, prefix);
+  return id is ItemId ? id.written : null;
+}

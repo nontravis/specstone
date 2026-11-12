@@ -136,6 +136,18 @@ void main() {
       expect(ProjectConfig.read(root).codeRoot, '.');
     });
 
+    test('f06/us01/fr05/e10: hasCodeRoot is true for code_root: . and false '
+        'with no key', () async {
+      final written = await _withConfig(
+        'packs:\n  prd-core: 1.0.0\ncode_root: .\n',
+      );
+      final absent = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+      expect(ProjectConfig.read(written).hasCodeRoot, isTrue);
+      expect(ProjectConfig.read(written).codeRoot, '.');
+      expect(ProjectConfig.read(absent).hasCodeRoot, isFalse);
+    });
+
     for (final value in ['stratum_ui', '../stratum_ui/example']) {
       test('reads code_root: $value', () async {
         final root = await _withConfig(
@@ -150,6 +162,8 @@ void main() {
       ('a rooted path', 'code_root: /abs'),
       ('a drive-letter path', 'code_root: C:/abs'),
       ('a backslash', r"code_root: 'a\b'"),
+      ('a trailing dot', "code_root: 'src.'"),
+      ('a trailing space', "code_root: 'src '"),
       ('a non-string', 'code_root: [a]'),
       ('an empty string', "code_root: ''"),
     ]) {
@@ -167,6 +181,73 @@ void main() {
         );
       });
     }
+
+    group('agent_file_roots', () {
+      for (final value in ['', ' ~', ' null']) {
+        test('template_packs/pin_pack_versions/read_project_config: '
+            '`agent_file_roots:$value` reads as an empty list', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\nagent_file_roots:$value\n',
+          );
+
+          expect(ProjectConfig.read(root).agentFileRoots, isEmpty);
+        });
+      }
+
+      test('template_packs/pin_pack_versions/read_project_config: entries read '
+          'back as written, without normalizing or dedup', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\nagent_file_roots: [./a, ./a, a/]\n',
+        );
+
+        expect(ProjectConfig.read(root).agentFileRoots, ['./a', './a', 'a/']);
+      });
+
+      test('template_packs/pin_pack_versions/read_project_config E16: no agent_file_roots key reads as an empty list', () async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+        expect(ProjectConfig.read(root).agentFileRoots, isEmpty);
+      });
+
+      test('template_packs/pin_pack_versions/read_project_config E17: an entry outside the project root is accepted', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\nagent_file_roots: [../stratum_ui]\n',
+        );
+
+        expect(ProjectConfig.read(root).agentFileRoots, ['../stratum_ui']);
+      });
+
+      for (final (name, line) in [
+        ('a scalar value', 'agent_file_roots: ../stratum_ui'),
+        ('a number value', 'agent_file_roots: 3'),
+        ('a rooted entry', 'agent_file_roots: [/srv/code]'),
+        ('a drive-letter entry', 'agent_file_roots: [C:/code]'),
+        ('a backslash entry', r"agent_file_roots: ['..\stratum_ui']"),
+        ('an empty entry', "agent_file_roots: ['']"),
+        ('an entry ending in a dot', "agent_file_roots: ['vendor/lib.']"),
+        ('an entry ending in a space', "agent_file_roots: ['vendor ']"),
+        ('a non-string entry', 'agent_file_roots: [3]'),
+      ]) {
+        test(
+          'template_packs/pin_pack_versions/read_project_config E18-E21: $name is unknown_value',
+          () async {
+            final root = await _withConfig(
+              'packs:\n  prd-core: 1.0.0\n$line\n',
+            );
+
+            expect(
+              () => ProjectConfig.read(root),
+              throwsA(
+                _fault(
+                  FaultCode.unknownValue,
+                  key: 'agent_file_roots',
+                ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+              ),
+            );
+          },
+        );
+      }
+    });
 
     test(
       'f03/us05/fr01, s03/inv10: a config without packs is missing_key',

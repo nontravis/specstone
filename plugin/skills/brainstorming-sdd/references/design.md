@@ -9,10 +9,7 @@ and the PRD and spec docs carry the content once the Owner approves it.
 
 - **Brief**: the Owner's approved answers: the decisions, the rulings in the Owner's own words, the approach picked,
   and the open questions. Read it whole.
-- **Design document**: the file to write, under `docs/superpowers/specs/`, named `<YYYY-MM-DD>-<topic>-design.md`.
-  When it exists, read it whole: you amend it with `Edit` and never write a second file.
-- **A path outside `docs/superpowers/specs/`, or a PRD or spec doc named as the file:** write nothing but the agent's `report:` file; report the
-  path as an open question.
+- **Design path**: the document to write or amend; step 2 judges it.
 
 ## 2. Ground each claim
 
@@ -22,6 +19,15 @@ for a change inside one story, the feature for one across stories, the feature w
 
 - **0:** the printed bundle is the ground. Cite only what it printed.
 - **Any other exit:** report the CLI's error and stop.
+
+Before any write, judge the design path by that bundle:
+
+- **A design path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
+  docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or spec
+  doc named as the file: write nothing but the agent's `report:` file; report the path as an open question.
+- **Any other design path**: the file to write, at the host brainstorm skill's own path for a design document, else
+  `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole: you amend it with `Edit` and never
+  write a second file.
 
 Cite each story, FR, and section by its Specstone name, `<type>:<name>#<section>`, never by file path or line. A
 claim in the brief that the docs contradict is an open question; a decision that changes what a doc says is a change,
@@ -37,13 +43,29 @@ Sections, in this order:
 3. **Rulings**: each dated, in the Owner's own words with the scope words (`only`, `not`, `never`, `after`)
    verbatim, each naming the text it supersedes.
 4. **Approaches**: the one picked, and why each other lost.
-5. **Decisions**: one per thing decided, each with its own ID (`D1`, `D2`, ...), as the Owner decided it.
+5. **Decisions**: one per thing decided, each with its own ID (`D1`, `D2`, ...), as the Owner decided it, its rule's
+   owner doc (`none` for a decision with no rule, such as a pure ruling or an approach pick), and the terms you
+   searched for it. A decision whose rule has states, such as a refusal set or a set of name forms, also gets a table
+   of each state against each command or skill that reads it.
 6. **Docs to change**: a table, one row per doc: its `<type>:<name>` (a new doc: its type and parent), the sections
    it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. A
    ruling that supersedes doc text gets a row for each doc that states it. Each feature the change reaches that
    has an `architecture` doc gets a row for its `design_references` section, a link to this document; when that
    section already holds three links, ask under Open questions which one this replaces.
 7. **Open questions**: each gap that neither the brief nor any doc bears on.
+
+Before the Docs to change table closes, search each decision's dependents:
+
+- Name the owner doc of the decision's rule (`specstone:expert-sdd` rule 7). Run `specstone refs <owner>` for the
+  docs that cite it, and `specstone search` on the decision's terms and on the wording it supersedes.
+- Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change cites the
+  owner by name, or rewrites the doc when that doc owns a rule that reads the decision's rule.
+- When `refs` lists no typed citer, as in a tree that still cites by number labels, the search carries the decision,
+  as it does for the limit of `refs` that rule 7 names. Record the searched terms either way, so the audit sees what
+  was searched.
+- An amend for an Owner decision that adds or changes behavior, as
+  `agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E12 defines it, runs the same search on that decision's
+  terms and adds its rows and searched terms before the author writes it.
 
 Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or list of
 an entity's fields. Name the decision and let the doc hold the content: "three stories, split by payout state", not

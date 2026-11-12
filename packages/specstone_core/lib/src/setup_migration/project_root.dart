@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
@@ -30,6 +31,29 @@ const legacyContextPath = 'docs/prds/d01_context.md';
   }
   final (:folder, :root) = match;
   return (root: root, linkFolder: folder.path == root.path ? null : folder);
+}
+
+/// Returns the trust of the roots a write command, `init`, or `migrate` run
+/// from [workingDirectory] would write into.
+///
+/// A project with a config is the one every write command opens. Without one,
+/// a folder holding the legacy context doc or a journal is the root `migrate`
+/// finds; with none, the root is the one `init` takes: [rootThroughDocsLink]
+/// of [workingDirectory], no walk up. Never throws `project_not_found`.
+RootTrust locateSetupTrust(
+  Directory workingDirectory, {
+  required Directory? homeDirectory,
+}) {
+  if (matchProjectRoot(workingDirectory) != null) {
+    return RootTrust.locate(workingDirectory, homeDirectory: homeDirectory);
+  }
+  final found = matchRootUpward(workingDirectory, _isMarked);
+  return RootTrust.at(
+    folder:
+        found?.folder ?? Directory(workingDirectory.resolveSymbolicLinksSync()),
+    root: found?.root ?? rootThroughDocsLink(workingDirectory),
+    homeDirectory: homeDirectory,
+  );
 }
 
 /// Returns the `/`-separated path from [from] to [to], `.` for one folder.

@@ -4,20 +4,20 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
-import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/failing_rename.dart';
+import '../../helpers/git_repo.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
@@ -106,6 +106,7 @@ void main() {
         if (key.startsWith('docs/')) key.substring(5): value,
     });
     Link('${root.path}/docs').createSync(outside.path);
+    RootTrust.locate(root, homeDirectory: testHome()).record();
     del(root, ['user_story:login/reset_password']);
     expect(
       Directory('${outside.path}/prds/features/f01_login/us03_reset_password')
@@ -163,7 +164,7 @@ void main() {
             .having(
               (f) => f.message,
               'message',
-              "fr:login/email_login/validate_credentials holds approved docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in the chat",
+              "fr:login/email_login/validate_credentials holds guarded docs; only the Owner deletes them, at an interactive terminal, or with --yes after the Owner's ok in the chat",
             ),
       ),
     );
@@ -207,42 +208,6 @@ void main() {
     'prds/features/f01_login/us02_sign_out/fr02_clear_cookies.md',
   ];
 
-  test('document_writing/delete_doc_subtree/finish_interrupted_move E10: a '
-      'guarded delete with no home folder refuses before it lists the files '
-      'or asks, and removes nothing', () async {
-    final root = await writeWriteProject(extra: approvedSignOut);
-    final prompts = StringBuffer();
-
-    expect(
-      () => WriteSession.run(
-        (s) => answerDelete(
-          s,
-          ['user_story:login/sign_out'],
-          confirmation: OwnerConfirmation.prompt,
-          readLine: () => throw StateError('must not ask'),
-          prompts: prompts,
-        ),
-        templates: TemplateResolver(),
-        workingDirectory: root,
-        homeDirectory: null,
-      ),
-      throwsA(
-        isA<RenderFault>()
-            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-            .having((f) => f.file, 'file', MoveJournal.journalPath)
-            .having(
-              (f) => f.message,
-              'message',
-              'cannot write .specstone/trash/journal.json: '
-                  'no home folder to record it in',
-            ),
-      ),
-    );
-
-    expect(prompts.toString(), isEmpty);
-    expect(hasDoc(root, story2), isTrue);
-  });
-
   test('ms-r11: a dry run lists every file the unit removes and its plan '
       'line, and removes nothing', () async {
     final root = await writeWriteProject(extra: approvedSignOut);
@@ -254,11 +219,94 @@ void main() {
     final hashed = signOutUnit
         .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
         .join();
-    final hash = planHashOf(hashed, Directory('${root.path}/docs'), runRealGit);
+    final hash = baseHashOf(hashed);
     expect(answer.text, '${list}plan $hash\ndry run: nothing removed\n');
     expect(answer.json, {'files': signOutUnit, 'plan': hash});
     expect(hasDoc(root, story2), isTrue);
   });
+
+  test('f02/us04/fr06/e08: the plan hash is the same outside git, in a repo '
+      'with no commit, and in one with a commit', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final expected = baseHashOf(
+      signOutUnit
+          .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
+          .join(),
+    );
+    String planOf() =>
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+
+    expect(planOf(), expected, reason: 'outside git');
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(planOf(), expected, reason: 'no commit');
+    commitAll(root, 'first');
+    expect(planOf(), expected, reason: 'a commit');
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f02/us04/fr06/e04: a commit of an unrelated file after the dry run '
+      'leaves the plan valid; a committed edit to a listed file is '
+      'plan_mismatch and removes nothing', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    commitAll(root, 'first');
+    String planOf() =>
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+    final hash = planOf();
+
+    File('${root.path}/unrelated.txt').writeAsStringSync('x\n');
+    commitAll(root, 'unrelated');
+    final edited = signOutUnit[1];
+    docFile(root, edited).writeAsStringSync('${readDoc(root, edited)}More.\n');
+    commitAll(root, 'edit a listed file');
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    for (final path in signOutUnit) {
+      expect(hasDoc(root, path), isTrue, reason: path);
+    }
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('f02/us04/fr06/e04: a dry run, then a commit of an unrelated file, '
+      'then --yes --plan removes the unit', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    commitAll(root, 'first');
+    final hash =
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+    File('${root.path}/unrelated.txt').writeAsStringSync('x\n');
+    commitAll(root, 'unrelated');
+
+    final answer = del(
+      root,
+      ['user_story:login/sign_out'],
+      confirmation: OwnerConfirmation.given,
+      planHash: hash,
+    );
+    expect(answer.json['removed'], signOutUnit);
+    expect(hasDoc(root, story2), isFalse);
+  }, skip: hasGit ? null : 'git is not available');
 
   test('ms-r11: an uncommitted edit to a listed file after the dry run is '
       'plan_mismatch, exit 75, and nothing is removed', () async {
@@ -288,6 +336,67 @@ void main() {
     for (final path in signOutUnit) {
       expect(hasDoc(root, path), isTrue, reason: path);
     }
+  });
+
+  String signOutPlan(Directory root) =>
+      writeIn(
+            root,
+            (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+          ).json['plan']!
+          as String;
+
+  void expectSignOutRefused(
+    Directory root,
+    String hash,
+    Iterable<String> kept,
+  ) {
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    for (final path in kept) {
+      expect(hasDoc(root, path), isTrue, reason: path);
+    }
+  }
+
+  test('f02/us04/fr06/e04: a file added to the unit after the dry run is '
+      'plan_mismatch and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final hash = signOutPlan(root);
+    const added = 'prds/features/f01_login/us02_sign_out/notes.txt';
+    docFile(root, added).writeAsStringSync('late\n');
+
+    expectSignOutRefused(root, hash, [...signOutUnit, added]);
+  });
+
+  test('f02/us04/fr06/e04: a file removed from the unit after the dry run is '
+      'plan_mismatch and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final hash = signOutPlan(root);
+    docFile(root, signOutUnit.last).deleteSync();
+
+    expectSignOutRefused(root, hash, signOutUnit.take(2));
+  });
+
+  test('f02/us04/fr06/e04: a listed file that is not UTF-8 and changes after '
+      'the dry run is plan_mismatch and nothing is removed', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    const blob = 'prds/features/f01_login/us02_sign_out/blob.bin';
+    docFile(root, blob).writeAsBytesSync([0xFF, 0xFE, 0xFD]);
+    final hash = signOutPlan(root);
+    // Same length and the same count of invalid bytes as before.
+    docFile(root, blob).writeAsBytesSync([0xFE, 0xFF, 0xFC]);
+
+    expectSignOutRefused(root, hash, [...signOutUnit, blob]);
   });
 
   test('ms-r11: a dry run refuses a referred unit as the run does', () async {
@@ -529,6 +638,143 @@ void main() {
       expect(hasDoc(root, fr32), isTrue);
     },
   );
+
+  test('document_writing/delete_doc_subtree/gate_approved_delete E05: a doc carrying draft beside a hash is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr32': '---\ndraft: true\napproved: "0123456789ab"\ntraced_from: US-03\nverify_method: test\n---\n\n# Expire reset link\n',
+      },
+    );
+    expect(
+      () => del(root, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr32), isTrue);
+  });
+
+  test('document_writing/delete_doc_subtree/gate_approved_delete E04: a doc with no frontmatter at all is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/$fr32': '# Expire reset link\n'},
+    );
+    expect(
+      () => del(root, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr32), isTrue);
+  });
+
+  test('document_writing/delete_doc_subtree/gate_approved_delete E08: an untyped .md file with a hash beside draft is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {
+        ...withoutLink,
+        'docs/prds/features/f01_login/us03_reset_password/notes.md':
+            '---\ndraft: true\napproved: "0123456789ab"\n---\n\n# Notes\n',
+      },
+    );
+    expect(
+      () => del(root, ['user_story:login/reset_password']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('document_writing/delete_doc_subtree/gate_approved_delete E04: a doc whose whole frontmatter is invalid YAML is guarded', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/$fr32': '---\ndraft: true\n: [unclosed\n---\n\n# Expire\n'},
+    );
+    expect(
+      () => del(root, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr32), isTrue);
+  });
+
+  test('document_writing/edit_one_section_or_field/serialize_writes E04: the delete prompt holds no write lock', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    writeIn(root, (_) {}); // creates the index
+    var otherWriteLanded = false;
+    final answer = writeIn(
+      root,
+      (s) => answerDelete(
+        s,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () {
+          writeIn(
+            root,
+            (other) => other.locked(() => otherWriteLanded = true),
+            busyTimeout: const Duration(milliseconds: 200),
+          );
+          return 'y';
+        },
+        prompts: StringBuffer(),
+      ),
+    );
+    expect(otherWriteLanded, isTrue);
+    expect(answer.json['removed'], hasLength(3));
+  });
+
+  test(
+    'a guarded delete with no home folder refuses before its prompt',
+    () async {
+      final root = await writeWriteProject(extra: approvedSignOut);
+      getDoc(root, 'user_story:login/sign_out');
+      final before = treeBytes(root);
+      final prompts = StringBuffer();
+
+      expect(
+        () => writeInNoHome(
+          root,
+          (s) => answerDelete(
+            s,
+            ['user_story:login/sign_out'],
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => 'y',
+            prompts: prompts,
+          ),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', MoveJournal.journalPath),
+        ),
+      );
+
+      expect(prompts.toString(), isEmpty);
+      expect(treeBytes(root), before);
+    },
+  );
+
+  test('a guarded delete with a relative home folder refuses before its '
+      'prompt', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    getDoc(root, 'user_story:login/sign_out');
+    final before = treeBytes(root);
+    final prompts = StringBuffer();
+
+    expect(
+      () => WriteSession.run(
+        (s) => answerDelete(
+          s,
+          ['user_story:login/sign_out'],
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          prompts: prompts,
+        ),
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: Directory('relative_home'),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having((f) => f.file, 'file', MoveJournal.journalPath),
+      ),
+    );
+
+    expect(prompts.toString(), isEmpty);
+    expect(treeBytes(root), before);
+  });
 
   test('f02/us04/fr02/e06: the Owner deleting a never-approved unit sees no prompt', () async {
     final root = await writeWriteProject(extra: withoutLink);
@@ -844,7 +1090,7 @@ void main() {
             isA<WriteFault>().having(
               (f) => f.message,
               'message',
-              'the delete set holds approved docs; only the Owner deletes '
+              'the delete set holds guarded docs; only the Owner deletes '
                   'them, at an interactive terminal, or with --yes after the '
                   "Owner's ok in the chat",
             ),
@@ -1025,10 +1271,10 @@ void main() {
       expect(hasDoc(root, scratch), isTrue);
     });
 
-    test('f02/us04/fr01/e10: a bare typed name among several targets stays argument_invalid', () async {
+    test('f02/us04/fr01/e10: a bare name 2 docs carry among several targets is argument_invalid', () async {
       final root = await writeWriteProject(extra: untyped);
       expect(
-        () => del(root, [scratch, 'email_login']),
+        () => del(root, [scratch, 'login']),
         throwsA(
           isA<IndexFault>().having(
             (f) => f.code,
@@ -1166,6 +1412,75 @@ void main() {
         ),
       );
     });
+
+    test(
+      'document_writing/delete_doc_subtree/delete_doc_subtree E13: a doc-name '
+      'mention of the feature warns as a path mention does, the delete '
+      'going on',
+      () async {
+        final root = await mentioning({
+          project: '# Project context\n\nSee `feature:login`.\n',
+        });
+
+        final answer = delLogin(root);
+
+        expect(answer.json['removed'], contains(loginFeature));
+        expect(answer.warnings, [mentionWarning]);
+        expect(hasDoc(root, project), isTrue);
+      },
+    );
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E13: a bare '
+        'name and a typed name of one doc on two lines give one warning, and '
+        'a dry run warns the same', () async {
+      final root = await mentioning({
+        project:
+            '# Project context\n\nSee `login/reset_password`.\n\n'
+            'And `user_story:login/reset_password`.\n',
+      });
+
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['feature:login']),
+      );
+
+      expect(answer.warnings, [
+        '$project mentions $story3; the mention will dangle',
+      ]);
+      expect(hasDoc(root, story3), isTrue);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E13: a '
+        'doc-name mention from an untyped doc gives no warning', () async {
+      final root = await mentioning({
+        'prds/d02_notes.md': '# Notes\n\nSee `feature:login`.\n',
+      });
+
+      expect(delLogin(root).warnings, isEmpty);
+    });
+  });
+
+  test('document_writing/delete_doc_subtree/delete_doc_subtree E06: delete of a story an FR of another feature traces is doc_referenced listing that FR', () async {
+    const tracer =
+        'prds/features/f02_signup/us01_create_account/fr09_trace_reset.md';
+    final root = await writeWriteProject(
+      extra: {
+        ...withoutLink,
+        ...freeStory3,
+        'docs/prds/features/f02_signup/us01_create_account/USER_STORY.md': '---\ndraft: true\n---\n\n# Create account\n\n## Use Case\nCreate an account.\n',
+        'docs/$tracer': '---\ndraft: true\ntraced_from:\n  - login/reset_password#S1\n---\n\n# Trace reset\n\n## Statement\nThe system shall trace.\n',
+      },
+    );
+    expect(
+      () => del(root, ['user_story:login/reset_password']),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docReferenced)
+            .having((f) => f.file, 'file', story3)
+            .having((f) => f.relatedFiles, 'relatedFiles', [tracer]),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
   });
 
   group('journeys as referrers', () {

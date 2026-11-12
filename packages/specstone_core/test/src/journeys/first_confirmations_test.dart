@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/journeys/first_confirmations.dart';
@@ -120,7 +121,12 @@ void main() {
       expect(waiting, hasLength(5));
       expect(waiting.map((f) => f.kind), everyElement(FindingKind.unconfirmed));
 
-      _file(root).writeAsStringSync(text.replaceFirst('draft: true\n', ''));
+      _file(root).writeAsStringSync(
+        withApprovalHash(
+          text.replaceFirst('draft: true\n', ''),
+          fixtureDocTypeOf(_journeyDoc),
+        ),
+      );
       expect(_check(root), isEmpty);
     },
   );
@@ -219,40 +225,67 @@ void main() {
     expect(text, contains(_entry(2)));
   });
 
-  test('f10/us01/fr05: draft is inserted above persona, confirmed below it, and '
-      'stdin is otherwise kept', () async {
-    final root = await _project();
-    final stdin =
-        '---\npersona:\n  - owner\n---\n\n${_body([_step(1, 1), _step(2, 2)])}';
+  test(
+    "f10/us01/fr05/e04: an entry names its link by the scenario number's "
+    'value, so a held S01 entry gets no S1 beside it, for step S1 or S01',
+    () async {
+      final root = await _project();
+      const held = '  - $_story#S01 aaaaaaaaaaaa\n';
 
-    final text = _new(root, text: stdin);
-
-    expect(
-      text,
-      startsWith(
-        '---\ndraft: true\npersona:\n  - owner\nconfirmed:\n'
-        '${_entry(1)}${_entry(2)}---\n',
-      ),
-    );
-    final restored = text
-        .replaceFirst('draft: true\n', '')
-        .replaceFirst('confirmed:\n${_entry(1)}${_entry(2)}', '')
-        .replaceAll(
-          RegExp(
-            '${RegExp.escape('<!-- specstone:generated ')}[a-z_]+'
-            '${RegExp.escape(' (do not edit) -->')}\n[\\s\\S]*?'
-            '${RegExp.escape(generatedEndMarker)}\n',
-          ),
-          '',
+      for (final step in [_step(1, 1), '### 1. Step 1\nstep: $_story S01\n']) {
+        final text = _new(
+          root,
+          text: '---\nconfirmed:\n$held---\n\n${_body([step])}',
         );
-    expect(restored, stdin);
-    final report = _format(root);
-    expect(
-      report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
-      FileStatus.unchanged,
-    );
-    expect(_file(root).readAsStringSync(), text);
-  });
+
+        expect(text, contains(held));
+        expect(_count(text, '$_story#S1 '), 0, reason: step);
+        _file(root).deleteSync();
+      }
+    },
+  );
+
+  test(
+    'f10/us01/fr05: draft is inserted above persona, confirmed below it, and '
+    'stdin is otherwise kept',
+    () async {
+      final root = await _project();
+      // As `new` writes it, less the generated blocks the regex strips.
+      const stdin =
+          '---\npersona:\n  - owner\n---\n\n# Sign in\n\n## Goal\n\n'
+          'Reach the home page.\n\n## Flow\n\n\n## Steps\n\n'
+          '### 1. Step 1\n\nstep: $_story S1\n\n'
+          '### 2. Step 2\n\nstep: $_story S2\n';
+
+      final text = _new(root, text: stdin);
+
+      expect(
+        text,
+        startsWith(
+          '---\ndraft: true\npersona:\n  - owner\nconfirmed:\n'
+          '${_entry(1)}${_entry(2)}---\n',
+        ),
+      );
+      final restored = text
+          .replaceFirst('draft: true\n', '')
+          .replaceFirst('confirmed:\n${_entry(1)}${_entry(2)}', '')
+          .replaceAll(
+            RegExp(
+              '${RegExp.escape('<!-- specstone:generated ')}[a-z_]+'
+              '${RegExp.escape(' (do not edit) -->')}\n[\\s\\S]*?'
+              '${RegExp.escape(generatedEndMarker)}\n',
+            ),
+            '',
+          );
+      expect(restored, stdin);
+      final report = _format(root);
+      expect(
+        report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
+        FileStatus.unchanged,
+      );
+      expect(_file(root).readAsStringSync(), text);
+    },
+  );
 
   test('f10/us01/fr05: an existing confirmed list gains its new entries at its '
       'end', () async {

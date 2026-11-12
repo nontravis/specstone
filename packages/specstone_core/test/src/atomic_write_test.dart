@@ -24,6 +24,14 @@ void main() {
       .toList();
 
   group('writeFileAtomic', () {
+    test('a rewrite keeps the permission bits of an existing file', () {
+      final file = File('${folder.path}/run.sh')..writeAsStringSync('old\n');
+      Process.runSync('chmod', ['755', file.path]);
+      writeFileAtomic(file, utf8.encode('new\n'));
+      expect(file.readAsStringSync(), 'new\n');
+      expect(file.statSync().mode & 0xFFF, 493);
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
+
     test('NFR-DI01: replaces the file and leaves no temp sibling', () {
       final file = File('${folder.path}/FEATURE.md')
         ..writeAsStringSync('old\n');
@@ -138,6 +146,28 @@ void main() {
         expect(temp.parent.path, file.parent.path);
       },
     );
+
+    test('the temp of a private file holds its mode before the rename, so no '
+        'other user reads the new text', () {
+      final file = File('${folder.path}/secrets.yaml')
+        ..writeAsStringSync('old\n');
+      Process.runSync('chmod', ['600', file.path]);
+
+      final temp = writeTempSibling(file, utf8.encode('new\n'));
+
+      expect(temp.statSync().mode & 0xFFF, 384);
+      expect(temp.readAsStringSync(), 'new\n');
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
+
+    test('the temp of a read-only file takes its bytes and its mode', () {
+      final file = File('${folder.path}/locked.md')..writeAsStringSync('old\n');
+      Process.runSync('chmod', ['444', file.path]);
+
+      final temp = writeTempSibling(file, utf8.encode('new\n'));
+
+      expect(temp.statSync().mode & 0xFFF, 292);
+      expect(temp.readAsStringSync(), 'new\n');
+    }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
 
     test('two calls for one target write two temps', () {
       final file = File('${folder.path}/FEATURE.md');

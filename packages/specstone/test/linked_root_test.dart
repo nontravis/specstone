@@ -77,7 +77,7 @@ void main() {
     expect(
       check.stdout,
       contains(
-        '$loginFr:7: implements_path_unresolved: lib/a.dart is no file\n',
+        '$loginFr:10: implements_path_unresolved: lib/a.dart is no file\n',
       ),
     );
   });

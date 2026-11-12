@@ -8,5 +8,8 @@ workspace:
   - packages/specstone_core
   - packages/specstone
 
+dependencies:
+  specstone_core:
+
 dev_dependencies:
   very_good_analysis: ^11.0.0

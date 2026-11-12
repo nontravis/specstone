@@ -29,7 +29,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or demonstration',
+      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or demonstration',
     );
     expect(report.findings.single.toJson()['value'], 'maybe');
   });
@@ -44,8 +44,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.fieldValueMismatch), [
-      '$loginFr:3: field_value_mismatch',
-      'prds/personas/buyer/PERSONA.md:5: field_value_mismatch',
+      '$loginFr:4: field_value_mismatch',
+      'prds/personas/buyer/PERSONA.md:6: field_value_mismatch',
     ]);
   });
 
@@ -54,22 +54,16 @@ void main() {
     () async {
       final report = checkOf(
         await writeCheckProject(
-          extra: fr(
-            'verify_method: test\n',
-            'verify_method: test\npriority: high\n',
-          ),
+          extra: fr('checkPassword\n---', 'checkPassword\npriority: high\n---'),
         ),
       );
-      expect(spots(report), ['$loginFr:6: field_undeclared']);
+      expect(spots(report), ['$loginFr:11: field_undeclared']);
     },
   );
 
   test('f04/us01/fr03/e05, cc-s03/inv2, review focus 4: approved follows the merged set, with no F-04 change', () async {
     final project = await writeCheckProject(
-      extra: fr(
-        'verify_method: test\n',
-        'verify_method: test\napproved: true\n',
-      ),
+      extra: fr('checkPassword\n---', 'checkPassword\napproved: true\n---'),
     );
     final session = openSession(project);
     addTearDown(session.close);
@@ -79,20 +73,44 @@ void main() {
         .any((f) => f.id == 'approved');
     expect(
       spots(runCheck(session), FindingKind.fieldUndeclared),
-      builtIn ? isEmpty : ['$loginFr:6: field_undeclared'],
+      builtIn ? isEmpty : ['$loginFr:11: field_undeclared'],
     );
   });
+
+  for (final (label, written) in [
+    ('E05, a quoted 12-hex hash', 'approved: "3f2a9c01b4de"'),
+    ('E10, the 1.1.0 mark true', 'approved: true'),
+    ('E10, a boolean false', 'approved: false'),
+    ('E10, a list', 'approved: [a]'),
+    ('E10, a number', 'approved: 7'),
+  ]) {
+    test(
+      'consistency_check/find_template_breaks/check_frontmatter_fields $label: approved raises no field finding',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: fr('checkPassword\n---', 'checkPassword\n$written\n---'),
+          ),
+        );
+        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+        expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
+      },
+    );
+  }
 
   test('f04/us01/fr03/e06: a status written in a FEATURE is feature_status_written, whatever its stories hold', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
           'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
-              .replaceFirst('---\n\n', 'status: implemented\n---\n\n'),
+              .replaceFirst(
+                '---\nvision:',
+                '---\nstatus: implemented\nvision:',
+              ),
         },
       ),
     );
-    expect(spots(report), ['$loginFeature:6: feature_status_written']);
+    expect(spots(report), ['$loginFeature:2: feature_status_written']);
     expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
@@ -131,10 +149,10 @@ void main() {
   test('f04/us01/fr03/e04: an undeclared key with an empty value is still field_undeclared', () async {
     final report = checkOf(
       await writeCheckProject(
-        extra: fr('verify_method: test\n', 'verify_method: test\npriority:\n'),
+        extra: fr('checkPassword\n---', 'checkPassword\npriority:\n---'),
       ),
     );
-    expect(spots(report), ['$loginFr:6: field_undeclared']);
+    expect(spots(report), ['$loginFr:11: field_undeclared']);
   });
 
   group('f04/us01/fr03/e09: a required field group', () {

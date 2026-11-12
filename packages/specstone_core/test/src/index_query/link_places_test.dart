@@ -1,5 +1,9 @@
 import 'dart:math';
 
+import 'package:specstone_core/src/doc_model/markdown_body.dart'
+    show parseMarkdownTree;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -7,9 +11,356 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('linkScanOf', () {
+    const body =
+        '[RULE-7a](https://github.com/x/y/blob/main/RULE-7a.md) and '
+        '<https://example.com/RULE-7a>\n'
+        '[file](./RULE-7a.md) `RULE-7a` <a href="https://x/RULE-7a">RULE-7a</a> '
+        '<!-- RULE-7a --> https://example.com/RULE-7a\n'
+        '\n'
+        '[RULE-7a]: https://example.com/RULE-7a\n'
+        '\n'
+        '    RULE-7a indented\n'
+        '\n'
+        'x `a\n'
+        'RULE-7a` y [t][RULE-7a]\n';
+
+    test('apply_steps_and_pins E18: prose keeps link text, html element '
+        'text, and labels, and blanks destinations, autolinks, bare URLs, '
+        'html tags and comments, indented code, and code spans', () {
+      final scan = linkScanOf(body, firstLine: 1);
+
+      expect(scan.prose.length, body.length);
+      expect('\n'.allMatches(scan.prose).length, '\n'.allMatches(body).length);
+      final kept = [
+        for (final m in 'RULE-7a'.allMatches(scan.prose))
+          body.substring(0, m.start).split('\n').length,
+      ];
+      expect(kept, [1, 2, 4, 9]);
+      expect(scan.sources, linkSourcesOf(body, firstLine: 1));
+    });
+
+    test('apply_steps_and_pins E18: destinations are each inline link and '
+        'definition destination as written', () {
+      final scan = linkScanOf(body, firstLine: 1);
+
+      expect(
+        [
+          for (final (:start, :end, link: _, kind: _) in scan.destinations)
+            body.substring(start, end),
+        ]..sort(),
+        [
+          './RULE-7a.md',
+          'https://example.com/RULE-7a',
+          'https://github.com/x/y/blob/main/RULE-7a.md',
+        ],
+      );
+    });
+
+    test('apply_steps_and_pins E18: an angle destination is ranged without '
+        'its brackets', () {
+      const angled = '[a](<b c.md#x> "t")\n';
+      final scan = linkScanOf(angled, firstLine: 1);
+
+      expect(
+        [
+          for (final (:start, :end, link: _, kind: _) in scan.destinations)
+            angled.substring(start, end),
+        ],
+        ['b c.md#x'],
+      );
+      expect(scan.prose.trimRight(), '[a]');
+    });
+
+    test('R73: each inline destination names the index of its link, and a '
+        'definition destination or one in an image description names none', () {
+      const linked = '[a](a.md) ![i [b](b.md)](c.png) [d][r]\n\n[r]: d.md\n';
+      final scan = linkScanOf(linked, firstLine: 1);
+
+      expect(
+        {
+          for (final (:start, :end, :link, kind: _) in scan.destinations)
+            linked.substring(start, end): link,
+        },
+        {'a.md': 0, 'b.md': null, 'c.png': 1, 'd.md': null},
+      );
+    });
+
+    test('R74: each destination names how markdown reads it: inline, inline '
+        'in angle brackets, or a definition, bare or in angle brackets', () {
+      const linked =
+          '[a](a.md) [b](<b.md>) ![i [c](c.md)](d.png)\n\n'
+          '[r]: r.md\n[s]: <s.md>\n';
+      final scan = linkScanOf(linked, firstLine: 1);
+
+      expect(
+        {
+          for (final (:start, :end, link: _, :kind) in scan.destinations)
+            linked.substring(start, end): kind,
+        },
+        {
+          'a.md': DestinationKind.inline,
+          'b.md': DestinationKind.angleInline,
+          'c.md': DestinationKind.inline,
+          'd.png': DestinationKind.inline,
+          'r.md': DestinationKind.definition,
+          's.md': DestinationKind.definition,
+        },
+      );
+    });
+  });
+
+  group('sourceHrefsOf', () {
+    List<String?>? hrefsOf(String body) =>
+        sourceHrefsOf(body, linkSourcesOf(body, firstLine: 1));
+
+    test('R73: gives each source the href markdown decodes for its link, a '
+        'definition destination read in its own grammar', () {
+      expect(
+        hrefsOf(
+          '[a](A\\_B.md) [b](API&#46;md) [c][m] [d](a( "t")b.md)\n\n'
+          '[m]: API.md)\n',
+        ),
+        ['A_B.md', 'API.md', 'API.md)', 'a(b.md'],
+      );
+    });
+
+    test('R73: gives none for a body with no links, and null when markdown '
+        'fails on it', () {
+      expect(hrefsOf('No links.\n'), isEmpty);
+      expect(hrefsOf('[x](a.md)\n\n[a]:<b\\'), isNull);
+    });
+
+    test('R74: pairs the links of a footnote definition where it is written, '
+        'those of one no reference names taking none', () {
+      expect(
+        hrefsOf(
+          'See [a](../topics/doc_model.md).\n\n'
+          '[^1]: Also [b](other.md).\n',
+        ),
+        ['../topics/doc_model.md', null],
+      );
+      expect(
+        hrefsOf(
+          '[^1]: Also [b](other.md).\n\n'
+          'See [a](../topics/doc_model.md) and a note[^1].\n',
+        ),
+        ['other.md', '../topics/doc_model.md'],
+      );
+      expect(
+        hrefsOf(
+          'See [a](../topics/doc_model.md), x[^2] y[^1].\n\n'
+          '[^1]: [p](p.md)\n[^2]: [q](q.md)\n',
+        ),
+        ['../topics/doc_model.md', 'p.md', 'q.md'],
+      );
+      expect(hrefsOf('[^1]: n [b](other.md)\nx[^1] [c](d.md)\n'), [
+        'other.md',
+        'd.md',
+      ]);
+    });
+
+    test('R74: reads a footnote definition as the block markdown makes it: '
+        'it ends a paragraph, ends at a block line, and takes an indented one '
+        'after a blank', () {
+      expect(hrefsOf('[^1]: n\n[ss]: z.md\n\nx [q][ẞ] [a](a.md)\n'), [
+        'z.md',
+        'a.md',
+      ]);
+      expect(hrefsOf('x [a](a.md "t\n[^1]: u") [c](c.md)\n\ny[^1]\n'), [
+        'c.md',
+      ]);
+      expect(hrefsOf('[^1]: n\n\n    [c](c.md)\n\n[d](d.md) y[^1]\n'), [
+        'c.md',
+        'd.md',
+      ]);
+    });
+
+    test('R74: reads a footnote reference in link text as markdown does: a '
+        "[^1] turns the link off, an image's ![^1] keeps it", () {
+      expect(hrefsOf('x [s [^1]](b.md) [a](a.md)\n\n[^1]: n\n'), ['a.md']);
+      expect(hrefsOf('x [s ![^1]](b.md)\n\n[^1]: n\n'), ['b.md']);
+      expect(hrefsOf('x [s [q][^1]](b.md)\n\n[^1]: n\n'), <String>[]);
+      expect(hrefsOf('x [s [^2]](b.md)\n\n[^1]: n\n'), ['b.md']);
+    });
+
+    test('R73: reads a reference link where markdown folds its label to a '
+        'definition label, and only there', () {
+      String body(String reference, String definition) =>
+          'See [a](t.md) and [q][$reference].\n\n[$definition]: u.md\n';
+
+      expect(hrefsOf(body('Œuvre', 'œuvre')), ['t.md']);
+      expect(hrefsOf(body('ẞ', 'ss')), ['t.md', 'u.md']);
+      expect(hrefsOf(body('Ĳ', 'ĳ')), ['t.md']);
+      expect(hrefsOf(body('𐐨', '𐐀')), ['t.md']);
+      expect(hrefsOf(body('ÄRGER', 'ärger')), ['t.md', 'u.md']);
+    });
+  });
+
+  group('hrefDestinationsOf', () {
+    HrefDestinations readOf(String body) => hrefDestinationsOf(
+      body,
+      linkScanOf(body, firstLine: 1),
+      canMove: (_) => true,
+    );
+
+    test('perf-fix-10: keeps only a destination whose href, read from its '
+        'text alone, can move, escaped or written with references, and parses '
+        'the body only when one can', () {
+      const body =
+          '[a](t.md#a\\_b) [b](t.md#a&#95;b) `[c](t.md#a_b)` [d](u.md#a_b)\n'
+          '[e](<t.md#&#97;\\_b>)\n\n[f]: t.md#&#x61;_b\n';
+      HrefDestinations movingOf(String body) => hrefDestinationsOf(
+        body,
+        linkScanOf(body, firstLine: 1),
+        canMove: (href) => href == 't.md#a_b',
+      );
+
+      expect(
+        [
+          for (final (:start, :end, :href, kind: _) in movingOf(
+            body,
+          ).destinations)
+            (body.substring(start, end), href),
+        ],
+        [
+          (r't.md#a\_b', 't.md#a_b'),
+          ('t.md#a&#95;b', 't.md#a_b'),
+          (r't.md#&#97;\_b', 't.md#a_b'),
+          ('t.md#&#x61;_b', 't.md#a_b'),
+        ],
+      );
+      const unparsable = '[a](u.md)\n\n[x]:<b\\';
+      // Unparsed, so markdown's failure on the body is never met.
+      expect(movingOf(unparsable).linksRead, isTrue);
+      expect(readOf(unparsable).linksRead, isFalse);
+    });
+    List<(String, String)> placedOf(String body) => [
+      for (final (:start, :end, :href, kind: _) in readOf(body).destinations)
+        (body.substring(start, end), href),
+    ];
+
+    test('R73: an inline destination takes its link href and a definition '
+        'its own, used or not', () {
+      expect(
+        placedOf('[a](f01\\_a/A.md#x)\n\n[r]: f01&#95;a/B.md\n[u]: a(b.md\n'),
+        [
+          (r'f01\_a/A.md#x', 'f01_a/A.md#x'),
+          ('f01&#95;a/B.md', 'f01_a/B.md'),
+          ('a(b.md', 'a(b.md'),
+        ],
+      );
+    });
+
+    test('R73: a destination of no link and no definition, or a body '
+        'markdown fails on, places none', () {
+      expect(placedOf('![i [b](b.md)](c.png)\n'), [('c.png', 'c.png')]);
+      expect(placedOf('No links.\n'), isEmpty);
+      expect(placedOf('[x](a.md)\n\n[a]:<b\\'), isEmpty);
+    });
+
+    test('R74: an inline destination of no link borrows no definition href '
+        'written alike', () {
+      const body = '![i [b](b.md)](c.png)\n\n[d]: b.md\n';
+
+      expect(
+        [
+          for (final (:start, end: _, href: _, kind: _) in readOf(
+            body,
+          ).destinations)
+            start,
+        ],
+        [body.indexOf('c.png'), body.lastIndexOf('b.md')],
+      );
+    });
+
+    test('R74: the links read unless markdown fails on the body', () {
+      expect(readOf('[x](a.md)\n').linksRead, isTrue);
+      expect(readOf('No links.\n').linksRead, isTrue);
+      expect(readOf('[x](a.md)\n\n[a]:<b\\').linksRead, isFalse);
+    });
+  });
+
   group('linkPlacesOf', () {
     List<LinkPlace> placesOf(String body) =>
         linkPlacesOf(body, docPath: 'x.md', firstLine: 1)!.docLinks;
+
+    test('R74: says whether the scan and markdown list the same links', () {
+      const body = '[^1]: [b](b.md)\n\n[a](a.md) [q][ẞ]\n\n[ss]: c.md\n';
+      bool agreeOn(String body, {String? parsed}) => linkPlacesOf(
+        body,
+        docPath: 'x.md',
+        firstLine: 1,
+        tree: parsed == null ? null : parseMarkdownTree(parsed),
+      )!.readersAgree;
+
+      expect(agreeOn(body), isTrue);
+      expect(agreeOn('No links.\n'), isTrue);
+      // A tree of other text stands in for a markdown reading the scan misses.
+      expect(agreeOn(body, parsed: '[a](a.md)\n'), isFalse);
+    });
+
+    test('f04/us02/fr04/e15-e16, e21-e22, PS-R3: each link class carries its '
+        'line, shown text, and decoded anchor', () {
+      final places = linkPlacesOf(
+        '[a](b.md#x)\n[s](#rules)\n[t](x.md)\n'
+        '[u](http://h:abc/x.md)\n[f](img.png)\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+
+      expect(places.docLinks, [
+        (target: 'b.md', line: 1, shown: 'b.md#x', anchor: 'x'),
+      ]);
+      expect(places.selfLinks, [
+        (target: 'x.md', line: 2, shown: '#rules', anchor: 'rules'),
+        (target: 'x.md', line: 3, shown: 'x.md', anchor: null),
+      ]);
+      expect(places.unreadableLinks, [
+        (
+          target: 'http://h:abc/x.md',
+          line: 4,
+          shown: 'http://h:abc/x.md',
+          anchor: null,
+        ),
+      ]);
+      expect(places.fileLinks, [
+        (target: 'img.png', line: 5, shown: 'img.png', anchor: null),
+      ]);
+    });
+
+    test('resolve_doc_links E18: an empty path with no anchor, [x]() or '
+        '[x](?q), is a self link with no anchor', () {
+      final places = linkPlacesOf(
+        '[a]() and [b](?q)\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+
+      expect(places.selfLinks, [
+        (target: 'x.md', line: 1, shown: '', anchor: null),
+        (target: 'x.md', line: 1, shown: '?q', anchor: null),
+      ]);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E16: the '
+        'links markdown makes for a footnote are no link the author wrote', () {
+      final footnoteOnly = linkPlacesOf(
+        'A claim.[^1]\n\n[^1]: The source.\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+      expect(footnoteOnly.selfLinks, isEmpty);
+
+      final written = linkPlacesOf(
+        'A claim.[^1] See [x](#fn-1).\n\n[^1]: The source.\n',
+        docPath: 'x.md',
+        firstLine: 3,
+      )!;
+      expect(written.selfLinks, [
+        (target: 'x.md', line: 3, shown: '#fn-1', anchor: 'fn-1'),
+      ]);
+    });
 
     test(
       'f04/us02/fr04/e10-e14, PS-R3: every relative link that is no doc link '
@@ -29,9 +380,15 @@ void main() {
             target: 'prds/f/flow chart.png',
             line: 3,
             shown: 'flow%20chart.png#top',
+            anchor: null,
           ),
-          (target: 'prds/f/a.png', line: 3, shown: 'a.png?raw=1'),
-          (target: '../x/g.dart', line: 5, shown: '../../../x/g.dart'),
+          (target: 'prds/f/a.png', line: 3, shown: 'a.png?raw=1', anchor: null),
+          (
+            target: '../x/g.dart',
+            line: 5,
+            shown: '../../../x/g.dart',
+            anchor: null,
+          ),
         ]);
       },
     );
@@ -124,7 +481,7 @@ void main() {
 
       final places = placesOf(bodyOf(10000));
 
-      expect(places, [(target: 'b.md', line: 1, shown: 'b.md')]);
+      expect(places, [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)]);
       expectLinearTime(bodyOf, 10000, placesOf);
     });
 
@@ -134,7 +491,7 @@ void main() {
 
       final places = placesOf(bodyOf(10000));
 
-      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)]);
       expectLinearTime(bodyOf, 10000, placesOf);
     });
 
@@ -144,7 +501,7 @@ void main() {
 
       final places = placesOf(bodyOf(10000));
 
-      expect(places, [(target: 'b.md', line: 5, shown: 'b.md')]);
+      expect(places, [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)]);
       expectLinearTime(bodyOf, 10000, placesOf);
     });
 
@@ -154,7 +511,7 @@ void main() {
 
       final places = placesOf(bodyOf(40000));
 
-      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)]);
       expectLinearTime(bodyOf, 40000, placesOf);
     });
 
@@ -162,28 +519,32 @@ void main() {
         'capitals is placed at its use', () {
       final places = placesOf('[foo bar]: b.md\n\n[Foo   Bar]\n');
 
-      expect(places, [(target: 'b.md', line: 3, shown: 'b.md')]);
+      expect(places, [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)]);
     });
 
     test('f04/us02/fr04, FN4: an angle-bracket destination with a space is '
         'placed at its use', () {
       final places = placesOf('x\n\n[a](<b c.md>)\n');
 
-      expect(places, [(target: 'b c.md', line: 3, shown: 'b c.md')]);
+      expect(places, [
+        (target: 'b c.md', line: 3, shown: 'b c.md', anchor: null),
+      ]);
     });
 
     test('f04/us02/fr04, FN4: a U+0085 inside an inline destination is not '
         'blank, so the use keeps it', () {
       final places = placesOf('[l](b\u0085c.md)\n');
 
-      expect(places, [(target: 'b\u0085c.md', line: 1, shown: 'b\u0085c.md')]);
+      expect(places, [
+        (target: 'b\u0085c.md', line: 1, shown: 'b\u0085c.md', anchor: null),
+      ]);
     });
 
     test('f04/us02/fr04, FN4: a shortcut use with a whitespace-only label '
         'does not fall back to the link text', () {
       final places = placesOf('[k]: .md\n[k][ ]\n[k]\n');
 
-      expect(places, [(target: '.md', line: 3, shown: '.md')]);
+      expect(places, [(target: '.md', line: 3, shown: '.md', anchor: null)]);
     });
 
     test('f04/us02/fr04/e08, LP1: a link whose escape is not UTF-8 is placed '
@@ -195,7 +556,12 @@ void main() {
       );
 
       expect(places!.docLinks, [
-        (target: 'prds/f/us/\u{FFFD}.md', line: 3, shown: '%DB.md'),
+        (
+          target: 'prds/f/us/\u{FFFD}.md',
+          line: 3,
+          shown: '%DB.md',
+          anchor: null,
+        ),
       ]);
     });
 
@@ -237,13 +603,13 @@ void main() {
     placed(
       'f04/us02/fr04, LA1: an escaped bracket before a link is no use',
       '\\[a](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: a link after an escaped bang is placed at its line',
       'x\n\\![a](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
@@ -251,8 +617,8 @@ void main() {
           'as text',
       '[a [x](y.md)](b.md)\n[c](b.md)\n',
       [
-        (target: 'y.md', line: 1, shown: 'y.md'),
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'y.md', line: 1, shown: 'y.md', anchor: null),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -261,61 +627,61 @@ void main() {
           'later opener',
       '[a [b](c.md) [d] e](f.md)\n[g](f.md)\n',
       [
-        (target: 'c.md', line: 1, shown: 'c.md'),
-        (target: 'f.md', line: 2, shown: 'f.md'),
+        (target: 'c.md', line: 1, shown: 'c.md', anchor: null),
+        (target: 'f.md', line: 2, shown: 'f.md', anchor: null),
       ],
     );
 
     placed(
       'f04/us02/fr04, LA1: brackets inside a destination are no use',
       '[a](x[q](b.md))\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: a link in an image description is no use',
       '![x [a](b.md)](i.png)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: a link in an image turns off the link around the '
           'image',
       '[![a [b](c.md)](i.png)](d.md)\n[e](d.md)\n',
-      [(target: 'd.md', line: 2, shown: 'd.md')],
+      [(target: 'd.md', line: 2, shown: 'd.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: parens that hold no valid title make no use',
       '[a](b.md x)\n[d](b.md c.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md')],
+      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: brackets never pair across a blank line',
       '[a\n\nb](b.md)\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md')],
+      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: a failed inline link falls back to its shortcut '
           'reference',
       'x\n[r](no link\n\n[r]: b.md\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA2: a tab stays in a bare destination, as markdown '
           'reads it',
       'x\n[a](b\tc.md)\n',
-      [(target: 'b\tc.md', line: 2, shown: 'b\tc.md')],
+      [(target: 'b\tc.md', line: 2, shown: 'b\tc.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA2: a title after an open paren keeps the destination '
           'open, as markdown reads it',
       'x\n[a](b(c "t").md)\n',
-      [(target: 'b(c.md', line: 2, shown: 'b(c.md')],
+      [(target: 'b(c.md', line: 2, shown: 'b(c.md', anchor: null)],
     );
 
     placed(
@@ -323,8 +689,8 @@ void main() {
           'link',
       '*[a*](b.md)\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -333,8 +699,8 @@ void main() {
           'at their uses',
       '[r][]\n[r]\n\n[r]: b.md\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -342,28 +708,28 @@ void main() {
       'f04/us02/fr04, LA1: a body that starts after frontmatter keeps each '
           'link on its line',
       '\\[a](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 6, shown: 'b.md')],
+      [(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
       firstLine: 5,
     );
 
     placed(
       'f04/us02/fr04, LA1: a code span of two backticks holds no use',
       '``[a](b.md)``\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: a code span over two lines holds no use',
       '`x\n[a](b.md)`\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md')],
+      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: an escaped backtick opens no code span',
       '\\`[a](b.md)`\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -376,8 +742,8 @@ void main() {
           'span, as markdown reads it',
       '`[a](b.md)${lineSeparator}x`\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -385,7 +751,7 @@ void main() {
       'f04/us02/fr04, LA2: a line separator may end a code span, as markdown '
           'reads it',
       '`[a](b.md)$lineSeparator`\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     test('f04/us02/fr04, LA2: a bare URL gives back the closing parens it '
@@ -401,56 +767,56 @@ void main() {
     placed(
       'f04/us02/fr04, LA1: an autolink holds no use',
       '<http://x.y/[a](b.md)>\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA2: a bare URL runs through the brackets after it, as '
           'markdown reads it',
       'see http://x.y/[a](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       "f04/us02/fr04, LA2: a bare URL in link text runs through the link's "
           'close, as markdown reads it',
       '[see http://x.y/](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA1: a raw HTML attribute holds no use',
       'x <span title="[a](b.md)">y</span>\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     test('f04/us02/fr04, LA1: an HTML comment holds no use, on one line or '
         'over lines', () {
       expect(placesOf('x <!-- [a](b.md) -->\n[c](b.md)\n'), [
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('x <!--\n[a](b.md)\n-->\n[c](b.md)\n'), [
-        (target: 'b.md', line: 4, shown: 'b.md'),
+        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
     });
 
     placed(
       'f04/us02/fr04, LA4: a destination with an entity is placed at its use',
       'x\n[a](b&#46;md)\n',
-      [(target: 'b.md', line: 2, shown: 'b&#46;md')],
+      [(target: 'b.md', line: 2, shown: 'b&#46;md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA4: a destination with an escape is placed at its use',
       'x\n[a](b\\_c.md)\n',
-      [(target: 'b_c.md', line: 2, shown: r'b\_c.md')],
+      [(target: 'b_c.md', line: 2, shown: r'b\_c.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA4: pin: an email in link text leaves the link at its '
           'line',
       'x\n[a@b.md](c.md)\n',
-      [(target: 'c.md', line: 2, shown: 'c.md')],
+      [(target: 'c.md', line: 2, shown: 'c.md', anchor: null)],
     );
 
     placed(
@@ -458,8 +824,8 @@ void main() {
           'fallback',
       'x[^1]\n\n[^1]: see [a](b.md)\n\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 3, shown: 'b.md'),
-        (target: 'b.md', line: 5, shown: 'b.md'),
+        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 5, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -468,8 +834,8 @@ void main() {
           'destinations',
       '[a](./b.md)\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: './b.md'),
-        (target: 'b.md', line: 2, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: './b.md', anchor: null),
+        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -488,26 +854,26 @@ void main() {
     placed(
       'f04/us02/fr04, LA3: pin: an HTML comment block holds no use',
       '<!--\n[a](b.md)\n-->\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md')],
+      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     group('f04/us02/fr04, LA3: an HTML block runs to its end condition', () {
       placed(
         'a block of <details> runs to its closing tag',
         '<details>\n[a](b.md)\n</details>\n\n[c](b.md)\n',
-        [(target: 'b.md', line: 5, shown: 'b.md')],
+        [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
       );
 
       placed(
         'a block of an unknown tag runs to the next blank line',
         '<x-y>\n[a](b.md)\n\n[c](b.md)\n',
-        [(target: 'b.md', line: 4, shown: 'b.md')],
+        [(target: 'b.md', line: 4, shown: 'b.md', anchor: null)],
       );
 
       placed(
         'a block of <pre> runs past a blank line to its closing tag',
         '<pre>\n\n[a](b.md)\n</pre>\n\n[c](b.md)\n',
-        [(target: 'b.md', line: 6, shown: 'b.md')],
+        [(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
       );
     });
 
@@ -524,71 +890,71 @@ void main() {
     placed(
       'f04/us02/fr04, LA3: pin: a tag line cannot interrupt a paragraph',
       'x\n<x-y>\n[a](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md')],
+      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: an indented code block holds no use',
       '    [a](b.md)\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md')],
+      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: pin: an indented line after a paragraph line is '
           'paragraph text',
       'x\n    [a](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md')],
+      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: a definition-shaped line inside a paragraph '
           'defines nothing',
       'x\n[r]: b.md\n\n[d][r]\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md')],
+      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     group('f04/us02/fr04, LA3: a heading and a thematic break end the '
         'brackets before them', () {
       placed('a heading ends them', '# [a\nb](b.md)\n[c](b.md)\n', [
-        (target: 'b.md', line: 3, shown: 'b.md'),
+        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
 
       placed('a thematic break ends them', '[a\n***\nb](b.md)\n[c](b.md)\n', [
-        (target: 'b.md', line: 4, shown: 'b.md'),
+        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
     });
 
     placed(
       'f04/us02/fr04, LA3: pin: a fence ends the brackets before it',
       '[a\n```\nb](b.md)\n```\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md')],
+      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: a table cell ends at an unescaped pipe',
       '| [a | b](b.md) |\n|---|---|\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 4, shown: 'b.md')],
+      [(target: 'b.md', line: 4, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: pin: an escaped pipe stays in its cell',
       '| [a \\| b](b.md) |\n|---|\n',
-      [(target: 'b.md', line: 1, shown: 'b.md')],
+      [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: pin: a GFM list item takes a lone dash as markdown '
           'does, so the paragraph above it reads no link',
       'x\n\n[a](b.md)\n-\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 6, shown: 'b.md')],
+      [(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: pin: a setext underline keeps the link above it',
       '[a](b.md)\n===\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 3, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -596,7 +962,7 @@ void main() {
       'f04/us02/fr04, LA3: pin: of two definitions of one label the first '
           'wins',
       '[t][r]\n\n[r]: b.md\n[r]: c.md\n',
-      [(target: 'b.md', line: 1, shown: 'b.md')],
+      [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
     );
 
     placed(
@@ -604,8 +970,8 @@ void main() {
           'their lines',
       '# [a](b.md)\n\n| h |\n|---|\n| [c](b.md) |\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 5, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 5, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -613,7 +979,7 @@ void main() {
       "f04/us02/fr04, LA3: pin: a definition's title on the next line is "
           'read with it',
       '[r]: b.md\n"t"\n[d][r]\n',
-      [(target: 'b.md', line: 3, shown: 'b.md')],
+      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     void within(
@@ -763,8 +1129,8 @@ void main() {
     test('f04/us02/fr04, LA3: a definition in a blockquote or a list item is '
         'read', () {
       const expected = [
-        (target: 'b.md', line: 3, shown: 'b.md'),
-        (target: 'b.md', line: 4, shown: 'b.md'),
+        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ];
 
       expect(placesOf('> [r]: b.md\n\n[c](b.md)\n[d][r]\n'), expected);
@@ -774,15 +1140,15 @@ void main() {
     placed(
       'f04/us02/fr04, LA3: pin: a lazy line defines nothing',
       '- x\n[r]: b.md\n\n[t][r]\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md')],
+      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     test('f04/us02/fr04, LA3: list items end the brackets before them', () {
       expect(placesOf('- [a\n- b](b.md)\n- [c](b.md)\n'), [
-        (target: 'b.md', line: 3, shown: 'b.md'),
+        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('x [a\n1. b](b.md)\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 4, shown: 'b.md'),
+        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
     });
 
@@ -790,38 +1156,38 @@ void main() {
       'f04/us02/fr04, LA3: pin: an ordered item numbered 2 does not interrupt '
           'a paragraph',
       'x [a\n2. b](b.md)\n',
-      [(target: 'b.md', line: 1, shown: 'b.md')],
+      [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: a checkbox is no shortcut reference',
       '- [x] task\n\n[x]: b.md\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md')],
+      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'f04/us02/fr04, LA3: indented code in a blockquote holds no use',
       '>     [a](b.md)\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md')],
+      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     test('f04/us02/fr04, LA3: pin: blockquote and list lines keep their '
         'links', () {
       expect(placesOf('> ```\n> [a](b.md)\n> ```\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 5, shown: 'b.md'),
+        (target: 'b.md', line: 5, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('> [a](b.md\n> "t")\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 1, shown: 'b.md'),
-        (target: 'b.md', line: 4, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('> [a\nb](b.md)\n'), [
-        (target: 'b.md', line: 1, shown: 'b.md'),
+        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('- x\n\n    [a](b.md)\n'), [
-        (target: 'b.md', line: 3, shown: 'b.md'),
+        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('- a\n  [b](c.md)\n'), [
-        (target: 'c.md', line: 2, shown: 'c.md'),
+        (target: 'c.md', line: 2, shown: 'c.md', anchor: null),
       ]);
     });
 
@@ -830,8 +1196,8 @@ void main() {
           'keep their lines',
       '- a\n  - [b](c.md)\n    [d](c.md)\n',
       [
-        (target: 'c.md', line: 2, shown: 'c.md'),
-        (target: 'c.md', line: 3, shown: 'c.md'),
+        (target: 'c.md', line: 2, shown: 'c.md', anchor: null),
+        (target: 'c.md', line: 3, shown: 'c.md', anchor: null),
       ],
     );
   });
@@ -852,7 +1218,7 @@ void main() {
         'matches no definition', () {
       for (final blank in ['\u00A0', '\v', '\f']) {
         expect(placesOf('[a${blank}b]\n[c](b.md)\n\n[a b]: b.md\n'), [
-          (target: 'b.md', line: 2, shown: 'b.md'),
+          (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
         ], reason: blank);
       }
     });
@@ -861,13 +1227,13 @@ void main() {
       'f04/us02/fr04, LA1: a lone CR ends a line as it does for markdown',
       () {
         expect(placesOf('```\r[a](b.md)\r```\n[c](b.md)\n'), [
-          (target: 'b.md', line: 2, shown: 'b.md'),
+          (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
         ]);
         expect(placesOf('    x\r    [a](b.md)\n\n[c](b.md)\n'), [
-          (target: 'b.md', line: 3, shown: 'b.md'),
+          (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
         ]);
         expect(placesOf('x\r[a](b.md)\n'), [
-          (target: 'b.md', line: 1, shown: 'b.md'),
+          (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
         ]);
       },
     );
@@ -876,7 +1242,9 @@ void main() {
         'extra line', () {
       final body = toLf('x\r\r\n[a\r\r\nb](c.md)\r\r\n');
 
-      expect(placesOf(body), [(target: 'c.md', line: 2, shown: 'c.md')]);
+      expect(placesOf(body), [
+        (target: 'c.md', line: 2, shown: 'c.md', anchor: null),
+      ]);
     });
   });
 

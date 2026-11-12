@@ -188,11 +188,21 @@ void main() {
         'S<N> gives no target', () {
       expect(readStepTarget('login'), isNull);
       expect(readStepTarget('login/email_login'), isNull);
-      expect(readStepTarget('Login/email S1'), isNull);
-      expect(readStepTarget('login/ S1'), isNull);
       expect(readStepTarget('login S'), isNull);
+      expect(readStepTarget('login/email  S1'), isNull);
       expect(readStepTarget('login S99999999999999999999'), isNull);
       expect(readStepTarget('login/email S2')!.label, 'login/email#S2');
+    });
+
+    test('f10/us01/fr02/e10: a lettered scenario number gives no target', () {
+      expect(readStepTarget('setup_migration/set_up_new_project S1a'), isNull);
+    });
+
+    test('f10/us01/fr02: a step number keeps its letters', () {
+      final steps = _read(['### 3x. Branch', 'step: a/b S1']).steps;
+
+      expect(steps.single.number, '3x');
+      expect(steps.single.target!.label, 'a/b#S1');
     });
 
     test(

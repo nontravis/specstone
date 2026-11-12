@@ -7,17 +7,21 @@ import 'dart:isolate';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show spots;
+import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
@@ -34,7 +38,123 @@ String sectionBase(Directory root, String target) =>
 String fieldBase(Directory root, String target, String id) =>
     ((getDoc(root, target)['bases']! as Map)['fields']! as Map)[id]! as String;
 
+/// Runs [splicePart] for [request] against the doc as it stands on disk, with
+/// the arguments `answerSet` gives it under the lock.
+({String lfText, bool marksDraft}) spliceIn(
+  Directory root,
+  SetRequest request,
+  String text,
+) => writeIn(root, (s) {
+  final doc = s.target(request.address);
+  final docType = s.index.typeOf(doc)!;
+  final read = parseIndexedDoc(
+    docPath: doc.docPath,
+    bytes: s.readDocBytes(doc.docPath)!,
+    match: MatchedDocType(docType),
+  );
+  return splicePart(
+    doc: doc,
+    docType: docType,
+    lfText: toLf(read.content.text),
+    sections: read.content.sections,
+    target: request.target,
+    base: request.base,
+    text: text,
+  );
+});
+
+/// Runs [checkFieldWrite] for [fieldId] of [address] with [value] and [held].
+void checkFieldIn(
+  Directory root,
+  String address,
+  String fieldId,
+  String? value, {
+  bool held = false,
+}) => writeIn(root, (s) {
+  final doc = s.target(address);
+  checkFieldWrite(
+    doc: doc,
+    docType: s.index.typeOf(doc)!,
+    fieldId: fieldId,
+    value: value,
+    held: held,
+  );
+});
+
+/// Runs [checkPartText] for [request] and [text] on the doc it names.
+void checkPartIn(Directory root, SetRequest request, String text) =>
+    writeIn(root, (s) {
+      final doc = s.target(request.address);
+      checkPartText(
+        doc: doc,
+        docType: s.index.typeOf(doc)!,
+        target: request.target,
+        text: text,
+      );
+    });
+
+Matcher throwsIndexFault(IndexFaultCode code) =>
+    throwsA(isA<IndexFault>().having((f) => f.code, 'code', code));
+
+Matcher throwsWriteFault(WriteFaultCode code) =>
+    throwsA(isA<WriteFault>().having((f) => f.code, 'code', code));
+
 void main() {
+  test('f01/us04/fr01/e14: set reads the address through the reference grammar and keeps gnfr# as no section key', () {
+    final request = fieldReq('gnfr#', 'status', 'abc');
+    expect(request.address, 'gnfr');
+    expect(request.target, isA<FieldTarget>());
+    final typed = req('feature:login#problem', 'abc');
+    expect(typed.address, 'feature:login');
+    expect(typed.target, isA<SectionTarget>());
+  });
+
+  test('index_query/read_doc_section/resolve_doc_name E13 (W8): a path holding # is the whole address, so set takes --field for it and splits no section key off it', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/notes#draft.md': '# Draft\n'},
+    );
+    writeIn(root, (s) {
+      final whole = SetRequest.parse(
+        'prds/notes#draft.md',
+        field: 'status',
+        base: 'abc',
+        index: s.index,
+      );
+      expect(whole.address, 'prds/notes#draft.md');
+      expect(whole.target, isA<FieldTarget>());
+      expect(
+        () => SetRequest.parse(
+          'prds/notes#draft.md',
+          base: 'abc',
+          index: s.index,
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentMissing,
+          ),
+        ),
+      );
+      expect(
+        () => answerSet(s, whole, 'x\n'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.untypedTarget,
+          ),
+        ),
+      );
+      final split = SetRequest.parse(
+        'prds/notes#draft',
+        base: 'abc',
+        index: s.index,
+      );
+      expect(split.address, 'prds/notes');
+    });
+  });
+
   test(
     'f02/us01/fr01/e12, f02/us01/fr04/e06: set names one target and a base',
     () {
@@ -168,10 +288,12 @@ void main() {
         'a registered email and its password\n',
       ),
     );
-    final written = baseHashOf(body);
+    final written = baseHashOf(
+      '\n### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email and its password\n',
+    );
     expect(
       answer.text,
-      '==> login/email_login (user_story) · $story1 · base $written <==\n',
+      '==> login/email_login (user_story) · $story1#acceptance_criteria · base $written <==\n',
     );
     expect(answer.json, {
       'name': 'login/email_login',
@@ -183,6 +305,31 @@ void main() {
     expect(sectionBase(root, target), written);
   });
 
+  test('document_writing/edit_one_section_or_field/write_one_section E19: a changed ### heading is written as given, and a link to its old anchor is reported, not rewritten', () async {
+    const link =
+        '[sign in](features/f01_login/us01_email_login/USER_STORY.md#scenario-1--happy-sign-in)';
+    final root = await writeWriteProject(
+      extra: {'docs/prds/d01_context.md': '# Context\n\nSee $link.\n'},
+    );
+    expect(spots(checkOf(root), FindingKind.linkAnchorMissing), isEmpty);
+    const target = 'user_story:login/email_login#acceptance_criteria';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '\n### Scenario 1 — [happy] Sign in again\n- **Given** a registered email\n',
+      ),
+    );
+    expect(
+      readDoc(root, story1),
+      contains('### Scenario 1 — [happy] Sign in again'),
+    );
+    expect(readDoc(root, 'prds/d01_context.md'), contains(link));
+    expect(spots(checkOf(root), FindingKind.linkAnchorMissing), [
+      'prds/d01_context.md:3: link_anchor_missing',
+    ]);
+  });
   group(
     'f02/us01/fr01/e01, doc-model/inv5: a get-then-set round trip of a section',
     () {
@@ -267,8 +414,8 @@ void main() {
     expect(
       readDoc(root, story1),
       allOf(
-        contains('## Use Case\nSign in with a passkey.\n'),
-        contains('## Acceptance Criteria\n- **Given** a passkey\n'),
+        contains('## Use Case\n\nSign in with a passkey.\n'),
+        contains('## Acceptance Criteria\n\n- **Given** a passkey\n'),
       ),
     );
   });
@@ -279,7 +426,7 @@ void main() {
     final base = sectionBase(root, target);
     writeIn(root, (s) => answerSet(s, req(target, base), 'First writer.\n'));
     final before = readDoc(root, story1);
-    final current = baseHashOf('First writer.\n');
+    final current = sectionBase(root, target);
     expect(
       () => writeIn(
         root,
@@ -298,13 +445,13 @@ void main() {
             .having(
               (f) => f.current?.text,
               'current.text',
-              '## Use Case\nFirst writer.\n',
+              '## Use Case\n\nFirst writer.\n',
             )
             .having((f) => f.current?.base, 'current.base', current)
             .having(
               (f) => f.current?.heading,
               'heading',
-              '==> login/email_login (user_story) · $story1 · base $current <==',
+              '==> login/email_login (user_story) · $story1#use_case · base $current <==',
             ),
       ),
     );
@@ -324,12 +471,12 @@ void main() {
     expect(
       readDoc(root, story1),
       contains(
-        'Sign in with an email.\n\n## Rules\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
+        'Sign in with an email.\n\n## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
       ),
     );
   });
 
-  group('f02/us01/fr01, doc-model/inv5: a section body keeps the leading blank lines stdin gives it,', () {
+  group('f02/us01/fr01, doc-model/inv5: a section body is written laid out, whatever blank lines stdin gives it,', () {
     const target = 'user_story:login/email_login#use_case';
 
     for (final (count, lead) in [(0, ''), (1, '\n'), (2, '\n \n')]) {
@@ -354,13 +501,13 @@ void main() {
             ),
           );
 
-          final written = '${lead}Sign in with an email and a password.\n';
+          const laidOut = '\nSign in with an email and a password.\n';
           expect(
             readDoc(root, story1),
-            contains('## Use Case\n$written\n## Acceptance Criteria\n'),
+            contains('## Use Case\n$laidOut\n## Acceptance Criteria\n'),
           );
-          expect(answer.json['base'], baseHashOf(written));
-          expect(sectionBase(root, target), baseHashOf(written));
+          expect(answer.json['base'], baseHashOf(laidOut));
+          expect(sectionBase(root, target), baseHashOf(laidOut));
           expect(
             runFormat<void>(
               project,
@@ -373,7 +520,7 @@ void main() {
       );
     }
 
-    test('its first text line keeping its indent', () async {
+    test('its first text line keeping its indent, the blank lines above it laid out', () async {
       final root = await writeWriteProject();
 
       writeIn(
@@ -388,7 +535,7 @@ void main() {
       expect(
         readDoc(root, story1),
         contains(
-          '## Use Case\n\n \n\t\n    sign_in(email)\n\n## Acceptance Criteria\n',
+          '## Use Case\n\n    sign_in(email)\n\n## Acceptance Criteria\n',
         ),
       );
     });
@@ -504,9 +651,13 @@ void main() {
     );
     expect(
       readDoc(root, story2),
-      startsWith('---\nstatus: planned\ndraft: true\napproved: true\n---\n'),
+      matches(
+        RegExp(
+          r'^---\nstatus: planned\ndraft: true\napproved: "[0-9a-f]{12}"\n---\n',
+        ),
+      ),
     );
-    expect(readDoc(root, story2), contains('## Use Case\nSign out now.\n'));
+    expect(readDoc(root, story2), contains('## Use Case\n\nSign out now.\n'));
 
     const systems = 'features:features#systems';
     writeIn(
@@ -519,7 +670,11 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/FEATURES.md'),
-      startsWith('---\ndraft: true\n---\n\n# Feature index\n'),
+      matches(
+        RegExp(
+          r'^---\ndraft: true\napproved: "[0-9a-f]{12}"\n---\n\n# Feature index\n',
+        ),
+      ),
     );
   });
 
@@ -631,7 +786,7 @@ void main() {
     );
     final base = sectionBase(root, target);
     writeIn(root, (s) => answerSet(s, req(target, base), 'Sign in again.\n'));
-    expect(readDoc(root, story1), contains('## Use Case\nSign in again.\n'));
+    expect(readDoc(root, story1), contains('## Use Case\n\nSign in again.\n'));
   });
 
   test('f02/us01/fr01/e17, I1: a body that leaves a fence open is refused and the file stays', () async {
@@ -681,6 +836,160 @@ void main() {
     },
   );
 
+  test('f02/us01/fr01/e15, D12: a body opening with the held section header drops it after blank lines', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '\n\n## Use Case\n\nSign in again.\n',
+      ),
+    );
+    final text = readDoc(root, story1);
+    expect(text, contains('## Use Case\n\nSign in again.\n'));
+    expect('## Use Case'.allMatches(text), hasLength(1));
+  });
+
+  test('f02/us01/fr01/e15, D12: a body opening with the template header drops it for a section the doc lacks', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#open_questions';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, emptyBaseHash),
+        '## Open questions\n\nNone yet.\n',
+      ),
+    );
+    final text = readDoc(root, story1);
+    expect(text, endsWith('## Open questions\n\nNone yet.\n'));
+    expect('## Open questions'.allMatches(text), hasLength(1));
+  });
+
+  test('f02/us01/fr01/e15, D12: another section header is refused naming the line and the file stays', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '## Use Case\n\nx\n\n## Sub\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'the body holds the header line "## Sub"; send the body only',
+            ),
+      ),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '## Acceptance Criteria\n\nx\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.message,
+          'message',
+          contains('"## Acceptance Criteria"'),
+        ),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('f02/us01/fr01/e15, D12: the header line inside a fence is written back unchanged', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    const fenced = '```md\n## Use Case\n```\n';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), fenced),
+    );
+    expect(
+      readDoc(root, story1),
+      contains('## Use Case\n\n```md\n## Use Case\n```\n'),
+    );
+  });
+
+  for (final (label, key, header) in [
+    ('required', 'use_case', '## Use Case'),
+    ('optional', 'open_questions', '## Open questions'),
+  ]) {
+    test(
+      'f02/us01/fr01/e15, P21: header-only stdin on an empty $label section keeps it, empty and byte-equal',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            'docs/$story1':
+                '---\nstatus: planned\ndraft: true\npersona:\n  - buyer\n---\n\n'
+                '# Sign in with email\n\n## Use Case\n\n## Acceptance Criteria\n\n'
+                '### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email\n\n'
+                '## Open questions\n',
+          },
+        );
+        final target = 'user_story:login/email_login#$key';
+        final before = readDoc(root, story1);
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            '\n$header\n',
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+  }
+
+  test('f02/us01/fr01/e15, D12: a header with trailing spaces is not the own header and refuses', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '## Use Case  \n\nx\n',
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having((f) => f.message, 'message', contains('"## Use Case  "')),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('f02/us01/fr01/e15, D12: get then set of a whole section leaves the file byte-equal', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#use_case';
+    final before = readDoc(root, story1);
+    final text = '${getDoc(root, target)['text']! as String}\n';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, sectionBase(root, target)), text),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
   test(
     'f02/us01/fr01/e15: a body line starting ## is argument_invalid',
     () async {
@@ -717,7 +1026,7 @@ void main() {
       readDoc(
         root,
         story1,
-      ).replaceFirst('## Use Case\nSign in with an email.\n\n', ''),
+      ).replaceFirst('## Use Case\n\nSign in with an email.\n\n', ''),
     );
     final before = readDoc(root, story1);
     expect(
@@ -773,8 +1082,11 @@ void main() {
       ),
     );
     expect(readDoc(root, story1).replaceAll('\r\n', ''), isNot(contains('\n')));
-    expect(readDoc(root, story1), contains('## Use Case\r\nSign in fast.\r\n'));
-    expect(answer.json['base'], baseHashOf('Sign in fast.\n'));
+    expect(
+      readDoc(root, story1),
+      contains('## Use Case\r\n\r\nSign in fast.\r\n'),
+    );
+    expect(answer.json['base'], baseHashOf('\nSign in fast.\n'));
   });
 
   test('review focus 3, dw-s03/inv1: a body with no final newline or with trailing blank lines ends in one newline', () async {
@@ -787,7 +1099,7 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        contains('## Use Case\nSign in fast.\n\n## Acceptance Criteria'),
+        contains('## Use Case\n\nSign in fast.\n\n## Acceptance Criteria'),
       );
       expect(answer.json['base'], sectionBase(root, target));
     }
@@ -814,7 +1126,7 @@ void main() {
   test('f02/us01/s3, f02/us01/fr03, f02/us01/fr03/e01, dw-s03/inv14: a field block is rewritten and every other block kept', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login';
-    writeIn(
+    final answer = writeIn(
       root,
       (s) => answerSet(
         s,
@@ -827,6 +1139,10 @@ void main() {
       startsWith(
         '---\nstatus: planned\ndraft: true\nvision:\n  - PV-02\npersona:\n  - buyer\n---\n',
       ),
+    );
+    expect(
+      answer.text,
+      '==> login/email_login (user_story) · $story1 · field vision · base ${baseHashOf('vision:\n  - PV-02\n')} <==\n',
     );
   });
   test('f02/us01/s4, f02/us01/fr03/e02, dw-s03/inv4: an implements edit leaves an approved FR approved', () async {
@@ -896,7 +1212,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'approved is written only by specstone approve',
+                'approved is written only by specstone approve and the hash stamps',
               ),
         ),
       );
@@ -916,11 +1232,15 @@ void main() {
     );
     expect(
       readDoc(root, loginFeature),
-      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\nUsers sign in with an email and a password.\n',
+      matches(
+        RegExp(
+          r'^---\ndraft: true\napproved: "[0-9a-f]{12}"\nvision:\n  - PV-01\n---\n\n# Sign in\n\n## Problem\n\nUsers sign in with an email and a password\.\n$',
+        ),
+      ),
     );
     expect(
       answer.text,
-      '==> login (feature) · $loginFeature · base ${baseHashOf('Sign in')} <==\n',
+      '==> login (feature) · $loginFeature · title · base ${baseHashOf('Sign in')} <==\n',
     );
   });
 
@@ -941,6 +1261,29 @@ void main() {
       contains('covers:\n  - app/lib/src/login/\n'),
     );
     expect(answer.json['draft'], isFalse);
+  });
+  test('document_writing/approve_drafts/mark_doc_approved E09: an implements write and a covers write leave an approved doc approved', () async {
+    final root = await writeWriteProject();
+    const fr = 'fr:login/email_login/validate_credentials';
+    const arch = 'architecture:login';
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(fr, 'implements', fieldBase(root, fr, 'implements')),
+        '- app/lib/src/login/password_check.dart:checkPassword\n',
+      ),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+        '- app/lib/src/login/\n',
+      ),
+    );
+    final stale = spots(checkOf(root), FindingKind.approvalStale);
+    expect(stale, isEmpty);
   });
   test('f02/us01/fr03/e05: status on a feature is field_not_writable; on a story it is written', () async {
     final root = await writeWriteProject();
@@ -1124,7 +1467,7 @@ void main() {
     expect(
       readDoc(root, story1),
       startsWith(
-        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\npersona:\n  - buyer\ngoals:\n  - PG-01\n---\n',
+        '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\ngoals:\n  - PG-01\npersona:\n  - buyer\n---\n',
       ),
     );
   });
@@ -1375,6 +1718,11 @@ void main() {
               (f) => f.current?.base,
               'current.base',
               baseHashOf('vision:\n  - PV-09\n'),
+            )
+            .having(
+              (f) => f.current?.heading,
+              'heading',
+              '==> login/email_login (user_story) · $story1 · field vision · base ${baseHashOf('vision:\n  - PV-09\n')} <==',
             ),
       ),
     );
@@ -1400,7 +1748,7 @@ void main() {
       );
       expect(
         readDoc(root, signupFeature),
-        '---\ndraft: true\n---\n# Create an account\n\n## Problem\nUsers create an account.\n',
+        '---\ndraft: true\n---\n# Create an account\n\n## Problem\n\nUsers create an account.\n',
       );
       expect(answer.json['base'], baseHashOf('Create an account'));
     },
@@ -1506,6 +1854,11 @@ void main() {
               (f) => f.current?.base,
               'current.base',
               baseHashOf('Sign in fast'),
+            )
+            .having(
+              (f) => f.current?.heading,
+              'heading',
+              '==> login (feature) · $loginFeature · title · base ${baseHashOf('Sign in fast')} <==',
             ),
       ),
     );
@@ -1542,7 +1895,7 @@ void main() {
       root,
       (s) => answerSet(s, req(target, emptyBaseHash), 'None yet.\n'),
     );
-    expect(readDoc(root, story1), endsWith('## Open questions\nNone yet.\n'));
+    expect(readDoc(root, story1), endsWith('## Open questions\n\nNone yet.\n'));
   });
   test(
     'f02/us01/fr01/e07: empty stdin on an absent optional section adds nothing',
@@ -1722,12 +2075,12 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        before.replaceFirst('\nOld lead.\n', 'New lead.\n'),
+        before.replaceFirst('\nOld lead.\n', '\nNew lead.\n'),
       );
-      final written = baseHashOf('New lead.\n');
+      final written = baseHashOf('\nNew lead.\n');
       expect(
         answer.text,
-        '==> login/email_login (user_story) · $story1 · base $written <==\n',
+        '==> login/email_login (user_story) · $story1#_lead · base $written <==\n',
       );
       expect(answer.json['base'], written);
       expect(answer.json['draft'], isTrue);
@@ -1759,7 +2112,7 @@ void main() {
       final root = await project();
       const fenced = 'Run:\n\n```bash\n# install\nmake\n```\n';
       writeIn(root, (s) => answerSet(s, req(target, leadBase(root)), fenced));
-      expect(getDoc(root, target)['text'], fenced);
+      expect(getDoc(root, target)['text'], '\n$fenced');
       final text = getDoc(root, target)['text']! as String;
       writeIn(
         root,
@@ -1769,7 +2122,10 @@ void main() {
           text.replaceFirst('Run', 'Go'),
         ),
       );
-      expect(getDoc(root, target)['text'], fenced.replaceFirst('Run', 'Go'));
+      expect(
+        getDoc(root, target)['text'],
+        '\n${fenced.replaceFirst('Run', 'Go')}',
+      );
     });
 
     test('f02/us01/fr06/e04: a stdin line starting "# " or "## " refuses with argument_invalid', () async {
@@ -1850,25 +2206,27 @@ void main() {
       expect(answer.json['base'], emptyBaseHash);
     });
 
-    test(
-      'f02/us01/fr06/e06: a stale base refuses with the current lead',
-      () async {
-        final root = await project();
-        expect(
-          () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
-                .having((f) => f.current?.text, 'current', '\nOld lead.\n')
-                .having(
-                  (f) => f.current?.base,
-                  'base',
-                  baseHashOf('\nOld lead.\n'),
-                ),
-          ),
-        );
-      },
-    );
+    test('document_writing/edit_one_section_or_field/write_the_lead E06: a stale base refuses with the current lead and its naming line', () async {
+      final root = await project();
+      expect(
+        () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+              .having((f) => f.current?.text, 'current', '\nOld lead.\n')
+              .having(
+                (f) => f.current?.base,
+                'base',
+                baseHashOf('\nOld lead.\n'),
+              )
+              .having(
+                (f) => f.current?.heading,
+                'heading',
+                '==> login/email_login (user_story) · $story1#_lead · base ${baseHashOf('\nOld lead.\n')} <==',
+              ),
+        ),
+      );
+    });
 
     test('f02/us01/fr06/e07: a CRLF doc keeps CRLF', () async {
       final root = await project();
@@ -1882,12 +2240,896 @@ void main() {
       );
       expect(
         readDoc(root, story1),
-        contains('# Sign in with email\r\nNew lead.\r\n'),
+        contains('# Sign in with email\r\n\r\nNew lead.\r\n'),
       );
       expect(
         readDoc(root, story1).replaceAll('\r\n', ''),
         isNot(contains('\n')),
       );
     });
+  });
+
+  group('write one section, field, title, or lead lays the doc out', () {
+    const padded =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n\n## Deployment\nNone yet.\n';
+    const laidOutArch =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n\n'
+        '| Component | Responsibility |\n|---|---|\n'
+        '| Signup form | Collects the email |\n\n## Deployment\n\nNone yet.\n';
+    const refused =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Not a section\nx\n\n'
+        '## Components\n| A   | B |\n|---|---|\n| 1 | 2 |\n';
+    const arch = 'architecture:signup';
+
+    Future<Directory> archProject(String text) =>
+        writeWriteProject(extra: {'docs/$signupArch': text});
+
+    test('document_writing/edit_one_section_or_field/write_one_section E01: the base of the laid-out body writes a body stored unlaid-out', () async {
+      final root = await archProject(padded);
+      const target = '$arch#deployment';
+      final base = sectionBase(root, target);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, base), 'None at all.\n'),
+      );
+      expect(
+        readDoc(root, signupArch),
+        contains('## Deployment\n\nNone at all.\n'),
+      );
+      expect(answer.json['base'], baseHashOf('\nNone at all.\n'));
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_section: a header that differs from the template header in case or spacing is that section, and set prints the base the next get reads', () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$persona':
+              '---\ndraft: true\n---\n\n# Buyer\n\n## Snapshot\nBuys.\n\n'
+              '## jobs  to be done\nOld job.\n',
+        },
+      );
+      const target = 'persona:buyer#jobs';
+      final base = sectionBase(root, target);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(target, base), 'New job.\n'),
+      );
+      expect(
+        readDoc(root, persona),
+        endsWith('## Jobs to be done\n\nNew job.\n'),
+      );
+      expect(answer.json['base'], baseHashOf('\nNew job.\n'));
+      expect(answer.json['base'], sectionBase(root, target));
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_section E03: a write to another section leaves this base valid', () async {
+      final root = await writeWriteProject();
+      const useCase = 'user_story:login/email_login#use_case';
+      const criteria = 'user_story:login/email_login#acceptance_criteria';
+      final criteriaBase = sectionBase(root, criteria);
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, req(useCase, sectionBase(root, useCase)), 'Other.\n'),
+      );
+      writeIn(
+        root,
+        (s) => answerSet(s, req(criteria, criteriaBase), '- **Given** x\n'),
+      );
+      expect(
+        readDoc(root, story1),
+        allOf(contains('## Use Case\n\nOther.\n'), contains('- **Given** x\n')),
+      );
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_section E16: a body with none, one, or several leading blank lines lands under one blank line', () async {
+      const target = 'user_story:login/email_login#use_case';
+      for (final lead in ['', '\n', '\n\n\n']) {
+        final root = await writeWriteProject();
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, sectionBase(root, target)),
+            '${lead}Go.\n',
+          ),
+        );
+        expect(readDoc(root, story1), contains('## Use Case\n\nGo.\n\n## Acc'));
+      }
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_section E18: an unlaid-out doc is written whole laid out', () async {
+      final root = await archProject(padded);
+      const target = '$arch#deployment';
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, req(target, sectionBase(root, target)), 'None yet.\n'),
+      );
+      expect(readDoc(root, signupArch), laidOutArch);
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_section E18: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      const target = '$arch#components';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '| A | B |\n|---|---|\n| 3 | 4 |\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst(
+          '| A   | B |\n|---|---|\n| 1 | 2 |\n',
+          '| A | B |\n|---|---|\n| 3 | 4 |\n',
+        ),
+      );
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_field E14: an output_ref write on an approved doc lays it out and adds no draft', () async {
+      final approved = padded.replaceFirst('draft: true', 'approved: true');
+      final root = await archProject(approved);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+          '- app/lib/\n',
+        ),
+      );
+      final written = readDoc(root, signupArch);
+      expect(
+        written,
+        laidOutArch.replaceFirst(
+          'draft: true\n',
+          'approved: true\ncovers:\n  - app/lib/\n',
+        ),
+      );
+      expect(written, isNot(contains('draft:')));
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_field E14: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+          '- app/lib/\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst(
+          'draft: true\n',
+          'draft: true\ncovers:\n  - app/lib/\n',
+        ),
+      );
+    });
+
+    test('document_writing/edit_one_section_or_field/write_the_lead E03: text before the title line stays as on disk', () async {
+      const given =
+          'before\n# T\nold\n\n## Use Case\n\nSign in.\n\n'
+          '## Acceptance Criteria\n\n- **Given** x\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+            '# Sign in with email\n\n## Use Case\n\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email\n',
+            given,
+          ),
+        },
+      );
+      const target = 'user_story:login/email_login#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'New.\n',
+        ),
+      );
+      expect(readDoc(root, story1), contains('before\n# T\n'));
+    });
+
+    test('document_writing/edit_one_section_or_field/write_one_field E09: an absent field lands at its slot in a laid-out doc', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login';
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, fieldReq(target, 'goals', emptyBaseHash), '- PG-01\n'),
+      );
+      expect(readDoc(root, story1), contains('goals:\n  - PG-01\n'));
+      expect(readDoc(root, story1), contains('## Use Case\n\nSign in'));
+    });
+
+    test('document_writing/edit_one_section_or_field/write_the_title E07: an unlaid-out doc is written whole laid out', () async {
+      final root = await archProject(padded);
+      final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(arch, title: true, base: base),
+          'Signup architecture\n',
+        ),
+      );
+      expect(readDoc(root, signupArch), laidOutArch);
+    });
+
+    test('document_writing/edit_one_section_or_field/write_the_title E07: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(arch, title: true, base: base),
+          'Renamed\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst('# Signup architecture', '# Renamed'),
+      );
+    });
+
+    test('document_writing/edit_one_section_or_field/write_the_lead E09: a lead without a leading blank line keeps one under the title', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Short lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, story1),
+        contains('# Sign in with email\n\nShort lead.\n\n## Use Case\n'),
+      );
+    });
+
+    test('document_writing/edit_one_section_or_field/write_the_lead E10: an unlaid-out doc is written whole laid out', () async {
+      final root = await archProject(padded);
+      const target = '$arch#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        laidOutArch.replaceFirst(
+          '# Signup architecture\n',
+          '# Signup architecture\n\nLead.\n',
+        ),
+      );
+    });
+
+    test('document_writing/edit_one_section_or_field/write_the_lead E10: a doc format refuses keeps every other byte', () async {
+      final root = await archProject(refused);
+      const target = '$arch#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        refused.replaceFirst(
+          '# Signup architecture\n',
+          '# Signup architecture\nLead.\n',
+        ),
+      );
+    });
+  });
+  group('document_writing/edit_one_section_or_field: splicePart checks and splices one part', () {
+    const address = 'user_story:login/email_login';
+    final withLead = writeProject['docs/$story1']!.replaceFirst(
+      '# Sign in with email\n',
+      '# Sign in with email\n\nOld lead.\n',
+    );
+
+    String titleBase(Directory root) =>
+        (getDoc(root, address)['bases']! as Map)['title']! as String;
+
+    // Each row: the request on a fresh project, its stdin, whether the write
+    // marks a draft, and the file text it writes where that is plain to state.
+    final cases =
+        <String, (SetRequest Function(Directory), String, bool, String?)>{
+          'a section': (
+            (root) => req(
+              '$address#acceptance_criteria',
+              sectionBase(root, '$address#acceptance_criteria'),
+            ),
+            '\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email and its password\n',
+            true,
+            withLead.replaceFirst(
+              'a registered email\n',
+              'a registered email and its password\n',
+            ),
+          ),
+          'a section the doc lacks': (
+            (root) => req('$address#rules', emptyBaseHash),
+            '- BR-01 One account per email.\n',
+            true,
+            withLead.replaceFirst(
+              '## Acceptance Criteria\n',
+              '## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
+            ),
+          ),
+          'the lead': (
+            (root) =>
+                req('$address#_lead', sectionBase(root, '$address#_lead')),
+            'New lead.\n',
+            true,
+            withLead.replaceFirst('Old lead.\n', 'New lead.\n'),
+          ),
+          'a field': (
+            (root) => fieldReq(address, 'goals', emptyBaseHash),
+            '- PG-01\n',
+            true,
+            null,
+          ),
+          'the title': (
+            (root) =>
+                SetRequest.parse(address, title: true, base: titleBase(root)),
+            'Sign in fast\n',
+            true,
+            withLead.replaceFirst('# Sign in with email', '# Sign in fast'),
+          ),
+        };
+
+    for (final MapEntry(key: name, value: row) in cases.entries) {
+      test(
+        '$name: returns the text answerSet writes for the same input',
+        () async {
+          final (requestOf, text, marksDraft, expected) = row;
+          final spliced = await writeWriteProject(
+            extra: {'docs/$story1': withLead},
+          );
+          final written = await writeWriteProject(
+            extra: {'docs/$story1': withLead},
+          );
+
+          final part = spliceIn(spliced, requestOf(spliced), text);
+          writeIn(written, (s) => answerSet(s, requestOf(written), text));
+
+          expect(part.marksDraft, marksDraft);
+          expect(readDoc(spliced, story1), withLead);
+          // The write lays the spliced text out, as answerSet's write does.
+          writeIn(
+            spliced,
+            (s) => s.locked(() {
+              final doc = s.target(address);
+              return s.writeDoc(
+                doc.docPath,
+                markDraft(part.lfText, s.index.typeOf(doc)!),
+                LineEnding.lf,
+              );
+            }),
+          );
+          expect(readDoc(spliced, story1), readDoc(written, story1));
+          if (expected != null) expect(readDoc(written, story1), expected);
+        },
+      );
+    }
+
+    test('an output_ref field marks no draft', () async {
+      final root = await writeWriteProject();
+      const fr = 'fr:login/reset_password/expire_reset_link';
+      final part = spliceIn(
+        root,
+        fieldReq(fr, 'implements', fieldBase(root, fr, 'implements')),
+        '- a.dart\n',
+      );
+      expect(part.marksDraft, isFalse);
+    });
+
+    test('a section the template lacks and the doc lacks is section_not_found', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => spliceIn(root, req('$address#notes', emptyBaseHash), 'x\n'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                '$address holds no section with the key notes, and its template defines none',
+              ),
+        ),
+      );
+    });
+
+    test('a body with another ## line, an open fence, or an open fence in a lead is argument_invalid', () async {
+      final root = await writeWriteProject();
+      final section = req(
+        '$address#acceptance_criteria',
+        sectionBase(root, '$address#acceptance_criteria'),
+      );
+      expect(
+        () => spliceIn(root, section, 'a\n## Sub\nb\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      expect(
+        () => spliceIn(root, section, '```\ncode\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      final lead = req('$address#_lead', sectionBase(root, '$address#_lead'));
+      expect(
+        () => spliceIn(root, lead, '## Sub\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      expect(
+        () => spliceIn(
+          root,
+          SetRequest.parse(address, title: true, base: titleBase(root)),
+          'one\ntwo\n',
+        ),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+    });
+
+    test(
+      'a stale base is base_mismatch carrying the current text, for each part',
+      () async {
+        final root = await writeWriteProject();
+        for (final target in ['$address#use_case', '$address#_lead']) {
+          expect(
+            () => spliceIn(root, req(target, 'stale'), 'x\n'),
+            throwsA(
+              isA<WriteFault>()
+                  .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+                  .having((f) => f.current, 'current', isNotNull),
+            ),
+            reason: target,
+          );
+        }
+        expect(
+          () =>
+              spliceIn(root, fieldReq(address, 'goals', 'stale'), '- PG-01\n'),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.current?.text,
+              'current.text',
+              '',
+            ),
+          ),
+        );
+        expect(
+          () => spliceIn(
+            root,
+            SetRequest.parse(address, title: true, base: 'stale'),
+            'T\n',
+          ),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.current?.text,
+              'current.text',
+              '# Sign in with email\n',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'empty stdin on a required section or field is required_target',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => spliceIn(
+            root,
+            req('$address#use_case', sectionBase(root, '$address#use_case')),
+            '',
+          ),
+          throwsWriteFault(WriteFaultCode.requiredTarget),
+        );
+        const fr = 'fr:login/reset_password/expire_reset_link';
+        expect(
+          () => spliceIn(
+            root,
+            fieldReq(fr, 'traced_from', fieldBase(root, fr, 'traced_from')),
+            '\n',
+          ),
+          throwsWriteFault(WriteFaultCode.requiredTarget),
+        );
+      },
+    );
+
+    test('a field write that checkFieldWrite refuses is refused', () async {
+      final root = await writeWriteProject();
+      expect(
+        () =>
+            spliceIn(root, fieldReq(address, 'draft', emptyBaseHash), 'true\n'),
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      );
+    });
+  });
+
+  group('document_writing/edit_one_section_or_field/write_one_field: checkFieldWrite refuses a write', () {
+    const story = 'user_story:login/email_login';
+
+    test(
+      'E04: draft and approved are field_not_writable, whatever the value',
+      () async {
+        final root = await writeWriteProject();
+        for (final id in ['draft', 'approved']) {
+          expect(
+            () => checkFieldIn(root, story, id, 'true'),
+            throwsWriteFault(WriteFaultCode.fieldNotWritable),
+          );
+          expect(
+            () => checkFieldIn(root, story, id, null, held: true),
+            throwsWriteFault(WriteFaultCode.fieldNotWritable),
+          );
+        }
+      },
+    );
+
+    test('E05: a value for a feature status is field_not_writable', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkFieldIn(root, 'feature:login', 'status', 'implemented'),
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      );
+    });
+
+    test('E06, E07: a value outside the type, the enum, or the list shape is field_value_invalid', () async {
+      final root = await writeWriteProject();
+      const fr = 'fr:login/reset_password/expire_reset_link';
+      expect(
+        () => checkFieldIn(root, fr, 'verify_method', 'maybe'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'vision', 'PV-01'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'status', '- planned'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'status', 'a: [b'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+      checkFieldIn(root, story, 'vision', '- PV-01');
+      checkFieldIn(root, fr, 'verify_method', 'test');
+    });
+
+    test('E08: removing a required field is required_target', () async {
+      final root = await writeWriteProject();
+      const fr = 'fr:login/reset_password/expire_reset_link';
+      expect(
+        () => checkFieldIn(root, fr, 'traced_from', null, held: true),
+        throwsWriteFault(WriteFaultCode.requiredTarget),
+      );
+      checkFieldIn(root, story, 'goals', null);
+    });
+
+    test('E10, E13: an undeclared id refuses with a value or when not held, and passes removal when held', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkFieldIn(root, story, 'size', '1'),
+        throwsWriteFault(WriteFaultCode.fieldUnknown),
+      );
+      expect(
+        () => checkFieldIn(root, story, 'size', null),
+        throwsWriteFault(WriteFaultCode.fieldUnknown),
+      );
+      checkFieldIn(root, story, 'size', null, held: true);
+      checkFieldIn(root, 'feature:login', 'status', null, held: true);
+    });
+  });
+  group('document_writing/edit_one_section_or_field: a part is refused on its own text before the write lock', () {
+    const address = 'user_story:login/email_login';
+    const fr = 'fr:login/reset_password/expire_reset_link';
+
+    // Each row: the request, its stdin, and the fault it refuses with.
+    final refusals = <String, (SetRequest, String, Matcher)>{
+      'an open fence in a section body': (
+        req('$address#acceptance_criteria', 'x'),
+        '```\ncode\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a ## line in a section body': (
+        req('$address#acceptance_criteria', 'x'),
+        'a\n## Sub\nb\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a ## line in the lead': (
+        req('$address#_lead', 'x'),
+        '## Sub\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a # line in the lead': (
+        req('$address#_lead', 'x'),
+        '# Title\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'an open fence in the lead': (
+        req('$address#_lead', 'x'),
+        '```\ncode\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a title of two lines': (
+        SetRequest.parse(address, title: true, base: 'x'),
+        'one\ntwo\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'a title of no line': (
+        SetRequest.parse(address, title: true, base: 'x'),
+        '\n',
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      ),
+      'the draft field': (
+        fieldReq(address, 'draft', 'x'),
+        'true\n',
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      ),
+      'a value for a feature status': (
+        fieldReq('feature:login', 'status', 'x'),
+        'implemented\n',
+        throwsWriteFault(WriteFaultCode.fieldNotWritable),
+      ),
+      'a value its field does not take': (
+        fieldReq(address, 'vision', 'x'),
+        'PV-01\n',
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      ),
+      'a required field removed': (
+        fieldReq(fr, 'traced_from', 'x'),
+        '\n',
+        throwsWriteFault(WriteFaultCode.requiredTarget),
+      ),
+      'an undeclared field given a value': (
+        fieldReq(address, 'size', 'x'),
+        '1\n',
+        throwsWriteFault(WriteFaultCode.fieldUnknown),
+      ),
+    };
+
+    test(
+      'answerSet refuses each at once while another call holds the write lock',
+      () async {
+        final root = await writeWriteProject();
+        writeIn(root, (_) {}); // creates the index
+        final other = sqlite3.open('${root.path}/.specstone/index.sqlite')
+          ..execute('BEGIN IMMEDIATE');
+        addTearDown(other.close);
+        for (final MapEntry(key: name, value: (request, text, matcher))
+            in refusals.entries) {
+          expect(
+            () => writeIn(
+              root,
+              (s) => answerSet(s, request, text),
+              busyTimeout: const Duration(milliseconds: 100),
+            ),
+            matcher,
+            reason: name,
+          );
+        }
+      },
+    );
+
+    test('checkPartText refuses each with no lock and no doc text', () async {
+      final root = await writeWriteProject();
+      for (final MapEntry(key: name, value: (request, text, matcher))
+          in refusals.entries) {
+        expect(() => checkPartIn(root, request, text), matcher, reason: name);
+      }
+    });
+
+    test('checkPartText passes a text it cannot judge without the doc: a first line that may be the own header, and an unheld key emptied', () async {
+      final root = await writeWriteProject();
+      checkPartIn(
+        root,
+        req('$address#use_case', 'x'),
+        '## Use Case\nSign in.\n',
+      );
+      checkPartIn(
+        root,
+        req('$address#use_case', 'x'),
+        '```\n## Sub\n```\nbody\n',
+      );
+      checkPartIn(root, fieldReq(address, 'size', 'x'), '\n');
+      checkPartIn(root, req('$address#_lead', 'x'), 'A lead.\n');
+    });
+
+    test('checkPartText refuses a ## line after the first line, which may be the own header', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => checkPartIn(
+          root,
+          req('$address#use_case', 'x'),
+          '## Use Case\nSign in.\n## Sub\n',
+        ),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+    });
+
+    test(
+      'a first line that is a header other than the own refuses in splicePart',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => spliceIn(
+            root,
+            req('$address#use_case', sectionBase(root, '$address#use_case')),
+            '## Other\nSign in.\n',
+          ),
+          throwsIndexFault(IndexFaultCode.argumentInvalid),
+        );
+      },
+    );
+
+    test(
+      'a doc that is not UTF-8 with a title of two lines is argument_invalid',
+      () async {
+        final root = await writeWriteProject();
+        final file = docFile(root, signupFeature);
+        file.writeAsBytesSync([...file.readAsBytesSync(), 0xFF, 0x0A]);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              SetRequest.parse('feature:signup', title: true, base: 'x'),
+              'one\ntwo\n',
+            ),
+          ),
+          throwsIndexFault(IndexFaultCode.argumentInvalid),
+        );
+      },
+    );
+
+    test(
+      'a doc that is not there is doc_not_found whatever the text',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              req('user_story:login/no_such#_lead', 'x'),
+              '```\nopen\n',
+            ),
+          ),
+          throwsIndexFault(IndexFaultCode.docNotFound),
+        );
+      },
+    );
+
+    test('removing a required field on a stale base is required_target, and a required section keeps base_mismatch', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => spliceIn(root, fieldReq(fr, 'traced_from', 'stale'), '\n'),
+        throwsWriteFault(WriteFaultCode.requiredTarget),
+      );
+      expect(
+        () => spliceIn(root, req('$address#use_case', 'stale'), ''),
+        throwsWriteFault(WriteFaultCode.baseMismatch),
+      );
+    });
+
+    test('section_not_found names <type>:<name> for an address by DocPath and by bare name', () async {
+      final root = await writeWriteProject();
+      for (final written in [story1, 'login/email_login', address]) {
+        expect(
+          () => spliceIn(root, req('$written#notes', emptyBaseHash), 'x\n'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  startsWith('$address holds no section with the key notes'),
+                ),
+          ),
+          reason: written,
+        );
+      }
+    });
+  });
+
+  group('document_writing/edit_one_section_or_field/write_one_section: a naming line in a text is refused,', () {
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    const target = 'user_story:login/email_login#use_case';
+
+    Matcher refusesNamingLine(String line) => throwsA(
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+          .having((f) => f.message, 'message', contains('"$line"')),
+    );
+
+    test('set of a section refuses a column-0 naming line outside a fence and writes nothing', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = sectionBase(root, target);
+      for (final text in [
+        'Sign in.\n\n$naming\nExample.\n',
+        '$naming\n',
+        '## Use Case\n\nx\n$naming  \n',
+        'x\n==> broken <==\n',
+      ]) {
+        final line = text.split('\n').firstWhere((l) => l.startsWith('==>'));
+        expect(
+          () => writeIn(root, (s) => answerSet(s, req(target, base), text)),
+          refusesNamingLine(line.trimRight()),
+          reason: text,
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test(
+      'checkPartText refuses it in a lead, with no lock and no doc text',
+      () async {
+        final root = await writeWriteProject();
+        expect(
+          () =>
+              checkPartIn(root, req('$story1#_lead', 'x'), 'Lead.\n$naming\n'),
+          refusesNamingLine(naming),
+        );
+      },
+    );
+
+    test('a field value is not refused for a naming line: it never lands at column 0', () async {
+      final root = await writeWriteProject();
+      try {
+        checkPartIn(
+          root,
+          fieldReq(story1, 'vision', 'x'),
+          '- PV-01\n$naming\n',
+        );
+      } on IndexFault catch (fault) {
+        expect(fault.message, isNot(contains('naming line')));
+      } on WriteFault {
+        // The field's own value checks may still refuse it.
+      }
+    });
+
+    test('a fenced line and an indented line pass', () async {
+      final root = await writeWriteProject();
+      final base = sectionBase(root, target);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, base),
+          'Shown as:\n\n```text\n$naming\n```\n\n    $naming\n\n- $naming\n',
+        ),
+      );
+      final text = readDoc(root, story1);
+      expect(text, contains('\n```text\n$naming\n```\n'));
+      expect(text, contains('\n    $naming\n'));
+    });
+  });
+
+  test('document_writing/edit_one_section_or_field/write_one_section E15: header-only stdin on a section the doc lacks still writes it empty', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#open_questions';
+    writeIn(
+      root,
+      (s) => answerSet(s, req(target, emptyBaseHash), '## Open questions\n'),
+    );
+    expect(readDoc(root, story1), endsWith('## Open questions\n'));
+    expect('## Open questions'.allMatches(readDoc(root, story1)), hasLength(1));
   });
 }

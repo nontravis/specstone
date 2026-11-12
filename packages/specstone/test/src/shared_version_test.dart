@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../helpers/package_root.dart';
 
@@ -55,5 +56,17 @@ void main() {
         expect(match?.group(1), specstoneVersion);
       },
     );
+
+    test('install_update/version_match INV-1: the workspace root lists '
+        'specstone_core with no version constraint', () {
+      final pubspec = File.fromUri(
+        packageRoot().uri.resolve('../../pubspec.yaml'),
+      ).readAsStringSync();
+      final dependencies =
+          (loadYaml(pubspec) as YamlMap)['dependencies'] as YamlMap;
+
+      expect(dependencies.containsKey('specstone_core'), isTrue);
+      expect(dependencies['specstone_core'], isNull);
+    });
   });
 }

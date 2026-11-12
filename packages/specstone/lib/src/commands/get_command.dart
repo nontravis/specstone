@@ -1,7 +1,7 @@
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Prints the docs a name addresses, or one section of each.
+/// Prints the docs each name addresses, or one section of each.
 class GetCommand extends SpecstoneCommand {
   new() {
     argParser
@@ -22,11 +22,12 @@ class GetCommand extends SpecstoneCommand {
   String get name => 'get';
 
   @override
-  String get description => 'Print the docs a name addresses, or a section.';
+  String get description =>
+      'Print the docs each name addresses, or a section, in one call.';
 
   @override
   String get invocation =>
-      'specstone get <name | path>[#<section key>] [--paths | --code] '
+      'specstone get <name | path>[#<section key>] … [--paths | --code] '
       '[--json]';
 
   @override
@@ -40,37 +41,40 @@ class GetCommand extends SpecstoneCommand {
         asJson: asJson,
       );
     }
-    if (rest.length > 1) {
-      usageException('Expected one name, got ${rest.length}.');
-    }
     final paths = args.flag('paths');
     final code = args.flag('code');
-    final conflict = _journeyConflict(paths: paths, code: code);
-    if (conflict != null) {
+    if (paths && code) {
       return fail(
-        IndexFault(IndexFaultCode.argumentConflict, conflict),
+        IndexFault(
+          IndexFaultCode.argumentConflict,
+          '--code and --paths cannot be given together',
+        ),
         asJson: asJson,
       );
     }
-    final name = rest.first;
-    return runRead(
-      (session) => switch ((paths, code)) {
-        (true, _) => answerJourneyPaths(session.index, name),
-        (_, true) => answerJourneyCode(session.index, name),
-        _ => answerGet(session.index, name),
-      },
-      asJson: asJson,
-    );
-  }
-
-  /// Returns the message for a journey option given with another, or with a
-  /// `#<section key>`; null when the flags and the name agree.
-  String? _journeyConflict({required bool paths, required bool code}) {
-    if (paths && code) return '--code and --paths cannot be given together';
     final option = paths ? '--paths' : (code ? '--code' : null);
-    if (option != null && argResults!.rest.first.contains('#')) {
-      return '$option takes no #<section key>';
+    if (option != null && rest.length > 1) {
+      return fail(
+        IndexFault(
+          IndexFaultCode.argumentInvalid,
+          '$option takes one name, got ${rest.length}',
+        ),
+        asJson: asJson,
+      );
     }
-    return null;
+    return runRead((session) {
+      if (option != null &&
+          session.index.splitAddress(rest.first).sectionKey != null) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          '$option takes no #<section key>',
+        );
+      }
+      return switch ((paths, code)) {
+        (true, _) => answerJourneyPaths(session.index, rest.first),
+        (_, true) => answerJourneyCode(session.index, rest.first),
+        _ => answerGet(session.index, rest),
+      };
+    }, asJson: asJson);
   }
 }

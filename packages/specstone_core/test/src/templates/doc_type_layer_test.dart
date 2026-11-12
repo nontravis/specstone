@@ -31,6 +31,37 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('DocTypeLayer.parse', () {
+    for (final kind in LayerKind.values) {
+      test('template_packs/add_doc_type/read_doc_type_file/e30: a ${kind.name} '
+          'file name that is no slug is unknown_value before '
+          'doc_type_id_mismatch', () {
+        for (final name in ['Grid', 'api-v2']) {
+          final file = '.specstone/templates/$name.yaml';
+          expect(
+            () => DocTypeLayer.parse(
+              'id: epic\n',
+              file: file,
+              docTypeId: name,
+              kind: kind,
+              files: const _FakeFiles({}),
+            ),
+            throwsA(
+              isA<TemplateFault>()
+                  .having((f) => f.code, 'code', FaultCode.unknownValue)
+                  .having((f) => f.file, 'file', file)
+                  .having((f) => f.key, 'key', 'id'),
+            ),
+            reason: name,
+          );
+        }
+      });
+    }
+
+    test('template_packs/add_doc_type/read_doc_type_file: a slug file name '
+        'loads', () {
+      expect(_parse('max_depth: 1\n').docTypeId, 'feature');
+    });
+
     test('f03/us03/fr01/e09, s03/inv15: an id unlike the file name is doc_type_id_mismatch', () {
       expect(
         () => _parse('id: epic\n'),
@@ -212,6 +243,40 @@ void main() {
         throwsA(
           _fault(FaultCode.unknownKey, key: 'sections.goal.lint.max_words'),
         ),
+      );
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'Input: a doc-level lint.max_item_chars reads as written', () {
+      expect(_parse('lint: {max_item_chars: 900}').lint?.maxItemChars, 900);
+      expect(_parse('lint: {max_chars: 400}').lint?.maxItemChars, isNull);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'E16: a section lint that writes max_item_chars is unknown_key', () {
+      expect(
+        () => _parse(
+          'sections: [{id: goal, header: G, lint: {max_item_chars: 900}}]',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.unknownKey,
+            key: 'sections.goal.lint.max_item_chars',
+          ),
+        ),
+      );
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'Input: a non-integer lint.max_item_chars is unknown_value like '
+        'max_chars', () {
+      expect(
+        () => _parse('lint: {max_item_chars: many}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.max_item_chars')),
+      );
+      expect(
+        () => _parse('lint: {max_chars: many}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.max_chars')),
       );
     });
 

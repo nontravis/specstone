@@ -65,4 +65,14 @@ void main() {
       'sources', () {
     expectSpecLint(auth);
   });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one matrix row per '
+      'resource and operation as its item shape', () {
+    expectItemShape(
+      auth,
+      'Write one rule per ID: one matrix row per resource and operation, '
+      'each rule one sentence.',
+    );
+  });
 }

@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
@@ -246,6 +247,7 @@ final class LintLayer {
   new({
     this.maxChars,
     this.maxLines,
+    this.maxItemChars,
     this.bannedWords,
     this.allowedWords,
     this.bannedPatterns,
@@ -257,6 +259,9 @@ final class LintLayer {
 
   /// The doc-level line ceiling, when written.
   final int? maxLines;
+
+  /// The doc-level character limit of one item, when written.
+  final int? maxItemChars;
 
   /// The banned word list, plain or as changes, when written.
   final ListWrite<String>? bannedWords;
@@ -297,7 +302,8 @@ final class DocTypeLayer {
   ///
   /// [files] answers whether the layer holds a file at a layer-relative path,
   /// for `reference` checks.
-  /// Throws a [TemplateFault] for any format fault.
+  /// Throws a [TemplateFault] for any format fault, `unknown_value` first when
+  /// [docTypeId] is no slug.
   static DocTypeLayer parse(
     String text, {
     required String file,
@@ -305,6 +311,14 @@ final class DocTypeLayer {
     required LayerKind kind,
     required LayerFiles files,
   }) {
+    if (!isDocTypeIdShaped(docTypeId)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the file name without .yaml must be a slug: [a-z][a-z0-9_]*',
+        file: file,
+        key: 'id',
+      );
+    }
     final map = readYamlMap(text, file: file);
     checkKeys(map, _topKeys, file: file, format: 'doc-type');
     final id = optionalValue<String>(map, 'id', file: file);
@@ -568,6 +582,7 @@ const _sectionKeys = {
 const _docLintKeys = {
   'max_chars',
   'max_lines',
+  'max_item_chars',
   'banned_words',
   'allowed_words',
   'banned_patterns',
@@ -764,6 +779,12 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
   return LintLayer(
     maxChars: optionalValue<int>(map, 'max_chars', file: file, prefix: 'lint.'),
     maxLines: optionalValue<int>(map, 'max_lines', file: file, prefix: 'lint.'),
+    maxItemChars: optionalValue<int>(
+      map,
+      'max_item_chars',
+      file: file,
+      prefix: 'lint.',
+    ),
     bannedWords: _listWrite(map, 'banned_words', file: file, prefix: 'lint.'),
     allowedWords: _listWrite(map, 'allowed_words', file: file, prefix: 'lint.'),
     bannedPatterns: _patternWrite(

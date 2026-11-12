@@ -9,7 +9,7 @@ import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
-const _guideUsage = 'Usage: specstone guide [type] [--json]';
+const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 const _prdCoreIds = <String>[
   'anti_persona',
   'feature',
@@ -140,6 +140,23 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
+    test('template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+        'E06: guide fr prints the item shape', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains('with a quantified value kept in it, such as `within 2 s`.'),
+          contains('leave mechanics to the spec docs'),
+          contains('Write one Edge cases item per case;'),
+          contains('with what happens then.'),
+          contains('Keep the trace in `traced_from` alone'),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('f03/us06/s3, f03/us06/fr01: guide fr --json gives the prds path, '
         'the parent, the fields, and the sections', () async {
       final runner = await runnerIn(await prdCoreProject());
@@ -170,6 +187,25 @@ void main() {
         'verification',
         'tbr',
       ]);
+    });
+
+    test('f04/us03/fr01: guide fr --json describes the three traced_from '
+        'forms', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final tracedFrom = (json['fields']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((f) => f['id'] == 'traced_from');
+      expect(
+        tracedFrom['description'],
+        allOf(
+          contains('`S<N>`'),
+          contains('`<story Name>#S<N>`'),
+          contains('sibling story'),
+          contains('`self-derived`'),
+        ),
+      );
     });
 
     test('f03/us06/s3, f03/us06/fr01: guide feature --json gives the prds '

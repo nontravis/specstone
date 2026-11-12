@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/code_spans.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -17,12 +19,12 @@ String _overBudgetLine(IndexedDoc doc, bool summary, int tokens) =>
 String _listName(IndexedDoc doc, bool summary) =>
     summary ? '${nameWithType(doc)} · summary' : nameWithType(doc);
 
-/// Renders [bundle]'s docs as one `context` answer (us05 FR-02).
+/// Renders [bundle]'s docs as one `context` answer (`index_query/get_task_bundle/trim_and_order_bundle`).
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
 /// prints it under the JSON key `code` instead of `target`. A bundle larger
 /// than [budget] prints its sizes and the next step instead of doc text, with
-/// exit status 1 (us05 FR-03); a bundle equal to it prints whole.
+/// exit status 1 (`index_query/get_task_bundle/refuse_bundle_over_budget`); a bundle equal to it prints whole.
 ReadAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -89,7 +91,7 @@ ReadAnswer answerContext(
 }
 
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
-/// [budget]: each doc's size, no doc text, and the next step (us05 FR-03).
+/// [budget]: each doc's size, no doc text, and the next step (`index_query/get_task_bundle/refuse_bundle_over_budget`).
 ReadAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,
@@ -284,8 +286,49 @@ bool _naChecked(String body) {
   return cleaned != 'N/A' && !cleaned.startsWith('N/A —');
 }
 
-/// Returns [text] with every HTML comment removed.
-String _removeComments(String text) => text.replaceAll(_htmlComment, '');
+/// Returns [text] with every HTML comment removed, except one whose `<!--`
+/// sits in fenced code or an inline code span.
+///
+/// A comment runs to the first `-->` whatever it holds, so a backtick or a
+/// fence line inside a comment never hides it.
+String _removeComments(String text) {
+  final code = _codeRanges(text);
+  final kept = StringBuffer();
+  var from = 0;
+  var search = 0;
+  while (true) {
+    final comment = _htmlComment.allMatches(text, search).firstOrNull;
+    if (comment == null) break;
+    if (code.any((r) => r.start <= comment.start && comment.start < r.end)) {
+      search = comment.start + 1;
+      continue;
+    }
+    kept.write(text.substring(from, comment.start));
+    from = search = comment.end;
+  }
+  return (kept..write(text.substring(from))).toString();
+}
+
+/// Returns the offsets of each fenced line and each inline code span of [text].
+List<({int start, int end})> _codeRanges(String text) {
+  final lines = text.split('\n');
+  final fenced = fencedLines([
+    for (final line in lines) line.replaceFirst(RegExp(r'\r$'), ''),
+  ]);
+  final ranges = <({int start, int end})>[];
+  var offset = 0;
+  for (var i = 0; i < lines.length; i++) {
+    if (fenced[i]) {
+      ranges.add((start: offset, end: offset + lines[i].length));
+    } else {
+      for (final (:start, :end, ticks: _) in codeSpansOf(lines[i])) {
+        ranges.add((start: offset + start, end: offset + end));
+      }
+    }
+    offset += lines[i].length + 1;
+  }
+  return ranges;
+}
 
 /// Returns [text] with HTML comments removed and both ends trimmed.
 String _cleaned(String text) => _removeComments(text).trim();

@@ -17,7 +17,7 @@ class RenameCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone rename (<type>:<name> | <path>) --to <slug> [--json]';
+      'specstone rename <doc address> --to <slug> [--json]';
 
   @override
   Future<int> run() {

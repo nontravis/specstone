@@ -13,25 +13,31 @@ abstract class WriteCommand extends SpecstoneCommand {
   /// Writes [fault] to `err` and returns its exit status.
   ///
   /// A [WriteFault] that carries the changed target prints it on `out` first
-  /// outside [asJson]: its heading, then its text. Under [asJson] the
-  /// envelope on `err` carries it and `out` stays empty.
+  /// outside [asJson]: its heading, then its text. A [BatchFault] prints the
+  /// current text of each stale block the same way, in file order. Under
+  /// [asJson] the envelope on `err` carries it and `out` stays empty.
   int failWrite(
     SpecstoneFault fault, {
     required bool asJson,
     List<String> warnings = const [],
   }) {
-    if (!asJson && fault is WriteFault) {
-      final current = fault.current;
-      if (current != null) {
-        final out = specstoneRunner.out
-          ..writeln(current.heading)
-          ..write(current.text);
-        if (current.text.isNotEmpty && !current.text.endsWith('\n')) {
-          out.writeln();
-        }
-      }
-    }
+    if (!asJson) _currentsOf(fault).forEach(_printCurrent);
     return fail(fault, asJson: asJson, warnings: warnings);
+  }
+
+  Iterable<CurrentTarget> _currentsOf(SpecstoneFault fault) => switch (fault) {
+    WriteFault(:final current) => [?current],
+    BatchFault(:final entries) => [for (final entry in entries) ?entry.current],
+    _ => const [],
+  };
+
+  void _printCurrent(CurrentTarget current) {
+    final out = specstoneRunner.out
+      ..writeln(current.heading)
+      ..write(current.text);
+    if (current.text.isNotEmpty && !current.text.endsWith('\n')) {
+      out.writeln();
+    }
   }
 
   /// Runs [answer] on the one target the command was given, through

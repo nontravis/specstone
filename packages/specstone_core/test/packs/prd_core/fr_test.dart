@@ -58,7 +58,7 @@ void main() {
       SectionSpec('statement', 'Statement', required: true),
       SectionSpec('input_output', 'Input / Output'),
       SectionSpec('behavior', 'Behavior'),
-      SectionSpec('edge_cases', 'Edge cases', required: true),
+      SectionSpec('edge_cases', 'Edge cases', prefixId: 'E', required: true),
       SectionSpec('rationale', 'Rationale', required: true),
       SectionSpec('verification', 'Verification', required: true),
       SectionSpec('tbr', 'TBR'),
@@ -114,4 +114,24 @@ void main() {
       ['statement'],
     );
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E06: the guide states the item shape: Statement, Edge cases, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        fr,
+        'Write the Statement as one sentence with one "shall", '
+        'stated positively, with a quantified value kept in it, '
+        'such as `within 2 s`.\n'
+        'State what the product does, never how: leave mechanics '
+        'to the spec docs, and never assign a task to a person.\n'
+        'Write one Edge cases item per case; a case the system '
+        'does not handle goes there too, with what happens then.\n'
+        'Keep the trace in `traced_from` alone, never in the '
+        'Statement or an edge case.',
+      );
+    },
+  );
 }

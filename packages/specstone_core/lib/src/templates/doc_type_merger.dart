@@ -4,6 +4,8 @@ import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
+const _approvedId = 'approved';
+
 /// The five fields every doc type carries below its lowest layer (INV-20).
 const _builtInFields = <MergedField>[
   MergedField(id: 'slug', type: FieldType.string, list: true),
@@ -13,7 +15,7 @@ const _builtInFields = <MergedField>[
     enumValues: ['planned', 'implemented', 'deprecated'],
   ),
   MergedField(id: 'draft', type: FieldType.boolean),
-  MergedField(id: 'approved', type: FieldType.boolean),
+  MergedField(id: 'approved', type: FieldType.string),
   MergedField(id: 'reference', type: FieldType.docRef, list: true),
 ];
 
@@ -94,6 +96,7 @@ final class DocTypeMerger {
     return base.copyWith(
       maxChars: lint.maxChars,
       maxLines: lint.maxLines,
+      maxItemChars: lint.maxItemChars,
       bannedWords: _mergeList<String>(
         base.bannedWords,
         lint.bannedWords,
@@ -449,10 +452,15 @@ final class DocTypeMerger {
 
   void _checkLocked(MergedField current, FieldEntry entry, DocTypeLayer layer) {
     final changesType = entry.type != null && entry.type != current.type;
-    if (!entry.disabled && !changesType) return;
+    // Only `approve` and the stamps write `approved`, so it takes no shape.
+    final shapesApproved =
+        current.id == _approvedId &&
+        (entry.enumValues != null || entry.list != null);
+    if (!entry.disabled && !changesType && !shapesApproved) return;
     throw TemplateFault(
       FaultCode.lockedFieldDisabled,
-      'the built-in field ${entry.id} cannot be disabled or change its type',
+      'the built-in field ${entry.id} cannot be disabled or change its type'
+      '${shapesApproved ? '; approved takes no enum or list' : ''}',
       file: layer.file,
       key: 'fields.${entry.id}',
     );

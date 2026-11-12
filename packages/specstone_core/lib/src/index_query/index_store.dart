@@ -7,6 +7,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/version.dart';
@@ -35,11 +36,13 @@ const _notWritableMessage =
 
 /// The layout of the index, kept in the `layout` column of the meta row.
 ///
-/// Bump it on every change to what a row holds: [_schema], the line-facts and
-/// banned-match JSON, and how that JSON is computed. An index of another
-/// layout is then rebuilt instead of failing a read (INV-2). An older build's
-/// reset recreates the meta row without it, so its index is rebuilt too.
-const _layoutVersion = 8;
+/// Bump it on every change to what a row holds: [_schema], the line-facts,
+/// banned-match, and item-facts JSON, and how that JSON is computed. An index
+/// of another layout is then rebuilt instead of failing a read (INV-2). An
+/// older build's reset recreates the meta row without it, so its index is
+/// rebuilt too. Layout 13 added `item_facts`: an index of layout 12 holds no
+/// item counts, so it is rebuilt instead of read as one with none.
+const _layoutVersion = 13;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -58,6 +61,8 @@ CREATE TABLE docs (
   title TEXT,
   frontmatter TEXT NOT NULL,
   tokens INTEGER NOT NULL,
+  formatted INTEGER,
+  approval_hash TEXT,
   ord INTEGER NOT NULL,
   warnings TEXT NOT NULL,
   content_hash TEXT NOT NULL,
@@ -66,6 +71,7 @@ CREATE TABLE docs (
   head TEXT NOT NULL,
   line_facts TEXT NOT NULL,
   banned_matches TEXT NOT NULL,
+  item_facts TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
   stat_ctime INTEGER,
@@ -230,7 +236,8 @@ final class IndexStore {
   // Prepared once: `loadContent` runs per doc, and a check reads every doc.
   final List<PreparedStatement> _prepared = [];
   late final PreparedStatement _contentSql = _prepare(
-    'SELECT frontmatter_text, head, line_facts, banned_matches FROM docs '
+    'SELECT frontmatter_text, head, line_facts, banned_matches, item_facts '
+    'FROM docs '
     'WHERE doc_path = ?',
   );
   late final PreparedStatement _textSql = _prepare(
@@ -346,9 +353,9 @@ final class IndexStore {
     deleteDoc(doc.docPath);
     _db.execute(
       'INSERT INTO docs (doc_path, doc_type_id, name, title, frontmatter, '
-      'tokens, ord, warnings, content_hash, text, frontmatter_text, head, '
-      'line_facts, banned_matches) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'tokens, formatted, approval_hash, ord, warnings, content_hash, text, '
+      'frontmatter_text, head, line_facts, banned_matches, item_facts) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -356,6 +363,11 @@ final class IndexStore {
         doc.title,
         jsonEncode(doc.frontmatter),
         doc.tokens,
+        switch (doc.formatted) {
+          final bool formatted => formatted ? 1 : 0,
+          null => null,
+        },
+        doc.approvalHash,
         doc.order,
         jsonEncode(doc.warnings),
         parsed.contentHash,
@@ -364,6 +376,7 @@ final class IndexStore {
         content.head,
         jsonEncode(content.lineFacts.toJson()),
         jsonEncode(bannedMatchesToJson(content.bannedMatches)),
+        jsonEncode(content.itemFacts.toJson()),
       ],
     );
     final docId = _db.lastInsertRowId;
@@ -468,7 +481,8 @@ final class IndexStore {
   List<IndexedDoc> loadDocs() => [
     for (final row in _db.select(
       'SELECT doc_path, doc_type_id, name, parent_path, parent_warning, '
-      'title, frontmatter, tokens, ord, warnings FROM docs '
+      'title, frontmatter, tokens, formatted, approval_hash, ord, warnings '
+      'FROM docs '
       'ORDER BY ord, doc_path',
     ))
       IndexedDoc(
@@ -481,6 +495,11 @@ final class IndexStore {
           jsonDecode(row['frontmatter'] as String) as Map<String, Object?>,
         ),
         tokens: row['tokens'] as int,
+        formatted: switch (row['formatted']) {
+          final int flag => flag == 1,
+          _ => null,
+        },
+        approvalHash: row['approval_hash'] as String?,
         order: row['ord'] as int,
         warnings: [
           ...(jsonDecode(row['warnings'] as String) as List<Object?>)
@@ -496,8 +515,9 @@ final class IndexStore {
   DocContent loadContent(String docPath) {
     final doc = _contentSql.select([docPath]).single;
     final rows = _sectionsSql.select([docPath]);
-    // Only the column value is captured: the Row would pin line_facts too.
+    // Only the column values are captured: the Row would pin line_facts too.
     final banned = doc['banned_matches'] as String;
+    final itemFacts = doc['item_facts'] as String;
     return DocContent(
       readText: () => _textSql.select([docPath]).single['text'] as String,
       frontmatterText: doc['frontmatter_text'] as String?,
@@ -522,6 +542,7 @@ final class IndexStore {
       ),
       readBannedMatches: () =>
           bannedMatchesFromJson(jsonDecode(banned) as List<Object?>),
+      readItemFacts: () => ItemFacts.fromJson(jsonDecode(itemFacts)),
     );
   }
 

@@ -4,17 +4,28 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/setup_migration/agent_files.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
+import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_runner.dart';
 
 Map<String, String> frWith(String line) => fr('verify_method: test', line);
 
 void main() {
+  late String binary;
+
+  setUpAll(() async {
+    binary = await buildSpecstone();
+  });
+
   test('f04/us01/s1, f04/us01/fr02/e01: a clean project prints 0 findings and exits 0', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
     expect(await runner.run(['check']), 0);
@@ -29,7 +40,7 @@ void main() {
     expect(await runner.run(['check']), 1);
     expect(
       out.toString(),
-      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
+      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
       'demonstration\n1 finding\n',
     );
   });
@@ -82,6 +93,7 @@ void main() {
           'name': 'shop',
           'line': 1,
           'message': 'holds both feature and user_story children',
+          'waitsFor': 'agent',
           'docTypes': ['feature', 'user_story'],
         },
       ],
@@ -100,10 +112,239 @@ void main() {
       'kind': 'field_value_mismatch',
       'docPath': loginFr,
       'name': 'login/email_login/check_password',
-      'line': 5,
+      'line': 6,
       'message': 'verify_method is maybe; it takes test, analysis, inspection, or demonstration',
+      'waitsFor': 'agent',
       'field': 'verify_method',
       'value': 'maybe',
+    });
+  });
+
+  group('user_story:consistency_check/find_template_breaks S8', () {
+    // Two findings: the story edited since the Owner approved it, and a
+    // requirement with a bad field value.
+    Future<Directory> project() => writeCheckProject(
+      extra: {
+        ...editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+        ...frWith('verify_method: maybe'),
+      },
+    );
+
+    test(
+      '--json gives each finding who clears it, and the count of two',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['check', '--json']), 1);
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        expect(json['count'], 2);
+        final waits = {
+          for (final f
+              in (json['findings']! as List).cast<Map<String, Object?>>())
+            f['kind']: f['waitsFor'],
+        };
+        expect(waits, {
+          'approval_stale': 'owner',
+          'field_value_mismatch': 'agent',
+        });
+        final stale = (json['findings']! as List)
+            .cast<Map<String, Object?>>()
+            .firstWhere((f) => f['kind'] == 'approval_stale');
+        expect(stale.keys.take(6), [
+          'kind',
+          'docPath',
+          'name',
+          'line',
+          'message',
+          'waitsFor',
+        ]);
+        expect(stale['message'], isNot(contains('(waits for the Owner)')));
+      },
+    );
+
+    test('text ends the edited doc line with the tag and no other', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['check']), 1);
+      final lines = out.toString().trimRight().split('\n');
+      expect(lines.last, '2 findings');
+      final tagged = lines.where((l) => l.endsWith(' (waits for the Owner)'));
+      expect(tagged, hasLength(1));
+      expect(tagged.single, startsWith('$loginStory:3: approval_stale: '));
+    });
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E08: an '
+      'approval_stale finding ends its line with the tag, and its JSON holds '
+      'waitsFor owner with a message that carries no tag', () async {
+    final project = await writeCheckProject(
+      extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      endsWith(' (waits for the Owner)\n1 finding\n'),
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final finding =
+        ((jsonDecode(json.out.toString()) as Map)['findings']! as List).single
+            as Map;
+    expect(finding['waitsFor'], 'owner');
+    expect(finding['message'], isNot(contains('waits for the Owner)')));
+  });
+
+  group('user_story:consistency_check/find_template_breaks S16', () {
+    const reason = 'legacy states none';
+    // The marker is built from parts so this file holds none outside a value.
+    const marker = 'TBR \u2014 ';
+
+    Future<Directory> project() => writeCheckProject(
+      extra: fr(
+        'A wrong password must not sign in.',
+        'A wrong password must not sign in.\n\n- **Consistency:** $marker$reason',
+      ),
+    );
+
+    test('text prints one tbr_open line at the marker with the tag', () async {
+      final dir = await project();
+      final line = File('${dir.path}/docs/$loginFr')
+          .readAsLinesSync()
+          .indexWhere((l) => l.contains(marker));
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginFr:${line + 1}: tbr_open: the value is still to be resolved: '
+        '$reason (waits for the Owner)\n1 finding\n',
+      );
+    });
+
+    test('--json gives form marker and waitsFor owner, no tag', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map;
+      expect(finding['kind'], 'tbr_open');
+      expect(finding['waitsFor'], 'owner');
+      expect(finding['form'], 'marker');
+      expect(finding['message'], 'the value is still to be resolved: $reason');
+    });
+
+    test(
+      'after the Owner writes the value, the check reports nothing',
+      () async {
+        final (:runner, :out, :err) = readRunner(
+          await writeCheckProject(
+            extra: fr(
+              'A wrong password must not sign in.',
+              'A wrong password must not sign in.\n\n- **Consistency:** immediate',
+            ),
+          ),
+        );
+
+        expect(await runner.run(['check']), 0);
+        expect(out.toString(), '0 findings\n');
+      },
+    );
+  });
+
+  group('consistency_check/find_template_breaks/print_findings upstream block', () {
+    final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
+    final fingerprint = fingerprintFor(edited);
+    final block = printedBlockOf(edited);
+
+    Future<Directory> project() =>
+        writeCheckProject(extra: doc(loginStory, loginScenario2, edited));
+
+    test('text prints the finding line, the block indented 4 spaces, then '
+        'the fingerprint line, then the count', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginFr:8: suspect: S2 changed after it was confirmed, recorded ${fingerprintFor(loginScenario2)}; '
+        'read Scenario 2 of $loginStory below, then record S2 with the fingerprint after it\n'
+        '${block.split('\n').map((l) => '    $l\n').join()}'
+        '    fingerprint $fingerprint\n'
+        '1 finding\n',
+      );
+    });
+
+    test('--json puts text before fingerprint', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map<String, Object?>;
+      expect(finding['text'], block);
+      final keys = finding.keys.toList();
+      expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
+      expect(finding['fingerprint'], fingerprint);
+      expect(finding['message'], isNot(contains(fingerprint)));
+    });
+  });
+
+  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+      'finding counts and exits 1 as any other', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+      ),
+    );
+    expect(await runner.run(['check']), 1);
+    expect(out.toString(), contains('\n1 finding\n'));
+  });
+
+  group('consistency_check/find_template_breaks/print_findings E11, E12: item_over_limit', () {
+    final overlong = 'A long rationale'.padRight(700, '.');
+
+    Future<Directory> project() => writeCheckProject(
+      extra: fr('A wrong password must not sign in.', overlong),
+    );
+
+    test('text ends its line with the tag and the run exits 1', () async {
+      final dir = await project();
+      final line =
+          File('${dir.path}/docs/$loginFr')
+              .readAsLinesSync()
+              .indexWhere((l) => l.startsWith('A long rationale')) +
+          1;
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginFr:$line: item_over_limit: the item at line $line of section '
+        'rationale has 700 characters; the limit is 600 '
+        '(waits for the Owner)\n1 finding\n',
+      );
+    });
+
+    test('--json carries waitsFor owner and the four keys, no tag', () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeCheckProject(
+          extra: fr(
+            '1. E01 — An empty password → refused.',
+            '1. E01 — ${'An empty password'.padRight(700, '.')}',
+          ),
+        ),
+      );
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map;
+      expect(finding['kind'], 'item_over_limit');
+      expect(finding['waitsFor'], 'owner');
+      expect(finding, containsPair('section', 'edge_cases'));
+      expect(finding, containsPair('id', 'E01'));
+      expect(finding, containsPair('limit', 600));
+      expect(finding, containsPair('actual', 709));
+      expect(finding['message'], isNot(contains('waits for the Owner)')));
     });
   });
 
@@ -139,7 +380,7 @@ void main() {
     expect((jsonDecode(json.out.toString()) as Map)['warnings'], hasLength(1));
   });
 
-  test('f04/us01/fr01/e08, f04/us01/fr01/e10: a pin fault exits 78 before any rule; an unknown option or two targets '
+  test('f04/us01/fr01/e08, f04/us01/fr01/e19: a pin fault exits 78 before any rule; an unknown option or two targets '
       'exit 64', () async {
     final pinned = readRunner(
       await writeCheckProject(
@@ -178,5 +419,238 @@ void main() {
       containsPair('code', 'index_busy'),
     );
     expect(out.toString(), isEmpty);
+  });
+  test('user_story:consistency_check/find_template_breaks S13: check names a stale agent block and its fix, and --json holds no name', () async {
+    final project = await writeCheckProject(
+      extra: {
+        'AGENTS.md':
+            'top\n${inlineBlock(cliVersion: specstoneVersion).replaceFirst('Rules', 'Rule')}',
+        '.specstone/AGENT.md': agentMdText,
+      },
+    );
+    const message =
+        'the Specstone block differs from what the running CLI writes; run `specstone migrate`';
+
+    final text = await Process.run(binary, [
+      'check',
+    ], workingDirectory: project.path);
+    final json = await Process.run(binary, [
+      'check',
+      '--json',
+    ], workingDirectory: project.path);
+
+    expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+    expect(
+      text.stdout,
+      'AGENTS.md:2: agent_block_stale: $message (waits for the Owner)\n'
+      '1 finding\n',
+    );
+    expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
+    final findings =
+        (jsonDecode(json.stdout as String) as Map)['findings']! as List;
+    expect(findings, [
+      {
+        'kind': 'agent_block_stale',
+        'docPath': 'AGENTS.md',
+        'line': 2,
+        'message': message,
+        'waitsFor': 'owner',
+      },
+    ]);
+  });
+
+  test('consistency_check/find_template_breaks/report_format_drift S12: check names the drifted file and its fix, and format clears it', () async {
+    final project = await writeCheckProject(
+      extra: fr(
+        'A wrong password must not sign in.\n',
+        'A wrong password must not sign in.\n\n| Case       | Result  |\n|------------|---------|\n| wrong      | refused |\n',
+      ),
+    );
+    final drifted = readRunner(project);
+    expect(await drifted.runner.run(['check']), 1);
+    expect(
+      drifted.out.toString(),
+      '$loginFr:1: format_drift: the file differs from what `specstone format` writes; run '
+      '`specstone format docs/$loginFr`\n1 finding\n',
+    );
+
+    final formatted = readRunner(project);
+    expect(await formatted.runner.run(['format', 'docs/$loginFr']), 0);
+
+    final clean = readRunner(project);
+    expect(await clean.runner.run(['check']), 0);
+    expect(clean.out.toString(), '0 findings\n');
+  });
+
+  test('consistency_check/find_template_breaks: check names an approved story edited outside the commands; padded table cells draw format_drift only', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
+        ...editedAfterApproval(loginApi, [
+          (
+            '| FR | Operation |\n|---|---|\n',
+            '| FR   | Operation |\n|------|-----------|\n',
+          ),
+        ]),
+      },
+    );
+    final stale = readRunner(project);
+    expect(await stale.runner.run(['check']), 1);
+    expect(
+      stale.out.toString(),
+      "$loginStory:3: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve (waits for the Owner)\n"
+      '$loginApi:1: format_drift: the file differs from what `specstone format` writes; run '
+      '`specstone format docs/$loginApi`\n'
+      '2 findings\n',
+    );
+  });
+
+  test('consistency_check/find_template_breaks: check names a doc made outside the commands in a project upgraded to 1.2.0', () async {
+    final project = await writeCheckProject(
+      extra: {'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!},
+      unstamped: {'docs/$loginFr'},
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      "$loginFr:1: approval_stale: the doc carries no approval; it waits for the Owner's specstone approve (waits for the Owner)\n"
+      '1 finding\n',
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final findings =
+        (jsonDecode(json.out.toString()) as Map)['findings']! as List;
+    expect(findings, [
+      {
+        'kind': 'approval_stale',
+        'docPath': loginFr,
+        'name': 'login/email_login/check_password',
+        'line': 1,
+        'message': "the doc carries no approval; it waits for the Owner's specstone approve",
+        'waitsFor': 'owner',
+      },
+    ]);
+  });
+
+  test('consistency_check/find_broken_pointers S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
+      'prints the anchor, self, malformed, and doc_ref findings with their keys', () async {
+    final project = await writeCheckProject(
+      extra: edit(loginFeature, [
+        ('  - PG-01\n---', '  - PG-01\ndepends_on:\n  - login\n  - login\n---'),
+        (
+          'Users forget passwords.',
+          'Users forget passwords; [a](../../GNFR.md#speed), [b](FEATURE.md), and [c](http://h:abc/x.md).',
+        ),
+      ]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      '$loginFeature:8: doc_ref_self: depends_on value login names the doc that holds it\n'
+      '$loginFeature:9: doc_ref_duplicate: depends_on holds login a second time\n'
+      '$loginFeature:9: doc_ref_self: depends_on value login names the doc that holds it\n'
+      '$loginFeature:16: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
+      '$gnfrDoc does not hold\n'
+      '$loginFeature:16: link_self: link target FEATURE.md names the doc that holds it\n'
+      '$loginFeature:16: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
+      'parser fails on it\n'
+      '6 findings\n',
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final findings =
+        ((jsonDecode(json.out.toString()) as Map)['findings']! as List)
+            .cast<Map<String, Object?>>();
+    const shared = {'docPath', 'name', 'line', 'message', 'waitsFor'};
+    expect(
+      [
+        for (final finding in findings)
+          {
+            for (final MapEntry(:key, :value) in finding.entries)
+              if (!shared.contains(key)) key: value,
+          },
+      ],
+      [
+        {'kind': 'doc_ref_self', 'field': 'depends_on', 'value': 'login'},
+        {'kind': 'doc_ref_duplicate', 'field': 'depends_on', 'value': 'login'},
+        {'kind': 'doc_ref_self', 'field': 'depends_on', 'value': 'login'},
+        {
+          'kind': 'link_anchor_missing',
+          'target': '../../GNFR.md#speed',
+          'anchor': 'speed',
+        },
+        {'kind': 'link_self', 'target': 'FEATURE.md'},
+        {
+          'kind': 'reference_malformed',
+          'form': 'link_target',
+          'text': 'http://h:abc/x.md',
+        },
+      ],
+    );
+  });
+
+  test('document_writing INV-16: set --field and format keep a repeated doc_ref value and one naming its own doc', () async {
+    final project = await writeCheckProject();
+    final bases = getDoc(project, 'feature:login')['bases']! as Map;
+    final base = (bases['fields']! as Map)['depends_on']! as String;
+    final (:runner, :out, :err) = writeRunner(
+      project,
+      console: FakeConsole(input: '[login, login]\n'),
+    );
+    expect(
+      await runner.run([
+        'set',
+        'feature:login',
+        '--field',
+        'depends_on',
+        '--base',
+        base,
+      ]),
+      0,
+      reason: err.toString(),
+    );
+    const kept = 'depends_on: [login, login]\n';
+    final file = File('${project.path}/docs/$loginFeature');
+    expect(file.readAsStringSync(), contains(kept));
+
+    final formatted = readRunner(project);
+    expect(await formatted.runner.run(['format', 'docs/$loginFeature']), 0);
+    expect(file.readAsStringSync(), contains(kept));
+  });
+
+  test('consistency_check/find_broken_pointers S15: check prints one number_label finding per label with its key, '
+      'and none for a placeholder', () async {
+    // The labels are built from parts so this file holds no number label.
+    final run = ['F-${2}', 'US-${3}', 'FR-${4}'].join(' ');
+    final project = await writeCheckProject(
+      extra: edit(loginFeature, [
+        (
+          'Users forget passwords.',
+          'Cite $run, or F-<nn> US-<nn> FR-<nn>, or ${'us01'}/${'fr02_x'}.',
+        ),
+      ]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(
+      text.out.toString(),
+      '$loginFeature:13: number_label: $run is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
+      '$loginFeature:13: number_label: us01/fr02_x is a number label; cite the doc by its name, such as `<feature>/<story>`\n'
+      '2 findings\n',
+    );
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final findings =
+        (jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+            as List;
+    expect(findings.map((f) => (f as Map<String, Object?>)['label']), [
+      run,
+      'us01/fr02_x',
+    ]);
   });
 }

@@ -1,11 +1,13 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-const _featureType = 'feature';
 const _statusKey = 'status';
+// `approval_stale` alone reads this value, so the value rule skips it.
+const _approvedKey = 'approved';
 final _isoDate = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
 
 /// Returns the frontmatter findings of a typed [doc]; an untyped doc has none.
@@ -58,7 +60,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
     // The key line reads the frontmatter YAML, so only a finding asks for it.
     int lineOf() => lines.keyLine(key) ?? 1;
     final field = fieldsById[key];
-    if (key == _statusKey && doc.docTypeId == _featureType) {
+    if (key == _statusKey && doc.docTypeId == featureType) {
       yield context.finding(
         doc,
         FindingKind.featureStatusWritten,
@@ -73,7 +75,7 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         message: '$key is not a field of the ${type.id} doc type',
         keys: {'field': key},
       );
-    } else if (value != null && !_fits(field, value)) {
+    } else if (value != null && key != _approvedKey && !_fits(field, value)) {
       yield context.finding(
         doc,
         FindingKind.fieldValueMismatch,

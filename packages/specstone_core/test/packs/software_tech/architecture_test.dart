@@ -13,6 +13,7 @@ const _says = <String, List<String>>{
     'Tech',
     'Owns',
     'Code path',
+    'one row per component',
     'diagram box',
   ],
   'interaction': ['one request and one reply', 'error scenario'],
@@ -113,5 +114,25 @@ void main() {
   test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: architecture caps 400 lines '
       'and 60000 characters, bans no word, and cites its four sources', () {
     expectSpecLint(architecture, maxChars: 60000);
+  });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one Components row per '
+      'component as its item shape', () {
+    expectItemShape(
+      architecture,
+      'Write one rule per ID: one Components row per component, each rule '
+      'one sentence.',
+    );
+  });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E13: the guide says a DOMAIN cites its own '
+      'ARCHITECTURE by doc name plus an anchor', () {
+    expectItemShape(
+      architecture,
+      'A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, '
+      'such as `architecture:rendering#components`.',
+    );
   });
 }

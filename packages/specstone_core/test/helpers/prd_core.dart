@@ -210,6 +210,15 @@ void expectStatusValues(MergedDocType docType, List<String> values) {
   expect(fieldOf(docType, 'status').enumValues, values, reason: docType.id);
 }
 
+/// Expects each line of [shape], newline-joined, as a whole line of
+/// [docType]'s description: the item shape its guide states.
+void expectItemShape(MergedDocType docType, String shape) {
+  final description = const LineSplitter().convert(docType.description!);
+  for (final line in shape.split('\n')) {
+    expect(description, contains(line), reason: docType.id);
+  }
+}
+
 /// Expects the guide shape every `prd-core` doc type shares.
 ///
 /// [maxChars] is the doc type's character cap, null when it sets none.

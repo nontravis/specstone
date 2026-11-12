@@ -1,4 +1,4 @@
-import 'package:specstone_core/src/fault.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -6,11 +6,15 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-const _featureType = 'feature';
+/// The id of the `feature` doc type.
+const featureType = 'feature';
 const _storyType = 'user_story';
 const _planned = 'planned';
 const _implemented = 'implemented';
 const _deprecated = 'deprecated';
+
+/// A `@<hash>` suffix: 12 lowercase hex characters.
+final _hashSuffix = RegExp(r'@[0-9a-f]{12}$');
 
 /// The docs root as a path from the project root begins.
 const _docsPrefix = 'docs/';
@@ -45,6 +49,10 @@ final class DocIndex {
   /// Returns the doc at [docPath], or null when none is indexed there.
   IndexedDoc? at(String docPath) => _byPath[docPath];
 
+  /// Returns the docs of the doc type [typeId] named [name], in tree order.
+  List<IndexedDoc> ofTypeNamed(String typeId, String name) =>
+      _byTypeAndName['$typeId:$name'] ?? const [];
+
   /// Returns the doc [doc] nests under, or null for a root doc.
   IndexedDoc? parentOf(IndexedDoc doc) {
     final parentPath = doc.parentPath;
@@ -70,50 +78,89 @@ final class DocIndex {
     return chain;
   }
 
-  /// Returns every doc [address] names, read as a name first, then as a path.
+  /// Returns every doc [address] names, read as a path first, then as a name.
   ///
   /// - A name: bare, `<doc type>:<name>`, or an untyped doc's DocPath.
   /// - A path, tried in order: a DocPath, `docs/` and a DocPath, a file path
   ///   from the working directory inside the docs root. `<doc type>:<path>`
   ///   keeps the doc only when it has that doc type.
   ///
-  /// Throws, when no path names a doc either, a [TemplateFault] for a doc type
-  /// id the set lacks and an [IndexFault] when no doc carries the name.
+  /// The path is read first: the whole text naming a doc wins, so a path may
+  /// hold `#` or `@`. A command that reads a `#<section key>` or an `@<hash>`
+  /// splits it off before it calls; one left on text before it that names a
+  /// doc is refused, so a whole-doc command never acts on a doc the caller
+  /// meant to narrow.
+  ///
+  /// Throws an [IndexFault] `argument_invalid` for such a suffix, a
+  /// [TemplateFault] for a doc type id the set lacks and an [IndexFault]
+  /// `doc_not_found` when no doc carries the name.
   List<IndexedDoc> resolve(String address) {
-    try {
-      return _named(address);
-    } on SpecstoneFault {
-      if (_atPath(address) case final doc?) return [doc];
-      rethrow;
-    }
+    if (_atPath(address) case final doc?) return [doc];
+    final docPart = _beforeSuffix(address);
+    if (docPart == null) return _named(address);
+    // Throws the not-found fault when the text before the suffix names no doc.
+    if (_atPath(docPart) == null) _named(docPart);
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '$address: this command takes no #<section key> or @<hash>',
+    );
   }
 
-  /// Whether some doc carries [name] as its name.
-  bool carriesName(String name) => _byName.containsKey(name);
+  /// Returns the shortest address that picks only [doc]: `<doc type>:<name>`
+  /// when that names one doc, else its DocPath.
+  String addressOf(IndexedDoc doc) {
+    final typed = '${doc.docTypeId}:${doc.name}';
+    return doc.docTypeId != null && _byTypeAndName[typed]!.length == 1
+        ? typed
+        : doc.docPath;
+  }
 
-  List<IndexedDoc> _named(String name) {
-    final colon = name.indexOf(':');
-    if (colon < 0) {
-      return _byName[name] ?? _notFound('no doc carries the name $name');
+  /// Splits [address] into the text that names docs and its `#<section key>`
+  /// (RULE-11).
+  ///
+  /// The whole text is read as a path first, as [resolve] reads it: one that
+  /// names a doc has no section key, even when it holds `#`.
+  ({String docPart, String? sectionKey}) splitAddress(String address) {
+    if (_atPath(address) != null) return (docPart: address, sectionKey: null);
+    final read = readDocAddress(address);
+    return (docPart: read.docPart, sectionKey: read.sectionKey);
+  }
+
+  /// The text of [address] before its `#<section key>` or `@<hash>`; null
+  /// when it carries neither.
+  String? _beforeSuffix(String address) {
+    final read = readDocAddress(address);
+    if (read.sectionKey != null) return read.docPart;
+    final hash = _hashSuffix.firstMatch(address);
+    return hash == null ? null : address.substring(0, hash.start);
+  }
+
+  List<IndexedDoc> _named(String address) {
+    final read = readDocAddress(address);
+    final typeId = read.typeId;
+    if (typeId == null) {
+      return _byName[read.body] ??
+          _notFound('no doc carries the name ${read.body}');
     }
-    final typeId = name.substring(0, colon);
-    final bare = name.substring(colon + 1);
     if (set.lookup(typeId) == null) {
       throw TemplateFault(
         FaultCode.docTypeUnknown,
         'Could not find a doc type named "$typeId".',
       );
     }
-    return _byTypeAndName['$typeId:$bare'] ??
-        _notFound('no $typeId doc carries the name $bare');
+    return _byTypeAndName['$typeId:${read.body}'] ??
+        _notFound('no $typeId doc carries the name ${read.body}');
   }
 
   /// Returns the doc [address] names as a path, or null when none.
+  ///
+  /// The whole text is tried as a path too: `c:/docs/x.md` reads as the doc
+  /// type id `c`.
   IndexedDoc? _atPath(String address) {
-    final colon = address.indexOf(':');
-    if (colon > 0) {
-      final typeId = address.substring(0, colon);
-      final typed = _docAtPath(address.substring(colon + 1));
+    final read = readDocAddress(address);
+    final typeId = read.typeId;
+    if (typeId != null) {
+      final typed = _docAtPath(read.body);
       if (typed != null && typed.docTypeId == typeId) return typed;
     }
     return _docAtPath(address);
@@ -149,7 +196,7 @@ final class DocIndex {
   /// that is not deprecated is, else `planned`. Any other doc returns the
   /// status it writes, or null.
   String? statusOf(IndexedDoc doc) {
-    if (doc.docTypeId != _featureType) return doc.writtenStatus;
+    if (doc.docTypeId != featureType) return doc.writtenStatus;
     final stories = [
       for (final member in subtreeOf(doc).skip(1))
         if (member.docTypeId == _storyType) member.writtenStatus,

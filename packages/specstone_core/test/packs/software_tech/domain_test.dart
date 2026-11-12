@@ -24,6 +24,12 @@ const _says = <String, List<String>>{
     'eventual',
     'timeout 10 s',
   ],
+  'known_limits': [
+    'one bullet per case',
+    'does not handle',
+    'what happens then',
+    'in that invariant',
+  ],
   'lifecycle': ['stateDiagram-v2', '4 or more states'],
   'commands_and_events': ['command', 'aggregate', 'event emitted'],
   'corrective_policies': ['eventual'],
@@ -37,7 +43,7 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: domain sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and eight '
+      'specs/f{nn}_{slug}/ with parent feature, no own field, and nine '
       'sections', () {
     expect(domain.path, 'specs/f{nn}_{slug}/DOMAIN.md');
     expect(domain.parent, 'feature');
@@ -46,6 +52,7 @@ void main() {
       SectionSpec('entities', 'Entities', required: true),
       SectionSpec('value_objects', 'Value objects'),
       SectionSpec('invariants', 'Invariants', prefixId: 'INV-', required: true),
+      SectionSpec('known_limits', 'Known limits'),
       SectionSpec('lifecycle', 'Lifecycle'),
       SectionSpec('data_touch', 'Data touch'),
       SectionSpec('commands_and_events', 'Commands and events'),
@@ -60,6 +67,44 @@ void main() {
     expectSectionsSay(domain, _says);
   });
 
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E12: the invariants guide gives the bullet '
+      'shape, keeps a bound in its invariant, and routes mechanics and '
+      'unhandled cases away', () {
+    expectSectionsSay(domain, const {
+      'invariants': [
+        '- **INV-<N>** <one sentence>',
+        '- **Enforcer:** <aggregate root>',
+        '- **Consistency:** immediate',
+        'in the invariant it bounds',
+        'ARCHITECTURE',
+        '`known_limits`',
+        'no trace tag',
+        '`reference` field',
+      ],
+    });
+  });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E11: the guide states one bullet per '
+      'invariant as its item shape', () {
+    expectItemShape(
+      domain,
+      'Write one rule per ID: one bullet per invariant, each rule one '
+      'sentence.',
+    );
+  });
+
+  test('template_packs/write_spec_docs_from_software_tech/'
+      'write_spec_writing_guides E13: the guide says a DOMAIN cites its own '
+      'ARCHITECTURE by doc name plus an anchor', () {
+    expectItemShape(
+      domain,
+      'A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, '
+      'such as `architecture:rendering#components`.',
+    );
+  });
+
   test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: domain caps 400 lines and '
       '60000 characters, bans no word, and cites its four sources', () {
     expectSpecLint(domain, maxChars: 60000);
@@ -68,10 +113,17 @@ void main() {
   test('f03/us07/fr03/e03, sf-r4: a 60001-character DOMAIN.md gets '
       'chars_over_limit, limit 60000, actual 60001', () async {
     const loginDomain = 'specs/f01_login/DOMAIN.md';
+    // The index counts the laid-out text: a blank line under the title and a
+    // final line break.
+    // A draft takes no approval stamp, so the character count stays exact.
+    const draft = '---\ndraft: true\n---\n\n';
     const title = '# Login domain\n';
     final report = checkOf(
       await writeCheckProject(
-        extra: {'docs/$loginDomain': title + 'x' * (60001 - title.length)},
+        extra: {
+          'docs/$loginDomain':
+              '$draft$title${'x' * (60001 - draft.length - title.length - 2)}',
+        },
       ),
     );
     final finding = report.findings.singleWhere(

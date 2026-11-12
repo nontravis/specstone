@@ -19,6 +19,64 @@ void main() {
     for (final d in docs) d.docPath,
   ];
 
+  test('f01/us04/fr01: an address with a #<section key> or an @<hash> is argument_invalid naming it', () async {
+    for (final address in [
+      'feature:login#problem',
+      'login#problem',
+      'feature:login@7e11fc4a24d2',
+    ]) {
+      expect(
+        () => index.resolve(address),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.message, 'message', contains(address)),
+        ),
+        reason: address,
+      );
+    }
+  });
+  test('f01/us04/fr01: resolve reads the path first, so a whole text naming a doc wins over its #, and a # or @ '
+      'suffix on text that names no doc is doc_not_found', () async {
+    final root = await writeLoginProject();
+    for (final name in ['c#_tips.md', 'a@7e11fc4a24d2.md']) {
+      File('${root.path}/docs/notes/$name')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('# Note\n');
+    }
+    final session = openSession(root);
+    addTearDown(session.close);
+    final hashed = session.index;
+    for (final address in [
+      'notes/c#_tips.md',
+      'docs/notes/c#_tips.md',
+      'notes/a@7e11fc4a24d2.md',
+    ]) {
+      expect(paths(hashed.resolve(address)), [
+        address.replaceFirst('docs/', ''),
+      ], reason: address);
+    }
+    for (final address in ['nosuch#problem', 'nosuch@7e11fc4a24d2']) {
+      expect(
+        () => hashed.resolve(address),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.docNotFound,
+          ),
+        ),
+        reason: address,
+      );
+    }
+  });
+  test('f01/us04/fr01: ofTypeNamed reads the docs of one type and Name from the index map, in tree order', () async {
+    expect(paths(index.ofTypeNamed('feature', 'login')), [
+      'prds/features/f01_login/FEATURE.md',
+    ]);
+    expect(index.ofTypeNamed('user_story', 'login'), isEmpty);
+    expect(index.ofTypeNamed('nosuch', 'login'), isEmpty);
+  });
   test('f01/us04/fr01, f01/us04/fr01/e01, s03/inv6: a bare name gives every doc carrying it, in tree order', () async {
     expect(paths(index.resolve('login')), [
       'prds/features/f01_login/FEATURE.md',
@@ -62,7 +120,7 @@ void main() {
   test('f01/us04/fr01/e07: a colon argument whose prefix is no doc type and names no untyped doc is still doc_type_unknown', () async {
     final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
     expect(
-      () => colon.resolve('notes/11:00.md'),
+      () => colon.resolve('notes:11:00.md'),
       throwsA(isA<TemplateFault>()),
     );
   }, skip: Platform.isWindows ? colonSkip : false);
@@ -83,6 +141,23 @@ void main() {
       );
     },
   );
+  test('index_query/read_doc_section/resolve_doc_name E18: a target whose text before its first colon is no slug is doc_not_found, never doc_type_unknown', () async {
+    for (final address in ['Grid:login', 'check architecture:login']) {
+      expect(
+        () => index.resolve(address),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no doc carries the name $address',
+              ),
+        ),
+        reason: address,
+      );
+    }
+  });
   test('f01/us04/fr01/e07: an unknown doc type prefix is doc_type_unknown, exit 64', () async {
     expect(
       () => index.resolve('architectur:login'),

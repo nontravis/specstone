@@ -86,4 +86,19 @@ void main() {
       ['statement'],
     );
   });
+
+  test(
+    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    'E07: the guide states the item shape: rule per ID, bound, '
+    'mechanics, and trace',
+    () {
+      expectItemShape(
+        nf,
+        'Write one rule per ID, keep its bound in the Statement, '
+        'and leave mechanics to the spec docs.\n'
+        'Keep the trace in `traced_from` alone, never in the '
+        'Statement.',
+      );
+    },
+  );
 }

@@ -299,7 +299,7 @@ MoveFile _parseMoveFile(YamlMap map, int i, int j, {required String file}) {
 }
 
 /// A `move_file` `to` pattern must hold the `from` placeholders in the same
-/// order (PD21): US-02 FR-02 E04 keeps one value per placeholder.
+/// order (PD21): `setup_migration/upgrade_pack_pins/apply_steps_and_pins` E04 keeps one value per placeholder.
 void _checkPlaceholders(
   String from,
   String to, {

@@ -2,18 +2,19 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/portable_path.dart';
 
 const _coversField = 'covers';
 const _codeField = 'code';
 const _separator = '/';
-const _dotName = '.';
 
 /// Returns the `covers_path_missing` and `code_root_missing` findings of a
 /// typed [doc].
 ///
 /// Only a doc type that defines `covers` or `code` is read. An entry names
-/// something when its path, a final `/` dropped, is a file or a folder.
+/// something when its path in [normalCodeEntry]'s form is a file or a folder.
 Iterable<Finding> checkCoversAndCodeRoots(
   CheckContext context,
   IndexedDoc doc,
@@ -54,8 +55,15 @@ Iterable<Finding> uncoveredCode(CheckContext context) sync* {
     for (final (:value, :line, text: _)
         in context.linesOf(doc).entriesOf(_codeField)) {
       if (value is! String) continue;
-      final root = _withoutFinalSlash(value);
-      for (final path in _filesUnder(context, root)) {
+      final paths = filesUnderCodeRoot(
+        context.codeRoot,
+        value,
+        onUnlistable: (folder) => context.warn(
+          '$folder: cannot list the folder; files under it are not checked '
+          'for covers',
+        ),
+      );
+      for (final path in paths) {
         if (_isCovered(covers, path) || !reported.add(path)) continue;
         yield context.finding(
           doc,
@@ -71,58 +79,40 @@ Iterable<Finding> uncoveredCode(CheckContext context) sync* {
   }
 }
 
-/// Returns every `covers` entry of every typed doc, a final `/` dropped.
+/// Returns every `covers` entry of every typed doc in [normalCodeEntry]'s
+/// form, the form the lister gives its paths in.
 List<String> _coversOf(CheckContext context) => [
   for (final doc in context.index.docs)
     if (context.typeHoldsField(context.typeOf(doc), _coversField))
       for (final (:value, line: _, text: _)
           in context.linesOf(doc).entriesOf(_coversField))
-        if (value is String) _withoutFinalSlash(value),
+        if (value is String) normalCodeEntry(value),
 ];
 
-/// Whether an entry equals [path] or names a folder that holds it.
+/// Whether an entry equals [path], names a folder that holds it, or names
+/// the code root itself.
 ///
 /// Matching is by path segment: `lib/src` does not reach `lib/srcx/a.dart`.
 bool _isCovered(List<String> covers, String path) => covers.any(
-  (entry) => path == entry || path.startsWith('$entry$_separator'),
+  (entry) =>
+      entry.isEmpty || path == entry || path.startsWith('$entry$_separator'),
 );
 
 bool _namesSomething(CheckContext context, String entry) =>
-    FileSystemEntity.typeSync(
-      '${context.codeRoot.path}$_separator${_withoutFinalSlash(entry)}',
-    ) !=
-    FileSystemEntityType.notFound;
+    namesFileOrFolderFrom(context.codeRoot, entry);
 
-String _withoutFinalSlash(String entry) =>
-    entry.endsWith(_separator) ? entry.substring(0, entry.length - 1) : entry;
-
-/// Yields the regular files under [root], as paths from the code root.
+/// Whether [entry], in [normalCodeEntry]'s form, is a file or a folder from
+/// [base].
 ///
-/// Skips names starting with a dot and links. A missing root yields nothing.
-Iterable<String> _filesUnder(CheckContext context, String root) sync* {
-  final folder = Directory('${context.codeRoot.path}$_separator$root');
-  final List<FileSystemEntity> entities;
-  try {
-    entities = folder.listSync(followLinks: false);
-  } on FileSystemException {
-    if (folder.existsSync()) {
-      context.warn(
-        '$root: cannot list the folder; files under it are not checked for '
-        'covers',
-      );
-    }
-    return;
-  }
-  for (final entity in entities) {
-    final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
-    if (name.startsWith(_dotName)) continue;
-    final path = '$root$_separator$name';
-    switch (entity) {
-      case File():
-        yield path;
-      case Directory():
-        yield* _filesUnder(context, path);
-      case _:
-    }
-  }
+/// An [entry] that is no [isPortablePath] as written names nothing, as the code
+/// file lister reads it: `\` is a separator on Windows alone, and the disk
+/// finds a trimmed name there alone.
+///
+/// The one rule `check` and the migrate's `code_root` count resolve a
+/// `covers` or `code` entry by.
+bool namesFileOrFolderFrom(Directory base, String entry) {
+  final normal = normalCodeEntry(entry);
+  return isPortablePath(entry) &&
+      FileSystemEntity.typeSync('${base.path}$_separator$normal') !=
+          FileSystemEntityType.notFound;
 }

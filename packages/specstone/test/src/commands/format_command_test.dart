@@ -18,15 +18,17 @@ const _storyDir = '$_featureDir/us01_format_docs';
 const _story = '$_storyDir/USER_STORY.md';
 
 const _featureFormatted =
-    '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
-    '## Feature goal\n- **why:** share docs\n';
+    '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+    '## Feature goal\n\n- **why:** share docs\n';
 const _featureOutOfOrder =
-    '# F-05\n\n## Feature goal\n- **why:** share docs\n\n'
-    '## Feature name\n- **Human:** Rendering\n';
+    '# F-05\n\n## Feature goal\n\n- **why:** share docs\n\n'
+    '## Feature name\n\n- **Human:** Rendering\n';
 const _storyFormatted =
-    '# US-01\n\n## Summary\nFormat docs.\n\n## Acceptance Criteria\nDone.\n';
+    '# US-01\n\n## Summary\n\nFormat docs.\n\n'
+    '## Acceptance Criteria\n\nDone.\n';
 const _storyOutOfOrder =
-    '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
+    '# US-01\n\n## Acceptance Criteria\n\nDone.\n\n'
+    '## Summary\n\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 /// Returns why a read-only folder cannot stop a write here, else null.
@@ -85,34 +87,54 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('f05/us01/s3: adds a missing required section with its starter text '
-        'and keeps the frontmatter', () async {
-      final project = await fixtureProject({
-        _feature: '---\ndraft: false\n---\n# F-05\n\n## Feature name\nx\n',
-      });
+    test('rendering/format_docs S10: a layout-only doc gets trimmed table '
+        'cells, a two-space line break, no other trailing space, and a '
+        'blank line under each heading', () async {
+      const disk =
+          '# F-05\n## Feature name\n| a   | b  |\n|-----|----|\n'
+          '| x   | yy |\n## Feature goal\nfirst    \nsecond \t\n';
+      final project = await fixtureProject({_feature: disk});
       final runner = await runnerIn(project);
 
       expect(await runner.run(['format', _feature]), 0);
+
       expect(
         read(project, _feature),
-        '---\ndraft: false\n---\n# F-05\n\n## Feature name\nx\n\n'
-        '## Feature goal\n- **why:**\n',
+        '# F-05\n\n## Feature name\n\n| a | b |\n|---|---|\n'
+        '| x | yy |\n\n## Feature goal\n\nfirst  \nsecond\n',
       );
     });
 
-    test('f05/us01/s4: rewrites a header to the form the template writes', () async {
-      final project = await fixtureProject({
-        _feature:
-            '# F-05\n\n## Feature name\nx\n\n## feature   goal\n- **why:** y\n',
-      });
+    test('rendering/format_docs/leave_missing_sections S3: adds no section, '
+        'leaves draft as written, and check still lists the gap', () async {
+      const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
+      final project = await fixtureProject({_feature: disk});
       final runner = await runnerIn(project);
 
       expect(await runner.run(['format', _feature]), 0);
-      expect(
-        read(project, _feature),
-        '# F-05\n\n## Feature name\nx\n\n## Feature goal\n- **why:** y\n',
-      );
+      expect(read(project, _feature), disk);
+      out.clear();
+      expect(await runner.run(['check']), 1);
+      expect(out.toString(), contains('required_section_missing'));
     });
+
+    test(
+      'f05/us01/s4: rewrites a header to the form the template writes',
+      () async {
+        final project = await fixtureProject({
+          _feature:
+              '# F-05\n\n## Feature name\n\nx\n\n'
+              '## feature   goal\n\n- **why:** y\n',
+        });
+        final runner = await runnerIn(project);
+
+        expect(await runner.run(['format', _feature]), 0);
+        expect(
+          read(project, _feature),
+          '# F-05\n\n## Feature name\n\nx\n\n## Feature goal\n\n- **why:** y\n',
+        );
+      },
+    );
 
     test('f05/us01/s5: --check lists the doc that would change, exits 1, and '
         'writes nothing', () async {
@@ -175,6 +197,21 @@ void main() {
         ],
         'warnings': <String>[],
       });
+    });
+
+    test('rendering/format_docs/match_section_headers: a doc whose layout '
+        'would turn a body line into a frontmatter close is refused and '
+        'left byte for byte', () async {
+      const text = '---\n# US-01\n\n## Summary\nx\n--- \n';
+      final project = await fixtureProject({_story: text});
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format']), 1);
+      expect(
+        out.toString(),
+        '$_story: refused: layout would change the doc structure\n',
+      );
+      expect(read(project, _story), text);
     });
 
     test('f05/us01/s8: a target outside the docs root, then a missing target, '
@@ -401,7 +438,7 @@ sections:
         expect(File.fromUri(shipped.uri.resolve(index)).existsSync(), isFalse);
 
         final notes = await fixtureProject({
-          notePath: '# A\n\n## Contents\nbody\n',
+          notePath: '# A\n\n## Contents\n\nbody\n',
         });
         final withNote = await noteRunnerIn(notes);
 
@@ -409,8 +446,22 @@ sections:
         expect(File.fromUri(notes.uri.resolve(index)).existsSync(), isTrue);
         expect(
           read(notes, notePath),
-          '# A\n\n## Contents\n$toc\ntoc\n$end\nbody\n',
+          '# A\n\n## Contents\n\n$toc\ntoc\n$end\n\nbody\n',
         );
+      });
+
+      test('rendering/keep_generated_blocks_current S1: a stale block gets '
+          'the generator text now and every line outside it keeps its '
+          'text', () async {
+        const before = '# A\n\n## Contents\n\n';
+        const after = '\nbody line\n\nlast line\n';
+        final project = await fixtureProject({
+          notePath: '$before$toc\nold\n$end$after',
+        });
+
+        expect(await (await noteRunnerIn(project)).run(['format']), 0);
+
+        expect(read(project, notePath), '$before$toc\ntoc\n$end$after');
       });
 
       Future<Directory> damagedNoteProject() async {

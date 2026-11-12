@@ -2,7 +2,7 @@
 //
 // Usage: dart run tool/third_party_notices.dart <out path>, run from the repo
 // root. Contract: docs/specs/install_update/s02_api_release.md `## release.dart`
-// (the `build` job) and US-04 FR-06.
+// (the `build` job) and `install_update/release_new_version/package_archive`.
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';

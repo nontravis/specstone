@@ -1,5 +1,9 @@
 import 'package:specstone_core/src/fault.dart';
 
+/// The `field_not_writable` message for the `approved` key (R89).
+const approvedNotWritableMessage =
+    'approved is written only by specstone approve and the hash stamps';
+
 /// A document writing fault code from the `s05_errors.md` catalog.
 ///
 /// Values follow catalog order. [wire] is the snake_case code printed in the
@@ -34,7 +38,8 @@ enum WriteFaultCode {
 final class CurrentTarget {
   const new({required this.heading, required this.text, required this.base});
 
-  /// `get`'s naming line with the base, printed only in text mode.
+  /// `get`'s naming line of the target, with its base, printed only in text
+  /// mode.
   final String heading;
 
   /// The target's current text.

@@ -99,7 +99,7 @@ void main() {
         FieldType.string,
         FieldType.enumType,
         FieldType.boolean,
-        FieldType.boolean,
+        FieldType.string,
         FieldType.docRef,
       ]);
       expect(merged.fields.map((f) => f.list), [
@@ -399,9 +399,64 @@ sections:
       );
     });
 
-    test('f03/us02/fr04/e06, s03/inv20: changing the type of approved is locked_field_disabled', () {
+    test('a locked-field fault on slug names no approved clause', () {
       expect(
-        () => project(shipped(), 'fields: [{id: approved, type: string}]'),
+        () => project(shipped(), 'fields: [{id: slug, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.lockedFieldDisabled,
+            'fields.slug',
+            message:
+                'the built-in field slug cannot be disabled or change its type',
+          ),
+        ),
+      );
+    });
+
+    for (final type in ['boolean', 'integer', 'date']) {
+      test(
+        'template_packs/customize_shipped_doc_type/keep_locked_fields E06, E09: writing type $type on approved is locked_field_disabled',
+        () {
+          expect(
+            () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
+            throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+          );
+        },
+      );
+    }
+
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E09: approved is of type string, so writing type string is accepted', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: approved, type: string}]',
+      );
+
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'approved').type,
+        FieldType.string,
+      );
+    });
+
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing enum values on approved is locked_field_disabled', () {
+      expect(
+        () => project(
+          shipped(),
+          'fields: [{id: approved, type: enum, enum: [a, b]}]',
+        ),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing list on approved is locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, list: true}]'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing enum values with no type on approved is locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
       );
     });
@@ -726,6 +781,57 @@ sections:
 
       expect(merged.lint.maxChars, 8000);
       expect(merged.lint.maxLines, 300);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'E15: a project max_item_chars sets that doc type; every other keeps '
+        'the 600 default', () {
+      final domain = merger.apply(
+        merger.builtInBase('domain'),
+        layer('description: A domain\npath: domain.md\n', docTypeId: 'domain'),
+      );
+
+      final merged = merger.apply(
+        domain,
+        layer(
+          'lint: {max_item_chars: 900}',
+          kind: LayerKind.project,
+          docTypeId: 'domain',
+        ),
+      );
+
+      expect(merged.lint.maxItemChars, 900);
+      expect(merged.lint.itemCharLimit, 900);
+      expect(defaultMaxItemChars, 600);
+      expect(domain.lint.maxItemChars, isNull);
+      expect(domain.lint.itemCharLimit, 600);
+      expect(shipped().lint.itemCharLimit, 600);
+      expect(merger.builtInBase('feature').lint.itemCharLimit, 600);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'Input: an upper layer max_item_chars replaces the lower one and a '
+        'layer without it keeps it', () {
+      final base = project(shipped(), 'lint: {max_item_chars: 900}');
+
+      expect(
+        project(base, 'lint: {max_item_chars: 300}').lint.maxItemChars,
+        300,
+      );
+      expect(project(base, 'lint: {max_chars: 50}').lint.maxItemChars, 900);
+    });
+
+    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+        'E01: a doc-level lint key outside the list is unknown_key, and '
+        'max_item_chars is inside it', () {
+      expect(
+        () => project(shipped(), 'lint: {max_words: 3}'),
+        throwsA(fault(FaultCode.unknownKey, 'lint.max_words')),
+      );
+      expect(
+        project(shipped(), 'lint: {max_item_chars: 1}').lint.maxItemChars,
+        1,
+      );
     });
 
     test('f03/us02/fr03/e04: a section keeps its own lint and an unwritten '

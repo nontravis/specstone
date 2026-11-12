@@ -1,3 +1,6 @@
+// Test names carry the story, FR, and edge-case IDs on one line.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:io';
 import 'dart:isolate';
 
@@ -60,16 +63,16 @@ void main() {
     expect(
       text,
       '---\ndraft: true\n---\n\n# forgot_email\n\n'
-      '## Use Case\n'
+      '## Use Case\n\n'
       '- **As a** <Role> [who <situation>]\n'
       '- **I want to** <action>\n'
       '- **so that** <benefit>\n\n'
-      '## Acceptance Criteria\n'
-      '### Scenario 1 — [happy] <what differs>\n'
+      '## Acceptance Criteria\n\n'
+      '### Scenario 1 — [happy] <what differs>\n\n'
       '- **Given** <only the state the scenario needs>\n'
       '- **When** <one trigger>\n'
       '- **Then** <observed outcome>\n\n'
-      '### Scenario 2 — [error] <what differs> (BR-01)\n'
+      '### Scenario 2 — [error] <what differs> (BR-01)\n\n'
       '- **Given** <only the state the scenario needs>\n'
       '- **When** <one trigger>\n'
       '- **Then** <what the person sees or what the system refuses>\n',
@@ -116,7 +119,7 @@ void main() {
       throwsA(
         indexFault(
           IndexFaultCode.argumentMissing,
-          'user_story needs --parent, the name of a feature',
+          'user_story needs --parent: a feature named by <doc type>:<name>, a bare name, or a path',
         ),
       ),
     );
@@ -266,6 +269,74 @@ void main() {
       );
     },
   );
+
+  test('f02/us02/fr01/e09: a --parent that names no doc of the parent doc type is doc_not_found naming the value, and no file is created', () async {
+    final root = await writeWriteProject();
+    for (final parent in ['architecture:login', 'user_story:login']) {
+      expect(
+        () => writeIn(
+          root,
+          (s) =>
+              answerNew(s, docTypeId: 'user_story', parent: parent, slug: 'x'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having((f) => f.message, 'message', contains(parent)),
+        ),
+        reason: parent,
+      );
+    }
+    expect(
+      hasDoc(root, 'prds/features/f01_login/us04_x/USER_STORY.md'),
+      isFalse,
+    );
+  });
+
+  test('f02/us02/fr01/e20: --parent feature:login and a path name the parent as a bare name does', () async {
+    final root = await writeWriteProject();
+    for (final (parent, slug) in [
+      ('feature:login', 'by_type'),
+      ('prds/features/f01_login/FEATURE.md', 'by_path'),
+      ('login', 'by_name'),
+    ]) {
+      final answer = writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: parent, slug: slug),
+      );
+      expect(answer.json['name'], 'login/$slug', reason: parent);
+    }
+  });
+
+  test('f02/us02/fr01/e21: a --parent that names 2 or more docs of the parent doc type is argument_invalid listing each as <doc type>:<name>, and no file is created', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login\n'},
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              allOf(
+                contains(loginFeature),
+                contains('prds/features/f03_login/FEATURE.md'),
+              ),
+            ),
+      ),
+    );
+    expect(
+      hasDoc(root, 'prds/features/f01_login/us04_x/USER_STORY.md'),
+      isFalse,
+    );
+  });
 
   test('f02/us02/fr01/e10: a missing --slug, a --parent or --slug the type takes no value for, or a bad slug is refused', () async {
     final root = await writeWriteProject();
@@ -604,7 +675,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'approved is written only by specstone approve',
+                'approved is written only by specstone approve and the hash stamps',
               )
               .having((f) => f.key, 'key', 'approved'),
         ),
@@ -682,7 +753,7 @@ void main() {
     }
   });
 
-  test('f02/us02/fr02, f02/us02/fr02/e03: given text stays verbatim and draft lands at its field slot', () async {
+  test('document_writing/create_doc_from_template/fill_new_doc E08: keys reordered, text laid out, draft at its field slot', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -710,8 +781,122 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/features/f01_login/us05_b/USER_STORY.md'),
-      '---\ndraft: true\npersona:\n  - owner\n'
-      'vision:\n  - PV-01\n---\n\n# Mine\n',
+      '---\ndraft: true\nvision:\n  - PV-01\n'
+      'persona:\n  - owner\n---\n\n# Mine\n',
+    );
+  });
+
+  test('document_writing/create_doc_from_template/fill_new_doc E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
+    final root = await writeWriteProject();
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: '---\nzzz: 1\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+      '---\ndraft: true\nvision:\n  - PV-01\nzzz: 1\n---\n\n# Mine\n\n'
+      '## Use Case\n\nSign in.\n',
+    );
+  });
+
+  test('document_writing/create_doc_from_template/fill_new_doc E08: stdin with text right under a heading is written laid out', () async {
+    final root = await writeWriteProject();
+    final answer = writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
+      ),
+    );
+    const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
+    expect(
+      readDoc(root, path),
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
+      '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
+    );
+    expect(answer.json['path'], path);
+  });
+
+  test('document_writing/create_doc_from_template/fill_new_doc E08: stdin the format command refuses is written as given, draft aside', () async {
+    final root = await writeWriteProject();
+    const given =
+        '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Not a section\nx\n';
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: given,
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+      given.replaceFirst('---\nvision', '---\ndraft: true\nvision'),
+    );
+  });
+
+  test('document_writing/create_doc_from_template/fill_new_doc: a text holding a column-0 naming line outside a fence is refused and nothing is created', () async {
+    final root = await writeWriteProject();
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    for (final text in [
+      '# Mine\n\nExample:\n$naming\nbody\n',
+      '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n$naming\n',
+    ]) {
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'quoted',
+            text: text,
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.message, 'message', contains('"$naming"')),
+        ),
+        reason: text,
+      );
+    }
+    expect(
+      Directory('${root.path}/docs/prds/features/f01_login/us04_quoted')
+          .existsSync(),
+      isFalse,
+    );
+  });
+
+  test('document_writing/create_doc_from_template/fill_new_doc: a naming line inside a fence or indented is written as text', () async {
+    final root = await writeWriteProject();
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'quoted',
+        text: '# Mine\n\n```text\n$naming\n```\n\n    $naming\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_quoted/USER_STORY.md'),
+      contains('```text\n$naming\n```\n\n    $naming\n'),
     );
   });
 }

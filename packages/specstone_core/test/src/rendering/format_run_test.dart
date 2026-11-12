@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
@@ -26,15 +27,17 @@ const _notes = 'docs/$_featureDir/notes.md';
 const _story = 'docs/$_featureDir/us01_format_docs/USER_STORY.md';
 
 const _featureFormatted =
-    '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
-    '## Feature goal\n- **why:** share docs\n';
+    '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+    '## Feature goal\n\n- **why:** share docs\n';
 const _featureOutOfOrder =
-    '# F-05\n\n## Feature goal\n- **why:** share docs\n\n'
-    '## Feature name\n- **Human:** Rendering\n';
+    '# F-05\n\n## Feature goal\n\n- **why:** share docs\n\n'
+    '## Feature name\n\n- **Human:** Rendering\n';
 const _storyFormatted =
-    '# US-01\n\n## Summary\nFormat docs.\n\n## Acceptance Criteria\nDone.\n';
+    '# US-01\n\n## Summary\n\nFormat docs.\n\n'
+    '## Acceptance Criteria\n\nDone.\n';
 const _storyOutOfOrder =
-    '# US-01\n\n## Acceptance Criteria\nDone.\n\n## Summary\nFormat docs.\n';
+    '# US-01\n\n## Acceptance Criteria\n\nDone.\n\n'
+    '## Summary\n\nFormat docs.\n';
 const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 const _bom = [0xEF, 0xBB, 0xBF];
@@ -155,7 +158,7 @@ FormatReport _runNotes(
 );
 
 String _noteDoc(String block, {String front = ''}) =>
-    '$front# A\n\n## Contents\n$block\nbody\n\n## Steps\nx\n';
+    '$front# A\n\n## Contents\n\n$block\nbody\n\n## Steps\n\nx\n';
 
 String _fresh() => '$_toc\ntoc R1\n$_end';
 
@@ -199,10 +202,7 @@ void main() {
       final report = _run(run);
 
       expect(report.files.single.status, FileStatus.formatted);
-      expect(
-        _read(run, _feature),
-        '# T\n\n## Feature name\n\n## Feature goal\n- **why:**\n',
-      );
+      expect(_read(run, _feature), '# T\n');
     },
   );
 
@@ -376,6 +376,26 @@ void main() {
       {'path': _feature, 'status': 'refused', 'unclosedFence': true},
       {'path': _story, 'status': 'unchanged'},
     ]);
+  });
+
+  test('rendering/format_docs/match_section_headers: a doc whose layout '
+      'would turn a body line into a frontmatter close is refused and left '
+      'alone', () async {
+    const text = '---\n# F-05\n\n## Feature name\nx\n--- \n';
+    final run = await _open({_feature: text});
+
+    final report = _run(run);
+
+    expect(report.files.single.status, FileStatus.refused);
+    expect(
+      report.toText(),
+      '$_feature: refused: layout would change the doc structure\n',
+    );
+    expect(report.toJson()['files'], [
+      {'path': _feature, 'status': 'refused', 'changesStructure': true},
+    ]);
+    expect(report.exitStatus, 1);
+    expect(_read(run, _feature), text);
   });
 
   test('f05/us01/fr06/e02: a refused doc lists a duplicate header with its '
@@ -639,10 +659,13 @@ void main() {
     });
     final root = await fixtureProject({});
     Link('${root.path}/docs').createSync(outside.path);
+    // A docs folder outside the project is writable once the Owner trusts it.
+    final home = await writeTree({});
+    RootTrust.locate(root, homeDirectory: home).record();
     final project = DocsProject.open(
       templates: TemplateResolver(shippedFiles: fixturePackFiles()),
       workingDirectory: root,
-      homeDirectory: null,
+      homeDirectory: home,
     );
 
     final report = _run((root: root, project: project));
@@ -675,12 +698,15 @@ void main() {
       'f05/us03/s2, f05/us03/fr02/e02: format inserts a missing block',
       () async {
         final run = await _openNotes({
-          _noteA: '# A\n\n## Contents\nbody\n\n## Steps\nx\n',
+          _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
         });
 
         _runNotes(run, _tocRun(_Calls()));
 
-        expect(_read(run, _noteA), _noteDoc(_fresh()));
+        expect(
+          _read(run, _noteA),
+          '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+        );
       },
     );
 
@@ -787,6 +813,21 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh()));
     });
 
+    test('f05/us03/fr02/e06: an open marker whose line ends in spaces or a '
+        'tab refuses the file and leaves it byte-equal', () async {
+      final openDoc = '# A\n\n## Contents\n$_toc  \nbody\n\n## Steps\nx\n';
+      final run = await _openNotes({_noteA: openDoc});
+
+      final report = _runNotes(run, _tocRun(_Calls()));
+
+      final refused = report.files.firstWhere((f) => f.path == _noteA);
+      expect(refused.status, FileStatus.refused);
+      expect(refused.openBlock, '$_toc  ');
+      expect(refused.openBlockKind, 'note_toc');
+      expect(report.exitStatus, 1);
+      expect(_read(run, _noteA), openDoc);
+    });
+
     test('f05/us03/fr01/e02: a run with no doc type listing generators never '
         'calls open', () async {
       final run = await _openNotes({_feature: _featureOutOfOrder});
@@ -865,14 +906,14 @@ void main() {
     test('f05/us01/fr03: sections out of order are reordered and each body '
         'is kept byte for byte outside its block', () async {
       final run = await _openNotes({
-        _noteA: '# A\n\n## Steps\nx\n  y\n\n## Contents\nbody\n',
+        _noteA: '# A\n\n## Steps\n\nx\n  y\n\n## Contents\n\nbody\n',
       });
 
       _runNotes(run, _tocRun(_Calls()));
 
       expect(
         _read(run, _noteA),
-        '# A\n\n## Contents\n${_fresh()}\nbody\n\n## Steps\nx\n  y\n',
+        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n  y\n',
       );
     });
 
@@ -888,6 +929,68 @@ void main() {
       final again = _runNotes(run, generators);
 
       expect(again.files.single.status, FileStatus.unchanged);
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+        'statement: a missing section-top block lands one blank line under '
+        'the header, and a second check reports unchanged', () async {
+      final run = await _openNotes({
+        _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
+      });
+      final generators = _tocRun(_Calls());
+
+      final first = _runNotes(run, generators);
+
+      expect(first.files.single.status, FileStatus.formatted);
+      expect(
+        _read(run, _noteA),
+        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+      );
+      final again = _runNotes(run, generators, check: true);
+      expect(again.files.single.status, FileStatus.unchanged);
+    });
+
+    test('rendering/format_docs/write_formatted_files E07: an approved doc '
+        'and a draft doc that need a change keep their key block and gain no '
+        'draft: true', () async {
+      const approved = '---\napproved: true\n---\n';
+      const draft = '---\ndraft: true\n---\n';
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale(), front: approved),
+        _noteB: _noteDoc(_stale(), front: draft),
+      });
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      expect(_read(run, _noteA), _noteDoc(_fresh(), front: approved));
+      expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
+    });
+
+    test('rendering/format_docs/write_formatted_files E07: a doc that holds an '
+        'approved hash keeps the key block byte for byte', () async {
+      const hashed = '---\napproved: "0123456789ab"\n---\n';
+      final run = await _openNotes({_noteA: _noteDoc(_stale(), front: hashed)});
+
+      _runNotes(run, _tocRun(_Calls()));
+
+      expect(_read(run, _noteA), _noteDoc(_fresh(), front: hashed));
+    });
+
+    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+        'E08: an approved doc whose block changed is written with no '
+        'draft: true', () async {
+      const approved = '---\napproved: true\n---\n';
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale(), front: approved),
+      });
+
+      final report = _runNotes(run, _tocRun(_Calls()));
+
+      expect(report.files.single.status, FileStatus.formatted);
+      final text = _read(run, _noteA);
+      expect(text, contains('approved: true'));
+      expect(text, isNot(contains('draft')));
+      expect(text, contains('toc R1'));
     });
   });
 }

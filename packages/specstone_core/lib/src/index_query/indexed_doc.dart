@@ -3,10 +3,16 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/number_label.dart'
+    show numberLabelLinesInMarkdown;
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/tbr_marker.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -87,6 +93,8 @@ final class IndexedDoc {
     this.title,
     required this.frontmatter,
     required this.tokens,
+    this.formatted,
+    this.approvalHash,
     this.order = 0,
     this.warnings = const [],
   });
@@ -111,6 +119,17 @@ final class IndexedDoc {
 
   /// The size of the whole file in tokens.
   final int tokens;
+
+  /// Whether the LF text equals the text the format command lays out.
+  ///
+  /// Null for an untyped doc, a doc whose bytes are not UTF-8, and a doc the
+  /// format command refuses: the docs whose counts cover their text as
+  /// decoded.
+  final bool? formatted;
+
+  /// The [comparedApprovalHash] of the doc; null for an untyped doc or one
+  /// whose frontmatter is not valid YAML.
+  final String? approvalHash;
 
   /// The position of the doc in tree order.
   final int order;
@@ -147,8 +166,9 @@ bool _isScalar(Object? value) =>
 
 /// The text and structure of one doc, as `get` and `context` print it.
 final class DocContent {
-  /// Takes [text] and [bannedMatches] through [readText] and
-  /// [readBannedMatches], each called on the first read of its field.
+  /// Takes [text], [bannedMatches], and [itemFacts] through [readText],
+  /// [readBannedMatches], and [readItemFacts], each called on the first read
+  /// of its field.
   new({
     required String Function() readText,
     this.frontmatterText,
@@ -157,8 +177,10 @@ final class DocContent {
     required this.links,
     required this.lineFacts,
     required List<BannedMatch> Function() readBannedMatches,
+    required ItemFacts Function() readItemFacts,
   }) : _readText = readText,
-       _readBannedMatches = readBannedMatches;
+       _readBannedMatches = readBannedMatches,
+       _readItemFacts = readItemFacts;
 
   /// The whole file as decoded, in its own line endings.
   late final String text = _readText();
@@ -185,6 +207,12 @@ final class DocContent {
   late final List<BannedMatch> bannedMatches = _readBannedMatches();
 
   final List<BannedMatch> Function() _readBannedMatches;
+
+  /// The items of the doc and its lead's counts, stored by the refresh that
+  /// parsed it; a read command that never reads them never decodes them.
+  late final ItemFacts itemFacts = _readItemFacts();
+
+  final ItemFacts Function() _readItemFacts;
 }
 
 /// One parsed file: its index entry, its content, and its content hash.
@@ -204,14 +232,15 @@ final class ParsedDoc {
 /// Parses the file [bytes] at [docPath] into its index entry and content.
 ///
 /// Invalid UTF-8 decodes with replacement characters, and invalid frontmatter
-/// YAML leaves no values; each adds a warning instead of failing.
+/// YAML leaves no values; each adds a warning instead of failing. A doc that is
+/// not UTF-8, which format skips, is not laid out and has no `formatted` value.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
 }) {
   final warnings = <String>[];
-  final text = _decode(bytes, docPath, warnings);
+  final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
   final docType = switch (match) {
@@ -229,16 +258,32 @@ ParsedDoc parseIndexedDoc({
     null => null,
   };
   final frontmatter = _frontmatterValues(yaml, docPath, warnings);
+  final templates = _templatesByKey(docType);
   final sections = [
-    for (final section in doc.sections) _sectionOf(section, docType),
+    for (final section in doc.sections) _sectionOf(section, templates),
   ];
+  final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
+  final laidText = switch (laid) {
+    Formatted(:final text) => text,
+    _ => lfText,
+  };
   final lineFacts = LineFacts.of(
     lfText: lfText,
+    countedText: laidText,
     docPath: docPath,
     doc: doc,
-    sectionCounts: [for (final section in sections) sectionCountsOf(section)],
+    sectionCounts: _countsOf(sections, laid, templates),
     frontmatterErrorLine: yaml?.errorLine,
+    bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
+    bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
     warnings: warnings,
+  );
+  final itemFacts = itemFactsOf(
+    doc: doc,
+    lfText: lfText,
+    lineFacts: lineFacts,
+    laid: laid is Formatted ? laid : null,
+    type: docType,
   );
   final content = DocContent(
     readText: () => text,
@@ -250,6 +295,7 @@ ParsedDoc parseIndexedDoc({
     links: {for (final place in lineFacts.links) place.target}.toList(),
     lineFacts: lineFacts,
     readBannedMatches: () => bannedMatchesOf(sections, lineFacts, docType),
+    readItemFacts: () => itemFacts,
   );
   final indexed = IndexedDoc(
     docPath: docPath,
@@ -258,32 +304,112 @@ ParsedDoc parseIndexedDoc({
     title: doc.title,
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),
+    formatted: laid is Formatted ? laid.text == lfText : null,
+    approvalHash: docType == null
+        ? null
+        : comparedApprovalHash(lfText, docType),
     warnings: warnings,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }
 
-String _decode(List<int> bytes, String docPath, List<String> warnings) {
+/// Returns the content of [lfText], a doc of [docType], as far as a reader of
+/// its item IDs and blocks reads it: its sections, keyed as
+/// [parseIndexedDoc] keys them, and their section and fenced lines.
+///
+/// No markdown parse, layout, or YAML read runs, so the content holds no
+/// links, banned matches, or section counts (see [LineFacts.structureOf]). Its
+/// item facts count [lfText] as it is, with no layout.
+DocContent docStructureOf(String lfText, MergedDocType? docType) {
+  final doc = Doc.parse(lfText);
+  final lineFacts = LineFacts.structureOf(lfText: lfText, doc: doc);
+  return DocContent(
+    readText: () => lfText,
+    frontmatterText: doc.frontmatter == null
+        ? null
+        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+    head: doc.head,
+    sections: indexedSectionsOf(doc, docType),
+    links: const [],
+    lineFacts: lineFacts,
+    readBannedMatches: () => const [],
+    readItemFacts: () => itemFactsOf(
+      doc: doc,
+      lfText: lfText,
+      lineFacts: lineFacts,
+      laid: null,
+      type: docType,
+    ),
+  );
+}
+
+({String text, bool isUtf8}) _decode(
+  List<int> bytes,
+  String docPath,
+  List<String> warnings,
+) {
   try {
-    return utf8.decode(bytes);
+    return (text: utf8.decode(bytes), isUtf8: true);
   } on FormatException {
     warnings.add(
       '$docPath: not UTF-8 text; indexed with replacement characters',
     );
-    return utf8.decode(bytes, allowMalformed: true);
+    return (text: utf8.decode(bytes, allowMalformed: true), isUtf8: false);
   }
 }
 
-IndexedSection _sectionOf(Section section, MergedDocType? docType) {
+/// Returns the counts of each of [sections], in its order.
+///
+/// A section takes the counts of its laid-out twin; without a layout the
+/// counts are those of the text on disk.
+List<SectionCounts> _countsOf(
+  List<IndexedSection> sections,
+  FormatOutcome? laid,
+  Map<String, MergedSection> templates,
+) {
+  if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
+  return [
+    for (final twin in laid.twinOf)
+      sectionCountsOf(_sectionOf(laid.sections[twin], templates)),
+  ];
+}
+
+/// Returns the sections of [doc], keyed as [parseIndexedDoc] keys them under
+/// [docType].
+List<IndexedSection> indexedSectionsOf(Doc doc, MergedDocType? docType) {
+  final templates = _templatesByKey(docType);
+  return [for (final section in doc.sections) _sectionOf(section, templates)];
+}
+
+/// Returns the sections of [docType] by the [headerKey] of their header.
+Map<String, MergedSection> _templatesByKey(MergedDocType? docType) => {
+  for (final section in docType?.sections ?? const <MergedSection>[])
+    headerKey(section.header): section,
+};
+
+/// Keys [section] by the template section its header names (rendering INV-5).
+IndexedSection _sectionOf(
+  Section section,
+  Map<String, MergedSection> templates,
+) {
   final headerText = section.headerText;
-  final template = docType?.sections
-      .where((s) => s.header == headerText)
-      .firstOrNull;
+  final template = templates[headerKey(headerText)];
   return IndexedSection(
     key: template?.id ?? sectionKeyOf(headerText),
     headerLine: section.headerLine,
     body: section.body,
   );
+}
+
+/// Returns the frontmatter values of [doc] as the index stores them.
+///
+/// Empty when the frontmatter is absent or is not valid YAML.
+Map<String, Object?> frontmatterValuesOf(Doc doc) {
+  final blocks = doc.frontmatter;
+  final yaml = blocks == null
+      ? null
+      : parseFrontmatterYaml(blocks.map((b) => b.text).join());
+  return _frontmatterValues(yaml, '', []);
 }
 
 Map<String, Object?> _frontmatterValues(

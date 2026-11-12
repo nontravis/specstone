@@ -19,6 +19,35 @@ ChangedUnit _bare(UnitKind kind, [UnitSide side = .both]) =>
     (kind: kind, name: '', side: side);
 
 void main() {
+  group('document_writing/approve_drafts/show_changes_since_approval '
+      'LineDiff', () {
+    test('one diff shows the same hunks as approvalDiff for every context', () {
+      final diff = LineDiff(_old, _new);
+
+      for (final context in [null, 0, 1, 3]) {
+        expect(
+          diff.hunks(context: context),
+          approvalDiff(_old, _new, context: context),
+          reason: 'context $context',
+        );
+      }
+    });
+
+    test('is empty for texts that differ in no line and not otherwise', () {
+      expect(LineDiff(_old, _old).isEmpty, isTrue);
+      expect(LineDiff(_old, _old.trimRight()).isEmpty, isTrue);
+      expect(LineDiff(_old, _new).isEmpty, isFalse);
+      expect(LineDiff('', _new).isEmpty, isFalse);
+    });
+
+    test('refuses a negative context', () {
+      expect(
+        () => LineDiff(_old, _new).hunks(context: -1),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('approvalDiff', () {
     test('f02/us03/fr02/e08, e10: unit context shows each changed unit whole and no other', () {
       expect(

@@ -1,9 +1,11 @@
 // Releases a new specstone version from `develop`.
 //
 // Usage: dart run tool/release.dart X.Y.Z [--dry-run]
-// Contract: docs/specs/install_update/s02_api_release.md `## release.dart`.
+// Contract: the release operation of api:install_update/version_match.
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:specstone_core/release_version.dart';
 
 /// One place a release version lives.
 ///
@@ -23,7 +25,7 @@ final List<_VersionSpot> _spots = [
   _VersionSpot(
     'packages/specstone_core/lib/src/version.dart',
     'packages/specstone_core/lib/src/version.dart',
-    RegExp(r"(const String specstoneVersion = ')(\d+\.\d+\.\d+)(?=';)"),
+    RegExp("(const String specstoneVersion = ')($releaseVersionPattern)(?=';)"),
   ),
   _VersionSpot(
     'packages/specstone/pubspec.yaml',
@@ -50,7 +52,7 @@ final List<_VersionSpot> _spots = [
 const String _usage = 'usage: dart run tool/release.dart X.Y.Z [--dry-run]';
 const String _dryRunFlag = '--dry-run';
 
-final RegExp _versionForm = RegExp(r'^\d+\.\d+\.\d+$');
+const String _versionFormName = 'MAJOR.MINOR.PATCH[-<pre-release>]';
 const Duration _runPollInterval = Duration(seconds: 5);
 const int _runPollTries = 60;
 const Duration _viewPollInterval = Duration(seconds: 15);
@@ -96,7 +98,10 @@ Future<void> _release(List<String> args) async {
   _checkSpotsParse(root);
 
   if (dryRun) {
-    _planSteps(version).forEach(stdout.writeln);
+    _planSteps(
+      version,
+      isPreRelease: _isPreRelease(version),
+    ).forEach(stdout.writeln);
     return;
   }
   final tagSha = await _bumpAndTag(root, version);
@@ -151,7 +156,7 @@ Future<void> _runAgainFrom(
     [
       if (releaseUrl == null && awaited == null) ..._moveTagSteps(version),
       if (awaited != null) _waitStep(version),
-      ..._landingSteps(version),
+      ..._landingSteps(version, isPreRelease: _isPreRelease(version)),
     ].forEach(stdout.writeln);
     return;
   }
@@ -336,37 +341,27 @@ Future<String> _readCiRuns(String sha) => _gh([
 
 Future<void> _checkVersionAboveCurrent(String root, String version) async {
   final current = _readCurrentVersion(root);
-  if (!_versionForm.hasMatch(version)) {
+  final next = ReleaseVersion.tryParse(version);
+  if (next == null) {
     throw _Refusal(
-      '$version is not in the form MAJOR.MINOR.PATCH; '
+      '$version is not a version of the form $_versionFormName; '
       'the current version is $current',
     );
   }
-  if (_compare(version, current) <= 0) {
+  if (next.compareTo(current) <= 0) {
     throw _Refusal(
       '$version is not greater than the current version $current; '
-      'give MAJOR.MINOR.PATCH above it',
+      'give a version of the form $_versionFormName above it',
     );
   }
 }
 
-String _readCurrentVersion(String root) {
-  final current = readSpots(root)[_spots.first.label]!;
-  if (current == _missing) {
+ReleaseVersion _readCurrentVersion(String root) {
+  final current = ReleaseVersion.tryParse(readSpots(root)[_spots.first.label]!);
+  if (current == null) {
     throw _Refusal('${_spots.first.path} holds no specstoneVersion constant');
   }
   return current;
-}
-
-/// Compares two `MAJOR.MINOR.PATCH` strings field by field.
-int _compare(String a, String b) {
-  final left = a.split('.').map(BigInt.parse).toList();
-  final right = b.split('.').map(BigInt.parse).toList();
-  for (var i = 0; i < left.length; i++) {
-    final order = left[i].compareTo(right[i]);
-    if (order != 0) return order;
-  }
-  return 0;
 }
 
 Future<void> _checkTagAbsent(String version) async {
@@ -385,14 +380,14 @@ Future<void> _checkTagAbsent(String version) async {
   }
 }
 
-List<String> _planSteps(String v) => [
+List<String> _planSteps(String v, {required bool isPreRelease}) => [
   'create release/$v from develop',
   'set $v in the five version spots',
   're-read the five spots; run dart pub get --enforce-lockfile',
   'commit "chore: release $v"; tag v$v on it',
   'push tag v$v',
   _waitStep(v),
-  ..._landingSteps(v),
+  ..._landingSteps(v, isPreRelease: isPreRelease),
 ];
 
 List<String> _moveTagSteps(String v) => [
@@ -403,7 +398,14 @@ List<String> _moveTagSteps(String v) => [
 
 String _waitStep(String v) => 'wait for the release.yaml run of v$v';
 
-List<String> _landingSteps(String v) {
+List<String> _landingSteps(String v, {required bool isPreRelease}) {
+  if (isPreRelease) {
+    return [
+      'fetch origin; check local develop before moving any ref',
+      'fast-forward develop to origin/develop; merge release/$v into develop',
+      'push develop alone; main stays where it is; delete release/$v',
+    ];
+  }
   final fastForward =
       'fast-forward main to v$v; fast-forward develop to origin/develop; '
       'merge release/$v into develop';
@@ -413,6 +415,14 @@ List<String> _landingSteps(String v) {
     'push main and develop in one atomic push; delete release/$v',
   ];
 }
+
+/// Returns whether [version] holds a pre-release part.
+///
+/// Every caller holds a version the Version form accepted: the first run
+/// refuses any other in [_checkVersionAboveCurrent], and a run again reaches
+/// here only after the first spot matched the form's pattern.
+bool _isPreRelease(String version) =>
+    ReleaseVersion.tryParse(version)!.isPreRelease;
 
 Future<String> _git(List<String> args) async {
   final result = await _run('git', args);
@@ -702,43 +712,50 @@ Future<String> _confirmRelease(String version) async {
   }
 }
 
-/// Lands the published Release: moves `main` and `develop`, pushes both
-/// atomically, and deletes `release/<version>`.
+/// Lands the published Release and deletes `release/<version>`.
 ///
-/// Both checks run before any ref moves. Returns 0 on success; on a failed
-/// check or push it prints why on stderr, leaves local and remote as they
-/// were, and returns 1.
+/// A full release moves `main` and `develop` and pushes both atomically; a
+/// pre-release moves `develop` alone and never writes `main`. Every check runs
+/// before any ref moves. Returns 0 on success; on a failed check or push it
+/// prints why on stderr, leaves local and remote as they were, and returns 1.
 Future<int> land(String version, String releaseUrl) async {
   final tag = 'v$version';
   final branch = 'release/$version';
+  final isPreRelease = _isPreRelease(version);
   await _checkLocalTagIsOrigins(tag);
   await _git(['fetch', 'origin']);
 
-  final blocked = await _landingBlock(tag);
+  final blocked = await _landingBlock(tag, isPreRelease: isPreRelease);
   if (blocked != null) return _stopLanding(version, blocked);
 
-  final main = await _git(['rev-parse', 'main']);
-  final develop = await _git(['rev-parse', 'develop']);
+  final pushed = isPreRelease ? ['develop'] : ['main', 'develop'];
+  final heads = {
+    for (final name in pushed) name: await _git(['rev-parse', name]),
+  };
   try {
-    await _git(['switch', 'main']);
-    await _git(['merge', '--ff-only', tag]);
+    if (!isPreRelease) {
+      await _git(['switch', 'main']);
+      await _git(['merge', '--ff-only', tag]);
+    }
     await _git(['switch', 'develop']);
     await _git(['merge', '--ff-only', 'origin/develop']);
     await _git(['merge', '--no-edit', branch]);
-    await _git(['push', '--atomic', 'origin', 'main', 'develop']);
+    await _git(['push', if (!isPreRelease) '--atomic', 'origin', ...pushed]);
   } on _Refusal catch (failure) {
     // A merge that stopped half way is undone before the refs go back.
     await _run('git', ['merge', '--abort']);
     await _git(['switch', branch]);
-    await _git(['update-ref', 'refs/heads/main', main]);
-    await _git(['update-ref', 'refs/heads/develop', develop]);
-    return _stopLanding(
-      version,
-      '${failure.message}; main and develop are back where they were.',
-    );
+    for (final MapEntry(key: name, value: sha) in heads.entries) {
+      await _git(['update-ref', 'refs/heads/$name', sha]);
+    }
+    final back = isPreRelease
+        ? 'develop is back where it was.'
+        : 'main and develop are back where they were.';
+    return _stopLanding(version, '${failure.message}; $back');
   }
 
-  stdout.writeln('Released $tag: $releaseUrl; main and develop pushed');
+  final pushedNames = isPreRelease ? 'develop' : 'main and develop';
+  stdout.writeln('Released $tag: $releaseUrl; $pushedNames pushed');
   try {
     await _git(['branch', '-d', branch]);
     if ((await _git(['ls-remote', '--heads', 'origin', branch])).isNotEmpty) {
@@ -768,8 +785,10 @@ Future<void> _checkLocalTagIsOrigins(String tag) async {
 }
 
 /// Returns what the first failed landing check prints, else null.
-Future<String?> _landingBlock(String tag) async {
-  if (!await _isAncestor('origin/main', tag)) {
+///
+/// A pre-release skips the `origin/main` check: it never writes `main`.
+Future<String?> _landingBlock(String tag, {required bool isPreRelease}) async {
+  if (!isPreRelease && !await _isAncestor('origin/main', tag)) {
     final held = await _git(['log', '-1', '--format=%h %s', 'origin/main']);
     return 'origin/main holds $held, which $tag does not contain: '
         'a second release reached main.';

@@ -62,7 +62,7 @@ One block per section, in bundle order, a blank line between blocks, and nothing
 ```
 
 - **Citation**: `<name>` comes from the doc's `==> <name> (<type>) · <path> <==` line; `<heading>` is the text after
-  `## `. Never cite a `path:line` or a file path; name and heading survive an edit that moves lines.
+  `## `. Never cite a `<path>:<line>` or a file path; name and heading survive an edit that moves lines.
 - **Gap**: when no section holds something the task needs, end with `Not in the docs: <what>`.
 
 ## Scope Boundaries

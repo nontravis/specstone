@@ -1,7 +1,29 @@
 #!/usr/bin/env bash
 # SessionStart hook: warn when the specstone CLI and this plugin differ in
-# version, or when the CLI is missing. Reads no stdin, opens no network,
-# writes no file, and exits 0 on every path (a hook must never block a session).
+# version, or when the CLI is missing. When the CLI sits in ~/.specstone/bin but
+# off the hook's PATH, also append a PATH line to the file CLAUDE_ENV_FILE names
+# so the session's later Bash commands find it. Reads no stdin, opens no network,
+# writes nothing else, and exits 0 on every path (a hook must never block a
+# session).
+
+# Keeps only the absolute entries of PATH, so no program is found in the
+# current folder or a relative folder; an empty entry means the current folder.
+# With none left, PATH is the system folders, since an empty PATH searches ".".
+absolute_path_only() {
+  local kept='' rest=${PATH:-}: entry
+  while [ -n "$rest" ]; do
+    entry=${rest%%:*}
+    rest=${rest#*:}
+    case "$entry" in
+      /*) kept=${kept:+$kept:}$entry ;;
+    esac
+  done
+  PATH=${kept:-/usr/bin:/bin}
+  export PATH
+}
+
+# Runs before any command, since a command could be found through PATH.
+absolute_path_only
 
 curl_line='curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/install.sh | sh'
 irm_line='irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex'
@@ -57,6 +79,26 @@ installed_off_path() {
   [ -f "$bin/specstone" ] && return 0
   [ "$1" = 1 ] && [ -f "$bin/specstone.exe" ] && return 0
   return 1
+}
+
+# Appends the PATH line to the file CLAUDE_ENV_FILE names. Fails, writing
+# nothing, when the variable is unset or empty or the file cannot be appended
+# to. A file whose last line lacks a line feed gets one first, so that line
+# stays whole.
+append_path_line() {
+  local file=${CLAUDE_ENV_FILE:-}
+  # The line is written literally: Claude Code's shell expands $HOME and $PATH.
+  # shellcheck disable=SC2016
+  local line='export PATH="$HOME/.specstone/bin:$PATH"'
+  local lead=''
+  [ -n "$file" ] || return 1
+  if [ -s "$file" ]; then
+    local last
+    last=$(tail -c 1 -- "$file" 2>/dev/null) || return 1
+    [ -z "$last" ] || lead=$'\n'
+  fi
+  # 2>/dev/null comes first so a failed open prints nothing.
+  printf '%s%s\n' "$lead" "$line" 2>/dev/null >>"$file"
 }
 
 # Prints the first "version" key of plugin.json; splitting on , { } first
@@ -133,7 +175,11 @@ main() {
       emit "Specstone: the CLI is $cli_version and the plugin is $plugin_version. Run: specstone upgrade"
     fi
   elif installed_off_path "$windows"; then
-    emit 'Specstone: the CLI is installed in ~/.specstone/bin but not on the PATH Claude Code sees. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets.'
+    if append_path_line; then
+      emit "Specstone: the CLI is installed in ~/.specstone/bin, and this session's later commands get it from the hook, but the PATH Claude Code starts with still lacks it. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets."
+    else
+      emit 'Specstone: the CLI is installed in ~/.specstone/bin but not on the PATH Claude Code sees. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets.'
+    fi
   else
     emit "Specstone: the CLI is not installed. Install it: $install_line"
   fi

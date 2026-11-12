@@ -1,15 +1,17 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
+export 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show acceptanceSectionId;
 export 'package:specstone_core/src/index_query/held_sections.dart'
     show BodyLine;
 
-/// Id of the story section that holds the scenarios.
-const acceptanceSectionId = 'acceptance_criteria';
-final _scenarioHeading = RegExp('^### Scenario ([0-9]+)(?![0-9])');
-final _subHeading = RegExp('^###(?!#)');
+const _subHeadingMarker = '###';
+const _deeperHeadingMarker = '####';
+const _itemHeadingMarker = '### ';
 
 // MARK: - Held sections
 
@@ -30,14 +32,24 @@ int? heldSectionIndexIn(List<MergedSection?> templates, String sectionId) {
 
 // MARK: - Blocks
 
-/// Splits [body] into the `###` blocks whose heading matches [heading].
+/// Returns the text after the `### ` of [line], or null for any other line.
+String? itemHeadingTextOf(String line) => line.startsWith(_itemHeadingMarker)
+    ? line.substring(_itemHeadingMarker.length)
+    : null;
+
+/// Whether [line] opens a `###` heading (not a deeper one).
+bool isSubHeading(String line) =>
+    line.startsWith(_subHeadingMarker) &&
+    !line.startsWith(_deeperHeadingMarker);
+
+/// Splits [body] into the `###` blocks that [keyOf] names.
 ///
 /// A block runs from its heading line to the next `###` line outside fenced
-/// code, or the end of [body]. [keyOf] names a block from its heading match.
+/// code, or the end of [body]. [keyOf] names a block from its heading line;
+/// null opens no block and closes the one above.
 List<({String key, List<BodyLine> lines})> headingBlocksOf(
   List<BodyLine> body,
-  RegExp heading,
-  String Function(Match heading) keyOf,
+  String? Function(String heading) keyOf,
 ) {
   final blocks = <({String key, List<BodyLine> lines})>[];
   String? key;
@@ -47,29 +59,33 @@ List<({String key, List<BodyLine> lines})> headingBlocksOf(
   }
 
   for (final line in body) {
-    if (line.fenced || !_subHeading.hasMatch(line.text)) {
+    if (line.fenced || !isSubHeading(line.text)) {
       lines.add(line);
       continue;
     }
     close();
-    final match = heading.firstMatch(line.text);
-    key = match == null ? null : keyOf(match);
+    key = keyOf(line.text);
     lines = [line];
   }
   close();
   return blocks;
 }
 
-/// Returns the `### Scenario <N>` blocks of [body], keyed `S<N>`.
+/// The key of the scenario block [ref] names: `S` and its number's value, so
+/// `S06` names `Scenario 6`; null for a lettered or unreadable number.
+String? scenarioKeyOf(ScenarioRef ref) => switch (ref.scenario) {
+  final number? => 'S$number',
+  null => null,
+};
+
+/// Returns the `### Scenario <N>` blocks of [body], each keyed `S` and its
+/// number's value, as [scenarioKeyOf] names them.
 ///
-/// The first block of a repeated number wins.
+/// The first block of a repeated value wins. A heading whose number a
+/// letter follows keys no block and ends the one above.
 Map<String, String> scenarioBlocksIn(List<BodyLine> body) {
   final blocks = <String, String>{};
-  for (final (:key, :lines) in headingBlocksOf(
-    body,
-    _scenarioHeading,
-    (match) => 'S${match.group(1)}',
-  )) {
+  for (final (:key, :lines) in headingBlocksOf(body, _scenarioKeyOf)) {
     blocks.putIfAbsent(key, () => _blockText(lines));
   }
   return blocks;
@@ -90,6 +106,12 @@ Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) {
     sectionBodyLines(content.sections, content.lineFacts, section),
   );
 }
+
+String? _scenarioKeyOf(String heading) =>
+    switch (readScenarioHeading(heading)) {
+      ItemId(:final number) => 'S$number',
+      _ => null,
+    };
 
 String _blockText(List<BodyLine> lines) =>
     lines.map((line) => line.text).join('\n').trimRight();

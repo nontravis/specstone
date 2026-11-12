@@ -1,34 +1,92 @@
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show DocAddress;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
-/// A doc line that names another doc's file in text: the doc holding the line
-/// and its 1-based file line.
+/// A doc line that names another doc's file in text or holds a doc-name
+/// mention of it: the doc holding the line and its 1-based file line.
 typedef Mention = ({IndexedDoc doc, int line});
 
 /// A character that ends a path written in prose.
 final pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
 
+const _lineFeed = 0x0A;
+const _space = 0x20;
+
 /// A character that continues a file name.
 final _nameChar = RegExp(r'[\p{L}\p{M}\p{N}_-]', unicode: true);
 
-/// An inline link's `](` and its destination, `<…>` or a run up to a space
-/// or `)`.
-final _inlineDestination = RegExp(r'\]\(\s*(?:<[^>]*>|[^\s)]*)');
-
-/// A link reference definition, from its label to its destination's end.
-final _definition = RegExp(r'^ {0,3}\[[^\]]+\]:\s*(?:<[^>]*>|\S+)');
+/// Returns [lf], the text of a doc, with each link destination the link scan
+/// reads, inline or in a definition, set to spaces, line ends kept.
+String _withoutDestinations(String lf) {
+  final body = Doc.parse(lf).afterFrontmatter;
+  // A destination follows a written `](` or `]:`, which no reference spells.
+  if (!body.contains('](') && !body.contains(']:')) return lf;
+  final bodyStart = lf.length - body.length;
+  final units = lf.codeUnits.toList();
+  for (final (:start, :end, link: _, kind: _) in linkScanOf(
+    body,
+    firstLine: 1,
+  ).destinations) {
+    for (var i = bodyStart + start; i < bodyStart + end; i++) {
+      if (units[i] != _lineFeed) units[i] = _space;
+    }
+  }
+  return String.fromCharCodes(units);
+}
 
 /// Returns the lines of other docs whose text names [target] by a path, plain
-/// or in a code span, docs in tree order, each line once.
+/// or in a code span, or holds a doc-name mention of it (RULE-11), docs in
+/// tree order, each line once.
 ///
 /// A path names the doc it reaches from its own doc, as a link would, else
 /// the one doc of its file name it aligns with deepest: a bare file name that
 /// several docs carry names none. Fenced code, link destinations, and a line
 /// linking to [target] are skipped; a link is a reference, listed apart.
-List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
+List<Mention> mentionsOf(DocIndex index, IndexedDoc target) =>
+    mentionsOfEach(index, [target])[target.docPath]!;
+
+/// Returns [mentionsOf] of each of [targets], by DocPath, in [targets]' order.
+///
+/// Each doc that holds a target's file name is read and scanned once, however
+/// many targets it may name.
+Map<String, List<Mention>> mentionsOfEach(
+  DocIndex index,
+  List<IndexedDoc> targets,
+) {
+  final read = <String, _ReadDoc>{};
+  _ReadDoc readOf(IndexedDoc doc) =>
+      read[doc.docPath] ??= _ReadDoc(index.contentOf(doc));
+  return {
+    for (final target in targets)
+      target.docPath: _mentionsIn(index, target, readOf),
+  };
+}
+
+/// A doc's line facts and, on first use, its LF lines with link destinations
+/// blanked.
+final class _ReadDoc {
+  new(this._content);
+
+  final DocContent _content;
+
+  LineFacts get facts => _content.lineFacts;
+
+  late final List<String> lines = lfLinesOf(
+    _withoutDestinations(toLf(_content.text)),
+  );
+}
+
+List<Mention> _mentionsIn(
+  DocIndex index,
+  IndexedDoc target,
+  _ReadDoc Function(IndexedDoc doc) readOf,
+) {
   final fileName = _segmentsOf(target.docPath).last;
   final namesakes = {
     for (final doc in index.docs)
@@ -36,28 +94,52 @@ List<Mention> mentionsOf(DocIndex index, IndexedDoc target) {
           when segments.lastOrNull == fileName)
         doc.docPath: segments,
   };
+  final holdingFile = {for (final doc in index.holding(fileName)) doc.docPath};
+  final holdingName = {
+    for (final doc in index.holding(target.name)) doc.docPath,
+  };
   final mentions = <Mention>[];
-  for (final doc in index.holding(fileName)) {
+  for (final doc in index.docs) {
     if (doc.docPath == target.docPath) continue;
-    final content = index.contentOf(doc);
-    final facts = content.lineFacts;
+    final inFile = holdingFile.contains(doc.docPath);
+    if (!inFile && !holdingName.contains(doc.docPath)) continue;
+    final read = readOf(doc);
     final linking = {
-      for (final link in facts.links)
+      for (final link in read.facts.links)
         if (link.target == target.docPath) link.line,
     };
-    for (final (i, text) in lfLinesOf(toLf(content.text)).indexed) {
-      final line = i + 1;
-      if (linking.contains(line) || facts.isFenced(line)) continue;
-      final prose = text
-          .replaceAll(_definition, ' ')
-          .replaceAll(_inlineDestination, '] ');
-      if (_names(prose, doc.docPath, target.docPath, namesakes)) {
-        mentions.add((doc: doc, line: line));
-      }
+    final lines = {
+      if (inFile) ..._pathLines(read, doc, target, namesakes),
+      for (final mention in read.facts.nameMentions)
+        if (_namesDoc(mention.address, target)) mention.line,
+    }.difference(linking).toList()..sort();
+    for (final line in lines) {
+      mentions.add((doc: doc, line: line));
     }
   }
   return mentions;
 }
+
+/// Returns the 1-based lines of [read], the doc [doc], that write a path
+/// naming [target], fenced lines left out.
+Iterable<int> _pathLines(
+  _ReadDoc read,
+  IndexedDoc doc,
+  IndexedDoc target,
+  Map<String, List<String>> namesakes,
+) sync* {
+  for (final (i, prose) in read.lines.indexed) {
+    final line = i + 1;
+    if (read.facts.isFenced(line)) continue;
+    if (_names(prose, doc.docPath, target.docPath, namesakes)) yield line;
+  }
+}
+
+/// Whether [address], a doc-name mention (RULE-11), is the name of [doc] or
+/// its `<doc type>:<name>`.
+bool _namesDoc(DocAddress address, IndexedDoc doc) =>
+    address.body == doc.name &&
+    (address.typeId == null || address.typeId == doc.docTypeId);
 
 /// Whether [line], in the doc at DocPath [from], writes a path that names the
 /// doc at DocPath [target] rather than another of its [namesakes].

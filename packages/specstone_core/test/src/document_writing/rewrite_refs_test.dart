@@ -6,7 +6,10 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
+    show rewriteNameMentions;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -93,6 +96,128 @@ void main() {
       );
     },
   );
+
+  test('f02/us05/fr02, R74: a move replaces only the path a destination is written with and keeps its ? or # part as written', () {
+    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const before =
+        '[a](../t_doc.md#a\\)b) [b](../t_doc.md#f\\(x) [c](../t_doc.md#a&amp;copy;)\n'
+        '[d](../t_doc.md&#35;s) [e](<../t_doc.md?q=a b#x>) [f](../t\\_doc.md\\#y)\n';
+
+    expect(
+      rewriteDocLinks(before, docPath: 'specs/f01_a/DOMAIN.md', moves: moves),
+      '[a](../m/t_doc.md#a\\)b) [b](../m/t_doc.md#f\\(x) [c](../m/t_doc.md#a&amp;copy;)\n'
+      '[d](../m/t_doc.md&#35;s) [e](<../m/t_doc.md?q=a b#x>) [f](../m/t_doc.md\\#y)\n',
+    );
+  });
+
+  test('f02/us05/fr02, R74: a move to or from a path with a paren keeps a bare inline link one link to the same file, its fragment kept', () {
+    const into = <PathMove>[(from: 'specs/t.md', to: 'specs/x(y/t.md')];
+    const back = <PathMove>[(from: 'specs/x(y/t.md', to: 'specs/t.md')];
+    String? moved(String text, List<PathMove> moves) =>
+        rewriteDocLinks(text, docPath: 'specs/d.md', moves: moves);
+    List<(String, String?)>? read(String? text) => linkPlacesOf(
+      text!,
+      docPath: 'specs/d.md',
+      firstLine: 1,
+    )?.docLinks.map((link) => (link.target, link.anchor)).toList();
+
+    final there = moved(
+      'See [a](t.md#z) end. [b](<t.md#z>) [c][r]\n\n[r]: t.md#z\n',
+      into,
+    );
+    final home = moved('See [a](x(y/t.md#z)) end.\n', back);
+
+    expect(
+      there,
+      'See [a](x%28y/t.md#z) end. [b](<x(y/t.md#z>) [c][r]\n\n'
+      '[r]: x%28y/t.md#z\n',
+    );
+    expect(read(there), [for (var i = 0; i < 3; i++) ('specs/x(y/t.md', 'z')]);
+    expect(home, 'See [a](t.md#z\\)) end.\n');
+    expect(read(home), [('specs/t.md', 'z)')]);
+  });
+
+  test('f02/us05/fr02, R74: a move to or from a path with a paren keeps the parens of an angle-bracketed definition as written', () {
+    const into = <PathMove>[(from: 'specs/t.md', to: 'specs/x(y/t.md')];
+    const back = <PathMove>[(from: 'specs/x(y/t.md', to: 'specs/t.md')];
+    List<(String, String?)>? read(String? text) => linkPlacesOf(
+      text!,
+      docPath: 'specs/d.md',
+      firstLine: 1,
+    )?.docLinks.map((link) => (link.target, link.anchor)).toList();
+
+    final there = rewriteDocLinks(
+      '[c][r]\n\n[r]: <t.md#z>\n',
+      docPath: 'specs/d.md',
+      moves: into,
+    );
+    final home = rewriteDocLinks(there!, docPath: 'specs/d.md', moves: back);
+
+    expect(there, '[c][r]\n\n[r]: <x(y/t.md#z>\n');
+    expect(read(there), [('specs/x(y/t.md', 'z')]);
+    expect(home, '[c][r]\n\n[r]: <t.md#z>\n');
+  });
+
+  test('f02/us05/fr02, R74: a folder move to or from a name with parens keeps a bare definition a definition to the same file', () {
+    const doc = 'specs/f01_a/DOMAIN.md';
+    List<String>? read(String? text) => linkPlacesOf(
+      text!,
+      docPath: doc,
+      firstLine: 1,
+    )?.fileLinks.map((link) => link.target).toList();
+    String? moved(String text, String from, String to) => rewriteDocLinks(
+      text,
+      docPath: doc,
+      moves: [(from: 'specs/$from/', to: 'specs/$to/')],
+    );
+
+    final there = moved(
+      '[i][p]\n\n[p]: ../f02_b/img%281%29.png\n',
+      'f02_b',
+      'f03_b',
+    );
+    final back = moved(there!, 'f03_b', 'f02_b');
+
+    expect(there, '[i][p]\n\n[p]: ../f03_b/img%281%29.png\n');
+    expect(back, '[i][p]\n\n[p]: ../f02_b/img%281%29.png\n');
+    expect(read(there), ['specs/f03_b/img(1).png']);
+    expect(read(back), ['specs/f02_b/img(1).png']);
+  });
+
+  test('rewrite_links_to_moved_docs E15: a destination inside an unreferenced footnote stays as written on a move, and one inside a referenced footnote moves', () {
+    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const doc = 'specs/f01_a/DOMAIN.md';
+
+    final unreferenced = rewriteDocLinks(
+      'Text.\n\n[^1]: Also [x](../t_doc.md).\n',
+      docPath: doc,
+      moves: moves,
+    );
+    final referenced = rewriteDocLinks(
+      'Text[^1].\n\n[^1]: Also [x](../t_doc.md).\n',
+      docPath: doc,
+      moves: moves,
+    );
+
+    expect(unreferenced, isNull);
+    expect(referenced, 'Text[^1].\n\n[^1]: Also [x](../m/t_doc.md).\n');
+  });
+
+  test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
+    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+
+    final result = rewriteDocLinksCounted(
+      '![see [x](../t_doc.md)](pic.png)\n\n[d1]: ../t_doc.md\n',
+      docPath: 'specs/f01_a/DOMAIN.md',
+      moves: moves,
+    );
+
+    expect(
+      result?.lfText,
+      '![see [x](../t_doc.md)](pic.png)\n\n[d1]: ../m/t_doc.md\n',
+    );
+    expect(result?.count, 1);
+  });
 
   test('f02/us05/fr02/e02: a link between two files of one moved folder is unchanged', () {
     expect(
@@ -246,6 +371,18 @@ void main() {
     );
   });
 
+  test('PD13, R73: a definition destination follows its moved target by the href markdown reads, an unbalanced paren included', () {
+    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    expect(
+      rewriteDocLinks(
+        '[x][m] [y][n]\n\n[m]: a/f01_x/a(b.md\n[n]: a/f01\\_x/F.md\n',
+        docPath: 'I.md',
+        moves: moves,
+      ),
+      '[x][m] [y][n]\n\n[m]: a/f02_x/a%28b.md\n[n]: a/f02_x/F.md\n',
+    );
+  });
+
   test('f02/us05/fr02, PD13: a link-shaped href in a fenced block or a code span keeps every byte', () {
     const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
@@ -275,6 +412,18 @@ void main() {
         moves: moves,
       ),
       '[x](<a/f02_x/F.md>) [q](a/f02_x/F.md?v=1) [l](a/f01_xy/F.md)\n',
+    );
+  });
+
+  test('f02/us05/fr02: a query and a fragment stay as written; a scheme href and a bare fragment are left alone', () {
+    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    expect(
+      rewriteDocLinks(
+        '[a](a/f01_x/F.md?v=1#top) [b](a/f01_x/F.md#a?b) [c](mailto:a/f01_x/F.md#x) [d](#a/f01_x/F.md)\n',
+        docPath: 'I.md',
+        moves: moves,
+      ),
+      '[a](a/f02_x/F.md?v=1#top) [b](a/f02_x/F.md#a?b) [c](mailto:a/f01_x/F.md#x) [d](#a/f01_x/F.md)\n',
     );
   });
 
@@ -493,7 +642,7 @@ void main() {
     );
     expect(
       steps.first.text,
-      '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n- [Login](features/f02_login/FEATURE.md)\n- [Signup](features/f01_signup/FEATURE.md)\n',
+      '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n\n- [Login](features/f02_login/FEATURE.md)\n- [Signup](features/f01_signup/FEATURE.md)\n',
     );
     expect(steps.last.text, contains('(features/f01_signup/FEATURE.md)'));
     expect(
@@ -660,5 +809,240 @@ void main() {
       readDoc(nested, shopApi),
       contains('  - basket/add_item/check_stock $stock\n'),
     );
+  });
+
+  group('laid-out rewrites', () {
+    const looseLink =
+        'The system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n';
+    const loose =
+        '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\n$looseLink\n\n';
+
+    String stepText(List<WriteStep> steps, String docPath) =>
+        steps.singleWhere((step) => step.path == 'docs/$docPath').text;
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a typed doc whose link changes is written laid out, still draft', () async {
+      final project = await writeWriteProject(extra: {'docs/$fr12': loose});
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+      expect(text, isNot(contains('\n\n\n')));
+      expect(text, contains('draft: true\n'));
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: an untyped doc keeps every byte the rewrite leaves', () async {
+      final project = await writeWriteProject(
+        extra: {
+          'docs/prds/d01_context.md': '# Context\n\n\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n\n\n',
+        },
+      );
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, featureSwap)),
+        'prds/d01_context.md',
+      );
+      expect(text, contains('features/f01_signup/FEATURE.md'));
+      expect(text, contains('\n\n\n\n## Features'));
+      expect(text, endsWith(').\n\n\n'));
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a doc the formatter refuses keeps every byte the rewrite leaves', () async {
+      final refused = loose.replaceFirst('## Statement', '## Bogus');
+      final project = await writeWriteProject(extra: {'docs/$fr12': refused});
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, contains('\n\n\n\nThe system'));
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a doc the rewrite does not change gets no step', () async {
+      final project = await writeWriteProject(
+        extra: {
+          'docs/$fr11': '---\nstatus: implemented\n---\n\n# Validate\n\n\n\n## Statement\n\nText.\n',
+        },
+      );
+      final steps = writeIn(project, (s) => planRewrites(s, reorderMoves));
+      expect(steps.where((step) => step.path == 'docs/$fr11'), isEmpty);
+    });
+
+    test('document_writing/move_story/move_story_folder E11: the type of the path a moved doc lands on decides the layout', () async {
+      const to = 'prds/features/f01_login/us01_email_login/fr09_context.md';
+      final project = await writeWriteProject(
+        extra: {
+          'docs/prds/d01_context.md': '# Context\n\n## Statement\n\n\n\nSee [signup](features/f02_signup/FEATURE.md).\n',
+        },
+      );
+      final steps = writeIn(
+        project,
+        (s) => planRewrites(s, [(from: 'prds/d01_context.md', to: to)]),
+      );
+      final step = steps.singleWhere((step) => step.path == 'docs/$to');
+      expect(step.text, contains('../../f02_signup/FEATURE.md'));
+      expect(step.text, isNot(contains('\n\n\n')));
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: a CRLF doc with a BOM is written laid out with both kept', () async {
+      final project = await writeWriteProject(
+        extra: {'docs/$fr12': '\uFEFF${loose.replaceAll('\n', '\r\n')}'},
+      );
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, startsWith('\uFEFF---\r\n'));
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+      expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
+      expect(text, isNot(contains('\r\n\r\n\r\n')));
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E07: a renamed doc_ref referrer with keys out of field order is written in order', () async {
+      final project = await writeWriteProject(
+        extra: {
+          'docs/$story1': '---\npersona:\n  - buyer\nstatus: planned\ndraft: true\n---\n\n# Sign in with email\n',
+        },
+      );
+      final text = stepText(
+        writeIn(
+          project,
+          (s) => planRewrites(
+            s,
+            const [],
+            renamed: {('persona', 'buyer'): 'shopper'},
+          ),
+        ),
+        story1,
+      );
+      expect(text, contains('  - shopper\n'));
+      expect(
+        text.indexOf('status: planned'),
+        lessThan(text.indexOf('persona:')),
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_link_labels E14: a rewritten api doc with padded table cells is written compact', () async {
+      final nested = await writeNestedProject();
+      final file = docFile(nested, shopApi);
+      file.writeAsStringSync(
+        file.readAsStringSync().replaceAll(
+          '| FR | Operation |\n|----|-----------|\n| cart/add_item/check_stock | `addItem` |',
+          '| FR                        | Operation |\n|---------------------------|-----------|\n| cart/add_item/check_stock | `addItem` |',
+        ),
+      );
+      writeIn(
+        nested,
+        (s) => answerRename(s, 'feature:shop/cart', slug: 'basket'),
+      );
+      final text = readDoc(nested, shopApi);
+      expect(text, contains('| basket/add_item/check_stock | `addItem` |'));
+      expect(text, isNot(contains('| FR                        |')));
+    });
+  });
+  group('rewriteNameMentions', () {
+    const renamed = {
+      ('feature', 'login'): 'signin',
+      ('user_story', 'login/email_login'): 'signin/email_login',
+      ('persona', 'buyer'): 'shopper',
+    };
+
+    test('document_writing/rename_doc/rewrite_name_references E03: the Name changes, the type prefix and section key stay', () {
+      expect(
+        rewriteNameMentions(
+          '`login/email_login`, `user_story:login/email_login#goal`, '
+              '`feature:login#problem`\n',
+          '.md',
+          renamed,
+        ),
+        '`signin/email_login`, `user_story:signin/email_login#goal`, '
+        '`feature:signin#problem`\n',
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E03: a typed mention of another type, a one-slug bare name, and plain text stay', () {
+      expect(
+        rewriteNameMentions(
+          '`fr:login/email_login` `login` login/email_login `persona:login`\n',
+          '.md',
+          renamed,
+        ),
+        isNull,
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E03: a bare name two renamed docs call differently stays', () {
+      expect(
+        rewriteNameMentions('`shop/cart`\n', '.md', {
+          ('feature', 'shop/cart'): 'shop/basket',
+          ('user_story', 'shop/cart'): 'shop/trolley',
+        }),
+        isNull,
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a code file changes on its comment lines only', () {
+      expect(
+        rewriteNameMentions(
+          '// `login/email_login`\nx = `login/email_login`;\n',
+          '.dart',
+          renamed,
+        ),
+        '// `signin/email_login`\nx = `login/email_login`;\n',
+      );
+      expect(
+        rewriteNameMentions('// `login/email_login`\n', '.txt', renamed),
+        isNull,
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: two mentions on one line both change, each at its own column', () {
+      expect(
+        rewriteNameMentions(
+          '// `login/email_login` and `feature:login`\r\n',
+          '.dart',
+          renamed,
+        ),
+        '// `signin/email_login` and `feature:signin`\r\n',
+      );
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references: no rename changes nothing', () {
+      expect(rewriteNameMentions('`login/email_login`\n', '.md', {}), isNull);
+    });
+  });
+
+  group('planRewrites code files', () {
+    const entry = 'app/lib/doc.dart';
+    const rename = {('user_story', 'login/email_login'): 'signin/email_login'};
+    const noMoves = <PathMove>[];
+
+    Future<Directory> withCode(String text) => writeWriteProject(
+      extra: {
+        'docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+            '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+            '## Naming\n\n- snake_case file names\n',
+        entry: text,
+      },
+    );
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a code file step is listed by its project path with its rewritten text, never stamped', () async {
+      root = await withCode('// `login/email_login`\n');
+      final step = plan(
+        noMoves,
+        renamed: rename,
+      ).singleWhere((s) => s.path == entry);
+      expect(step.text, '// `signin/email_login`\n');
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: a code file with no mention of a renamed doc gets no step, and no rename reads no code file', () async {
+      root = await withCode('// `login/email_login`\n');
+      expect(plan(noMoves).map((s) => s.path), isNot(contains(entry)));
+      root = await withCode('// `other/name`\n');
+      expect(
+        plan(noMoves, renamed: rename).map((s) => s.path),
+        isNot(contains(entry)),
+      );
+    });
   });
 }

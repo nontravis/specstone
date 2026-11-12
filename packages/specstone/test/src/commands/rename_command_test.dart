@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
@@ -8,6 +9,26 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
+  test('f01/us04/fr01/e14: rename takes a bare name one doc carries', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(
+      await runner.run([
+        'rename',
+        'login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith(
+        'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us03_recover_account/\n',
+      ),
+    );
+  });
+
   test('f02/us06/s1: rename prints moved and rewrote lines', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
@@ -79,7 +100,7 @@ void main() {
         err.toString(),
         contains(
           'Expected one target, got 2.\n\n'
-          'Usage: specstone rename (<type>:<name> | <path>) --to <slug> '
+          'Usage: specstone rename <doc address> --to <slug> '
           '[--json]\n',
         ),
       );
@@ -123,5 +144,80 @@ void main() {
     expect(err.toString(), isEmpty);
     final rewritten = (jsonDecode(out.toString()) as Map)['rewritten'] as List;
     expect(rewritten, contains(journey));
+  });
+
+  test('document_writing/rename_doc/rewrite_name_references E07: rename writes a rewritten typed doc laid out', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    final text = readDoc(root, fr12);
+    expect(text, contains('us03_recover_account/USER_STORY.md#use-case'));
+    expect(text, isNot(contains('\n\n\n')));
+    expect(text, contains('draft: true\n'));
+  });
+
+  test('document_writing/rename_doc/rewrite_link_labels E15: rename rewrites an fr traced_from entry and confirmed label', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$fr11': '---\ntraced_from: [S1, login/reset_password#S3]\nverify_method: test\nconfirmed:\n  - login/reset_password#S3 0123456789ab\n---\n\n# Validate credentials\n\n## Statement\nThe system shall validate.\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    final text = readDoc(root, fr11);
+    expect(text, contains('traced_from: [S1, login/recover_account#S3]\n'));
+    expect(text, contains('  - login/recover_account#S3 0123456789ab\n'));
+    expect(out.toString(), contains('rewrote $fr11\n'));
+  });
+
+  test('document_writing/rename_doc/rewrite_name_references: rename rewrites a doc-name mention in a code comment and prints the code file among the rewrote lines', () async {
+    final root = await writeCheckProject(
+      extra: {
+        'app/lib/doc.dart': '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['rename', 'feature:login', '--to', 'signin']), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), contains('rewrote app/lib/doc.dart\n'));
+    expect(
+      File('${root.path}/app/lib/doc.dart').readAsStringSync(),
+      '/// Lays out `signin/email_login`.\nfinal a = "login/email_login";\n',
+    );
+  });
+
+  test('document_writing/rename_doc/rewrite_name_references: rename --json lists the code file among rewritten', () async {
+    final root = await writeCheckProject(
+      extra: {'app/lib/doc.dart': '// `login/email_login`\n'},
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['rename', 'feature:login', '--to', 'signin', '--json']),
+      0,
+    );
+    expect(
+      (jsonDecode(out.toString()) as Map)['rewritten'],
+      contains('app/lib/doc.dart'),
+    );
   });
 }

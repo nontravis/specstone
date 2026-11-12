@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
 
 const _projectType = 'project';
 const _visionSection = 'vision';
@@ -58,6 +59,9 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
       keys: {'limit': docMaxChars, 'actual': lines.charCount},
     );
   }
+  final itemFacts = context.contentOf(doc).itemFacts;
+  final itemLimit = type.lint.itemCharLimit;
+  yield* _itemFindings(context, doc, leadKey, itemFacts.leadItems, itemLimit);
   for (var i = 0; i < held.length; i++) {
     final section = held[i];
     final headerLine = lines.sectionLines[i];
@@ -98,9 +102,46 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         keys: {'section': sectionKey, 'limit': maxChars, 'actual': actualChars},
       );
     }
+    yield* _itemFindings(
+      context,
+      doc,
+      sectionKey,
+      itemFacts.sectionItems[i],
+      itemLimit,
+    );
     if (type.id == _projectType && template?.id == _visionSection) {
       yield* _visionQuoteFindings(context, doc, context.bodyLinesOf(doc, i));
     }
+  }
+}
+
+Iterable<Finding> _itemFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  String sectionKey,
+  List<ItemFact> items,
+  int limit,
+) sync* {
+  for (final item in items) {
+    if (item.chars <= limit) continue;
+    final name = switch (item.id) {
+      final id? => 'item $id',
+      null => 'the item at line ${item.line}',
+    };
+    yield context.finding(
+      doc,
+      FindingKind.itemOverLimit,
+      line: item.line,
+      message:
+          '$name of section $sectionKey has ${item.chars} characters; the '
+          'limit is $limit',
+      keys: {
+        'section': sectionKey,
+        'id': ?item.id,
+        'limit': limit,
+        'actual': item.chars,
+      },
+    );
   }
 }
 

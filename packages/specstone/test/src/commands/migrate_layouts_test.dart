@@ -382,7 +382,7 @@ name: Login API
 ## FR trace
 
 | FR id | Method |
-|-------|--------|
+|---|---|
 | `us01/fr01_validate_credentials` | POST /login |
 ''',
     };
@@ -434,6 +434,17 @@ name: Login API
 
     final before = _bytesUnder(code);
     final docsBefore = _bytesUnder(docsRepo);
+    final dryRefused = await _run(code, ['migrate', '--dry-run']);
+    expect(dryRefused.status, 73, reason: dryRefused.err);
+    expect(dryRefused.out, isEmpty);
+    expect(_bytesUnder(docsRepo), docsBefore);
+
+    final refused = await _run(code, ['migrate'], console: _owner());
+    expect(refused.status, 73, reason: refused.err);
+    expect(_bytesUnder(docsRepo), docsBefore);
+    final trusted = await _run(code, ['trust'], console: _owner());
+    expect(trusted.status, 0, reason: trusted.err);
+
     final dry = await _run(code, ['migrate', '--dry-run']);
     expect(dry.status, 0, reason: dry.err);
     expect(_bytesUnder(code), before);

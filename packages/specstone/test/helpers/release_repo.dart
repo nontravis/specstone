@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../specstone_core/test/helpers/git_repo.dart'
+    show cleanGitEnvironment;
 import 'script_sandbox.dart';
 
 /// Creates a fixture repo pair for `tool/release.dart`, deleted by
@@ -65,9 +67,11 @@ final class ReleaseRepo {
       ['run', 'tool/release.dart', ...args],
       workingDirectory: work.path,
       environment: {
+        ...cleanGitEnvironment(),
         'PATH': '${_stubs.path}:${Platform.environment['PATH'] ?? ''}',
         ...gh,
       },
+      includeParentEnvironment: false,
     );
   }
 
@@ -77,6 +81,8 @@ final class ReleaseRepo {
       'git',
       args,
       workingDirectory: (at ?? work).path,
+      environment: cleanGitEnvironment(),
+      includeParentEnvironment: false,
     );
     if (result.exitCode != 0) {
       throw StateError(
@@ -132,10 +138,12 @@ final class ReleaseRepo {
     String file = 'other.txt',
   }) async {
     final push = pushFromOtherCloneCommand(branch, file: file);
-    final result = await Process.run('sh', [
-      '-c',
-      push + r' && git -C "$dir" rev-parse HEAD',
-    ]);
+    final result = await Process.run(
+      'sh',
+      ['-c', push + r' && git -C "$dir" rev-parse HEAD'],
+      environment: cleanGitEnvironment(),
+      includeParentEnvironment: false,
+    );
     if (result.exitCode != 0) {
       throw StateError('push from other clone failed: ${result.stderr}');
     }
@@ -171,6 +179,14 @@ final class ReleaseRepo {
     await Directory('${work.path}/tool').create();
     await File('${repoRoot().path}/tool/release.dart')
         .copy('${work.path}/tool/release.dart');
+    // The tool imports the real Version, so the fixture carries its two files.
+    for (final path in [
+      'lib/release_version.dart',
+      'lib/src/release_version.dart',
+    ]) {
+      await File('${repoRoot().path}/packages/specstone_core/$path')
+          .copy('${work.path}/packages/specstone_core/$path');
+    }
     await _writeGhStub();
 
     await git(['init', '-q', '-b', 'main']);
@@ -206,6 +222,8 @@ environment:
 workspace:
   - packages/specstone_core
   - packages/specstone
+dependencies:
+  specstone_core:
 ''',
     'packages/specstone_core/pubspec.yaml':
         '''

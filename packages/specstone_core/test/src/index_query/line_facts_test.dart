@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -35,6 +36,66 @@ void main() {
       'héllo \u{1F600}\n'; // 14
 
   group('LineFacts.of', () {
+    test('consistency_check/find_broken_pointers/report_number_labels: the '
+        'body labels are found once at index time, at their file lines, and '
+        'stored', () {
+      const labelled =
+          '---\nnote: FR-01\n---\n# T\n\nSee F-01 US-02 and `FR-03`.\n'
+          '```dart\n// FR-04\n```\n';
+      final facts = _factsOf(labelled);
+      expect(facts.numberLabels, [
+        (line: 6, written: 'F-01 US-02'),
+        (line: 6, written: 'FR-03'),
+      ]);
+      expect(
+        LineFacts.fromJson(
+          jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+          sectionCounts: facts.sectionCounts,
+        ).numberLabels,
+        facts.numberLabels,
+      );
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs: each TBR '
+        'marker of the body is stored at its file line and survives a JSON '
+        'round trip', () {
+      const marked =
+          '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n\n'
+          'A gap TBR \u2014 pick a value.\n'
+          '```\nTBR \u2014 in code\n```\n'
+          'And `TBR \u2014 x` then TBR \u2014 later.\n';
+      final facts = _factsOf(marked);
+      expect(facts.tbrMarkers, [
+        (line: 6, rest: 'pick a value.'),
+        (line: 10, rest: 'later.'),
+      ]);
+      expect(
+        LineFacts.fromJson(
+          jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+          sectionCounts: facts.sectionCounts,
+        ).tbrMarkers,
+        facts.tbrMarkers,
+      );
+      expect(facts.toJson()['tbr_markers'], [
+        [6, 'pick a value.'],
+        [10, 'later.'],
+      ]);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs E08: a '
+        'marker in a frontmatter value is not stored', () {
+      const doc = '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n';
+      expect(_factsOf(doc).tbrMarkers, isEmpty);
+    });
+
+    test('consistency_check/find_template_breaks/report_open_tbrs: a CRLF '
+        'doc stores the markers of its LF text', () {
+      const lf = '---\na: 1\n---\n# T\n\nTBR \u2014 gap\n';
+      expect(_factsOf(lf.replaceAll('\n', '\r\n')).tbrMarkers, [
+        (line: 6, rest: 'gap'),
+      ]);
+    });
+
     test('f04/nfr-p03: a doc with frontmatter, title, sections, and a fence hiding a ## has 1-based file lines', () {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
@@ -54,6 +115,7 @@ void main() {
           target: 'prds/f01_a/us01_x/USER_STORY.md',
           line: 6,
           shown: 'us01_x/USER_STORY.md',
+          anchor: null,
         ),
       ];
       expect(_factsOf(linked, docPath: docPath).links, expected);
@@ -72,7 +134,12 @@ void main() {
         'prds/f01_a/us01_x/USER_STORY.md',
       ]);
       expect(facts.fileLinks, [
-        (target: 'prds/f01_a/flow.png', line: 6, shown: 'flow.png'),
+        (
+          target: 'prds/f01_a/flow.png',
+          line: 6,
+          shown: 'flow.png',
+          anchor: null,
+        ),
       ]);
     });
 
@@ -229,6 +296,89 @@ void main() {
         sectionCounts: facts.sectionCounts,
       );
       expect(back.fileLinks, facts.fileLinks);
+    });
+
+    test('f04/us02/fr04, PS-R3, P11: the JSON round-trips the self links, the '
+        'unreadable links, and the anchor set', () {
+      final facts = _factsOf(
+        '# T\n\n[a](b.md#x) [s](#rules) [u](http://h:abc/x.md)\n'
+        '## Rules\n',
+        docPath: 'doc.md',
+      );
+      expect(facts.selfLinks, [
+        (target: 'doc.md', line: 3, shown: '#rules', anchor: 'rules'),
+      ]);
+      expect(facts.unreadableLinks, [
+        (
+          target: 'http://h:abc/x.md',
+          line: 3,
+          shown: 'http://h:abc/x.md',
+          anchor: null,
+        ),
+      ]);
+      expect(facts.anchors, isNotNull);
+      expect(facts.anchors!.holds('t'), isTrue);
+      expect(facts.anchors!.holds('rules'), isTrue);
+      final back = LineFacts.fromJson(
+        jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+        sectionCounts: facts.sectionCounts,
+      );
+      expect(back.selfLinks, facts.selfLinks);
+      expect(back.unreadableLinks, facts.unreadableLinks);
+      expect(back.anchors!.toJson(), facts.anchors!.toJson());
+    });
+
+    test('resolve_doc_links E21: an unreadable autolink is an unreadable link '
+        'whatever else the body holds, so one link reads one way', () {
+      const autolink = (
+        target: 'http://h:99999/',
+        line: 3,
+        shown: 'http://h:99999/',
+        anchor: null,
+      );
+      for (final body in [
+        'Autolink only <http://h:99999/> here.',
+        'Both <http://h:99999/> and [x](y.md).',
+      ]) {
+        expect(_factsOf('# T\n\n$body\n').unreadableLinks, [
+          autolink,
+        ], reason: body);
+      }
+    });
+
+    test(
+      's03/inv24, LP2, P11: a body the markdown parser fails on has no links '
+      'and an unknown anchor set, stored as null',
+      () {
+        final facts = _factsOf('# T\n\n[a](b.md)\n\n[a]:<b\\');
+        expect(facts.links, isEmpty);
+        expect(facts.fileLinks, isEmpty);
+        expect(facts.selfLinks, isEmpty);
+        expect(facts.unreadableLinks, isEmpty);
+        expect(facts.anchors, isNull);
+      },
+    );
+  });
+
+  group('LineFacts.of counted text', () {
+    test('index_query/read_current_docs/index_each_doc E18: lineCount and charCount measure countedText '
+        'while every line number stays the file line', () {
+      const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
+      final facts = LineFacts.of(
+        lfText: disk,
+        countedText: 'one\ntwo\n',
+        docPath: 'doc.md',
+        doc: Doc.parse(disk),
+        sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
+        frontmatterErrorLine: null,
+        bodyNumberLabels: const [],
+        bodyTbrMarkers: const [],
+        warnings: [],
+      );
+      expect(facts.sectionLines, [3, 7]);
+      expect(facts.lineCount, 2);
+      expect(facts.charCount, 8);
+      expect(facts.sectionCounts, [(lines: 3, chars: 9), (lines: 2, chars: 4)]);
     });
   });
 }

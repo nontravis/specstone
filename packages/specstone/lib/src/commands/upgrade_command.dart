@@ -7,9 +7,18 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
+const String _rawContentBase =
+    'https://raw.githubusercontent.com/nontravis/specstone/';
+
 /// Where the install scripts are fetched from, ending in `/`.
-const String installScriptBase =
-    'https://raw.githubusercontent.com/nontravis/specstone/main/';
+const String installScriptBase = '${_rawContentBase}main/';
+
+/// Names the latest full, published release in its `tag_name`.
+const String latestReleaseApi =
+    'https://api.github.com/repos/nontravis/specstone/releases/latest';
+
+/// The variable that pins the version the install script installs.
+const String _pinnedVersionVariable = 'SPECSTONE_VERSION';
 
 /// The arguments `claude` takes to update the Specstone plugin.
 const List<String> _pluginUpdateArguments = [
@@ -18,11 +27,37 @@ const List<String> _pluginUpdateArguments = [
   'specstone@specstone',
 ];
 
+/// The program, arguments, and environment of one `claude plugin update`.
+typedef _ClaudeStart = ({
+  String program,
+  List<String> arguments,
+  Map<String, String> environment,
+});
+
+/// The Windows variable that keeps a program lookup out of the current folder.
+const String _noCurrentFolderLookup = 'NoDefaultCurrentDirectoryInExePath';
+
 /// How long a connection may take to open.
 const Duration _connectTimeout = Duration(seconds: 30);
 
 /// How long the script body may stay silent before the fetch gives up.
 const Duration _idleTimeout = Duration(seconds: 60);
+
+/// How many MiB a reply may hold before the read gives up.
+const int _maxReplyMiB = 1;
+
+/// The same limit in bytes.
+const int _maxReplyBytes = _maxReplyMiB * 1024 * 1024;
+
+/// How many characters of an untrusted tag an error message echoes, the mark
+/// of a cut one included.
+const int _maxEchoedTagLength = 64;
+
+/// Ends an untrusted tag that an error message cuts.
+const String _cutMark = '...';
+
+/// The code point that stands for each character an error message hides.
+const int _maskRune = 0x3f;
 
 /// The last line `specstone upgrade` prints.
 const String _restartLine =
@@ -93,6 +128,24 @@ String? unmanagedBinFolder(
   return same ? null : binFolder.path;
 }
 
+// Shows reply text as printable ASCII only, so it cannot drive the terminal or
+// reorder the line it is printed on: every other character, a whole code point
+// at a time, shows as `?`. A text over [_maxEchoedTagLength] characters is cut
+// to that length, the last characters being [_cutMark].
+String _printable(String text) {
+  final runes = text.runes.take(_maxEchoedTagLength + 1).toList();
+  final isCut = runes.length > _maxEchoedTagLength;
+  final kept = isCut
+      ? runes.take(_maxEchoedTagLength - _cutMark.length)
+      : runes;
+  final shown = String.fromCharCodes(
+    kept.map((rune) => _isPrintableAscii(rune) ? rune : _maskRune),
+  );
+  return isCut ? '$shown$_cutMark' : shown;
+}
+
+bool _isPrintableAscii(int rune) => rune >= 0x20 && rune <= 0x7e;
+
 // Resolves symlinks of an existing folder, so macOS `/var` and `/private/var`
 // compare equal; a missing folder falls back to its normalized absolute path.
 String _comparable(Directory folder, {required bool windows}) {
@@ -105,53 +158,41 @@ String _comparable(Directory folder, {required bool windows}) {
   return windows ? bare.toLowerCase() : bare;
 }
 
-/// Returns the path of [name] on the PATH of [environment], or null.
-///
-/// Scans the folders in order; on [windows] it matches `<name>.exe`, then
-/// `<name>.cmd`, in each folder, and reads `PATH` without case.
-String? findOnPath(
-  String name,
-  Map<String, String> environment, {
-  required bool windows,
-}) {
-  final path = environment.entries
-      .where((e) => windows ? e.key.toUpperCase() == 'PATH' : e.key == 'PATH')
-      .map((e) => e.value)
-      .firstOrNull;
-  if (path == null) return null;
-  final fileNames = windows ? ['$name.exe', '$name.cmd'] : [name];
-  for (final folder in path.split(windows ? ';' : ':')) {
-    if (folder.isEmpty) continue;
-    for (final fileName in fileNames) {
-      final candidate = File('$folder${Platform.pathSeparator}$fileName');
-      if (candidate.existsSync()) return candidate.path;
-    }
-  }
-  return null;
-}
-
 /// Upgrades the CLI and the plugin to the latest release.
 ///
-/// Refuses unless the running binary sits in `<home>/.specstone/bin`.
+/// Refuses unless the running binary sits in `<home>/.specstone/bin`. A
+/// pre-release CLI that is not below the latest full release stays as it is.
 class UpgradeCommand extends SpecstoneCommand {
   /// Creates the command; each argument defaults to the running process.
   ///
   /// - [scriptBase]: where the install scripts are fetched from.
+  /// - [latestReleaseUrl]: where the latest full release is read from.
+  /// - [runningVersion]: the Version of the running binary.
   /// - [executable]: the path of the running binary.
   /// - [environment]: the environment `HOME` is read from.
   /// - [windows]: whether to compare paths without case.
   new({
     Uri? scriptBase,
+    Uri? latestReleaseUrl,
+    String? runningVersion,
     String? executable,
     Map<String, String>? environment,
     bool? windows,
   }) : scriptBase = scriptBase ?? Uri.parse(installScriptBase),
+       latestReleaseUrl = latestReleaseUrl ?? Uri.parse(latestReleaseApi),
+       runningVersion = runningVersion ?? specstoneVersion,
        executable = executable ?? Platform.resolvedExecutable,
        environment = environment ?? Platform.environment,
        windows = windows ?? Platform.isWindows;
 
   /// Where the install scripts are fetched from.
   final Uri scriptBase;
+
+  /// Where the latest full release is read from.
+  final Uri latestReleaseUrl;
+
+  /// The Version of the running binary.
+  final String runningVersion;
 
   /// The path of the running binary.
   final String executable;
@@ -189,6 +230,8 @@ class UpgradeCommand extends SpecstoneCommand {
         asJson: false,
       );
     }
+    final kept = await _keepNewerPreRelease();
+    if (kept != null) return kept;
     final Directory temp;
     try {
       temp = await Directory.systemTemp.createTemp('specstone_upgrade_');
@@ -212,6 +255,68 @@ class UpgradeCommand extends SpecstoneCommand {
     specstoneRunner.out.writeln(_restartLine);
     return 0;
   }
+
+  // Returns null to go on to the install script, else the exit status to stop
+  // with: 0 after a pre-release CLI that is not below the latest full release
+  // is kept, 69 when that release cannot be read.
+  Future<int?> _keepNewerPreRelease() async {
+    final running = ReleaseVersion.tryParse(runningVersion);
+    if (running == null || !running.isPreRelease) return null;
+    final (:version, :failure) = await _readLatestRelease();
+    if (version == null) {
+      return fail(
+        UpgradeFault(
+          UpgradeFaultCode.installScriptFailed,
+          'specstone upgrade could not read the latest release from '
+          '$latestReleaseUrl: $failure',
+        ),
+        asJson: false,
+      );
+    }
+    if (running.compareTo(version) < 0) return null;
+    specstoneRunner.out
+      ..writeln(
+        'specstone $running is newer than the latest release $version; '
+        'nothing to upgrade',
+      )
+      ..writeln(
+        'To put the plugin on $running too, run: ${_installLineFor(running)}',
+      );
+    return 0;
+  }
+
+  // Reads the Version of the latest full release from the `tag_name` of
+  // [latestReleaseUrl]; the reply is untrusted, so it must be a JSON object
+  // holding `v<Version>`.
+  Future<({ReleaseVersion? version, String? failure})>
+  _readLatestRelease() async {
+    final (:body, :failure) = await _get(latestReleaseUrl);
+    if (body == null) return (version: null, failure: failure);
+    final Object? json;
+    try {
+      json = jsonDecode(utf8.decode(body));
+    } on FormatException {
+      return (version: null, failure: 'the body is not JSON');
+    }
+    final tag = json is Map<String, Object?> ? json['tag_name'] : null;
+    if (tag is! String) return (version: null, failure: 'no tag_name');
+    final version = tag.startsWith('v')
+        ? ReleaseVersion.tryParse(tag.substring(1))
+        : null;
+    if (version != null) return (version: version, failure: null);
+    return (
+      version: null,
+      failure: 'tag_name ${_printable(tag)} is not v<Version>',
+    );
+  }
+
+  // The install line of the version, which fetches the script of its own tag
+  // since `main` holds the last full release's script.
+  String _installLineFor(ReleaseVersion version) => windows
+      ? 'iex "& {\$(irm ${_rawContentBase}v$version/install.ps1)} '
+            "-Version '$version'\""
+      : 'curl -fsSL ${_rawContentBase}v$version/install.sh | '
+            '$_pinnedVersionVariable=$version sh';
 
   // Deletes [temp]; a failure is reported and never changes the exit status.
   Future<void> _remove(Directory temp) async {
@@ -238,15 +343,25 @@ class UpgradeCommand extends SpecstoneCommand {
       );
     }
     final shell = windows ? 'powershell' : '/bin/sh';
+    final program = windows
+        ? findExecutable(shell, environment, isWindows: true)
+        : shell;
+    if (program == null) {
+      return UpgradeFault(
+        UpgradeFaultCode.installScriptFailed,
+        'specstone upgrade: could not start $shell for $url: no $shell on an '
+        'absolute PATH entry; the install is unchanged',
+      );
+    }
     final arguments = windows
         ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script.path]
         : [script.path];
     try {
       final process = await Process.start(
-        shell,
+        program,
         arguments,
         mode: ProcessStartMode.inheritStdio,
-        environment: environment,
+        environment: _withoutPinnedVersion(),
         includeParentEnvironment: false,
       );
       final status = await process.exitCode;
@@ -265,30 +380,60 @@ class UpgradeCommand extends SpecstoneCommand {
     }
   }
 
+  // The environment of the upgrade without the version an install by version
+  // exported, so the script takes the latest full release; Windows names
+  // compare without case.
+  Map<String, String> _withoutPinnedVersion() => {
+    for (final MapEntry(:key, :value) in environment.entries)
+      if ((windows ? key.toUpperCase() : key) != _pinnedVersionVariable)
+        key: value,
+  };
+
   // Writes the body of [url] to [file] only when the whole body arrived.
   // Returns why it did not, or null.
   Future<String?> _fetch(Uri url, File file) async {
+    final (:body, :failure) = await _get(url);
+    if (body == null) return failure;
+    try {
+      await file.writeAsBytes(body);
+      return null;
+    } on FileSystemException catch (e) {
+      return '$e';
+    }
+  }
+
+  // Returns the body of one complete 2xx reply of [url], else why there is
+  // none: `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
+  Future<({List<int>? body, String? failure})> _get(Uri url) async {
     final client = HttpClient()..connectionTimeout = _connectTimeout;
     try {
       final request = await client.getUrl(url);
+      // A redirect could lead off GitHub, so a 3xx counts as a failed status.
+      request.followRedirects = false;
       final response = await request.close().timeout(_idleTimeout);
       final status = response.statusCode;
-      final quiet = response.timeout(_idleTimeout);
+      // An error body is never read: the closed client drops it, so it cannot
+      // stall, fail to decode, or grow without a cap.
       if (status < 200 || status >= 300) {
-        await quiet.drain<void>();
-        return 'HTTP $status';
+        return (body: null, failure: 'HTTP $status');
       }
-      // HttpClient throws on a body cut short, so a finished fold is complete.
-      final body = await quiet.fold(
-        BytesBuilder(copy: false),
-        (builder, chunk) => builder..add(chunk),
-      );
-      await file.writeAsBytes(body.takeBytes());
-      return null;
+      final quiet = response.timeout(_idleTimeout);
+      // HttpClient throws on a body cut short, so a finished loop is complete.
+      final body = BytesBuilder(copy: false);
+      await for (final chunk in quiet) {
+        body.add(chunk);
+        if (body.length > _maxReplyBytes) {
+          return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
+        }
+      }
+      return (body: body.takeBytes(), failure: null);
     } on IOException catch (e) {
-      return e is HttpException ? e.message : '$e';
+      return (body: null, failure: e is HttpException ? e.message : '$e');
+    } on FormatException catch (e) {
+      // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
+      return (body: null, failure: e.message);
     } on TimeoutException {
-      return 'no data for ${_idleTimeout.inSeconds} s';
+      return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
     } finally {
       client.close(force: true);
     }
@@ -299,14 +444,14 @@ class UpgradeCommand extends SpecstoneCommand {
   Future<void> _updatePlugin() async {
     final out = specstoneRunner.out;
     final command = 'claude ${_pluginUpdateArguments.join(' ')}';
-    final claude = findOnPath('claude', environment, windows: windows);
-    if (claude == null) {
+    final start = _claudeStart();
+    if (start == null) {
       out
         ..writeln('To update the Specstone plugin, run:')
         ..writeln(command);
       return;
     }
-    final failure = await _runClaude(claude, out);
+    final failure = await _runClaude(start, out);
     if (failure != null) {
       specstoneRunner.err.writeln(
         'specstone: $command failed: $failure; run it by hand',
@@ -314,16 +459,43 @@ class UpgradeCommand extends SpecstoneCommand {
     }
   }
 
+  // Returns the absolute program that runs `claude plugin update`, or null when
+  // there is none. A `claude.cmd` runs through the absolute `cmd.exe`: a bare
+  // name starts from the current folder on Windows, and so does the `node` a
+  // `.cmd` shim names, which `NoDefaultCurrentDirectoryInExePath` stops.
+  _ClaudeStart? _claudeStart() {
+    final claude = findExecutable(
+      'claude',
+      environment,
+      isWindows: windows,
+      windowsExtensions: const ['.exe', '.cmd'],
+    );
+    if (claude == null) return null;
+    if (!claude.endsWith('.cmd')) {
+      return (
+        program: claude,
+        arguments: _pluginUpdateArguments,
+        environment: environment,
+      );
+    }
+    final shell = findExecutable('cmd', environment, isWindows: true);
+    if (shell == null) return null;
+    return (
+      program: shell,
+      arguments: ['/c', claude, ..._pluginUpdateArguments],
+      environment: {...environment, _noCurrentFolderLookup: '1'},
+    );
+  }
+
   // Returns the first non-blank, trimmed stderr line of a failed run,
   // `exit <status>` when it wrote none, or null on success.
-  Future<String?> _runClaude(String claude, StringSink out) async {
+  Future<String?> _runClaude(_ClaudeStart start, StringSink out) async {
     try {
       final process = await Process.start(
-        claude,
-        _pluginUpdateArguments,
-        environment: environment,
+        start.program,
+        start.arguments,
+        environment: start.environment,
         includeParentEnvironment: false,
-        runInShell: claude.endsWith('.cmd'),
       );
       const decoder = Utf8Decoder(allowMalformed: true);
       final stderrText = process.stderr.transform(decoder).join();

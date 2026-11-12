@@ -33,7 +33,7 @@ void main() {
     final finding = report.findings.single;
     expect(
       finding.textLine,
-      '$loginFr:7: implements_symbol_unresolved: checkPassword occurs nowhere in app/lib/login.dart',
+      '$loginFr:10: implements_symbol_unresolved: checkPassword occurs nowhere in app/lib/login.dart',
     );
     expect(
       finding.toJson(),
@@ -58,7 +58,7 @@ void main() {
           without: {'app/lib/login.dart'},
         ),
       );
-      expect(spots(report), ['$loginFr:7: implements_path_unresolved']);
+      expect(spots(report), ['$loginFr:10: implements_path_unresolved']);
       expect(
         report.findings.single.toJson(),
         containsPair('entry', 'app/lib/b.dart'),
@@ -67,7 +67,7 @@ void main() {
   );
 
   test('code_root: a folder outside the project root holds the code', () async {
-    final files = checkProjectFiles();
+    final files = withApprovalHashes(checkProjectFiles());
     final config = '${shippedPinsConfig()}code_root: ../outside\n';
     final workspace = await writeTree({
       for (final MapEntry(:key, :value) in files.entries)
@@ -84,15 +84,27 @@ void main() {
     expect(report.findings, isEmpty);
   });
 
+  test('f04/us02/fr01/e03: a pointer with a backslash or a name Windows trims '
+      'names no file on any OS, though a POSIX disk holds one', () async {
+    for (final pointer in [r'app\lib\login.dart', 'app/lib/login.dart.']) {
+      final root = await writeCheckProject(extra: fr(entry, pointer));
+      File('${root.path}/$pointer').writeAsStringSync('class SignInPage {}\n');
+
+      expect(spots(checkOf(root)), [
+        '$loginFr:10: implements_path_unresolved',
+      ], reason: pointer);
+    }
+  }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
+
   test('f04/us02/s7, f04/us02/fr01/e03: a pointer to a folder, or to nothing, names no file', () async {
     final folder = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib')),
     );
-    expect(spots(folder), ['$loginFr:7: implements_path_unresolved']);
+    expect(spots(folder), ['$loginFr:10: implements_path_unresolved']);
     final gone = checkOf(
       await writeCheckProject(extra: fr(entry, 'app/lib/gone.dart:X')),
     );
-    expect(spots(gone), ['$loginFr:7: implements_path_unresolved']);
+    expect(spots(gone), ['$loginFr:10: implements_path_unresolved']);
   });
 
   test(
@@ -144,7 +156,7 @@ void main() {
         },
       ),
     );
-    expect(spots(part), ['$loginFr:7: implements_symbol_unresolved']);
+    expect(spots(part), ['$loginFr:10: implements_symbol_unresolved']);
     final comment = checkOf(
       await writeCheckProject(
         extra: {
@@ -186,7 +198,7 @@ void main() {
       Process.runSync('chmod', ['000', path]);
       addTearDown(() => Process.runSync('chmod', ['644', path]));
       final report = checkOf(project);
-      expect(spots(report), ['$loginStory:6: implements_symbol_unresolved']);
+      expect(spots(report), ['$loginStory:7: implements_symbol_unresolved']);
       expect(report.warnings, [
         'app/lib/login.dart: cannot read the file; implements Symbols in it are not checked',
       ]);

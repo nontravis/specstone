@@ -16,7 +16,7 @@ import '../../helpers/temp_tree.dart';
 void main() {
   group('software-tech manifest', () {
     test(
-      'f03/us07/fr01: software-tech ships at 1.3.0 and extends prd-core',
+      'f03/us07/fr01: software-tech ships at 1.4.0 and extends prd-core',
       () {
         final bytes = shippedPackFiles['software-tech/pack.yaml'];
         expect(bytes, isNotNull);
@@ -25,7 +25,7 @@ void main() {
           file: 'packs/software-tech/pack.yaml',
         );
         expect(manifest.name, 'software-tech');
-        expect(manifest.version.toString(), '1.3.0');
+        expect(manifest.version.toString(), '1.4.0');
         expect(manifest.extendsPack, 'prd-core');
       },
     );
@@ -140,6 +140,29 @@ void main() {
         expect(docType.lint.bannedWords, isNull, reason: id);
         for (final section in docType.sections) {
           expect(section.bannedWords, isNull, reason: '$id.${section.id}');
+        }
+      }
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'set_spec_lint_and_sources: no software-tech doc type sets '
+        'max_item_chars, so each takes the default', () {
+      for (final id in softwareTechIds) {
+        expect(prdCoreDocType(set, id).lint.maxItemChars, isNull, reason: id);
+      }
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides: every section description stays within '
+        'five lines', () {
+      for (final id in softwareTechIds) {
+        for (final section in prdCoreDocType(set, id).sections) {
+          final lines = const LineSplitter().convert(section.description ?? '');
+          expect(
+            lines.length,
+            lessThanOrEqualTo(5),
+            reason: '$id.${section.id}',
+          );
         }
       }
     });

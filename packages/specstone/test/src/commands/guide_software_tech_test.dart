@@ -9,7 +9,7 @@ import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
-const _guideUsage = 'Usage: specstone guide [type] [--json]';
+const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 final String _bothPacks = shippedPinsConfig();
 final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
 final String _softwareTechOnly = shippedPinsConfig(['software-tech']);
@@ -114,6 +114,21 @@ void main() {
       },
     );
 
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'ship_software_tech_pack: guide domain prints Known limits right '
+        'after Invariants', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'domain']), 0);
+      final guide = out.toString();
+      final invariants = guide.indexOf('## Invariants\n\n');
+      final knownLimits = guide.indexOf('## Known limits\n\n');
+      final lifecycle = guide.indexOf('## Lifecycle\n\n');
+      expect(invariants, greaterThan(0));
+      expect(knownLimits, greaterThan(invariants));
+      expect(lifecycle, greaterThan(knownLimits));
+      expect(err.toString(), isEmpty);
+    });
+
     test('f03/us07/s3, f03/us07/fr01: guide architecture --json gives the '
         'specs path, the parent feature, covers, and the sections', () async {
       final runner = await runnerFor(_bothPacks);
@@ -196,6 +211,36 @@ void main() {
         expect(field['type'], isNot('output_ref'), reason: '${field['id']}');
         expect(field.containsKey('pointer'), isFalse, reason: '${field['id']}');
       }
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides E10: guide api states the one operation '
+        'heading shape', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'api']), 0);
+      expect(
+        out.toString(),
+        contains('Write one `###` per operation, headed `` `<operation>` ``'),
+      );
+      expect(out.toString(), isNot(contains('FR-<NN>')));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides E10: guide api --json carries the same '
+        'heading shape in the operations section', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'api', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final operations = (json['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .singleWhere((section) => section['id'] == 'operations');
+      final description = operations['description']! as String;
+      expect(
+        description,
+        contains('Write one `###` per operation, headed `` `<operation>` ``'),
+      );
+      expect(description, isNot(contains('FR-<NN>')));
     });
 
     test('f03/us01/fr02: guide api ends with its four sources as '

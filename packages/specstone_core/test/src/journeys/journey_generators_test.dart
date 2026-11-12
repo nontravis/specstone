@@ -258,6 +258,35 @@ void main() {
       expect(scenarioCopyOf('### Scenario 1 — x'), '');
     });
 
+    test('journeys/lay_out_journey/paste_step_scenarios E01: '
+        'a table row right under the heading is copied in the layout', () {
+      expect(
+        scenarioCopyOf(
+          '### Scenario 1 — x\n| a   | b  |\n|-----|----|\n| 1 | 2 |',
+        ),
+        '| a | b |\n|---|---|\n| 1 | 2 |',
+      );
+    });
+
+    test('journeys/lay_out_journey/paste_step_scenarios E02: '
+        'blank lines under the heading are left out', () {
+      expect(scenarioCopyOf('### Scenario 1 — x\n\n\n- a\n- b'), '- a\n- b');
+    });
+
+    test('journeys/lay_out_journey/paste_step_scenarios E03: '
+        'a padded table is copied in the format layout', () {
+      const block =
+          '### Scenario 1 — x\n\n'
+          '| a   | b  |\n'
+          '|-----|----|\n'
+          '| one | 2  |  \n'
+          '- c  ';
+
+      expect(scenarioCopyOf(block), '| a | b |\n|---|---|\n| one | 2 |\n- c');
+      expect(scenarioCopyOf(block), isNot(contains('  \n')));
+      expect(scenarioCopyOf(block), isNot(endsWith(' ')));
+    });
+
     test(
       'f10/us01/fr03: stepsOfIndexed reads the steps of an indexed journey',
       () async {

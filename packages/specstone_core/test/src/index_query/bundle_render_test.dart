@@ -220,6 +220,89 @@ void main() {
     expect(text, contains('## Security\n- Store no password in plain text.'));
     expect(text, contains('---\nstatus: planned\ndraft: true\n'));
   });
+  group(
+    'index_query/get_task_bundle/trim_and_order_bundle comments in code',
+    () {
+      const feature = 'docs/prds/features/f01_login/FEATURE.md';
+      Future<String> featureWith(String problem) async {
+        final i = await indexWith({
+          feature:
+              '${loginProject[feature]!.split('## Problem').first}'
+              '## Problem\n$problem\n',
+        });
+        return ctxIn(i, 'login/email_login', BundleMode.implement).text;
+      }
+
+      test('E03: a comment inside an inline code span stays', () async {
+        const line =
+            'A block opens with `<!-- BEGIN specstone v1 -->` and closes '
+            'with `<!-- END specstone -->`.';
+        expect(await featureWith(line), contains('## Problem\n$line'));
+      });
+
+      test('E03: a comment inside a fenced code block stays', () async {
+        const fenced =
+            '```\n<!-- BEGIN specstone v1 -->\nbody\n<!-- END -->\n```';
+        expect(await featureWith('Shown:\n$fenced'), contains(fenced));
+      });
+
+      test('E03: a comment outside code drops beside a kept span', () async {
+        final text = await featureWith(
+          'Keep `<!-- kept -->` and drop <!-- dropped --> here.',
+        );
+        expect(text, contains('Keep `<!-- kept -->` and drop  here.'));
+      });
+
+      test('E03: a comment holding a lone backtick still drops', () async {
+        final text = await featureWith('a <!-- it`s --> b `c`');
+
+        expect(text, contains('## Problem\na  b `c`'));
+        expect(text, isNot(contains('it`s')));
+      });
+
+      test('E03: a comment holding a backtick pair still drops', () async {
+        final text = await featureWith('<!-- a ` --> b ` c');
+
+        expect(text, isNot(contains('-->')));
+        expect(text, contains('## Problem\n b ` c'));
+      });
+
+      test('E03: a comment holding a fenced block still drops', () async {
+        final text = await featureWith(
+          'Before\n<!-- x\n```\ny\n```\n-->\nAfter',
+        );
+
+        expect(text, contains('## Problem\nBefore\n\nAfter'));
+        expect(text, isNot(contains('```')));
+      });
+
+      test('E03: a comment block over several lines drops whole', () async {
+        final text = await featureWith(
+          'Before\n<!-- one\ntwo\nthree -->\nAfter',
+        );
+        expect(text, contains('## Problem\nBefore\n\nAfter'));
+        expect(text, isNot(contains('two')));
+      });
+
+      test(
+        'E03: a body of only a comment and starter text stays starter text',
+        () async {
+          const template =
+              'We believe <outcome> will be achieved if <persona> attains '
+              '<benefit> with <feature>.';
+          final i = await indexWith({
+            feature:
+                '${loginProject[feature]}\n## Benefit hypothesis\n'
+                '<!-- note -->\n$template\n',
+          });
+          expect(
+            ctxIn(i, 'login/email_login', BundleMode.implement).text,
+            isNot(contains('## Benefit hypothesis')),
+          );
+        },
+      );
+    },
+  );
   test('f01/us05/fr02/e02, f01/us05/fr02/e04: template text drops a section; a changed word or a later N/A keeps it', () async {
     const feature = 'docs/prds/features/f01_login/FEATURE.md';
     const template =

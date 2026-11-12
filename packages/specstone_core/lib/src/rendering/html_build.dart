@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
@@ -56,9 +57,18 @@ HtmlBuild buildHtml(
     for (final (index, (docPath, _)) in readable.indexed)
       docPath: _anchorOf(index),
   };
+  final docAnchors = _DocAnchorSets({
+    for (final (docPath, read) in readable) docPath: read,
+  });
   final rendered = <RenderedDoc>[];
   for (final (index, (docPath, read)) in readable.indexed) {
-    final body = renderDocBody(read.doc, docPath: docPath, anchors: anchors);
+    final body = renderDocBody(
+      read.doc,
+      docPath: docPath,
+      anchors: anchors,
+      anchorsAt: docAnchors.of,
+    );
+    docAnchors.rendered(docPath, body.anchors);
     if (!body.bodyParsed) {
       parseWarnings.add(
         '${read.path}: the markdown parser failed; its body is shown as plain '
@@ -85,8 +95,29 @@ HtmlBuild buildHtml(
 
 String _anchorOf(int index) => 'doc-${index + 1}';
 
+/// The anchor set of each doc of a build: a rendered doc's from its own
+/// parse, and a doc a link reaches before it renders read on demand, once,
+/// by the function `check` reads (R60).
+final class _DocAnchorSets {
+  new(this._docs);
+
+  final Map<String, ReadableDoc> _docs;
+  final _sets = <String, DocAnchors>{};
+
+  /// The anchor set of the doc at [docPath]; null for a doc not in the build.
+  DocAnchors? of(String docPath) {
+    if (_sets[docPath] case final known?) return known;
+    final read = _docs[docPath];
+    if (read == null) return null;
+    return _sets[docPath] =
+        anchorsOfBody(read.doc.afterFrontmatter) ??
+        const DocAnchors(headingSlugs: [], htmlIds: {});
+  }
+
+  /// Keeps [anchors], read by the render of the doc at [docPath].
+  void rendered(String docPath, DocAnchors anchors) =>
+      _sets.putIfAbsent(docPath, () => anchors);
+}
+
 bool _matchesTemplate(ReadableDoc read) =>
-    switch (formatDoc(read.doc, read.docType)) {
-      Formatted(:final text) => text == toLf(read.text),
-      Refused() => false,
-    };
+    isLaidOut(read.doc, toLf(read.text), read.docType);

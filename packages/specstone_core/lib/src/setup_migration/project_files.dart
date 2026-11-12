@@ -5,6 +5,7 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:yaml/yaml.dart';
 
 const _templatesFolder = '.specstone/templates';
@@ -36,15 +37,42 @@ const _yamlWords = {'true', 'false', 'null'};
 /// Returns the `config.yaml` text pinning each of [pins] (INV-15).
 ///
 /// Writes `packs:`, one pin per line in code point order of the name, then a
-/// `code_root:` line only when [codeRoot] is not `.`, quoted when plain YAML
-/// would read it as another value.
-String configText(Map<String, PackVersion> pins, {String codeRoot = '.'}) {
+/// `code_root:` line only when [codeRoot] is not `.` or [keepCodeRootKey] is
+/// set, then an `agent_file_roots:` list only when [agentFileRoots] is not
+/// empty; each scalar is quoted when plain YAML would read it as another
+/// value. Throws [ArgumentError] for an agent file root the reader would
+/// refuse.
+///
+/// [keepCodeRootKey] keeps the line of a config that already holds the key,
+/// so an explicit `code_root: .` is not dropped.
+String configText(
+  Map<String, PackVersion> pins, {
+  String codeRoot = '.',
+  bool keepCodeRootKey = false,
+  List<String> agentFileRoots = const [],
+}) {
+  for (final root in agentFileRoots) {
+    if (!isPortableCodeEntry(root)) {
+      throw ArgumentError.value(
+        root,
+        'agentFileRoots',
+        'must be a non-empty relative path with / separators and no name '
+            'ending in a space or a dot',
+      );
+    }
+  }
   final names = pins.keys.toList()..sort(compareCodePoints);
   final lines = [for (final name in names) '  $name: ${pins[name]}\n'];
-  final codeRootLine = codeRoot == '.'
+  final codeRootLine = codeRoot == '.' && !keepCodeRootKey
       ? ''
       : 'code_root: ${_stringScalar(codeRoot)}\n';
-  return 'packs:\n${lines.join()}$codeRootLine';
+  final rootLines = [
+    for (final root in agentFileRoots) '  - ${_stringScalar(root)}\n',
+  ];
+  final agentFileRootsLine = rootLines.isEmpty
+      ? ''
+      : 'agent_file_roots:\n${rootLines.join()}';
+  return 'packs:\n${lines.join()}$codeRootLine$agentFileRootsLine';
 }
 
 /// Returns the `covers:` block of the spec folder [legacyFolder], or null.

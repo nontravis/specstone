@@ -1,7 +1,10 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/journeys/step_scenarios.dart';
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -14,27 +17,28 @@ const _relax = 'relax';
 const _add = 'add';
 const _projectType = 'project';
 const _rolesSection = 'roles';
-const _acceptanceSection = 'acceptance_criteria';
 const _personaType = 'persona';
 const _storyType = 'user_story';
 const _roleKey = 'role';
 const _idKey = 'id';
-const _asAPrefix = '- **As a** ';
+const _asPrefixes = ['- **As a** ', '- **As an** '];
 const _whoSeparator = ' who ';
 const _storyVisionKeys = ['vision', 'goals'];
 const _apiType = 'api';
-const _featureType = 'feature';
 const _architectureType = 'architecture';
 const _implementsKey = 'implements';
 const _statusKey = 'status';
 const _implemented = 'implemented';
 const _goalsSection = 'goals';
 const _visionIdPrefix = 'PV-';
-final _goalHeading = RegExp(r'^### (PG-\S+)');
+const _goalIdPrefix = 'PG-';
 final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
-final _servedId = RegExp(r'\b[A-Z][A-Za-z]*-\d+\b');
 
-/// Returns the requirement trace findings of a typed [doc] (US-03 FR-01).
+/// Where a Serves ID may open: an upper-case-led prefix ending `-` that no
+/// letter or digit precedes; the grammar reads the ID from there.
+final _servedPrefix = RegExp('(?<![A-Za-z0-9])[A-Z][A-Za-z]*-');
+
+/// Returns the requirement trace findings of a typed [doc] (`consistency_check/find_prd_spec_disagreements/check_requirement_traces`).
 ///
 /// An `fr` traces to scenarios of its story; an `nf` overrides a GNFR item
 /// only as its `kind` says. A doc whose story is gone gets no finding.
@@ -55,22 +59,34 @@ Iterable<Finding> _unresolvedScenarioTraces(
   final storyType = story?.docTypeId;
   if (story == null ||
       storyType == null ||
-      !context.typeHoldsSection(storyType, _acceptanceSection)) {
+      !context.typeHoldsSection(storyType, acceptanceSectionId)) {
     return;
   }
-  final scenarios = context.scenarioBlocksOf(story);
   final line = context.linesOf(doc).keyLine(_tracedFromKey);
   if (line == null) return;
   for (final entry in doc.valuesOf(_tracedFromKey)) {
-    if (entry == _selfDerived || scenarios.containsKey(entry)) continue;
+    if (entry == _selfDerived || _tracesScenario(context, story, entry)) {
+      continue;
+    }
     yield context.finding(
       doc,
       FindingKind.scenarioTraceUnresolved,
       line: line,
-      message: '$entry is no scenario of the story and not $_selfDerived',
+      message:
+          '$entry is no scenario the story may trace and not $_selfDerived',
       keys: {'entry': entry},
     );
   }
+}
+
+// Whether [entry] reads as a scenario ref naming a scenario [story] or a
+// sibling story holds.
+bool _tracesScenario(CheckContext context, IndexedDoc story, String entry) {
+  final ref = readScenarioRef(entry);
+  if (ref == null) return false;
+  final traced = tracedStoryOf(context.index, story, ref);
+  return traced != null &&
+      context.scenarioBlocksOf(traced).containsKey(scenarioKeyOf(ref));
 }
 
 Iterable<Finding> _overrideProblems(
@@ -111,7 +127,7 @@ Iterable<Finding> _overrideProblems(
 
 /// Returns the role and vision and goal findings of a typed [doc].
 ///
-/// Covers US-03 FR-02.
+/// Covers `consistency_check/find_prd_spec_disagreements/check_roles_and_goal_sets`.
 ///
 /// A role names a `project` Role entry (INV-2); vision and goal IDs sit in
 /// the parent feature, if any, and a project heading; a project goal names
@@ -128,7 +144,7 @@ Iterable<Finding> checkRolesAndGoals(
     case _storyType:
       if (readsRoles) yield* _storyRole(context, doc);
       yield* _storyGoalSets(context, doc);
-    case _featureType:
+    case featureType:
       yield* _featureGoalSets(context, doc);
     case _projectType:
       yield* _goalServes(context, doc);
@@ -142,19 +158,20 @@ Iterable<Finding> _personaRole(CheckContext context, IndexedDoc doc) sync* {
   yield* _unresolvedRole(context, doc, role, line);
 }
 
+String? _asPrefixOf(String line) =>
+    _asPrefixes.where(line.startsWith).firstOrNull;
+
 Iterable<Finding> _storyRole(CheckContext context, IndexedDoc doc) sync* {
   final lines = context.linesOf(doc);
-  final asA = lines.lines.indexed
-      .where(
-        (entry) =>
-            !lines.isFenced(entry.$1 + 1) && entry.$2.startsWith(_asAPrefix),
-      )
-      .firstOrNull;
-  if (asA == null) return;
-  final text = asA.$2.substring(_asAPrefix.length);
-  final who = text.indexOf(_whoSeparator);
-  final role = (who < 0 ? text : text.substring(0, who)).trim();
-  yield* _unresolvedRole(context, doc, role, asA.$1 + 1);
+  for (final (index, line) in lines.lines.indexed) {
+    final prefix = _asPrefixOf(line);
+    if (prefix == null || lines.isFenced(index + 1)) continue;
+    final text = line.substring(prefix.length);
+    final who = text.indexOf(_whoSeparator);
+    final role = (who < 0 ? text : text.substring(0, who)).trim();
+    yield* _unresolvedRole(context, doc, role, index + 1);
+    return;
+  }
 }
 
 Iterable<Finding> _unresolvedRole(
@@ -229,14 +246,34 @@ Iterable<Finding> _unresolvedId(
   );
 }
 
+String? _goalKeyOf(String heading) {
+  final text = itemHeadingTextOf(heading);
+  if (text == null) return null;
+  return switch (readItemId(text, _goalIdPrefix)) {
+    ItemId(:final written) => written,
+    _ => null,
+  };
+}
+
+/// The IDs of a Serves line's [text] as the grammar reads each: plain,
+/// lettered, or unreadable, each whole, so none is skipped (INV-21).
+List<String> _servedIdsOf(String text) {
+  final ids = <String>[];
+  var readUpTo = 0;
+  for (final match in _servedPrefix.allMatches(text)) {
+    if (match.start < readUpTo) continue;
+    final id = readItemId(text.substring(match.start), match[0]!);
+    if (id == null) continue;
+    ids.add(id.written);
+    readUpTo = match.start + id.written.length;
+  }
+  return ids;
+}
+
 Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
   final section = context.heldIndexOf(doc, _goalsSection);
   if (section == null) return;
-  final blocks = headingBlocksOf(
-    context.bodyLinesOf(doc, section),
-    _goalHeading,
-    (match) => match.group(1)!,
-  );
+  final blocks = headingBlocksOf(context.bodyLinesOf(doc, section), _goalKeyOf);
   for (final (:key, :lines) in blocks) {
     final serves = lines
         .where((line) => !line.fenced)
@@ -245,10 +282,7 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
         )
         .where((entry) => entry.match != null)
         .firstOrNull;
-    final ids = [
-      for (final id in _servedId.allMatches(serves?.match!.group(1) ?? ''))
-        id.group(0)!,
-    ];
+    final ids = _servedIdsOf(serves?.match!.group(1) ?? '');
     if (ids.isEmpty) {
       yield context.finding(
         doc,
@@ -275,7 +309,7 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-/// Returns the findings of a spec doc read against its PRD (US-03 FR-03).
+/// Returns the findings of a spec doc read against its PRD (`consistency_check/find_prd_spec_disagreements/check_spec_against_prd`).
 ///
 /// An `api` row must name an FR of its feature as `<feature name>/<cell>`. A
 /// `feature` with code pointers needs an `architecture` doc of its own or of a
@@ -287,7 +321,7 @@ Iterable<Finding> checkSpecAgainstPrd(
   switch (doc.docTypeId) {
     case _apiType:
       yield* _unresolvedFrRows(context, doc);
-    case _featureType:
+    case featureType:
       if (context.hasArchitecture) yield* _missingArchitecture(context, doc);
   }
 }
@@ -333,7 +367,7 @@ Iterable<Finding> _missingArchitecture(
 }
 
 /// Returns `implements_missing` for a doc whose status is `implemented` and
-/// that holds no `implements` entry (US-03 FR-04).
+/// that holds no `implements` entry (`consistency_check/find_prd_spec_disagreements/check_implemented_status`).
 ///
 /// Only a doc type that defines `implements` is read (INV-2).
 Iterable<Finding> checkImplementedStatus(
