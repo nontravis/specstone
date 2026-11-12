@@ -1187,5 +1187,33 @@ lint: {banned_words: [simply]}
       expect(project(base, 'max_depth: 0').maxDepth, 0);
       expect(project(base, 'description: Another').maxDepth, 3);
     });
+
+    test('template_packs/add_doc_type/read_doc_type_file Input per_target, '
+        'INV-30: a higher layer replaces per_target; a layer that writes none '
+        'keeps the lower value', () {
+      final base = project(shipped(), 'per_target: true');
+      expect(base.isPerTarget, isTrue);
+      expect(project(base, 'per_target: false').isPerTarget, isFalse);
+      expect(project(base, 'description: Another').isPerTarget, isTrue);
+      expect(shipped().isPerTarget, isFalse);
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file, INV-13: an '
+        'item_exact pointer survives the merge, and a record_status field '
+        'merges', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: implements, type: output_ref, pointer: item_exact}, '
+        '{id: entries, type: record_status}]',
+      );
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'implements').pointer,
+        PointerKind.itemExact,
+      );
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'entries').type,
+        FieldType.recordStatus,
+      );
+    });
   });
 }

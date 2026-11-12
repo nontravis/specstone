@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
@@ -49,9 +50,10 @@ final class TemplateResolver {
     required Directory? homeDirectory,
   }) {
     final root = findProjectRoot(workingDirectory);
+    final config = root == null ? null : ProjectConfig.read(root);
     final packs = root == null
         ? _everyShippedPack()
-        : _listedPacks(ProjectConfig.read(root), homeDirectory);
+        : _listedPacks(config!, homeDirectory);
     final ordered = orderPacks(packs, configFile: projectConfigPath);
     final parsed = [
       for (final pack in ordered) (pack: pack, layers: pack.parseDocTypes()),
@@ -59,8 +61,15 @@ final class TemplateResolver {
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
-    return _merge(parsed, projectLayers);
+    return _merge(parsed, projectLayers, targetNames: _targetNames(config));
   }
+
+  /// The config's target names, empty when the config reads no `targets:` key
+  /// or no config was read at all.
+  List<String> _targetNames(ProjectConfig? config) => [
+    for (final target in config?.targets ?? const <CodeTarget>[])
+      if (target.name != null) target.name!,
+  ];
 
   /// Returns the manifest of each pack in [names] at the version this
   /// Specstone or the home folder carries, keyed by name.
@@ -240,9 +249,14 @@ final class TemplateResolver {
   /// (INV-12); with `extends` the doc type starts from the merged target
   /// with every key kept but `id` and `path` (F3-D49), and no layer above
   /// the defining layer may write `extends` (INV-4). The merged set is
-  /// checked as one set after every merge. The one [LoadIndex] built here
-  /// ranks every file a fault names.
-  MergedSet _merge(List<ParsedPack> packs, List<DocTypeLayer> projectLayers) {
+  /// checked as one set after every merge, with [targetNames] gating a
+  /// `targets:` config on the record doc type (INV-29). The one [LoadIndex]
+  /// built here ranks every file a fault names.
+  MergedSet _merge(
+    List<ParsedPack> packs,
+    List<DocTypeLayer> projectLayers, {
+    List<String> targetNames = const [],
+  }) {
     const merger = DocTypeMerger();
     final layerLists = _docTypeLayers(packs, projectLayers);
     final loadOrder = [
@@ -253,7 +267,12 @@ final class TemplateResolver {
     _checkGeneratorKinds(loadOrder);
     _checkExtendsInOverride(loadOrder, layerLists);
     final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
-    checkMergedSet(docTypes.values.toList(), layerLists, loadIndex: loadIndex);
+    checkMergedSet(
+      docTypes.values.toList(),
+      layerLists,
+      loadIndex: loadIndex,
+      targetNames: targetNames,
+    );
     return MergedSet(docTypes: docTypes.values.toList());
   }
 

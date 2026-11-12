@@ -62,6 +62,35 @@ void main() {
       expect(_parse('max_depth: 1\n').docTypeId, 'feature');
     });
 
+    test('template_packs/add_doc_type/read_doc_type_file E32, INV-30: '
+        'per_target reads a boolean', () {
+      expect(_parse('per_target: true\n').perTarget, isTrue);
+      expect(_parse('per_target: false\n').perTarget, isFalse);
+      expect(_parse('path: a/{slug}.md\n').perTarget, isNull);
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file E32, INV-30: '
+        'a per_target that is not a boolean is unknown_value', () {
+      expect(
+        () => _parse('per_target: yes please\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'per_target')),
+      );
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file, INV-13: '
+        'record_status is an accepted field type', () {
+      final layer = _parse('fields: [{id: status_of, type: record_status}]');
+      expect(layer.fields.single.type, FieldType.recordStatus);
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file E17, INV-13: '
+        'item_exact is an accepted pointer kind', () {
+      final layer = _parse(
+        'fields: [{id: implements, type: output_ref, pointer: item_exact}]',
+      );
+      expect(layer.fields.single.pointer, 'item_exact');
+    });
+
     test('f03/us03/fr01/e09, s03/inv15: an id unlike the file name is doc_type_id_mismatch', () {
       expect(
         () => _parse('id: epic\n'),

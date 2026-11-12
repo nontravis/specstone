@@ -14,7 +14,8 @@ enum FieldType {
   date('date'),
   enumType('enum'),
   docRef('doc_ref'),
-  outputRef('output_ref');
+  outputRef('output_ref'),
+  recordStatus('record_status');
 
   new(this.wire);
 
@@ -31,7 +32,7 @@ enum FieldType {
     if (type != null) return type;
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key type must be one of the seven field types',
+      'the key type must be one of the eight field types',
       file: file,
       key: '${prefix}type',
     );
@@ -41,7 +42,8 @@ enum FieldType {
 /// How an `output_ref` field's pointer is matched; [wire] is the format name.
 enum PointerKind {
   exact('exact'),
-  prefix('prefix');
+  prefix('prefix'),
+  itemExact('item_exact');
 
   new(this.wire);
 
@@ -75,10 +77,27 @@ enum PointerKind {
   }
 }
 
+/// The status a `record_status` line gives its item.
+enum RecordStatus {
+  planned('planned'),
+  implemented('implemented'),
+  deprecated('deprecated'),
+  skipped('skipped');
+
+  new(this.wire);
+
+  /// The name the record format uses for this status.
+  final String wire;
+
+  /// Returns the status named [wire], or null when [wire] names none.
+  static RecordStatus? byWire(String wire) =>
+      values.where((s) => s.wire == wire).firstOrNull;
+}
+
 TemplateFault _unknownPointer({required String file, required String prefix}) =>
     TemplateFault(
       FaultCode.unknownValue,
-      'the key pointer must be exact or prefix',
+      'the key pointer must be exact, prefix, or item_exact',
       file: file,
       key: '${prefix}pointer',
     );
@@ -290,6 +309,7 @@ final class DocTypeLayer {
     required this.extendsId,
     required this.path,
     required this.maxDepth,
+    required this.perTarget,
     required this.fields,
     required this.sections,
     required this.lint,
@@ -343,6 +363,7 @@ final class DocTypeLayer {
       extendsId: optionalValue<String>(map, 'extends', file: file),
       path: optionalValue<String>(map, 'path', file: file),
       maxDepth: _parseMaxDepth(map, file: file),
+      perTarget: optionalValue<bool>(map, 'per_target', file: file),
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
@@ -381,6 +402,10 @@ final class DocTypeLayer {
 
   /// The folder nesting cap, when this layer writes it; 0 keeps the type flat.
   final int? maxDepth;
+
+  /// Whether the doc type reads its patterns once per target, when written
+  /// (INV-30).
+  final bool? perTarget;
 
   /// The fields this layer writes, in file order.
   final List<FieldEntry> fields;
@@ -543,6 +568,7 @@ const _topKeys = {
   'description',
   'path',
   'max_depth',
+  'per_target',
   'parent',
   'extends',
   'fields',

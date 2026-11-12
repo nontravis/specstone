@@ -53,6 +53,7 @@ final class DocTypeMerger {
       extendsId: layer.extendsId,
       path: layer.path,
       maxDepth: layer.maxDepth,
+      isPerTarget: layer.perTarget,
       bundle: _mergeList<String>(
         base.bundle,
         layer.bundle,

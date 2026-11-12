@@ -28,6 +28,18 @@ DocsProject _open(Directory workingDirectory) => DocsProject.open(
   homeDirectory: null,
 );
 
+/// The fixture record doc type a `targets:` config needs
+/// (`template_packs/pin_pack_versions/read_project_config` E30).
+const _recordDocType = '''
+id: implementation
+description: One feature's record of its items per target.
+path: specs/{slug}/IMPLEMENTATION.md
+per_target: true
+fields:
+  - id: entries
+    type: record_status
+''';
+
 Directory _dir(Directory base, String relative) =>
     Directory.fromUri(base.uri.resolve(relative));
 
@@ -153,9 +165,17 @@ void main() {
               '  jaspr:\n    code_root: jaspr-stratum-ui\n',
           'stratum_ui/lib/a.dart': '',
           'jaspr-stratum-ui/lib/b.dart': '',
+          'specs/implementation/IMPLEMENTATION.md': '',
         });
-
-        final project = _open(root);
+        final project = DocsProject.open(
+          templates: TemplateResolver(
+            shippedFiles: fixturePackFiles(
+              extra: {'implementation.yaml': _recordDocType},
+            ),
+          ),
+          workingDirectory: root,
+          homeDirectory: null,
+        );
 
         expect(project.targets, [
           const CodeTarget('flutter', codeRoot: 'stratum_ui'),

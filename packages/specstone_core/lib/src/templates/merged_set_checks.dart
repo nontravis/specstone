@@ -62,17 +62,22 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// [layerLists] holds, per doc type id, the folded layers, lowest first; a
 /// fault's `file` names the top-most layer that wrote the key, climbed
 /// through `extends` when no own layer wrote it. A fault that names several
-/// files ranks them by [loadIndex]. Runs after every merge
+/// files ranks them by [loadIndex]. [targetNames] holds the config's target
+/// names, empty when the config reads no `targets:` key; a named-target
+/// config needs the record doc type (INV-29). Runs after every merge
 /// (INV-19, INV-21): two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
-/// (`unknown_value`), and every `lint.required_field_groups` entry names a
-/// field of its doc type (`unknown_value`).
+/// (`unknown_value`), every `lint.required_field_groups` entry names a
+/// field of its doc type (`unknown_value`), at most one doc type holds a
+/// `record_status` field and its merged `per_target` is `true` (INV-31), and
+/// a `targets:` config without the record doc type is refused (INV-29).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
   required LoadIndex loadIndex,
+  List<String> targetNames = const [],
 }) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
@@ -81,6 +86,7 @@ void checkMergedSet(
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
+  _checkRecords(sorted, layerLists, loadIndex, targetNames);
 }
 
 /// Throws `unknown_value` for a `max_depth` that breaks INV-28 (SF-R11).
@@ -316,6 +322,87 @@ void _checkFieldGroups(
 
 bool _wroteFieldGroups(DocTypeLayer layer) =>
     layer.lint?.requiredFieldGroups != null;
+
+/// Throws `unknown_value` for the record doc type rules (INV-29, INV-31):
+/// a second `record_status` holder, a record doc type whose merged
+/// `per_target` is not `true`, and a named-target config with no record doc
+/// type.
+void _checkRecords(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+  List<String> targetNames,
+) {
+  final holders = [
+    for (final docType in docTypes)
+      if (docType.fields.any((f) => f.type == FieldType.recordStatus)) docType,
+  ];
+  if (holders.length > 1) {
+    _throwSecondRecordHolder(holders, layerLists, loadIndex);
+  }
+  for (final holder in holders) {
+    if (!holder.isPerTarget) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the record doc type ${holder.id} must set per_target: true, so no '
+        'layer makes one record serve every target',
+        file:
+            _writerOf(holder.id, _wrotePerTarget, layerLists) ??
+            _writerOf(holder.id, _wroteRecordField, layerLists),
+        key: 'per_target',
+      );
+    }
+  }
+  if (holders.isEmpty && targetNames.isNotEmpty) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'a target owns a spec tree and its records, and this merged set holds '
+      'no record doc type, no doc type with a field of type record_status',
+      file: '.specstone/config.yaml',
+      key: 'targets',
+    );
+  }
+}
+
+Never _throwSecondRecordHolder(
+  List<MergedDocType> holders,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final (:file, :related) = rankFaultFiles([
+    for (final holder in holders)
+      _writerOf(holder.id, _wroteRecordField, layerLists),
+  ], loadIndex);
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'only one doc type holds a record_status field: '
+    '${_joinIds([for (final h in holders) h.id])} do',
+    file: file,
+    key: file == null
+        ? 'fields.type'
+        : 'fields[${_recordFieldIndex(file, layerLists)}].type',
+    relatedFiles: related,
+  );
+}
+
+bool _wrotePerTarget(DocTypeLayer layer) => layer.perTarget != null;
+
+bool _wroteRecordField(DocTypeLayer layer) =>
+    layer.fields.any((f) => f.type == FieldType.recordStatus);
+
+/// The `fields[<i>]` index of the `record_status` field [file] wrote.
+int _recordFieldIndex(String file, Map<String, DocTypeLayers> layerLists) {
+  for (final list in layerLists.values) {
+    for (final entry in list) {
+      if (entry.layer.file != file) continue;
+      final index = entry.layer.fields.indexWhere(
+        (f) => f.type == FieldType.recordStatus,
+      );
+      if (index != -1) return index;
+    }
+  }
+  return 0;
+}
 
 bool Function(DocTypeLayer) _wroteField(String fieldId) =>
     (layer) => layer.fields.any(

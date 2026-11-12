@@ -94,7 +94,10 @@ bool _fits(MergedField field, Object value) {
 }
 
 bool _itemFits(MergedField field, Object item) => switch (field.type) {
-  FieldType.string || FieldType.docRef || FieldType.outputRef => item is String,
+  FieldType.string ||
+  FieldType.docRef ||
+  FieldType.outputRef ||
+  FieldType.recordStatus => item is String,
   FieldType.integer => item is int,
   FieldType.boolean => item is bool,
   FieldType.date => item is String && _isRealDate(item),
@@ -117,7 +120,10 @@ String _written(Object value) =>
 
 String _takes(MergedField field) {
   final one = switch (field.type) {
-    FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+    FieldType.string ||
+    FieldType.docRef ||
+    FieldType.outputRef ||
+    FieldType.recordStatus => 'a string',
     FieldType.integer => 'an integer',
     FieldType.boolean => 'true or false',
     FieldType.date => 'a date written YYYY-MM-DD',
