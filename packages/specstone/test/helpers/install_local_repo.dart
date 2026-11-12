@@ -39,14 +39,10 @@ Future<String> compileInstallLocal() async {
   return exe;
 }
 
-/// Creates a [ScriptSandbox] and a git checkout for `tool/install_local.dart`,
-/// both deleted by `addTearDown`. POSIX only.
+/// Creates a sandbox, a git checkout, and `dart` and `git` stubs; POSIX only.
 ///
-/// The checkout is `<sandbox.root>/check out/`, a path with a space. It holds
-/// `fixture_version.txt` (`0.9.0`), `marker.txt`, and
-/// `packages/specstone/bin/specstone.dart`, with `develop` checked out and
-/// `feature/example` one commit ahead with another `marker.txt`. A `dart` and a
-/// `git` stub sit first on the sandbox `PATH`; see [InstallLocalRepo].
+/// The checkout is `<sandbox.root>/check out/`, on `develop`, with
+/// `feature/example` one commit ahead; both delete by `addTearDown`.
 Future<InstallLocalRepo> createInstallLocalRepo() async {
   final sandbox = await createScriptSandbox();
   final work = Directory('${sandbox.root.path}/check out');
@@ -56,29 +52,18 @@ Future<InstallLocalRepo> createInstallLocalRepo() async {
     .._writeStubs();
 }
 
-/// A sandbox, a fixture checkout, and the compiled tool's runs.
+/// Runs the compiled tool against a fixture checkout, with logging stubs.
 ///
-/// The `dart` stub appends `<PWD>|<args>` per call to `dart.log`. `pub get`
-/// exits 1 with an error line when `STUB_DART_PUB=fail`. `build cli` exits 1
-/// with an error line when `STUB_DART_BUILD=fail`; with `STUB_DART_BUILD=wait`
-/// it touches `<logs>/building` and waits for `<logs>/release`. Otherwise it
-/// writes `<-o value>/bundle/lib/libsqlite3.so` and an executable
-/// `<-o value>/bundle/bin/specstone`, a `sh` script that prints
-/// `fixture_version.txt` for `--version` and holds a comment line with the
-/// worktree's `HEAD` and its `marker.txt`, both read at build time.
-///
-/// The `git` stub appends `<args>` per call to `git.log`, then runs the real
-/// `git`, found when the helper starts.
+/// The `dart` and `git` stubs log each call to `dart.log` and `git.log`; the
+/// `dart` stub fails per `STUB_DART_PUB=fail` and `STUB_DART_BUILD=fail`, and
+/// waits for `<logs>/release` per `STUB_DART_BUILD=wait`.
 final class InstallLocalRepo {
   new _(this.sandbox, this.work);
 
   final ScriptSandbox sandbox;
   final Directory work;
 
-  /// Runs [tool] in `work/` and waits for it.
-  ///
-  /// The environment is `sandbox.env()` with [env] laid over it, empty values
-  /// kept, and the [unset] keys removed; none of the parent's.
+  /// Runs [tool] in `work/`, with `sandbox.env()`, [env] over it, [unset] out.
   Future<ProcessResult> run(
     String tool, {
     List<String> args = const [],

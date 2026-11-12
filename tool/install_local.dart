@@ -50,25 +50,25 @@ String _refFrom(List<String> args) => switch (args) {
 /// A ref that starts with `-` refuses without a `git` call: it could read as
 /// an option, and no branch, tag, or sha starts with one.
 Future<String> _commitOf(String ref) async {
-  final missing = 'branch not found: $ref; the install is unchanged';
-  if (ref.startsWith('-')) throw _Refusal(missing);
-  return _git([
-    'rev-parse',
-    '--verify',
-    '--quiet',
-    '$ref^{commit}',
-  ], failure: missing);
+  final missing = _Refusal('branch not found: $ref; the install is unchanged');
+  if (ref.startsWith('-')) throw missing;
+  // `--verify --quiet` exits 1 with no output when the ref names no commit;
+  // any other failure, such as 128 outside a repository, is git's own.
+  final commit = await _git(
+    ['rev-parse', '--verify', '--quiet', '$ref^{commit}'],
+    okExits: const {0, 1},
+  );
+  if (commit.isEmpty) throw missing;
+  return commit;
 }
 
 /// Returns the stdout of a `git` call, or refuses with its first error line.
 ///
-/// A [failure] replaces that refusal's text when the call exits non-zero.
-Future<String> _git(List<String> args, {String? failure}) async {
+/// An exit status in [okExits] is not a failure.
+Future<String> _git(List<String> args, {Set<int> okExits = const {0}}) async {
   final result = await _run('git', args);
-  if (result.exitCode != 0) {
-    throw _Refusal(
-      failure ?? 'git ${args.join(' ')} failed: ${_failureLine(result)}',
-    );
+  if (!okExits.contains(result.exitCode)) {
+    throw _Refusal('git ${args.join(' ')} failed: ${_failureLine(result)}');
   }
   return (result.stdout as String).trimRight();
 }

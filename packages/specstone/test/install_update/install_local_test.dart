@@ -73,6 +73,26 @@ void main() {
     }
   });
 
+  test(
+    '$_fr E01: a git failure other than a missing ref keeps its own error',
+    () async {
+      final plain = await Directory('${repo.sandbox.root.path}/plain').create();
+
+      final result = await Process.run(
+        tool,
+        const [],
+        workingDirectory: plain.path,
+        environment: repo.sandbox.env(),
+        includeParentEnvironment: false,
+      );
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('not a git repository'));
+      expect(result.stderr, isNot(contains('branch not found')));
+      expectNothingChanged();
+    },
+  );
+
   test('$_story S5: checkoutState() is equal across a refused ref', () async {
     File('${repo.work.path}/marker.txt').writeAsStringSync('changed\n');
     File('${repo.work.path}/untracked.txt').writeAsStringSync('new\n');
