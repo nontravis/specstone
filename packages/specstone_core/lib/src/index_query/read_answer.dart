@@ -201,9 +201,14 @@ String _pathOf(String head) {
 ///
 /// It is the name with its doc type, ` — <title>` when there is one, then
 /// ` · ` and its status, `draft`, and size in tokens, each when it applies.
-String docLine(DocIndex index, IndexedDoc doc) {
+String docLine(DocIndex index, IndexedDoc doc) =>
+    docLineWithStatus(doc, index.statusOf(doc));
+
+/// Returns [doc]'s line as [docLine] prints it, with [status] in its status
+/// part: the one status, or each code target's `<target>: <status>` joined
+/// by `, `.
+String docLineWithStatus(IndexedDoc doc, String? status) {
   final title = doc.title;
-  final status = index.statusOf(doc);
   final parts = [?status, if (doc.isDraft) 'draft', '${doc.tokens} tokens'];
   return '${nameWithType(doc)}${title == null ? '' : ' — $title'}'
       ' · ${parts.join(' · ')}';

@@ -774,5 +774,107 @@ void main() {
         );
       },
     );
+
+    test('E17: a project that names one target reads its records with no flag, '
+        'one status with no name', () async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n',
+          'flutter_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              showText,
+          'docs/specs/f02_feedback/IMPLEMENTATION.md': record(
+            '  - toast/show:implemented\n',
+          ),
+        }),
+      );
+      addTearDown(session.close);
+      final index = session.index;
+      expect(index.targetNames, ['flutter']);
+
+      final featureLine =
+          'feedback/toast (feature) — Toast · implemented · '
+          '${tokenSizeOf(featureText)} tokens';
+      final storyLine =
+          '  feedback/toast/show (user_story) — Agent sees a toast · '
+          'implemented · ${tokenSizeOf(showText)} tokens';
+      expect(
+        answerStructure(index, target: 'feedback/toast').text,
+        '$featureLine\n'
+        '  problem · 24 chars\n'
+        '    line 9 · 12 chars\n'
+        '$storyLine\n',
+      );
+    });
+
+    test(
+      'resolve_doc_name E22: an unknown code target is argument_invalid with '
+      'no positional target too',
+      () async {
+        final index = await toastIndex();
+        expect(
+          () => answerStructure(index, codeTarget: 'web'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--target web: the code targets are flutter, jaspr',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('api:index_query: a parentless doc of another target is left out with '
+        '--target', () async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+          'docs/specs/flutter/f99_gone/ARCHITECTURE.md':
+              '# Feedback architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+
+      expect(
+        answerStructure(session.index, codeTarget: 'jaspr').text,
+        'feedback (feature) — Toast · planned · '
+        '${tokenSizeOf(featureText)} tokens\n',
+      );
+    });
   });
 }

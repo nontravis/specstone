@@ -10,8 +10,12 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The id of the `feature` doc type.
 const featureType = 'feature';
-const _storyType = 'user_story';
-const _frType = 'fr';
+
+/// The id of the `user_story` doc type.
+const storyType = 'user_story';
+
+/// The id of the `fr` doc type.
+const frType = 'fr';
 
 /// A `@<hash>` suffix: 12 lowercase hex characters.
 final _hashSuffix = RegExp(r'@[0-9a-f]{12}$');
@@ -122,7 +126,7 @@ final class DocIndex {
   /// the set lacks and an [IndexFault] `doc_not_found` when no doc carries
   /// the name.
   List<IndexedDoc> resolve(String address, {String? codeTarget}) {
-    _checkCodeTarget(codeTarget);
+    checkCodeTarget(codeTarget);
     if (_atPath(address) case final doc?) return [doc];
     final docPart = _beforeSuffix(address);
     if (docPart == null) return _named(address, codeTarget);
@@ -136,7 +140,7 @@ final class DocIndex {
 
   /// Throws `argument_invalid` for [codeTarget], unless [targetNames] holds
   /// it or it is null.
-  void _checkCodeTarget(String? codeTarget) {
+  void checkCodeTarget(String? codeTarget) {
     if (codeTarget == null || targetNames.contains(codeTarget)) return;
     final held = targetNames.join(', ');
     throw IndexFault(
@@ -243,8 +247,9 @@ final class DocIndex {
     ];
   }
 
-  /// Returns the status of [doc] in [codeTarget], or in its one unnamed
-  /// target when null.
+  /// Returns the status of [doc] in [codeTarget], or in its one target when
+  /// null: the one `targets:` names when it names one, else the unnamed
+  /// target.
   ///
   /// A feature computes it from its subtree's stories (INV-17); a story or FR
   /// takes its record entry's status, or `planned` without one, outside every
@@ -254,7 +259,7 @@ final class DocIndex {
   String? statusOf(IndexedDoc doc, {String? codeTarget}) {
     final typeId = doc.docTypeId;
     if (typeId == featureType) return _featureStatusOf(doc, codeTarget).wire;
-    if (typeId != _storyType && typeId != _frType) return doc.writtenStatus;
+    if (typeId != storyType && typeId != frType) return doc.writtenStatus;
     if (set.recordDocType == null) return doc.writtenStatus;
     return itemStatus(doc, codeTarget: codeTarget).wire;
   }
@@ -264,7 +269,7 @@ final class DocIndex {
   /// of its story; else its record entry's `statuses` status, `planned`
   /// without an entry or a status.
   RecordStatus itemStatus(IndexedDoc item, {String? codeTarget}) {
-    final records = _recordsOf(item, codeTarget);
+    final records = _recordsOf(item, _namedOrGiven(codeTarget));
     for (final record in records) {
       final relative = _relativeItemOf(item, record);
       for (final entry in record.entries) {
@@ -289,7 +294,7 @@ final class DocIndex {
   /// when every story not skipped is; `implemented` when every story neither
   /// skipped nor deprecated is; `planned` otherwise.
   RecordStatus _featureStatusOf(IndexedDoc doc, String? codeTarget) {
-    final records = _recordsOf(doc, codeTarget);
+    final records = _recordsOf(doc, _namedOrGiven(codeTarget));
     final skippedAbove = records.any(
       (record) => record.entries.any(
         (entry) =>
@@ -299,10 +304,10 @@ final class DocIndex {
     if (skippedAbove) return RecordStatus.skipped;
     RecordStatus storyStatusOf(IndexedDoc story) => set.recordDocType == null
         ? RecordStatus.byWire(story.writtenStatus ?? '') ?? RecordStatus.planned
-        : itemStatus(story, codeTarget: codeTarget);
+        : itemStatus(story, codeTarget: _namedOrGiven(codeTarget));
     final stories = [
       for (final member in subtreeOf(doc).skip(1))
-        if (member.docTypeId == _storyType) storyStatusOf(member),
+        if (member.docTypeId == storyType) storyStatusOf(member),
     ];
     if (stories.isEmpty) return RecordStatus.planned;
     if (stories.every((s) => s == RecordStatus.skipped)) {
@@ -317,6 +322,11 @@ final class DocIndex {
         ? RecordStatus.implemented
         : RecordStatus.planned;
   }
+
+  /// Returns [codeTarget], or the one name `targets:` holds when the project
+  /// names exactly one code target and none was given.
+  String? _namedOrGiven(String? codeTarget) =>
+      codeTarget ?? (targetNames.length == 1 ? targetNames.single : null);
 
   /// The records of [doc]'s feature and of each feature above it in
   /// [codeTarget], nearest feature first.

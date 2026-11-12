@@ -5,9 +5,6 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 
 const _indent = '  ';
 
-const _storyType = 'user_story';
-const _frType = 'fr';
-
 typedef _SectionSize = ({String key, int chars, List<ItemFact> items});
 
 /// Returns the docs tree, or the subtree of every doc [target] addresses.
@@ -35,6 +32,7 @@ ReadAnswer answerStructure(
   String? target,
   String? codeTarget,
 }) {
+  index.checkCodeTarget(codeTarget);
   final resolved = target == null
       ? null
       : index.resolve(target, codeTarget: codeTarget);
@@ -46,7 +44,10 @@ ReadAnswer answerStructure(
   final sizes = sized == null ? null : _sectionSizesOf(index, sized);
   final roots = [
     for (final doc in shown)
-      if (doc.isTyped && (target != null || index.parentOf(doc) == null)) doc,
+      if (doc.isTyped &&
+          (target != null ||
+              (index.parentOf(doc) == null && _shownIn(doc, codeTarget))))
+        doc,
   ];
   final folders = _untypedByFolder([
     for (final doc in shown)
@@ -86,9 +87,13 @@ ReadAnswer answerStructure(
 
 /// Whether [doc] holds a status per code target: a feature, story, or FR.
 bool _isStatusTracked(IndexedDoc doc) => switch (doc.docTypeId) {
-  featureType || _storyType || _frType => true,
+  featureType || storyType || frType => true,
   _ => false,
 };
+
+/// Whether [doc] shows under [codeTarget]: shared, or that target's alone.
+bool _shownIn(IndexedDoc doc, String? codeTarget) =>
+    codeTarget == null || doc.target == null || doc.target == codeTarget;
 
 /// Returns the status part of [doc]'s line: each code target's status,
 /// `<target>: <status>` joined by `, ` in [DocIndex.targetNames] order, or the
@@ -105,16 +110,8 @@ String? _statusPart(DocIndex index, IndexedDoc doc, String? codeTarget) {
 }
 
 /// Returns [doc]'s line with each code target's status [index] computes.
-String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) {
-  final title = doc.title;
-  final parts = [
-    ?_statusPart(index, doc, codeTarget),
-    if (doc.isDraft) 'draft',
-    '${doc.tokens} tokens',
-  ];
-  return '${nameWithType(doc)}${title == null ? '' : ' — $title'}'
-      ' · ${parts.join(' · ')}';
-}
+String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) =>
+    docLineWithStatus(doc, _statusPart(index, doc, codeTarget));
 
 /// Returns [doc]'s JSON object, its status per code target under `statuses`
 /// where [index] names two or more and no target is picked.
@@ -173,10 +170,7 @@ List<IndexedDoc> _childrenShown(
   String? codeTarget,
 ) => [
   for (final child in index.childrenOf(doc))
-    if (codeTarget == null ||
-        child.target == null ||
-        child.target == codeTarget)
-      child,
+    if (_shownIn(child, codeTarget)) child,
 ];
 
 void _writeTree(

@@ -9,6 +9,8 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -147,6 +149,48 @@ void main() {
       isEmpty,
       reason: 'no flutter status and no flutter spec doc',
     );
+    expect(err.toString(), isEmpty);
+  });
+  test('read_doc_section/resolve_doc_name E22: an unknown --target with no '
+      'positional target exits 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
+    expect(await runner.run(['structure', '--target', 'web']), 64);
+    expect(
+      err.toString(),
+      '--target web: the code targets are flutter, jaspr\n',
+    );
+    expect(out.toString(), isEmpty);
+  });
+  test('f01/us02/fr01/e17: one named target reads its records with no --target '
+      'through list', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeTree({
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n',
+        'flutter_lib/.keep': '',
+        'docs/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.\n',
+        'docs/prds/features/f01_login/us01_show/USER_STORY.md':
+            '---\nstatus: planned\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
+        'docs/specs/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n  - show:implemented\n---\n\n# Record\n',
+      }),
+    );
+    expect(
+      await runner.run(['list', 'user_story', '--status', 'implemented']),
+      0,
+    );
+    expect(out.toString(), startsWith('login/show (user_story)'));
     expect(err.toString(), isEmpty);
   });
   test('f01/us02/fr01/e06: --json prints one object; a warning goes only to its warnings array', () async {
