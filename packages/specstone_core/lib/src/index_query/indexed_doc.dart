@@ -155,6 +155,9 @@ final class IndexedDoc {
   bool get isTyped => docTypeId != null;
 
   /// The `status` the doc writes, or null when it writes none.
+  ///
+  /// A story or FR takes its status from its record entry instead
+  /// (`DocIndex.statusOf`); this is the raw written value.
   String? get writtenStatus => switch (frontmatter['status']) {
     final String status => status,
     _ => null,
