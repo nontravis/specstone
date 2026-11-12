@@ -70,16 +70,24 @@ fi''');
     }
   }
 
-  // Makes `git worktree remove` fail; every other `git` call goes to the
-  // logging stub.
+  // Makes `git worktree remove` fail, and `git worktree prune` fail under
+  // `STUB_GIT_PRUNE=fail`; every other `git` call goes to the logging stub.
   void failWorktreeRemove() {
     final stubs = repo.sandbox.stubs.path;
     File('$stubs/git').renameSync('$stubs/git_original');
     repo.sandbox.stub('git', r'''
-if [ "$1 $2" = 'worktree remove' ]; then
-  echo 'stub: git worktree remove failed' >&2
-  exit 1
-fi
+case "$1 $2" in
+  'worktree remove')
+    echo 'stub: git worktree remove failed' >&2
+    exit 1
+    ;;
+  'worktree prune')
+    if [ "$STUB_GIT_PRUNE" = fail ]; then
+      echo 'stub: git worktree prune failed' >&2
+      exit 1
+    fi
+    ;;
+esac
 exec "$(dirname "$0")/git_original" "$@"''');
   }
 
@@ -313,6 +321,18 @@ fi''');
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('git worktree remove'));
     expect(result.stderr, contains('stub: git worktree remove failed'));
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('$_fr statement: a failing prune joins the removal failure', () async {
+    failWorktreeRemove();
+
+    final result = await runBounded(env: {'STUB_GIT_PRUNE': 'fail'});
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('stub: git worktree remove failed'));
+    expect(result.stderr, contains('stub: git worktree prune failed'));
     expect(repo.tmpIsEmpty, isTrue);
   });
 
@@ -326,6 +346,7 @@ fi''');
     expect(result.stderr, contains('dart build cli failed'));
     expect(result.stderr, contains('stub: dart build cli failed'));
     expect(result.stderr, contains('stub: git worktree remove failed'));
+    expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   });
 }

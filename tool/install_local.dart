@@ -168,16 +168,27 @@ Future<_Refusal?> _cleanUp(
 /// Removes the worktree under [temp], then [temp] itself.
 ///
 /// The worktree is absent when `git worktree add` failed. `--force` is needed
-/// because the build leaves an untracked `.dart_tool/` in it.
+/// because the build leaves an untracked `.dart_tool/` in it. When the removal
+/// fails, [temp] still goes and `git worktree prune` then drops the worktree's
+/// entry from the checkout; the refusal holds each failure.
 Future<void> _removeTemp(Directory temp) async {
   final worktree = Directory('${temp.path}/worktree');
-  try {
-    if (worktree.existsSync()) {
+  String? failure;
+  if (worktree.existsSync()) {
+    try {
       await _git(['worktree', 'remove', '--force', worktree.path]);
+    } on _Refusal catch (refusal) {
+      failure = refusal.message;
     }
-  } finally {
-    await temp.delete(recursive: true);
   }
+  await temp.delete(recursive: true);
+  if (failure == null) return;
+  try {
+    await _git(['worktree', 'prune']);
+  } on _Refusal catch (refusal) {
+    failure = '$failure; ${refusal.message}';
+  }
+  throw _Refusal(failure);
 }
 
 /// Returns the stdout of a `git` call, or refuses with its first error line.
