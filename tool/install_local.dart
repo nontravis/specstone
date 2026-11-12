@@ -2,6 +2,7 @@
 //
 // Run from the checkout: `dart run tool/install_local.dart [--branch <ref>]`.
 // Only `dart:` libraries, so a test can compile it outside the workspace.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -34,18 +35,32 @@ Future<void> _installLocal(List<String> args) async {
   }
   final commit = await _commitOf(_refFrom(args));
   var interrupted = false;
-  // The watch keeps the tool alive after Ctrl-C, so the `finally` below runs;
+  // The watch keeps the tool alive after Ctrl-C, so the cleanup below runs;
   // Ctrl-C also reaches the child, whose failure ends the run.
-  final watch = ProcessSignal.sigint.watch().listen((_) => interrupted = true);
+  final watch = ProcessSignal.sigint.watch().listen((_) {
+    if (!interrupted) stderr.writeln('install_local: interrupted; cleaning up');
+    interrupted = true;
+  });
   final temp = await Directory.systemTemp.createTemp('install_local_');
+  _Refusal? failure;
+  _Refusal? cleanup;
   try {
     final bundle = await _build(commit, temp);
     await _versionOf(bundle);
-    if (interrupted) throw _Refusal('interrupted; the install is unchanged');
+  } on _Refusal catch (stepFailure) {
+    failure = stepFailure;
   } finally {
-    await _removeTemp(temp);
-    await watch.cancel();
+    cleanup = await _cleanUp(temp, watch);
   }
+  // An interrupt outranks the step it killed; a cleanup failure is reported
+  // only when nothing else failed, so it never displaces the first refusal.
+  final refusal = interrupted
+      ? _Refusal('interrupted; the install is unchanged')
+      : failure ?? cleanup;
+  if (cleanup != null && cleanup != refusal) {
+    stderr.writeln('install_local: ${cleanup.message}');
+  }
+  if (refusal != null) throw refusal;
 }
 
 /// Returns the ref to build: `develop`, or the value of `--branch`.
@@ -130,6 +145,24 @@ Future<String> _step(
     throw _Refusal('$name failed: ${_failureText(result)}');
   }
   return result.stdout as String;
+}
+
+/// Removes the worktree and [temp], then stops [watch] whatever happened.
+///
+/// Returns the refusal a failed removal raised instead of throwing it, so the
+/// caller decides which refusal the Owner sees.
+Future<_Refusal?> _cleanUp(
+  Directory temp,
+  StreamSubscription<ProcessSignal> watch,
+) async {
+  try {
+    await _removeTemp(temp);
+    return null;
+  } on _Refusal catch (refusal) {
+    return refusal;
+  } finally {
+    await watch.cancel();
+  }
 }
 
 /// Removes the worktree under [temp], then [temp] itself.
