@@ -10,10 +10,13 @@ sealed class DocTypeMatch {
 
 /// Exactly one doc type's path pattern matches.
 final class MatchedDocType extends DocTypeMatch {
-  new(this.docType);
+  new(this.docType, {this.target});
 
   /// The doc type whose pattern matches.
   final MergedDocType docType;
+
+  /// The code target whose pattern set matched; null for a shared doc type.
+  final String? target;
 }
 
 /// No doc type's path pattern matches.
@@ -31,15 +34,20 @@ final class AmbiguousDocType extends DocTypeMatch {
 
 /// Finds the doc type of a DocPath from the path patterns of a [MergedSet].
 final class DocTypeMatcher {
-  new(MergedSet set)
+  new(MergedSet set, {List<String> targetNames = const []})
     : _candidates = [
         for (final docType in set.docTypes)
-          for (final path in docType.paths) (docType, PathPattern(path)),
+          for (final path in docType.paths)
+            if (docType.isPerTarget && targetNames.length > 1)
+              for (final target in targetNames)
+                (docType, PathPattern(path).forTarget(target), target)
+            else
+              (docType, PathPattern(path), null),
       ],
       _nesting = set.nestingType;
 
-  /// One (doc type, pattern) entry per path pattern, in set order.
-  final List<(MergedDocType, PathPattern)> _candidates;
+  /// One (doc type, pattern, target) entry per path pattern, in set order.
+  final List<(MergedDocType, PathPattern, String?)> _candidates;
 
   final MergedDocType? _nesting;
 
@@ -49,13 +57,13 @@ final class DocTypeMatcher {
   /// Returns the doc type whose pattern matches [docPath], or why none does.
   DocTypeMatch match(String docPath) {
     final matched = [
-      for (final (docType, pattern) in _candidates)
-        if (pattern.matches(docPath)) docType,
+      for (final (docType, pattern, target) in _candidates)
+        if (pattern.matches(docPath)) (docType, target),
     ];
     return switch (matched) {
       [] => const NoDocType(),
-      [final only] => MatchedDocType(only),
-      _ => AmbiguousDocType([for (final docType in matched) docType.id]),
+      [final only] => MatchedDocType(only.$1, target: only.$2),
+      _ => AmbiguousDocType([for (final (docType, _) in matched) docType.id]),
     };
   }
 
@@ -79,7 +87,7 @@ final class DocTypeMatcher {
 
   /// Returns the first number any doc type reads from [segments], or null.
   int? entryNumber(List<String> segments) {
-    for (final (_, pattern) in _candidates) {
+    for (final (_, pattern, _) in _candidates) {
       final number = pattern.numberAt(segments);
       if (number != null) return number;
     }

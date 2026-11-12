@@ -47,11 +47,17 @@ String sectionKeyOf(String headerText) => headerText
 /// Returns the name a doc answers to in a query.
 ///
 /// The `{slug}` values of the doc type path that matches joined with `/`; the
-/// doc type id when that path has none; [docPath] when [docType] is null.
-String docNameOf(String docPath, MergedDocType? docType) {
+/// doc type id when that path has none; [docPath] when [docType] is null. A
+/// doc matched through [target]'s pattern set drops the target folder first,
+/// so twins of two targets share the name (RULE-21).
+String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
   if (docType == null) return docPath;
+  final segments = docPath.split('/');
+  final targetFree = target == null || segments.length < 3
+      ? docPath
+      : [...segments.sublist(0, 1), ...segments.sublist(2)].join('/');
   for (final path in docType.paths) {
-    final slugs = PathPattern(path).slugValues(docPath);
+    final slugs = PathPattern(path).slugValues(targetFree);
     if (slugs != null) return slugs.isEmpty ? docType.id : slugs.join('/');
   }
   return docType.id;
@@ -243,9 +249,12 @@ ParsedDoc parseIndexedDoc({
   final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
-  final docType = switch (match) {
-    MatchedDocType(:final docType) => docType,
-    _ => null,
+  final (:docType, :target) = switch (match) {
+    MatchedDocType(:final docType, :final target) => (
+      docType: docType,
+      target: target,
+    ),
+    _ => (docType: null, target: null),
   };
   if (match case AmbiguousDocType(:final docTypeIds)) {
     warnings.add(
@@ -300,7 +309,7 @@ ParsedDoc parseIndexedDoc({
   final indexed = IndexedDoc(
     docPath: docPath,
     docTypeId: docType?.id,
-    name: docNameOf(docPath, docType),
+    name: docNameOf(docPath, docType, target: target),
     title: doc.title,
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),

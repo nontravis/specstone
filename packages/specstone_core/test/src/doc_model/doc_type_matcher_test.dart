@@ -11,6 +11,17 @@ description: A second doc type on the same paths.
 path: prds/features/f{nn}_rendering/FEATURE.md
 ''';
 
+MergedDocType _docType(String id, String path, {bool perTarget = false}) =>
+    MergedDocType(
+      id: id,
+      path: path,
+      isPerTarget: perTarget,
+      fields: const [],
+      sections: const [],
+      lint: const MergedLint(),
+      files: const [],
+    );
+
 void main() {
   group('DocTypeMatcher.match', () {
     test('f05/us01/fr02, doc_model/s03/inv3: a doc path with one matching '
@@ -64,6 +75,123 @@ void main() {
       expect(matcher.match('pathless'), isA<NoDocType>());
       expect(matcher.match(''), isA<NoDocType>());
       expect(matcher.entryNumber(['pathless']), isNull);
+    });
+  });
+
+  group('DocTypeMatcher per-target patterns', () {
+    MergedSet setOf(List<MergedDocType> docTypes) =>
+        MergedSet(docTypes: [for (final docType in docTypes) docType]);
+
+    test(
+      'doc_model/s03/rule-20, template_packs/add_doc_type INV-30: with two '
+      'targets a per-target doc type matches one twin per target and names it',
+      () {
+        final matcher = DocTypeMatcher(
+          setOf([
+            _docType(
+              'architecture',
+              'specs/f{nn}_{slug}/ARCHITECTURE.md',
+              perTarget: true,
+            ),
+          ]),
+          targetNames: const ['flutter', 'jaspr'],
+        );
+
+        final flutter = matcher.match(
+          'specs/flutter/f01_login/ARCHITECTURE.md',
+        );
+        expect((flutter as MatchedDocType).docType.id, 'architecture');
+        expect(flutter.target, 'flutter');
+
+        final jaspr = matcher.match('specs/jaspr/f01_login/ARCHITECTURE.md');
+        expect((jaspr as MatchedDocType).docType.id, 'architecture');
+        expect(jaspr.target, 'jaspr');
+      },
+    );
+
+    test(
+      'doc_model/s03/rule-20: with two targets the one-target pattern matches '
+      'nothing, and an unlisted target folder matches nothing',
+      () {
+        final matcher = DocTypeMatcher(
+          setOf([
+            _docType(
+              'architecture',
+              'specs/f{nn}_{slug}/ARCHITECTURE.md',
+              perTarget: true,
+            ),
+          ]),
+          targetNames: const ['flutter', 'jaspr'],
+        );
+
+        expect(
+          matcher.match('specs/f01_login/ARCHITECTURE.md'),
+          isA<NoDocType>(),
+        );
+        expect(
+          matcher.match('specs/tauri/f01_login/ARCHITECTURE.md'),
+          isA<NoDocType>(),
+        );
+      },
+    );
+
+    test('doc_model/s03/rule-20: a shared doc type keeps its own pattern and '
+        'matches with no target', () {
+      final matcher = DocTypeMatcher(
+        setOf([
+          _docType('feature', 'prds/features/f{nn}_{slug}/FEATURE.md'),
+          _docType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+            perTarget: true,
+          ),
+        ]),
+        targetNames: const ['flutter', 'jaspr'],
+      );
+
+      final shared = matcher.match('prds/features/f01_login/FEATURE.md');
+      expect((shared as MatchedDocType).docType.id, 'feature');
+      expect(shared.target, isNull);
+    });
+
+    test(
+      'doc_model/s03/rule-20: with one target a per-target doc type keeps its '
+      'own pattern',
+      () {
+        final matcher = DocTypeMatcher(
+          setOf([
+            _docType(
+              'architecture',
+              'specs/f{nn}_{slug}/ARCHITECTURE.md',
+              perTarget: true,
+            ),
+          ]),
+          targetNames: const ['flutter'],
+        );
+
+        final match = matcher.match('specs/f01_login/ARCHITECTURE.md');
+        expect((match as MatchedDocType).docType.id, 'architecture');
+        expect(
+          matcher.match('specs/flutter/f01_login/ARCHITECTURE.md'),
+          isA<NoDocType>(),
+        );
+      },
+    );
+
+    test('doc_model/s03/rule-20: a per-target doc type with no target names '
+        'keeps its own pattern', () {
+      final matcher = DocTypeMatcher(
+        setOf([
+          _docType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+            perTarget: true,
+          ),
+        ]),
+      );
+
+      final match = matcher.match('specs/f01_login/ARCHITECTURE.md');
+      expect((match as MatchedDocType).docType.id, 'architecture');
     });
   });
 

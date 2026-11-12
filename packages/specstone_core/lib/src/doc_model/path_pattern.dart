@@ -19,6 +19,11 @@ final class PathPattern {
   final RegExp _slugs;
   final RegExp _values;
 
+  /// Returns this pattern with [target] as a literal folder right after its
+  /// first segment (RULE-20).
+  PathPattern forTarget(String target) =>
+      PathPattern(source.replaceFirst('/', '/$target/'));
+
   /// Returns whether the pattern matches all of [docPath].
   bool matches(String docPath) => _whole.hasMatch(docPath);
 

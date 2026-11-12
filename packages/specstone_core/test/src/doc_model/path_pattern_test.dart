@@ -140,6 +140,38 @@ void main() {
     });
   });
 
+  group('PathPattern.forTarget', () {
+    final pattern = PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md');
+
+    test('doc_model/s03/rule-20: inserts the target folder after the first '
+        'segment and matches and fills with it', () {
+      final targeted = pattern.forTarget('jaspr');
+
+      expect(targeted.source, 'specs/jaspr/f{nn}_{slug}/ARCHITECTURE.md');
+      expect(targeted.matches('specs/jaspr/f01_login/ARCHITECTURE.md'), isTrue);
+      expect(
+        targeted.matches('specs/flutter/f01_login/ARCHITECTURE.md'),
+        isFalse,
+      );
+      expect(targeted.valuesOf('specs/jaspr/f01_login/ARCHITECTURE.md'), [
+        '01',
+        'login',
+      ]);
+      expect(
+        targeted.fill(['01', 'login']),
+        'specs/jaspr/f01_login/ARCHITECTURE.md',
+      );
+    });
+
+    test('doc_model/s03/rule-20: a one-segment pattern takes the target as a '
+        'folder of its own', () {
+      expect(
+        PathPattern('specs/TECH_STACK.md').forTarget('jaspr').source,
+        'specs/jaspr/TECH_STACK.md',
+      );
+    });
+  });
+
   group('PathPattern.valuesOf and fill', () {
     test('f06/us02/fr02/e04: valuesOf and fill keep the placeholder values '
         'in order', () {

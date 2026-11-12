@@ -147,7 +147,7 @@ RunPlan _upgradeRunOf(
       if (planned[path] != path) (from: path, to: planned[path]!),
   ]);
 
-  final matcher = DocTypeMatcher(finalSet);
+  final matcher = DocTypeMatcher(finalSet, targetNames: const []);
   final works = <_DocWork>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];

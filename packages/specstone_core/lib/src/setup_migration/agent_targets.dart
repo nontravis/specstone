@@ -114,7 +114,7 @@ List<Directory> codeFoldersOf(
 List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   if (!docsRoot.existsSync()) return [];
-  final matcher = DocTypeMatcher(set);
+  final matcher = DocTypeMatcher(set, targetNames: const []);
   final prefixLength = docsRoot.uri.path.length;
   final docs = <String, File>{
     for (final entity in docsRoot.listSync(recursive: true, followLinks: false))

@@ -408,7 +408,7 @@ _Rewrites _rewritesOf(
   required LegacyFeatures features,
   required bool Function(String path) exists,
 }) {
-  final matcher = DocTypeMatcher(projectSet);
+  final matcher = DocTypeMatcher(projectSet, targetNames: const []);
   var fingerprintEntries = 0;
   MergedDocType? typeOf(_Work work) => switch (matcher.match(work.newPath)) {
     MatchedDocType(:final docType) => docType,

@@ -67,11 +67,15 @@ final class DocsProject {
     );
     final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
+    final targetNames = [
+      for (final target in config.targets)
+        if (target.name != null) target.name!,
+    ];
     return DocsProject._(
       trust: trust,
       targets: List<CodeTarget>.unmodifiable(config.targets),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
-      matcher: DocTypeMatcher(set),
+      matcher: DocTypeMatcher(set, targetNames: targetNames),
       set: set,
     );
   }

@@ -362,6 +362,30 @@ void main() {
     },
   );
 
+  test('doc_model/s03/rule-21, s03/inv5: both target twins take the same '
+      'target-free name', () {
+    final targeted = DocTypeMatcher(
+      MergedSet(
+        docTypes: [
+          nestedType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+          ).copyWith(isPerTarget: true),
+        ],
+      ),
+      targetNames: const ['flutter', 'jaspr'],
+    );
+
+    String nameOf(String path) => parseIndexedDoc(
+      docPath: path,
+      bytes: utf8.encode('# T\n'),
+      match: targeted.match(path),
+    ).doc.name;
+
+    expect(nameOf('specs/flutter/f01_login/ARCHITECTURE.md'), 'login');
+    expect(nameOf('specs/jaspr/f01_login/ARCHITECTURE.md'), 'login');
+  });
+
   group('formatted and laid-out counts', () {
     const featurePath = 'prds/features/f01_login/FEATURE.md';
     const padded =
