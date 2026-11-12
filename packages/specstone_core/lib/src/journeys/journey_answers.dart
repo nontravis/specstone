@@ -23,30 +23,41 @@ typedef _JourneyBody = _JourneyPart Function(
   DocIndex index,
   IndexedDoc journey,
   JourneySteps steps,
+  String? codeTarget,
 );
 
 /// Returns each path of every journey [name] addresses, with its steps.
 ///
 /// A step prints its scenario lines as the story holds them now, never the
-/// pasted copy. Throws an [IndexFault] when [name] resolves to a doc that is
-/// not a journey.
-ReadAnswer answerJourneyPaths(DocIndex index, String name) =>
-    _answerJourneys(index, name, _pathsOption, _pathsOf);
+/// pasted copy. [codeTarget], when given, keeps [name] to that code target's
+/// docs and the shared docs. Throws an [IndexFault] when [name] resolves to a
+/// doc that is not a journey.
+ReadAnswer answerJourneyPaths(
+  DocIndex index,
+  String name, {
+  String? codeTarget,
+}) => _answerJourneys(index, name, _pathsOption, _pathsOf, codeTarget);
 
 /// Returns, per step of every journey [name] addresses, the code its story and
 /// the FRs traced from its scenario implement.
 ///
-/// Throws an [IndexFault] when [name] resolves to a doc that is not a journey.
-ReadAnswer answerJourneyCode(DocIndex index, String name) =>
-    _answerJourneys(index, name, _codeOption, _codeOf);
+/// [codeTarget], when given, keeps [name] to that code target's docs and the
+/// shared docs. Throws an [IndexFault] when [name] resolves to a doc that is
+/// not a journey.
+ReadAnswer answerJourneyCode(
+  DocIndex index,
+  String name, {
+  String? codeTarget,
+}) => _answerJourneys(index, name, _codeOption, _codeOf, codeTarget);
 
 ReadAnswer _answerJourneys(
   DocIndex index,
   String name,
   String option,
   _JourneyBody body,
+  String? codeTarget,
 ) {
-  final journeys = index.resolve(name);
+  final journeys = index.resolve(name, codeTarget: codeTarget);
   final other = journeys.where((doc) => doc.docTypeId != journeyTypeId);
   if (other.isNotEmpty) {
     final doc = other.first;
@@ -62,7 +73,12 @@ ReadAnswer _answerJourneys(
   final json = <Object>[];
   final warnings = <String>[];
   for (final journey in journeys) {
-    final part = body(index, journey, stepsOfIndexed(index, journey));
+    final part = body(
+      index,
+      journey,
+      stepsOfIndexed(index, journey),
+      codeTarget,
+    );
     blocks.add('${[namingLine(journey), ...part.lines].join('\n')}\n');
     json.add({'name': journey.name, 'path': journey.docPath, ...part.json});
     warnings.addAll(part.warnings);
@@ -76,8 +92,16 @@ ReadAnswer _answerJourneys(
 
 // MARK: - Paths
 
-_JourneyPart _pathsOf(DocIndex index, IndexedDoc journey, JourneySteps steps) {
-  final resolved = [for (final step in steps.steps) _ResolvedStep(index, step)];
+_JourneyPart _pathsOf(
+  DocIndex index,
+  IndexedDoc journey,
+  JourneySteps steps,
+  String? codeTarget,
+) {
+  final resolved = [
+    for (final step in steps.steps)
+      _ResolvedStep(index, step, codeTarget: codeTarget),
+  ];
   final lines = <String>[];
   final pathsJson = <Object>[];
   for (final path in steps.paths) {
@@ -163,15 +187,22 @@ bool _traces(
   return false;
 }
 
-_JourneyPart _codeOf(DocIndex index, IndexedDoc journey, JourneySteps steps) {
+_JourneyPart _codeOf(
+  DocIndex index,
+  IndexedDoc journey,
+  JourneySteps steps,
+  String? codeTarget,
+) {
   final lines = <String>[];
   final stepsJson = <Object>[];
   final warnings = <String>[];
   for (final step in steps.steps) {
-    final resolved = _ResolvedStep(index, step);
+    final resolved = _ResolvedStep(index, step, codeTarget: codeTarget);
     lines.add(resolved.line);
     final target = resolved.target;
-    final story = target == null ? null : storyNamed(index, target.identity);
+    final story = target == null
+        ? null
+        : storyNamed(index, target.identity, codeTarget: codeTarget);
     if (resolved.scenario == null || story == null) {
       warnings.add('${journey.name}: step ${step.number} names no scenario');
       stepsJson.add({...resolved.baseJson, 'frs': <Object>[]});
@@ -208,9 +239,9 @@ Map<String, Object> _codeJson(IndexedDoc doc) => {
 
 /// One journey step with the scenario its target names, read from the Index.
 final class _ResolvedStep {
-  new(DocIndex index, this.step)
+  new(DocIndex index, this.step, {String? codeTarget})
     : target = step.target,
-      scenario = _scenarioOf(index, step.target);
+      scenario = _scenarioOf(index, step.target, codeTarget: codeTarget);
 
   final JourneyStep step;
   final StepTarget? target;
@@ -239,8 +270,14 @@ final class _ResolvedStep {
 
   Map<String, Object?> get pathJson => {...baseJson, 'scenario': scenario};
 
-  static String? _scenarioOf(DocIndex index, StepTarget? target) {
-    final block = target == null ? null : scenarioBlockOf(index, target);
+  static String? _scenarioOf(
+    DocIndex index,
+    StepTarget? target, {
+    String? codeTarget,
+  }) {
+    final block = target == null
+        ? null
+        : scenarioBlockOf(index, target, codeTarget: codeTarget);
     return block == null ? null : scenarioCopyOf(block);
   }
 }

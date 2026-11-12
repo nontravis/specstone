@@ -72,8 +72,16 @@ class GetCommand extends SpecstoneCommand {
         );
       }
       return switch ((paths, code)) {
-        (true, _) => answerJourneyPaths(session.index, rest.first),
-        (_, true) => answerJourneyCode(session.index, rest.first),
+        (true, _) => answerJourneyPaths(
+          session.index,
+          rest.first,
+          codeTarget: targetOf(args),
+        ),
+        (_, true) => answerJourneyCode(
+          session.index,
+          rest.first,
+          codeTarget: targetOf(args),
+        ),
         _ => answerGet(session.index, rest, codeTarget: targetOf(args)),
       };
     }, asJson: asJson);

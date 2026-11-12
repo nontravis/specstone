@@ -180,11 +180,8 @@ final class DocIndex {
     final read = readDocAddress(address);
     final typeId = read.typeId;
     if (typeId == null) {
-      final docs = _targeted(_byName[read.body], codeTarget);
-      if (docs != null && docs.isEmpty) {
-        _notFound('no doc carries the name ${read.body}');
-      }
-      return docs ?? _notFound('no doc carries the name ${read.body}');
+      return _namedOf(_byName[read.body], codeTarget) ??
+          _notFound('no doc carries the name ${read.body}');
     }
     if (set.lookup(typeId) == null) {
       throw TemplateFault(
@@ -192,17 +189,17 @@ final class DocIndex {
         'Could not find a doc type named "$typeId".',
       );
     }
-    final docs = _targeted(_byTypeAndName['$typeId:${read.body}'], codeTarget);
-    if (docs != null && docs.isEmpty) {
-      _notFound('no $typeId doc carries the name ${read.body}');
-    }
-    return docs ?? _notFound('no $typeId doc carries the name ${read.body}');
+    return _namedOf(_byTypeAndName['$typeId:${read.body}'], codeTarget) ??
+        _notFound('no $typeId doc carries the name ${read.body}');
   }
 
-  /// Returns [docs] filtered to the shared docs and [codeTarget]'s; [docs]
-  /// itself, null included, with no target given.
-  List<IndexedDoc>? _targeted(List<IndexedDoc>? docs, String? codeTarget) {
+  /// Returns [docs] with a null [codeTarget]; null or empty [docs] under a
+  /// code target, so a name never crosses targets.
+  List<IndexedDoc>? _namedOf(List<IndexedDoc>? docs, String? codeTarget) {
     if (docs == null || codeTarget == null) return docs;
+    if (docs.every((doc) => doc.target != null && doc.target != codeTarget)) {
+      return null;
+    }
     return [
       for (final doc in docs)
         if (doc.target == null || doc.target == codeTarget) doc,

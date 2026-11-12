@@ -23,8 +23,10 @@ String targetedConfig(Map<String, String> targets) {
 
 /// Writes a two-target fixture: the feature `feedback/toast`, its
 /// architecture doc in both targets, the domain doc in flutter alone.
-Future<Directory> writeTargetedProject() => writeReadProject(
-  extra: {
+///
+/// A key in [extra] replaces or adds a file.
+Future<Directory> writeTargetedProject({Map<String, String> extra = const {}}) {
+  const base = <String, String>{
     '.specstone/templates/architecture.yaml':
         'id: architecture\nper_target: true\n',
     '.specstone/templates/domain.yaml': 'id: domain\nper_target: true\n',
@@ -39,10 +41,7 @@ Future<Directory> writeTargetedProject() => writeReadProject(
         '    type: record_status\n'
         '    list: true\n',
     '.specstone/templates/feature.yaml': 'max_depth: 1\n',
-    '.specstone/config.yaml': targetedConfig({
-      'flutter': 'flutter_lib',
-      'jaspr': 'jaspr_lib',
-    }),
+    '.specstone/config.yaml': '',
     'flutter_lib/.keep': '',
     'jaspr_lib/.keep': '',
     'docs/prds/features/f02_feedback/f03_toast/FEATURE.md':
@@ -54,8 +53,18 @@ Future<Directory> writeTargetedProject() => writeReadProject(
     'docs/specs/flutter/f02_feedback/f03_toast/DOMAIN.md': '# Toast domain\n',
     'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
     'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
-  },
-);
+  };
+  return writeReadProject(
+    extra: {
+      ...base,
+      '.specstone/config.yaml': targetedConfig({
+        'flutter': 'flutter_lib',
+        'jaspr': 'jaspr_lib',
+      }),
+      ...extra,
+    },
+  );
+}
 
 void main() {
   test('f01/us04/s1, f01/us04/fr02: get login prints the feature and its spec doc and exits 0', () async {
@@ -516,6 +525,73 @@ void main() {
           'code': 'argument_invalid',
           'message': '--target web: the code targets are flutter, jaspr',
         });
+      },
+    );
+    test('E22: --paths and --code refuse a target targets: holds none of, '
+        'argument_invalid, exit 64', () async {
+      for (final option in ['--paths', '--code']) {
+        final (:runner, :out, :err) = readRunner(
+          await writeTargetedProject(
+            extra: {
+              'docs/prds/journeys/sign_in/JOURNEY.md':
+                  '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+                  '### 1. Open the page\nstep: feedback/toast S1\n',
+            },
+          ),
+        );
+        expect(
+          await runner.run([
+            'get',
+            'sign_in',
+            option,
+            '--target',
+            'web',
+            '--json',
+          ]),
+          64,
+          reason: option,
+        );
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'argument_invalid',
+          'message': '--target web: the code targets are flutter, jaspr',
+        }, reason: option);
+      }
+    });
+    test(
+      'E19 to E21: --paths resolves its address under the given target',
+      () async {
+        final project = await writeTargetedProject(
+          extra: {
+            '.specstone/templates/user_story.yaml':
+                'id: user_story\nper_target: true\n'
+                'path: specs/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md\n',
+            'docs/prds/journeys/sign_in/JOURNEY.md':
+                '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+                '### 1. Open the page\nstep: feedback/toast/show S1\n',
+            'docs/specs/flutter/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+                '# Show toast\n\n## Acceptance Criteria\n'
+                '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+                'on flutter\n',
+            'docs/specs/jaspr/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+                '# Show toast\n\n## Acceptance Criteria\n'
+                '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+                'on jaspr\n',
+          },
+        );
+        final (:runner, :out, :err) = readRunner(project);
+        expect(
+          await runner.run(['get', 'sign_in', '--paths', '--target', 'jaspr']),
+          0,
+        );
+        expect(err.toString(), isEmpty);
+        expect(
+          out.toString(),
+          allOf(
+            contains('1. Open the page — feedback/toast/show S1'),
+            contains('- **Then** the Agent sees it on jaspr'),
+            isNot(contains('on flutter')),
+          ),
+        );
       },
     );
   });
