@@ -5,7 +5,6 @@ import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -476,28 +475,6 @@ void main() {
           ]);
           expect(config.codeRoot, 'stratum_ui');
           expect(config.hasCodeRoot, isFalse);
-        },
-      );
-
-      test(
-        'template_packs/pin_pack_versions/read_project_config E30: targets in '
-        'a merged set with no record doc type is unknown_value at targets',
-        () async {
-          final root = await _withConfig(
-            'packs:\n  prd-core: 1.0.0\n'
-            'targets:\n  flutter:\n    code_root: stratum_ui\n',
-          );
-          final set = await fixtureDocTypes();
-
-          expect(
-            () => ProjectConfig.read(root, mergedSet: set),
-            throwsA(
-              _fault(
-                FaultCode.unknownValue,
-                key: 'targets',
-              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
-            ),
-          );
         },
       );
 

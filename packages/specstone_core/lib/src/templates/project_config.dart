@@ -4,7 +4,6 @@ import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -129,13 +128,12 @@ final class ProjectConfig {
   /// pins no `prd-core`, and `unknown_value` for a `code_root` that is not a
   /// string, is empty, is absolute, or holds a backslash, for an
   /// `agent_file_roots` that is not a list of such strings, and for a
-  /// `targets` that is empty, sits beside `code_root:`, holds two targets on
-  /// one code folder, or, when [mergedSet] is given, meets a merged set with
-  /// no record doc type.
+  /// `targets` that is empty, sits beside `code_root:`, or holds two targets
+  /// on one code folder.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
-  static ProjectConfig read(Directory root, {MergedSet? mergedSet}) {
+  static ProjectConfig read(Directory root) {
     requireSpecstoneFolder(root);
     final text = decodeYamlBytes(
       readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
@@ -174,7 +172,7 @@ final class ProjectConfig {
         key: 'packs',
       );
     }
-    final targets = _readTargets(root, map, mergedSet);
+    final targets = _readTargets(root, map);
     return ProjectConfig._(
       pins: Map.unmodifiable(pins),
       targets: List.unmodifiable(targets),
@@ -236,13 +234,8 @@ void requireSpecstoneFolder(Directory root) {
 /// Reads the targets of the config [map]: its `targets:` entries in file
 /// order, or one unnamed target at `code_root:` when the key is absent.
 ///
-/// [root] joins each code root for the one-folder comparison; [mergedSet],
-/// when given, gates `targets:` on the set holding a record doc type.
-List<CodeTarget> _readTargets(
-  Directory root,
-  YamlMap map,
-  MergedSet? mergedSet,
-) {
+/// [root] joins each code root for the one-folder comparison.
+List<CodeTarget> _readTargets(Directory root, YamlMap map) {
   final hasTargets = map.containsKey(_targetsKey);
   final hasCodeRoot = map.containsKey(_codeRootKey);
   if (!hasTargets) {
@@ -311,7 +304,6 @@ List<CodeTarget> _readTargets(
     );
   }
   _refuseOneFolder(root, targets);
-  _refuseNoRecordDocType(mergedSet);
   return targets;
 }
 
@@ -338,25 +330,6 @@ void _refuseOneFolder(Directory root, List<CodeTarget> targets) {
 
 String _resolvedCodeRoot(Directory root, CodeTarget target) =>
     canonicalPath('${root.path}${Platform.pathSeparator}${target.codeRoot}');
-
-/// Throws `unknown_value` when [mergedSet] is given and holds no record doc
-/// type, no doc type with a `record_status` field, since a target owns a spec
-/// tree and its records.
-void _refuseNoRecordDocType(MergedSet? mergedSet) {
-  if (mergedSet == null) return;
-  final holdsRecord = mergedSet.docTypes.any(
-    (docType) =>
-        docType.fields.any((field) => field.type.wire == 'record_status'),
-  );
-  if (holdsRecord) return;
-  throw TemplateFault(
-    FaultCode.unknownValue,
-    'a target owns a spec tree and its records, and the packs give this '
-    'project no record doc type',
-    file: projectConfigPath,
-    key: _targetsKey,
-  );
-}
 
 /// Reads a `code_root:` value at [key] of [map], `.` when absent or null.
 ///
