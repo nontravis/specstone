@@ -31,6 +31,7 @@ enum FindingKind {
   fieldValueMismatch('field_value_mismatch'),
   fieldUndeclared('field_undeclared'),
   featureStatusWritten('feature_status_written'),
+  requirementStatusWritten('requirement_status_written'),
   titleMissing('title_missing'),
   requiredSectionMissing('required_section_missing'),
   sectionUndeclared('section_undeclared'),

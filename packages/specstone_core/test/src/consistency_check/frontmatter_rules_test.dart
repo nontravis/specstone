@@ -114,6 +114,191 @@ void main() {
     expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
+  group(
+    'consistency_check/find_template_breaks/check_frontmatter_fields, records',
+    () {
+      const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+
+      Map<String, String> recordProject(
+        String recordFrontmatter, {
+        String typeId = 'implementation',
+      }) => {
+        '.specstone/templates/$typeId.yaml':
+            'id: $typeId\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n'
+            '  - id: implements\n'
+            '    type: output_ref\n'
+            '    list: true\n'
+            '    pointer: item_exact\n',
+        'docs/$recordPath': '---\n$recordFrontmatter---\n\n# Login record\n',
+      };
+
+      test('E11: a story or FR writing status is requirement_status_written while the merged set holds the record doc type', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: recordProject(''),
+          ),
+        );
+        expect(spots(report, FindingKind.requirementStatusWritten), [
+          '$loginStory:2: requirement_status_written',
+          '$loginFr:2: requirement_status_written',
+        ]);
+        expect(
+          report.findings
+              .firstWhere((f) => f.kind == FindingKind.requirementStatusWritten)
+              .toJson()
+              .containsKey('field'),
+          isFalse,
+        );
+        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+        expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
+      });
+
+      test('E11: the same docs with no record doc type in the merged set take no finding', () async {
+        final report = checkOf(await writeCheckProject());
+        expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
+      });
+
+      test(
+        'E11: a story or FR with no status written takes no finding',
+        () async {
+          final report = checkOf(
+            await writeCheckProject(
+              unstamped: {'docs/$recordPath'},
+              extra: {
+                ...recordProject(''),
+                ...edit(loginStory, [('status: implemented\n', '')]),
+                ...fr('status: implemented\n', ''),
+              },
+            ),
+          );
+          expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
+        },
+      );
+
+      test('E11: a feature still takes feature_status_written, not the requirement kind', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: {
+              ...recordProject(''),
+              'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
+                  .replaceFirst(
+                    '---\nvision:',
+                    '---\nstatus: implemented\nvision:',
+                  ),
+            },
+          ),
+        );
+        expect(spots(report, FindingKind.featureStatusWritten), [
+          '$loginFeature:2: feature_status_written',
+        ]);
+      });
+
+      test('E13: the record doc type is found by its record_status field, whatever its id', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: recordProject('', typeId: 'target_record'),
+          ),
+        );
+        expect(spots(report, FindingKind.requirementStatusWritten), [
+          '$loginStory:2: requirement_status_written',
+          '$loginFr:2: requirement_status_written',
+        ]);
+      });
+
+      test('E14: an implements line with a space after the colon reads as a map and mismatches', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: recordProject(
+              'implements:\n  - show_toast: lib/toast.dart\n',
+            ),
+          ),
+        );
+        final mismatches = [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.fieldValueMismatch &&
+                f.path == recordPath)
+              f,
+        ];
+        expect(mismatches.map((f) => '${f.path}:${f.line}'), ['$recordPath:2']);
+        expect(mismatches.single.toJson()['field'], 'implements');
+      });
+
+      test('E14: an implements line with no space stays one string and gives no finding', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: recordProject(
+              'implements:\n  - show_toast:lib/toast.dart\n',
+            ),
+          ),
+        );
+        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+      });
+
+      test('E15: a statuses line giving an item the status wip mismatches, naming the field and the four statuses', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: recordProject('statuses:\n  - login:wip\n'),
+          ),
+        );
+        final mismatch = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.fieldValueMismatch,
+        );
+        expect('${mismatch.path}:${mismatch.line}', '$recordPath:2');
+        expect(mismatch.toJson()['field'], 'statuses');
+        expect(
+          mismatch.message,
+          contains('planned, implemented, deprecated, or skipped'),
+        );
+      });
+
+      for (final line in [
+        'login:planned',
+        'login/email_login:implemented',
+        ':deprecated',
+        'login/email_login/check_password:skipped:no UI here',
+      ]) {
+        test('E15: the statuses line $line fits', () async {
+          final report = checkOf(
+            await writeCheckProject(
+              unstamped: {'docs/$recordPath'},
+              extra: recordProject('statuses:\n  - "$line"\n'),
+            ),
+          );
+          expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+        });
+      }
+
+      test(
+        'E15: a statuses line with no status, or no colon, mismatches',
+        () async {
+          final report = checkOf(
+            await writeCheckProject(
+              unstamped: {'docs/$recordPath'},
+              extra: recordProject('statuses:\n  - login\n  - "login:"\n'),
+            ),
+          );
+          expect(spots(report, FindingKind.fieldValueMismatch), [
+            '$recordPath:2: field_value_mismatch',
+          ]);
+        },
+      );
+    },
+  );
+
   test('f04/us01/fr03/e07: invalid frontmatter is frontmatter_invalid only, and its warning is not printed', () async {
     final report = checkOf(
       await writeCheckProject(

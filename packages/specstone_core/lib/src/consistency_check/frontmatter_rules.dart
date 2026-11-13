@@ -6,6 +6,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _statusKey = 'status';
+const _frType = 'fr';
 // `approval_stale` alone reads this value, so the value rule skips it.
 const _approvedKey = 'approved';
 final _isoDate = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
@@ -34,6 +35,9 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
     for (final MapEntry(:key, :value) in doc.frontmatter.entries) key: ?value,
   };
   final fieldsById = {for (final field in type.fields) field.id: field};
+  final recordHoldsStatus =
+      context.set.recordDocType != null &&
+      (doc.docTypeId == storyType || doc.docTypeId == _frType);
   for (final field in type.fields) {
     if (field.required && !values.containsKey(field.id)) {
       yield context.finding(
@@ -67,6 +71,13 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         line: lineOf(),
         message: 'a FEATURE takes its status from its stories; remove status',
       );
+    } else if (key == _statusKey && recordHoldsStatus) {
+      yield context.finding(
+        doc,
+        FindingKind.requirementStatusWritten,
+        line: lineOf(),
+        message: 'each target record holds the status; remove status',
+      );
     } else if (field == null) {
       yield context.finding(
         doc,
@@ -94,16 +105,22 @@ bool _fits(MergedField field, Object value) {
 }
 
 bool _itemFits(MergedField field, Object item) => switch (field.type) {
-  FieldType.string ||
-  FieldType.docRef ||
-  FieldType.outputRef ||
-  FieldType.recordStatus => item is String,
+  FieldType.string || FieldType.docRef || FieldType.outputRef => item is String,
+  FieldType.recordStatus => item is String && _isStatusLine(item),
   FieldType.integer => item is int,
   FieldType.boolean => item is bool,
   FieldType.date => item is String && _isRealDate(item),
   FieldType.enumType =>
     item is String && (field.enumValues ?? const []).contains(item),
 };
+
+/// Whether [line] is `<item>:<status>`, a `skipped` line carrying a reason.
+bool _isStatusLine(String line) {
+  final split = line.indexOf(':');
+  if (split < 0) return false;
+  final statusWord = line.substring(split + 1).split(':').first;
+  return RecordStatus.byWire(statusWord) != null;
+}
 
 bool _isRealDate(String text) {
   final match = _isoDate.firstMatch(text);
@@ -118,12 +135,12 @@ bool _isRealDate(String text) {
 String _written(Object value) =>
     value is List ? '[${value.join(', ')}]' : '$value';
 
+final String _statuses = _orList([for (final s in RecordStatus.values) s.wire]);
+
 String _takes(MergedField field) {
   final one = switch (field.type) {
-    FieldType.string ||
-    FieldType.docRef ||
-    FieldType.outputRef ||
-    FieldType.recordStatus => 'a string',
+    FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+    FieldType.recordStatus => 'a line <item>:<status>, the status $_statuses',
     FieldType.integer => 'an integer',
     FieldType.boolean => 'true or false',
     FieldType.date => 'a date written YYYY-MM-DD',

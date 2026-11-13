@@ -701,6 +701,9 @@ void main() {
               '    list: true\n',
           'docs/$flutterArch': twin,
           'docs/$jasprArch': twin,
+          // The record holds each item's status, so the shared docs write none.
+          ...edit(loginStory, [('status: implemented\n', '')]),
+          ...fr('status: implemented\n', ''),
           ...edit(loginFeature, [
             ('Users forget passwords.', 'Users forget passwords.$brokenLink'),
           ]),
