@@ -34,7 +34,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show withApprovalHashes;
 import '../../helpers/posix_modes.dart';
-import '../../helpers/record_fixture.dart' show recordLayer, recordText;
+import '../../helpers/record_fixture.dart'
+    show oneTargetConfig, recordLayer, recordText, twinConfig;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -121,6 +122,7 @@ void main() {
   _labelTests();
   _stampTests();
   _moveToRecordTests();
+  _treeMoveTests();
   _planInputTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
@@ -2705,6 +2707,344 @@ void _moveToRecordTests() {
       expect(text, isNot(contains('renumber ids:')));
       expect(text, isNot(contains('number labels:')));
       expect(text, isNot(contains('agent files:')));
+    });
+  });
+}
+
+const _tree = 'setup_migration/upgrade_pack_pins/move_spec_tree_to_target';
+const _chain = 'setup_migration/upgrade_pack_pins/chain_migration_steps';
+
+String _draftDoc(String title, [String body = '']) =>
+    '---\ndraft: true\n---\n# $title\n$body';
+
+/// A config pinning `software-tech` at 1.4.0 over the targets `flutter` and
+/// `jaspr`, so the `move_to_record` step runs beside the tree move.
+String _oldPinTwinConfig() =>
+    'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+    '  software-tech: 1.4.0\n'
+    'targets:\n  flutter:\n    code_root: flutter_ws\n'
+    '  jaspr:\n    code_root: jaspr_ws\n';
+
+Future<Directory> _treeProject(
+  Map<String, String> docs, {
+  String? config,
+  Map<String, String> extra = const {},
+}) => writeTree({
+  '.specstone/config.yaml': config ?? twinConfig(),
+  for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+  ...extra,
+});
+
+MigrateFault _refusedAt(Directory project) {
+  try {
+    _planAt(project);
+  } on MigrateFault catch (fault) {
+    return fault;
+  }
+  fail('expected the plan to refuse');
+}
+
+void _treeMoveTests() {
+  group('spec tree move', () {
+    test('$_tree E01, E09: each per-target doc at a one-target path moves to '
+        "the first target's folder as a pure rename, under the unchanged-pins "
+        'header', () async {
+      final plan = _planAt(
+        await _treeProject({
+          'specs/TECH_STACK.md': _draftDoc('Tech stack'),
+          'specs/f02_feedback/ARCHITECTURE.md': _draftDoc('Architecture'),
+          'specs/topics/doc_model.md': _draftDoc('Doc model'),
+        }),
+      );
+
+      expect(plan.moves, [
+        (from: 'specs/TECH_STACK.md', to: 'specs/flutter/TECH_STACK.md'),
+        (
+          from: 'specs/f02_feedback/ARCHITECTURE.md',
+          to: 'specs/flutter/f02_feedback/ARCHITECTURE.md',
+        ),
+        (
+          from: 'specs/topics/doc_model.md',
+          to: 'specs/flutter/topics/doc_model.md',
+        ),
+      ]);
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, spec tree to flutter\n'
+        'commit 1, moves:\n'
+        '  specs/TECH_STACK.md -> specs/flutter/TECH_STACK.md\n'
+        '  specs/f02_feedback/ARCHITECTURE.md -> '
+        'specs/flutter/f02_feedback/ARCHITECTURE.md\n'
+        '  specs/topics/doc_model.md -> specs/flutter/topics/doc_model.md\n',
+      );
+      expect(plan.rewrites, isEmpty);
+      expect(plan.creates, isEmpty);
+    });
+
+    test('$_tree E02: a project-layer path keeps every placeholder value '
+        'under the target folder', () async {
+      final plan = _planAt(
+        await _treeProject(
+          {'specs/payments/f01_checkout/ARCHITECTURE.md': _draftDoc('A')},
+          extra: {
+            '.specstone/templates/architecture.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+          },
+        ),
+      );
+
+      expect(plan.moves, [
+        (
+          from: 'specs/payments/f01_checkout/ARCHITECTURE.md',
+          to: 'specs/flutter/payments/f01_checkout/ARCHITECTURE.md',
+        ),
+      ]);
+    });
+
+    test('$_tree E03, E04: a link to a moved doc, a link a moved doc holds, '
+        'and a path mention are rewritten; a Name and a link between moved '
+        'docs keep their text; a shared doc keeps its link, pointed at the '
+        'moved doc', () async {
+      const movedLink = '../../../specs/flutter/f02_feedback/ARCHITECTURE.md';
+      final plan = _planAt(
+        await _treeProject({
+          'prds/features/f02_feedback/FEATURE.md': _draftDoc(
+            'Feedback',
+            '\nSee [architecture](../../../specs/f02_feedback/ARCHITECTURE.md), '
+                '`../../../specs/f02_feedback/ARCHITECTURE.md`, and '
+                '`architecture:feedback`.\n',
+          ),
+          'specs/f02_feedback/ARCHITECTURE.md': _draftDoc(
+            'Architecture',
+            '\n[feature](../../prds/features/f02_feedback/FEATURE.md) and '
+                '[topic](../topics/doc_model.md).\n',
+          ),
+          'specs/topics/doc_model.md': _draftDoc('Doc model'),
+        }),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/prds/features/f02_feedback/FEATURE.md').text,
+        _draftDoc(
+          'Feedback',
+          '\nSee [architecture]($movedLink), `$movedLink`, and '
+              '`architecture:feedback`.\n',
+        ),
+      );
+      expect(
+        _rewriteAt(
+          plan,
+          'docs/specs/flutter/f02_feedback/ARCHITECTURE.md',
+        ).text,
+        _draftDoc(
+          'Architecture',
+          '\n[feature](../../../prds/features/f02_feedback/FEATURE.md) and '
+              '[topic](../topics/doc_model.md).\n',
+        ),
+      );
+      final text = plan.toText();
+      expect(
+        text,
+        contains(
+          'commit 2, rewrites:\n'
+          '  prds/features/f02_feedback/FEATURE.md: 1 link, 1 mention\n'
+          '  specs/flutter/f02_feedback/ARCHITECTURE.md: 1 link\n',
+        ),
+      );
+    });
+
+    test('$_tree E05: a doc already at a target path stays, and only the '
+        'others move', () async {
+      final plan = _planAt(
+        await _treeProject({
+          'specs/flutter/f01_login/DOMAIN.md': _draftDoc('Login'),
+          'specs/f02_feedback/DOMAIN.md': _draftDoc('Feedback'),
+        }),
+      );
+
+      expect(plan.moves, [
+        (
+          from: 'specs/f02_feedback/DOMAIN.md',
+          to: 'specs/flutter/f02_feedback/DOMAIN.md',
+        ),
+      ]);
+    });
+
+    test('$_tree E06: a move onto a path a doc already holds refuses '
+        'upgrade_collision, naming the doc', () async {
+      final fault = _refusedAt(
+        await _treeProject({
+          'specs/TECH_STACK.md': _draftDoc('Old'),
+          'specs/flutter/TECH_STACK.md': _draftDoc('Held'),
+        }),
+      );
+
+      expect(fault.code, MigrateFaultCode.upgradeCollision);
+      expect(fault.exitStatus, 65);
+      expect(fault.file, 'specs/TECH_STACK.md');
+      expect(fault.message, contains('specs/flutter/TECH_STACK.md'));
+    });
+
+    test('$_tree E07: a file no per-target doc type matches stays', () async {
+      final plan = _planAt(
+        await _treeProject({
+          'specs/INDEX.md': _draftDoc('Index'),
+          'specs/f02_feedback/DOMAIN.md': _draftDoc('Feedback'),
+        }),
+      );
+
+      expect(plan.moves.map((move) => move.from), [
+        'specs/f02_feedback/DOMAIN.md',
+      ]);
+    });
+
+    test('$_tree E08: one target, named or not, moves no doc', () async {
+      final docs = {'specs/f02_feedback/DOMAIN.md': _draftDoc('Feedback')};
+      final named = await _treeProject(
+        docs,
+        config:
+            '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: ws\n',
+      );
+      final unnamed = await _treeProject(docs, config: oneTargetConfig());
+
+      expect(_planAt(named).moves, isEmpty);
+      expect(_planAt(unnamed).moves, isEmpty);
+    });
+
+    test('$_tree E11: a doc approved before the run takes the hash of its new '
+        'content, and a draft stays a draft', () async {
+      final set = TemplateResolver().resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      );
+      final feature = set.lookup('feature');
+      final architecture = set.lookup('architecture');
+      final featureText = withApprovalHash(
+        '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
+        feature,
+      );
+      final archText = withApprovalHash(
+        '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
+        architecture,
+      );
+      final plan = _planAt(
+        await _treeProject({
+          'prds/features/f02_feedback/FEATURE.md': featureText,
+          'specs/f02_feedback/ARCHITECTURE.md': archText,
+          'specs/f02_feedback/DOMAIN.md': _draftDoc('Domain'),
+        }),
+      );
+
+      const archPath = 'specs/flutter/f02_feedback/ARCHITECTURE.md';
+      final feat = _stampedDocText(
+        plan,
+        'prds/features/f02_feedback/FEATURE.md',
+      );
+      final arch = _stampedDocText(plan, archPath);
+      expect(_valuesOf(feat)['approved'], approvalHashOf(feat, feature));
+      expect(_valuesOf(arch)['approved'], approvalHashOf(arch, architecture));
+      expect(
+        _valuesOf(arch)['approved'],
+        isNot(_valuesOf(archText)['approved']),
+      );
+      expect(
+        arch,
+        contains('(../../../prds/features/f02_feedback/FEATURE.md)'),
+      );
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.path),
+        isNot(contains('docs/specs/flutter/f02_feedback/DOMAIN.md')),
+      );
+      expect(
+        plan.toText(),
+        contains('stamps: 2 approval hashes, 0 fingerprints'),
+      );
+    });
+
+    group('with a pin change', () {
+      const architecturePath = 'specs/f01_login/ARCHITECTURE.md';
+
+      Future<Directory> project({Map<String, String> extra = const {}}) =>
+          _treeProject({
+            ..._loginDocs,
+            architecturePath: _draftDoc('Architecture'),
+            ...extra,
+          }, config: _oldPinTwinConfig());
+
+      test('$_chain E11, $_fr E37: the tree move comes first, and the record '
+          "a move_to_record step creates lands in the first target's folder, "
+          'none in the second', () async {
+        final plan = _planAt(await project());
+
+        expect(plan.moves, [
+          (
+            from: architecturePath,
+            to: 'specs/flutter/f01_login/ARCHITECTURE.md',
+          ),
+        ]);
+        final record = plan.creates.singleWhere(
+          (create) => create.path.endsWith('IMPLEMENTATION.md'),
+        );
+        expect(record.path, 'docs/specs/flutter/f01_login/IMPLEMENTATION.md');
+        expect(record.note, ' (draft)');
+        expect(_valuesOf(record.text)['statuses'], [
+          'email_login:implemented',
+          'email_login/validate_credentials:planned',
+        ]);
+        expect(plan.toText(), startsWith('pack upgrade: software-tech 1.4.0'));
+        expect(plan.toText(), contains('commit 1, moves:\n'));
+        expect(
+          plan.creates.map((create) => create.path),
+          isNot(contains(startsWith('docs/specs/jaspr/'))),
+        );
+      });
+
+      test('$_chain E11: a record at the one-target path moves first, and the '
+          'step adds its entries to it, not to a second record', () async {
+        final plan = _planAt(
+          await project(
+            extra: {
+              'specs/f01_login/IMPLEMENTATION.md': recordText(
+                front: 'draft: true\n',
+                statuses: ['email_login:implemented'],
+                code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
+              ),
+            },
+          ),
+        );
+
+        expect(
+          plan.moves.map((move) => move.to),
+          contains('specs/flutter/f01_login/IMPLEMENTATION.md'),
+        );
+        expect(plan.creates, isEmpty);
+        final record = _rewriteAt(
+          plan,
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md',
+        ).text;
+        expect(_valuesOf(record)['statuses'], [
+          'email_login:implemented',
+          'email_login/validate_credentials:planned',
+        ]);
+      });
+
+      test('$_fr E37: a record only the second target holds does not stand '
+          "in for the first target's", () async {
+        final plan = _planAt(
+          await project(
+            extra: {
+              'specs/jaspr/f01_login/IMPLEMENTATION.md': recordText(
+                front: 'draft: true\n',
+                statuses: ['email_login:planned'],
+              ),
+            },
+          ),
+        );
+
+        expect(plan.creates.map((create) => create.path), [
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md',
+        ]);
+      });
     });
   });
 }

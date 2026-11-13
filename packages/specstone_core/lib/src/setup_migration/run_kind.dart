@@ -5,6 +5,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -19,12 +20,13 @@ enum RunKind {
   legacy,
 
   /// At least one pin is older than its available pack version, or every pin
-  /// is equal and a typed doc is off the layout `format` writes or an agent
-  /// file drifts from what the CLI writes.
+  /// is equal and a typed doc is off the layout `format` writes, an agent
+  /// file drifts from what the CLI writes, or a per-target doc sits at a
+  /// one-target path under two or more code targets.
   upgrade,
 
   /// Every pin equals its available pack version, every typed doc is laid
-  /// out, and no agent file drifts.
+  /// out, no agent file drifts, and no per-target doc needs the tree move.
   none,
 }
 
@@ -36,7 +38,9 @@ enum RunKind {
 /// `pack_pin_newer`, any older pin gives [RunKind.upgrade]. With every pin
 /// equal, a doc off its layout, generated blocks aside, then any agent file
 /// drift (`agentFileDrifts`, the predicate `check` uses, a malformed marker
-/// included) gives [RunKind.upgrade], otherwise [RunKind.none].
+/// included), then two or more code targets over a per-target doc at a
+/// one-target path (`treeMovesOf`), gives [RunKind.upgrade], otherwise
+/// [RunKind.none].
 /// [homeDirectory] is the personal pack home, or null.
 RunKind chooseRun(
   Directory root, {
@@ -62,9 +66,29 @@ RunKind chooseRun(
   }
   if (older) return RunKind.upgrade;
   if (_hasDocOffLayout(root, templates, homeDirectory)) return RunKind.upgrade;
-  return _hasAgentFileDrift(root, templates, homeDirectory)
+  if (_hasAgentFileDrift(root, templates, homeDirectory)) {
+    return RunKind.upgrade;
+  }
+  return _hasTreeMove(root, templates, homeDirectory)
       ? RunKind.upgrade
       : RunKind.none;
+}
+
+bool _hasTreeMove(
+  Directory root,
+  TemplateResolver templates,
+  Directory? homeDirectory,
+) {
+  final project = DocsProject.open(
+    templates: templates,
+    workingDirectory: root,
+    homeDirectory: homeDirectory,
+  );
+  return treeMovesOf(
+    docPathsOf(project.docsRoot),
+    project.set,
+    targetNames: project.targetNames,
+  ).isNotEmpty;
 }
 
 bool _hasDocOffLayout(

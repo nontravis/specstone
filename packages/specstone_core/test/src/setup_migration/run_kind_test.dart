@@ -10,6 +10,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/record_fixture.dart' show oneTargetConfig, twinConfig;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -256,5 +257,54 @@ void main() {
         expect(_choose(root), RunKind.upgrade);
       },
     );
+  });
+
+  group('$_findRoot E13: a second target over a one-target spec tree', () {
+    const draftDomain = '---\ndraft: true\n---\n# Feedback\n';
+
+    Future<Directory> twinProject(String config, Map<String, String> docs) =>
+        writeTree({
+          '.specstone/config.yaml': config,
+          for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+        });
+
+    test('two targets and a per-target doc at its one-target path are an '
+        'upgrade, though every pin is equal', () async {
+      final root = await twinProject(twinConfig(), {
+        'specs/f02_feedback/DOMAIN.md': draftDomain,
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('a doc already under a target folder is none', () async {
+      final root = await twinProject(twinConfig(), {
+        'specs/flutter/f02_feedback/DOMAIN.md': draftDomain,
+      });
+
+      expect(_choose(root), RunKind.none);
+    });
+
+    test('a file no per-target doc type matches is none', () async {
+      final root = await twinProject(twinConfig(), {
+        'specs/INDEX.md': draftDomain,
+      });
+
+      expect(_choose(root), RunKind.none);
+    });
+
+    test('one target, named or not, is none, since the spec root stays '
+        'specs/', () async {
+      final named = await twinProject(
+        '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: ws\n',
+        {'specs/f02_feedback/DOMAIN.md': draftDomain},
+      );
+      final unnamed = await twinProject(oneTargetConfig(), {
+        'specs/f02_feedback/DOMAIN.md': draftDomain,
+      });
+
+      expect(_choose(named), RunKind.none);
+      expect(_choose(unnamed), RunKind.none);
+    });
   });
 }

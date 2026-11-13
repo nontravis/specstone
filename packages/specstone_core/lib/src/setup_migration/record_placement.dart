@@ -24,8 +24,14 @@ const _fixThenMigrate = 'fix it, then run specstone migrate again';
 // MARK: - Types
 
 /// A typed doc of the run as the placement reads it: its DocPath after the
-/// moves, its doc type, and its LF text after the steps so far.
-typedef PlacementDoc = ({String plannedPath, MergedDocType? type, String lf});
+/// moves, its doc type, the code target whose pattern set matched it (null for
+/// a shared doc), and its LF text after the steps so far.
+typedef PlacementDoc = ({
+  String plannedPath,
+  MergedDocType? type,
+  String? target,
+  String lf,
+});
 
 /// A record the pass creates, as a draft: its DocPath and its laid-out text.
 typedef NewRecord = ({String docPath, String text});
@@ -108,13 +114,16 @@ final class RecordMoves {
   /// nothing to place.
   ///
   /// A value lands in its feature's record: added to the record the feature
-  /// has, or in a new draft record at the record doc type's path. A value the
-  /// record already holds for its item is kept as it is; a different one, or
-  /// any value no record entry takes, is `value_unplaced`, listed for every
-  /// such doc at once (apply_steps_and_pins E33 to E35).
+  /// has, or in a new draft record at the record doc type's path. With two or
+  /// more code targets that record is the one of [firstTarget], the target the
+  /// spec tree moves to. A value the record already holds for its item is kept
+  /// as it is; a different one, or any value no record entry takes, is
+  /// `value_unplaced`, listed for every such doc at once
+  /// (apply_steps_and_pins E33 to E35).
   RecordPlacement place({
     required MergedSet set,
     required MergedDocType? recordType,
+    required String? firstTarget,
     required List<PlacementDoc> docs,
   }) {
     if (_taken.isEmpty) {
@@ -135,7 +144,7 @@ final class RecordMoves {
         creates: const [],
       );
     }
-    final tree = _Tree(set, recordType, docs);
+    final tree = _Tree(set, recordType, firstTarget, docs);
     final unplaced = <MigrateFault>[];
     final byFeature = <String, ({IndexedDoc feature, List<_Mover> movers})>{};
     for (final taken in _taken) {
@@ -425,25 +434,28 @@ List<String>? _codePathsOf(Object value) {
 /// The typed docs of the run as the index reads them, to find the feature and
 /// the record of a story or an FR.
 final class _Tree {
-  new(this._set, this._recordType, List<PlacementDoc> docs) {
+  new(this._set, this._recordType, this._firstTarget, List<PlacementDoc> docs) {
     for (final doc in docs) {
       final type = doc.type;
       if (type == null) continue;
       final indexed = IndexedDoc(
         docPath: doc.plannedPath,
         docTypeId: type.id,
-        name: docNameOf(doc.plannedPath, type),
+        name: docNameOf(doc.plannedPath, type, target: doc.target),
         frontmatter: const {},
         tokens: 0,
       );
       _byPath[doc.plannedPath] = indexed;
-      if (type.id == _recordType.id) _records[indexed.name] = doc;
+      if (type.id == _recordType.id && doc.target == _firstTarget) {
+        _records[indexed.name] = doc;
+      }
     }
     _parents = resolveParents(_byPath.values, _set).parents;
   }
 
   final MergedSet _set;
   final MergedDocType _recordType;
+  final String? _firstTarget;
   final _byPath = <String, IndexedDoc>{};
   final _records = <String, PlacementDoc>{};
   late final Map<String, String> _parents;
@@ -495,6 +507,7 @@ final class _Tree {
       featureDocPath: feature.docPath,
       featureName: feature.name,
       lines: lines,
+      target: _firstTarget,
     );
   }
 }

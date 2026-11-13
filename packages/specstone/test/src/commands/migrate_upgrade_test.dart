@@ -21,7 +21,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
-    show recordLayer;
+    show recordLayer, twinConfig;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
@@ -1573,6 +1573,106 @@ void main() {
         );
         expect(_head(root), before);
         expect(File('${root.path}/$recordPath').existsSync(), isFalse);
+      });
+    });
+
+    group('f06/us02: a second code target over a one-target spec tree', () {
+      const featurePath = 'docs/prds/features/f02_feedback/FEATURE.md';
+      const oldArch = 'docs/specs/f02_feedback/ARCHITECTURE.md';
+      const newArch = 'docs/specs/flutter/f02_feedback/ARCHITECTURE.md';
+      const oldTech = 'docs/specs/TECH_STACK.md';
+      const newTech = 'docs/specs/flutter/TECH_STACK.md';
+
+      String approvedAs(String docTypeId, String text) => withApprovalHash(
+        text,
+        TemplateResolver()
+            .resolveCarried(
+              packNames: const ['prd-core', 'software-tech'],
+              homeDirectory: null,
+            )
+            .lookup(docTypeId),
+      );
+
+      Future<Directory> project() => gitFixture({
+        '.specstone/config.yaml': twinConfig(),
+        _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+        featurePath: approvedAs(
+          'feature',
+          '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
+        ),
+        oldArch: approvedAs(
+          'architecture',
+          '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
+        ),
+        oldTech: '---\ndraft: true\n---\n# Tech stack\n',
+      });
+
+      test('f06/us02/s12: a first commit that only moves the spec docs under '
+          "the first target's folder, a second that rewrites their links, and "
+          'every approval kept', () async {
+        final home = await writeTree({});
+        final root = await project();
+        final before = _subjects(root);
+
+        final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          startsWith('pack upgrade: pins unchanged, spec tree to flutter\n'),
+        );
+        expect(File('${root.path}/$newArch').existsSync(), isFalse);
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_subjects(root), hasLength(before.length + 2));
+        final commit1 = _gitOut(root, [
+          'show',
+          '--name-status',
+          '--format=',
+          'HEAD~1',
+        ]).trim().split('\n');
+        expect(commit1, hasLength(2));
+        expect(commit1, everyElement(startsWith('R100\t')));
+        expect(
+          commit1.join('\n'),
+          allOf(contains('$oldArch\t$newArch'), contains('$oldTech\t$newTech')),
+        );
+        final commit2 = _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]).trim().split('\n').toSet();
+        expect(commit2, {featurePath, newArch});
+        expect(File('${root.path}/$oldArch').existsSync(), isFalse);
+        expect(
+          _read(root, featurePath),
+          contains('](../../../specs/flutter/f02_feedback/ARCHITECTURE.md)'),
+        );
+        expect(
+          _read(root, newArch),
+          contains('](../../../prds/features/f02_feedback/FEATURE.md)'),
+        );
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        for (final path in [featurePath, newArch]) {
+          expect(_read(root, path), contains('approved: "'));
+        }
+        final check = await _run(root, home, ['check', '--json']);
+        final stale = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            if (finding case {
+              'kind': 'approval_stale',
+              'docPath': final String docPath,
+            })
+              docPath,
+        ];
+        expect(stale, isEmpty);
+        final again = await _run(root, home, ['migrate'], console: _owner());
+        expect(again.out, 'nothing to migrate\n');
       });
     });
   }, skip: hasGit ? null : 'git is not available');
