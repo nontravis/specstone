@@ -103,8 +103,17 @@ class ContextCommand extends SpecstoneCommand {
         final codePath = resolveCodePath(
           code,
           workingDirectory: specstoneRunner.workingDirectory,
-          codeRoot: session.project.codeRoot,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
         );
+        final given = targetOf(args);
+        if (given != null && given != codePath.target.name) {
+          throw IndexFault(
+            IndexFaultCode.argumentConflict,
+            'the code path $code lies in the code target '
+            '${codePath.target.name}, not $given',
+          );
+        }
         return answerContext(
           session.index,
           pickCodeBundle(session.index, codePath, mode, noProject: noProject),

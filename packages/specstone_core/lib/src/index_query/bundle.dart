@@ -71,7 +71,10 @@ final class Bundle {
   final List<String> warnings = [];
 
   /// Whether [doc] belongs to [codeTarget]: it is shared, or of that target.
-  bool _keepsTarget(IndexedDoc doc) =>
+  ///
+  /// Public so the code-path bundle's spec-folder walk keeps to the picked
+  /// target's docs.
+  bool keepsTarget(IndexedDoc doc) =>
       codeTarget == null || doc.target == null || doc.target == codeTarget;
 
   /// Adds [target] and its chain docs by [mode]'s rule (INV-11, INV-12).
@@ -102,7 +105,7 @@ final class Bundle {
       final bundle = index.typeOf(doc)?.bundle;
       if (bundle != null &&
           bundle.contains(mode.wire) &&
-          _keepsTarget(doc) &&
+          keepsTarget(doc) &&
           !docPaths.contains(doc.docPath)) {
         joinedPaths.add(doc.docPath);
       }
@@ -119,7 +122,7 @@ final class Bundle {
     final topAt = chain.indexOf(designTop);
     _addDesignSubtree(index, designTop, topAt == 0 ? null : chain[topAt - 1]);
     for (final ancestor in chain.skip(topAt + 1)) {
-      if (!_keepsTarget(ancestor)) continue;
+      if (!keepsTarget(ancestor)) continue;
       docPaths.add(ancestor.docPath);
       for (final child in index.childrenOf(ancestor)) {
         if (!index.isChainDoc(child)) {
@@ -139,7 +142,7 @@ final class Bundle {
       _addAll(docPaths, index.subtreeOf(designTop));
       return;
     }
-    if (_keepsTarget(designTop)) docPaths.add(designTop.docPath);
+    if (keepsTarget(designTop)) docPaths.add(designTop.docPath);
     for (final child in index.childrenOf(designTop)) {
       if (!index.isChainDoc(child) || child.docPath == unit?.docPath) {
         _addAll(docPaths, index.subtreeOf(child));
@@ -151,7 +154,7 @@ final class Bundle {
 
   void _addAll(Set<String> paths, Iterable<IndexedDoc> docs) {
     for (final doc in docs) {
-      if (_keepsTarget(doc)) paths.add(doc.docPath);
+      if (keepsTarget(doc)) paths.add(doc.docPath);
     }
   }
 
@@ -163,13 +166,13 @@ final class Bundle {
     final chain = index.chainOf(target);
     _addAll(docPaths, chain);
     for (final doc in index.subtreeOf(target)) {
-      if (_keepsTarget(doc)) docPaths.add(doc.docPath);
+      if (keepsTarget(doc)) docPaths.add(doc.docPath);
     }
     for (var i = 1; i < chain.length; i++) {
       final ancestor = chain[i];
       final nextBelow = chain[i - 1];
       for (final child in index.childrenOf(ancestor)) {
-        if (child.docTypeId != nextBelow.docTypeId && _keepsTarget(child)) {
+        if (child.docTypeId != nextBelow.docTypeId && keepsTarget(child)) {
           docPaths.add(child.docPath);
         }
       }
@@ -179,7 +182,7 @@ final class Bundle {
   void _addTopWithChildren(DocIndex index, IndexedDoc top) {
     docPaths.add(top.docPath);
     for (final child in index.childrenOf(top)) {
-      if (!index.isChainDoc(child) && _keepsTarget(child)) {
+      if (!index.isChainDoc(child) && keepsTarget(child)) {
         docPaths.add(child.docPath);
       }
     }
