@@ -1,3 +1,6 @@
+// The file contents are plan literals kept as written.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -254,19 +257,61 @@ void main() {
       root,
       (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
     );
-    final list = signOutUnit.map((path) => '$path\n').join();
     final hashed = signOutUnit
         .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
         .join();
     final hash = baseHashOf(hashed);
-    expect(answer.text, '${list}plan $hash\ndry run: nothing removed\n');
+    expect(
+      answer.text,
+      '${signOutUnit.map((path) => '$path (guarded)\n').join()}'
+      "guarded: ${signOutUnit.length} docs; the delete needs the Owner's ok\n"
+      'plan $hash\ndry run: nothing removed\n',
+    );
     expect(answer.json, {
       'files': signOutUnit,
+      'guarded': signOutUnit,
       'records': isEmpty,
       'mentions': <Object>[],
       'plan': hash,
     });
     expect(hasDoc(root, story2), isTrue);
+  });
+
+  test('a dry run marks each guarded file alone, counts them, and leaves '
+      'the plan hash over the paths alone', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    docFile(
+      root,
+      'prds/features/f01_login/us02_sign_out/fr01_end_session.md',
+    ).writeAsStringSync('---\ndraft: true\n---\n\n# End session\n');
+    final answer = writeIn(
+      root,
+      (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+    );
+    final guarded = [story2, signOutUnit[2]];
+    expect(
+      answer.text,
+      '$story2 (guarded)\n'
+      '${signOutUnit[1]}\n'
+      '${signOutUnit[2]} (guarded)\n'
+      "guarded: 2 docs; the delete needs the Owner's ok\n"
+      'plan ${baseHashOf(signOutUnit.map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n').join())}\n'
+      'dry run: nothing removed\n',
+    );
+    expect(answer.json['guarded'], guarded);
+    expect(hasDoc(root, story2), isTrue);
+  });
+
+  test('a unit with no guarded file prints no guarded line and an empty '
+      'guarded array', () async {
+    final root = await writeWriteProject(extra: withoutLink);
+    final answer = writeIn(
+      root,
+      (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+    );
+    expect(answer.text, isNot(contains('guarded:')));
+    expect(answer.text, isNot(contains('(guarded)')));
+    expect(answer.json['guarded'], isEmpty);
   });
 
   group('mentions in code files and agent files', () {
@@ -1960,6 +2005,7 @@ void main() {
       );
       expect(answer.json, {
         'files': removedStory3,
+        'guarded': isEmpty,
         'records': [
           {
             'path': _loginRecord,

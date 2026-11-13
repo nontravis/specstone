@@ -64,12 +64,125 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'mentions CLAUDE.md:1 fr:login/email_login/validate_credentials\nplan ',
+        'mentions CLAUDE.md:1 fr:login/email_login/validate_credentials\n'
+        "guarded: 1 docs; the delete needs the Owner's ok\nplan ",
       ),
     );
     expect(
       File('${root.path}/CLAUDE.md').readAsStringSync(),
       'Read `fr:login/email_login/validate_credentials`.\n',
+    );
+  });
+
+  group('--dry-run marks the guarded files', () {
+    const emailStory = 'user_story:login/email_login';
+    final removed = [
+      'prds/features/f01_login/us01_email_login/USER_STORY.md',
+      fr11,
+      fr12,
+    ];
+
+    Future<Directory> mixedUnit({
+      bool techStack = false,
+      Map<String, String> codeFiles = const {},
+    }) => writeWriteProject(
+      extra: {
+        'docs/$fr11': '---\napproved: true\n---\n\n# Validate credentials\n',
+        // fr12 loses its link into story3, so the unit is free to delete
+        'docs/$fr12': '---\ndraft: true\n---\n\n# Lock after failures\n',
+        // the persona drops its reference, so no doc outside the unit refers in
+        'docs/prds/personas/buyer/PERSONA.md':
+            '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+        if (techStack)
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n'
+              '## Stack\n\n| Slot | Choice |\n|---|---|\n'
+              '| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',
+        ...codeFiles,
+      },
+    );
+
+    test('ends each guarded file with a mark, prints the count line, and '
+        'removes nothing', () async {
+      final root = await mixedUnit();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['delete', emailStory, '--dry-run']), 0);
+      expect(err.toString(), isEmpty);
+      final text = out.toString();
+      expect(text, startsWith('${removed[0]}\n'));
+      expect(text, contains('${removed[1]} (guarded)\n${removed[2]}\n'));
+      expect(text, contains('${removed[1]} (guarded)\n'));
+      expect(
+        text,
+        endsWith(
+          "guarded: 1 docs; the delete needs the Owner's ok\n"
+          'plan ${await _dryRunPlanHash(root, emailStory)}\n'
+          'dry run: nothing removed\n',
+        ),
+      );
+      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+    });
+
+    test('--json prints the guarded paths under guarded', () async {
+      final root = await mixedUnit();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', emailStory, '--dry-run', '--json']),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer['files'], removed);
+      expect(answer['guarded'], [fr11]);
+      expect(answer.keys, contains('plan'));
+    });
+
+    test('a code comment naming the story prints a mentions line beside the '
+        'marks', () async {
+      final root = await mixedUnit(
+        techStack: true,
+        codeFiles: {'app/lib/login.dart': '// `login/email_login` names it\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'delete',
+          'user_story:login/email_login',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains('mentions app/lib/login.dart:1 login/email_login\n'),
+      );
+      expect(
+        out.toString(),
+        contains("guarded: 1 docs; the delete needs the Owner's ok\n"),
+      );
+    });
+
+    test(
+      'a unit with no guarded file prints no mark and no count line',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            'docs/prds/features/f01_login/us02_sign_out/USER_STORY.md':
+                '---\nstatus: planned\ndraft: true\n---\n\n# Sign out\n',
+            'docs/$fr12': '---\ndraft: true\n---\n\n# Lock after failures\n',
+          },
+        );
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'delete',
+            'fr:login/email_login/lock_after_failures',
+            '--dry-run',
+          ]),
+          0,
+        );
+        expect(out.toString(), isNot(contains('guarded')));
+        expect(out.toString(), isNot(contains('(guarded)')));
+      },
     );
   });
 
@@ -83,8 +196,10 @@ void main() {
       out.toString(),
       matches(
         RegExp(
-          '^${RegExp.escape(fr11)}\nplan [0-9a-f]{12}\n'
-          'dry run: nothing removed\n\$',
+          '^${RegExp.escape(fr11)} \\(guarded\\)'
+          r'\n'
+          "guarded: 1 docs; the delete needs the Owner's ok"
+          r'\nplan [0-9a-f]{12}\ndry run: nothing removed\n$',
         ),
       ),
     );
@@ -348,7 +463,13 @@ void main() {
 
     expect(status, 0);
     expect(err.toString(), '⚠️ WARNING: $dangles\n');
-    expect(out.toString(), startsWith('$notes\nplan '));
+    expect(
+      out.toString(),
+      startsWith(
+        '$notes (guarded)\n'
+        "guarded: 1 docs; the delete needs the Owner's ok\nplan ",
+      ),
+    );
     expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
   });
   test(

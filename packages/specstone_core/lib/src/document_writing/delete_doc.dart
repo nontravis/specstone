@@ -82,7 +82,7 @@ ReadAnswer answerDelete(
         'specstone delete --dry-run again, show it, and ask for a new ok',
       );
     }
-    final guarded = _holdsGuardedDoc(shown.files);
+    final guarded = _guardedDocsOf(shown.files).isNotEmpty;
     if (guarded) {
       confirmation.refuseIfMissing(
         '${unit.subject} holds guarded docs; only the Owner deletes them,',
@@ -122,16 +122,20 @@ ReadAnswer answerDelete(
   }
 }
 
-/// Lists every file a delete of [targets] would remove, each record it
-/// rewrites, and its plan line.
+/// Lists every file a delete of [targets] would remove, each guarded one
+/// marked, each record it rewrites, and its plan line.
 ///
 /// The list is the one the terminal prompt shows before its `y`, and nothing
-/// is removed. The text is the files, one `rewrites <DocPath>: <entry>, …` line
-/// per record, one `mentions <path>:<line> <mention>` line per mention of a
-/// removed doc in a code file or an agent file, the `plan <hash>` line, and
-/// `dry run: nothing removed`; the JSON holds `files`, `records` (each with its
-/// `path` and `entries`), `mentions`, and `plan`. Warns of each link left to
-/// dangle, and throws, as [answerDelete] does before its prompt.
+/// is removed. The text is the files, each guarded one's line ended with
+/// ` (guarded)`, one `rewrites <DocPath>: <entry>, …` line per record, one
+/// `mentions <path>:<line> <mention>` line per mention of a removed doc in a
+/// code file or an agent file, the `guarded: <n> docs` count line when any
+/// file is guarded, the `plan <hash>` line, and
+/// `dry run: nothing removed`; the JSON holds `files`, `guarded` (the guarded
+/// files' paths), `records` (each with its `path` and `entries`), `mentions`,
+/// and `plan`. The plan hash covers the paths and their content hashes alone,
+/// so the marks change no hash. Warns of each link left to dangle, and
+/// throws, as [answerDelete] does before its prompt.
 ReadAnswer answerDeleteDryRun(
   WriteSession session,
   List<String> targets, {
@@ -143,12 +147,17 @@ ReadAnswer answerDeleteDryRun(
   final files = plan.files.keys.toList();
   final hash = _planHashOf(plan);
   final mentions = _mentionsOf(session, plan);
+  final guarded = _guardedDocsOf(plan.files);
+  final guardedSet = guarded.toSet();
   return ReadAnswer(
     text:
-        '${_listOf(files)}${_rewritesOf(plan)}${_mentionLinesOf(mentions)}'
+        '${_listOf(files, guardedSet)}${_rewritesOf(plan)}'
+        '${_mentionLinesOf(mentions)}'
+        '${_guardedLineOf(guarded)}'
         'plan $hash\ndry run: nothing removed\n',
     json: {
       'files': files,
+      'guarded': guarded,
       'records': [
         for (final record in plan.records)
           {'path': record.docPath, 'entries': record.entries},
@@ -184,8 +193,15 @@ String _textHashOf(List<int> bytes) {
   }
 }
 
-String _listOf(Iterable<String> docPaths) =>
-    docPaths.map((docPath) => '$docPath\n').join();
+String _listOf(Iterable<String> docPaths, Set<String> guarded) => [
+  for (final docPath in docPaths)
+    if (guarded.contains(docPath)) '$docPath (guarded)\n' else '$docPath\n',
+].join();
+
+/// The `guarded:` count line, or nothing when [guarded] is empty.
+String _guardedLineOf(List<String> guarded) => guarded.isEmpty
+    ? ''
+    : "guarded: ${guarded.length} docs; the delete needs the Owner's ok\n";
 
 /// Returns one `rewrites <DocPath>: <entry>, …` line per record of [plan].
 String _rewritesOf(_DeletePlan plan) => [
@@ -466,21 +482,25 @@ _UnitFiles _readUnit(WriteSession session, List<String> roots) {
   return files;
 }
 
-/// Whether a `.md` file of [files] is guarded (INV-7).
+/// The `.md` files of [files] that are guarded (INV-7), sorted by DocPath.
 ///
 /// Bytes that are not UTF-8 cannot show a draft, so they count as guarded.
-bool _holdsGuardedDoc(_UnitFiles files) {
-  for (final MapEntry(:key, :value) in files.entries) {
-    if (!key.endsWith('.md')) continue;
+List<String> _guardedDocsOf(_UnitFiles files) {
+  final guarded = <String>[];
+  for (final MapEntry(key: docPath, value: bytes) in files.entries) {
+    if (!docPath.endsWith('.md')) continue;
     final String text;
     try {
-      text = utf8.decode(value);
+      text = utf8.decode(bytes);
     } on FormatException {
-      return true;
+      guarded.add(docPath);
+      continue;
     }
-    if (isGuarded(ApprovalFields.of(Doc.parse(toLf(text))))) return true;
+    if (isGuarded(ApprovalFields.of(Doc.parse(toLf(text))))) {
+      guarded.add(docPath);
+    }
   }
-  return false;
+  return guarded..sort();
 }
 
 bool _samePlan(_DeletePlan a, _DeletePlan b) =>
