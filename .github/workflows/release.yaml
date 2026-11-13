@@ -82,7 +82,7 @@ jobs:
         run: |
           if [ "$RUNNER_OS" != Windows ]; then
             listing=$(tar -tvzf "$RUNNER_TEMP/dist/$ASSET")
-            echo "$listing" | grep 'bin/stn$' | grep -q x || {
+            echo "$listing" | grep 'bin/stn$' | grep -Eq '^-..x' || {
               echo "bin/stn missing or not executable in $ASSET" >&2
               exit 1
             }

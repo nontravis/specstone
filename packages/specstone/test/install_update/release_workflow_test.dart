@@ -144,18 +144,20 @@ void main() {
     final stage = _steps(_job(release, 'build'))
         .singleWhere((s) => s['name'] == 'Stage the bundle');
     final run = '${stage['run']}';
-    expect(
-      run,
-      contains(
-        r'cp -p packages/specstone/bin/stn "$RUNNER_TEMP/stage/bin/stn"',
-      ),
+    final windowsArm = run.indexOf(r'if [ "$RUNNER_OS" = Windows ]; then');
+    final posixArm = run.indexOf('else');
+    final cmdCopy = run.indexOf(
+      r'cp -p packages/specstone/bin/stn.cmd "$RUNNER_TEMP/stage/bin/stn.cmd"',
     );
-    expect(
-      run,
-      contains(
-        r'cp -p packages/specstone/bin/stn.cmd "$RUNNER_TEMP/stage/bin/stn.cmd"',
-      ),
+    final stnCopy = run.indexOf(
+      r'cp -p packages/specstone/bin/stn "$RUNNER_TEMP/stage/bin/stn"',
     );
+    // Each copy runs only in its platform arm, so a tar.gz never stages
+    // stn.cmd and the zip never stages stn.
+    expect(windowsArm, isNonNegative);
+    expect(cmdCopy, greaterThan(windowsArm), reason: run);
+    expect(cmdCopy, lessThan(posixArm), reason: run);
+    expect(stnCopy, greaterThan(posixArm), reason: run);
   });
 
   test('install_update/version_match/release_new_version/package_archive '
@@ -174,7 +176,7 @@ void main() {
     expect(run, contains(r"grep -q 'bin/stn.cmd$'"));
     expect(run, contains(r"grep 'bin/stn$'"));
     expect(run, contains(r"grep -q 'stn.cmd$'"));
-    expect(run, contains('grep -q x'));
+    expect(run, contains("grep -Eq '^-..x'"));
   });
 
   test('f09/us04/fr05/e02: the version job checks the tag against '
