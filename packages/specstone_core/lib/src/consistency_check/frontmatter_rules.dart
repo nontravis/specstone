@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -106,21 +107,14 @@ bool _fits(MergedField field, Object value) {
 
 bool _itemFits(MergedField field, Object item) => switch (field.type) {
   FieldType.string || FieldType.docRef || FieldType.outputRef => item is String,
-  FieldType.recordStatus => item is String && _isStatusLine(item),
+  FieldType.recordStatus =>
+    item is String && recordStatusLineOf(item)?.status != null,
   FieldType.integer => item is int,
   FieldType.boolean => item is bool,
   FieldType.date => item is String && _isRealDate(item),
   FieldType.enumType =>
     item is String && (field.enumValues ?? const []).contains(item),
 };
-
-/// Whether [line] is `<item>:<status>`, a `skipped` line carrying a reason.
-bool _isStatusLine(String line) {
-  final split = line.indexOf(':');
-  if (split < 0) return false;
-  final statusWord = line.substring(split + 1).split(':').first;
-  return RecordStatus.byWire(statusWord) != null;
-}
 
 bool _isRealDate(String text) {
   final match = _isoDate.firstMatch(text);

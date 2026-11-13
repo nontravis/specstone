@@ -77,25 +77,14 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
   RecordEntry baseOf(String item) => byItem[item] ?? RecordEntry(item: item);
   if (statusField != null) {
     for (final line in record.valuesOf(statusField.id)) {
-      final split = line.indexOf(':');
       // No `:` names no item; a leading `:` names the feature itself.
-      if (split < 0) continue;
-      final item = line.substring(0, split);
-      final rest = line.substring(split + 1);
-      final statusWord = switch (rest.indexOf(':')) {
-        -1 => rest,
-        final mark => rest.substring(0, mark),
-      };
-      final status = RecordStatus.byWire(statusWord);
-      final reasonMark = rest.indexOf(':');
-      final reason = status == RecordStatus.skipped && reasonMark >= 0
-          ? rest.substring(reasonMark + 1)
-          : null;
-      byItem[item] = RecordEntry(
-        item: item,
-        status: status,
-        reason: reason,
-        codePaths: byItem[item]?.codePaths ?? const [],
+      final parsed = recordStatusLineOf(line);
+      if (parsed == null) continue;
+      byItem[parsed.item] = RecordEntry(
+        item: parsed.item,
+        status: parsed.status,
+        reason: parsed.reason,
+        codePaths: byItem[parsed.item]?.codePaths ?? const [],
       );
     }
   }
@@ -111,6 +100,29 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
     }
   }
   return [for (final entry in byItem.values) entry];
+}
+
+/// Returns the item, status, and `skipped` reason of an `item:status[:reason]`
+/// line of a `record_status` field; null when the line holds no `:`.
+///
+/// The status is null when the word after the first `:` names none.
+({String item, RecordStatus? status, String? reason})? recordStatusLineOf(
+  String line,
+) {
+  final split = line.indexOf(':');
+  if (split < 0) return null;
+  final rest = line.substring(split + 1);
+  final reasonMark = rest.indexOf(':');
+  final status = RecordStatus.byWire(
+    reasonMark < 0 ? rest : rest.substring(0, reasonMark),
+  );
+  return (
+    item: line.substring(0, split),
+    status: status,
+    reason: status == RecordStatus.skipped && reasonMark >= 0
+        ? rest.substring(reasonMark + 1)
+        : null,
+  );
 }
 
 /// Returns the `item:path[:Symbol]` lines of [record]'s [codeField] as item
