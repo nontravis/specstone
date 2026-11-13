@@ -50,10 +50,19 @@ void main() {
 
   test('run_by_short_name BR-04: no tracked file the CLI writes for agents, '
       'the plugin, or the CLI messages names stn', () {
-    final offenders = [
+    final scanned = [
       for (final path in trackedFiles())
-        if (scannedFolders.any(path.startsWith) && File(path).existsSync())
-          for (final line in stnLines(path)) '$path:$line',
+        if (scannedFolders.any(path.startsWith) &&
+            File('${repoRoot().path}/$path').existsSync())
+          path,
+    ];
+
+    // A path bug would scan nothing and pass vacuously; fail loudly instead.
+    expect(scanned, isNotEmpty, reason: 'the scan read no tracked files');
+
+    final offenders = [
+      for (final path in scanned)
+        for (final line in stnLines(path)) '$path:$line',
     ];
 
     expect(
