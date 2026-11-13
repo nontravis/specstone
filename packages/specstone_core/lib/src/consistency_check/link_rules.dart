@@ -3,15 +3,12 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
-import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show markdownExtension;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
-    show pathBreak;
+    show pathsWrittenIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/portable_path.dart';
-import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -344,103 +341,49 @@ String _projectPathOf(String target) {
 }
 
 /// Yields a finding per reference of the shared [doc] to a per-target doc: a
-/// `doc_ref` value, a doc-name mention, a `.md` link, or a DocPath in text.
+/// `doc_ref` value, a doc-name mention, a `.md` link, or a path in text.
 Iterable<Finding> _perTargetReferences(
   CheckContext context,
   IndexedDoc doc,
   List<_DocRefValue> values,
 ) sync* {
-  for (final (:field, :value, :line) in values) {
-    final named = _docsNamedBy(context, field, value);
-    if (_perTargetFinding(context, doc, named, line, value) case final found?) {
-      yield found;
-    }
-  }
   final sets = _nameSets(context.index);
   final facts = context.contentOf(doc).lineFacts;
+  for (final (:field, :value, :line) in values) {
+    final named = _docsNamedBy(context, field, value);
+    yield* _perTargetFinding(context, doc, named, line, value);
+  }
   for (final mention in facts.nameMentions) {
     final named = sets.docsNamed[mention.address.docPart] ?? const [];
-    if (_perTargetFinding(context, doc, named, mention.line, mention.text)
-        case final found?) {
-      yield found;
-    }
+    yield* _perTargetFinding(context, doc, named, mention.line, mention.text);
   }
   for (final place in facts.links) {
     final named = [?context.index.at(place.target)];
-    if (_perTargetFinding(context, doc, named, place.line, place.shown)
-        case final found?) {
-      yield found;
-    }
+    yield* _perTargetFinding(context, doc, named, place.line, place.shown);
   }
-  yield* _perTargetPaths(context, doc);
-}
-
-/// Yields a finding per path in the text of [doc], outside fenced code and
-/// outside a link, that names a per-target doc.
-Iterable<Finding> _perTargetPaths(CheckContext context, IndexedDoc doc) sync* {
-  final content = context.contentOf(doc);
-  final facts = content.lineFacts;
-  final linked = {for (final link in facts.links) (link.line, link.target)};
-  for (final (i, text) in lfLinesOf(toLf(content.text)).indexed) {
-    final line = i + 1;
-    if (facts.isFenced(line)) continue;
-    for (final word in text.split(pathBreak)) {
-      final written = _withoutSentenceEnd(word);
-      if (!written.endsWith(markdownExtension)) continue;
-      final named = _docWrittenAs(context, doc, written);
-      if (named == null || linked.contains((line, named.docPath))) continue;
-      if (_perTargetFinding(context, doc, [named], line, written)
-          case final found?) {
-        yield found;
-      }
-    }
+  for (final (:line, :written, :named) in pathsWrittenIn(context.index, doc)) {
+    yield* _perTargetFinding(context, doc, [named], line, written);
   }
 }
 
-/// Returns [word] less the `.` and `:` that end the sentence it closes.
-String _withoutSentenceEnd(String word) {
-  var end = word.length;
-  while (end > 0 && (word[end - 1] == '.' || word[end - 1] == ':')) {
-    end--;
-  }
-  return word.substring(0, end);
-}
-
-/// Returns the doc [written] names from [from]: the doc at that DocPath, else
-/// the one it reaches as a link would; null when none.
-IndexedDoc? _docWrittenAs(
-  CheckContext context,
-  IndexedDoc from,
-  String written,
-) {
-  if (context.index.at(written) case final doc?) return doc;
-  return switch (resolveDocLink(written, from.docPath)) {
-    DocTarget(:final docPath) => context.index.at(docPath),
-    _ => null,
-  };
-}
-
-/// Returns the `per_target_reference` finding of the shared [doc] for the
-/// reference [written] at [line] when every doc of [named] is per-target,
-/// else null.
+/// Yields the `per_target_reference` finding of the shared [doc] for the
+/// reference [written] at [line] when every doc of [named] is per-target.
 ///
 /// One comparison of the two docs' targets covers every reference kind.
-Finding? _perTargetFinding(
+Iterable<Finding> _perTargetFinding(
   CheckContext context,
   IndexedDoc doc,
   List<IndexedDoc> named,
   int line,
   String written,
-) {
-  if (named.isEmpty || named.any((target) => target.target == null)) {
-    return null;
-  }
+) sync* {
+  if (named.isEmpty || named.any((target) => target.target == null)) return;
   final held = {for (final target in named) target.target};
   final targets = [
     for (final name in context.index.targetNames)
       if (held.contains(name)) name,
   ].join(', ');
-  return context.finding(
+  yield context.finding(
     doc,
     FindingKind.perTargetReference,
     line: line,

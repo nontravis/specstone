@@ -952,6 +952,36 @@ void main() {
       expect(findings.single.line, lineOf(project, loginNf, path));
     });
 
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        'DocPath with a #anchor, one closing a sentence, and a docs/ path '
+        'are reported; a fenced one is not', () async {
+      const path = 'specs/jaspr/f01_login/ARCHITECTURE.md';
+      final project = await writeTwinProject(
+        extra: shared(
+          'See `$path#boxes`.\n\nAlso $path.\n\nAnd `docs/$path`.\n\n'
+          '```text\n$path\n```',
+        ),
+      );
+
+      final findings = found(project, FindingKind.perTargetReference);
+
+      expect(
+        [for (final f in findings) f.keys['reference']],
+        [path, path, 'docs/$path'],
+      );
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        'link whose destination runs onto a later line is reported once', () async {
+      final project = await writeTwinProject(
+        extra: shared(
+          'See [arch](\n../../../../specs/flutter/f01_login/ARCHITECTURE.md).',
+        ),
+      );
+
+      expect(found(project, FindingKind.perTargetReference), hasLength(1));
+    });
+
     test(
       'consistency_check/find_broken_pointers/resolve_doc_links E30: a '
       'doc_ref value naming a per-target doc is reported at the value',
