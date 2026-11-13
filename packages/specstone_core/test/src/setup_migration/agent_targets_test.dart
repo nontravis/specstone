@@ -547,7 +547,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner text\n${_imports('')}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner text\n\n${_imports('')}');
       expect(_writeAt(plan, 'CLAUDE.md').isNew, isFalse);
       expect(_paths(plan), isNot(contains('AGENTS.md')));
     });
@@ -731,7 +731,7 @@ void main() {
 
       expect(
         _writeAt(plan, 'CLAUDE.md').text,
-        '﻿$crlf${_imports('').replaceAll('\n', '\r\n')}',
+        '﻿$crlf\r\n${_imports('').replaceAll('\n', '\r\n')}',
       );
     });
 
@@ -741,7 +741,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_writeAt(plan, 'CLAUDE.md').text, '$fenced${_imports('')}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, '$fenced\n${_imports('')}');
     });
 
     test('$_write E05: a malformed file refuses the plan, naming every '
@@ -859,7 +859,7 @@ void main() {
 
       expect(_paths(plan), [_agentMd, 'AGENTS.md', 'other/CLAUDE.md']);
       final write = _writeAt(plan, 'other/CLAUDE.md');
-      expect(write.text, 'Owner\n${_imports('../')}');
+      expect(write.text, 'Owner\n\n${_imports('../')}');
       expect(write.isAtTop, isTrue);
       expect(plan.agentFileRoots, ['other']);
     });
@@ -1101,7 +1101,7 @@ void main() {
       final plan = planAgentWrites(_inputs(base), full: true);
 
       expect(_paths(plan), [_agentMd, 'CLAUDE.md']);
-      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner\n${_inline()}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner\n\n${_inline()}');
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('review focus: a symbolic-link instruction file plans a write from '
@@ -1116,7 +1116,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n${_imports('')}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n\n${_imports('')}');
       expect(_paths(plan), isNot(contains('AGENTS.md')));
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
@@ -1226,7 +1226,7 @@ void main() {
         );
 
         expect(_paths(plan), ['AGENTS.md']);
-        expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n${_inline()}');
+        expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n\n${_inline()}');
         expect(plan.addedRoots, ['other']);
       });
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);

@@ -13,7 +13,9 @@ const _agentMd =
     '## Rules\n'
     '- code ⊆ spec ⊆ PRD: build only what a spec states, and specify only what '
     'the PRD asks for. When code needs\n'
-    '  something no spec states, stop and ask the Owner.\n'
+    '  something no spec states, stop and ask the Owner. Code and tests name '
+    'no doc, path, or item ID; the doc\n'
+    '  names the code.\n'
     '- Read docs with `specstone context <target> --for <mode>` or '
     '`specstone get <name>`; never open doc files directly.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
@@ -332,16 +334,35 @@ void main() {
       expect(upsertBlock('', _inlineBlock()), _inlineBlock());
     });
 
+    test('$_fr E02: a CRLF file takes the blank line in CRLF', () {
+      const owner = '# Mine\nText.\n';
+
+      expect(
+        upsertBlock(_crlf(owner), _importBlock()),
+        '${_crlf(owner)}\r\n${_crlf(_importBlock())}',
+      );
+    });
+
     test('$_fr E02: the block is appended and every earlier byte stays', () {
       const owner = '# My project\n\nOwner text.\n';
 
-      expect(upsertBlock(owner, _importBlock()), '$owner${_importBlock()}');
+      expect(upsertBlock(owner, _importBlock()), '$owner\n${_importBlock()}');
     });
 
-    test('$_fr: a last line without a line feed gets the BEGIN on its own', () {
-      const owner = '# My project\nOwner text.';
+    test('$_fr E02: no final line feed takes one before the blank line', () {
+      const owner = '# My project\n\nOwner text.';
 
-      expect(upsertBlock(owner, _importBlock()), '$owner\n${_importBlock()}');
+      expect(upsertBlock(owner, _importBlock()), '$owner\n\n${_importBlock()}');
+    });
+
+    test('$_fr E02: an empty file takes the block with no blank line', () {
+      expect(upsertBlock('', _importBlock()), _importBlock());
+    });
+
+    test('$_fr E02: a blank last line adds no second blank line', () {
+      const owner = '# My project\n\nOwner text.\n\n';
+
+      expect(upsertBlock(owner, _importBlock()), '$owner${_importBlock()}');
     });
 
     test('$_fr E03: a differing body is replaced in place', () {
@@ -384,7 +405,7 @@ void main() {
 
       expect(
         upsertBlock(owner, _importBlock()),
-        '$owner${_crlf(_importBlock())}',
+        '$owner\r\n${_crlf(_importBlock())}',
       );
     });
 
@@ -412,7 +433,7 @@ void main() {
     test('$_fr: a UTF-8 BOM stays when the block is appended', () {
       const owner = '\uFEFFOwner text.\n';
 
-      expect(upsertBlock(owner, _importBlock()), '$owner${_importBlock()}');
+      expect(upsertBlock(owner, _importBlock()), '$owner\n${_importBlock()}');
     });
 
     test('$_fr: a UTF-8 BOM stays when the first line is the BEGIN line', () {
@@ -460,9 +481,17 @@ void main() {
         const owner = '```\ncode\n```\n';
         final first = upsertBlock(owner, _importBlock());
 
-        expect(first, '$owner${_importBlock()}');
+        expect(first, '$owner\n${_importBlock()}');
         expect(upsertBlock(first!, _importBlock()), isNull);
       },
     );
+
+    test('$_fr: one clause names the no-doc rule for code and tests', () {
+      final firstRule = _rules(agentMdText)
+          .singleWhere((rule) => rule.startsWith('- code ⊆ spec'));
+
+      expect(firstRule, contains('Code and tests name no doc, path, or item'));
+      expect(firstRule, contains('ID; the doc names the code'));
+    });
   });
 }

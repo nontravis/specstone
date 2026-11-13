@@ -4,7 +4,8 @@ This project keeps its PRD and spec as Specstone docs.
 
 ## Rules
 - code ⊆ spec ⊆ PRD: build only what a spec states, and specify only what the PRD asks for. When code needs
-  something no spec states, stop and ask the Owner.
+  something no spec states, stop and ask the Owner. Code and tests name no doc, path, or item ID; the doc
+  names the code.
 - Read docs with `specstone context <target> --for <mode>` or `specstone get <name>`; never open doc files directly.
 - With 2+ code targets, add `--target <code target>`.
 - Change docs only with `specstone set`, `new`, `move`, or `rename`. What an agent writes stays a draft until the
