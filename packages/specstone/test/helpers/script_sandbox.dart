@@ -328,6 +328,8 @@ final class ScriptSandbox {
       final bin = '${stage.path}${_separator}bin';
       if (_windows) {
         _compileFakeCliSync(version, '$bin${_separator}specstone.exe');
+        File('${repoRoot().path}/packages/specstone/bin/stn.cmd')
+            .copySync('$bin${_separator}stn.cmd');
       } else {
         final binary = File('$bin${_separator}specstone')
           ..createSync(recursive: true)
@@ -386,7 +388,6 @@ final class ScriptSandbox {
   }
 }
 
-/// The raw user PATH: the registry value unexpanded, and its kind.
 typedef UserPath = ({String value, String kind});
 
 /// Returns the Windows user PATH as the registry holds it, or null if unset.

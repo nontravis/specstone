@@ -2358,5 +2358,274 @@ if ($env:HARNESS_MODE -eq 'iex') {
       expect(r.stdout, contains('STRICT=True'));
       expect((r.stdout as String).trim(), endsWith('EAP=Continue'));
     });
+
+    group('name_other_stn_at_install', () {
+      const fr =
+          'install_update/machine_install/run_by_short_name/'
+          'name_other_stn_at_install';
+
+      final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+      final systemEntries =
+          '$system\\System32;$system\\System32\\WindowsPowerShell\\v1.0';
+
+      String notice(String path) =>
+          'specstone: another stn is at $path; '
+          'type specstone to run the CLI';
+
+      // Writes another tool's `stn` file named [extension] in [folder] and
+      // returns its path.
+      String otherStn(String folder, String extension) {
+        final file = File('$folder\\stn.$extension')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('rem another tool\r\n');
+        return file.path;
+      }
+
+      // The sandbox PATH plus [entries], the sandbox stubs kept.
+      String pathWith(ScriptSandbox sb, List<String> entries) =>
+          [sb.stubs.path, ...entries, systemEntries].join(';');
+
+      // The fake archive stages the repo's stn.cmd beside specstone.exe; the
+      // built bundle holds no shim.
+      Future<ScriptSandbox> sandboxWithShim() async {
+        final sb = await createScriptSandbox();
+        await sb.writeArchive('windows-x64');
+        return sb;
+      }
+
+      pathTest('$fr S2, E04: another stn.exe on a later absolute entry prints '
+          r'one notice line; bin\stn.cmd is installed; exit 0', () async {
+        final sb = await sandboxWithShim();
+        final tools = Directory('${sb.root.path}\\space tools')..createSync();
+        final found = otherStn(tools.path, 'exe');
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [
+              '${sb.home.path}\\.specstone\\bin',
+              tools.path,
+            ]),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains(notice(found)));
+        expect(
+          'another stn'.allMatches(flat(r.stdout)).length,
+          1,
+          reason: '${r.stdout}',
+        );
+        expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isTrue);
+      });
+
+      pathTest(
+        '$fr E05: the earliest match is stn.ps1, an earlier stn.ps1 named '
+        r'before a later stn.exe; bin\stn.cmd installed',
+        () async {
+          final sb = await sandboxWithShim();
+          final earlier = otherStn('${sb.root.path}\\earlier', 'ps1');
+          final later = otherStn('${sb.root.path}\\later', 'exe');
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [
+                '${sb.home.path}\\.specstone\\bin',
+                '${sb.root.path}\\earlier',
+                '${sb.root.path}\\later',
+              ]),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), contains(notice(earlier)));
+          expect(flat(r.stdout), isNot(contains(later)));
+          expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isTrue);
+        },
+      );
+
+      pathTest('$fr E02: two other stn name the earlier entry only', () async {
+        final sb = await sandboxWithShim();
+        final first = otherStn('${sb.root.path}\\first', 'exe');
+        final second = otherStn('${sb.root.path}\\second', 'exe');
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [
+              '${sb.home.path}\\.specstone\\bin',
+              '${sb.root.path}\\first',
+              '${sb.root.path}\\second',
+            ]),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains(notice(first)));
+        expect(flat(r.stdout), isNot(contains(second)));
+      });
+
+      pathTest('$fr E01: no other stn prints no notice', () async {
+        final sb = await sandboxWithShim();
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin']),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), isNot(contains('another stn')));
+      });
+
+      pathTest(
+        '$fr E03: a stn on a relative entry only prints no notice',
+        () async {
+          final sb = await sandboxWithShim();
+          otherStn('${sb.root.path}\\rel', 'exe');
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, ['rel', '.', '']),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), isNot(contains('another stn')));
+        },
+      );
+
+      pathTest('$fr E07, review focus 2: the install folder with a trailing '
+          'backslash, another case, a quoted spelling, or through a junction '
+          'prints no notice', () async {
+        final sb = await sandboxWithShim();
+        final linked = '${sb.root.path}\\linked';
+        final target = Directory('${sb.home.path}\\.specstone\\bin')
+          ..createSync(recursive: true);
+        final junction = Process.runSync('cmd', [
+          '/d',
+          '/v:off',
+          '/s',
+          '/c',
+          'mklink /j "$linked" "${target.path}"',
+        ]);
+        expect(junction.exitCode, 0, reason: '${junction.stderr}');
+
+        for (final entry in [
+          '${target.path}\\',
+          target.path.toUpperCase(),
+          '"${target.path}"',
+          '"${target.path}\\"',
+          linked,
+        ]) {
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [entry]),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), isNot(contains('another stn')), reason: entry);
+        }
+      });
+
+      pathTest('$fr E08: a folder named stn.exe prints no notice', () async {
+        final sb = await sandboxWithShim();
+        Directory('${sb.root.path}\\tools\\stn.exe')
+            .createSync(recursive: true);
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['${sb.root.path}\\tools']),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), isNot(contains('another stn')));
+      });
+
+      pathTest(
+        '$fr E08: a file named plain stn with no extension prints no notice',
+        () async {
+          final sb = await sandboxWithShim();
+          File('${sb.root.path}\\tools\\stn')
+            ..createSync(recursive: true)
+            ..writeAsStringSync('another tool');
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, ['${sb.root.path}\\tools']),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), isNot(contains('another stn')));
+        },
+      );
+
+      pathTest(
+        'review focus 2: a quoted PATH entry holding a ; is read as the one '
+        'folder inside the quotes',
+        () async {
+          final sb = await sandboxWithShim();
+          final tools = Directory('${sb.root.path}\\tools;a')..createSync();
+          final found = otherStn(tools.path, 'exe');
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, ['"${tools.path}"']),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), contains(notice(found)));
+        },
+      );
+
+      pathTest(
+        'review focus 5: a missing absolute entry is skipped with nothing '
+        'on stderr',
+        () async {
+          final sb = await sandboxWithShim();
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, ['${sb.root.path}\\no such folder']),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stderr), isNot(contains('stn')));
+          expect(flat(r.stdout), isNot(contains('another stn')));
+        },
+      );
+
+      pathTest('api install step 5: a run at the installed Version prints the '
+          'notice too', () async {
+        final sb = await sandboxWithShim();
+        sb.installFake(version: specstoneVersion);
+        final tools = Directory('${sb.root.path}\\tools')..createSync();
+        final found = otherStn(tools.path, 'exe');
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [tools.path]),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains('is already the latest release'));
+        expect(flat(r.stdout), contains(notice(found)));
+      });
+    });
   });
 }
