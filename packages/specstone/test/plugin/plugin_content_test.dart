@@ -1184,6 +1184,97 @@ void _agentTests() {
     );
   });
 
+  test(
+    'agent_plugin/ground_a_task/ground_through_context E14: read-sdd runs a '
+    "plan task's read line with its --target as written and cites INV-25",
+    () {
+      final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+      expect(
+        skill,
+        contains('specstone context <story> --for implement --target <name>'),
+      );
+      expect(skill, contains("a plan task's read line's, as written"));
+      expect(skill, contains('`domain:agent_plugin` INV-25'));
+    },
+  );
+
+  test('agent_plugin/ground_a_task/ground_through_context E15: read-sdd gives '
+      'a task no plan wrote no --target in query or design mode', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains('none in `query` or `design`'),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E16: read-sdd has a '
+      'main session ask the Owner after argument_missing and rerun with '
+      '--target', () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        'In `implement` with no plan target and no `--code` path, an '
+        '`argument_missing` refusal names the targets: a main session asks '
+        'the Owner and reruns with `--target <name>`',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E17: read-sdd has a '
+      'Subagent stop and report the missing target to its dispatcher', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains(
+        'a Subagent runs no further call and reports the missing target, '
+        'naming them, to its dispatcher',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E18: read-sdd '
+      "hands the call's --target to sdd-reader on exit 1", () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        'Dispatch `specstone:sdd-reader` with the same target IDs, '
+        "the call's `--target`, the mode, and the task",
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        "`--summary` beside each ID whose call used it, the call's "
+        '`--target`, and no doc text',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/return_whole_sections E06: sdd-reader runs '
+      "context with the hand-off's --target in implement mode and cites "
+      'INV-25', () {
+    final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
+    expect(
+      reader,
+      contains('specstone context <target> --for <mode> [--summary] '),
+    );
+    expect(
+      reader,
+      contains(
+        "Add `--target <name>` in `implement` mode, as the hand-off's "
+        '`domain:agent_plugin` INV-25 gives',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/return_whole_sections E07: sdd-reader '
+      'passes no --target in query or design mode', () {
+    expect(
+      _oneLine(_pluginText('agents/sdd-reader.md')),
+      contains('none in `query` or `design` mode'),
+    );
+  });
+
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
       'doc and adds a story with --summary', () {
     final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
