@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
+import 'package:specstone_core/src/consistency_check/diagram_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
@@ -91,7 +92,8 @@ CheckReport runCheck(
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
       ..addAll(checkOpenTbrs(context, doc))
-      ..addAll(checkReferenceEntries(context, doc));
+      ..addAll(checkReferenceEntries(context, doc))
+      ..addAll(checkDiagrams(context, doc));
   }
   if (scope.isProject) {
     findings
