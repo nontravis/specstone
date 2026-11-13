@@ -490,6 +490,15 @@ void main() {
     expect(nameOf('specs/jaspr/f01_login/ARCHITECTURE.md'), 'login');
   });
 
+  test('doc_model RULE-21: a per-target doc of a pattern with no folder drops '
+      'its target folder at the front, so twins share the name', () {
+    final notes = nestedType('note', '{slug}.md').copyWith(isPerTarget: true);
+
+    expect(docNameOf('flutter/notes.md', notes, target: 'flutter'), 'notes');
+    expect(docNameOf('jaspr/notes.md', notes, target: 'jaspr'), 'notes');
+    expect(docNameOf('notes.md', notes), 'notes');
+  });
+
   group('formatted and laid-out counts', () {
     const featurePath = 'prds/features/f01_login/FEATURE.md';
     const padded =

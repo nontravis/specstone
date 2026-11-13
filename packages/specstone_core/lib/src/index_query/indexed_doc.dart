@@ -57,16 +57,16 @@ String sectionKeyOf(String headerText) => headerText
 ///
 /// The `{slug}` values of the doc type path that matches joined with `/`; the
 /// doc type id when that path has none; [docPath] when [docType] is null. A
-/// doc matched through [target]'s pattern set drops the target folder first,
-/// so twins of two targets share the name (RULE-21).
+/// doc matched through [target]'s pattern set is read with that set's
+/// patterns, as the matcher expands them, so its target folder names no slug
+/// and twins of two targets share the name (RULE-21).
 String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
   if (docType == null) return docPath;
-  final segments = docPath.split('/');
-  final targetFree = target == null || segments.length < 3
-      ? docPath
-      : [...segments.sublist(0, 1), ...segments.sublist(2)].join('/');
   for (final path in docType.paths) {
-    final slugs = PathPattern(path).slugValues(targetFree);
+    final pattern = target == null
+        ? PathPattern(path)
+        : PathPattern(path).forTarget(target);
+    final slugs = pattern.slugValues(docPath);
     if (slugs != null) return slugs.isEmpty ? docType.id : slugs.join('/');
   }
   return docType.id;
