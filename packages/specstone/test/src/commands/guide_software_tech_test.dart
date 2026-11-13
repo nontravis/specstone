@@ -206,6 +206,7 @@ void main() {
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
       expect(json['path'], 'specs/f{nn}_{slug}/IMPLEMENTATION.md');
       expect(json['parent'], 'feature');
+      expect(json['perTarget'], isTrue);
       final fields = (json['fields']! as List<Object?>)
           .cast<Map<String, Object?>>();
       expect(_idsOf(fields), [

@@ -305,6 +305,24 @@ void main() {
       expect(stamp.binaryVersion, specstoneVersion);
       expect(stamp.targetNames, isEmpty);
     });
+    test('index_query/read_current_docs/refresh_index_before_answering E02, domain:index_query INV-2: a template edit that only flips per_target gives another stamp, so the index rebuilds', () {
+      MergedSet setWith({required bool isPerTarget}) => MergedSet(
+        docTypes: [
+          MergedDocType(
+            id: 'topic',
+            isPerTarget: isPerTarget,
+            fields: const [],
+            sections: const [],
+            lint: const MergedLint(),
+            files: const [],
+          ),
+        ],
+      );
+      expect(
+        IndexStamp.of(setWith(isPerTarget: false)),
+        isNot(IndexStamp.of(setWith(isPerTarget: true))),
+      );
+    });
     test('domain:index_query INV-2: a stamp holds the target names in config '
         'order, and other names give another stamp', () async {
       final store = IndexStore.open(await root());

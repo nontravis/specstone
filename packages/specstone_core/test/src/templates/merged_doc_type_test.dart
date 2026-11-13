@@ -185,6 +185,26 @@ void main() {
       expect(merged.toJson()['maxDepth'], 2);
     });
 
+    test('template_packs/read_writing_guide/print_merged_schema: a per-target '
+        'doc type prints perTarget right after maxDepth; one that is not '
+        'prints no key', () {
+      final perTarget = _merge(_featureLayer, 'max_depth: 2\nper_target: true');
+
+      expect(perTarget.toJson().keys.take(6), [
+        'id',
+        'description',
+        'path',
+        'maxDepth',
+        'perTarget',
+        'fields',
+      ]);
+      expect(perTarget.toJson()['perTarget'], isTrue);
+      expect(
+        _merge(_featureLayer, 'per_target: false').toJson(),
+        isNot(contains('perTarget')),
+      );
+    });
+
     test('tpl-s03/inv28: maxDepth 0 prints and does not nest; no key prints '
         'nothing', () {
       final flat = _merge(_featureLayer, 'max_depth: 0');

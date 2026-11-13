@@ -434,6 +434,7 @@ final class MergedDocType {
       'extends': ?extendsId,
       'path': ?path,
       'maxDepth': ?maxDepth,
+      if (isPerTarget) 'perTarget': true,
       'bundle': ?bundle,
       'fields': [for (final field in fields) field.toJson()],
       'sections': [for (final section in sections) section.toJson()],
