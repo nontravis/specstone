@@ -1,12 +1,15 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show MoveStep, WriteStep, textHashOf;
 import 'package:specstone_core/src/git_process.dart' show RunGit;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show frontmatterValuesOf;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
@@ -16,6 +19,7 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart'
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
@@ -24,6 +28,7 @@ import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart' show recordLayer, recordText;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -109,6 +114,7 @@ void main() {
   _renumberTests();
   _labelTests();
   _stampTests();
+  _moveToRecordTests();
   _planInputTests();
 
   test('agentFilesSince matches the shipped versions of its packs', () {
@@ -2020,6 +2026,426 @@ void _planInputTests() {
       _hashOf(plan);
 
       expect(calls, isEmpty);
+    });
+  });
+}
+
+const _recordPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
+''';
+
+const _featurePath = 'prds/features/f01_login/FEATURE.md';
+const _loginStoryPath =
+    'prds/features/f01_login/us01_email_login/USER_STORY.md';
+const _loginFrPath =
+    'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+const _overrideFile = '.specstone/templates/implementation.yaml';
+
+const _implementedStory =
+    '---\nvision:\n  - PV-01\nstatus: implemented\nimplements:\n'
+    '  - app/lib/login/sign_in.dart:SignIn\n---\n# Email login\n';
+const _plannedFr = '---\nstatus: planned\n---\n# Validate credentials\n';
+const Map<String, String> _loginDocs = {
+  _featurePath: '# Login\n',
+  _loginStoryPath: _implementedStory,
+  _loginFrPath: _plannedFr,
+};
+
+Future<({Directory project, Directory home})> _recordFixture({
+  Map<String, String> docs = _loginDocs,
+  Map<String, String> extra = const {},
+  Map<String, String> packFiles = const {},
+}) async => (
+  home: await writeTree({
+    '.specstone/packs/acme/pack.yaml': _recordPackYaml,
+    '.specstone/packs/acme/implementation.yaml': recordLayer,
+    ...packFiles,
+  }),
+  project: await writeTree({
+    '.specstone/config.yaml': _config('1.0.0'),
+    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+    ...extra,
+  }),
+);
+
+MigrateFault _refusedPlan(({Directory project, Directory home}) fixture) {
+  try {
+    _plan(fixture);
+  } on MigrateFault catch (fault) {
+    return fault;
+  }
+  fail('expected the plan to refuse');
+}
+
+Map<String, Object?> _valuesOf(String text) =>
+    frontmatterValuesOf(Doc.parse(text));
+
+/// [lf] stamped with the approval hash it has under the shipped packs.
+String _approvedUnderShipped(String lf, String docTypeId) => withApprovalHash(
+  lf,
+  TemplateResolver()
+      .resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      )
+      .lookup(docTypeId),
+);
+
+/// The doc type [docTypeId] of the fixture's packs at their available versions.
+MergedDocType _finalType(
+  ({Directory project, Directory home}) fixture,
+  String docTypeId,
+) => TemplateResolver()
+    .resolveCarried(
+      packNames: const ['prd-core', 'software-tech', 'acme'],
+      homeDirectory: fixture.home,
+    )
+    .lookup(docTypeId)!;
+
+void _moveToRecordTests() {
+  group('move_to_record step', () {
+    test('$_fr E33: a story and an FR move their status and code paths into '
+        'a new draft record, and the plan names the record', () async {
+      final plan = _plan(await _recordFixture());
+
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_recordPath',
+      );
+      expect(record.note, ' (draft)');
+      expect(_valuesOf(record.text), {
+        'draft': true,
+        'statuses': [
+          'email_login:implemented',
+          'email_login/validate_credentials:planned',
+        ],
+        'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
+      });
+      for (final path in [_loginStoryPath, _loginFrPath]) {
+        final text = _rewriteAt(plan, 'docs/$path').text;
+        expect(text, isNot(contains('status:')));
+        expect(text, isNot(contains('implements:')));
+      }
+      expect(_rewriteAt(plan, 'docs/$_loginStoryPath').text, contains('PV-01'));
+      final text = plan.toText();
+      expect(
+        text,
+        contains(
+          '  from 1.0.0: move_to_record user_story, fr status, implements '
+          '-> implementation: 2 docs\n',
+        ),
+      );
+      expect(text, contains('commit 2, creates:\n  $_recordPath (draft)\n'));
+    });
+
+    test('$_fr E33: a feature with no story value gets no record, and the '
+        'step line counts no docs', () async {
+      final plan = _plan(
+        await _recordFixture(
+          docs: {
+            _featurePath: '# Login\n',
+            _loginStoryPath: '---\nvision:\n  - PV-01\n---\n# Email login\n',
+          },
+        ),
+      );
+
+      expect(plan.creates, isEmpty);
+      expect(plan.toText(), contains('-> implementation: no doc changes\n'));
+    });
+
+    test('$_fr E34: a record that holds the story with the same values keeps '
+        'its entry, and the FR joins it', () async {
+      final plan = _plan(
+        await _recordFixture(
+          docs: {
+            ..._loginDocs,
+            _recordPath: recordText(
+              front: 'draft: true\n',
+              statuses: ['email_login:implemented'],
+              code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
+            ),
+          },
+        ),
+      );
+
+      expect(plan.creates, isEmpty);
+      final record = _rewriteAt(plan, 'docs/$_recordPath').text;
+      expect(_valuesOf(record), {
+        'draft': true,
+        'statuses': [
+          'email_login:implemented',
+          'email_login/validate_credentials:planned',
+        ],
+        'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
+      });
+      expect(
+        _rewriteAt(plan, 'docs/$_loginStoryPath').text,
+        isNot(contains('status:')),
+      );
+    });
+
+    test('$_fr E34: a record that holds other values for the item refuses '
+        'value_unplaced, naming the doc and key', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          docs: {
+            ..._loginDocs,
+            _recordPath: recordText(statuses: ['email_login:planned']),
+          },
+        ),
+      );
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.exitStatus, 65);
+      expect(fault.code.wire, 'value_unplaced');
+      expect(fault.file, _loginStoryPath);
+      expect(fault.key, 'status');
+    });
+
+    test('$_fr E34: a record that holds other code paths for the item '
+        'refuses on the code key', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          docs: {
+            ..._loginDocs,
+            _recordPath: recordText(
+              code: ['email_login:app/lib/login/other.dart'],
+            ),
+          },
+        ),
+      );
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.file, _loginStoryPath);
+      expect(fault.key, 'implements');
+    });
+
+    group('$_fr E35: a value with no place refuses before anything prints', () {
+      Future<MigrateFault> refuse(Map<String, String> docs) async =>
+          _refusedPlan(await _recordFixture(docs: docs));
+
+      test('a story with no parent feature', () async {
+        final fault = await refuse({_loginStoryPath: _implementedStory});
+
+        expect(fault.code, MigrateFaultCode.valueUnplaced);
+        expect(fault.file, _loginStoryPath);
+        expect(fault.key, 'status');
+      });
+
+      test('a status no entry takes', () async {
+        final fault = await refuse({
+          ..._loginDocs,
+          _loginFrPath: '---\nstatus: wip\n---\n# Validate credentials\n',
+        });
+
+        expect(fault.file, _loginFrPath);
+        expect(fault.key, 'status');
+        expect(fault.message, contains('wip'));
+      });
+
+      test('an implements value that is no list of code paths', () async {
+        final fault = await refuse({
+          ..._loginDocs,
+          _loginStoryPath: '---\nimplements:\n  a: b\n---\n# Email login\n',
+        });
+
+        expect(fault.file, _loginStoryPath);
+        expect(fault.key, 'implements');
+      });
+
+      test('a doc whose frontmatter is not valid YAML', () async {
+        final fault = await refuse({
+          ..._loginDocs,
+          _loginStoryPath:
+              '---\nstatus: implemented\nimplements: [a\n---\n# E\n',
+        });
+
+        expect(fault.file, _loginStoryPath);
+        expect(fault.key, 'status');
+      });
+
+      test('every offending doc is listed once, in doc order', () async {
+        final fault = await refuse({
+          ..._loginDocs,
+          _loginStoryPath: '---\nstatus: wip\nimplements: 4\n---\n# E\n',
+          _loginFrPath: '---\nstatus: later\n---\n# V\n',
+        });
+
+        expect(fault.toText().split('\n'), [
+          startsWith('$_loginStoryPath: status: '),
+          startsWith('$_loginFrPath: status: '),
+        ]);
+        expect(fault.more, hasLength(1));
+      });
+    });
+
+    test(
+      '$_fr E36: a project architecture path in a folder of its own and '
+      'no implementation path writes the record override beside it',
+      () async {
+        for (final arch in [
+          'specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md',
+          'specs/{slug}/f{nn}_{slug}/ARCH.md',
+        ]) {
+          final plan = _plan(
+            await _recordFixture(
+              docs: {_featurePath: '# Login\n'},
+              extra: {
+                '.specstone/templates/architecture.yaml': 'path: $arch\n',
+              },
+            ),
+          );
+
+          final create = plan.creates.singleWhere(
+            (create) => create.path == _overrideFile,
+          );
+          expect(
+            create.text,
+            'path: specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md\n',
+          );
+          expect(plan.toText(), contains('  $_overrideFile\n'));
+        }
+      },
+    );
+
+    test('$_fr E36: no override is written when the pack path already lies '
+        'beside architecture, or the Owner set the record path', () async {
+      final plain = _plan(await _recordFixture(docs: {_featurePath: '# L\n'}));
+      expect(plain.creates, isEmpty);
+
+      final owned = _plan(
+        await _recordFixture(
+          docs: {_featurePath: '# L\n'},
+          extra: {
+            '.specstone/templates/architecture.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+            _overrideFile: 'path: specs/{slug}/f{nn}_{slug}/IMPL.md\n',
+          },
+        ),
+      );
+      expect(owned.creates, isEmpty);
+    });
+
+    test('$_fr E36: an architecture file named by the slug refuses '
+        'override_dangling before any write', () async {
+      final fixture = await _recordFixture(
+        docs: {_featurePath: '# L\n'},
+        extra: {
+          '.specstone/templates/architecture.yaml':
+              'path: specs/{slug}/f{nn}_{slug}.md\n',
+        },
+      );
+
+      final fault = _refusedPlan(fixture);
+
+      expect(fault.code, MigrateFaultCode.overrideDangling);
+      expect(fault.file, _overrideFile);
+      expect(fault.key, 'path');
+    });
+
+    test('$_fr E38: a story and an FR approved before the run take the hash '
+        'of their new content, and the record stays a draft', () async {
+      final fixture = await _recordFixture(
+        docs: {
+          _featurePath: '# Login\n',
+          _loginStoryPath: _approvedUnderShipped(
+            _implementedStory,
+            'user_story',
+          ),
+          _loginFrPath: _approvedUnderShipped(_plannedFr, 'fr'),
+        },
+      );
+
+      final plan = _plan(fixture);
+
+      final story = _stampedDocText(plan, _loginStoryPath);
+      final fr = _stampedDocText(plan, _loginFrPath);
+      expect(
+        _valuesOf(story)['approved'],
+        approvalHashOf(story, _finalType(fixture, 'user_story')),
+      );
+      expect(
+        _valuesOf(fr)['approved'],
+        approvalHashOf(fr, _finalType(fixture, 'fr')),
+      );
+      expect(story, isNot(contains('status:')));
+      final record = plan.creates.single.text;
+      expect(_valuesOf(record), isNot(contains('approved')));
+      expect(_valuesOf(record)['draft'], true);
+      expect(
+        plan.toText(),
+        contains('stamps: 2 approval hashes, 0 fingerprints'),
+      );
+    });
+
+    test('$_fr E38: the hash before the run counts the code field the final '
+        'type no longer declares, so the doc stays approved', () async {
+      const dropped = 'fields:\n  - {id: implements, disabled: true}\n';
+      final fixture = await _recordFixture(
+        docs: {
+          _featurePath: '# Login\n',
+          _loginStoryPath: _approvedUnderShipped(
+            _implementedStory,
+            'user_story',
+          ),
+        },
+        packFiles: {
+          '.specstone/packs/acme/user_story.yaml': dropped,
+          '.specstone/packs/acme/fr.yaml': dropped,
+        },
+      );
+      expect(
+        _finalType(fixture, 'user_story').fields.map((f) => f.id),
+        isNot(contains('implements')),
+      );
+
+      final plan = _plan(fixture);
+
+      final story = _stampedDocText(plan, _loginStoryPath);
+      expect(
+        _valuesOf(story)['approved'],
+        approvalHashOf(story, _finalType(fixture, 'user_story')),
+      );
+    });
+
+    test('$_fr E38: a doc whose hash did not match keeps it, and a doc with '
+        'neither key gets no entry', () async {
+      final stale = _implementedStory.replaceFirst(
+        '---\n',
+        '---\napproved: "000000000000"\n',
+      );
+      final plan = _plan(
+        await _recordFixture(
+          docs: {
+            _featurePath: '# Login\n',
+            _loginStoryPath: stale,
+            _loginFrPath: '---\nvision: []\n---\n# Validate credentials\n',
+          },
+        ),
+      );
+
+      expect(
+        _valuesOf(_stampedDocText(plan, _loginStoryPath))['approved'],
+        '000000000000',
+      );
+      expect(_valuesOf(plan.creates.single.text)['statuses'], [
+        'email_login:implemented',
+      ]);
+    });
+
+    test('$_fr E39: a pack that is no one-time trigger runs no one-time '
+        'pass beside the step', () async {
+      final text = _plan(await _recordFixture()).toText();
+
+      expect(text, isNot(contains('renumber ids:')));
+      expect(text, isNot(contains('number labels:')));
+      expect(text, isNot(contains('agent files:')));
     });
   });
 }

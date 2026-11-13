@@ -25,6 +25,7 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
@@ -55,6 +56,8 @@ const _agentFileRootsKey = 'agent_file_roots';
 const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
+const _recordChange = 'add record entries';
+const _draftNote = ' (draft)';
 
 /// The byte-order mark as the one character a written text starts with.
 const _bom = '\uFEFF';
@@ -66,11 +69,13 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// Selects every pinned pack's steps, refuses an override the new versions
 /// leave dangling, then plans the moves, the section and field renames in the
 /// docs and the overrides, the link rewrites, the renumber pass, the label
-/// pass, each typed doc laid out as `format` lays it out, the agent files
-/// step, and the new pins. With every pin equal the plan holds the layout pass
-/// and the agent files step alone. Writes nothing. Throws `MigrateFault`
-/// `override_dangling`, `MigrateFault` `upgrade_collision` listing every move
-/// and rename collision at once, `agent_block_malformed`, and a
+/// pass, the values a `move_to_record` step moves into the records it adds to
+/// or creates, each typed doc laid out as `format` lays it out, the agent
+/// files step, and the new pins. With every pin equal the plan holds the
+/// layout pass and the agent files step alone. Writes nothing. Throws
+/// `MigrateFault` `override_dangling`, `MigrateFault` `upgrade_collision`
+/// listing every move and rename collision at once, `value_unplaced` listing
+/// every value no record takes at once, `agent_block_malformed`, and a
 /// `TemplateFault` before it returns, so a refused run prints nothing. When
 /// [runsOneTimePasses] holds, the renumber and label passes run and the agent
 /// files step is the full upsert; otherwise the step refreshes what exists.
@@ -111,12 +116,13 @@ RunPlan _upgradeRunOf(
   );
   final upgrades = selectUpgrades(pins, available);
   final overrides = loadProjectTemplates(root);
+  final targetSet = templates.resolveCarried(
+    packNames: pins.keys,
+    homeDirectory: homeDirectory,
+  );
   refuseDanglingOverrides(
     overrides,
-    target: templates.resolveCarried(
-      packNames: pins.keys,
-      homeDirectory: homeDirectory,
-    ),
+    target: targetSet,
     targetVersions: {
       for (final entry in available.entries) entry.key: entry.value.version,
     },
@@ -124,13 +130,19 @@ RunPlan _upgradeRunOf(
   );
 
   final steps = [for (final upgrade in upgrades) ...upgrade.steps];
-  _refuseUnbuiltSteps(steps);
+  final stepKinds = [for (final entry in steps) entry.step];
   final overrideFiles = _renamedOverrides(root, overrides, steps);
+  final overrideCreates = [
+    if (recordPathOverrideOf(stepKinds, overrides: overrides, target: targetSet)
+        case RecordPathOverride(:final file, path: final path?))
+      PlannedCreate(path: file, text: 'path: $path\n'),
+  ];
   final finalSet = templates.resolveCarried(
     packNames: pins.keys,
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides({
       for (final file in overrideFiles) file.path: file.lf,
+      for (final create in overrideCreates) create.path: create.text,
     }),
   );
 
@@ -149,6 +161,7 @@ RunPlan _upgradeRunOf(
   ]);
 
   final matcher = DocTypeMatcher(finalSet, targetNames: const []);
+  final recordMoves = RecordMoves();
   final works = <_DocWork>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
@@ -158,11 +171,11 @@ RunPlan _upgradeRunOf(
     final original = readDocFile(docFileOf(docsRoot, path), docPath: path);
     if (original == null) continue;
     final match = matcher.match(plannedPath);
-    final docTypeId = match is MatchedDocType ? match.docType.id : null;
+    final docType = match is MatchedDocType ? match.docType : null;
     var lf = original.lf;
     final changes = <String>[];
     for (final (index, (:step, from: _)) in steps.indexed) {
-      if (docTypeId == null || !step.touches(docTypeId)) continue;
+      if (docType == null || !step.touches(docType.id)) continue;
       final renamed = switch (step) {
         RenameSection() => withHeaderRenamed(
           lf,
@@ -171,7 +184,13 @@ RunPlan _upgradeRunOf(
         ),
         RenameField() => _withKeyRenamed(lf, step.from, step.to),
         MoveFile() => lf,
-        MoveToRecord() => lf,
+        MoveToRecord() => recordMoves.take(
+          docPath: path,
+          plannedPath: plannedPath,
+          type: docType,
+          step: step,
+          lf: lf,
+        ),
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -222,17 +241,32 @@ RunPlan _upgradeRunOf(
         linkLines.add('$plannedPath: $label');
       }
     }
-    works.add(
-      _DocWork(
-        plannedPath,
-        original,
-        match is MatchedDocType ? match.docType : null,
-        lf,
-        changes,
-      ),
-    );
+    works.add(_DocWork(plannedPath, original, docType, lf, changes));
   }
-  _throwCollisions([...moveCollisions, ...renameCollisions]);
+  _throwFaults([...moveCollisions, ...renameCollisions]);
+  final placement = recordMoves.place(
+    set: finalSet,
+    recordType: finalSet.recordDocType,
+    docs: [
+      for (final work in works)
+        (plannedPath: work.plannedPath, type: work.docType, lf: work.lf),
+    ],
+  );
+  _throwFaults(placement.unplaced);
+  for (final work in works) {
+    if (placement.edits[work.plannedPath] case final edited?) {
+      work.lf = edited;
+      work.changes.add(_recordChange);
+    }
+  }
+  final recordCreates = [
+    for (final record in placement.creates)
+      PlannedCreate(
+        path: '$_docsFolder${record.docPath}',
+        text: record.text,
+        note: _draftNote,
+      ),
+  ]..sort((a, b) => compareCodePoints(a.path, b.path));
 
   // The passes read every doc's text after the steps and link rewrites (P5).
   final isOneTime = runsOneTimePasses(upgrades);
@@ -271,7 +305,14 @@ RunPlan _upgradeRunOf(
   final stamps = StampPass.plan(
     [
       for (final work in works)
-        (docPath: work.plannedPath, lf: work.original.lf, type: work.docType),
+        (
+          docPath: work.plannedPath,
+          lf: work.original.lf,
+          type: switch (work.docType) {
+            final type? => typeBeforeMoves(type, stepKinds),
+            null => null,
+          },
+        ),
     ],
     [
       for (final (index, work) in works.indexed)
@@ -319,7 +360,9 @@ RunPlan _upgradeRunOf(
   );
 
   String shownAt(int index) {
-    final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
+    final step = steps[index].step;
+    final docs = (step is MoveFile ? movedAt : changedAt)[index];
+    if (step is MoveToRecord && docs != null) return '${docs.length} docs';
     return _shownPaths(
       docs: docs ?? const [],
       overrides: [
@@ -361,7 +404,7 @@ RunPlan _upgradeRunOf(
       ...overrideRewrites,
       ?configRewrite,
     ],
-    creates: const [],
+    creates: [...overrideCreates, ...recordCreates],
     left: const [],
     commit1Message: _commit1Message,
     commit2Message: commit2Message,
@@ -737,8 +780,9 @@ final class _DocWork {
 
   final MergedDocType? docType;
 
-  /// The LF text after the steps and link rewrites.
-  final String lf;
+  /// The LF text after the steps and link rewrites, and any record entries
+  /// the `move_to_record` step adds to a record doc.
+  String lf;
 
   /// The labels of the changes made so far, in the order they apply.
   final List<String> changes;
@@ -841,12 +885,12 @@ const _resolveCollision =
     'move, rename, or merge each listed doc or entry so the step no longer '
     'lands on it, then run specstone migrate again';
 
-/// Throws `upgrade_collision` for the first of [faults] on each doc, the
-/// first as the fault and the rest chained through `more`.
+/// Throws the first of [faults] on each doc, the first as the fault and the
+/// rest chained through `more`; nothing when [faults] is empty.
 ///
-/// A doc can collide once per rival and once per step; it is listed once
-/// (INV-16).
-void _throwCollisions(List<MigrateFault> faults) {
+/// A doc can collide once per rival and once per step, or hold several values
+/// no record takes; it is listed once (INV-16).
+void _throwFaults(List<MigrateFault> faults) {
   final seen = <String?>{};
   final perDoc = [
     for (final fault in faults)
@@ -955,13 +999,6 @@ String _withKeyRenamed(String lf, String from, String to) {
     to,
   );
   return withKeyBlock(lf, from, renamed);
-}
-
-/// Refuses a run that selects a `move_to_record` step until its apply exists.
-void _refuseUnbuiltSteps(List<_Step> steps) {
-  if (steps.any((entry) => entry.step is MoveToRecord)) {
-    throw UnimplementedError('the move_to_record step has no apply yet');
-  }
 }
 
 /// Returns `<kind> <doc_type> <old> -> <new>`, the ids for a section, the

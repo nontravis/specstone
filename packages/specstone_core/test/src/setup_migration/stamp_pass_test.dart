@@ -361,4 +361,36 @@ void main() {
       expect(run.applied[_frPath], contains('  - S4 ${fingerprintOf(_one)}\n'));
     });
   });
+
+  group('$_fr E38', () {
+    test('a doc is judged by the type it had before the run: a field the '
+        'final type dropped still stays out of its hash', () {
+      final held = _typeAt(_storyPath)!;
+      expect(held.fields.map((f) => f.id), contains('implements'));
+      final dropped = held.copyWith(
+        fields: [
+          for (final field in held.fields)
+            if (field.id != 'implements') field,
+        ],
+      );
+      const written = '---\nimplements:\n  - app/a.dart\n---\n# B\n';
+      const moved = '---\n---\n# B\n';
+      final approved = withApprovalHash(written, held);
+
+      final pass = StampPass.plan(
+        [(docPath: _storyPath, lf: approved, type: held)],
+        [(docPath: _storyPath, lf: moved, type: dropped)],
+        pins: _belowBoth,
+        restampsFingerprints: false,
+      );
+
+      final stamped = pass.apply(_storyPath, moved);
+      expect(stamped, matches(_approvedHash));
+      expect(
+        stamped,
+        contains('approved: "${approvalHashOf(stamped, dropped)}"'),
+      );
+      expect(pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+  });
 }

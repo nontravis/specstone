@@ -6,12 +6,16 @@ import 'package:specstone_core/specstone_core.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart'
     show fingerprintOf, legacyFingerprintOf;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart'
+    show recordLayer;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
@@ -1290,6 +1294,179 @@ void main() {
         expect(kinds, isNot(contains('approval_stale')));
         final rerun = await _run(root, home, ['migrate'], console: _owner());
         expect(rerun.out, 'nothing to migrate\n');
+      });
+    });
+
+    group('f06/us02: status and code paths move into records', () {
+      const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const story =
+          '---\nstatus: implemented\nimplements:\n'
+          '  - app/lib/login/sign_in.dart:SignIn\n---\n# Email login\n';
+      const fr = '---\nstatus: planned\n---\n# Validate credentials\n';
+
+      Future<Directory> home() => writeTree({
+        '.specstone/packs/acme/pack.yaml': _pack(
+          '1.2.0',
+          'migrations:\n'
+              '  - from: 1.0.0\n'
+              '    steps:\n'
+              '      - move_to_record: {doc_types: [user_story, fr], '
+              'fields: [status, implements], to: implementation}\n',
+        ),
+        '.specstone/packs/acme/implementation.yaml': recordLayer,
+      });
+
+      Future<Directory> project({
+        String storyText = story,
+        String frText = fr,
+      }) => _project(
+        files: {featurePath: '# Login\n', storyPath: storyText, frPath: frText},
+      );
+
+      String approved(String text, String docTypeId) => withApprovalHash(
+        text,
+        TemplateResolver()
+            .resolveCarried(
+              packNames: const ['prd-core', 'software-tech'],
+              homeDirectory: null,
+            )
+            .lookup(docTypeId),
+      );
+
+      String planHash(String dryOut) {
+        final lines = dryOut.split('\n');
+        return lines[lines.length - 3].substring('plan '.length);
+      }
+
+      test('f06/us02/s11: the dry run lists the record, and the run writes it '
+          'as a draft with the values the docs held', () async {
+        final h = await home();
+        final root = await project();
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'from 1.0.0: move_to_record user_story, fr status, implements '
+            '-> implementation: 2 docs\n',
+          ),
+        );
+        expect(
+          dry.out,
+          contains('commit 2, creates:\n  specs/f01_login/IMPLEMENTATION.md '),
+        );
+        expect(File('${root.path}/$recordPath').existsSync(), isFalse);
+
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          planHash(dry.out),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        final record = _read(root, recordPath);
+        expect(record, contains('draft: true'));
+        expect(record, contains("'email_login:implemented'"));
+        expect(record, contains("'email_login/validate_credentials:planned'"));
+        expect(
+          record,
+          contains("'email_login:app/lib/login/sign_in.dart:SignIn'"),
+        );
+        for (final path in [storyPath, frPath]) {
+          expect(_read(root, path), isNot(contains('status:')));
+          expect(_read(root, path), isNot(contains('implements:')));
+        }
+        expect(_subjects(root).first, 'upgrade pack pins');
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+
+      test('f06/us02/s11: a story and an FR approved before the run are still '
+          'approved after it', () async {
+        final h = await home();
+        final root = await project(
+          storyText: approved(story, 'user_story'),
+          frText: approved(fr, 'fr'),
+        );
+
+        final result = await _run(root, h, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        for (final path in [storyPath, frPath]) {
+          expect(_read(root, path), contains('approved: "'));
+        }
+        final check = await _run(root, h, ['check', '--json']);
+        final report = jsonDecode(check.out) as Map<String, Object?>;
+        final stale = [
+          for (final finding in report['findings']! as List<Object?>)
+            if (finding case {
+              'kind': 'approval_stale',
+              'docPath': final String docPath,
+            })
+              docPath,
+        ];
+        expect(stale, isNot(contains(storyPath.substring('docs/'.length))));
+        expect(stale, isNot(contains(frPath.substring('docs/'.length))));
+      });
+
+      test('f06/us02/fr02/e36: a record override the plan lists lands in '
+          'commit 2 with the pins', () async {
+        final h = await home();
+        final root = await _project(
+          files: {
+            featurePath: '# Login\n',
+            '.specstone/templates/architecture.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+          },
+        );
+
+        final result = await _run(root, h, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('commit 2, creates:\n  .specstone/templates/'),
+        );
+        expect(
+          _read(root, '.specstone/templates/implementation.yaml'),
+          'path: specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md\n',
+        );
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains('.specstone/templates/implementation.yaml'),
+        );
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+
+      test('f06/us02/s13: a value no record entry takes refuses on the dry '
+          'run and the bare run alike, and writes nothing', () async {
+        final h = await home();
+        final root = await project(
+          storyText: '---\nstatus: wip\n---\n# Email login\n',
+        );
+        final before = _head(root);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+        final bare = await _run(root, h, ['migrate'], console: _owner());
+
+        for (final result in [dry, bare]) {
+          expect(result.status, 65, reason: result.err);
+          expect(
+            result.err,
+            startsWith('${storyPath.substring('docs/'.length)}: status: '),
+          );
+        }
+        expect(_head(root), before);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(File('${root.path}/$recordPath').existsSync(), isFalse);
       });
     });
   }, skip: hasGit ? null : 'git is not available');
