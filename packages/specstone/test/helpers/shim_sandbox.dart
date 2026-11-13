@@ -78,6 +78,19 @@ final class ShimSandbox {
     return file.existsSync() ? file.readAsLinesSync() : const [];
   }
 
+  /// Returns the environment the last Windows run of [name] got, keys
+  /// lower-cased since Windows names ignore case, or none when it never ran.
+  Map<String, String> envOf(String name) {
+    final file = File(_join(logs.path, '$name.env'));
+    if (!file.existsSync()) return const {};
+    return {
+      for (final line in file.readAsLinesSync())
+        // A key such as `=C:` starts with `=`; its value follows the next one.
+        if (line.indexOf('=', 1) case final at when at > 0)
+          line.substring(0, at).toLowerCase(): line.substring(at + 1),
+    };
+  }
+
   /// Writes another tool's recording `stn` in [folder], exiting with [exit].
   ///
   /// The other `stn` records to the `other` log, so `logOf('other')` shows
@@ -322,8 +335,9 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 // The Windows recorder: logs argv, stdin (read only when STUB_READ_STDIN is
 // 1), PATH, and the guard to <STUB_LOG_DIR>\<name>.log, name `specstone` for
 // specstone.exe and `other` for any other file. Its exit status is the number
-// in `<its path>.exit`, else FAKE_EXIT for specstone, else 0. Given `upgrade`,
-// specstone.exe replaces the stn.cmd beside it with a longer file whose every
+// in `<its path>.exit`, else FAKE_EXIT for specstone, else 0. Each run also
+// writes its whole environment to <name>.env. Given `upgrade`, specstone.exe
+// replaces the stn.cmd beside it with a file twice its length whose every
 // line prints REREAD, prints `upgraded`, then exits.
 const _recorderSource = r'''
 import 'dart:io';
@@ -352,10 +366,17 @@ Future<void> main(List<String> args) async {
   ];
   File('${env['STUB_LOG_DIR']}\\$name.log')
       .writeAsStringSync('${log.join('\n')}\n', mode: FileMode.append);
+  final variables = [for (final e in env.entries) '${e.key}=${e.value}'];
+  File('${env['STUB_LOG_DIR']}\\$name.env')
+      .writeAsStringSync('${variables.join('\n')}\n');
   if (name == 'specstone' && args.isNotEmpty && args.first == 'upgrade') {
-    final lines = [for (var i = 0; i < 200; i++) 'echo REREAD $i'];
-    File('$folder\\stn.cmd')
-        .writeAsStringSync('@echo off\r\n${lines.join('\r\n')}\r\n');
+    final shim = File('$folder\\stn.cmd');
+    final wanted = 2 * shim.lengthSync();
+    final text = StringBuffer('@echo off\r\n');
+    for (var i = 0; text.length <= wanted; i++) {
+      text.write('echo REREAD $i\r\n');
+    }
+    shim.writeAsStringSync(text.toString());
     stdout.writeln('upgraded');
   }
   final exitFile = File('$program.exit');

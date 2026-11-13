@@ -2,10 +2,13 @@
 rem Runs the Specstone CLI by its short name: the first other stn found on an
 rem absolute PATH entry takes the run (with a loop guard added), else the
 rem specstone.exe beside this shim does. Arguments, streams, environment, and
-rem exit status pass through; the PATH is read, never rewritten. Every
-rem variable set here ends with the batch (setlocal), so the shell that typed
-rem stn never holds one (run_cli_or_yield E11).
+rem exit status pass through; the PATH is read, never rewritten.
+rem Two scopes: the outer one ends with the batch, so the shell that typed stn
+rem never holds the guard (run_cli_or_yield E11); the inner one holds the work
+rem variables and ends on the run line, so the target gets the environment
+rem the shim got, the guard alone added on a hand-off.
 setlocal EnableExtensions DisableDelayedExpansion
+setlocal
 call :find_own_folder
 
 rem A hand-off that came back here: run the CLI beside it at once
@@ -49,22 +52,22 @@ for %%a in ("!split:<=" "!") do (
 
 if not defined target goto run_own
 if /i "%target:~-4%"==".ps1" goto refuse
-set "SPECSTONE_STN_GUARD=1"
 if /i "%target:~-4%"==".exe" goto run_target
 if /i "%target:~-4%"==".com" goto run_target
 
-rem A stn.cmd or stn.bat runs in a child cmd.exe, so it never replaces this
-rem batch and the line below still ends it.
-"%ComSpec%" /d /v:off /s /c ^""%target%" %*^" & exit /b
+rem Each run line expands its work variables before its endlocal drops them,
+rem then sets the guard in the outer scope. A stn.cmd or stn.bat runs in a
+rem child cmd.exe, so it never replaces this batch and the line still ends it.
+endlocal & set "SPECSTONE_STN_GUARD=1" & "%ComSpec%" /d /v:off /s /c ^""%target%" %*^" & exit /b
 
 :run_target
 rem The run and the exit share one line: cmd.exe parses the whole line before
 rem it runs, so it reads no later line of a stn.cmd that install.ps1 replaced
 rem meanwhile (run_cli_or_yield E06).
-"%target%" %* & exit /b
+endlocal & set "SPECSTONE_STN_GUARD=1" & "%target%" %* & exit /b
 
 :run_own
-"%own%\specstone.exe" %* & exit /b
+endlocal & "%own%\specstone.exe" %* & exit /b
 
 :refuse
 rem A stn.ps1 first on the walk: start nothing, PowerShell included, so the
@@ -82,7 +85,9 @@ exit /b
 :visit
 rem Walk only an entry that starts with a drive root or \\ (run_cli_or_yield
 rem E02); skip the shim's own folder, the trailing \ dropped and letter case
-rem ignored (E08).
+rem ignored, and any folder holding both stn.cmd and specstone.exe, which is
+rem a Specstone install folder, the own one through a junction or symlink
+rem included, since batch cannot resolve a link (E08).
 if "%entry:~0,2%"=="\\" goto visit_absolute
 if not "%entry:~1,1%"==":" exit /b
 if "%entry:~2,1%"=="\" goto visit_absolute
@@ -91,6 +96,7 @@ if not "%entry:~2,1%"=="/" exit /b
 for %%F in ("%entry%") do set "folder=%%~fF"
 if "%folder:~-1%"=="\" set "folder=%folder:~0,-1%"
 if /i "%folder%"=="%own%" exit /b
+if exist "%folder%\stn.cmd" if exist "%folder%\specstone.exe" exit /b
 if not exist "%folder%\stn.*" exit /b
 for %%X in (exe cmd bat com ps1) do if not defined target (
   set "extension=%%X"

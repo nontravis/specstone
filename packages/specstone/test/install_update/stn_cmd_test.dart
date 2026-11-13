@@ -171,6 +171,99 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
+      test('run_cli_or_yield E03, E10: inside one entry, a stn.ps1 loses to '
+          'stn.exe, stn.cmd, stn.bat, and stn.com; no refusal', () async {
+        for (final (extension, exit) in [
+          ('exe', 21),
+          ('cmd', 22),
+          ('bat', 23),
+          ('com', 24),
+        ]) {
+          final sb = await createShimSandbox();
+          final other = dir(under(sb.root, 'tools'));
+          sb
+            ..otherStn(other.path, extension: 'ps1')
+            ..otherStn(other.path, exit: exit, extension: extension);
+
+          final r = await sb.typeStn(
+            ['stn check'],
+            shell: shell,
+            path: '${sb.bin.path};${other.path};$system32',
+          );
+
+          expect(
+            r.exitCode,
+            exit,
+            reason: '$extension: ${r.stdout}${r.stderr}',
+          );
+          expect('${r.stdout}${r.stderr}', isNot(contains('another stn')));
+          expect(runs(sb.logOf('other')), 1, reason: extension);
+          expect(sb.ps1Marker.existsSync(), isFalse, reason: extension);
+          expect(sb.logOf('specstone'), isEmpty, reason: extension);
+        }
+      });
+
+      test('run_cli_or_yield statement: the target gets the environment the '
+          "shim got, a user's variable named like a shim work variable "
+          'included, and no work variable of its own', () async {
+        // The names stn.cmd sets in its inner scope; Windows ignores case.
+        const workVariables = [
+          'own',
+          'split',
+          'target',
+          'entry',
+          'folder',
+          'extension',
+          'attributes',
+        ];
+        final userValues = {
+          for (final name in workVariables) name.toUpperCase(): 'user-$name',
+        };
+        for (final extension in [null, 'exe', 'cmd']) {
+          final sb = await createShimSandbox();
+          final other = dir(under(sb.root, 'tools'));
+          if (extension != null) {
+            sb.otherStn(other.path, extension: extension);
+          }
+          final ran = extension == null ? 'specstone' : 'other';
+          final path = '${sb.bin.path};${other.path};$system32';
+
+          final withUser = await sb.typeStn(
+            ['stn check'],
+            shell: shell,
+            path: path,
+            extra: userValues,
+          );
+          final userRun = sb.envOf(ran);
+          final bare = await sb.typeStn(
+            ['stn check'],
+            shell: shell,
+            path: path,
+          );
+          final bareRun = sb.envOf(ran);
+
+          final label = extension ?? 'own specstone';
+          expect(withUser.exitCode, 0, reason: '$label: ${withUser.stderr}');
+          expect(bare.exitCode, 0, reason: '$label: ${bare.stderr}');
+          expect(
+            {for (final name in workVariables) name: userRun[name]},
+            {for (final name in workVariables) name: 'user-$name'},
+            reason: label,
+          );
+          expect(
+            bareRun.keys.toSet().intersection(workVariables.toSet()),
+            isEmpty,
+            reason: label,
+          );
+          expect(bareRun['path'], path, reason: label);
+          expect(
+            bareRun[stnGuardVariable.toLowerCase()],
+            extension == null ? isNull : '1',
+            reason: label,
+          );
+        }
+      });
+
       test('run_cli_or_yield E01: the guard set runs the specstone beside it '
           'even with another stn on a later entry', () async {
         final sb = await createShimSandbox();
@@ -241,9 +334,9 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
-      test('run_cli_or_yield E08, E01: a junction to the install folder, which '
-          'the compare cannot resolve, ends in the guard: no loop, and the '
-          'specstone runs once', () async {
+      test('run_cli_or_yield E08: a junction to the install folder, a folder '
+          'holding stn.cmd and specstone.exe, is skipped, so a later stn runs '
+          'and no loop forms', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'tools'));
         sb.otherStn(other.path, exit: 7);
@@ -264,11 +357,9 @@ void main() {
           path: '${sb.bin.path};$junction;${other.path};$system32',
         );
 
-        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
-        final log = sb.logOf('specstone');
-        expect(runs(log), 1);
-        expect(log.sublist(log.length - 2), ['guard', '1']);
-        expect(sb.logOf('other'), isEmpty);
+        expect(r.exitCode, 7, reason: '${r.stdout}${r.stderr}');
+        expect(runs(sb.logOf('other')), 1);
+        expect(sb.logOf('specstone'), isEmpty);
       });
 
       test('run_cli_or_yield E09: a folder named stn.exe is skipped; a later '
