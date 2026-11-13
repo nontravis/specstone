@@ -351,7 +351,6 @@ void main() {
       expect(sentences('architecture', 'components'), [(1, 'Responsibility')]);
       expect(sentences('domain', 'invariants'), [(1, null)]);
       expect(sentences('topic', 'rules'), [(1, null)]);
-      expect(section('architecture', 'design_references').maxLines, 3);
       final fields = section('domain', 'invariants').itemFields!;
       expect([for (final f in fields) f.field], ['Enforcer', 'Consistency']);
       expect(fields.first.values, isNull);
@@ -381,7 +380,6 @@ void main() {
       expect(found, {
         'architecture.component_diagram',
         'architecture.components',
-        'architecture.design_references',
         'domain.invariants',
         'domain.corrective_policies',
         'topic.rules',
@@ -821,17 +819,21 @@ final _specGuideRules = <_GuideRule>[
     phrase: '`yes`, `no`, `own` (the resource belongs to the caller), or `any`',
     hits: [
       '| /items | yes | maybe |',
+      '| /items | GET | maybe | yes |',
       '| /items | GET | yes | Y |',
       '| /items | own | read |',
       '| /items | no | ✓ |',
+      '| /items | GET | own | |',
     ],
+    // A bad cell before the first good one is caught; a good row passes.
     misses: [
       '| Resource | admin | user |',
       '|---|---|---|',
       '| /items | yes | no |',
       '| /items | | any |',
-      '| /items | GET | own | |',
+      '| /items | no | any |',
       '| /items | `yes` | `no` |',
+      '| :---: | --- | --- |',
       'Default: deny',
     ],
   ),

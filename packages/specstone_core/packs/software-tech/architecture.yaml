@@ -120,10 +120,9 @@ sections:
   - id: design_references
     header: Design references
     description: |-
-      List at most three links to an ADR or design doc, one line each.
+      List one line per design or ADR whose decisions this doc still states, with no count cap.
+      Drop a link once no section relies on it.
       This section is the only home for rationale.
-    lint:
-      max_lines: 3
   - id: open_questions
     header: Open questions
     description: |-

@@ -44,7 +44,7 @@ sections:
     lint:
       banned_patterns:
         - id: matrix_cell
-          pattern: '^\|(?:[^|]*\|)*? *`?(?:yes|no|own|any)`? *\|(?: *(?:`?(?:yes|no|own|any)`?)? *\|)*?(?! *(?:`?(?:yes|no|own|any)`?)? *\|)[^|]*[^|\s][^|]*\|'
+          pattern: '^\|(?! *`?(?:Resource|:?-+:?)`? *\|)[^|]*\|(?: *`?(?:yes|no|own|any)`? *\|)*(?! *(?:`?(?:yes|no|own|any)`?)? *\|)[^|]*[^|\s][^|]*\|'
           message: 'matrix cell is not yes, no, own, or any; guide line: `yes`, `no`, `own` (the resource belongs to the caller), or `any`'
           in: all
   - id: conditions

@@ -46,7 +46,7 @@ const _says = <String, List<String>>{
     'see <section or sibling doc>',
     'N/A — <reason>',
   ],
-  'design_references': ['three', 'rationale'],
+  'design_references': ['one line per design', 'no count cap', 'rationale'],
 };
 
 void main() {
