@@ -995,4 +995,54 @@ void main() {
       expect(findings.single['reference'], 'architecture:login');
     });
   });
+
+  group('a doc named in code', () {
+    const fr = 'login/email_login/check_password';
+
+    Future<Directory> codeProject(Map<String, String> code) =>
+        writeCheckProject(extra: code);
+
+    test('a comment naming a doc is a finding at the code file path from the project root, and the check exits 1', () async {
+      final project = await codeProject({
+        'app/lib/auth.dart': 'class A {}\n// Implements `$fr`.\n',
+      });
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 1);
+      expect(
+        text.out.toString(),
+        'app/lib/auth.dart:2: doc_cited_in_code: $fr names a doc; the doc names the code, never the reverse\n'
+        '1 finding\n',
+      );
+
+      final json = readRunner(project);
+      expect(await json.runner.run(['check', '--json']), 1);
+      final findings =
+          (jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+              as List;
+      expect(findings.single, {
+        'kind': 'doc_cited_in_code',
+        'docPath': 'app/lib/auth.dart',
+        'line': 2,
+        'message': '$fr names a doc; the doc names the code, never the reverse',
+        'waitsFor': 'agent',
+        'mention': fr,
+      });
+    });
+
+    test('an agent instruction file under the code folder naming a doc gives no finding', () async {
+      final project = await codeProject({'app/lib/CLAUDE.md': 'Read `$fr`.\n'});
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 0);
+      expect(text.out.toString(), '0 findings\n');
+    });
+
+    test('a check of one doc leaves a code mention out', () async {
+      final project = await codeProject({
+        'app/lib/auth.dart': '// Implements `$fr`.\n',
+      });
+      final text = readRunner(project);
+      expect(await text.runner.run(['check', 'login']), 0);
+      expect(text.out.toString(), '0 findings\n');
+    });
+  });
 }

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
+import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
@@ -95,6 +96,7 @@ CheckReport runCheck(
   if (scope.isProject) {
     findings
       ..addAll(uncoveredCode(context, work))
+      ..addAll(docNamesInCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
       ..addAll(staleAgentBlocks(context));
   }
