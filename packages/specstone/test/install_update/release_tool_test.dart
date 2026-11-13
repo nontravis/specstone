@@ -286,6 +286,44 @@ void main() {
     );
   });
 
+  group('ref names', () {
+    // A Version whose pre-release ends in `.lock` passes the Version form,
+    // yet git refuses it in both the release branch and the tag name.
+    const refused = '1.2.0-x.lock';
+
+    test('a version git refuses in a ref name stops the release naming the '
+        'refs, and changes nothing', () async {
+      final r = await repo.release([refused]);
+
+      await expectRefusal(r, [
+        'refs/heads/release/$refused',
+        'refs/tags/v$refused',
+      ]);
+      expect(r.stderr, startsWith('release: '));
+    });
+
+    test(
+      '--dry-run refuses the same version before it prints a step',
+      () async {
+        final r = await repo.release([refused, '--dry-run']);
+
+        await expectRefusal(r, ['refs/tags/v$refused']);
+        expect(r.stdout, isEmpty);
+      },
+    );
+
+    test(
+      'a version holding lock but not ending in .lock passes --dry-run',
+      () async {
+        final r = await repo.release(['0.2.0-lock.1', '--dry-run']);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('create release/0.2.0-lock.1 from develop'));
+        expect(await repo.state(), before);
+      },
+    );
+  });
+
   Future<void> rejectPushes(String refPattern) async {
     final hook = File('${repo.origin.path}/hooks/pre-receive');
     await hook.writeAsString(
