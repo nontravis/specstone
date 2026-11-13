@@ -12,6 +12,7 @@ const String _branchFlag = '--branch';
 const String _defaultRef = 'develop';
 const String _unchanged = 'the install is unchanged';
 const String _rerun = 'run install_local again';
+const String _shimPath = 'packages/specstone/bin/stn';
 
 /// The text of `git rev-parse` for one commit: a full sha-1 or sha-256 name.
 final RegExp _objectName = RegExp(r'^(?:[0-9a-f]{40}|[0-9a-f]{64})$');
@@ -102,6 +103,7 @@ Future<void> _installLocal(List<String> args) async {
   }
   final ref = _refFrom(args);
   final commit = await _commitOf(ref);
+  await _requireShim(ref, commit);
   final home = _homeFrom(Platform.environment);
   if (home == null) {
     throw _Refusal(
@@ -119,13 +121,19 @@ Future<void> _installLocal(List<String> args) async {
   _Refusal? cleanup;
   try {
     temp = await _createTemp();
-    final bundle = await _build(commit, temp, interrupt);
+    final built = await _build(commit, temp, interrupt);
+    final shim = File('${built.worktree.path}/$_shimPath');
     final version = interrupt.isRaised
         ? null
-        : await _versionOf(bundle, interrupt);
+        : await _versionOf(built.bundle, interrupt);
     if (version != null && !interrupt.isRaised) {
       placing = true;
-      await _place(bundle, install, _buildRecord(ref, commit, DateTime.now()));
+      await _place(
+        built.bundle,
+        install,
+        _buildRecord(ref, commit, DateTime.now()),
+        shim,
+      );
       await _write(
         stdout,
         'installed specstone $version ($ref @ $shortCommit) '
@@ -182,11 +190,23 @@ Future<String> _commitOf(String ref) async {
   return commit;
 }
 
+/// Refuses when [commit] holds no `stn` shim, before any worktree or build.
+///
+/// A commit older than the shim cannot place it, and an install without it
+/// would leave `stn` missing.
+Future<void> _requireShim(String ref, String commit) async {
+  final result = await _run('git', ['cat-file', '-e', '$commit:$_shimPath']);
+  if (result.exitCode != 0) {
+    throw _Refusal('the commit of $ref holds no $_shimPath; $_unchanged');
+  }
+}
+
 /// Adds a detached worktree at [commit] in [temp] and builds the CLI there.
 ///
 /// The build output sits beside the worktree, so deleting [temp] removes both.
-/// Returns the folder `dart build cli` fills with `bin/` and `lib/`.
-Future<Directory> _build(
+/// Returns the folder `dart build cli` fills with `bin/` and `lib/`, and the
+/// worktree folder itself.
+Future<({Directory bundle, Directory worktree})> _build(
   String commit,
   Directory temp,
   _Interrupt interrupt,
@@ -206,7 +226,7 @@ Future<Directory> _build(
     interrupt,
     workingDirectory: '$worktree/packages/specstone',
   );
-  return Directory('$output/bundle');
+  return (bundle: Directory('$output/bundle'), worktree: Directory(worktree));
 }
 
 /// Returns the folder in `HOME`, else `USERPROFILE`, of [env].
@@ -246,9 +266,15 @@ Future<String> _versionOf(Directory bundle, _Interrupt interrupt) async =>
 ///
 /// Each folder is copied aside first and moved in, as `install.sh` does, so a
 /// failed copy leaves the old install as it was and no existing file is
-/// written. [record] becomes `build.txt` in the copy of `lib/`. The aside
-/// copies go on every exit path, a stale one of an earlier run included.
-Future<void> _place(Directory bundle, Directory install, String record) async {
+/// written. [record] becomes `build.txt` in the copy of `lib/`, and [shim] is
+/// copied, its mode kept, into the copy of `bin/`. The aside copies go on
+/// every exit path, a stale one of an earlier run included.
+Future<void> _place(
+  Directory bundle,
+  Directory install,
+  String record,
+  File shim,
+) async {
   final lib = '${install.path}/lib';
   final bin = '${install.path}/bin';
   final libAside = '${install.path}/.lib.new';
@@ -275,6 +301,7 @@ Future<void> _place(Directory bundle, Directory install, String record) async {
       bin,
       _unchanged,
     );
+    await _placeStep(['cp', '-p', shim.path, '$binAside/stn'], bin, _unchanged);
     await _placeStep(['rm', '-rf', lib], lib, _rerun);
     await _placeStep(['mv', libAside, lib], lib, _rerun);
     await _placeStep(['rm', '-rf', bin], bin, _rerun);

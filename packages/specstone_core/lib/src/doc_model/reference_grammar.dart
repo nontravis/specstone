@@ -83,6 +83,19 @@ DocAddress readDocAddress(String text) {
   );
 }
 
+/// A line suffix such as `:12` or `:12:5` after a path written in prose.
+final _lineSuffix = RegExp(r'(?::\d+)+$');
+
+/// A closing mark that prose adds after a path.
+final _closingMark = RegExp(r'[.,;:]$');
+
+/// Returns [path], a doc path written in prose, less the sentence mark and
+/// the line suffix that follow it there.
+///
+/// [path] is the text of a [DocAddress] before any `#`.
+String proseTrimmedPath(String path) =>
+    path.replaceFirst(_closingMark, '').replaceFirst(_lineSuffix, '');
+
 /// An item ID or a scenario number where its item opens (doc_model RULE-12).
 sealed class IdRead {
   const new({required this.prefix, required this.digits});

@@ -23,6 +23,7 @@ void main() {
     'high then high then low': '\uD83D😀',
     'low then high': '\uDE00\uD83D',
     'multibyte text': 'ภาษาไทย ünï\ncódé\n',
+    'blank line first': '\n\nx\n',
   };
   const headers = {
     'plain header': header,
@@ -40,9 +41,13 @@ void main() {
           body: body,
         );
         final counts = sectionCountsOf(section);
-        expect(counts.lines, section.text.split('\n').length);
+        expect(counts.lines, nonBlankLinesOf(section.text.split('\n')));
         expect(counts.chars, section.text.runes.length);
       });
     }
   }
 }
+
+/// The non-blank lines of [lines], the expected section count.
+int nonBlankLinesOf(List<String> lines) =>
+    lines.where((line) => line.trim().isNotEmpty).length;

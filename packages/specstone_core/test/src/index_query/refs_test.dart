@@ -663,6 +663,98 @@ void main() {
       );
     });
 
+    test('a record lists each tests line outbound with the kind tests, the name aside', () async {
+      final withTests = await indexWith({
+        '.specstone/templates/implementation.yaml': recordType,
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n  - email_login:implemented\n'
+            'implements:\n'
+            '  - email_login:lib/sign_in_page.dart:SignInPage\n'
+            'tests:\n'
+            '  - email_login:lib/sign_in_page_test.dart\n'
+            '  - "email_login:lib/web_page_test.dart:locks: after 5 #1"\n'
+            '---\n\n# Record\n',
+        'docs/specs/jaspr/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n  - email_login:planned\n---\n\n# Record\n',
+      });
+
+      final answer = answerRefs(
+        withTests,
+        'specs/flutter/f01_login/IMPLEMENTATION.md',
+      );
+
+      expect(
+        answer.text,
+        contains(
+          'Outbound\n'
+          '- implements: lib/sign_in_page.dart:SignInPage\n'
+          '- tests: lib/sign_in_page_test.dart\n'
+          '- tests: lib/web_page_test.dart\n'
+          'Inbound\n- none\n',
+        ),
+      );
+      final doc = (answer.json['docs']! as List).single as Map;
+      expect(doc['outbound'], [
+        {'kind': 'implements', 'pointer': 'lib/sign_in_page.dart:SignInPage'},
+        {'kind': 'tests', 'pointer': 'lib/sign_in_page_test.dart'},
+        {'kind': 'tests', 'pointer': 'lib/web_page_test.dart'},
+      ]);
+    });
+
+    test(
+      'a record that declares a tests field prints each tests line once',
+      () async {
+        final declared = await indexWith({
+          '.specstone/templates/implementation.yaml':
+              '$recordType'
+              '  - id: tests\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: item_exact\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+              '---\nstatuses:\n  - email_login:implemented\n'
+              'tests:\n  - email_login:lib/a_test.dart:locks\n'
+              '---\n\n# Record\n',
+        });
+
+        expect(
+          answerRefs(
+            declared,
+            'specs/flutter/f01_login/IMPLEMENTATION.md',
+          ).text,
+          contains('Outbound\n- tests: lib/a_test.dart\nInbound\n'),
+        );
+      },
+    );
+
+    test(
+      'a record with no tests line prints none beside its implements lines',
+      () async {
+        final twin = await twoTargets();
+
+        expect(
+          answerRefs(twin, 'specs/jaspr/f01_login/IMPLEMENTATION.md').text,
+          contains('- implements: lib/web_page.dart\n'),
+        );
+        expect(
+          answerRefs(twin, 'specs/jaspr/f01_login/IMPLEMENTATION.md').text,
+          isNot(contains('tests')),
+        );
+      },
+    );
+
     test('f01/us07/s2, f01/us07/fr01/e07: a name two records share groups each, and a code target keeps one', () async {
       final twin = await twoTargets();
 

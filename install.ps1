@@ -39,28 +39,38 @@ try {
         return $value
     }
 
-    # Returns the PATH text $Text with only its absolute entries: a drive root
-    # such as C:\ or C:/, or a UNC path. It splits on each ';' outside double
-    # quotes and drops the quotes, as cmd.exe does, so an empty, '.', or
-    # relative entry (the current folder) is never searched.
-    function Get-AbsolutePathText([string]$Text) {
-        $kept = New-Object System.Collections.ArrayList
+    # Returns the entries of the PATH text $Text. It splits on each ';' outside
+    # double quotes and drops the quotes, as cmd.exe does, so a quoted entry
+    # that holds a ';' stays one entry.
+    function Split-PathText([string]$Text) {
+        $items = New-Object System.Collections.ArrayList
         $entry = New-Object System.Text.StringBuilder
         $isQuoted = $false
         foreach ($character in ($Text + ';').ToCharArray()) {
             if ($character -eq '"') {
                 $isQuoted = -not $isQuoted
             } elseif ($character -eq ';' -and -not $isQuoted) {
-                $item = $entry.ToString()
-                if ($item -match '^([A-Za-z]:[\\/]|\\\\)') {
-                    if ($item.Contains(';')) {
-                        $item = '"' + $item + '"'
-                    }
-                    [void]$kept.Add($item)
-                }
+                [void]$items.Add($entry.ToString())
                 [void]$entry.Clear()
             } else {
                 [void]$entry.Append($character)
+            }
+        }
+        return $items.ToArray()
+    }
+
+    # Returns the PATH text $Text with only its absolute entries: a drive root
+    # such as C:\ or C:/, or a UNC path, so an empty, '.', or relative entry
+    # (the current folder) is never searched. An entry that holds a ';' is
+    # quoted again.
+    function Get-AbsolutePathText([string]$Text) {
+        $kept = New-Object System.Collections.ArrayList
+        foreach ($item in @(Split-PathText $Text)) {
+            if ($item -match '^([A-Za-z]:[\\/]|\\\\)') {
+                if ($item.Contains(';')) {
+                    $item = '"' + $item + '"'
+                }
+                [void]$kept.Add($item)
             }
         }
         return ($kept.ToArray() -join ';')
@@ -661,6 +671,60 @@ try {
         Write-Host "Added $Folder to the user PATH. Open a new PowerShell window to use specstone."
     }
 
+    # Returns the full path of the folder $Folder with a trailing '\' dropped
+    # and a symlink or junction followed to its target, for a compare that
+    # ignores spelling. A relative target leads from the link's parent folder.
+    function Get-FolderIdentity([string]$Folder) {
+        $full = [IO.Path]::GetFullPath($Folder)
+        $item = Get-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
+        # Strict mode throws on a property the item lacks; Target is a script
+        # property of Windows PowerShell 5.0 and later.
+        $targets = $null
+        if ($null -ne $item -and $null -ne $item.PSObject.Properties['Target']) {
+            $targets = $item.Target
+        }
+        if ($null -ne $targets) {
+            foreach ($link in @($targets)) {
+                if (-not [string]::IsNullOrEmpty($link)) {
+                    $parent = [IO.Path]::GetDirectoryName($full.TrimEnd('\'))
+                    $full = [IO.Path]::GetFullPath([IO.Path]::Combine($parent, $link))
+                    break
+                }
+            }
+        }
+        return $full.TrimEnd('\')
+    }
+
+    # Prints one line naming the first `stn` on the cut $env:Path other than
+    # in $BinFolder, as bin\stn.cmd walks it (run_cli_or_yield E03, E08-E10):
+    # an entry that reads as $BinFolder, or holds stn.cmd and specstone.exe,
+    # is skipped; a `stn` is a file named stn.exe, .cmd, .bat, .com, or .ps1,
+    # tried in that order. The notice never changes the run's exit status.
+    function Write-OtherStnNotice([string]$BinFolder) {
+        $own = Get-FolderIdentity $BinFolder
+        foreach ($entry in @(Split-PathText (Get-EnvText 'Path'))) {
+            try {
+                if ([string]::Equals((Get-FolderIdentity $entry), $own, [StringComparison]::OrdinalIgnoreCase)) {
+                    continue
+                }
+                $folder = [IO.Path]::GetFullPath($entry)
+                if ((Test-Path -LiteralPath (Join-Path $folder 'stn.cmd')) -and (Test-Path -LiteralPath (Join-Path $folder 'specstone.exe'))) {
+                    continue
+                }
+                # Name the folder as the PATH spells it: GetFullPath may expand 8.3 names.
+                $shown = $entry.TrimEnd('\', '/')
+                foreach ($extension in 'exe', 'cmd', 'bat', 'com', 'ps1') {
+                    if (Test-Path -LiteralPath (Join-Path $folder "stn.$extension") -PathType Leaf) {
+                        Write-Host "specstone: another stn is at $shown\stn.$extension; type specstone to run the CLI"
+                        return
+                    }
+                }
+            } catch {
+                # an entry the OS cannot read holds no stn that the shim could run
+            }
+        }
+    }
+
     # Deletes the *.old leftovers under bin\ and lib\ of $InstallDir. A file that
     # is still locked stays for the next run.
     function Remove-OldLeftovers([string]$InstallDir) {
@@ -807,6 +871,7 @@ try {
         }
 
         Add-UserPathEntry (Join-Path $installDir 'bin')
+        Write-OtherStnNotice (Join-Path $installDir 'bin')
         Install-Plugin
     } finally {
         $env:Path = $savedPath

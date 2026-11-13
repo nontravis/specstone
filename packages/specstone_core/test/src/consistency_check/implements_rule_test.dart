@@ -402,6 +402,7 @@ void main() {
       ]);
       expect(report.warnings, [
         'app/lib/login.dart: cannot read the file; implements Symbols in it are not checked',
+        'app/lib/login.dart: cannot read the file; doc names in it are not checked',
       ]);
     },
   );

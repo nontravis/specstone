@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
@@ -22,6 +23,7 @@ const _recordType = MergedDocType(
       list: true,
       pointer: PointerKind.itemExact,
     ),
+    MergedField(id: 'tests', type: FieldType.outputRef, list: true),
   ],
   sections: [],
   lint: MergedLint(),
@@ -181,6 +183,65 @@ void main() {
     expect(recordEntriesOf(doc, _recordType), const [
       RecordEntry(item: 'show_toast', status: RecordStatus.implemented),
     ]);
+  });
+
+  test('a tests line gives its item the path part alone, the name aside', () {
+    final doc = _record(
+      'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      '---\n'
+          'statuses:\n'
+          '  - show_toast:implemented\n'
+          'implements:\n'
+          '  - show_toast:lib/toast.dart:showToast\n'
+          'tests:\n'
+          '  - show_toast:test/toast_test.dart\n'
+          '  - "show_toast:test/toast_host_test.dart:queue: a group #1"\n'
+          '  - show_toast/queue_toasts:test/queue_test.dart:drops the oldest\n'
+          '---\n\n# Feedback implementation\n',
+    );
+
+    expect(recordEntriesOf(doc, _recordType), const [
+      RecordEntry(
+        item: 'show_toast',
+        status: RecordStatus.implemented,
+        codePaths: ['lib/toast.dart:showToast'],
+        testPaths: ['test/toast_test.dart', 'test/toast_host_test.dart'],
+      ),
+      RecordEntry(
+        item: 'show_toast/queue_toasts',
+        testPaths: ['test/queue_test.dart'],
+      ),
+    ]);
+  });
+
+  test('a tests line with no item or no colon names no entry', () {
+    final doc = _record(
+      'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      '---\n'
+          'tests:\n'
+          '  - test/lonely_test.dart\n'
+          '  - ":test/featureless_test.dart"\n'
+          '---\n\n# Feedback implementation\n',
+    );
+
+    expect(recordEntriesOf(doc, _recordType), isEmpty);
+  });
+
+  group('ImplementsEntry.testName', () {
+    test('a name keeps its colons and spaces whole, the path stops at the '
+        'first colon', () {
+      const entry = ImplementsEntry(
+        'test/auth_test.dart:rejects: a wrong password #2',
+      );
+
+      expect(entry.path, 'test/auth_test.dart');
+      expect(entry.testName, 'rejects: a wrong password #2');
+    });
+
+    test('a line with no name has none, and an empty name stays empty', () {
+      expect(const ImplementsEntry('test/auth_test.dart').testName, isNull);
+      expect(const ImplementsEntry('test/auth_test.dart:').testName, '');
+    });
   });
 
   test('a record with no fields written holds no entries', () {

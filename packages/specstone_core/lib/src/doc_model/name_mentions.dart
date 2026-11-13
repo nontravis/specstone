@@ -21,11 +21,19 @@ List<NameMention> nameMentionsInMarkdown(String lf) {
   ];
 }
 
-Iterable<NameMention> _mentionsOnLine(String line, int number) sync* {
+Iterable<NameMention> _mentionsOnLine(String line, int number) =>
+    _spansOnLine(line, number, (address) => address.isReferenceWithoutLookup);
+
+/// The code spans of [line] whose address [accepts].
+Iterable<NameMention> _spansOnLine(
+  String line,
+  int number,
+  bool Function(DocAddress address) accepts,
+) sync* {
   for (final (:start, :end, :ticks) in codeSpansOf(line)) {
     final text = line.substring(start + ticks, end - ticks);
     final address = readDocAddress(text);
-    if (!address.isReferenceWithoutLookup) continue;
+    if (!accepts(address)) continue;
     yield (line: number, column: start + ticks, text: text, address: address);
   }
 }
@@ -74,25 +82,111 @@ List<NameMention> nameMentionsInComments(String lf, String extension) {
 }
 
 /// The doc-name mentions of [lf], a file of [extension] under the `code:`
-/// roots or a doc, each at its line of the file.
+/// roots or a doc, and the doc paths it writes, each at its line of the file.
 ///
-/// Markdown is read after its frontmatter, as a doc is; any other file by
-/// its comment lines.
+/// Markdown is read after its frontmatter and outside fenced code, as a doc
+/// is; any other file by its comment lines. A path mention's text is the path
+/// as written, less any `#anchor`, line suffix, and closing mark, and its
+/// address is no reference without lookup.
 List<NameMention> nameMentionsInFile(String lf, String extension) {
-  if (extension != markdownExtension) {
-    return nameMentionsInComments(lf, extension);
-  }
+  if (!lf.contains('`') && !lf.contains(markdownExtension)) return const [];
+  return _readFile(lf, extension, _namesAndPathsOnLine);
+}
+
+/// The bare one-slug code spans of [lf], a file of [extension], each at its
+/// line of the file, read where [nameMentionsInFile] reads.
+///
+/// Such a span is a mention only when a doc carries its Name, which the
+/// caller looks up.
+List<NameMention> bareNameMentionsInFile(String lf, String extension) {
   if (!lf.contains('`')) return const [];
+  return _readFile(lf, extension, _bareSlugsOnLine);
+}
+
+Iterable<NameMention> _bareSlugsOnLine(String line, int number) => _spansOnLine(
+  line,
+  number,
+  (address) =>
+      address.typeId == null &&
+      address.isName &&
+      !address.isReferenceWithoutLookup,
+);
+
+List<NameMention> _namesAndPathsOnLine(String line, int number) {
+  final found = [
+    ..._mentionsOnLine(line, number),
+    ..._pathsOnLine(line, number),
+  ];
+  if (found.length > 1) found.sort((a, b) => a.column.compareTo(b.column));
+  return found;
+}
+
+/// The characters, besides whitespace, that end a path written in prose.
+final Set<int> _pathBreaks = {...'`\'"()[]<>{}|,;*~!?='.codeUnits};
+
+bool _endsPath(int code) => code <= 0x20 || _pathBreaks.contains(code);
+
+/// The doc paths written on [line]: each run of path characters that ends in
+/// `.md`, less its `#anchor`, line suffix, and closing mark.
+Iterable<NameMention> _pathsOnLine(String line, int number) sync* {
+  var readTo = 0;
+  for (
+    var at = line.indexOf(markdownExtension);
+    at >= 0;
+    at = line.indexOf(markdownExtension, at + 1)
+  ) {
+    if (at < readTo) continue;
+    var start = at;
+    while (start > 0 && !_endsPath(line.codeUnitAt(start - 1))) {
+      start--;
+    }
+    var end = at + markdownExtension.length;
+    while (end < line.length && !_endsPath(line.codeUnitAt(end))) {
+      end++;
+    }
+    readTo = end;
+    final path = _docPathOf(line.substring(start, end));
+    if (path == null) continue;
+    yield (
+      line: number,
+      column: start,
+      text: path,
+      address: readDocAddress(path),
+    );
+  }
+}
+
+/// The path part of [token], or null when it does not end in a doc file name.
+String? _docPathOf(String token) {
+  final path = proseTrimmedPath(readDocAddress(token).docPart);
+  return path.length > markdownExtension.length &&
+          path.endsWith(markdownExtension)
+      ? path
+      : null;
+}
+
+/// The mentions [onLine] reads from the lines of [lf] that a file of
+/// [extension] holds: markdown's text after its frontmatter and outside
+/// fenced code, any other file's comment lines.
+List<NameMention> _readFile(
+  String lf,
+  String extension,
+  Iterable<NameMention> Function(String line, int number) onLine,
+) {
+  if (extension != markdownExtension) {
+    final lines = lf.split('\n');
+    return [
+      for (var i = 0; i < lines.length; i++)
+        if (isCommentLine(lines[i], extension)) ...onLine(lines[i], i + 1),
+    ];
+  }
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = _breaksIn(lf.substring(0, lf.length - body.length));
+  final lines = body.split('\n');
+  final fenced = blockScan(lines).fenced;
   return [
-    for (final m in nameMentionsInMarkdown(body))
-      (
-        line: bodyStart + m.line,
-        column: m.column,
-        text: m.text,
-        address: m.address,
-      ),
+    for (var i = 0; i < lines.length; i++)
+      if (!fenced[i]) ...onLine(lines[i], bodyStart + i + 1),
   ];
 }
 
