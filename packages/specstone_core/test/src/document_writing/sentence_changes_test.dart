@@ -170,7 +170,7 @@ void main() {
     });
   });
 
-  group('$_name E22', () {
+  group('a code span holding sentence marks', () {
     test('a sentence holding a code span with marks counts once as dropped '
         'and once as new', () {
       const approved = '## Statement\nKept. Old `v. w` tail. Gone.\n';

@@ -151,16 +151,18 @@ void main() {
     expect(some.map((f) => f.keys['label']), [f(1), us(2)]);
   });
 
-  test('$_name E09: a label inside a code span gives none, one outside gives '
-      'one', () async {
-    final cell = path(path('f03', 'us02'), 'fr04');
-    final findings = await labelsInFeature(
-      'Cite `$cell` and `x ${f(1)} y` then $cell here.',
-    );
-    expect(findings, hasLength(1));
-    expect(findings.single.line, _lineNumber);
-    expect(findings.single.keys, {'label': cell});
-  });
+  test(
+    'a label inside a code span gives none, one outside gives one',
+    () async {
+      final cell = path(path('f03', 'us02'), 'fr04');
+      final findings = await labelsInFeature(
+        'Cite `$cell` and `x ${f(1)} y` then $cell here.',
+      );
+      expect(findings, hasLength(1));
+      expect(findings.single.line, _lineNumber);
+      expect(findings.single.keys, {'label': cell});
+    },
+  );
 
   test('$_name: a placeholder label gives none', () async {
     final findings = await labelsInFeature(

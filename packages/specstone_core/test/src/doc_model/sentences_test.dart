@@ -392,31 +392,32 @@ void main() {
       _expectEachHeld(text);
     });
 
-    test('$_story: a mark and a space inside an inline code span cut no '
-        'sentence', () {
+    test('a mark and a space inside an inline code span cut no sentence', () {
       const text = 'Run `a. b` now.\n';
       expect(sentencesOf(text), ['Run `a. b` now.']);
       _expectEachHeld(text);
     });
 
-    test('$_story: a code span holding ?, ., and ! ends no sentence', () {
+    test('a code span holding ?, ., and ! ends no sentence', () {
       const text = 'Try `x? y. z!` then stop. Rest.\n';
       expect(sentencesOf(text), ['Try `x? y. z!` then stop.', 'Rest.']);
       _expectEachHeld(text);
     });
 
-    test('$_story: a cut right after a closed code span still cuts', () {
+    test('a cut right after a closed code span still cuts', () {
       const text = 'See `a.b`. Next one.\n';
       expect(sentencesOf(text), ['See `a.b`.', 'Next one.']);
       _expectEachHeld(text);
     });
 
-    test('$_story: a mark and a space inside a code span of a table cell cut '
-        'nothing', () {
-      const text = '| a |\n|---|\n| `v. w` here. |\n';
-      expect(sentencesOf(text), ['a', '`v. w` here.']);
-      _expectEachHeld(text);
-    });
+    test(
+      'a mark and a space inside a code span of a table cell cut nothing',
+      () {
+        const text = '| a |\n|---|\n| `v. w` here. |\n';
+        expect(sentencesOf(text), ['a', '`v. w` here.']);
+        _expectEachHeld(text);
+      },
+    );
 
     test('$_story: an indented # line between two paragraphs is the title, '
         'no text', () {

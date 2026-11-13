@@ -277,8 +277,7 @@ void main() {
       expect(tree.resolve(label, citingDocPath: _topic), _domain);
     });
 
-    test('a label inside a code span stays as written and is not counted '
-        '(E62)', () {
+    test('a label inside a code span stays as written and is not counted', () {
       final pass = _passOf(_topic, 'Cite `F-01 US-01` and `see F-01 here`.\n');
 
       expect(

@@ -122,7 +122,8 @@ List<NumberLabel> numberLabelsInMarkdown(
 }) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
-  final continues = blockScan(lines).continuesParagraph;
+  final blocks = blockScan(lines);
+  final continues = blocks.continuesParagraph;
   final spansOfGroup = <int, List<CodeSpan>>{};
   final labels = <NumberLabel>[];
   var lineStart = 0;
@@ -130,7 +131,10 @@ List<NumberLabel> numberLabelsInMarkdown(
     if (readable[i]) {
       labels.addAll(
         _labelsOutsideLinks(
-          _outsideCodeSpans(lines, continues, spansOfGroup, i),
+          // A `mermaid` block is fenced: its backticks are no code spans.
+          blocks.fenced[i]
+              ? lines[i]
+              : _outsideCodeSpans(lines, continues, spansOfGroup, i),
           lineStart,
           legacyIds,
         ),
