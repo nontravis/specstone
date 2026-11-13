@@ -6,8 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show MoveStep, WriteStep, textHashOf;
-import 'package:specstone_core/src/git_process.dart' show RunGit;
+    show MoveStep;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show frontmatterValuesOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -1639,18 +1638,10 @@ const _labelFeature = 'prds/features/f01_a/FEATURE.md';
 const _labelFr = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _techStackPath = 'specs/TECH_STACK.md';
 
-/// A fake `git` that lists [tracked] for `ls-files` and records its calls.
-RunGit _tracking(Set<String> tracked, [List<List<String>>? calls]) =>
-    (arguments, {required workingDirectory, environment}) {
-      calls?.add([workingDirectory, ...arguments]);
-      return ProcessResult(0, 0, tracked.map((path) => '$path\x00').join(), '');
-    };
-
-RunPlan _planWith(Directory project, [RunGit? runGit]) => planUpgradeRun(
+RunPlan _planWith(Directory project) => planUpgradeRun(
   _canonical(project),
   templates: TemplateResolver(),
   homeDirectory: null,
-  runGit: runGit ?? _tracking({}),
 );
 
 Future<Directory> _labelTree(
@@ -1676,6 +1667,7 @@ void _labelTests() {
         '.specstone/config.yaml': _belowSince,
         for (final MapEntry(:key, :value) in _e18Docs().entries)
           'docs/$key': value,
+        'docs/$_labelFeature': '# A\n',
         'docs/specs/topics/labelled.md':
             '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
       });
@@ -1735,115 +1727,6 @@ void _labelTests() {
       },
     );
 
-    test('$_fr E26: a tracked file under the code roots converts, a partial '
-        'label in it stays listed, and line ending and mark stay', () async {
-      final project = await _labelTree(
-        {},
-        code: {
-          'lib/a.dart': '\uFEFF// See F-01 US-01 and FR-01\r\nint a = 0;\r\n',
-        },
-      );
-      final calls = <List<String>>[];
-
-      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-      final rewrite = plan.rewrites.singleWhere((r) => r.path == 'lib/a.dart');
-      expect(rewrite.text, '\uFEFF// See `a/b` and FR-01\r\nint a = 0;\r\n');
-      expect(
-        plan.toText(),
-        contains('  number labels: lib/a.dart; left: lib/a.dart:1 FR-01\n'),
-      );
-      expect(calls.single.first, _canonical(project).path);
-      expect(calls.single, containsAll(['ls-files', '-z']));
-    });
-
-    test(
-      '$_fr E27: a file git does not track keeps every label, listed',
-      () async {
-        final project = await _labelTree(
-          {},
-          code: {'vendor/b.dart': '// F-01 US-01\n'},
-        );
-
-        final plan = _planWith(project);
-
-        expect(
-          plan.rewrites.map((r) => r.path),
-          isNot(contains('vendor/b.dart')),
-        );
-        expect(
-          plan.toText(),
-          contains('  number labels: ; left: vendor/b.dart:1 F-01 US-01\n'),
-        );
-      },
-    );
-
-    test('$_fr E26: a code file with mixed line ends keeps every byte but '
-        'the converted label', () async {
-      final project = await _labelTree(
-        {},
-        code: {'lib/m.dart': '\uFEFF// A F-01 US-01\n// B F-01\r\nint a;\r\n'},
-      );
-
-      final plan = _planWith(project, _tracking({'lib/m.dart'}));
-
-      expect(
-        plan.rewrites.singleWhere((r) => r.path == 'lib/m.dart').text,
-        '\uFEFF// A `a/b`\n// B `feature:a`\r\nint a;\r\n',
-      );
-    });
-
-    test('$_fr E26: with two targets each code root is walked for labels, '
-        'and a file under a nested target root converts once', () async {
-      const techStack = '---\ncode:\n  - ./\n---\n# Tech stack\n';
-      final project = await writeTree({
-        '.specstone/config.yaml':
-            '${_belowSince}targets:\n'
-            '  outer:\n    code_root: ws\n'
-            '  inner:\n    code_root: ws/inner\n'
-            '  apart:\n    code_root: other\n',
-        'docs/$_labelFeature': '# A\n',
-        'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
-        'docs/$_labelFr': '# C\n',
-        'docs/specs/outer/TECH_STACK.md': techStack,
-        'docs/specs/inner/TECH_STACK.md': techStack,
-        'docs/specs/apart/TECH_STACK.md': techStack,
-        'ws/a.dart': '// F-01 US-01\n',
-        'ws/inner/b.dart': '// F-01 US-01\n',
-        'other/c.dart': '// F-01 US-01\n',
-      });
-
-      final plan = _planWith(
-        project,
-        _tracking({'ws/a.dart', 'ws/inner/b.dart', 'other/c.dart'}),
-      );
-
-      expect(
-        plan.rewrites.where((r) => r.path.endsWith('.dart')).map((r) => r.path),
-        ['other/c.dart', 'ws/a.dart', 'ws/inner/b.dart'],
-      );
-    });
-
-    test('$_fr E27: a code entry that leaves the code root lists no file, so '
-        'none reaches git or the plan, and an in-repo file converts', () async {
-      final project = await _labelTree({}, code: {'lib/a.dart': '// F-01\n'});
-      final outside = Directory('${project.path}_outside')..createSync();
-      addTearDown(() => outside.deleteSync(recursive: true));
-      final name = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
-      File('${outside.path}/x.dart').writeAsStringSync('// F-01 US-01\n');
-      File('${project.path}/docs/$_techStackPath').writeAsStringSync(
-        '---\ncode:\n  - lib/\n  - ../$name/\n---\n# Tech stack\n',
-      );
-      final calls = <List<String>>[];
-
-      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-      expect(plan.rewrites.map((r) => r.path), contains('lib/a.dart'));
-      expect(plan.toText(), contains('  number labels: lib/a.dart\n'));
-      expect(plan.toText(), isNot(contains('x.dart')));
-      expect(calls.single.where((a) => a.startsWith('..')), isEmpty);
-    });
-
     test("$_fr E27: with code_root .. and code ./ the project's own docs "
         'are docs, never code files left with labels', () async {
       final base = await writeTree({
@@ -1863,46 +1746,6 @@ void _labelTests() {
       expect(_docText(plan, 'notes/plan.md'), contains('`a/b`'));
     });
 
-    test('$_fr E27: a code entry that is not a relative / path lists no file '
-        'and does not blank what git tracks', () async {
-      final project = await _labelTree({}, code: {'lib/a.dart': '// F-01\n'});
-      File('${project.path}/docs/$_techStackPath').writeAsStringSync(
-        '---\ncode:\n  - lib/\n  - ..\\shared\\\n  - C:/x/\n---\n# Tech stack\n',
-      );
-      final calls = <List<String>>[];
-
-      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-      expect(plan.rewrites.map((r) => r.path), contains('lib/a.dart'));
-      expect(calls.single.skip(1), ['ls-files', '-z']);
-    });
-
-    test('$_fr E26: an agent file the label pass converts gets one write '
-        'that holds the conversion and the Specstone block', () async {
-      final project = await _labelTree(
-        {},
-        code: {'AGENTS.md': 'Current work: F-01 US-01\n'},
-      );
-      File('${project.path}/docs/$_techStackPath')
-          .writeAsStringSync('---\ncode:\n  - ./\n---\n# Tech stack\n');
-
-      final plan = _planWith(project, _tracking({'AGENTS.md'}));
-
-      expect(plan.rewrites.map((r) => r.path), isNot(contains('AGENTS.md')));
-      final write = plan.agentFiles!.rootWrites.singleWhere(
-        (w) => w.path == 'AGENTS.md',
-      );
-      expect(write.text, startsWith('Current work: `a/b`\n'));
-      expect(write.text, contains('<!-- BEGIN specstone v'));
-      expect(write.before, textHashOf('Current work: F-01 US-01\n'));
-      expect(plan.toText(), contains('  number labels: AGENTS.md'));
-      final steps = plan.journalSteps(base: 'HEAD', projectRoot: project);
-      expect(
-        steps.whereType<WriteStep>().where((s) => s.path == 'AGENTS.md'),
-        hasLength(1),
-      );
-    });
-
     test('$_fr E26: a left label is cited at its line in the text the run '
         'writes, after the stamp adds its line', () async {
       final project = await _labelTree({
@@ -1918,40 +1761,6 @@ void _labelTests() {
       expect(line, greaterThan(6));
       expect(plan.toText(), contains('specs/topics/t.md:$line FR-07'));
     });
-
-    test('$_fr E26: a binary code file is skipped', () async {
-      final project = await _labelTree({});
-      File('${project.path}/lib/bin.dart').createSync(recursive: true);
-      File('${project.path}/lib/bin.dart').writeAsBytesSync([
-        0x2F,
-        0x2F,
-        0x20,
-        0x46,
-        0x2D,
-        0x30,
-        0x31,
-        0xC3,
-        0x28,
-        0x0A,
-      ]);
-
-      final plan = _planWith(project, _tracking({'lib/bin.dart'}));
-
-      expect(plan.toText(), isNot(contains('number labels:')));
-      expect(plan.rewrites.map((r) => r.path), isNot(contains('lib/bin.dart')));
-    });
-
-    test(
-      '$_fr E26: git is asked only when a code file holds a label',
-      () async {
-        final project = await _labelTree({}, code: {'lib/a.dart': 'int a;\n'});
-        final calls = <List<String>>[];
-
-        _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-        expect(calls, isEmpty);
-      },
-    );
   });
 }
 
@@ -2091,70 +1900,22 @@ void _planInputTests() {
       );
     });
 
-    test('$_fr INV-4: an edit to a code file the label pass reads changes '
-        'the hash, and its tracked answer joins as one more line', () async {
+    test('a labelled file under the code roots is never read, so an edit to '
+        'it leaves the plan and the hash as they were', () async {
       final project = await _labelTree(
         {},
         code: {'lib/a.dart': '// See F-01 US-01\n'},
       );
-      final tracked = _tracking({'lib/a.dart'});
+      final before = _planWith(project);
 
-      await expectEditMoves(
-        '${project.path}/lib/a.dart',
-        '// more\n',
-        plan: () => _planWith(project, tracked),
-        recordedAs: 'lib/a.dart ',
-      );
-      expect(
-        _planWith(project, tracked).inputs.lines,
-        contains('lib/a.dart tracked\n'),
-      );
-    });
+      File('${project.path}/lib/a.dart')
+          .writeAsStringSync('// F-01\n// more\n');
+      final after = _planWith(project);
 
-    test('$_fr INV-4: a tracked file the label pass never asked about leaves '
-        'the hash', () async {
-      final project = await _labelTree(
-        {},
-        code: {'lib/a.dart': '// See F-01 US-01\n'},
-      );
-
-      final before = _planWith(project, _tracking({'lib/a.dart'}));
-      final after = _planWith(
-        project,
-        _tracking({'lib/a.dart', 'notes.txt', 'src/b.dart'}),
-      );
-
+      expect(after.rewrites.map((r) => r.path), isNot(contains('lib/a.dart')));
+      expect(after.inputs.lines, isNot(contains('lib/a.dart')));
+      expect(after.toText(), isNot(contains('lib/a.dart')));
       expect(_hashOf(after), _hashOf(before));
-      expect(after.inputs.lines, isNot(contains('notes.txt')));
-    });
-
-    test('$_fr INV-4: a labelled file git does not track enters as '
-        'untracked', () async {
-      final project = await _labelTree(
-        {},
-        code: {'lib/a.dart': '// See F-01 US-01\n'},
-      );
-
-      expect(
-        _planWith(project, _tracking({})).inputs.lines,
-        contains('lib/a.dart untracked\n'),
-      );
-    });
-
-    test('$_fr INV-4: the plan hash starts no git', () async {
-      final fixture = await _fixture();
-      final calls = <List<String>>[];
-      final plan = planUpgradeRun(
-        fixture.project,
-        templates: TemplateResolver(),
-        homeDirectory: fixture.home,
-        runGit: _tracking({}, calls),
-      );
-      calls.clear();
-
-      _hashOf(plan);
-
-      expect(calls, isEmpty);
     });
   });
 }

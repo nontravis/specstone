@@ -791,8 +791,8 @@ sections:
     }, skip: skipGit);
 
     test('f06/us02/fr02/e08: a tracked file committed while an upgrade with a '
-        'labelled code file waits leaves every input, and the run '
-        'applies', () async {
+        'labelled code file waits leaves every input, and the run applies '
+        'without reading the code file', () async {
       final project = await _labelledCodeFixture();
 
       expect(
@@ -806,8 +806,7 @@ sections:
       expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
       expect(
         File('${project.path}/lib/a.dart').readAsStringSync(),
-        isNot(contains('F-01')),
-        reason: 'the labelled code file was converted',
+        '// See F-01 US-01\n',
       );
     }, skip: skipGit);
   });
