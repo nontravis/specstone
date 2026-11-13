@@ -50,6 +50,9 @@ final class PlannedRewrite {
 }
 
 /// A file commit 2 creates.
+/// The `note` of a created draft.
+const draftNote = ' (draft)';
+
 final class PlannedCreate {
   const new({required this.path, required this.text, this.note = ''});
 

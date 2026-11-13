@@ -1557,6 +1557,9 @@ name: Login API
         'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
     const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
     const config = 'packs:\n  prd-core: 0.0.1\n';
+    const twin =
+        '${config}targets:\n  flutter:\n    code_root: flutter_ws\n'
+        '  jaspr:\n    code_root: jaspr_ws\n';
 
     String story(String keys) =>
         '---\nname: Email login\n$keys---\n\n# US-01 — Email login\n';
@@ -1697,6 +1700,81 @@ name: Login API
         contains('docs/specs/flutter/f01_login/IMPLEMENTATION.md'),
       );
       expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
+    });
+
+    test('E15: with two targets the spec docs the run places sit in the '
+        "first target's folder, typed and approved, and a missing "
+        'per-target singular doc is created there', () async {
+      final plan = await _plan({...recorded(), '.specstone/config.yaml': twin});
+
+      final matcher = DocTypeMatcher(
+        _carriedSet(),
+        targetNames: const ['flutter', 'jaspr'],
+      );
+      final moved = {for (final m in plan.moves) m.from: m.to};
+      expect(
+        moved['specs/api/auth/s01_architecture.md'],
+        'specs/flutter/f01_login/ARCHITECTURE.md',
+      );
+      expect(
+        moved['specs/f01_login/DOMAIN.md'],
+        'specs/flutter/f01_login/DOMAIN.md',
+      );
+      expect(plan.left, isNot(contains('specs/f01_login/DOMAIN.md')));
+      for (final path in [
+        'specs/flutter/f01_login/ARCHITECTURE.md',
+        'specs/flutter/f01_login/DOMAIN.md',
+      ]) {
+        expect(matcher.match(path), isA<MatchedDocType>(), reason: path);
+        expect(_rewrite(plan, path).text, contains('approved: "'));
+      }
+      expect(_createdPaths(plan), contains('docs/specs/flutter/TECH_STACK.md'));
+      expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
+    });
+
+    test('E15: with two targets a doc that already holds the first target '
+        'path refuses legacy_collision, and nothing is lost', () async {
+      await expectLater(
+        _plan({
+          ...recorded(),
+          '.specstone/config.yaml': twin,
+          'docs/specs/flutter/f01_login/ARCHITECTURE.md': '# Held\n',
+        }),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.legacyCollision,
+          ),
+        ),
+      );
+    });
+
+    test('E15: with two targets the first fingerprints still find the FRs of '
+        'an API doc placed in the first target folder', () async {
+      final plan = await _plan(
+        {
+          ...recorded(),
+          '.specstone/config.yaml': twin,
+          'docs/specs/api/auth/s02_api_login.md': '''
+---
+name: Login API
+---
+
+# S-02 — Login API
+
+## FR trace
+
+| FR id | Method |
+|-------|--------|
+| `us01_email_login/fr01_validate_credentials` | CLI |
+''',
+        }..remove('docs/specs/api/auth/s02_api_session.md'),
+      );
+
+      final api = _rewrite(plan, 'specs/flutter/f01_login/API.md');
+
+      expect(api.text, contains('confirmed:\n  - email_login/'));
     });
 
     test('E15: one named target keeps its map and its record stays in the '

@@ -9,6 +9,8 @@ import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/run_plan.dart'
+    show PlannedCreate, draftNote;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show FieldType, PointerKind, RecordStatus;
@@ -18,6 +20,7 @@ import 'package:specstone_core/src/templates/pack_migration.dart';
 
 // MARK: - Constants
 
+const _docsFolder = 'docs/';
 const _statusKey = 'status';
 const _fixThenMigrate = 'fix it, then run specstone migrate again';
 
@@ -188,6 +191,41 @@ final class RecordMoves {
     return (unplaced: unplaced, edits: edits, creates: creates);
   }
 }
+
+// MARK: - Plan output
+
+/// Throws the first of [faults] on each doc, the first as the fault and the
+/// rest chained through `more`; nothing when [faults] is empty.
+///
+/// A doc can collide once per rival and once per step, or hold several values
+/// no record takes; it is listed once (INV-16).
+void throwFaultsPerDoc(List<MigrateFault> faults) {
+  final seen = <String?>{};
+  final perDoc = [
+    for (final fault in faults)
+      if (seen.add(fault.file)) fault,
+  ];
+  if (perDoc.isEmpty) return;
+  final first = perDoc.first;
+  throw MigrateFault(
+    first.code,
+    first.message,
+    file: first.file,
+    key: first.key,
+    more: perDoc.sublist(1),
+  );
+}
+
+/// Returns the records [placement] creates as plan creates, each a draft, in
+/// code point order of their paths.
+List<PlannedCreate> recordCreatesOf(RecordPlacement placement) => [
+  for (final record in placement.creates)
+    PlannedCreate(
+      path: '$_docsFolder${record.docPath}',
+      text: record.text,
+      note: draftNote,
+    ),
+]..sort((a, b) => compareCodePoints(a.path, b.path));
 
 // MARK: - Landing
 

@@ -59,7 +59,6 @@ const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
-const _draftNote = ' (draft)';
 
 /// The byte-order mark as the one character a written text starts with.
 const _bom = '\uFEFF';
@@ -277,7 +276,7 @@ RunPlan _upgradeRunOf(
     }
     works.add(_DocWork(plannedPath, original, docType, target, lf, changes));
   }
-  _throwFaults([...moveCollisions, ...renameCollisions]);
+  throwFaultsPerDoc([...moveCollisions, ...renameCollisions]);
   final placement = recordMoves.place(
     set: finalSet,
     recordType: finalSet.recordDocType,
@@ -292,21 +291,14 @@ RunPlan _upgradeRunOf(
         ),
     ],
   );
-  _throwFaults(placement.unplaced);
+  throwFaultsPerDoc(placement.unplaced);
   for (final work in works) {
     if (placement.edits[work.plannedPath] case final edited?) {
       work.lf = edited;
       work.changes.add(_recordChange);
     }
   }
-  final recordCreates = [
-    for (final record in placement.creates)
-      PlannedCreate(
-        path: '$_docsFolder${record.docPath}',
-        text: record.text,
-        note: _draftNote,
-      ),
-  ]..sort((a, b) => compareCodePoints(a.path, b.path));
+  final recordCreates = recordCreatesOf(placement);
 
   // The passes read every doc's text after the steps and link rewrites (P5).
   final isOneTime = runsOneTimePasses(upgrades);
@@ -980,28 +972,6 @@ PathPattern _patternIn(String pattern, String? target) => target == null
 const _resolveCollision =
     'move, rename, or merge each listed doc or entry so the step no longer '
     'lands on it, then run specstone migrate again';
-
-/// Throws the first of [faults] on each doc, the first as the fault and the
-/// rest chained through `more`; nothing when [faults] is empty.
-///
-/// A doc can collide once per rival and once per step, or hold several values
-/// no record takes; it is listed once (INV-16).
-void _throwFaults(List<MigrateFault> faults) {
-  final seen = <String?>{};
-  final perDoc = [
-    for (final fault in faults)
-      if (seen.add(fault.file)) fault,
-  ];
-  if (perDoc.isEmpty) return;
-  final first = perDoc.first;
-  throw MigrateFault(
-    first.code,
-    first.message,
-    file: first.file,
-    key: first.key,
-    more: perDoc.sublist(1),
-  );
-}
 
 /// Returns an `upgrade_collision` fault for each move, the tree move or a
 /// `move_file` step, that lands on a path the Owner still holds: a doc no move

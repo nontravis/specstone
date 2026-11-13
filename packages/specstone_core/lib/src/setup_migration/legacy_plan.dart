@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -16,8 +17,6 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
-import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show frType, storyType;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
@@ -30,17 +29,22 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
-import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
+import 'package:specstone_core/src/setup_migration/tree_move.dart'
+    show treeMovesOf;
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
+    show orderedMoves;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_manifest.dart'
+    show PackManifest;
 import 'package:specstone_core/src/templates/pack_migration.dart'
     show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -54,10 +58,8 @@ final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
 const _appliesToField = 'applies_to';
 const _coversField = 'covers';
-const _statusField = 'status';
 const _toRecord = 'to record';
 const _recordEdit = 'add record entries';
-const _draftNote = ' (draft)';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -113,7 +115,7 @@ RunPlan _legacyRunOf(
   final specMap = _specMapOf(docsRoot, docPaths);
   final features = scanLegacyFeatures(docPaths);
   refuseDuplicateGroups(features);
-  final legacy = planLegacyMoves(
+  final placed = planLegacyMoves(
     docPaths,
     specMap: specMap,
     features: features,
@@ -136,7 +138,7 @@ RunPlan _legacyRunOf(
   final originals = _originalsOf(docsRoot, docPaths);
   final titled = _titledWorksOf(
     originals,
-    legacy: legacy,
+    legacy: placed,
     specMap: specMap,
     carriedGnfr: carriedGnfr,
   );
@@ -153,12 +155,26 @@ RunPlan _legacyRunOf(
   final keepsCodeRoots =
       existing != null &&
       (existing.hasCodeRoot || existing.targetNames.isNotEmpty);
+  final targetNames = existing?.targetNames ?? const <String>[];
+  final treeMoves = treeMovesOf(
+    [...placed.fromOf.keys, ...placed.left],
+    projectSet,
+    targetNames: targetNames,
+  );
+  final legacy = _inFirstTarget(placed, treeMoves, docPaths: docPaths);
+  final landing = {for (final move in treeMoves) move.from: move.to};
+  for (final work in titled.works) {
+    work.newPath = landing[work.newPath] ?? work.newPath;
+  }
   final rewrites = _rewritesOf(
     titled.works,
     projectSet: projectSet,
     legacy: legacy,
     features: features,
-    targetNames: existing?.targetNames ?? const [],
+    targetNames: targetNames,
+    recordSteps: _recordStepsOf(
+      templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
+    ),
     exists: (path) => _existsIn(docsRoot, path),
   );
 
@@ -219,7 +235,7 @@ RunPlan _legacyRunOf(
         PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
       for (final path in overrides.keys.toList()..sort(compareCodePoints))
         PlannedCreate(path: path, text: overrides[path]!),
-      ..._draftsOf(projectSet, docPaths, legacy.moves),
+      ..._draftsOf(projectSet, docPaths, legacy.moves, targetNames),
       ...rewrites.records,
     ],
     left: legacy.left,
@@ -298,11 +314,18 @@ typedef _Rewrites = ({
 
 /// One markdown doc on its way to commit 2.
 final class _Work {
-  new(this.legacyPath, this.newPath, this.kind, this.original)
-    : lf = original.lf;
+  new(this.legacyPath, String placed, this.kind, this.original)
+    : placedPath = placed,
+      newPath = placed,
+      lf = original.lf;
 
   final String legacyPath;
-  final String newPath;
+
+  /// The path the legacy moves give the doc, before the first target's folder.
+  final String placedPath;
+
+  /// The path the run writes the doc at.
+  String newPath;
   final LegacyKind? kind;
   final DocText original;
   String lf;
@@ -323,8 +346,8 @@ final class _Work {
   /// need the rewritten FR texts.
   bool get awaitsFingerprints =>
       kind == LegacyKind.api &&
-      legacyPath != newPath &&
-      newPath.endsWith('/API.md');
+      legacyPath != placedPath &&
+      placedPath.endsWith('/API.md');
 }
 
 /// Returns the text of every `.md` doc of [docPaths] that is UTF-8, by
@@ -420,13 +443,15 @@ _Titled _titledWorksOf(
 ///
 /// A doc left in place gets the link rewrite and the layout. The first
 /// fingerprints hash each FR as the run writes it, laid out, so the FR docs
-/// are rewritten first. [targetNames] are the config's named targets.
+/// are rewritten first. [targetNames] are the config's named targets;
+/// [recordSteps] are the carried packs' `move_to_record` steps.
 _Rewrites _rewritesOf(
   List<_Work> works, {
   required MergedSet projectSet,
   required LegacyMoves legacy,
   required LegacyFeatures features,
   required List<String> targetNames,
+  required List<MoveToRecord> recordSteps,
   required bool Function(String path) exists,
 }) {
   final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
@@ -452,6 +477,7 @@ _Rewrites _rewritesOf(
     works,
     matchOf,
     set: projectSet,
+    steps: recordSteps,
     firstTarget: targetNames.length > 1 ? targetNames.first : null,
   );
   final textOf = {for (final work in works) work.legacyPath: work};
@@ -463,7 +489,7 @@ _Rewrites _rewritesOf(
   for (final work in works.where((work) => work.awaitsFingerprints)) {
     final fingerprints = writeFirstFingerprints(
       work.lf,
-      featureFrs: _featureFrsOf(features, work.newPath, rewritten: textOf),
+      featureFrs: _featureFrsOf(features, work.placedPath, rewritten: textOf),
     );
     work.lf = fingerprints.lf;
     fingerprintEntries += fingerprints.entries;
@@ -538,30 +564,28 @@ List<PlannedCreate> _moveToRecords(
   List<_Work> works,
   MatchedDocType? Function(_Work work) matchOf, {
   required MergedSet set,
+  required List<MoveToRecord> steps,
   required String? firstTarget,
 }) {
   final recordType = set.recordDocType;
   if (recordType == null) return const [];
-  final step = MoveToRecord(
-    docTypes: const [storyType, frType],
-    fields: const [_statusField, implementsField],
-    to: recordType.id,
-  );
   final matches = [for (final work in works) matchOf(work)];
   final moves = RecordMoves();
-  for (final (index, work) in works.indexed) {
-    final type = matches[index]?.docType;
-    if (type == null || !step.touches(type.id)) continue;
-    final taken = moves.take(
-      docPath: work.legacyPath,
-      plannedPath: work.newPath,
-      type: type,
-      step: step,
-      lf: work.lf,
-    );
-    if (taken == work.lf) continue;
-    work.changes.add('${_keysLost(work.lf, taken)} $_toRecord');
-    work.lf = taken;
+  for (final step in steps) {
+    for (final (index, work) in works.indexed) {
+      final type = matches[index]?.docType;
+      if (type == null || !step.touches(type.id)) continue;
+      final taken = moves.take(
+        docPath: work.legacyPath,
+        plannedPath: work.newPath,
+        type: type,
+        step: step,
+        lf: work.lf,
+      );
+      if (taken == work.lf) continue;
+      work.changes.add('${_keysLost(work.lf, taken)} $_toRecord');
+      work.lf = taken;
+    }
   }
   final placement = moves.place(
     set: set,
@@ -577,22 +601,23 @@ List<PlannedCreate> _moveToRecords(
         ),
     ],
   );
-  _refuseUnplaced(placement.unplaced);
+  throwFaultsPerDoc(placement.unplaced);
   for (final work in works) {
     final edited = placement.edits[work.newPath];
     if (edited == null) continue;
     work.lf = edited;
     work.changes.add(_recordEdit);
   }
-  return [
-    for (final record in placement.creates)
-      PlannedCreate(
-        path: '$_docsFolder${record.docPath}',
-        text: record.text,
-        note: _draftNote,
-      ),
-  ]..sort((a, b) => compareCodePoints(a.path, b.path));
+  return recordCreatesOf(placement);
 }
+
+/// Returns the `move_to_record` steps of the carried packs' migrations, the
+/// ones the upgrade runs, so both runs move one field set.
+List<MoveToRecord> _recordStepsOf(Map<String, PackManifest> manifests) => [
+  for (final manifest in manifests.values)
+    for (final migration in manifest.migrations)
+      ...migration.steps.whereType<MoveToRecord>(),
+];
 
 /// Returns the frontmatter keys of [before] that [after] no longer holds,
 /// joined in file order.
@@ -606,24 +631,6 @@ String _keysLost(String before, String after) {
     for (final key in keysOf(before))
       if (!kept.contains(key)) key,
   ].join(', ');
-}
-
-/// Throws the first of [faults] for each doc, the rest as its `more`.
-void _refuseUnplaced(List<MigrateFault> faults) {
-  final seen = <String?>{};
-  final perDoc = [
-    for (final fault in faults)
-      if (seen.add(fault.file)) fault,
-  ];
-  if (perDoc.isEmpty) return;
-  final first = perDoc.first;
-  throw MigrateFault(
-    first.code,
-    first.message,
-    file: first.file,
-    key: first.key,
-    more: perDoc.sublist(1),
-  );
 }
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
@@ -789,6 +796,45 @@ Map<String, String> _featureFrsOf(
   };
 }
 
+/// Returns [placed] with each of [treeMoves] folded in: a doc the legacy moves
+/// place lands in the first target's folder, and a doc they keep or leave
+/// moves there from its own path.
+///
+/// Throws `legacy_collision` when a folded move lands on another doc;
+/// [docPaths] are every file the run reads.
+LegacyMoves _inFirstTarget(
+  LegacyMoves placed,
+  List<PathMove> treeMoves, {
+  required List<String> docPaths,
+}) {
+  if (treeMoves.isEmpty) return placed;
+  final landing = {for (final move in treeMoves) move.from: move.to};
+  String landed(String path) => landing[path] ?? path;
+  final placedAt = {for (final move in placed.moves) move.to};
+  final moves = [
+    for (final move in placed.moves) (from: move.from, to: landed(move.to)),
+    for (final move in treeMoves)
+      if (!placedAt.contains(move.from)) move,
+  ];
+  refuseCollisions(docPaths, moves);
+  return LegacyMoves(
+    moves: orderedMoves(moves, keyOf: caseBlindPath),
+    kindOf: {
+      for (final MapEntry(:key, :value) in placed.kindOf.entries)
+        landed(key): value,
+    },
+    fromOf: {
+      for (final MapEntry(:key, :value) in placed.fromOf.entries)
+        landed(key): value,
+      for (final path in placed.left) ?landing[path]: path,
+    },
+    left: [
+      for (final path in placed.left)
+        if (!landing.containsKey(path)) path,
+    ],
+  );
+}
+
 /// Returns the project-layer files the moved tree needs, by ProjectPath.
 Map<String, String> _overridesOf(
   LegacyFeatures features,
@@ -810,22 +856,35 @@ List<String> prunesOf(List<PathMove> moves) => {
 
 /// Returns a draft for each singular doc type whose path the moved tree
 /// lacks.
+///
+/// With two or more [targetNames] a per-target doc type's path is read in the
+/// first target's folder.
 List<PlannedCreate> _draftsOf(
   MergedSet set,
   List<String> docPaths,
   List<PathMove> moves,
+  List<String> targetNames,
 ) {
   final moved = {for (final move in moves) move.from: move.to};
   final present = {for (final path in docPaths) moved[path] ?? path};
   return [
     for (final docType in singularDocTypes(set))
-      if (!present.contains(docType.path))
+      if (_draftPathOf(docType, targetNames) case final path?
+          when !present.contains(path))
         PlannedCreate(
-          path: '$_docsFolder${docType.path}',
+          path: '$_docsFolder$path',
           text: skeletonOf(docType, docType.id),
-          note: ' (draft)',
+          note: draftNote,
         ),
   ];
+}
+
+String? _draftPathOf(MergedDocType docType, List<String> targetNames) {
+  final path = docType.path;
+  if (path == null || !docType.isPerTarget || targetNames.length < 2) {
+    return path;
+  }
+  return PathPattern(path).forTarget(targetNames.first).source;
 }
 
 String _pinList(Map<String, PackVersion> pins) => [
