@@ -972,6 +972,16 @@ void main() {
     });
 
     test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        'link whose text is the path it points to is reported once', () async {
+      const path = 'specs/flutter/f01_login/ARCHITECTURE.md';
+      final project = await writeTwinProject(
+        extra: shared('See [$path](../../../../$path).'),
+      );
+
+      expect(found(project, FindingKind.perTargetReference), hasLength(1));
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
         'link whose destination runs onto a later line is reported once', () async {
       final project = await writeTwinProject(
         extra: shared(

@@ -93,7 +93,8 @@ Map<String, Map<String, List<String>>> _readNamesakes(DocIndex index) {
 }
 
 /// Returns the paths [doc]'s text writes that name a doc, in text order,
-/// fenced code and link destinations left out.
+/// fenced code and link destinations left out, and so is a path naming a doc
+/// that a link on its line already points to.
 ///
 /// A path names the doc it reaches from [doc], as a link would, else the one
 /// doc of its file name it aligns with deepest, as [mentionsOf] reads it.
@@ -101,6 +102,9 @@ List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
   final content = index.contentOf(doc);
   final lines = lfLinesOf(_withoutDestinations(toLf(content.text)));
   final namesakes = _namesakesIn(index);
+  final linked = {
+    for (final link in content.lineFacts.links) (link.line, link.target),
+  };
   return [
     for (final (i, text) in lines.indexed)
       if (!content.lineFacts.isFenced(i + 1))
@@ -110,7 +114,8 @@ List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
           text,
           namesakes,
         ))
-          (line: i + 1, written: written, named: named),
+          if (!linked.contains((i + 1, named.docPath)))
+            (line: i + 1, written: written, named: named),
   ];
 }
 
