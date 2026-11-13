@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 83 snake_case kinds, no error code', () {
+  test('consistency_check: 87 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -74,6 +74,8 @@ void main() {
       'fr_trace_unresolved',
       'architecture_missing',
       'implements_missing',
+      'tests_unresolved',
+      'tests_missing',
       'record_entry_unresolved',
       'record_entry_duplicate',
       'skip_reason_missing',

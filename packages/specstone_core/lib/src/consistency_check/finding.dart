@@ -91,6 +91,8 @@ enum FindingKind {
   frTraceUnresolved('fr_trace_unresolved'),
   architectureMissing('architecture_missing'),
   implementsMissing('implements_missing'),
+  testsUnresolved('tests_unresolved'),
+  testsMissing('tests_missing'),
   recordEntryUnresolved('record_entry_unresolved'),
   recordEntryDuplicate('record_entry_duplicate'),
   skipReasonMissing('skip_reason_missing'),

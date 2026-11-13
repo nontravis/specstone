@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
+import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -10,8 +11,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// The item a leading `:` names: the record's feature itself.
 const _featureItem = '';
 
-/// Returns the findings of a record doc's `statuses` and `implements` lines
-/// (`consistency_check/find_prd_spec_disagreements/check_record_entries`).
+/// Returns the findings of a record doc's `statuses`, `implements`, and
+/// `tests` lines (`consistency_check/find_prd_spec_disagreements/check_record_entries`).
 ///
 /// Every line gives at most one finding, the first its behavior order reaches,
 /// so no other rule reports a line this one does. A doc that is no record,
@@ -40,7 +41,10 @@ final class _RecordWalk {
     MergedDocType type,
     this._lines,
   ) : _statusFieldId = recordStatusFieldOf(type)?.id,
-      _codeFieldId = recordCodeFieldOf(type)?.id,
+      _codeFields = [
+        (id: recordCodeFieldOf(type)?.id, noun: 'code path'),
+        (id: recordTestFieldOf(type)?.id, noun: 'test'),
+      ],
       _entries = {
         for (final entry in recordEntriesOf(_record, type)) entry.item: entry,
       },
@@ -54,7 +58,7 @@ final class _RecordWalk {
   final IndexedDoc _feature;
   final DocLines _lines;
   final String? _statusFieldId;
-  final String? _codeFieldId;
+  final List<({String? id, String noun})> _codeFields;
   final Map<String, RecordEntry> _entries;
 
   /// The items the record may name, each relative to the feature: the
@@ -93,14 +97,18 @@ final class _RecordWalk {
           );
         }
       } else {
-        yield* _asNonSkipped(item, line, itemHoldsStatus: true);
+        yield* _asNonSkipped(item, line);
       }
     }
   }
 
   Iterable<Finding> _codeFindings() sync* {
-    final fieldId = _codeFieldId;
-    if (fieldId == null) return;
+    for (final (:id, :noun) in _codeFields) {
+      if (id != null) yield* _lineFindings(id, noun);
+    }
+  }
+
+  Iterable<Finding> _lineFindings(String fieldId, String noun) sync* {
     for (final (:value, :line, text: _) in _lines.entriesOf(fieldId)) {
       if (value is! String) continue;
       final parsed = recordCodeLineOf(value);
@@ -111,31 +119,29 @@ final class _RecordWalk {
         yield _finding(
           FindingKind.skipWithCode,
           line,
-          '${_nameOf(item)} is skipped but names a code path',
+          '${_nameOf(item)} is skipped but names a $noun',
           {'entry': _nameOf(item)},
         );
       } else {
-        yield* _asNonSkipped(item, line, itemHoldsStatus: false);
+        yield* _asNonSkipped(item, line, noun: noun);
       }
     }
   }
 
   /// A line of an item that is not skipped: the feature's own entry is
   /// written only to skip it, and any other item sits under no skip.
-  Iterable<Finding> _asNonSkipped(
-    String item,
-    int line, {
-    required bool itemHoldsStatus,
-  }) sync* {
+  ///
+  /// [noun] names what a code line holds; null for a `statuses` line.
+  Iterable<Finding> _asNonSkipped(String item, int line, {String? noun}) sync* {
     if (item == _featureItem) {
       yield _finding(
         FindingKind.featureStatusWritten,
         line,
-        itemHoldsStatus
+        noun == null
             ? 'a feature takes its status from its stories; its entry takes '
                   'skipped only'
             : 'the feature entry is written only to skip it; it takes no '
-                  'code path',
+                  '$noun',
       );
       return;
     }

@@ -115,6 +115,7 @@ Map<String, String> checkProjectFiles() => {
       "  - 'email_login/check_password:implemented'\nimplements:\n"
       "  - 'email_login:app/lib/login.dart:SignInPage'\n"
       "  - 'email_login/check_password:app/lib/login.dart:checkPassword'\n"
+      "tests:\n  - 'email_login/check_password:app/lib/login.dart'\n"
       '---\n\n# Login implementation\n',
   'docs/$loginNf':
       '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\nconfirmed:\n'

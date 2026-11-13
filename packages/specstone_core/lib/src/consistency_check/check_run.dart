@@ -22,6 +22,7 @@ import 'package:specstone_core/src/consistency_check/record_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
+import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
@@ -88,6 +89,7 @@ CheckReport runCheck(
       ..addAll(checkPatterns(context, doc))
       ..addAll(checkItemIds(context, doc))
       ..addAll(checkImplements(context, doc))
+      ..addAll(checkTestPointers(context, doc))
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkJourneySteps(context, doc))
