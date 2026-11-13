@@ -1670,6 +1670,32 @@ void _agentTests() {
       );
     });
 
+    test("R-T33-1: bootstrap-spec fills each target's tech stack doc, its "
+        'rest batch naming each', () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains(
+          "fill each target's `tech_stack:tech_stack` per the guide you "
+          'loaded, and its `code`,',
+        ),
+      );
+      expect(
+        text('skills/bootstrap-spec/SKILL.md'),
+        contains("names each target's `tech_stack:tech_stack`"),
+      );
+    });
+
+    test('fill_check_findings: a spec doc implements pointer is written with '
+        'the record command', () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains(
+          'with `specstone set implementation:<feature> --field implements '
+          '--base <hash>`, then drop the key.',
+        ),
+      );
+    });
+
     test("R-T33-1: bootstrap-spec takes each target's tech stack code roots "
         "from that target's code root", () {
       expect(

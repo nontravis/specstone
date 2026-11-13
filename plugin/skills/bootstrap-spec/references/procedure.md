@@ -11,15 +11,14 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 ## 2. One finding at a time
 
-Fix this skill's first unhandled finding, then run a bare `specstone check` again (a targeted run omits
-`code_uncovered`). Stop when each finding left is under `prds/`, clears with no write, or is tagged
-`(waits for the Owner)`, except an unanswered size finding.
+Fix this skill's first unhandled finding, then run a bare `specstone check` again.
+Stop when each finding left is under `prds/`, clears with no write, or is tagged `(waits for the Owner)`, except an
+unanswered size finding.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
 `--title` in place of `#<key>`); a section body leaves out its `## ` line, a list field takes its whole list, and
-empty text drops the section or key. The text between the title and the first `##` section is `#_lead`. Exit 75
-`base_mismatch`: read again, merge, retry.
+empty text drops the section or key. The text between the title and the first `##` section is `#_lead`.
 
 Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
 `#quot;`.
@@ -40,8 +39,8 @@ the Owner only when no text bears on a whole section.
 
 ## 3. Point and cover code
 
-- **`implements` on a spec doc:** move each entry to the record entry of the story or FR that code
-  serves, then drop the key.
+- **`implements` on a spec doc:** move each entry to the record entry of the story or FR it serves
+  with `specstone set implementation:<feature> --field implements --base <hash>`, then drop the key.
 - **`architecture_missing`:** run `specstone new architecture --parent <feature>`, fill it, and list in `covers` the
   code its record entries name.
 - **`code_uncovered`:** add the file or its folder to `covers` on the architecture or topic doc describing it; with
@@ -84,10 +83,11 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 
-`specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill `tech_stack:tech_stack` per
-the guide you loaded, and `code`, each code folder under that target's code root in the config's `targets:`, or `code_root` for an unnamed one, else the project
-root. Write PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop
-each PRD section.
+`specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill each target's
+`tech_stack:tech_stack` per the guide you loaded, and its `code`, each code folder under that target's code root in the
+config's `targets:`, or `code_root` for an unnamed one, else the project root.
+Write PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop each
+PRD section.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.

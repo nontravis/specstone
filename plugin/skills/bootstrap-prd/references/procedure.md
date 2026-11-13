@@ -50,8 +50,8 @@ proposal named in step 6. Pipe that record's whole new list, as YAML `- item` li
 ## 4. Merge an old file, or split a full one
 
 An `untyped_doc` is an old file the migration left, such as a group's container `FEATURE.md`.
-Merge its content into the doc that takes it, else a new one from `specstone new <type>`. Skip only a sentence that doc holds word for word, and never target
-the untyped file: a write refuses it. Add its path to this run's retire set.
+Merge its content into the doc that takes it, else a new one from `specstone new <type>`. Skip only a sentence that
+doc holds word for word, and never target the untyped file: a write refuses it. Add its path to this run's retire set.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
 Keep the first; put each other in its own `specstone new <type>` doc under the same parent, named from its heading.

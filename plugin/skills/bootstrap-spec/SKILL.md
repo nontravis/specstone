@@ -29,8 +29,8 @@ PROJECT's Tech stack, that `specstone:bootstrap-prd` leaves for it.
 
 With the `Agent` tool, split the gate's findings this skill takes by doc path: one batch per feature folder, each
 `architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included. In the first
-round the rest batch always runs, even with no finding, and names `tech_stack:tech_stack`, the doc the procedure's step
-6 fills; no feature batch fills it. In a later round it runs only when findings it owns remain. Dispatch one
+round the rest batch always runs, even with no finding, and names each target's `tech_stack:tech_stack`, the doc the procedure's
+step 6 fills; no feature batch fills it. In a later round it runs only when findings it owns remain. Dispatch one
 `specstone:sdd-engineer` per batch with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, and
 `report:`, one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work
 no step of the procedure yourself.
