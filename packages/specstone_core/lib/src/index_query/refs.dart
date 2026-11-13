@@ -159,16 +159,18 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
 List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
   final type = index.typeOf(doc);
   if (type == null) return const [];
+  final isRecord = type.id == index.set.recordDocType?.id;
   return [
     for (final field in type.fields)
-      if (field.type == FieldType.outputRef)
+      if (field.type == FieldType.outputRef &&
+          !(isRecord && field.id == recordTestsKey))
         if (field.pointer == PointerKind.itemExact)
           for (final line in recordCodeLinesOf(doc, field))
             _Ref.toPointer(field.id, line.code)
-        else if (field.id != recordTestsKey)
+        else
           for (final value in doc.valuesOf(field.id))
             _Ref.toPointer(field.id, value),
-    if (type.id == index.set.recordDocType?.id)
+    if (isRecord)
       for (final line in recordTestLinesOf(doc))
         _Ref.toPointer(recordTestsKey, line.path),
   ];

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -195,13 +196,10 @@ const recordTestsKey = 'tests';
 ({String item, String path})? recordTestLineOf(String line) {
   final split = line.indexOf(':');
   if (split < 0) return null;
-  return (item: line.substring(0, split), path: _pathOf(line, split));
-}
-
-String _pathOf(String line, int itemSplit) {
-  final rest = line.substring(itemSplit + 1);
-  final nameMark = rest.indexOf(':');
-  return nameMark < 0 ? rest : rest.substring(0, nameMark);
+  return (
+    item: line.substring(0, split),
+    path: splitPathTail(line.substring(split + 1)).path,
+  );
 }
 
 /// Returns the `item:<test path>` lines of [record]'s `tests` key as item and

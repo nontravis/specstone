@@ -708,6 +708,38 @@ void main() {
     });
 
     test(
+      'a record that declares a tests field prints each tests line once',
+      () async {
+        final declared = await indexWith({
+          '.specstone/templates/implementation.yaml':
+              '$recordType'
+              '  - id: tests\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: item_exact\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+              '---\nstatuses:\n  - email_login:implemented\n'
+              'tests:\n  - email_login:lib/a_test.dart:locks\n'
+              '---\n\n# Record\n',
+        });
+
+        expect(
+          answerRefs(
+            declared,
+            'specs/flutter/f01_login/IMPLEMENTATION.md',
+          ).text,
+          contains('Outbound\n- tests: lib/a_test.dart\nInbound\n'),
+        );
+      },
+    );
+
+    test(
       'a record with no tests line prints none beside its implements lines',
       () async {
         final twin = await twoTargets();

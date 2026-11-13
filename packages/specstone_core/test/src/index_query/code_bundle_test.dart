@@ -63,18 +63,21 @@ void main() {
       },
     );
   });
-  test('f01/us05/fr04/e02: a folder a tests path under it matches the item it proves', () async {
-    final b = code('app/lib/src/login', BundleMode.implement);
-    expect(
-      b.docPaths,
-      containsAll([
-        '$f/us01_email_login/fr01_validate_credentials.md',
-        '$f/us01_email_login/USER_STORY.md',
-      ]),
-    );
-  });
+  test(
+    'f01/us05/fr04/e02: a folder matches every implements entry under it',
+    () async {
+      final b = code('app/lib/src/login', BundleMode.implement);
+      expect(
+        b.docPaths,
+        containsAll([
+          '$f/us01_email_login/fr01_validate_credentials.md',
+          '$f/us01_email_login/USER_STORY.md',
+        ]),
+      );
+    },
+  );
   test('f01/us05/fr04/e02, f01/us05/fr04/e10, f01/us05/fr04/e17: a tests path '
-      'matches as a pointer value, its name aside, and the file is never read', () async {
+      'matches as a pointer value, its name aside', () async {
     final project = await writeLoginProject(
       extra: {
         'app/lib/schema.dbml': '',
