@@ -1,6 +1,6 @@
 ---
 name: sync-sdd
-description: Use when code in a Specstone project changed and its spec docs must catch up, such as after a plan task's commit, when a code file moved or was deleted and an `implements:` or `covers:` pointer may break, when new code does something no spec states, or when another `specstone:` skill or agent names `specstone:sync-sdd`.
+description: Use when code in a Specstone project changed and its spec docs must catch up, such as after a plan task's commit, when a code file moved or was deleted and a record code path or `covers:` pointer may break, when new code does something no spec states, or when another `specstone:` skill or agent names `specstone:sync-sdd`.
 ---
 
 # Sync the docs with changed code
@@ -38,6 +38,8 @@ When you followed the procedure yourself, its report stands in for item 1.
 3. Ask the Owner each open question; send the answers to the same agent while it is live, else dispatch a new one
    with them.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
-   list to `specstone set <type>:<name> --field implements --base <hash>` (or `--field covers`), the hash from
-   `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <type>:<name> --json`.
+   list to `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (or
+   `specstone set <type>:<name> --field covers`), the `--target` the changed path's code target
+   (`domain:agent_plugin` INV-25), the hash from `bases.fields.implements` (or `bases.fields.covers`) of
+   `specstone get implementation:<feature> --target <name> --json` (or `get <type>:<name> --json`).
 5. Run `specstone:brainstorming-sdd` for each behavior the report hands over.

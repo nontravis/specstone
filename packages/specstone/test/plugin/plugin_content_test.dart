@@ -1435,6 +1435,132 @@ void _agentTests() {
     );
   });
 
+  group('agent_plugin/sync_code_and_docs', () {
+    const targetLine =
+        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+        "INV-25): a changed path's target is the one whose code root is the "
+        'longest that holds it, as `context --code` picks it, so ask the Owner '
+        'nothing; each `get`, `set`, and `new` of a per-target doc carries '
+        '`--target <name>`, or addresses the doc by its DocPath.';
+    const recordWrite =
+        '`specstone set implementation:<feature> --field implements '
+        '--target <name> --base <hash>`';
+
+    String procedure() =>
+        _oneLine(_pluginText('skills/sync-sdd/references/procedure.md'));
+
+    test('find_specs_for_changed_code E02: a deleted file shows as a record '
+        'entry in check, fixed in step 4.3', () {
+      expect(
+        procedure(),
+        contains(
+          '`specstone check` lists the record entries that still name it; '
+          'step 4.3 fixes them.',
+        ),
+      );
+    });
+
+    test("find_specs_for_changed_code E02: the procedure takes the path's "
+        'target by the longest code root and asks the Owner nothing', () {
+      expect(procedure(), contains(targetLine));
+      expect(
+        procedure(),
+        contains("takes its path's code target and carries no `--target`"),
+      );
+    });
+
+    test('update_covering_docs E01: a moved file takes the new path in its '
+        "target's record, and the stories and FRs stay as they are", () {
+      final text = procedure();
+      expect(text, contains(recordWrite));
+      expect(
+        text,
+        contains(
+          'moved file: point each record entry that names it at the new side '
+          'of its rename pair; the stories and FRs, which name no code, stay '
+          'as they are;',
+        ),
+      );
+    });
+
+    test('update_covering_docs E03: a record code-path write leaves the '
+        'draft flag untouched', () {
+      expect(
+        procedure(),
+        contains(
+          'A record code-path or `covers:` write leaves the draft flag '
+          'untouched: an approved doc keeps its approval.',
+        ),
+      );
+    });
+
+    test('update_covering_docs E05: a path in one target compares and fixes '
+        "that target's record and covers entries alone", () {
+      expect(
+        procedure(),
+        contains(
+          "A changed path's target alone: compare and fix its record and "
+          "`covers:` entries, never another target's.",
+        ),
+      );
+    });
+
+    test("update_covering_docs pointers row: the skill's waiting pointer "
+        'goes to the target record with its --target and base', () {
+      final skill = _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
+      expect(
+        skill,
+        contains(
+          'pipe the corrected list to `specstone set implementation:<feature> '
+          '--field implements --target <name> --base <hash>` (or `specstone '
+          'set <type>:<name> --field covers`), the `--target` the changed '
+          "path's code target (`domain:agent_plugin` INV-25), the hash from "
+          '`bases.fields.implements` (or `bases.fields.covers`) of '
+          '`specstone get implementation:<feature> --target <name> --json` '
+          '(or `get <type>:<name> --json`).',
+        ),
+      );
+      expect(skill, isNot(contains('--field implements --base')));
+    });
+
+    test('draft_spec_for_uncovered_code E03: a new or set draft carries the '
+        "--code path's target, one target none", () {
+      expect(
+        procedure(),
+        contains(
+          '`specstone new <type>` (`--parent <name>`, `--slug <slug>`, '
+          "`--target <name>`, the path's code target, as the type takes them)",
+        ),
+      );
+    });
+
+    test('draft_spec_for_uncovered_code E02: no record code path names the '
+        'new code before approval; the pointer goes to the target record '
+        'after it', () {
+      expect(
+        procedure(),
+        contains(
+          'Write no record code path or `covers:` entry that names this code '
+          'until the Owner approves the draft. Then add the entry at once '
+          "with the step 4.3 `specstone set --field` write, on the path's "
+          "target's record:",
+        ),
+      );
+    });
+
+    test('sdd-engineer names the sync target source and the record entry '
+        'write on its Code target line', () {
+      expect(
+        _oneLine(_pluginText('agents/sdd-engineer.md')),
+        contains(
+          "sync takes the `--code` path's code target, or the finding "
+          "DocPath's, on each per-target `get`, `set`, and `new`, and writes "
+          "code paths to that target's record entry, never to an FR;",
+        ),
+      );
+    });
+  });
+
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
       'doc and adds a story with --summary', () {
     final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
