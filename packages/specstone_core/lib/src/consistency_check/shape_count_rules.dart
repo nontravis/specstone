@@ -1,13 +1,9 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show isThematicBreak, itemHeadingMarker, tableCellRanges, tableHeadCells;
+import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-final _listMarker = RegExp(r'^(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)');
-final _listMarkerIndented = RegExp(r'^\s*(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)');
 
 /// Returns the sentence, item-count, and line-floor findings of a typed [doc];
 /// an untyped doc has none.
@@ -42,7 +38,13 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final limits = template.maxSentences ?? const <SentenceLimit>[];
     final count = template.itemCount;
     if (limits.isEmpty && count == null) continue;
-    final section = _Block(context.bodyLinesOf(doc, i));
+    final section = _Block(
+      context.itemsIn(doc, i),
+      text: [
+        for (final line in context.bodyLinesOf(doc, i))
+          if (!line.fenced) line.text,
+      ].join('\n'),
+    );
     for (final limit in limits) {
       yield* _sentenceFindings(context, doc, section, headerLine, limit);
     }
@@ -82,17 +84,10 @@ Iterable<({int line, String text})> _textsToLimit(
   SentenceLimit limit,
 ) sync* {
   if (limit.column case final column?) {
-    for (final table in section.tables) {
-      final at = table.header.indexOf(column);
-      if (at < 0) continue;
-      for (final row in table.rows) {
-        final cells = tableCellRanges(row.text);
-        if (at >= cells.length) continue;
-        yield (
-          line: row.line,
-          text: row.text.substring(cells[at].start, cells[at].end).trim(),
-        );
-      }
+    for (final row in section.rows) {
+      final at = row.header!.indexOf(column);
+      if (at < 0 || at >= row.cells!.length) continue;
+      yield (line: row.line, text: row.cells![at]);
     }
     return;
   }
@@ -169,163 +164,52 @@ Iterable<Finding> _countIn(
   }
 }
 
-/// One item: its first file line and raw text, and all its own lines.
-typedef _Item = ({int line, String firstLine, String text});
-
-/// One table: its header cells and its body rows.
-typedef _Table = ({List<String> header, List<BodyLine> rows});
-
-/// A run of consecutive body lines, read for items, tables, and subsections
-/// on first use.
+/// A section's top-level items, grouped for the rules.
 final class _Block {
-  new(this._lines);
+  new(List<SectionItem> all, {this.text = ''})
+    : _all = [
+        for (final item in all)
+          if (!item.nested) item,
+      ];
 
-  final List<BodyLine> _lines;
+  final List<SectionItem> _all;
 
-  late final List<_Table> tables = _tablesIn(_lines);
+  /// The section's unfenced text, read when no list item or table row holds
+  /// it.
+  final String text;
 
-  late final List<_Item> items = _itemsIn(_lines, tables);
+  /// The list items and table rows.
+  late final List<SectionItem> items = [
+    for (final item in _all)
+      if (item.kind == SectionItemKind.listItem ||
+          item.kind == SectionItemKind.tableRow)
+        item,
+  ];
 
-  /// The unfenced lines, joined.
-  late final String text = [
-    for (final line in _lines)
-      if (!line.fenced) line.text,
-  ].join('\n');
+  /// The table rows.
+  late final List<SectionItem> rows = [
+    for (final item in _all)
+      if (item.kind == SectionItemKind.tableRow) item,
+  ];
 
-  /// The `###` subsections, each with the heading's file line and the block
+  /// The `###` subsections, each with its heading's file line and the items
   /// under it.
-  late final List<({int line, _Block block})> subsections = _subsectionsIn(
-    _lines,
+  late final List<({int line, _Block block})> subsections = _subsectionsOf(
+    _all,
   );
 }
 
-List<({int line, _Block block})> _subsectionsIn(List<BodyLine> lines) {
-  final starts = [
-    for (var k = 0; k < lines.length; k++)
-      if (!lines[k].fenced && lines[k].text.startsWith(itemHeadingMarker)) k,
-  ];
+List<({int line, _Block block})> _subsectionsOf(List<SectionItem> all) {
+  final subsections = <({int line, List<SectionItem> under})>[];
+  for (final item in all) {
+    if (item.kind == SectionItemKind.heading) {
+      subsections.add((line: item.line, under: []));
+    } else if (subsections.isNotEmpty) {
+      subsections.last.under.add(item);
+    }
+  }
   return [
-    for (var s = 0; s < starts.length; s++)
-      (
-        line: lines[starts[s]].line,
-        block: _Block(
-          lines.sublist(
-            starts[s] + 1,
-            s + 1 < starts.length ? starts[s + 1] : lines.length,
-          ),
-        ),
-      ),
+    for (final (:line, :under) in subsections)
+      (line: line, block: _Block(under)),
   ];
 }
-
-/// Returns the top-level list items of [lines], each whole: its wrapped
-/// lines included, its nested items aside.
-List<_Item> _itemsIn(List<BodyLine> lines, List<_Table> tables) {
-  if (lines.isEmpty) return const [];
-  final rowLines = {
-    for (final table in tables)
-      for (final row in table.rows) row.line,
-  };
-  final items = <_Item>[];
-  var k = 0;
-  while (k < lines.length) {
-    final text = lines[k].text;
-    if (lines[k].fenced || !_listMarker.hasMatch(text)) {
-      k++;
-      continue;
-    }
-    final base = _indentOf(text);
-    var end = k + 1;
-    while (end < lines.length && _continuesItem(lines[end], base, rowLines)) {
-      end++;
-    }
-    items.add((
-      line: lines[k].line,
-      firstLine: text,
-      text: _itemText(lines, k, end),
-    ));
-    k = end;
-  }
-  return items;
-}
-
-/// Returns the own lines of the item from [k] to [end], a nested item's lines
-/// dropped.
-String _itemText(List<BodyLine> lines, int k, int end) {
-  final own = StringBuffer(lines[k].text);
-  int? nestedIndent;
-  for (var j = k + 1; j < end; j++) {
-    final text = lines[j].text;
-    if (lines[j].fenced) continue;
-    final indent = _indentOf(text);
-    final marker = _listMarkerIndented.hasMatch(text) ? indent : null;
-    if (marker != null && marker > _indentOf(lines[k].text)) {
-      nestedIndent = marker;
-      continue;
-    }
-    if (nestedIndent != null) {
-      if (indent < nestedIndent) {
-        nestedIndent = null;
-      } else {
-        continue;
-      }
-    }
-    own.write('\n$text');
-  }
-  return own.toString();
-}
-
-/// Whether [line] stays in the item that opened at [base] indent columns: a
-/// blank line, a fence, a heading, a thematic break, a table row, and a
-/// same-or-shallower list marker each end it.
-bool _continuesItem(BodyLine line, int base, Set<int> rowLines) {
-  if (line.fenced || rowLines.contains(line.line)) return false;
-  final text = line.text;
-  if (text.trim().isEmpty) return false;
-  if (text.startsWith(itemHeadingMarker) || isThematicBreak(text)) return false;
-  return !_listMarkerIndented.hasMatch(text) || _indentOf(text) > base;
-}
-
-int _indentOf(String text) {
-  var at = 0;
-  while (at < text.length &&
-      (text.codeUnitAt(at) == 0x20 || text.codeUnitAt(at) == 0x09)) {
-    at++;
-  }
-  return at;
-}
-
-List<_Table> _tablesIn(List<BodyLine> lines) {
-  final tables = <_Table>[];
-  var k = 0;
-  while (k + 1 < lines.length) {
-    final head = lines[k];
-    final cells = head.fenced || lines[k + 1].fenced
-        ? null
-        : tableHeadCells(head.text, lines[k + 1].text);
-    if (cells == null) {
-      k++;
-      continue;
-    }
-    var end = k + 2;
-    while (end < lines.length && _isRow(lines[end])) {
-      end++;
-    }
-    tables.add((
-      header: [
-        for (final cell in cells)
-          head.text.substring(cell.start, cell.end).trim(),
-      ],
-      rows: lines.sublist(k + 2, end),
-    ));
-    k = end;
-  }
-  return tables;
-}
-
-bool _isRow(BodyLine line) =>
-    !line.fenced &&
-    line.text.trim().isNotEmpty &&
-    !line.text.startsWith(itemHeadingMarker) &&
-    !_listMarkerIndented.hasMatch(line.text) &&
-    !isThematicBreak(line.text);

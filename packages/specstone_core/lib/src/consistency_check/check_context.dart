@@ -7,12 +7,17 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart'
+    show generatedLineTest, withGeneratedFenced;
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -34,6 +39,7 @@ final class CheckContext {
   final Map<String, Map<String, String>> _scenarioBlocks = {};
   final Map<String, RegExp> _bannedPatterns = {};
   final Map<String, List<MergedSection?>> _heldTemplates = {};
+  final Map<String, bool Function(int)> _generatedLines = {};
 
   /// The index of the session's snapshot.
   DocIndex get index => _session.index;
@@ -154,6 +160,22 @@ final class CheckContext {
   List<BodyLine> bodyLinesOf(IndexedDoc doc, int index) {
     final content = contentOf(doc);
     return sectionBodyLines(content.sections, content.lineFacts, index);
+  }
+
+  /// Returns the items of the held section at [index] of [doc], as the index
+  /// reads items: a closed generated block holds none.
+  List<SectionItem> itemsIn(IndexedDoc doc, int index) {
+    final isGenerated = _generatedLines.putIfAbsent(doc.docPath, () {
+      final text = toLf(contentOf(doc).text);
+      return generatedLineTest(
+        Doc.parse(text),
+        text,
+        typeOf(doc)?.listedGenerators.toSet() ?? const {},
+      );
+    });
+    return sectionItemsOf(
+      withGeneratedFenced(bodyLinesOf(doc, index), isGenerated),
+    );
   }
 
   /// Whether [type] declares the field [fieldId].

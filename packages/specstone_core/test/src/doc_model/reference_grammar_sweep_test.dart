@@ -31,6 +31,11 @@ final _allowed = <_Allowed>[
     'Blockquote label such as `> Note:`, no reference.',
   ),
   _core(
+    'consistency_check/item_field_rules.dart',
+    r"""RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$'""",
+    'Matches a `- **<field>:** <text>` label, no reference.',
+  ),
+  _core(
     'consistency_check/trace_rules.dart',
     r"""RegExp(r'^\*\*Serves:\*\*(.*)$'""",
     'Matches the `**Serves:**` label; its IDs are read apart.',
@@ -454,10 +459,12 @@ final _rules = <_Rule>[
     remedy:
         'Read an item through DocContent.itemFacts in '
         'index_query/item_facts.dart.',
-    pattern: RegExp(r'\bitemsOf\('),
+    pattern: RegExp(r'\b(?:itemsOf|sectionItemsOf)\('),
     exempt: {
       _lib('doc_model/doc_items.dart'),
       _lib('index_query/item_facts.dart'),
+      // The one context accessor every check rule reads items by.
+      _lib('consistency_check/check_context.dart'),
     },
     allowed: [],
     appliesTo: _everySource,
