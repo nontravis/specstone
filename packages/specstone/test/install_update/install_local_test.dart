@@ -7,7 +7,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import '../../../specstone_core/test/helpers/git_repo.dart' show git;
+import '../../../specstone_core/test/helpers/git_repo.dart' show commitAll, git;
 import '../helpers/install_local_repo.dart';
 
 const _fr =
@@ -676,6 +676,72 @@ fi''');
     expect(Directory('${installDir()}/bin/bin').existsSync(), isFalse);
     expect(File('${installDir()}/bin/stale').existsSync(), isFalse);
     expect(installEntries(), unorderedEquals(['bin', 'lib']));
+  });
+
+  test('$_story S2, $_fr E14: the placed shim is executable and holds the '
+      'marker of the branch', () async {
+    final result = await repo.run(tool, args: ['--branch', 'feature/example']);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final shim = File('${installDir()}/bin/stn');
+    expect(shim.existsSync(), isTrue);
+    expect(shim.readAsLinesSync()[1], '# shim feature');
+    // The three execute bits of the mode, as the committed shim has them.
+    expect(shim.statSync().mode & 0x49, 0x49);
+  });
+
+  test('$_story S1, $_fr E14: no ref places the develop shim', () async {
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final shim = File('${installDir()}/bin/stn');
+    expect(shim.existsSync(), isTrue);
+    expect(shim.readAsLinesSync()[1], '# shim develop');
+  });
+
+  test('$_story S3, $_fr E14: the placed shim is the committed one, not an '
+      'uncommitted edit', () async {
+    File('${repo.work.path}/$shimPath')
+        .writeAsStringSync('#!/bin/sh\n# shim dirty\n');
+    final stateBefore = await repo.checkoutState();
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(await repo.checkoutState(), stateBefore);
+    expect(
+      File('${installDir()}/bin/stn').readAsLinesSync()[1],
+      '# shim develop',
+    );
+  });
+
+  test('$_fr E05: a shim copy that fails keeps snapshot()', () async {
+    failOn('cp', '.bin.new/stn');
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('stub: cp failed'));
+    expect(repo.sandbox.snapshot(), before);
+    expect(installEntries(), unorderedEquals(['bin', 'lib']));
+    expect(repo.worktrees(), hasLength(1));
+    expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('Owner ruling 2026-11-13: a commit with no shim is refused, nothing is '
+      'placed, and no worktree remains', () async {
+    git(repo.work, ['checkout', '-q', '-b', 'old']);
+    git(repo.work, ['rm', '-q', shimPath]);
+    commitAll(repo.work, 'before the shim');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    final result = await repo.run(tool, args: ['--branch', 'old']);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('old'));
+    expect(result.stderr, contains(shimPath));
+    expect(result.stderr, contains(_unchangedText));
+    expectNothingChanged();
   });
 
   test('$_fr E10: build.txt goes with lib/ under install.sh at 0.9.1 and '

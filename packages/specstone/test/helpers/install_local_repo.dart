@@ -39,10 +39,14 @@ Future<String> compileInstallLocal() async {
   return exe;
 }
 
+/// The shim's path in the checkout, relative to its root.
+const String shimPath = 'packages/specstone/bin/stn';
+
 /// Creates a sandbox, a git checkout, and `dart` and `git` stubs; POSIX only.
 ///
 /// The checkout is `<sandbox.root>/check out/`, on `develop`, with
-/// `feature/example` one commit ahead; both are deleted by `addTearDown`.
+/// `feature/example` one commit ahead; both are deleted by `addTearDown`. Each
+/// branch commits an executable [shimPath] whose body names the branch.
 Future<InstallLocalRepo> createInstallLocalRepo() async {
   final sandbox = await createScriptSandbox();
   final work = Directory('${sandbox.root.path}/check out');
@@ -141,14 +145,25 @@ final class InstallLocalRepo {
     ..parent.createSync(recursive: true)
     ..writeAsStringSync(content);
 
+  // Commits as an executable, as the real shim is, with [marker] as its body.
+  void _writeShim(String marker) {
+    _write(shimPath, '#!/bin/sh\n# shim $marker\n');
+    final result = Process.runSync('chmod', ['755', '${work.path}/$shimPath']);
+    if (result.exitCode != 0) {
+      throw StateError('chmod $shimPath failed: ${result.stderr}');
+    }
+  }
+
   void _fillCheckout() {
     _git(['init', '-q', '-b', 'develop']);
     _write('fixture_version.txt', '0.9.0\n');
     _write('marker.txt', 'develop\n');
     _write('packages/specstone/bin/specstone.dart', 'void main() {}\n');
+    _writeShim('develop');
     commitAll(work, 'init');
     _git(['checkout', '-q', '-b', 'feature/example']);
     _write('marker.txt', 'feature\n');
+    _writeShim('feature');
     commitAll(work, 'feature');
     _git(['checkout', '-q', 'develop']);
   }
