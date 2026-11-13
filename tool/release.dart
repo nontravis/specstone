@@ -95,6 +95,7 @@ Future<void> _release(List<String> args) async {
   await _checkCiPassed(head);
   await _checkVersionAboveCurrent(root, version);
   await _checkTagAbsent(version);
+  await _checkRefNames(version);
   _checkSpotsParse(root);
 
   if (dryRun) {
@@ -377,6 +378,25 @@ Future<void> _checkTagAbsent(String version) async {
   ]);
   if (remote.isNotEmpty) {
     throw _Refusal('tag $tag already exists on origin');
+  }
+}
+
+/// Refuses when git refuses the release branch or tag name of [version].
+///
+/// `git check-ref-format` is the one source of the ref-name rule, so the
+/// Version form stays as it is and cannot drift from git.
+Future<void> _checkRefNames(String version) async {
+  final refs = ['refs/heads/release/$version', 'refs/tags/v$version'];
+  final refused = <String>[];
+  for (final ref in refs) {
+    final result = await _run('git', ['check-ref-format', ref]);
+    if (result.exitCode != 0) refused.add(ref);
+  }
+  if (refused.isNotEmpty) {
+    throw _Refusal(
+      'git check-ref-format refuses ${refused.join(' and ')}; '
+      'give a version whose release branch and tag names git accepts',
+    );
   }
 }
 

@@ -202,7 +202,7 @@ void main() {
       agentMdPath: '.specstone/AGENT.md',
       projectDocPath: 'docs/prds/PROJECT.md',
     );
-    expect(_read(root, 'CLAUDE.md'), "Owner's rules\n$imports");
+    expect(_read(root, 'CLAUDE.md'), "Owner's rules\n\n$imports");
     expect(
       _read(root, 'AGENTS.md'),
       'before\n${inlineBlock(cliVersion: specstoneVersion)}after\n',
@@ -291,7 +291,7 @@ void main() {
     expect(lines.indexOf(_configLine()), greaterThan(topLine));
     expect(
       File('${base.path}/project/other/AGENTS.md').readAsStringSync(),
-      'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+      'Owner\n\n${inlineBlock(cliVersion: specstoneVersion)}',
     );
     expect(
       _read(project, '.specstone/config.yaml'),
@@ -456,7 +456,7 @@ void main() {
       expect(status, 0);
       expect(
         _read(root, real),
-        'Owner\n${inlineBlock(cliVersion: specstoneVersion)}',
+        'Owner\n\n${inlineBlock(cliVersion: specstoneVersion)}',
       );
       expect(FileSystemEntity.isLinkSync('${root.path}/$link'), isTrue);
       expect(

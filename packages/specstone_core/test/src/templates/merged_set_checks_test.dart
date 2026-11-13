@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -601,6 +602,76 @@ void main() {
           targetNames: const [],
         ),
         returnsNormally,
+      );
+    });
+  });
+
+  group('checkMergedSet required_when', () {
+    const lowerFile = '~/.specstone/packs/runbook.yaml';
+    const upperFile = '.specstone/templates/runbook.yaml';
+    const ruleOnA =
+        'path: a.md\nsections: [{id: a, header: A, lint: '
+        '{required_when: {section: b, field: Kind, value: api}}}]\n';
+    const ruleOnAWithB =
+        'path: a.md\nsections: [{id: a, header: A, lint: '
+        '{required_when: {section: b, field: Kind, value: api}}}, '
+        '{id: b, header: B}]\n';
+
+    /// The runbook merged over [texts], one layer each, lowest first.
+    ({MergedDocType type, DocTypeLayers layers}) merged(List<String> texts) {
+      final layers = [
+        for (final (i, text) in texts.indexed)
+          layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
+      ];
+      var type = const DocTypeMerger().builtInBase('runbook');
+      for (final entry in layers) {
+        type = const DocTypeMerger().apply(type, entry.layer);
+      }
+      return (type: type, layers: layers);
+    }
+
+    void checkRunbook(List<String> texts) {
+      final (:type, :layers) = merged(texts);
+      check([type], {'runbook': layers});
+    }
+
+    test('a lower layer naming a section an upper layer adds is accepted', () {
+      expect(
+        () => checkRunbook([ruleOnA, 'sections: [{id: b, header: B}]\n']),
+        returnsNormally,
+      );
+    });
+
+    test('a required_when naming no section is unknown_value at the layer '
+        'that wrote it', () {
+      expect(
+        () => checkRunbook([ruleOnA, 'description: Other\n']),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', lowerFile)
+              .having(
+                (f) => f.key,
+                'key',
+                'sections.a.lint.required_when.section',
+              ),
+        ),
+      );
+    });
+
+    test('a layer that disables the named section is unknown_value', () {
+      expect(
+        () => checkRunbook([
+          ruleOnAWithB,
+          'sections: [{id: b, disabled: true}]\n',
+        ]),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.key,
+            'key',
+            'sections.a.lint.required_when.section',
+          ),
+        ),
       );
     });
   });

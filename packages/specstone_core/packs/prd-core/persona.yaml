@@ -62,6 +62,9 @@ sections:
       Include a detail only if it would change a product decision; cut the rest.
     template: |-
       <Role, experience level, and one memorable detail, in 2 to 4 lines.>
+    lint:
+      max_lines: 4
+      min_lines: 2
   - id: jobs
     header: Jobs to be done
     required: true
@@ -71,6 +74,10 @@ sections:
       Reference a shared job statement by its ID instead of copying it into each persona.
     template: |-
       - <Verb> <object> <context>
+    lint:
+      item_count:
+        min: 3
+        max: 4
   - id: behaviors
     header: Behaviors & skills
     required: true
@@ -164,6 +171,7 @@ sections:
       - **Voice guide:** <link>
       - **Tone shift:** <how the tone changes for the persona>
 lint:
+  title_no_number: true
   banned_patterns:
     - id: doc_citation
       # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.
