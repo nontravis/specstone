@@ -287,16 +287,11 @@ final class DocIndex {
   /// of its story; else its record entry's `statuses` status, `planned`
   /// without an entry or a status.
   RecordStatus itemStatus(IndexedDoc item, {String? codeTarget}) {
-    final records = _recordsOf(item, _namedOrGiven(codeTarget));
-    for (final record in records) {
-      final relative = _relativeItemOf(item, record);
-      for (final entry in record.entries) {
-        if (entry.status == RecordStatus.skipped &&
-            _skipCovers(entry.item, relative)) {
-          return RecordStatus.skipped;
-        }
-      }
+    final target = _namedOrGiven(codeTarget);
+    if (_coveringSkip(item, target, includingOwn: true) != null) {
+      return RecordStatus.skipped;
     }
+    final records = _recordsOf(item, target);
     for (final record in records) {
       final relative = _relativeItemOf(item, record);
       for (final entry in record.entries) {
@@ -304,6 +299,34 @@ final class DocIndex {
       }
     }
     return RecordStatus.planned;
+  }
+
+  /// Returns the name of the skip that covers the story or FR [item] in
+  /// [codeTarget] apart from its own entry (INV-29), or null when none does.
+  ///
+  /// The narrowest skip wins, and the record nearest [item] first; a skipped
+  /// feature entry is named by its feature.
+  String? coveringSkipOf(IndexedDoc item, {String? codeTarget}) =>
+      _coveringSkip(item, _namedOrGiven(codeTarget), includingOwn: false);
+
+  String? _coveringSkip(
+    IndexedDoc item,
+    String? codeTarget, {
+    required bool includingOwn,
+  }) {
+    for (final record in _recordsOf(item, codeTarget)) {
+      final relative = _relativeItemOf(item, record);
+      final covering = [
+        for (final entry in record.entries)
+          if (entry.status == RecordStatus.skipped &&
+              (includingOwn || entry.item != relative) &&
+              _skipCovers(entry.item, relative))
+            entry.item,
+      ]..sort((a, b) => b.length.compareTo(a.length));
+      if (covering.isEmpty) continue;
+      return covering.first.isEmpty ? record.feature : covering.first;
+    }
+    return null;
   }
 
   /// Returns the record entry of the story or FR [item] in [codeTarget], or

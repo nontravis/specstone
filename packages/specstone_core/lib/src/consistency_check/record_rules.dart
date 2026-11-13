@@ -31,23 +31,27 @@ Iterable<Finding> checkRecordEntries(
 
 /// One record read line by line against its feature tree.
 final class _RecordWalk {
-  new(this._context, this._record, this._feature, this._type, this._lines)
-    : _statusFieldId = _fieldIdOf(
-        _type,
+  new(
+    this._context,
+    this._record,
+    this._feature,
+    MergedDocType type,
+    this._lines,
+  ) : _statusFieldId = _fieldIdOf(
+        type,
         (f) => f.type == FieldType.recordStatus,
       ),
       _codeFieldId = _fieldIdOf(
-        _type,
+        type,
         (f) =>
             f.type == FieldType.outputRef && f.pointer == PointerKind.itemExact,
       ),
       _entries = {
-        for (final entry in recordEntriesOf(_record, _type)) entry.item: entry,
+        for (final entry in recordEntriesOf(_record, type)) entry.item: entry,
       },
-      _items = _itemsOf(_context, _feature);
+      _docs = _docsOf(_context, _feature);
 
   final CheckContext _context;
-  final MergedDocType _type;
   final IndexedDoc _record;
   final IndexedDoc _feature;
   final DocLines _lines;
@@ -55,9 +59,9 @@ final class _RecordWalk {
   final String? _codeFieldId;
   final Map<String, RecordEntry> _entries;
 
-  /// The items the record may name: the feature itself, its stories, and
-  /// their FRs, each relative to the feature.
-  final Set<String> _items;
+  /// The items the record may name, each relative to the feature: the
+  /// feature itself (no doc), its stories, and their FRs.
+  final Map<String, IndexedDoc?> _docs;
 
   Iterable<Finding> findings() sync* {
     yield* _statusFindings();
@@ -72,7 +76,7 @@ final class _RecordWalk {
       if (value is! String) continue;
       final parsed = recordStatusLineOf(value);
       final item = parsed?.item ?? value;
-      if (parsed == null || !_items.contains(item)) {
+      if (parsed == null || !_docs.containsKey(item)) {
         yield _unresolved(item, line);
       } else if (!seen.add(item)) {
         yield _finding(
@@ -103,7 +107,7 @@ final class _RecordWalk {
       if (value is! String) continue;
       final parsed = recordCodeLineOf(value);
       final item = parsed?.item ?? value;
-      if (parsed == null || !_items.contains(item)) {
+      if (parsed == null || !_docs.containsKey(item)) {
         yield _unresolved(item, line);
       } else if (_entries[item]?.status == RecordStatus.skipped) {
         yield _finding(
@@ -147,41 +151,8 @@ final class _RecordWalk {
     );
   }
 
-  /// Returns the name of the entry whose skip covers [item], the narrowest
-  /// first, or null when none does.
-  ///
-  /// The record's own skips come first, then a skipped feature entry in the
-  /// record of each feature above, in the same code target.
-  String? _skipAbove(String item) {
-    final own = [
-      for (final entry in _entries.values)
-        if (entry.status == RecordStatus.skipped &&
-            entry.item != item &&
-            _covers(entry.item, item))
-          entry.item,
-    ]..sort((a, b) => b.length.compareTo(a.length));
-    if (own.isNotEmpty) return _nameOf(own.first);
-    return _ancestorSkip();
-  }
-
-  String? _ancestorSkip() {
-    final index = _context.index;
-    for (final feature in index.chainOf(_feature).skip(1)) {
-      if (feature.docTypeId != featureType) continue;
-      for (final record in index.ofTypeNamed(_type.id, feature.name)) {
-        if (record.target != _record.target) continue;
-        if (_skipsFeature(record)) return feature.name;
-      }
-    }
-    return null;
-  }
-
-  bool _skipsFeature(IndexedDoc record) {
-    return recordEntriesOf(record, _type).any(
-      (entry) =>
-          entry.item == _featureItem && entry.status == RecordStatus.skipped,
-    );
-  }
+  String? _skipAbove(String item) =>
+      _context.index.coveringSkipOf(_docs[item]!, codeTarget: _record.target);
 
   Finding _unresolved(String entry, int line) => _finding(
     FindingKind.recordEntryUnresolved,
@@ -208,24 +179,19 @@ String? _fieldIdOf(MergedDocType type, bool Function(MergedField) test) =>
 
 /// Returns the items a record of [feature] names: the feature itself, each
 /// story under it, and each FR of those stories, relative to the feature.
-Set<String> _itemsOf(CheckContext context, IndexedDoc feature) {
+Map<String, IndexedDoc?> _docsOf(CheckContext context, IndexedDoc feature) {
   final index = context.index;
   final prefix = '${feature.name}/';
   String relative(IndexedDoc doc) => doc.name.startsWith(prefix)
       ? doc.name.substring(prefix.length)
       : doc.name;
   return {
-    _featureItem,
+    _featureItem: null,
     for (final story in index.childrenOf(feature))
-      if (story.docTypeId == storyType) ...[
-        relative(story),
+      if (story.docTypeId == storyType) ...{
+        relative(story): story,
         for (final fr in index.childrenOf(story))
-          if (fr.docTypeId == frType) relative(fr),
-      ],
+          if (fr.docTypeId == frType) relative(fr): fr,
+      },
   };
 }
-
-/// Whether the skipped entry [skipped] covers [item]: the feature itself, or a
-/// story above an FR.
-bool _covers(String skipped, String item) =>
-    skipped == _featureItem || item.startsWith('$skipped/');

@@ -168,6 +168,10 @@ void main() {
     );
 
     expect(_found(bare), ['${_statusLine(0)} skip_reason_missing']);
+    expect(
+      _only(bare, FindingKind.skipReasonMissing).toJson(),
+      containsPair('entry', _story),
+    );
     expect(_found(blank), ['${_statusLine(0)} skip_reason_missing']);
     expect(_found(given), isEmpty);
   });
@@ -185,6 +189,13 @@ void main() {
       '${_codeLine(1, 0)} skip_with_code',
       '${_codeLine(1, 1)} skip_with_code',
     ]);
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.skipWithCode) f.keys['entry'],
+      ],
+      [_story, _story],
+    );
   });
 
   test('f04/us03/fr05/e07: under the feature skip a story with another '
