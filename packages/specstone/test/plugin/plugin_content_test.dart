@@ -1576,6 +1576,109 @@ void _agentTests() {
     });
   });
 
+  group('agent_plugin/set_up_new_project', () {
+    String init() => _oneLine(_pluginText('skills/init/SKILL.md'));
+
+    test('set_up_and_fill_drafts E04: a code root with no folder draws no '
+        'finding until a record entry is implemented', () {
+      expect(
+        init(),
+        contains(
+          'A listed folder that does not exist yet draws no finding while no '
+          'record entry of its code target is `implemented`, and '
+          '`code_root_missing` once one is and the folder is still missing; '
+          'keep the entry either way.',
+        ),
+      );
+      expect(init(), isNot(contains('that is expected in a new project')));
+    });
+
+    test('domain:agent_plugin INV-25: init passes no --target, a new '
+        'project having one code target', () {
+      expect(
+        init(),
+        contains(
+          'A new project has one code target, so no `set` here carries '
+          '`--target` (`domain:agent_plugin` INV-25).',
+        ),
+      );
+    });
+  });
+
+  group('agent_plugin/fill_missing_format', () {
+    const procedureTargetLine =
+        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+        'INV-25): each `new` and `set` of a per-target doc carries '
+        "`--target <name>`, the finding DocPath's code target, else the first "
+        'listed one.';
+
+    String text(String file) => _oneLine(_pluginText(file));
+
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      test('fill_check_findings and merge_old_files, INV-25: the $skill '
+          "procedure takes each write's target from the finding DocPath, else "
+          'the first listed', () {
+        expect(
+          text('skills/$skill/references/procedure.md'),
+          contains(procedureTargetLine),
+        );
+      });
+
+      test('fill_check_findings, INV-25: $skill names the batch target '
+          'source, so a bootstrap batch never asks the Owner', () {
+        expect(
+          text('skills/$skill/SKILL.md'),
+          contains(
+            '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+            "INV-25): a finding's code target is its DocPath's, and an old "
+            'file whose path names none merges into the first listed one, so '
+            'a batch never asks the Owner.',
+          ),
+        );
+      });
+    }
+
+    test('fill_check_findings E01 and E08: a feature code pointer goes to '
+        "the first target's record entry, and is not written again when the "
+        'entry holds it', () {
+      expect(
+        text('skills/bootstrap-prd/references/procedure.md'),
+        contains(
+          'Give each `implements:` entry of a `FEATURE.md` to the record '
+          'entry of the story or FR whose behavior that code does, in the '
+          'first listed code target, unless it holds it already;',
+        ),
+      );
+      expect(
+        text('skills/bootstrap-prd/references/procedure.md'),
+        contains(
+          'to `specstone set implementation:<feature> --field implements '
+          '--base <hash>`.',
+        ),
+      );
+    });
+
+    test('fill_check_findings: a spec doc implements pointer goes to the '
+        'record entry of its story or FR', () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains('move each entry to the record entry of the story or FR'),
+      );
+    });
+
+    test('sdd-engineer names the bootstrap target source on its Code target '
+        'line', () {
+      expect(
+        text('agents/sdd-engineer.md'),
+        contains(
+          "bootstrap takes the finding DocPath's code target on each "
+          'per-target `new` and `set`, else the first listed one for a code '
+          'pointer on a shared doc or an old file whose path names none;',
+        ),
+      );
+    });
+  });
+
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
       'doc and adds a story with --summary', () {
     final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
