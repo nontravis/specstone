@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
+import 'package:specstone_core/src/document_writing/stale_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -41,7 +42,8 @@ int parsePlace(String? value) {
 /// the gaps a delete left. Each renamed segment moves, with the spec folders
 /// of a feature right after it, and the links to them follow. A doc that
 /// already holds [place] with no gap changes nothing. No draft mark is
-/// written.
+/// written. A code file or an agent file is never written; each path mention
+/// in one that the reorder stops resolving is listed in the answer.
 ///
 /// [codeTarget] keeps the doc's name to that code target's docs and the shared
 /// docs. Every entry of a record names its item relative to its feature, so a
@@ -58,6 +60,7 @@ ReadAnswer answerReorder(
   String address, {
   required String? place,
   String? codeTarget,
+  bool dryRun = false,
 }) {
   final wanted = parsePlace(place);
   final target = session.target(address, codeTarget: codeTarget);
@@ -85,12 +88,23 @@ ReadAnswer answerReorder(
       shape,
       wanted: wanted,
     );
-    if (moves.isEmpty) return _answerFor(session, moves, const []);
+    if (moves.isEmpty) {
+      return _answerFor(session, moves, const [], dryRun: dryRun);
+    }
     session.journalTarget.requireTrusted();
     final rewrites = planRewrites(session, moves);
-    MoveJournal([..._stageSteps(session, moves), ...rewrites])
-        .run(session.journalTarget);
-    return _answerFor(session, moves, rewrites);
+    final mentions = staleMentions(session, moves, namesChange: false);
+    if (!dryRun) {
+      MoveJournal([..._stageSteps(session, moves), ...rewrites])
+          .run(session.journalTarget);
+    }
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      mentions: mentions,
+      dryRun: dryRun,
+    );
   });
 }
 
@@ -99,7 +113,9 @@ ReadAnswer answerReorder(
 /// The own segment moves, with the spec folders of a feature, and the links
 /// to them and the `doc_ref` values that name a renamed doc follow. The `# `
 /// title is never touched and no draft mark is written. The slug a doc
-/// already carries changes nothing.
+/// already carries changes nothing. A code file or an agent file is never
+/// written; each Name or path mention in one that the rename stops resolving
+/// is listed in the answer.
 ///
 /// [codeTarget] keeps the doc's name to that code target's docs and the shared
 /// docs. The entry of a renamed story or FR, in each target's record, takes
@@ -117,6 +133,7 @@ ReadAnswer answerRename(
   String address, {
   required String? slug,
   String? codeTarget,
+  bool dryRun = false,
 }) {
   if (slug == null) {
     throw missingArgument(
@@ -141,24 +158,33 @@ ReadAnswer answerRename(
   }
   return session.locked(() {
     final moves = _renameMoves(session, target, docType, shape, slug);
-    if (moves.isEmpty) return _answerFor(session, moves, const []);
+    if (moves.isEmpty) {
+      return _answerFor(session, moves, const [], dryRun: dryRun);
+    }
     session.journalTarget.requireTrusted();
-    final renamed = _renamedNames(session, moves);
-    final skipped = <String>[];
+    final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
     final rewrites = planRewrites(
       session,
       moves,
       renamed: renamed,
       recordEdits: records.edits,
-      onSkipped: skipped.add,
     );
-    MoveJournal([
-      for (final move in moves)
-        MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-      ...rewrites,
-    ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites, warnings: skipped);
+    final mentions = staleMentions(session, moves, namesChange: true);
+    if (!dryRun) {
+      MoveJournal([
+        for (final move in moves)
+          MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+        ...rewrites,
+      ]).run(session.journalTarget);
+    }
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      mentions: mentions,
+      dryRun: dryRun,
+    );
   });
 }
 
@@ -173,7 +199,9 @@ const _storyType = 'user_story';
 /// target is checked before the lock, so one refused target moves none. In
 /// each code target, the entries of a moved story and its FRs go from the
 /// record of the feature they leave to the record of [under], which the move
-/// creates, as a draft, when the target has none.
+/// creates, as a draft, when the target has none. A code file or an agent file
+/// is never written; each Name or path mention in one that the move stops
+/// resolving is listed in the answer.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
 /// `doc_exists` for a clash, among the targets too; an `IndexFault` for no
@@ -185,6 +213,7 @@ ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
   required String? under,
+  bool dryRun = false,
 }) {
   if (addresses.isEmpty) {
     throw missingArgument(
@@ -219,7 +248,9 @@ ReadAnswer answerMove(
     for (final target in targets)
       if (session.index.parentOf(target)?.docPath != newParent.docPath) target,
   ];
-  if (stories.isEmpty) return _answerFor(session, const [], const []);
+  if (stories.isEmpty) {
+    return _answerFor(session, const [], const [], dryRun: dryRun);
+  }
   _checkTakesStory(session, newParent, parentTypeId);
   // Refuse before the lock; the numbers are taken again inside it, since a
   // concurrent `new` can claim one in between.
@@ -227,28 +258,30 @@ ReadAnswer answerMove(
   return session.locked(() {
     final moves = _storyMoves(session, stories, docType, newParent);
     session.journalTarget.requireTrusted();
-    final renamed = _renamedNames(session, moves);
-    final skipped = <String>[];
+    final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
     final rewrites = planRewrites(
       session,
       moves,
       renamed: renamed,
       recordEdits: records.edits,
-      onSkipped: skipped.add,
     );
-    MoveJournal([
-      for (final move in moves)
-        MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-      ...rewrites,
-      ...records.creates,
-    ]).run(session.journalTarget);
+    final mentions = staleMentions(session, moves, namesChange: true);
+    if (!dryRun) {
+      MoveJournal([
+        for (final move in moves)
+          MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+        ...rewrites,
+        ...records.creates,
+      ]).run(session.journalTarget);
+    }
     return _answerFor(
       session,
       moves,
       rewrites,
       created: records.creates,
-      warnings: skipped,
+      mentions: mentions,
+      dryRun: dryRun,
     );
   });
 }
@@ -496,31 +529,6 @@ WriteFault _existsFault(MergedDocType docType, String named, String file) =>
       file: file,
     );
 
-/// Returns the names that change under [moves], each typed doc under a
-/// moved path mapped from `(doc type id, old name)` to its new name.
-///
-/// A per-target doc sits in its target's folder only with two or more targets,
-/// and its name drops that folder, so the twins of the targets share it.
-Map<(String, String), String> _renamedNames(
-  WriteSession session,
-  List<PathMove> moves,
-) {
-  final inTargetFolder = session.index.hasTwins;
-  final renamed = <(String, String), String>{};
-  for (final doc in session.index.docs) {
-    final typeId = doc.docTypeId;
-    final docType = typeId == null ? null : session.index.set.lookup(typeId);
-    final newPath = movedPath(doc.docPath, moves);
-    if (docType == null || newPath == doc.docPath) continue;
-    renamed[(docType.id, doc.name)] = docNameOf(
-      newPath,
-      docType,
-      target: inTargetFolder ? doc.target : null,
-    );
-  }
-  return renamed;
-}
-
 /// Returns the entry of [siblings] named [ownName].
 ///
 /// Throws [IndexFault] `doc_not_found` when [target] is indexed but its
@@ -627,7 +635,8 @@ ReadAnswer _answerFor(
   List<PathMove> moves,
   List<WriteStep> rewrites, {
   List<CreateStep> created = const [],
-  List<String> warnings = const [],
+  List<StaleMention> mentions = const [],
+  bool dryRun = false,
 }) {
   // A record the move creates is a file it writes, listed with the rewrites.
   final written = [
@@ -637,15 +646,22 @@ ReadAnswer _answerFor(
   final rewritten = [for (final path in written) session.listedPathOf(path)];
   return ReadAnswer(
     text: [
-      for (final move in moves) 'moved ${move.from} to ${move.to}\n',
-      for (final path in rewritten) 'rewrote $path\n',
+      for (final move in moves)
+        '${dryRun ? 'moves' : 'moved'} ${move.from} to ${move.to}\n',
+      for (final path in rewritten)
+        '${dryRun ? 'rewrites' : 'rewrote'} $path\n',
+      for (final mention in mentions) mentionLineOf(mention),
+      if (dryRun) _dryRunClosing,
     ].join(),
     json: {
       'moved': [
         for (final move in moves) {'from': move.from, 'to': move.to},
       ],
       'rewritten': rewritten,
+      'mentions': mentionsJsonOf(mentions),
+      if (dryRun) 'dryRun': true,
     },
-    warnings: warnings,
   );
 }
+
+const _dryRunClosing = 'dry run: nothing moved\n';

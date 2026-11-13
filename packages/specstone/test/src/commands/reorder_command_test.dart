@@ -52,6 +52,42 @@ void main() {
       ),
     );
   });
+  test('reorder prints a path mention in a code file as a mentions line '
+      'and keeps the file', () async {
+    const code =
+        '// docs/prds/features/f01_login/us03_reset_password/USER_STORY.md:4\n'
+        '// `login/reset_password`\n';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+            '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+            '## Naming\n\n- snake_case file names\n',
+        'app/lib/doc.dart': code,
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '1',
+        '--json',
+      ]),
+      0,
+    );
+    expect((jsonDecode(out.toString()) as Map)['mentions'], [
+      {
+        'path': 'app/lib/doc.dart',
+        'line': 1,
+        'mention':
+            'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md',
+      },
+    ]);
+    expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
+  });
+
   test(
     'f02/us05/fr02/e10: reorder lists a doc changed by a path mention only',
     () async {
@@ -141,7 +177,7 @@ void main() {
         contains(
           'Expected one target, got 2.\n\n'
           'Usage: specstone reorder <doc address> --to <n> '
-          '[--target <name>] [--json]\n',
+          '[--dry-run] [--target <name>] [--json]\n',
         ),
       );
     },
@@ -263,6 +299,122 @@ void main() {
         err.toString(),
         '--target dart: the code targets are flutter, jaspr\n',
       );
+    });
+  });
+
+  group('--dry-run', () {
+    const f = 'prds/features/f01_login';
+
+    test('prints the moves and rewrites, then says nothing moved, and moves '
+        'nothing', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          '1',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith(
+          'moves $f/us03_reset_password/ to $f/us01_reset_password/\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains('rewrites $f/us02_email_login/fr02_lock_after_failures.md\n'),
+      );
+      expect(out.toString(), endsWith('dry run: nothing moved\n'));
+      expect(out.toString(), isNot(contains('rewrote')));
+      expect(out.toString(), isNot(contains('plan ')));
+      expect(docFile(root, story3).existsSync(), isTrue);
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    });
+
+    test('lists a path mention in a code file and keeps the file', () async {
+      const code =
+          '// docs/prds/features/f01_login/us03_reset_password/USER_STORY.md:4\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+              '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+              '## Naming\n\n- snake_case file names\n',
+          'app/lib/doc.dart': code,
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          '1',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        endsWith(
+          'mentions app/lib/doc.dart:1 '
+          'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md\n'
+          'dry run: nothing moved\n',
+        ),
+      );
+      expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
+    });
+
+    test('--json prints moved, rewritten, mentions, and dryRun true', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run([
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          '1',
+          '--dry-run',
+          '--json',
+        ]),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer.keys, containsAll(['moved', 'rewritten', 'mentions']));
+      expect(answer['dryRun'], isTrue);
+    });
+
+    test('refuses a place out of range with the status and message the reorder '
+        'gives', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      final apply = await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '9',
+      ]);
+      final applyErr = err.toString();
+      final (runner: dryRunner, out: dryOut, err: dryErr) = writeRunner(
+        await writeWriteProject(),
+      );
+      expect(
+        await dryRunner.run([
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          '9',
+          '--dry-run',
+        ]),
+        apply,
+      );
+      expect(apply, 64);
+      expect(dryOut.toString(), isEmpty);
+      expect(dryErr.toString(), applyErr);
     });
   });
 }

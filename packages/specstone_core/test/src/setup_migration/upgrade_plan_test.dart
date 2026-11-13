@@ -322,7 +322,7 @@ sections:
     },
   );
 
-  test('f06/us02/fr02/e08: two docs whose new paths differ only in letter case '
+  test('two docs whose new paths differ only in letter case '
       'collide', () async {
     const packYaml = '''
 name: acme
@@ -361,7 +361,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e08: a move onto a staying doc that differs only in '
+  test('a move onto a staying doc that differs only in '
       'letter case collides', () async {
     const packYaml = '''
 name: acme
@@ -1881,7 +1881,7 @@ void _labelTests() {
         'that holds the conversion and the Specstone block', () async {
       final project = await _labelTree(
         {},
-        code: {'AGENTS.md': 'Current work: `F-01 US-01`\n'},
+        code: {'AGENTS.md': 'Current work: F-01 US-01\n'},
       );
       File('${project.path}/docs/$_techStackPath')
           .writeAsStringSync('---\ncode:\n  - ./\n---\n# Tech stack\n');
@@ -1894,7 +1894,7 @@ void _labelTests() {
       );
       expect(write.text, startsWith('Current work: `a/b`\n'));
       expect(write.text, contains('<!-- BEGIN specstone v'));
-      expect(write.before, textHashOf('Current work: `F-01 US-01`\n'));
+      expect(write.before, textHashOf('Current work: F-01 US-01\n'));
       expect(plan.toText(), contains('  number labels: AGENTS.md'));
       final steps = plan.journalSteps(base: 'HEAD', projectRoot: project);
       expect(

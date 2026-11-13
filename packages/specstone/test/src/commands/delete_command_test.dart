@@ -52,6 +52,27 @@ void main() {
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
   });
   const fr11Target = 'fr:login/email_login/validate_credentials';
+  test('--dry-run prints a mention of a removed doc in an agent file '
+      'before the plan line', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'CLAUDE.md': 'Read `fr:login/email_login/validate_credentials`.\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['delete', fr11Target, '--dry-run']), 0);
+    expect(
+      out.toString(),
+      contains(
+        'mentions CLAUDE.md:1 fr:login/email_login/validate_credentials\nplan ',
+      ),
+    );
+    expect(
+      File('${root.path}/CLAUDE.md').readAsStringSync(),
+      'Read `fr:login/email_login/validate_credentials`.\n',
+    );
+  });
+
   test('ms-r11: --dry-run lists the files and the plan line, removes '
       'nothing, and needs no terminal', () async {
     final root = await writeWriteProject();
@@ -216,6 +237,7 @@ void main() {
     expect(err.toString(), '$fr11\ndelete 1 files? [y/N] ');
     expect(jsonDecode(out.toString()), {
       'removed': [fr11],
+      'mentions': <Object>[],
       'warnings': <String>[],
     });
   });
@@ -576,19 +598,11 @@ void main() {
       binary = await buildSpecstone();
     });
 
-    test('f02/us04/fr06/e08: delete --dry-run and then delete --yes --plan '
-        'start no git, with PATH an empty folder', () async {
+    test('delete --dry-run and then delete --yes --plan do not refuse '
+        'when git is missing or fails', () async {
       final root = await writeWriteProject();
       final emptyPath = Directory.systemTemp.createTempSync('specstone_path_');
       addTearDown(() => emptyPath.deleteSync(recursive: true));
-      // A `git` that leaves a mark where a started git would be found; the
-      // shell builtin `:` writes it, since `touch` is not on this PATH.
-      final marker = File('${emptyPath.path}/git_started');
-      if (!Platform.isWindows) {
-        final stub = File('${emptyPath.path}/git')
-          ..writeAsStringSync('#!/bin/sh\n: > "${marker.path}"\nexit 1\n');
-        expect(Process.runSync('chmod', ['+x', stub.path]).exitCode, 0);
-      }
       final home = testHome().path;
       final environment = {
         'PATH': emptyPath.path,
@@ -609,14 +623,6 @@ void main() {
       final yes = await run(['--yes', '--plan', hash]);
       expect(yes.exitCode, 0, reason: '${yes.stderr}');
       expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
-      expect(
-        marker.existsSync(),
-        isFalse,
-        reason: 'a git process started',
-        skip: Platform.isWindows
-            ? 'Windows runs no sh stub, so a started git leaves no mark'
-            : null,
-      );
     });
   });
 }

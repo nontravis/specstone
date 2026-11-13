@@ -1,35 +1,28 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/atomic_write.dart' show isReadOnly;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show markdownExtension, readsNameMentions;
+    show markdownExtension;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
-import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show skippedLineOf;
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
-import 'package:specstone_core/src/rendering/doc_reader.dart' show bomOf;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
-    show RenderFault, RenderFaultCode;
-import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    show codeFilesOf;
+    show RenderFault;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -221,15 +214,11 @@ String? rewriteDocRefs(
 }
 
 /// Returns the sorted journal writes that keep every link, `doc_ref`, and
-/// doc-name mention true, in docs and in code files under the `code:` roots.
+/// doc-name mention true in docs.
 ///
-/// A non-UTF-8 code file is skipped, as a doc naming nothing renamed is; a
-/// doc whose hash matched its `approved:` value is re-stamped, a code file
-/// never. Draft marks stay untouched.
-///
-/// A code file whose path leaves the project root is never written (R99):
-/// when it holds a mention to rewrite, its path from the project root goes to
-/// [onSkipped] as the warning line, and no step is planned for it.
+/// A doc whose hash matched its `approved:` value is re-stamped. Draft marks
+/// stay untouched. A code file or an agent file is never written: its
+/// mentions are listed by `staleMentions`.
 ///
 /// [recordEdits] maps the DocPath of a record to the edit of its entries; the
 /// record is a candidate, indexed or not, and the edit joins the other
@@ -241,7 +230,6 @@ List<WriteStep> planRewrites(
   List<PathMove> moves, {
   Map<(String, String), String> renamed = const {},
   Map<String, TextEdit> recordEdits = const {},
-  void Function(String line)? onSkipped,
 }) {
   final index = session.index;
   final candidates = <String, IndexedDoc>{};
@@ -271,92 +259,8 @@ List<WriteStep> planRewrites(
   final steps = [
     for (final doc in candidates.values)
       ?_stepFor(session, doc, moves, renamed, recordEdits[doc.docPath]),
-    ..._codeFileSteps(session, renamed, onSkipped),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
-}
-
-/// Returns the writes of the code files under the `code:` roots that hold a
-/// doc-name mention of a doc in [renamed].
-///
-/// A markdown file is read as a doc is, any other file by its comment lines;
-/// a file that is no UTF-8 text, cannot be read, or sits in the docs folder
-/// is left out. A code file is never stamped and never marked draft.
-List<WriteStep> _codeFileSteps(
-  WriteSession session,
-  Map<(String, String), String> renamed,
-  void Function(String line)? onSkipped,
-) {
-  if (renamed.isEmpty) return const [];
-  return [
-    for (final file in codeFilesOf(
-      session.project.projectRoot,
-      session.project.set,
-      targets: session.project.targets,
-    ))
-      ?_codeFileStep(session, file, renamed, onSkipped),
-  ];
-}
-
-WriteStep? _codeFileStep(
-  WriteSession session,
-  ({Directory root, String path}) codeFile,
-  Map<(String, String), String> renamed,
-  void Function(String line)? onSkipped,
-) {
-  final codePath = codeFile.path;
-  final extension = _extensionOf(codePath);
-  if (!readsNameMentions(extension)) return null;
-  final project = session.project;
-  final file = File(
-    '${codeFile.root.path}${Platform.pathSeparator}'
-    '${codePath.split('/').join(Platform.pathSeparator)}',
-  );
-  final projectPath = projectPathOfCodeFile(
-    codePath,
-    projectRoot: project.projectRoot,
-    docsRoot: project.docsRoot,
-    codeRoot: codeFile.root,
-  );
-  if (projectPath == null) return null;
-  final String raw;
-  final List<int> bytes;
-  try {
-    bytes = file.readAsBytesSync();
-    raw = utf8.decode(bytes);
-  } on FileSystemException {
-    return null;
-  } on FormatException {
-    return null;
-  }
-  final text = rewriteNameMentions(raw, extension, renamed);
-  if (text == null) return null;
-  if (_leavesProject(projectPath)) {
-    onSkipped?.call(skippedLineOf(projectPath));
-    return null;
-  }
-  if (isReadOnly(file)) {
-    throw RenderFault(
-      RenderFaultCode.outputNotWritable,
-      'cannot write $projectPath: read-only',
-    );
-  }
-  return WriteStep(
-    projectPath,
-    '${bomOf(bytes)}$text',
-    before: textHashOf(raw),
-  );
-}
-
-/// Whether the ProjectPath [path] leaves the project root.
-bool _leavesProject(String path) => path == '..' || path.startsWith('../');
-
-/// Returns the extension of [path], a `.` and the letters after its last
-/// one, or an empty string for a name with none.
-String _extensionOf(String path) {
-  final name = path.substring(path.lastIndexOf('/') + 1);
-  final dot = name.lastIndexOf('.');
-  return dot < 0 ? '' : name.substring(dot);
 }
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path

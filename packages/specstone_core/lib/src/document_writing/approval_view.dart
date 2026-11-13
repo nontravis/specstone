@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
@@ -167,6 +168,11 @@ String renderApprovalView(
     ..writeln(_row('dropped', _count(dropped.length, 'dropped')))
     ..writeln(_row('new', _count(added.length, 'new')))
     ..writeln();
+  if (_warnsOfUncommittedApproval(draft)) {
+    out
+      ..writeln(_uncommittedApprovalHint)
+      ..writeln();
+  }
   if (hasDiff) {
     out.write(_fenced(color ? _colored(diff) : diff, _fenceFor(diff)));
   } else {
@@ -244,6 +250,16 @@ String? _approvedTextOf(DraftView draft) => switch (draft.lookup) {
 
 const _noChange = 'no change since the approved copy';
 
+const _uncommittedApprovalHint =
+    'commit an approval before you edit the doc again; '
+    'the view compares against committed copies only';
+
+/// Whether [draft] has no committed approved copy yet carries an `approved:`
+/// value on disk, as a doc approved and then edited before any commit.
+bool _warnsOfUncommittedApproval(DraftView draft) =>
+    draft.lookup is NoApprovedCopy &&
+    ApprovalFields.of(Doc.parse(toLf(draft.text))).approvedValue != null;
+
 // MARK: - Sentences
 
 /// Returns the `dropped` or `new` cell: `1 sentence new`, `0 sentences new`.
@@ -279,7 +295,7 @@ String _statusSpan(Map<String, String> byTarget) =>
 String _oldCell(ApprovalLookup lookup) => switch (lookup) {
   ApprovedCopy(:final commit) =>
     'approved copy in commit ${_codeSpan(commit.substring(0, 7))}',
-  NoApprovedCopy() => 'none: never approved',
+  NoApprovedCopy() => 'none: no commit holds an approved copy',
   UnknownHistory() => 'unknown: git cannot answer',
 };
 

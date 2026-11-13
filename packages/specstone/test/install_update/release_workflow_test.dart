@@ -139,6 +139,46 @@ void main() {
     }
   });
 
+  test('install_update/version_match/release_new_version/package_archive '
+      'E04: Stage the bundle copies the target shim into bin', () {
+    final stage = _steps(_job(release, 'build'))
+        .singleWhere((s) => s['name'] == 'Stage the bundle');
+    final run = '${stage['run']}';
+    final windowsArm = run.indexOf(r'if [ "$RUNNER_OS" = Windows ]; then');
+    final posixArm = run.indexOf('else');
+    final cmdCopy = run.indexOf(
+      r'cp -p packages/specstone/bin/stn.cmd "$RUNNER_TEMP/stage/bin/stn.cmd"',
+    );
+    final stnCopy = run.indexOf(
+      r'cp -p packages/specstone/bin/stn "$RUNNER_TEMP/stage/bin/stn"',
+    );
+    // Each copy runs only in its platform arm, so a tar.gz never stages
+    // stn.cmd and the zip never stages stn.
+    expect(windowsArm, isNonNegative);
+    expect(cmdCopy, greaterThan(windowsArm), reason: run);
+    expect(cmdCopy, lessThan(posixArm), reason: run);
+    expect(stnCopy, greaterThan(posixArm), reason: run);
+  });
+
+  test('install_update/version_match/release_new_version/package_archive '
+      'E04: the packed archive is checked between the pack steps and '
+      'SHA256SUMS', () {
+    final steps = _steps(_job(release, 'build'));
+    final names = steps.map((s) => '${s['name'] ?? s['uses'] ?? ''}').toList();
+    final check = names.indexOf('Check the shim in the archive');
+    expect(check, isNonNegative, reason: names.join(', '));
+    expect(check, greaterThan(names.indexOf('Pack the archive')));
+    expect(check, greaterThan(names.indexOf('Pack the archive (Windows)')));
+    expect(check, lessThan(names.indexOf('Write SHA256SUMS')));
+
+    final run = '${steps[check]['run']}';
+    expect(run, contains('tar -tvzf'));
+    expect(run, contains(r"grep -q 'bin/stn.cmd$'"));
+    expect(run, contains(r"grep 'bin/stn$'"));
+    expect(run, contains(r"grep -q 'stn.cmd$'"));
+    expect(run, contains("grep -Eq '^-..x'"));
+  });
+
   test('f09/us04/fr05/e02: the version job checks the tag against '
       'version.dart and the five spots', () {
     final version = _job(release, 'version');

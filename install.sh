@@ -536,6 +536,32 @@ absolute_path_only() {
   export PATH
 }
 
+# Prints one notice naming the first `stn` on an absolute PATH entry other
+# than the install folder's bin, which the Owner then types `specstone` in
+# place of; the walk and the test of a `stn` mirror bin/stn (run_cli_or_yield
+# E02, E08, E09, named by name_other_stn_at_install). Always returns 0: the
+# notice never changes the run's exit status.
+name_other_stn() {
+  other_stn_dir=$(cd "$install_dir/bin" 2>/dev/null && pwd -P) ||
+    other_stn_dir=''
+  [ -n "$other_stn_dir" ] || return 0
+  rest=${PATH:-}:
+  while [ -n "$rest" ]; do
+    entry=${rest%%:*}
+    rest=${rest#*:}
+    case "$entry" in
+      /*) ;;
+      *) continue ;;
+    esac
+    resolved=$(cd "$entry" 2>/dev/null && pwd -P) || continue
+    if [ "$resolved" != "$other_stn_dir" ] &&
+      [ -f "$entry/stn" ] && [ -x "$entry/stn" ]; then
+      printf 'specstone: another stn is at %s/stn; type specstone to run the CLI\n' "${entry%/}"
+      return 0
+    fi
+  done
+}
+
 # Succeeds when the git version text $1 is 2.25 or later; a text that names no
 # version, such as the empty output of a git that failed, does not.
 meets_git_floor() {
@@ -612,6 +638,7 @@ main() {
   fi
 
   add_path_entry
+  name_other_stn
   install_plugin
   warn_missing_prerequisites
 }

@@ -221,6 +221,48 @@ void main() {
     );
   });
 
+  test('a whole-project specstone check that reads 1,000 more code files '
+      'full of comment lines still finishes within 2 s', () {
+    const fileCount = 1000;
+    const commentLines = 60;
+    final folder = Directory('${project.path}/src/feature_1/comments')
+      ..createSync(recursive: true);
+    addTearDown(() => folder.deleteSync(recursive: true));
+    final body = [
+      for (var line = 0; line < commentLines; line++) ...[
+        '/// Line $line parses `user_id` and `a/b` per README.md and x.md.',
+        '// See `login` and `f<nn>/us<nn>` in notes.md#top, then docs/none.md.',
+        'final value$line = $line; // not a comment line, `feature_1/story_1`',
+      ],
+    ].join('\n');
+    for (var n = 0; n < fileCount; n++) {
+      File('${folder.path}/c_$n.dart').writeAsStringSync('$body\n');
+    }
+    File('${folder.path}/cited.dart')
+        .writeAsStringSync('// Implements `feature_1/story_1`.\n');
+    const call = ['check'];
+    final first = Process.runSync(exe, call, workingDirectory: project.path);
+    expect(first.exitCode, 1, reason: '${first.stderr}');
+    expect(
+      first.stdout.toString(),
+      allOf(
+        contains(
+          'src/feature_1/comments/cited.dart:1: doc_cited_in_code: '
+          'feature_1/story_1 names a doc',
+        ),
+        isNot(contains('comments/c_')),
+      ),
+    );
+    expect(
+      bestOf(
+        timingRuns,
+        () => timed(call, exitCodes: {0, 1}),
+        label: 'check calls over comment-rich code',
+      ),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
   test('NFR-P03: a broken code path in a record shows in the check, so the '
       'timed runs read the records', () {
     final record = File(

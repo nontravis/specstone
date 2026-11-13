@@ -350,7 +350,10 @@ void main() {
 
       final never = _render(_draft(lookup: const NoApprovedCopy()));
 
-      expect(never, contains('| old     | none: never approved |\n'));
+      expect(
+        never,
+        contains('| old     | none: no commit holds an approved copy |\n'),
+      );
       expect(never, contains('| changes | whole doc |\n'));
       expect(
         never,
@@ -365,6 +368,47 @@ void main() {
         unknown,
         endsWith('```diff\n@@ -0,0 +1,${lines.length} @@\n$body\n```\n'),
       );
+    });
+
+    group('the uncommitted-approval hint', () {
+      const hint =
+          'commit an approval before you edit the doc again; '
+          'the view compares against committed copies only';
+      const approvedEdit =
+          '---\nverify_method: demonstration\napproved: "0123456789ab"\n'
+          '---\n\n# FR-01 — T\n\n## Statement\nA.\n\n## Rationale\nR2.\n';
+
+      test('a no-copy view of a doc carrying approved: adds the hint line '
+          'under the table', () {
+        final view = _render(
+          _draft(text: approvedEdit, lookup: const NoApprovedCopy()),
+        );
+
+        expect(
+          view,
+          contains('| new     | 0 sentences new |\n\n$hint\n\n```diff\n'),
+        );
+      });
+
+      test('a no-copy view of a doc with no approved: value has no hint', () {
+        final view = _render(_draft(lookup: const NoApprovedCopy()));
+
+        expect(view, isNot(contains('commit an approval')));
+      });
+
+      test('a view with an approved copy has no hint, approved: or not', () {
+        final view = _render(_draft(text: approvedEdit));
+
+        expect(view, isNot(contains('commit an approval')));
+      });
+
+      test('a view with unknown history has no hint', () {
+        final view = _render(
+          _draft(text: approvedEdit, lookup: const UnknownHistory()),
+        );
+
+        expect(view, isNot(contains('commit an approval')));
+      });
     });
 
     test('f02/us03/fr02/e12: an unchanged draft says so', () {

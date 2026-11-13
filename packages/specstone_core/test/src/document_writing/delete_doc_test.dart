@@ -162,6 +162,7 @@ void main() {
     expect(answer.text, '$story3\n$fr31\n$fr32\n');
     expect(answer.json, {
       'removed': [story3, fr31, fr32],
+      'mentions': <Object>[],
     });
     expect(
       Directory('${root.path}/docs/prds/features/f01_login/us03_reset_password')
@@ -262,9 +263,83 @@ void main() {
     expect(answer.json, {
       'files': signOutUnit,
       'records': isEmpty,
+      'mentions': <Object>[],
       'plan': hash,
     });
     expect(hasDoc(root, story2), isTrue);
+  });
+
+  group('mentions in code files and agent files', () {
+    const code =
+        '// `login/reset_password` goes\n'
+        '// `login/email_login` stays\n'
+        '// docs/$story3 is gone\n'
+        '// `login/reset_password/send_reset_link`\n';
+    const agent = 'Read `user_story:login/reset_password#use_case` first.\n';
+
+    Future<Directory> withMentions() => writeWriteProject(
+      extra: {
+        ...withoutLink,
+        'docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+            '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+            '## Naming\n\n- snake_case file names\n',
+        'app/lib/reset.dart': code,
+        'CLAUDE.md': agent,
+      },
+    );
+
+    const listed =
+        'mentions CLAUDE.md:1 user_story:login/reset_password#use_case\n'
+        'mentions app/lib/reset.dart:1 login/reset_password\n'
+        'mentions app/lib/reset.dart:3 docs/$story3\n'
+        'mentions app/lib/reset.dart:4 login/reset_password/send_reset_link\n';
+
+    test(
+      'a dry run lists them after the files and before the plan line',
+      () async {
+        final root = await withMentions();
+        final answer = writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        );
+        expect(
+          answer.text,
+          contains(
+            '$fr32\n$listed'
+            'plan ',
+          ),
+        );
+        expect(answer.json['mentions'], [
+          {
+            'path': 'CLAUDE.md',
+            'line': 1,
+            'mention': 'user_story:login/reset_password#use_case',
+          },
+          {
+            'path': 'app/lib/reset.dart',
+            'line': 1,
+            'mention': 'login/reset_password',
+          },
+          {'path': 'app/lib/reset.dart', 'line': 3, 'mention': 'docs/$story3'},
+          {
+            'path': 'app/lib/reset.dart',
+            'line': 4,
+            'mention': 'login/reset_password/send_reset_link',
+          },
+        ]);
+      },
+    );
+
+    test('a delete lists them after the removed paths and keeps every byte '
+        'of those files', () async {
+      final root = await withMentions();
+      final answer = del(root, ['user_story:login/reset_password']);
+      expect(answer.text, endsWith('$fr32\n$listed'));
+      expect(answer.json['mentions'], hasLength(4));
+      expect(File('${root.path}/app/lib/reset.dart').readAsStringSync(), code);
+      expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+    });
   });
 
   test('f02/us04/fr06/e08: the plan hash is the same outside git, in a repo '
@@ -885,7 +960,7 @@ void main() {
       'user_story:login/sign_out',
     ], confirmation: OwnerConfirmation.prompt);
     expect(answer.text, isEmpty);
-    expect(answer.json, {'removed': <String>[]});
+    expect(answer.json, {'removed': <String>[], 'mentions': <Object>[]});
     expect(hasDoc(root, story2), isTrue);
   });
 
@@ -1075,6 +1150,7 @@ void main() {
         final answer = del(root, [scratch]);
         expect(answer.json, {
           'removed': [scratch],
+          'mentions': <Object>[],
         });
         expect(hasDoc(root, scratch), isFalse);
         expect(hasDoc(root, loginArch), isTrue);
@@ -1085,6 +1161,7 @@ void main() {
       final root = await writeWriteProject(extra: untyped);
       expect(del(root, ['docs/$scratch']).json, {
         'removed': [scratch],
+        'mentions': <Object>[],
       });
       expect(hasDoc(root, scratch), isFalse);
       expect(hasDoc(root, loginArch), isTrue);
@@ -1112,6 +1189,7 @@ void main() {
       expect(prompts.toString(), endsWith('delete 3 files? [y/N] '));
       expect(answer.json, {
         'removed': [errors, notes, index]..sort(),
+        'mentions': <Object>[],
       });
       for (final path in [notes, errors, index]) {
         expect(hasDoc(root, path), isFalse);
@@ -1187,6 +1265,7 @@ void main() {
 
       expect(answer.json, {
         'removed': [scratch],
+        'mentions': <Object>[],
       });
       expect(answer.warnings, [
         '$plan links into $scratch; the link will dangle',
@@ -1219,6 +1298,7 @@ void main() {
 
       expect(answer.json, {
         'removed': [notes],
+        'mentions': <Object>[],
       });
       expect(answer.warnings, [
         '$plan links into $notes; the link will dangle',
@@ -1274,6 +1354,7 @@ void main() {
 
       expect(answer.json, {
         'removed': [scratch, plan]..sort(),
+        'mentions': <Object>[],
       });
       expect(answer.warnings, isEmpty);
     });
@@ -1286,6 +1367,7 @@ void main() {
       ]);
       expect(answer.json, {
         'removed': [story3, fr31, fr32],
+        'mentions': <Object>[],
       });
     });
 
@@ -1296,6 +1378,7 @@ void main() {
         final answer = del(root, [scratch, scratch]);
         expect(answer.json, {
           'removed': [scratch],
+          'mentions': <Object>[],
         });
       },
     );
@@ -1645,7 +1728,7 @@ void main() {
       final root = await writeWriteProject(extra: _withRecords());
       final signupBefore = readDoc(root, _signupRecord);
       final answer = del(root, ['user_story:login/reset_password']);
-      expect(answer.json, {'removed': removedStory3});
+      expect(answer.json, {'removed': removedStory3, 'mentions': <Object>[]});
       expect(answer.text, '${removedStory3.join('\n')}\n');
       expect(
         readDoc(root, _loginRecord),
@@ -1887,6 +1970,7 @@ void main() {
             ],
           },
         ],
+        'mentions': <Object>[],
         'plan': hash,
       });
       expect(readDoc(root, _loginRecord), _loginRecordText);
@@ -1927,7 +2011,7 @@ void main() {
         confirmation: OwnerConfirmation.given,
         planHash: hash,
       );
-      expect(answer.json, {'removed': removedStory3});
+      expect(answer.json, {'removed': removedStory3, 'mentions': <Object>[]});
       expect(hasDoc(root, story3), isFalse);
       expect(readDoc(root, _loginRecord), isNot(contains('reset_password')));
     });

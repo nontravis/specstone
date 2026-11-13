@@ -150,5 +150,97 @@ void main() {
       );
       expect([for (final m in mentions) m.line], [1]);
     });
+
+    test('a comment line holds a doc path, plain or in a code span, with its '
+        'anchor and closing mark left off', () {
+      final mentions = nameMentionsInFile(
+        '// See prds/features/f01_login/FEATURE.md.\n'
+            '  // And `docs/prds/PROJECT.md#goal`, then prds/d01.md:12 end\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [
+          (1, 7, 'prds/features/f01_login/FEATURE.md'),
+          (2, 10, 'docs/prds/PROJECT.md'),
+          (2, 43, 'prds/d01.md'),
+        ],
+      );
+    });
+
+    test('a path mention is no reference without lookup', () {
+      final mention = nameMentionsInFile(
+        '// prds/PROJECT.md\n',
+        '.dart',
+      ).single;
+      expect(mention.address.isReferenceWithoutLookup, isFalse);
+    });
+
+    test('a path in an end-of-line comment or a string line is not read', () {
+      expect(
+        nameMentionsInFile(
+          "final p = 'prds/PROJECT.md'; // prds/PROJECT.md\n",
+          '.dart',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('markdown holds a path in its text outside fenced code and its '
+        'frontmatter', () {
+      final mentions = nameMentionsInFile(
+        '---\nsee: prds/PROJECT.md\n---\n\nRead prds/PROJECT.md now.\n\n'
+            '```\nprds/PROJECT.md\n```\n',
+        '.md',
+      );
+      expect([for (final m in mentions) m.line], [5]);
+    });
+
+    test('a path is read from a name mention alongside it, in line order', () {
+      final mentions = nameMentionsInFile(
+        '// `login/email_login` and prds/PROJECT.md\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) m.text],
+        ['login/email_login', 'prds/PROJECT.md'],
+      );
+    });
+
+    test('a word that is no path is not a mention', () {
+      expect(
+        nameMentionsInFile('// notes.mdx and x.md.bak and .md\n', '.dart'),
+        isEmpty,
+      );
+    });
+  });
+
+  group('docMentionsInFile', () {
+    test('one read holds each Name class and the paths, in column order', () {
+      final mentions = docMentionsInFile(
+        '// `login`, `user_id#key`, `login/email_login`, `feature:login`'
+            ' prds/PROJECT.md\n'
+            'x(`login`);\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text)],
+        [
+          (1, 'login'),
+          (1, 'user_id#key'),
+          (1, 'login/email_login'),
+          (1, 'feature:login'),
+          (1, 'prds/PROJECT.md'),
+        ],
+      );
+    });
+
+    test('markdown holds them outside fenced code', () {
+      final mentions = docMentionsInFile(
+        'Use `login`.\n\n```\n`login`\n```\n',
+        '.md',
+      );
+      expect([for (final m in mentions) m.line], [1]);
+    });
   });
 }

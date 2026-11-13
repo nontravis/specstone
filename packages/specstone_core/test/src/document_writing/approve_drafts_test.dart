@@ -290,7 +290,10 @@ void main() {
           '`docs/$signupFeature`\n',
         ),
       );
-      expect(out.toString(), contains('| old     | none: never approved |\n'));
+      expect(
+        out.toString(),
+        contains('| old     | none: no commit holds an approved copy |\n'),
+      );
       expect(
         out.toString(),
         contains(

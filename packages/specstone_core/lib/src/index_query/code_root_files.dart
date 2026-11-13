@@ -42,12 +42,14 @@ String normalCodeEntry(String entry) {
 ///
 /// A file in a folder of [skipFolders], paths from [codeRoot] in
 /// [normalCodeEntry]'s form, is left out: the code root of another target
-/// nested in this one owns it.
+/// nested in this one owns it. With [skipRepositories], so is a file in a
+/// folder below the entry that holds a `.git` entry, a checkout of its own.
 List<String> filesUnderCodeRoot(
   Directory codeRoot,
   String entry, {
   void Function(String folder)? onUnlistable,
   List<String> skipFolders = const [],
+  bool skipRepositories = false,
 }) {
   if (!isPortableCodeEntry(entry) || _passesLink(codeRoot, entry)) {
     return const [];
@@ -64,20 +66,27 @@ List<String> filesUnderCodeRoot(
   );
   if (kind == FileSystemEntityType.file) return [root];
   final files = <String>[];
-  _collect(codeRoot, root, files, onUnlistable, skipFolders);
+  _collect(codeRoot, root, files, onUnlistable, skipFolders, skipRepositories);
   return files..sort(compareCodePoints);
 }
 
 /// Returns the files under every one of [entries], each once, sorted by code
-/// point (see [filesUnderCodeRoot], which takes [skipFolders]).
+/// point (see [filesUnderCodeRoot], which takes [skipFolders] and
+/// [onUnlistable]).
 List<String> codeRootFiles(
   Directory codeRoot,
   Iterable<String> entries, {
   List<String> skipFolders = const [],
+  void Function(String folder)? onUnlistable,
 }) {
   final files = <String>{
     for (final entry in entries)
-      ...filesUnderCodeRoot(codeRoot, entry, skipFolders: skipFolders),
+      ...filesUnderCodeRoot(
+        codeRoot,
+        entry,
+        skipFolders: skipFolders,
+        onUnlistable: onUnlistable,
+      ),
   };
   return files.toList()..sort(compareCodePoints);
 }
@@ -154,12 +163,21 @@ bool _isUnder(List<String> folders, String path) => folders.any(
   (folder) => path == folder || path.startsWith('$folder$_separator'),
 );
 
+/// Whether [folder] holds a `.git` entry, a folder or a file.
+bool _holdsGitEntry(Directory folder) =>
+    FileSystemEntity.typeSync(
+      '${folder.path}$_separator.git',
+      followLinks: false,
+    ) !=
+    FileSystemEntityType.notFound;
+
 void _collect(
   Directory codeRoot,
   String folderPath,
   List<String> files,
   void Function(String folder)? onUnlistable,
   List<String> skipFolders,
+  bool skipRepositories,
 ) {
   final folder = Directory('${codeRoot.path}$_separator$folderPath');
   final List<FileSystemEntity> entities;
@@ -177,9 +195,16 @@ void _collect(
       case File():
         files.add(path);
       case Directory():
-        if (!_isUnder(skipFolders, path)) {
-          _collect(codeRoot, path, files, onUnlistable, skipFolders);
-        }
+        if (_isUnder(skipFolders, path)) break;
+        if (skipRepositories && _holdsGitEntry(entity)) break;
+        _collect(
+          codeRoot,
+          path,
+          files,
+          onUnlistable,
+          skipFolders,
+          skipRepositories,
+        );
       case _:
     }
   }

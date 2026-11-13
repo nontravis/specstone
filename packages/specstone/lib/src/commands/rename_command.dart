@@ -7,6 +7,13 @@ class RenameCommand extends WriteCommand {
     addTargetOption();
     argParser
       ..addOption('to', help: 'The new slug.')
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help:
+            'Run every check and print what the rename would do; write '
+            'nothing.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 
@@ -18,7 +25,8 @@ class RenameCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone rename <doc address> --to <slug> [--target <name>] [--json]';
+      'specstone rename <doc address> --to <slug> '
+      '[--dry-run] [--target <name>] [--json]';
 
   @override
   Future<int> run() {
@@ -31,6 +39,7 @@ class RenameCommand extends WriteCommand {
         target,
         slug: args.option('to'),
         codeTarget: targetOf(args),
+        dryRun: args.flag('dry-run'),
       ),
     );
   }

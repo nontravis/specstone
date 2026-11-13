@@ -515,10 +515,10 @@ void main() {
       final facts = parse(featurePath, padded);
       expect(facts.doc.formatted, isFalse);
       final counts = facts.content.lineFacts;
-      expect(counts.lineCount, laidOut.split('\n').length - 1);
+      expect(counts.lineCount, nonBlankLinesOf(laidOut));
       expect(counts.charCount, laidOut.length);
       expect(counts.sectionCounts, [
-        (lines: problemText.split('\n').length, chars: problemText.length),
+        (lines: nonBlankLinesOf(problemText), chars: problemText.length),
       ]);
       expect(counts.sectionLines, [3]);
       final after = parse(featurePath, laidOut);
@@ -536,7 +536,7 @@ void main() {
         final parsed = parse(featurePath, text);
         expect(parsed.doc.formatted, isNull, reason: text);
         expect(parsed.content.lineFacts.charCount, text.length);
-        expect(parsed.content.lineFacts.lineCount, text.split('\n').length - 1);
+        expect(parsed.content.lineFacts.lineCount, nonBlankLinesOf(text));
       }
     });
 
@@ -593,8 +593,8 @@ void main() {
       const goal = '## Goal\n\n| x | y |\n|---|---|';
       final flow = '## Flow\n\n$open\n$block\n$generatedEndMarker';
       expect(parsed.content.lineFacts.sectionCounts, [
-        (lines: goal.split('\n').length, chars: goal.length),
-        (lines: flow.split('\n').length, chars: flow.length),
+        (lines: nonBlankLinesOf(goal), chars: goal.length),
+        (lines: nonBlankLinesOf(flow), chars: flow.length),
       ]);
     });
   });
@@ -642,3 +642,7 @@ void main() {
     });
   });
 }
+
+/// The non-blank lines of [text], the expected line counts.
+int nonBlankLinesOf(String text) =>
+    text.split('\n').where((line) => line.trim().isNotEmpty).length;

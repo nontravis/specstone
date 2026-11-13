@@ -58,6 +58,7 @@ enum FindingKind {
   itemIdLettered('item_id_lettered'),
   implementsPathUnresolved('implements_path_unresolved'),
   implementsSymbolUnresolved('implements_symbol_unresolved'),
+  docCitedInCode('doc_cited_in_code'),
   coversPathMissing('covers_path_missing'),
   codeRootMissing('code_root_missing'),
   codeUncovered('code_uncovered'),
@@ -122,6 +123,7 @@ enum FindingKind {
   /// Whether the kind is reported against the project, not one doc (INV-12).
   bool get isProjectLevel =>
       this == codeUncovered ||
+      this == docCitedInCode ||
       this == referenceDocUnresolved ||
       this == agentBlockStale;
 }

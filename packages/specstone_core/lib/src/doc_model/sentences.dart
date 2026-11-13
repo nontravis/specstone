@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf, isTableDelimiterRow, isThematicBreak, startsTable;
@@ -343,15 +344,19 @@ _Stripped? _withoutContainers(String line, bool continuesParagraph) {
 }
 
 /// Returns the sentences of [block], cut after each `.`, `?`, or `!` a space or
-/// the end of the block follows.
+/// the end of the block follows and no code span holds.
+///
+/// The marks of a code span are blanked before the cut, so a sentence never
+/// ends inside one; the span's own text stays in each sentence as written.
 List<String> _cut(String block) {
   final text = collapseWhitespace(block).trim();
+  final cuttable = _outsideCodeSpans(text);
   final sentences = <String>[];
   var start = 0;
-  for (var i = 0; i < text.length; i++) {
-    if (!_terminators.contains(text.codeUnitAt(i))) continue;
+  for (var i = 0; i < cuttable.length; i++) {
+    if (!_terminators.contains(cuttable.codeUnitAt(i))) continue;
     final end = i + 1;
-    if (end < text.length && text.codeUnitAt(end) != _space) continue;
+    if (end < cuttable.length && cuttable.codeUnitAt(end) != _space) continue;
     sentences.add(text.substring(start, end).trim());
     start = end;
   }
@@ -360,4 +365,18 @@ List<String> _cut(String block) {
     for (final sentence in sentences)
       if (sentence.isNotEmpty) sentence,
   ];
+}
+
+/// Returns [text] with every code span's marks and backticks blanked, the
+/// same length as [text], so only the marks outside a span cut a sentence.
+String _outsideCodeSpans(String text) {
+  final spans = codeSpansOf(text);
+  if (spans.isEmpty) return text;
+  final units = text.codeUnits.toList();
+  for (final span in spans) {
+    for (var at = span.start; at < span.end; at++) {
+      units[at] = _space;
+    }
+  }
+  return String.fromCharCodes(units);
 }

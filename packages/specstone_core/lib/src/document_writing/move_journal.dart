@@ -310,7 +310,7 @@ final class MoveStep extends JournalStep {
 /// The marker of a [MoveStep]'s temporary name in a case-only move.
 const _tempCaseSuffix = '.specstone-case';
 
-String _lastSegmentOf(String path) => path.split(Platform.pathSeparator).last;
+String _lastSegmentOf(String path) => path.split(RegExp(r'[/\\]')).last;
 
 /// Returns the name the disk lists for [path]'s segment, matched without
 /// letter case, a leftover temporary name included, or null when no entry is
@@ -319,14 +319,14 @@ String? _listedNameOf(String path) {
   final wanted = _lastSegmentOf(path).toLowerCase();
   final folder = Directory(File(path).parent.path);
   if (!folder.existsSync()) return null;
+  String? leftover;
   for (final entity in folder.listSync(followLinks: false)) {
     final name = _lastSegmentOf(entity.path);
     final folded = name.toLowerCase();
-    if (folded == wanted || folded.startsWith('$wanted$_tempCaseSuffix')) {
-      return name;
-    }
+    if (folded == wanted) return name;
+    if (folded.startsWith('$wanted$_tempCaseSuffix')) leftover = name;
   }
-  return null;
+  return leftover;
 }
 
 /// Removes an empty folder, then each empty parent below the docs root.
@@ -611,6 +611,20 @@ final class CommitStep extends JournalStep {
       for (final path in paths)
         if (matchingIgnore.contains(path) && !head.contains(path)) path,
     };
+    final caseOnlyTo = {
+      for (final move in moves)
+        if (isCaseOnlyMove(move.from, move.to) && head.contains(move.from))
+          move.to,
+    };
+    // A case-only rename onto an ignored path never shows in git's ignored
+    // listing while the old spelling is tracked: with `core.ignorecase` on,
+    // git folds the new spelling onto the tracked alias. The ignore rule
+    // itself decides, so the new spelling still stages by force.
+    ignored.addAll(
+      caseOnlyTo.where(
+        (path) => !head.contains(path) && _isIgnored(target, path),
+      ),
+    );
     final forced = {
       for (final move in moves)
         if (ignored.contains(move.to) && head.contains(move.from)) move.to,
@@ -626,7 +640,7 @@ final class CommitStep extends JournalStep {
       for (final move in moves)
         if (isCaseOnlyMove(move.from, move.to) &&
             head.contains(move.from) &&
-            stageable.contains(move.to))
+            (stageable.contains(move.to) || forced.contains(move.to)))
           move.from,
     };
     if (caseOnlyFrom.isNotEmpty) {
@@ -638,11 +652,13 @@ final class CommitStep extends JournalStep {
         ..._pathspecFile(target, caseOnlyFrom),
       ], environment: _literalPathspecs);
     }
-    if (stageable.isNotEmpty) {
+    // An empty pathspec file makes `git add` take the whole work tree.
+    final added = stageable.difference(caseOnlyFrom);
+    if (added.isNotEmpty) {
       _runWrite(target, 'add', [
         'add',
         '-A',
-        ..._pathspecFile(target, stageable.difference(caseOnlyFrom)),
+        ..._pathspecFile(target, added),
       ], environment: _literalPathspecs);
     }
     if (forced.isNotEmpty) {
@@ -696,6 +712,19 @@ final class CommitStep extends JournalStep {
   bool _onDisk(JournalTarget target, String path) =>
       FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
       FileSystemEntityType.notFound;
+
+  /// Whether an ignore rule matches [path], by git's own check.
+  ///
+  /// `check-ignore` reads [path] as a file name, never a glob, and refuses
+  /// `GIT_LITERAL_PATHSPECS`, so it runs with the plain environment.
+  bool _isIgnored(JournalTarget target, String path) =>
+      target.runGit([
+        'check-ignore',
+        '-q',
+        '--',
+        path,
+      ], workingDirectory: target.projectRoot.path).exitCode ==
+      0;
 
   /// Returns the paths a `-z` git listing prints, or none when git fails.
   Set<String> _listed(JournalTarget target, List<String> arguments) {

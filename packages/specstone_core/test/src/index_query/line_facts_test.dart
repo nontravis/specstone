@@ -40,12 +40,12 @@ void main() {
         'body labels are found once at index time, at their file lines, and '
         'stored', () {
       const labelled =
-          '---\nnote: FR-01\n---\n# T\n\nSee F-01 US-02 and `FR-03`.\n'
-          '```dart\n// FR-04\n```\n';
+          '---\nnote: FR-01\n---\n# T\n\nSee F-01 US-02 and `FR-03` FR-04.\n'
+          '```dart\n// FR-05\n```\n';
       final facts = _factsOf(labelled);
       expect(facts.numberLabels, [
         (line: 6, written: 'F-01 US-02'),
-        (line: 6, written: 'FR-03'),
+        (line: 6, written: 'FR-04'),
       ]);
       expect(
         LineFacts.fromJson(
@@ -100,7 +100,7 @@ void main() {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
       expect(facts.fenced, [(first: 9, last: 11)]);
-      expect(facts.lineCount, 14);
+      expect(facts.lineCount, 8);
       expect(facts.charCount, text.runes.length);
       expect(facts.frontmatterErrorLine, isNull);
     });
@@ -163,6 +163,17 @@ void main() {
       expect(counts[1], (lines: 2, chars: 17));
     });
 
+    test(
+      'a section count is the non-blank lines of its header line and body',
+      () {
+        final counts = _contentOf(text).lineFacts.sectionCounts;
+        expect(counts[0].lines, 5);
+        expect(counts[1].lines, 2);
+        final blanks = _factsOf('---\na: 1\n---\n# T\n\n## S\n\n\nx\n\n\n');
+        expect(blanks.sectionCounts.single.lines, 2);
+      },
+    );
+
     test('f04/nfr-p03: a CRLF file has the facts of its LF twin', () {
       final lf = _factsOf(text);
       final crlf = _factsOf(text.replaceAll('\n', '\r\n'));
@@ -174,6 +185,7 @@ void main() {
     test('f04/nfr-p03: a doc without frontmatter has its sections from line 1, and an empty doc has no lines', () {
       final bare = _factsOf('# T\n\n## S\nx\n');
       expect(bare.sectionLines, [3]);
+      expect(bare.lineCount, 3);
       final empty = _factsOf('');
       expect(empty.sectionLines, isEmpty);
       expect(empty.lineCount, 0);
@@ -181,8 +193,34 @@ void main() {
     });
 
     test('f04/nfr-p03: a final line without a line break counts as a line', () {
-      expect(_factsOf('# T\n\n## S\nx').lineCount, 4);
-      expect(_factsOf('# T\n\n## S\nx\n\n').lineCount, 5);
+      expect(_factsOf('# T\n\n## S\nx').lineCount, 3);
+      expect(_factsOf('# T\n\n## S\nx\n\n').lineCount, 3);
+    });
+
+    test(
+      'the doc count is the non-blank lines of the body after the frontmatter',
+      () {
+        expect(_factsOf(text).lineCount, 8);
+        expect(
+          _factsOf('---\nstatus: planned\n\n---\n\n# T\n\n\n## S\nx\n\n\n')
+              .lineCount,
+          3,
+        );
+      },
+    );
+
+    test(
+      'invalid frontmatter still counts its body from the closing delimiter',
+      () {
+        expect(
+          _factsOf('---\ntitle: "open\n---\n\n# T\n\nx\n\n\n').lineCount,
+          2,
+        );
+      },
+    );
+
+    test('a doc with no closed frontmatter counts its whole text as body', () {
+      expect(_factsOf('---\nstatus: planned\n# T\n\nx\n\n').lineCount, 4);
     });
 
     test('f04/nfr-p03: an unclosed fence runs to the end of the file', () {
@@ -217,6 +255,7 @@ void main() {
       'frontmatter, no final break': '---\n---',
       'frontmatter, then a blank line': '---\n---\n\n',
       'frontmatter, body, no final break': '---\na: 1\n---\nbody',
+      'frontmatter, body, blank line': '---\na: 1\n---\n\nbody\n\n',
       'surrogate pairs': '# \u{1F600}\u{1F600}\n\n## \u{1F600}\nx \uD83D\n',
       'tilde fence': '# T\n~~~\n## no\n~~~\n## yes\n',
       'CRLF with a fence':
@@ -224,15 +263,15 @@ void main() {
     };
     for (final MapEntry(key: name, value: raw) in texts.entries) {
       test(
-        'f04/nfr-p03: $name: the line and code point counts are those of split and runes',
+        'f04/nfr-p03: $name: the line count is the non-blank body lines, the code points those of runes',
         () {
           final lf = raw.replaceAll('\r\n', '\n');
-          final lines = lf.isEmpty ? <String>[] : lf.split('\n');
-          if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
           final facts = _factsOf(raw);
-          expect(facts.lineCount, lines.length);
+          expect(
+            facts.lineCount,
+            nonBlankLinesOf(lfLinesOf(Doc.parse(lf).afterFrontmatter)),
+          );
           expect(facts.charCount, lf.runes.length);
-          expect(facts.lineCount, lfLinesOf(lf).length);
         },
       );
     }
@@ -262,10 +301,12 @@ void main() {
     });
 
     test('f04/nfr-p03: a tilde fence and a CRLF fence hide their ## lines', () {
-      final tilde = _factsOf(texts['tilde fence']!);
+      final tilde = _factsOf('# T\n~~~\n## no\n~~~\n## yes\n');
       expect(tilde.fenced, [(first: 2, last: 4)]);
       expect(tilde.sectionLines, [5]);
-      final crlf = _factsOf(texts['CRLF with a fence']!);
+      final crlf = _factsOf(
+        '---\r\na: 1\r\n---\r\n# T\r\n```\r\n## no\r\n```\r\n',
+      );
       expect(crlf.fenced, [(first: 5, last: 7)]);
       expect(crlf.sectionLines, isEmpty);
     });
@@ -361,12 +402,12 @@ void main() {
   });
 
   group('LineFacts.of counted text', () {
-    test('index_query/read_current_docs/index_each_doc E18: lineCount and charCount measure countedText '
+    test('lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
       const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
       final facts = LineFacts.of(
         lfText: disk,
-        countedText: 'one\ntwo\n',
+        countedText: 'one\ntwo\n\nthree\n',
         docPath: 'doc.md',
         doc: Doc.parse(disk),
         sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
@@ -376,9 +417,13 @@ void main() {
         warnings: [],
       );
       expect(facts.sectionLines, [3, 7]);
-      expect(facts.lineCount, 2);
-      expect(facts.charCount, 8);
+      expect(facts.lineCount, 3);
+      expect(facts.charCount, 15);
       expect(facts.sectionCounts, [(lines: 3, chars: 9), (lines: 2, chars: 4)]);
     });
   });
 }
+
+/// The non-blank lines of [lines], the expected doc count of the body.
+int nonBlankLinesOf(List<String> lines) =>
+    lines.where((line) => line.trim().isNotEmpty).length;

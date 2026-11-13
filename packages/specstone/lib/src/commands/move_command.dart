@@ -11,6 +11,12 @@ class MoveCommand extends WriteCommand {
             'The feature that takes the stories: <doc type>:<name>, '
             'a bare name, or a path.',
       )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help:
+            'Run every check and print what the move would do; write nothing.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 
@@ -23,7 +29,8 @@ class MoveCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone move <doc address> … --under <doc address> [--json]';
+      'specstone move <doc address> … --under <doc address> '
+      '[--dry-run] [--json]';
 
   @override
   Future<int> run() {
@@ -42,7 +49,12 @@ class MoveCommand extends WriteCommand {
       );
     }
     return runWrite(
-      (session) => answerMove(session, args.rest, under: args.option('under')),
+      (session) => answerMove(
+        session,
+        args.rest,
+        under: args.option('under'),
+        dryRun: args.flag('dry-run'),
+      ),
       asJson: asJson,
     );
   }
