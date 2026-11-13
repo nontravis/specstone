@@ -91,6 +91,18 @@ void main() {
     );
   });
 
+  test('setup_migration/set_up_new_project/write_agent_files: init writes '
+      'an AGENT.md of at most 200 words with the one target clause', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init']), 0);
+
+    final text = File('${root.path}/.specstone/AGENT.md').readAsStringSync();
+    expect(RegExp(r'\S+').allMatches(text).length, lessThanOrEqualTo(200));
+    expect(RegExp('--target <code target>').allMatches(text), hasLength(1));
+  });
+
   test(
     'setup_migration/set_up_new_project/write_agent_files E05: init '
     'refuses a malformed instruction file, exit 65, writing nothing',

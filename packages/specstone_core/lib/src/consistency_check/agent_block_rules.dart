@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -52,7 +50,7 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
       codeRootFolders: codeFoldersOf(
         context.projectRoot,
         context.set,
-        codeRoot: _codeRootFromProject(context),
+        targets: config.targets,
       ),
       agentFileRoots: config.agentFileRoots,
     ),
@@ -67,25 +65,3 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
     );
   }
 }
-
-/// Returns the code root as a `/`-separated path from the project root.
-String _codeRootFromProject(CheckContext context) {
-  final project = _segmentsOf(context.projectRoot);
-  final code = _segmentsOf(context.codeRoot);
-  var shared = 0;
-  while (shared < project.length &&
-      shared < code.length &&
-      project[shared] == code[shared]) {
-    shared++;
-  }
-  final steps = [
-    for (var i = shared; i < project.length; i++) '..',
-    ...code.skip(shared),
-  ];
-  return steps.isEmpty ? '.' : steps.join('/');
-}
-
-List<String> _segmentsOf(Directory folder) => [
-  for (final segment in folder.uri.pathSegments)
-    if (segment.isNotEmpty) segment,
-];

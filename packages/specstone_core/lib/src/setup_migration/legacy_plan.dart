@@ -40,6 +40,7 @@ import 'package:specstone_core/src/setup_migration/tree_move.dart'
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
     show orderedMoves;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -193,7 +194,9 @@ RunPlan _legacyRunOf(
   final codeRootNote = _codeRootNoteOf(inferred);
   final agentFiles = _agentFilesOf(
     root,
-    codeRoot: codeRoot,
+    targets: inferred == null && existing != null
+        ? existing.targets
+        : [CodeTarget(null, codeRoot: codeRoot)],
     agentFileRoots: existing?.agentFileRoots ?? const [],
   );
   final configRewrite = existing == null
@@ -250,11 +253,11 @@ RunPlan _legacyRunOf(
 /// Plans the agent files of the legacy run: the full upsert at the root and at
 /// each unlisted repository top inside the project root.
 ///
-/// The legacy tree holds no `code:` entry, so the code roots are the config's
-/// `code_root` alone.
+/// The legacy tree holds no `code:` entry, so the code roots are those of
+/// [targets] alone.
 AgentWritePlan _agentFilesOf(
   Directory root, {
-  required String codeRoot,
+  required List<CodeTarget> targets,
   required List<String> agentFileRoots,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
@@ -262,11 +265,14 @@ AgentWritePlan _agentFilesOf(
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeRootFolders(
-        projectRoot,
-        codeRoot: codeRoot,
-        codeEntries: const [],
-      ),
+      codeRootFolders: [
+        for (final target in targets)
+          ...codeRootFolders(
+            projectRoot,
+            codeRoot: target.codeRoot,
+            codeEntries: const [],
+          ),
+      ],
       agentFileRoots: agentFileRoots,
     ),
     full: true,

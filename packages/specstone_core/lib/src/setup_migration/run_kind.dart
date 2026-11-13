@@ -124,7 +124,7 @@ bool _hasAgentFileDrift(
   final inputs = AgentFileInputs(
     projectRoot: projectRoot,
     cliVersion: specstoneVersion,
-    codeRootFolders: codeFoldersOf(projectRoot, set, codeRoot: config.codeRoot),
+    codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
     agentFileRoots: config.agentFileRoots,
   );
   return agentFileDrifts(inputs).isNotEmpty;

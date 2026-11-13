@@ -285,7 +285,11 @@ List<WriteStep> _codeFileSteps(
   final project = session.project;
   final paths = codeRootFiles(
     project.codeRoot,
-    codeEntriesOnDisk(project.projectRoot, project.set),
+    codeEntriesOnDisk(
+      project.projectRoot,
+      project.set,
+      targetNames: project.targetNames,
+    ),
   );
   return [
     for (final path in paths) ?_codeFileStep(session, path, renamed, onSkipped),

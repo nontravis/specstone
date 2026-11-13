@@ -600,11 +600,7 @@ AgentWritePlan _agentFilesOf(
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeFoldersOf(
-        projectRoot,
-        set,
-        codeRoot: config.codeRoot,
-      ),
+      codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
       agentFileRoots: config.agentFileRoots,
     ),
     full: runsOneTimePasses(upgrades),
@@ -673,7 +669,7 @@ _LabelPlan _planLabelPass(
   final labelled = <String, _CodeFile>{};
   for (final codePath in codeRootFiles(
     codeRoot,
-    codeEntriesOnDisk(projectRoot, set),
+    codeEntriesOnDisk(projectRoot, set, targetNames: config.targetNames),
   )) {
     final projectPath = projectPathOfCodeFile(
       codePath,

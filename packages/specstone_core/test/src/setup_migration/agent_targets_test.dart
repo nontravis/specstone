@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -258,10 +260,10 @@ void main() {
           homeDirectory: null,
         );
 
-        expect(codeEntriesOnDisk(_at(base, 'proj/'), set), [
-          'lib/',
-          '../other/lib/',
-        ]);
+        expect(
+          codeEntriesOnDisk(_at(base, 'proj/'), set, targetNames: const []),
+          ['lib/', '../other/lib/'],
+        );
       },
     );
 
@@ -276,9 +278,169 @@ void main() {
           homeDirectory: null,
         );
 
-        expect(codeEntriesOnDisk(_at(base, 'proj/'), set), isEmpty);
+        expect(
+          codeEntriesOnDisk(_at(base, 'proj/'), set, targetNames: const []),
+          isEmpty,
+        );
       },
     );
+
+    test('$_write E35: the entries of each target tech stack doc, read with '
+        'the config target names', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml': twinConfig(),
+        'proj/docs/specs/flutter/TECH_STACK.md':
+            '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+        'proj/docs/specs/jaspr/TECH_STACK.md':
+            '---\ncode:\n  - web/\n---\n# Tech stack\n',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+
+      expect(
+        codeEntriesOnDisk(
+          _at(base, 'proj/'),
+          set,
+          targetNames: const ['flutter', 'jaspr'],
+        ),
+        ['lib/', 'web/'],
+      );
+    });
+  });
+
+  group('codeFoldersOf', () {
+    List<String> paths(List<Directory> folders) => [
+      for (final folder in folders) folder.path,
+    ];
+
+    test('$_write E35: each target code root and each code root of its tech '
+        'stack doc, read from that target root', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml': twinConfig(),
+        'proj/docs/specs/flutter/TECH_STACK.md':
+            '---\ncode:\n  - vendor/\n---\n# Tech stack\n',
+        'proj/docs/specs/jaspr/TECH_STACK.md':
+            '---\ncode:\n  - extra/\n---\n# Tech stack\n',
+        'proj/flutter_ws/vendor/.git/HEAD': 'ref\n',
+        'proj/jaspr_ws/extra/.git/HEAD': 'ref\n',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+
+      final folders = codeFoldersOf(
+        _at(base, 'proj/'),
+        set,
+        targets: const [
+          CodeTarget('flutter', codeRoot: 'flutter_ws'),
+          CodeTarget('jaspr', codeRoot: 'jaspr_ws'),
+        ],
+      );
+
+      expect(paths(folders), [
+        _at(base, 'proj/flutter_ws/').path,
+        _at(base, 'proj/flutter_ws/vendor/').path,
+        _at(base, 'proj/jaspr_ws/').path,
+        _at(base, 'proj/jaspr_ws/extra/').path,
+      ]);
+    });
+
+    test('$_write E35: two targets in two repositories each take their own '
+        'agent file, and a second run changes nothing', () async {
+      final base = await _base({
+        'proj/stratum_ui/.git/HEAD': 'ref\n',
+        'proj/jaspr-stratum-ui/.git/HEAD': 'ref\n',
+        'proj/.keep': '',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+      final inputs = AgentFileInputs(
+        projectRoot: _at(base, 'proj/'),
+        cliVersion: specstoneVersion,
+        codeRootFolders: codeFoldersOf(
+          _at(base, 'proj/'),
+          set,
+          targets: const [
+            CodeTarget('flutter', codeRoot: 'stratum_ui'),
+            CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
+          ],
+        ),
+        agentFileRoots: const [],
+      );
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(_paths(plan), [
+        _agentMd,
+        'AGENTS.md',
+        'jaspr-stratum-ui/AGENTS.md',
+        'stratum_ui/AGENTS.md',
+      ]);
+      expect(plan.addedRoots, ['jaspr-stratum-ui', 'stratum_ui']);
+    });
+
+    test('$_write E35: two target roots in one repository yield one agent '
+        'file', () async {
+      final base = await _base({
+        'proj/mono/.git/HEAD': 'ref\n',
+        'proj/mono/flutter/a.dart': '',
+        'proj/mono/jaspr/a.dart': '',
+        'proj/.keep': '',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+      final inputs = AgentFileInputs(
+        projectRoot: _at(base, 'proj/'),
+        cliVersion: specstoneVersion,
+        codeRootFolders: codeFoldersOf(
+          _at(base, 'proj/'),
+          set,
+          targets: const [
+            CodeTarget('flutter', codeRoot: 'mono/flutter'),
+            CodeTarget('jaspr', codeRoot: 'mono/jaspr'),
+          ],
+        ),
+        agentFileRoots: const [],
+      );
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(_paths(plan), [_agentMd, 'AGENTS.md', 'mono/AGENTS.md']);
+      expect(plan.addedRoots, ['mono']);
+    });
+
+    test('$_write E35: with no targets the one code root and the shared tech '
+        'stack entries find the tops they found before', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml': shippedPinsConfig(),
+        'proj/docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - vendor/\n---\n# Tech stack\n',
+        'proj/lib/a.dart': '',
+        'proj/lib/vendor/.git/HEAD': 'ref\n',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+
+      final folders = codeFoldersOf(
+        _at(base, 'proj/'),
+        set,
+        targets: const [CodeTarget(null, codeRoot: 'lib')],
+      );
+
+      expect(paths(folders), [
+        _at(base, 'proj/lib/').path,
+        _at(base, 'proj/lib/vendor/').path,
+      ]);
+    });
   });
 
   group('planAgentWrites', () {

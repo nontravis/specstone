@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 const _fr = 'setup_migration/set_up_new_project/write_agent_files';
 
-/// The AGENT.md text of the FR, copied from `specstone get`.
+/// The AGENT.md text: the FR gives its meanings, the asset its wording.
 const _agentMd =
     '# Specstone\n'
     '\n'
@@ -16,6 +16,7 @@ const _agentMd =
     '  something no spec states, stop and ask the Owner.\n'
     '- Read docs with `specstone context <target> --for <mode>` or '
     '`specstone get <name>`; never open doc files directly.\n'
+    '- With 2+ code targets, add `--target <code target>`.\n'
     '- Change docs only with `specstone set`, `new`, `move`, or `rename`. What '
     'an agent writes stays a draft until the\n'
     '  Owner runs `specstone approve`.\n'
@@ -31,6 +32,13 @@ const _agentMd =
     'changed until every finding ends `(waits for the Owner)` '
     '(`--json`: `waitsFor` is `owner`).\n'
     '- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.\n';
+
+const _agentMdWordBound = 200;
+const _targetClauseWordBound = 9;
+const _targetFlag = '--target <code target>';
+
+/// The words of [text] as `wc -w` counts them: runs of non-whitespace.
+int _wordsOf(String text) => RegExp(r'\S+').allMatches(text).length;
 
 const _projectRule = '- Run `specstone get project` before any task.';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
@@ -52,6 +60,27 @@ void main() {
   group('texts', () {
     test('$_fr: agentMdText equals the FR AGENT.md text byte for byte', () {
       expect(agentMdText, _agentMd);
+    });
+
+    test('$_fr: the AGENT.md text counts at most $_agentMdWordBound words', () {
+      expect(_wordsOf(agentMdText), lessThanOrEqualTo(_agentMdWordBound));
+    });
+
+    test('$_fr: one clause adds the target flag, at most '
+        '$_targetClauseWordBound words, naming no target', () {
+      final clauses = [
+        for (final line in agentMdText.split('\n'))
+          if (line.contains('--target')) line,
+      ];
+
+      expect(clauses, hasLength(1));
+      expect(clauses.single, contains('`$_targetFlag`'));
+      expect(
+        _wordsOf(clauses.single),
+        lessThanOrEqualTo(_targetClauseWordBound),
+      );
+      expect(clauses.single, isNot(contains('flutter')));
+      expect(clauses.single, isNot(contains('jaspr')));
     });
 
     test('$_fr: the check rule names the tag and waitsFor, no prose rule', () {

@@ -15,6 +15,7 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
@@ -95,33 +96,76 @@ List<Directory> codeRootFolders(
 }
 
 /// Returns the folders of the code roots for the project at [projectRoot]:
-/// [codeRoot], then every `code:` entry the docs hold under the merged [set].
+/// each of [targets]' code roots, then every `code:` entry the docs of that
+/// target hold under the merged [set], each folder once.
 ///
 /// The one source of code roots for `check`, `chooseRun`, `init`, and the
-/// upgrade plan, so they agree on which repository tops exist.
+/// upgrade plan, so they agree on which repository tops exist. An entry of a
+/// doc no target owns reads from the first target's code root.
 List<Directory> codeFoldersOf(
   Directory projectRoot,
   MergedSet set, {
-  required String codeRoot,
-}) => codeRootFolders(
-  projectRoot,
-  codeRoot: codeRoot,
-  codeEntries: codeEntriesOnDisk(projectRoot, set),
-);
+  required List<CodeTarget> targets,
+}) {
+  final entriesOf = <CodeTarget, Set<String>>{};
+  for (final (:target, :entry) in _codeEntriesOf(
+    projectRoot,
+    set,
+    targetNames: targetNamesOf(targets),
+  )) {
+    final owner = targets.firstWhere(
+      (candidate) => target != null && candidate.name == target,
+      orElse: () => targets.first,
+    );
+    entriesOf.putIfAbsent(owner, () => {}).add(entry);
+  }
+  final folders = <String, Directory>{};
+  for (final target in targets) {
+    for (final folder in codeRootFolders(
+      projectRoot,
+      codeRoot: target.codeRoot,
+      codeEntries: entriesOf[target] ?? const {},
+    )) {
+      folders.putIfAbsent(folder.path, () => folder);
+    }
+  }
+  return folders.values.toList();
+}
 
 /// Returns the `code:` entries of every doc under `docs/` whose type holds the
 /// `code` field, each once, in doc path order.
-List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {
+///
+/// [targetNames] are the config's, so a per-target doc is matched and read.
+List<String> codeEntriesOnDisk(
+  Directory projectRoot,
+  MergedSet set, {
+  required List<String> targetNames,
+}) => {
+  for (final (target: _, :entry) in _codeEntriesOf(
+    projectRoot,
+    set,
+    targetNames: targetNames,
+  ))
+    entry,
+}.toList();
+
+/// Returns the `code:` entries of each doc whose type holds the `code` field,
+/// in doc path order, with the target the doc's path names; null for a shared
+/// doc.
+Iterable<({String? target, String entry})> _codeEntriesOf(
+  Directory projectRoot,
+  MergedSet set, {
+  required List<String> targetNames,
+}) sync* {
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
-  if (!docsRoot.existsSync()) return [];
-  final matcher = DocTypeMatcher(set, targetNames: const []);
+  if (!docsRoot.existsSync()) return;
+  final matcher = DocTypeMatcher(set, targetNames: targetNames);
   final prefixLength = docsRoot.uri.path.length;
   final docs = <String, File>{
     for (final entity in docsRoot.listSync(recursive: true, followLinks: false))
       if (entity is File && entity.path.endsWith('.md'))
         Uri.decodeComponent(entity.uri.path.substring(prefixLength)): entity,
   };
-  final entries = <String>{};
   for (final docPath in docs.keys.toList()..sort(compareCodePoints)) {
     final match = matcher.match(docPath);
     if (match is! MatchedDocType) continue;
@@ -131,10 +175,9 @@ List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {
     for (final (:value, line: _, text: _) in DocLines.of(
       toLf(text),
     ).entriesOf(_codeField)) {
-      if (value is String) entries.add(value);
+      if (value is String) yield (target: match.target, entry: value);
     }
   }
-  return entries.toList();
 }
 
 /// What `init`, `migrate`, and `check` need to find the agent files.
