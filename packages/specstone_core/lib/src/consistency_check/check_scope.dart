@@ -107,15 +107,15 @@ List<CodeTarget> _targetsOf(CheckContext context, String? codeTarget) {
 /// Returns the target names a per-target spec folder is read in: those of the
 /// scope when the project names several, else none.
 List<String> _twinNamesOf(CheckContext context, String? codeTarget) =>
-    context.index.targetNames.length > 1
+    context.index.hasTwins
     ? targetNamesOf(_targetsOf(context, codeTarget))
     : const [];
 
 /// Returns the folders, ending in `/`, that per-target doc types give each
 /// target the run does not keep; empty without a [codeTarget] or twins.
 List<String> _otherTargetFoldersOf(CheckContext context, String? codeTarget) {
-  final names = context.index.targetNames;
-  if (codeTarget == null || names.length < 2) return const [];
+  final names = context.index.twinNames;
+  if (codeTarget == null || names.isEmpty) return const [];
   return [
     for (final type in context.index.set.docTypes)
       if (type.isPerTarget)

@@ -218,7 +218,7 @@ String docLineWithStatus(IndexedDoc doc, String? status) {
 /// `<target>: <status>` joined by `, ` in [DocIndex.targetNames] order, or
 /// the one status alone with one target or a picked [codeTarget].
 String? statusPartOf(DocIndex index, IndexedDoc doc, String? codeTarget) {
-  if (index.targetNames.length < 2 || codeTarget != null) {
+  if (!index.hasTwins || codeTarget != null) {
     return index.statusOf(doc, codeTarget: codeTarget);
   }
   if (!isStatusTracked(doc)) return doc.writtenStatus;
@@ -243,9 +243,7 @@ Map<String, Object> docJsonWithStatuses(
   String? codeTarget,
 ) {
   final withStatuses =
-      index.targetNames.length >= 2 &&
-      codeTarget == null &&
-      isStatusTracked(doc);
+      index.hasTwins && codeTarget == null && isStatusTracked(doc);
   return {
     'name': doc.name,
     'docType': ?doc.docTypeId,

@@ -251,7 +251,6 @@ _Landing? _landingOf(
 ) {
   final set = session.index.set;
   final featureType = session.index.typeOf(arrival.feature);
-  final twins = session.index.targetNames.length > 1;
   final record = featureType == null
       ? null
       : newRecordOf(
@@ -261,7 +260,7 @@ _Landing? _landingOf(
           featureDocPath: arrival.feature.docPath,
           featureName: arrival.feature.name,
           lines: lines,
-          target: twins ? arrival.target : null,
+          target: session.index.hasTwins ? arrival.target : null,
         );
   if (record == null) {
     throw IndexFault(

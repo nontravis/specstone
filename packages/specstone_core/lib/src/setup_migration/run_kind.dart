@@ -7,6 +7,7 @@ import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -79,7 +80,7 @@ bool _hasTreeMove(
   TemplateResolver templates,
   Directory? homeDirectory,
 ) {
-  if (ProjectConfig.read(root).targetNames.length < 2) return false;
+  if (twinNamesOf(ProjectConfig.read(root).targetNames).isEmpty) return false;
   final project = DocsProject.open(
     templates: templates,
     workingDirectory: root,

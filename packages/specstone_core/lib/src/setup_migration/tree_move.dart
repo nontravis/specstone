@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show PathMove;
+import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/merged_set.dart';
 
 /// Returns the moves that put each per-target doc at a one-target path into
@@ -24,7 +25,7 @@ List<PathMove> treeMovesOf(
   required List<String> targetNames,
   List<String> olderPatterns = const [],
 }) {
-  if (targetNames.length < 2) return const [];
+  if (twinNamesOf(targetNames).isEmpty) return const [];
   final inTargets = DocTypeMatcher(set, targetNames: targetNames);
   final oneTarget = DocTypeMatcher(set, targetNames: const []);
   final first = targetNames.first;

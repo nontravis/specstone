@@ -232,12 +232,12 @@ void _checkArguments(
 /// names two or more targets, as the doc type matcher reads it.
 /// Throws [IndexFault] `argument_missing` when [codeTarget] is null then.
 String? _placedInOf(MergedDocType docType, DocIndex index, String? codeTarget) {
-  final names = index.targetNames;
-  if (!docType.isPerTarget || names.length < 2) return null;
+  if (!docType.isPerTarget || !index.hasTwins) return null;
   if (codeTarget != null) return codeTarget;
   throw IndexFault(
     IndexFaultCode.argumentMissing,
-    '${docType.id} needs --target: the code targets are ${names.join(', ')}',
+    '${docType.id} needs --target: the code targets are '
+    '${index.twinNames.join(', ')}',
   );
 }
 

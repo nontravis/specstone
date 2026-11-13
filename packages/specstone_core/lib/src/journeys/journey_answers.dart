@@ -262,7 +262,7 @@ _TargetCode _targetCodeFor(
 }
 
 bool _isGrouped(DocIndex index, String? codeTarget) =>
-    codeTarget == null && index.targetNames.length > 1;
+    codeTarget == null && index.hasTwins;
 
 List<String> _codeLines(DocIndex index, IndexedDoc doc, String? codeTarget) {
   final grouped = _isGrouped(index, codeTarget);

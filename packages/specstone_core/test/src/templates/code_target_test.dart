@@ -2,6 +2,17 @@ import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('doc_model RULE-20: twinNamesOf', () {
+    test('two or more names read per-target folders, in config order', () {
+      expect(twinNamesOf(['flutter', 'jaspr']), ['flutter', 'jaspr']);
+    });
+
+    test('one named target or none reads no target folder', () {
+      expect(twinNamesOf(['flutter']), isEmpty);
+      expect(twinNamesOf(const []), isEmpty);
+    });
+  });
+
   group('f04/us02/fr03/e09: nestedPathsOf finds the code roots nested in a '
       'code root', () {
     test(

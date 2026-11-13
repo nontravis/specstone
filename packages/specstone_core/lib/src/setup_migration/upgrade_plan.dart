@@ -31,6 +31,7 @@ import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -153,9 +154,7 @@ RunPlan _upgradeRunOf(
   final docPaths = docPathsOf(docsRoot)..sort(compareCodePoints);
   // With two or more code targets the per-target docs sit in a target folder,
   // the first target's for a doc the run moves or creates.
-  final firstTarget = config.targetNames.length > 1
-      ? config.targetNames.first
-      : null;
+  final firstTarget = twinNamesOf(config.targetNames).firstOrNull;
   final treeMoves = treeMovesOf(
     docPaths,
     finalSet,
@@ -927,7 +926,7 @@ _plannedPaths(
     planned[from] = to;
     treeMoved.add(from);
   }
-  final firstTarget = targetNames.length > 1 ? targetNames.first : null;
+  final firstTarget = twinNamesOf(targetNames).firstOrNull;
   for (final (index, (:step, from: _)) in steps.indexed) {
     if (step is! MoveFile) continue;
     final patterns = [

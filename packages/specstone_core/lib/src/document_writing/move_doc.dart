@@ -437,7 +437,7 @@ List<PathMove> _renameMoves(
     oldValues,
     newValues,
     depth: shape.depth,
-    targetNames: _twinsOf(session),
+    targetNames: session.index.twinNames,
   )) {
     if (_folderExists(session, move.from)) moves.add(move);
   }
@@ -505,7 +505,7 @@ Map<(String, String), String> _renamedNames(
   WriteSession session,
   List<PathMove> moves,
 ) {
-  final inTargetFolder = _twinsOf(session).isNotEmpty;
+  final inTargetFolder = session.index.hasTwins;
   final renamed = <(String, String), String>{};
   for (final doc in session.index.docs) {
     final typeId = doc.docTypeId;
@@ -593,19 +593,12 @@ List<PathMove> _movesFor(
       oldValues,
       newValues,
       depth: shape.depth,
-      targetNames: _twinsOf(session),
+      targetNames: session.index.twinNames,
     )) {
       if (_folderExists(session, move.from)) moves.add(move);
     }
   }
   return moves;
-}
-
-/// Returns the names of the code targets a per-target spec folder is read in:
-/// every target once the project names two or more, else none.
-List<String> _twinsOf(WriteSession session) {
-  final names = session.index.targetNames;
-  return names.length > 1 ? names : const [];
 }
 
 bool _folderExists(WriteSession session, String folder) =>

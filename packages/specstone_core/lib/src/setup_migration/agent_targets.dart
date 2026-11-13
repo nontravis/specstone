@@ -170,7 +170,9 @@ Map<CodeTarget, Set<String>> _entriesByTarget(
 /// Returns the target the doc named [name] belongs to; a shared doc (null
 /// [name]) belongs to the one target of a single-target project, else to none.
 CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
-  if (name == null) return targets.length == 1 ? targets.first : null;
+  if (name == null) {
+    return twinNamesOf(targetNamesOf(targets)).isEmpty ? targets.first : null;
+  }
   return targets.where((target) => target.name == name).firstOrNull;
 }
 

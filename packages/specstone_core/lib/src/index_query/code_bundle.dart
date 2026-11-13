@@ -129,11 +129,17 @@ void _addImplement(
 Iterable<IndexedDoc> _docsOf(DocIndex index, CodePath code) =>
     index.docs.where((doc) => doc.inTarget(code.target.name));
 
+/// Returns the docs whose `covers:` entry is the longest prefix of [code].
+///
+/// With two or more targets only [code]'s target's docs compete, since a
+/// shared doc's code paths count for no target.
 List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
   var longest = 0;
   final matches = <IndexedDoc>[];
   for (final doc in _docsOf(index, code)) {
-    if (doc.docTypeId == null) continue;
+    if (doc.docTypeId == null || index.hasTwins && doc.target == null) {
+      continue;
+    }
     for (final entry in doc.valuesOf(_coversField)) {
       final covered = _withoutTrailingSlash(entry);
       if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;

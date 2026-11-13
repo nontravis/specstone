@@ -101,7 +101,7 @@ Iterable<Finding> checkCoversAndCodeRoots(
 ) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;
-  if (doc.target == null && context.targets.length > 1) {
+  if (doc.target == null && context.index.hasTwins) {
     yield* _sharedDocPaths(context, doc, type);
     return;
   }

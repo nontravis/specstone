@@ -86,7 +86,7 @@ ReadAnswer answerList(DocIndex index, String docTypeId, ListFilters filters) {
 void _refuseAmbiguousTarget(DocIndex index, ListFilters filters) {
   final judgesTarget = filters.status != null || filters.noImplements;
   if (!judgesTarget || filters.codeTarget != null) return;
-  if (index.targetNames.length < 2) return;
+  if (!index.hasTwins) return;
   throw IndexFault(
     IndexFaultCode.argumentMissing,
     '--status and --no-implements need --target with two or more code '

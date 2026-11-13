@@ -422,7 +422,7 @@ bool _isLeftOut(DocIndex index, IndexedDoc? item, IndexedDoc record) =>
 /// Returns the name of a target a finding names, or null when the project
 /// holds one code target, so its output stays as it was.
 String? _shownTargetName(CheckContext context, String? name) =>
-    context.index.targetNames.length > 1 ? name : null;
+    context.index.hasTwins ? name : null;
 
 /// Returns the file line of each item's `statuses` line; an item with a second
 /// line has none, as `check_record_entries` reports that line alone.

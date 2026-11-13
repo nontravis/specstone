@@ -256,13 +256,11 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  // A feature's spec folder is read in every target, once there are twins.
-  final twins = session.index.targetNames;
   final roots = unitRootsOf(
     set,
     docType,
     target.docPath,
-    targetNames: twins.length > 1 ? twins : const [],
+    targetNames: session.index.twinNames,
     target: target.target,
   );
   if (roots != null) return roots;

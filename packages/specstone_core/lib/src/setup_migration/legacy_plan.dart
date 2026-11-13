@@ -484,7 +484,7 @@ _Rewrites _rewritesOf(
     matchOf,
     set: projectSet,
     steps: recordSteps,
-    firstTarget: targetNames.length > 1 ? targetNames.first : null,
+    firstTarget: twinNamesOf(targetNames).firstOrNull,
     isTaken: takenAfter(moves, exists),
   );
   final textOf = {for (final work in works) work.legacyPath: work};
@@ -883,10 +883,9 @@ List<PlannedCreate> _draftsOf(
 
 String? _draftPathOf(MergedDocType docType, List<String> targetNames) {
   final path = docType.path;
-  if (path == null || !docType.isPerTarget || targetNames.length < 2) {
-    return path;
-  }
-  return PathPattern(path).forTarget(targetNames.first).source;
+  final first = twinNamesOf(targetNames).firstOrNull;
+  if (path == null || !docType.isPerTarget || first == null) return path;
+  return PathPattern(path).forTarget(first).source;
 }
 
 String _pinList(Map<String, PackVersion> pins) => [

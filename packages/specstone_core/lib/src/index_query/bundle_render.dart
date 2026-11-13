@@ -55,9 +55,7 @@ ReadAnswer answerContext(
   ];
   final shown = [...docBlocks, ...mapBlocks, ...namesBlocks].join('\n\n');
   final tokens = tokenSizeOf(shown);
-  final named = byCode && index.targetNames.length > 1
-      ? bundle.codeTarget
-      : null;
+  final named = byCode && index.hasTwins ? bundle.codeTarget : null;
   if (budget != null && tokens > budget) {
     return _overBudget(
       ordered,

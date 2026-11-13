@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
@@ -35,12 +36,15 @@ final class AmbiguousDocType extends DocTypeMatch {
 /// Finds the doc type of a DocPath from the path patterns of a [MergedSet].
 final class DocTypeMatcher {
   new(MergedSet set, {required List<String> targetNames})
-    : _targetNames = targetNames,
+    : this._(set, twinNamesOf(targetNames));
+
+  new _(MergedSet set, List<String> twinNames)
+    : _twinNames = twinNames,
       _candidates = [
         for (final docType in set.docTypes)
           for (final path in docType.paths)
-            if (docType.isPerTarget && targetNames.length > 1)
-              for (final target in targetNames)
+            if (docType.isPerTarget && twinNames.isNotEmpty)
+              for (final target in twinNames)
                 (docType, PathPattern(path).forTarget(target), target)
             else
               (docType, PathPattern(path), null),
@@ -50,8 +54,9 @@ final class DocTypeMatcher {
   /// One (doc type, pattern, target) entry per path pattern, in set order.
   final List<(MergedDocType, PathPattern, String?)> _candidates;
 
-  /// The target names the per-target patterns expand into.
-  final List<String> _targetNames;
+  /// The target names the per-target patterns expand into, as [twinNamesOf]
+  /// gives them.
+  final List<String> _twinNames;
 
   final MergedDocType? _nesting;
 
@@ -82,8 +87,8 @@ final class DocTypeMatcher {
     if (nesting == null || path == null) return null;
     final segment = nestingSegmentOf(path, nesting);
     if (segment == null) return null;
-    final targets = nesting.isPerTarget && _targetNames.length > 1
-        ? _targetNames
+    final targets = nesting.isPerTarget && _twinNames.isNotEmpty
+        ? _twinNames
         : const <String?>[null];
     final extra = docPath.split('/').length - path.split('/').length;
     for (final target in targets) {

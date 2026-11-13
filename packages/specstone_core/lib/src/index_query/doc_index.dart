@@ -3,6 +3,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -46,6 +47,14 @@ final class DocIndex {
   /// The config's target names, in config order; empty with one unnamed
   /// target.
   final List<String> targetNames;
+
+  /// The targets a per-target doc's folder is read in: [targetNames] when it
+  /// holds two or more, else none ([twinNamesOf]).
+  List<String> get twinNames => twinNamesOf(targetNames);
+
+  /// Whether the project names two or more code targets, so per-target docs
+  /// sit in target folders and a shared doc's code paths count for no target.
+  bool get hasTwins => twinNames.isNotEmpty;
 
   final IndexStore _store;
 

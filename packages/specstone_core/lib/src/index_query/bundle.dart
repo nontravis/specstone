@@ -276,7 +276,7 @@ Bundle pickBundle(
 /// Throws `argument_missing` for an implement bundle over two or more code
 /// targets with none picked (E23).
 void _refuseAmbiguousTarget(DocIndex index) {
-  if (index.targetNames.length < 2) return;
+  if (!index.hasTwins) return;
   throw IndexFault(
     IndexFaultCode.argumentMissing,
     '--for implement needs --target with two or more code targets; '

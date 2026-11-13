@@ -67,6 +67,15 @@ List<String> nestedRootsOf(
 List<String> nestedPathsOf(String own, List<String> roots, {bool? isWindows}) =>
     [for (final path in roots) ?pathInside(own, path, isWindows: isWindows)];
 
+/// Returns [targetNames] when they hold two or more, else none: the targets
+/// a per-target doc's folder is read in.
+///
+/// The one rule of twins: a per-target doc sits in its target's folder only
+/// when the project names two or more targets (RULE-20), and a shared doc's
+/// code paths then count for no target.
+List<String> twinNamesOf(List<String> targetNames) =>
+    targetNames.length > 1 ? targetNames : const [];
+
 /// Returns the named targets of [targets], in order; empty with one unnamed
 /// target.
 List<String> targetNamesOf(Iterable<CodeTarget> targets) => [

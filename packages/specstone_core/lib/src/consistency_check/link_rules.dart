@@ -50,13 +50,10 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   yield* _selfLinks(context, doc);
   yield* _malformedLinks(context, doc);
   yield* _missingFileLinks(context, doc);
-  if (_hasTargets(context) && doc.target == null) {
+  if (context.index.hasTwins && doc.target == null) {
     yield* _perTargetReferences(context, doc, values);
   }
 }
-
-/// Whether the project names two or more code targets (INV-29).
-bool _hasTargets(CheckContext context) => context.index.targetNames.length > 1;
 
 /// Returns the docs of [named] that [from] reaches by a Name.
 ///
@@ -68,7 +65,7 @@ List<IndexedDoc> _reachable(
   List<IndexedDoc> named,
 ) {
   final own = from.target;
-  if (own == null || !_hasTargets(context)) return named;
+  if (own == null || !context.index.hasTwins) return named;
   return [
     for (final doc in named)
       if (doc.inTarget(own)) doc,

@@ -312,6 +312,33 @@ void main() {
       },
     );
 
+    test("f01/us05/fr04/e13: a shared doc's covers count for no target, so the target's own architecture is the spec match", () async {
+      final (session, root) = await writeFeedbackProject(
+        extra: {
+          'jaspr_lib/lib/toast.dart': '',
+          '.specstone/templates/topic.yaml': 'id: topic\nper_target: false\n',
+          'docs/specs/topics/toast_rules.md':
+              '---\ncovers:\n  - lib/toast.dart\n---\n\n# Toast rules\n',
+        },
+      );
+      final bundle = pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          'jaspr_lib/lib/toast.dart',
+          workingDirectory: root,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(
+        bundle.docPaths,
+        contains('specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md'),
+      );
+      expect(bundle.docPaths, isNot(contains('specs/topics/toast_rules.md')));
+    });
+
     test('f01/us05/fr04/e14, review focus 2: nested roots pick the longest that holds the path', () async {
       final root = await writeTree({
         '.specstone/templates/implementation.yaml':
