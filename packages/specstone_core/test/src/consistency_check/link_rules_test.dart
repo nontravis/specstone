@@ -9,6 +9,8 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
 
 void main() {
   test("f04/us02/fr04/e01, cc-s03/inv14, FM5: a broken link's line comes from the index, so check parses no doc text", () async {
@@ -841,5 +843,270 @@ void main() {
         ['$notes:3: doc_name_unresolved: doc name login/email_logn names no doc'],
       );
     });
+  });
+
+  group('two targets', () {
+    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const record = '# Record\n';
+    const relatedLayer =
+        'id: architecture\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: related\n'
+        '    type: doc_ref\n'
+        '    list: true\n'
+        '    doc_types: [implementation]\n';
+
+    /// Returns the login architecture text with [sentence] after its box.
+    String twin(String sentence, {String? related}) =>
+        checkProjectFiles()['docs/$loginArchitecture']!
+            .replaceFirst('One box.', 'One box. $sentence')
+            .replaceFirst(
+              '  - app/lib/\n---',
+              '  - app/lib/\n${related ?? ''}---',
+            );
+
+    /// Returns the sign-in time NFR, a shared doc the twin project leaves
+    /// alone, with [sentence] in its rationale.
+    Map<String, String> shared(String sentence) =>
+        doc(loginNf, 'Users wait.', 'Users wait. $sentence');
+
+    int lineOf(Directory project, String docPath, String needle) =>
+        File('${project.path}/docs/$docPath')
+            .readAsLinesSync()
+            .indexWhere((line) => line.contains(needle)) +
+        1;
+
+    List<Finding> found(Directory project, FindingKind kind, {String? at}) => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == kind && (at == null || f.path == at)) f,
+    ];
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        'shared doc naming a per-target doc by name gets '
+        'per_target_reference at the mention', () async {
+      final project = await writeTwinProject(
+        extra: shared('See `architecture:login`.'),
+      );
+
+      final findings = found(project, FindingKind.perTargetReference);
+
+      expect(
+        [for (final f in findings) '${f.path}:${f.line}'],
+        ['$loginNf:${lineOf(project, loginNf, 'architecture:login')}'],
+      );
+      expect(findings.single.keys, {
+        'reference': 'architecture:login',
+        'target': 'flutter, jaspr',
+      });
+      expect(
+        findings.single.message,
+        'architecture:login names a per-target doc of flutter, jaspr',
+      );
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        'mention a shared doc resolves too gives none', () async {
+      final project = await writeTwinProject(
+        extra: shared('See `feature:login` and `login/email_login`.'),
+      );
+
+      expect(found(project, FindingKind.perTargetReference), isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        '.md link to a per-target doc is reported as written', () async {
+      const written = '../../../../specs/flutter/f01_login/ARCHITECTURE.md';
+      final project = await writeTwinProject(
+        extra: shared('See [arch]($written).'),
+      );
+
+      final findings = found(project, FindingKind.perTargetReference);
+
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'reference': written, 'target': 'flutter'},
+        ],
+      );
+      expect(findings.single.line, lineOf(project, loginNf, written));
+      expect(found(project, FindingKind.linkUnresolved, at: loginNf), isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+        'DocPath in text is reported once, a shared doc path never', () async {
+      const path = 'specs/jaspr/f01_login/ARCHITECTURE.md';
+      final project = await writeTwinProject(
+        extra: shared('See `$path`, then `specs/f01_login/API.md`.'),
+      );
+
+      final findings = found(project, FindingKind.perTargetReference);
+
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'reference': path, 'target': 'jaspr'},
+        ],
+      );
+      expect(findings.single.line, lineOf(project, loginNf, path));
+    });
+
+    test(
+      'consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+      'doc_ref value naming a per-target doc is reported at the value',
+      () async {
+        final project = await writeTwinProject(
+          extra: {
+            '.specstone/templates/feature.yaml':
+                'id: feature\n'
+                'fields:\n'
+                '  - id: related\n'
+                '    type: doc_ref\n'
+                '    list: true\n'
+                '    doc_types: [architecture]\n',
+            ...edit(loginFeature, [
+              ('Users forget passwords.', 'Users forget passwords.$brokenLink'),
+              ('  - PG-01\n---', '  - PG-01\nrelated:\n  - login\n---'),
+            ]),
+          },
+        );
+
+        final findings = found(project, FindingKind.perTargetReference);
+
+        expect(
+          [for (final f in findings) f.keys],
+          [
+            {'reference': 'login', 'target': 'flutter, jaspr'},
+          ],
+        );
+        expect(findings.single.path, loginFeature);
+        expect(
+          findings.single.line,
+          lineOf(project, loginFeature, '  - login'),
+        );
+      },
+    );
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E29: a '
+        'per-target doc names another target by path or link and gets no '
+        'finding', () async {
+      final project = await writeTwinProject(
+        extra: {
+          'docs/$jasprArchitecture': twin(
+            'See `$flutterArchitecture` and '
+            '[flutter](../../flutter/f01_login/ARCHITECTURE.md).',
+          ),
+        },
+      );
+
+      for (final kind in [
+        FindingKind.perTargetReference,
+        FindingKind.docNameUnresolved,
+        FindingKind.linkUnresolved,
+      ]) {
+        expect(found(project, kind, at: jasprArchitecture), isEmpty);
+      }
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E28: a '
+        'name only another target holds is doc_name_unresolved in a '
+        'per-target doc', () async {
+      final mention = twin('See `implementation:login`.');
+      Future<Directory> project({bool jasprHoldsOne = false}) =>
+          writeTwinProject(
+            extra: {
+              'docs/$flutterArchitecture': mention,
+              'docs/$jasprArchitecture': mention,
+              'docs/$flutterRecord': record,
+              if (jasprHoldsOne) 'docs/$jasprRecord': record,
+            },
+          );
+
+      final lone = await project();
+      final both = await project(jasprHoldsOne: true);
+
+      expect(
+        [for (final f in found(lone, FindingKind.docNameUnresolved)) f.path],
+        [jasprArchitecture],
+      );
+      expect(found(both, FindingKind.docNameUnresolved), isEmpty);
+      expect(found(lone, FindingKind.perTargetReference), isEmpty);
+    });
+
+    test('consistency_check/find_broken_pointers/resolve_doc_links E28: a '
+        'doc_ref value only another target holds is doc_ref_unresolved in a '
+        'per-target doc', () async {
+      final related = twin('', related: 'related:\n  - login\n');
+      Future<Directory> project({bool jasprHoldsOne = false}) =>
+          writeTwinProject(
+            extra: {
+              '.specstone/templates/architecture.yaml': relatedLayer,
+              'docs/$flutterArchitecture': related,
+              'docs/$jasprArchitecture': related,
+              'docs/$flutterRecord': record,
+              if (jasprHoldsOne) 'docs/$jasprRecord': record,
+            },
+          );
+
+      final lone = await project();
+      final both = await project(jasprHoldsOne: true);
+
+      final findings = found(lone, FindingKind.docRefUnresolved);
+      expect([for (final f in findings) f.path], [jasprArchitecture]);
+      expect(findings.single.keys, {'field': 'related', 'value': 'login'});
+      expect(found(both, FindingKind.docRefUnresolved), isEmpty);
+    });
+  });
+
+  group('one target', () {
+    // One target, named or not: no shared doc's reference is per-target.
+    final configs = {
+      'unnamed': <String, String>{},
+      'named': {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: ws\n',
+        'ws/app/lib/login.dart': 'class SignInPage {}\n',
+        // A named target owns records, so the set must hold their type.
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+      },
+    };
+    for (final MapEntry(key: name, value: files) in configs.entries) {
+      test('consistency_check/find_broken_pointers/resolve_doc_links E31: a '
+          'shared doc names a per-target doc, $name target, and gets no '
+          'per_target_reference', () async {
+        final project = await writeCheckProject(
+          extra: {
+            '.specstone/templates/architecture.yaml':
+                'id: architecture\nper_target: true\n',
+            ...files,
+            ...doc(
+              loginNf,
+              'Users wait.',
+              'Users wait. See `architecture:login`, '
+                  '`specs/f01_login/ARCHITECTURE.md`, and '
+                  '[arch](../../../../specs/f01_login/ARCHITECTURE.md).',
+            ),
+          },
+        );
+
+        expect([
+          for (final f in checkOf(project).findings)
+            if (f.kind == FindingKind.perTargetReference ||
+                f.kind == FindingKind.docNameUnresolved ||
+                f.kind == FindingKind.linkUnresolved)
+              f.textLine,
+        ], isEmpty);
+      });
+    }
   });
 }

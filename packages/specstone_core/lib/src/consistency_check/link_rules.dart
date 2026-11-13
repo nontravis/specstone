@@ -3,10 +3,15 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show markdownExtension;
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/doc_mentions.dart'
+    show pathBreak;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -21,7 +26,9 @@ typedef _DocRefValue = ({MergedField field, String value, int line});
 ///
 /// A typed doc is checked for both, an untyped doc of a checked folder for
 /// links only. A doc the markdown parser failed on gets `markdown_unparsed`,
-/// stating the `index_query` warning, since its links go unchecked.
+/// stating the `index_query` warning, since its links go unchecked. With two
+/// or more targets, a shared doc's reference to a per-target doc gets
+/// `per_target_reference`.
 Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   final unparsed = markdownUnparsedWarning(doc.docPath);
   if (doc.warnings.contains(unparsed)) {
@@ -34,8 +41,8 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
           'the markdown parser failed on this doc; its links are not checked',
     );
   }
+  final values = _docRefValuesOf(context, doc);
   if (doc.isTyped) {
-    final values = _docRefValuesOf(context, doc);
     yield* _unresolvedDocRefs(context, doc, values);
     yield* _repeatedDocRefs(context, doc, values);
     yield* _selfDocRefs(context, doc, values);
@@ -46,37 +53,72 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   yield* _selfLinks(context, doc);
   yield* _malformedLinks(context, doc);
   yield* _missingFileLinks(context, doc);
+  if (_hasTargets(context) && doc.target == null) {
+    yield* _perTargetReferences(context, doc, values);
+  }
 }
 
-/// What names a doc to a doc-name mention (RULE-11), and the top-level
-/// features: one read per index, since an index is one read snapshot.
-typedef _NameSets = ({Set<String> names, Set<String> topLevelFeatures});
+/// Whether the project names two or more code targets (INV-29).
+bool _hasTargets(CheckContext context) => context.index.targetNames.length > 1;
+
+/// Returns the docs of [named] that [from] reaches by a Name.
+///
+/// With two or more targets a per-target doc reaches its own target's docs
+/// and the shared docs alone (RULE-21).
+List<IndexedDoc> _reachable(
+  CheckContext context,
+  IndexedDoc from,
+  List<IndexedDoc> named,
+) {
+  final own = from.target;
+  if (own == null || !_hasTargets(context)) return named;
+  return [
+    for (final doc in named)
+      if (doc.target == null || doc.target == own) doc,
+  ];
+}
+
+/// The docs a doc-name mention can name, by Name and by `<doc type>:<Name>`,
+/// and the top-level features: one read per index, since an index is one read
+/// snapshot.
+typedef _NameSets = ({
+  Map<String, List<IndexedDoc>> docsNamed,
+  Set<String> topLevelFeatures,
+});
 
 final _nameSetsOf = Expando<_NameSets>();
 
-_NameSets _nameSets(DocIndex index) => _nameSetsOf[index] ??= (
-  names: {
-    for (final doc in index.docs) ...[
-      doc.name,
-      if (doc.docTypeId != null) '${doc.docTypeId}:${doc.name}',
-    ],
-  },
-  topLevelFeatures: {
-    for (final doc in index.docs)
-      if (doc.docTypeId == featureType && !doc.name.contains('/')) doc.name,
-  },
-);
+_NameSets _nameSets(DocIndex index) =>
+    _nameSetsOf[index] ??= _readNameSets(index);
 
-/// Yields a finding per doc-name mention of [doc] that names no doc while the
-/// first slug of its Name names a top-level feature (RULE-11); any other
-/// unresolved mention is plain text.
+_NameSets _readNameSets(DocIndex index) {
+  final docsNamed = <String, List<IndexedDoc>>{};
+  for (final doc in index.docs) {
+    (docsNamed[doc.name] ??= []).add(doc);
+    if (doc.docTypeId != null) {
+      (docsNamed['${doc.docTypeId}:${doc.name}'] ??= []).add(doc);
+    }
+  }
+  return (
+    docsNamed: docsNamed,
+    topLevelFeatures: {
+      for (final doc in index.docs)
+        if (doc.docTypeId == featureType && !doc.name.contains('/')) doc.name,
+    },
+  );
+}
+
+/// Yields a finding per doc-name mention of [doc] that names no doc it
+/// reaches while the first slug of its Name names a top-level feature
+/// (RULE-11); any other unresolved mention is plain text.
 ///
 /// The mention's section key is never read.
 Iterable<Finding> _unresolvedNames(CheckContext context, IndexedDoc doc) sync* {
   final sets = _nameSets(context.index);
   for (final mention in context.contentOf(doc).lineFacts.nameMentions) {
     final address = mention.address;
-    if (sets.names.contains(address.docPart)) continue;
+    final named = sets.docsNamed[address.docPart] ?? const <IndexedDoc>[];
+    if (_reachable(context, doc, named).isNotEmpty) continue;
     if (!sets.topLevelFeatures.contains(address.body.split('/').first)) {
       continue;
     }
@@ -106,16 +148,25 @@ bool _names(MergedField field, String value, IndexedDoc target) =>
     target.name == value &&
     (field.docTypes?.contains(target.docTypeId) ?? true);
 
-/// Yields a finding per `doc_ref` value that names no doc.
+/// Returns the docs that [value] of [field] names.
+List<IndexedDoc> _docsNamedBy(
+  CheckContext context,
+  MergedField field,
+  String value,
+) => [
+  for (final other in context.index.docs)
+    if (_names(field, value, other)) other,
+];
+
+/// Yields a finding per `doc_ref` value that names no doc [doc] reaches.
 Iterable<Finding> _unresolvedDocRefs(
   CheckContext context,
   IndexedDoc doc,
   List<_DocRefValue> values,
 ) sync* {
   for (final (:field, :value, :line) in values) {
-    if (context.index.docs.any((other) => _names(field, value, other))) {
-      continue;
-    }
+    final named = _docsNamedBy(context, field, value);
+    if (_reachable(context, doc, named).isNotEmpty) continue;
     yield context.finding(
       doc,
       FindingKind.docRefUnresolved,
@@ -290,4 +341,110 @@ String _projectPathOf(String target) {
     }
   }
   return parts.join('/');
+}
+
+/// Yields a finding per reference of the shared [doc] to a per-target doc: a
+/// `doc_ref` value, a doc-name mention, a `.md` link, or a DocPath in text.
+Iterable<Finding> _perTargetReferences(
+  CheckContext context,
+  IndexedDoc doc,
+  List<_DocRefValue> values,
+) sync* {
+  for (final (:field, :value, :line) in values) {
+    final named = _docsNamedBy(context, field, value);
+    if (_perTargetFinding(context, doc, named, line, value) case final found?) {
+      yield found;
+    }
+  }
+  final sets = _nameSets(context.index);
+  final facts = context.contentOf(doc).lineFacts;
+  for (final mention in facts.nameMentions) {
+    final named = sets.docsNamed[mention.address.docPart] ?? const [];
+    if (_perTargetFinding(context, doc, named, mention.line, mention.text)
+        case final found?) {
+      yield found;
+    }
+  }
+  for (final place in facts.links) {
+    final named = [?context.index.at(place.target)];
+    if (_perTargetFinding(context, doc, named, place.line, place.shown)
+        case final found?) {
+      yield found;
+    }
+  }
+  yield* _perTargetPaths(context, doc);
+}
+
+/// Yields a finding per path in the text of [doc], outside fenced code and
+/// outside a link, that names a per-target doc.
+Iterable<Finding> _perTargetPaths(CheckContext context, IndexedDoc doc) sync* {
+  final content = context.contentOf(doc);
+  final facts = content.lineFacts;
+  final linked = {for (final link in facts.links) (link.line, link.target)};
+  for (final (i, text) in lfLinesOf(toLf(content.text)).indexed) {
+    final line = i + 1;
+    if (facts.isFenced(line)) continue;
+    for (final word in text.split(pathBreak)) {
+      final written = _withoutSentenceEnd(word);
+      if (!written.endsWith(markdownExtension)) continue;
+      final named = _docWrittenAs(context, doc, written);
+      if (named == null || linked.contains((line, named.docPath))) continue;
+      if (_perTargetFinding(context, doc, [named], line, written)
+          case final found?) {
+        yield found;
+      }
+    }
+  }
+}
+
+/// Returns [word] less the `.` and `:` that end the sentence it closes.
+String _withoutSentenceEnd(String word) {
+  var end = word.length;
+  while (end > 0 && (word[end - 1] == '.' || word[end - 1] == ':')) {
+    end--;
+  }
+  return word.substring(0, end);
+}
+
+/// Returns the doc [written] names from [from]: the doc at that DocPath, else
+/// the one it reaches as a link would; null when none.
+IndexedDoc? _docWrittenAs(
+  CheckContext context,
+  IndexedDoc from,
+  String written,
+) {
+  if (context.index.at(written) case final doc?) return doc;
+  return switch (resolveDocLink(written, from.docPath)) {
+    DocTarget(:final docPath) => context.index.at(docPath),
+    _ => null,
+  };
+}
+
+/// Returns the `per_target_reference` finding of the shared [doc] for the
+/// reference [written] at [line] when every doc of [named] is per-target,
+/// else null.
+///
+/// One comparison of the two docs' targets covers every reference kind.
+Finding? _perTargetFinding(
+  CheckContext context,
+  IndexedDoc doc,
+  List<IndexedDoc> named,
+  int line,
+  String written,
+) {
+  if (named.isEmpty || named.any((target) => target.target == null)) {
+    return null;
+  }
+  final held = {for (final target in named) target.target};
+  final targets = [
+    for (final name in context.index.targetNames)
+      if (held.contains(name)) name,
+  ].join(', ');
+  return context.finding(
+    doc,
+    FindingKind.perTargetReference,
+    line: line,
+    message: '$written names a per-target doc of $targets',
+    keys: {'reference': written, 'target': targets},
+  );
 }
