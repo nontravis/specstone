@@ -17,6 +17,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/record_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -651,6 +652,39 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('document_writing/move_story/rewrite_moved_story_references E10, E07: a record edit is a rewrite of its doc, which joins the link rewrites of one step and makes a record with no link a candidate', () async {
+    const linked = 'specs/f01_login/IMPLEMENTATION.md';
+    const alone = 'specs/f02_signup/IMPLEMENTATION.md';
+    root = await writeWriteProject(
+      extra: {
+        '.specstone/templates/implementation.yaml': recordLayer,
+        'docs/$linked': recordText(
+          statuses: ['a:planned'],
+        ).replaceFirst('# Record\n', '# Record\n\nSee [it](../../$story3).\n'),
+        'docs/$alone': recordText(statuses: ['a:planned']),
+      },
+    );
+    String? rename(String text) => text.contains('a:planned')
+        ? text.replaceFirst('a:planned', 'b:planned')
+        : null;
+    final steps = writeIn(
+      root,
+      (s) => planRewrites(
+        s,
+        reorderMoves,
+        recordEdits: {linked: rename, alone: rename},
+      ),
+    );
+    final byPath = {for (final step in steps) step.path: step.text};
+    expect(byPath['docs/$linked'], contains("'b:planned'"));
+    expect(
+      byPath['docs/$linked'],
+      contains('../../prds/features/f01_login/us01_reset_password/'),
+    );
+    expect(byPath['docs/$alone'], contains("'b:planned'"));
+    expect(steps.where((step) => step.path == 'docs/$linked'), hasLength(1));
   });
 
   test('f02/us05/fr02/e09, M2: planRewrites reaches a doc that links only to a moved non-doc file', () async {

@@ -182,6 +182,10 @@ Map<String, IndexedDoc> recordItemsOf(
   };
 }
 
+/// The `record_status` lines and the `item_exact` lines of a record, each as
+/// written in its field.
+typedef RecordLines = ({List<String> statuses, List<String> code});
+
 /// Returns [lfText], the text of a record of [recordType], with the item of
 /// each line of its `record_status` and `item_exact` fields set to what
 /// [rewrite] returns; null when no line changes.
@@ -198,13 +202,116 @@ String? rewriteRecordItems(
   String? Function(String item) rewrite,
 ) {
   var text = lfText;
-  for (final field in [
-    recordStatusFieldOf(recordType),
-    recordCodeFieldOf(recordType),
-  ]) {
-    if (field != null) text = _rewriteField(text, field, rewrite);
+  for (final field in _recordFieldsOf(recordType)) {
+    text = _rewriteField(text, field, rewrite);
   }
   return text == lfText ? null : text;
+}
+
+/// Returns the lines of [lfText]'s `record_status` and `item_exact` fields
+/// whose item [carry] gives a name, each with that name in place of its item
+/// and the rest of the line as written.
+///
+/// [carry] takes a line's item and returns the name to carry it under, or null
+/// to leave the line out. A line that names no item is left out.
+RecordLines recordLinesCarried(
+  String lfText,
+  MergedDocType recordType,
+  String? Function(String item) carry,
+) {
+  List<String> carried(MergedField? field) {
+    if (field == null) return const [];
+    final itemOf = _itemReaderOf(field);
+    final lines = <String>[];
+    for (final line in _fieldLinesOf(lfText, field)?.lines ?? const []) {
+      if (line is! String) continue;
+      final item = itemOf(line);
+      final name = item == null ? null : carry(item);
+      if (item != null && name != null) lines.add(_withItem(line, item, name));
+    }
+    return lines;
+  }
+
+  return (
+    statuses: carried(recordStatusFieldOf(recordType)),
+    code: carried(recordCodeFieldOf(recordType)),
+  );
+}
+
+/// Returns [lfText] with [lines] added at the end of its `record_status` and
+/// `item_exact` fields, a field that holds none yet gaining its key; null
+/// when [lines] holds none.
+///
+/// A field that gains lines is written back as a block list, one quoted line
+/// each, as [rewriteRecordItems] writes it. It marks no draft.
+String? addRecordLines(
+  String lfText,
+  MergedDocType recordType,
+  RecordLines lines,
+) {
+  var text = lfText;
+  for (final (field, added) in [
+    (recordStatusFieldOf(recordType), lines.statuses),
+    (recordCodeFieldOf(recordType), lines.code),
+  ]) {
+    if (field == null || added.isEmpty) continue;
+    final held = _fieldLinesOf(text, field);
+    text = _withFieldLines(text, field, held?.key ?? field.id, [
+      ...?held?.lines,
+      ...added,
+    ]);
+  }
+  return text == lfText ? null : text;
+}
+
+List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
+  ?recordStatusFieldOf(recordType),
+  ?recordCodeFieldOf(recordType),
+];
+
+/// Returns the key as spelled in the block of [field] in [lfText] and the
+/// lines it lists, one value alone as one line; null when the key is absent.
+///
+/// A block that is no valid YAML lists no line.
+({String key, List<Object?> lines})? _fieldLinesOf(
+  String lfText,
+  MergedField field,
+) {
+  final block = (Doc.parse(lfText).frontmatter ?? const <KeyBlock>[])
+      .where((b) => b.name == field.id)
+      .firstOrNull;
+  if (block == null) return null;
+  final Object? parsed;
+  try {
+    parsed = loadYaml(block.text);
+  } on YamlException {
+    return (key: block.key, lines: const []);
+  }
+  final value = parsed is YamlMap ? parsed[field.id] : null;
+  return (
+    key: block.key,
+    lines: switch (value) {
+      null => const <Object?>[],
+      YamlList() => [...value],
+      _ => [value],
+    },
+  );
+}
+
+/// Returns [lfText] with the block of [field] listing [lines], one quoted
+/// line each, under [key]; the block is removed when [lines] is empty.
+String _withFieldLines(
+  String lfText,
+  MergedField field,
+  String key,
+  List<Object?> lines,
+) {
+  final listed = [for (final line in lines) '  - ${_yamlOf(line)}\n'].join();
+  return withKeyBlock(
+    lfText,
+    field.id,
+    lines.isEmpty ? null : '$key:\n$listed',
+  );
 }
 
 String _rewriteField(
@@ -212,39 +319,17 @@ String _rewriteField(
   MergedField field,
   String? Function(String item) rewrite,
 ) {
-  final block = (Doc.parse(lfText).frontmatter ?? const <KeyBlock>[])
-      .where((b) => b.name == field.id)
-      .firstOrNull;
-  if (block == null) return lfText;
-  final Object? parsed;
-  try {
-    parsed = loadYaml(block.text);
-  } on YamlException {
-    return lfText;
-  }
-  final value = parsed is YamlMap ? parsed[field.id] : null;
-  final lines = switch (value) {
-    null => const <Object?>[],
-    YamlList() => [...value],
-    _ => [value],
-  };
-  final itemOf = field.type == FieldType.recordStatus
-      ? _statusItemOf
-      : _codeItemOf;
+  final held = _fieldLinesOf(lfText, field);
+  if (held == null) return lfText;
+  final itemOf = _itemReaderOf(field);
   final kept = <Object?>[];
   var changed = false;
-  for (final line in lines) {
+  for (final line in held.lines) {
     final next = line is String ? _rewrittenLine(line, itemOf, rewrite) : line;
     if (next != line) changed = true;
     if (next != null) kept.add(next);
   }
-  if (!changed) return lfText;
-  final listed = [for (final line in kept) '  - ${_yamlOf(line)}\n'].join();
-  return withKeyBlock(
-    lfText,
-    field.id,
-    kept.isEmpty ? null : '${block.key}:\n$listed',
-  );
+  return changed ? _withFieldLines(lfText, field, held.key, kept) : lfText;
 }
 
 /// Returns [line] with the item [itemOf] reads from it set by [rewrite], or
@@ -257,8 +342,17 @@ String? _rewrittenLine(
   final item = itemOf(line);
   if (item == null) return line;
   final next = rewrite(item);
-  return next == null ? null : '$next${line.substring(item.length)}';
+  return next == null ? null : _withItem(line, item, next);
 }
+
+/// Returns [line] with [name] in place of its leading [item].
+String _withItem(String line, String item, String name) =>
+    '$name${line.substring(item.length)}';
+
+/// Returns the reader of the item of a line of [field]: null for a line that
+/// names none.
+String? Function(String line) _itemReaderOf(MergedField field) =>
+    field.type == FieldType.recordStatus ? _statusItemOf : _codeItemOf;
 
 String? _statusItemOf(String line) => recordStatusLineOf(line)?.item;
 

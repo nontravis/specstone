@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -139,7 +141,7 @@ void main() {
         contains(
           'Expected one target, got 2.\n\n'
           'Usage: specstone reorder <doc address> --to <n> '
-          '[--json]\n',
+          '[--target <name>] [--json]\n',
         ),
       );
     },
@@ -198,5 +200,69 @@ void main() {
     expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
     expect(text, isNot(contains('\n\n\n')));
     expect(text, contains('draft: true\n'));
+  });
+
+  group('with two code targets', () {
+    Future<Directory> twins() => writeWriteProject(
+      extra: {
+        '.specstone/config.yaml': twinConfig(),
+        '.specstone/templates/implementation.yaml': recordLayer,
+        'docs/specs/flutter/f02_signup/IMPLEMENTATION.md': recordText(
+          statuses: ['ghost:planned'],
+        ),
+        'docs/specs/jaspr/f02_signup/IMPLEMENTATION.md': recordText(
+          statuses: ['ghost:planned'],
+        ),
+      },
+    );
+
+    test('document_writing/reorder_doc/renumber_siblings E12: reorder --target takes a feature with its spec folder in every target', () async {
+      final root = await twins();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'reorder',
+          'feature:signup',
+          '--to',
+          '1',
+          '--target',
+          'flutter',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'moved specs/flutter/f02_signup/ to specs/flutter/f01_signup/\n',
+          ),
+          contains(
+            'moved specs/jaspr/f02_signup/ to specs/jaspr/f01_signup/\n',
+          ),
+        ),
+      );
+      expect(hasDoc(root, 'specs/jaspr/f01_signup/IMPLEMENTATION.md'), isTrue);
+    });
+
+    test('document_writing/reorder_doc/renumber_siblings: a --target the project lacks exits 64', () async {
+      final (:runner, :out, :err) = writeRunner(await twins());
+      expect(
+        await runner.run([
+          'reorder',
+          'feature:signup',
+          '--to',
+          '1',
+          '--target',
+          'dart',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        '--target dart: the code targets are flutter, jaspr\n',
+      );
+    });
   });
 }

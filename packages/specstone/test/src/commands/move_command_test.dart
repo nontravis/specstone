@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
     show docFile, readDoc;
 import '../../helpers/write_runner.dart';
@@ -319,5 +320,60 @@ void main() {
       File('${root.path}/app/lib/cart.dart').readAsStringSync(),
       '// Adds `user_story:shop/pay/add_item#acceptance_criteria`.\n',
     );
+  });
+
+  group('with two code targets', () {
+    const cartFlutter = 'specs/flutter/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const cartJaspr = 'specs/jaspr/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payFlutter = 'specs/flutter/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+    Future<Directory> shopTwins() => writeNestedProject(
+      extra: {
+        '.specstone/config.yaml': twinConfig(),
+        '.specstone/templates/implementation.yaml': recordLayer,
+        'docs/$cartFlutter': recordText(
+          statuses: ['add_item:implemented', 'drop_item:planned'],
+        ),
+        'docs/$cartJaspr': recordText(
+          statuses: ['add_item:planned', 'drop_item:planned'],
+        ),
+      },
+    );
+
+    test('document_writing/move_story/move_story_folder E19, E20: move carries the entries of each target, rewriting the old records and leaving a created one unlisted', () async {
+      final root = await shopTwins();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['move', addItem, '--under', 'shop/pay', '--json']),
+        0,
+        reason: err.toString(),
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer['rewritten'], containsAll([cartFlutter, cartJaspr]));
+      expect(answer['rewritten'], isNot(contains(payFlutter)));
+      expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
+      expect(readDoc(root, payFlutter), contains("'add_item:implemented'"));
+      expect(readDoc(root, payFlutter), contains('draft: true'));
+    });
+
+    test('document_writing/move_story/move_story_folder: move takes no --target, since a story is shared', () async {
+      final (:runner, :out, :err) = writeRunner(await shopTwins());
+      expect(
+        await runner.run([
+          'move',
+          addItem,
+          '--under',
+          'shop/pay',
+          '--target',
+          'flutter',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        contains('Could not find an option named "--target"'),
+      );
+    });
   });
 }

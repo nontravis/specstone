@@ -219,23 +219,35 @@ bool isSpecDocShape(DocPathShape shape) =>
     shape.ownIsFile && !shape.numbered && !shape.slugged;
 
 /// Returns the child doc types of [docType] whose docs sit in a folder
-/// outside [docType]'s own segment, with that folder for [values].
+/// outside [docType]'s own segment, with that folder for [values] and the
+/// code target it is read in.
 ///
 /// A child counts when its own segment is its last segment and holds no
-/// placeholder (a feature's spec docs).
-Iterable<(MergedDocType, String)> specChildrenOf(
+/// placeholder (a feature's spec docs). A per-target child's folder is read
+/// once per name of [targetNames], with the target folder where RULE-20 puts
+/// it, and each carries its target; empty [targetNames] leaves it as the plain
+/// pattern gives it, with no target.
+Iterable<(MergedDocType, String, String?)> specChildrenOf(
   MergedSet set,
   MergedDocType docType,
   DocPathShape shape,
-  List<String> values,
-) sync* {
+  List<String> values, {
+  List<String> targetNames = const [],
+}) sync* {
   final own = shape.ownPathOf(shape.build(values));
   for (final child in set.docTypes) {
     if (child.parent != docType.id) continue;
     final childShape = DocPathShape.of(child, set, depth: shape.depth);
     if (childShape == null || !isSpecDocShape(childShape)) continue;
     final folder = childShape.containerOf(values);
-    if (folder.isNotEmpty && !folder.startsWith(own)) yield (child, folder);
+    if (folder.isEmpty || folder.startsWith(own)) continue;
+    if (child.isPerTarget && targetNames.isNotEmpty) {
+      for (final name in targetNames) {
+        yield (child, PathPattern(folder).forTarget(name).source, name);
+      }
+    } else {
+      yield (child, folder, null);
+    }
   }
 }
 
@@ -259,12 +271,14 @@ List<String> specFoldersOf(
   final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
   return {
-    for (final (child, folder) in specChildrenOf(set, docType, shape, values))
-      if (child.isPerTarget && targetNames.isNotEmpty)
-        for (final name in targetNames)
-          PathPattern(folder).forTarget(name).source
-      else
-        folder,
+    for (final (_, folder, _) in specChildrenOf(
+      set,
+      docType,
+      shape,
+      values,
+      targetNames: targetNames,
+    ))
+      folder,
   }.toList()..sort();
 }
 

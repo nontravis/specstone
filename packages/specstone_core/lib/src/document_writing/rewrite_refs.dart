@@ -36,6 +36,9 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 export 'package:specstone_core/src/document_writing/moved_paths.dart'
     show PathMove, movedPath, relativeHref;
 
+/// Rewrites the LF text of a doc; null when nothing changes.
+typedef TextEdit = String? Function(String lfText);
+
 const _backslash = 0x5C;
 const _openParen = 0x28;
 const _closeParen = 0x29;
@@ -227,12 +230,16 @@ String? rewriteDocRefs(
 /// A code file whose path leaves the project root is never written (R99):
 /// when it holds a mention to rewrite, its path from the project root goes to
 /// [onSkipped] as the warning line, and no step is planned for it.
+///
+/// [recordEdits] maps the DocPath of a record to the edit of its entries; the
+/// record is a candidate, and the edit joins the other rewrites of its step.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
   Map<(String, String), String> renamed = const {},
+  Map<String, TextEdit> recordEdits = const {},
   void Function(String line)? onSkipped,
 }) {
   final index = session.index;
@@ -250,13 +257,14 @@ List<WriteStep> planRewrites(
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
         _mentionsRenamedDoc(index, doc, renamed) ||
-        _namesRenamedLabel(session, doc, renamed)) {
+        _namesRenamedLabel(session, doc, renamed) ||
+        recordEdits.containsKey(doc.docPath)) {
       candidates[doc.docPath] = doc;
     }
   }
   final steps = [
     for (final doc in candidates.values)
-      ?_stepFor(session, doc, moves, renamed),
+      ?_stepFor(session, doc, moves, renamed, recordEdits[doc.docPath]),
     ..._codeFileSteps(session, renamed, onSkipped),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
@@ -396,6 +404,7 @@ WriteStep? _stepFor(
   IndexedDoc doc,
   List<PathMove> moves,
   Map<(String, String), String> renamed,
+  TextEdit? recordEdit,
 ) {
   final bytes = session.readDocBytes(doc.docPath);
   if (bytes == null) return null;
@@ -425,11 +434,12 @@ WriteStep? _stepFor(
         renamed: renamed,
       ) ??
       named;
-  if (text == null) return null;
+  final entries = recordEdit?.call(text ?? lfText) ?? text;
+  if (entries == null) return null;
   session.requireWritable(doc.docPath);
   final writtenPath = movedPath(doc.docPath, moves);
   final writtenType = session.docTypeAt(writtenPath);
-  final laidOut = layOutDoc(text, writtenType);
+  final laidOut = layOutDoc(entries, writtenType);
   final stamped = _wasApproved(lfText, session.docTypeAt(doc.docPath))
       ? withApprovalHash(laidOut, writtenType)
       : laidOut;

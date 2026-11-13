@@ -325,4 +325,87 @@ void main() {
       expect(text, "---\nimplements:\n  - ':lib/a.dart'\n---\n\n# R\n");
     });
   });
+  group('recordLinesCarried and addRecordLines', () {
+    const record =
+        '---\nstatuses:\n'
+        '  - a:implemented\n'
+        '  - a/x:planned\n'
+        "  - ':skipped:no tablet'\n"
+        '  - b:skipped:out of scope\n'
+        'implements:\n'
+        '  - a:lib/a.dart:A\n'
+        '  - b:lib/b.dart\n'
+        '---\n\n# R\n';
+
+    String? carry(String item) => switch (item) {
+      'a' => 'k/a',
+      'a/x' => 'k/a/x',
+      _ => null,
+    };
+
+    test('document_writing/move_story/move_story_folder E19: the lines of the carried items come back with the new item and the rest of the line as written', () {
+      final lines = recordLinesCarried(record, _recordType, carry);
+
+      expect(lines.statuses, ['k/a:implemented', 'k/a/x:planned']);
+      expect(lines.code, ['k/a:lib/a.dart:A']);
+    });
+
+    test('document_writing/move_story/move_story_folder E21: the own line of the feature is left out when carry gives its empty item no name', () {
+      final lines = recordLinesCarried(
+        record,
+        _recordType,
+        (item) => item.isEmpty ? null : 'k/$item',
+      );
+
+      expect(lines.statuses, isNot(contains(contains('skipped:no tablet'))));
+      expect(lines.statuses, hasLength(3));
+    });
+
+    test('a skip reason keeps its text', () {
+      final lines = recordLinesCarried(
+        record,
+        _recordType,
+        (item) => item == 'b' ? 'k/b' : null,
+      );
+
+      expect(lines.statuses, ['k/b:skipped:out of scope']);
+    });
+
+    test('document_writing/move_story/move_story_folder E19: added lines follow the held ones, each field written as a block list of quoted lines', () {
+      final text = addRecordLines(
+        '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
+        _recordType,
+        (statuses: ['k/a:implemented'], code: ['k/a:lib/a.dart:A']),
+      );
+
+      expect(
+        text,
+        "---\nstatuses:\n  - 'c:planned'\n  - 'k/a:implemented'\n"
+        "implements:\n  - 'k/a:lib/a.dart:A'\n---\n\n# R\n",
+      );
+    });
+
+    test('document_writing/move_story/move_story_folder E20: a skeleton key with no value takes the lines', () {
+      final text = addRecordLines(
+        '---\ndraft: true\nstatuses:\n---\n\n# R\n',
+        _recordType,
+        (statuses: ['k/a:implemented'], code: const []),
+      );
+
+      expect(
+        text,
+        "---\ndraft: true\nstatuses:\n  - 'k/a:implemented'\n---\n\n# R\n",
+      );
+    });
+
+    test('no line to add leaves the text and returns null', () {
+      expect(
+        addRecordLines(record, _recordType, (
+          statuses: const [],
+          code: const [],
+        )),
+        isNull,
+      );
+    });
+  });
 }

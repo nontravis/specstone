@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/document_writing/rewrite_records.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -42,6 +43,10 @@ int parsePlace(String? value) {
 /// already holds [place] with no gap changes nothing. No draft mark is
 /// written.
 ///
+/// [codeTarget] keeps the doc's name to that code target's docs and the shared
+/// docs. Every entry of a record names its item relative to its feature, so a
+/// reorder changes none.
+///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc type that numbers no
 /// doc and `position_out_of_range` for a place outside 1 to the sibling
 /// count; an `IndexFault` for a bad address or [place], or `doc_not_found`
@@ -52,13 +57,19 @@ ReadAnswer answerReorder(
   WriteSession session,
   String address, {
   required String? place,
+  String? codeTarget,
 }) {
   final wanted = parsePlace(place);
-  final target = session.target(address);
+  final target = session.target(address, codeTarget: codeTarget);
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape = DocPathShape.ofDoc(docType, session.index.set, target.docPath);
+  final shape = DocPathShape.ofDoc(
+    docType,
+    session.index.set,
+    target.docPath,
+    target: target.target,
+  );
   if (shape == null || !shape.numbered) {
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
@@ -90,6 +101,10 @@ ReadAnswer answerReorder(
 /// title is never touched and no draft mark is written. The slug a doc
 /// already carries changes nothing.
 ///
+/// [codeTarget] keeps the doc's name to that code target's docs and the shared
+/// docs. The entry of a renamed story or FR, in each target's record, takes
+/// the new name.
+///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc type that carries no
 /// slug, a spec doc included, and `doc_exists` when a sibling carries
 /// [slug] or a path on disk is where the renamed segment would land; an
@@ -101,6 +116,7 @@ ReadAnswer answerRename(
   WriteSession session,
   String address, {
   required String? slug,
+  String? codeTarget,
 }) {
   if (slug == null) {
     throw missingArgument(
@@ -110,11 +126,16 @@ ReadAnswer answerRename(
     );
   }
   checkSlug(slug);
-  final target = session.target(address);
+  final target = session.target(address, codeTarget: codeTarget);
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final shape = DocPathShape.ofDoc(docType, session.index.set, target.docPath);
+  final shape = DocPathShape.ofDoc(
+    docType,
+    session.index.set,
+    target.docPath,
+    target: target.target,
+  );
   if (shape == null || !shape.slugged) {
     throw _noSlugFault(session, address, target, docType, shape);
   }
@@ -124,10 +145,12 @@ ReadAnswer answerRename(
     session.journalTarget.requireTrusted();
     final renamed = _renamedNames(session, moves);
     final skipped = <String>[];
+    final records = planRecordRewrites(session, renamed);
     final rewrites = planRewrites(
       session,
       moves,
       renamed: renamed,
+      recordEdits: records.edits,
       onSkipped: skipped.add,
     );
     MoveJournal([
@@ -147,7 +170,10 @@ const _storyType = 'user_story';
 /// pass through one journal.
 ///
 /// A story named twice moves once; a story already in [under] stays. Every
-/// target is checked before the lock, so one refused target moves none.
+/// target is checked before the lock, so one refused target moves none. In
+/// each code target, the entries of a moved story and its FRs go from the
+/// record of the feature they leave to the record of [under], which the move
+/// creates, as a draft, when the target has none.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
 /// `doc_exists` for a clash, among the targets too; an `IndexFault` for no
@@ -203,16 +229,19 @@ ReadAnswer answerMove(
     session.journalTarget.requireTrusted();
     final renamed = _renamedNames(session, moves);
     final skipped = <String>[];
+    final records = planRecordRewrites(session, renamed);
     final rewrites = planRewrites(
       session,
       moves,
       renamed: renamed,
+      recordEdits: records.edits,
       onSkipped: skipped.add,
     );
     MoveJournal([
       for (final move in moves)
         MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
       ...rewrites,
+      ...records.creates,
     ]).run(session.journalTarget);
     return _answerFor(session, moves, rewrites, warnings: skipped);
   });
@@ -261,7 +290,12 @@ List<PathMove> _storyMoves(
       set.lookup(newParent.docTypeId!) ??
       (throw StateError('${newParent.docPath} has no doc type'));
   final parentShape =
-      DocPathShape.ofDoc(parentType, set, newParent.docPath) ??
+      DocPathShape.ofDoc(
+        parentType,
+        set,
+        newParent.docPath,
+        target: newParent.target,
+      ) ??
       (throw StateError('${newParent.docPath} does not match its doc type'));
   final parentValues =
       parentShape.valuesOf(newParent.docPath) ??
@@ -281,7 +315,7 @@ List<PathMove> _storyMoves(
   final moves = <PathMove>[];
   for (final story in stories) {
     final shape =
-        DocPathShape.ofDoc(docType, set, story.docPath) ??
+        DocPathShape.ofDoc(docType, set, story.docPath, target: story.target) ??
         (throw StateError('${story.docPath} does not match its doc type'));
     final slug =
         shape.matchOwn(story.docPath.split('/')[shape.ownIndex])?.slug ??
@@ -397,6 +431,7 @@ List<PathMove> _renameMoves(
     oldValues,
     newValues,
     depth: shape.depth,
+    targetNames: _twinsOf(session),
   )) {
     if (_folderExists(session, move.from)) moves.add(move);
   }
@@ -457,17 +492,25 @@ WriteFault _existsFault(MergedDocType docType, String named, String file) =>
 
 /// Returns the names that change under [moves], each typed doc under a
 /// moved path mapped from `(doc type id, old name)` to its new name.
+///
+/// A per-target doc sits in its target's folder only with two or more targets,
+/// and its name drops that folder, so the twins of the targets share it.
 Map<(String, String), String> _renamedNames(
   WriteSession session,
   List<PathMove> moves,
 ) {
+  final inTargetFolder = _twinsOf(session).isNotEmpty;
   final renamed = <(String, String), String>{};
   for (final doc in session.index.docs) {
     final typeId = doc.docTypeId;
     final docType = typeId == null ? null : session.index.set.lookup(typeId);
     final newPath = movedPath(doc.docPath, moves);
     if (docType == null || newPath == doc.docPath) continue;
-    renamed[(docType.id, doc.name)] = docNameOf(newPath, docType);
+    renamed[(docType.id, doc.name)] = docNameOf(
+      newPath,
+      docType,
+      target: inTargetFolder ? doc.target : null,
+    );
   }
   return renamed;
 }
@@ -544,11 +587,19 @@ List<PathMove> _movesFor(
       oldValues,
       newValues,
       depth: shape.depth,
+      targetNames: _twinsOf(session),
     )) {
       if (_folderExists(session, move.from)) moves.add(move);
     }
   }
   return moves;
+}
+
+/// Returns the names of the code targets a per-target spec folder is read in:
+/// every target once the project names two or more, else none.
+List<String> _twinsOf(WriteSession session) {
+  final names = session.index.targetNames;
+  return names.length > 1 ? names : const [];
 }
 
 bool _folderExists(WriteSession session, String folder) =>
