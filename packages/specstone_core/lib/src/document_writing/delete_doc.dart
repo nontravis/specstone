@@ -8,16 +8,37 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+
+const _bom = '\uFEFF';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
 typedef _UnitFiles = Map<String, List<int>>;
+
+/// A record outside the unit that loses entries: its DocPath, its bytes as
+/// read, the items whose entries it loses, and its text without them.
+typedef _RecordEdit = ({
+  String docPath,
+  List<int> bytes,
+  List<String> entries,
+  String lfText,
+});
+
+/// What one delete removes and rewrites: the files of the unit, and each
+/// record outside it that loses entries, sorted by DocPath.
+typedef _DeletePlan = ({_UnitFiles files, List<_RecordEdit> records});
 
 /// Moves the docs [targets] name, with everything each owns, to the trash.
 ///
@@ -31,14 +52,22 @@ typedef _UnitFiles = Map<String, List<int>>;
 /// is left to dangle, and the answer warns of each such link. A guarded
 /// `.md` file in the unit (an untyped one included) leaves the delete to the
 /// Owner, as [confirmation] says. At a terminal [prompts] lists
-/// the files and asks, one answer from [readLine] outside the lock; anything
-/// but `y`, or the end of input, keeps them all. After a `y` the index is read
-/// afresh, the targets resolve again, and the referrers are checked again;
-/// when a file or its bytes change while the prompt waits, the list shows
-/// again. Under `--yes` the unit goes with no prompt, as after a `y`, but only
-/// while its file list hashes to [planHash], the plan line of the dry run the
-/// Owner saw ([answerDeleteDryRun]); the hash covers the files alone, and no
-/// git runs. Emptied folders go up to the docs root.
+/// the files and each record the delete rewrites, and asks, one answer from
+/// [readLine] outside the lock; anything but `y`, or the end of input, keeps
+/// them all. After a `y` the index is read afresh, the targets resolve again,
+/// and the referrers are checked again; when a file or a record changes while
+/// the prompt waits, the list shows again. Under `--yes` the unit goes with
+/// no prompt, as after a `y`, but only while its files and those records hash
+/// to [planHash], the plan line of the dry run the Owner saw
+/// ([answerDeleteDryRun]); no git runs. Emptied folders go up to the docs
+/// root.
+///
+/// Each record, in every code target, outside the unit that holds an entry of
+/// a story or FR of it loses that entry and becomes a draft, through the same
+/// journal as the file moves; no record's approval guards the delete. A
+/// feature's own records leave with its spec folder.
+///
+/// [codeTarget] keeps a name to that code target's docs and the shared docs.
 ///
 /// [targets] is non-empty.
 /// Throws [WriteFault] `doc_referenced` for a referred doc,
@@ -53,11 +82,12 @@ ReadAnswer answerDelete(
   required String? Function() readLine,
   required StringSink prompts,
   String? planHash,
+  String? codeTarget,
 }) {
-  var unit = _resolveTargets(session, targets);
+  var unit = _resolveTargets(session, targets, codeTarget);
   var dangling = _checkReferrers(session, unit);
   while (true) {
-    final shown = _readUnit(session, unit.roots);
+    final shown = _planOf(session, unit.roots);
     if (confirmation == OwnerConfirmation.given &&
         planHash != _planHashOf(shown)) {
       throw WriteFault(
@@ -66,7 +96,7 @@ ReadAnswer answerDelete(
         'specstone delete --dry-run again, show it, and ask for a new ok',
       );
     }
-    final guarded = _holdsGuardedDoc(shown);
+    final guarded = _holdsGuardedDoc(shown.files);
     if (guarded) {
       confirmation.refuseIfMissing(
         '${unit.subject} holds guarded docs; only the Owner deletes them,',
@@ -79,53 +109,71 @@ ReadAnswer answerDelete(
         session.project.projectRoot,
       );
       prompts
-        ..writeln(shown.keys.join('\n'))
-        ..write('delete ${shown.length} files? [y/N] ');
+        ..writeln(shown.files.keys.join('\n'))
+        ..write(_rewritesOf(shown))
+        ..write('delete ${shown.files.length} files? [y/N] ');
       if (readLine() != 'y') return _answerFor(const []);
       session.refresh();
-      unit = _resolveTargets(session, targets);
+      unit = _resolveTargets(session, targets, codeTarget);
       dangling = _checkReferrers(session, unit);
     }
     final roots = unit.roots;
     final removed = session.locked(() {
-      final current = _readUnit(session, roots);
-      if (!_sameFiles(current, shown)) return null;
-      MoveJournal(_stepsFor(session, roots, current.keys))
+      final current = _planOf(session, roots);
+      if (!_samePlan(current, shown)) return null;
+      MoveJournal(_stepsFor(session, roots, current))
           .run(session.journalTarget);
-      return current.keys.toList();
+      return current.files.keys.toList();
     });
     if (removed != null) return _answerFor(removed, warnings: dangling);
   }
 }
 
-/// Lists every file a delete of [targets] would remove, and its plan line.
+/// Lists every file a delete of [targets] would remove, each record it
+/// rewrites, and its plan line.
 ///
 /// The list is the one the terminal prompt shows before its `y`, and nothing
-/// is removed. The text ends with the `plan <hash>` line and
-/// `dry run: nothing removed`; the JSON holds `files` and `plan`.
-/// Warns of each link left to dangle, and throws, as [answerDelete] does
-/// before its prompt. It starts no git.
-ReadAnswer answerDeleteDryRun(WriteSession session, List<String> targets) {
-  final unit = _resolveTargets(session, targets);
+/// is removed. The text is the files, one `rewrites <DocPath>: <entry>, …` line
+/// per record, the `plan <hash>` line, and `dry run: nothing removed`; the
+/// JSON holds `files`, `records` (each with its `path` and `entries`), and
+/// `plan`. Warns of each link left to dangle, and throws, as [answerDelete]
+/// does before its prompt. It starts no git.
+ReadAnswer answerDeleteDryRun(
+  WriteSession session,
+  List<String> targets, {
+  String? codeTarget,
+}) {
+  final unit = _resolveTargets(session, targets, codeTarget);
   final dangling = _checkReferrers(session, unit);
-  final unitFiles = _readUnit(session, unit.roots);
-  final files = unitFiles.keys.toList();
-  final hash = _planHashOf(unitFiles);
+  final plan = _planOf(session, unit.roots);
+  final files = plan.files.keys.toList();
+  final hash = _planHashOf(plan);
   return ReadAnswer(
-    text: '${_listOf(files)}plan $hash\ndry run: nothing removed\n',
-    json: {'files': files, 'plan': hash},
+    text:
+        '${_listOf(files)}${_rewritesOf(plan)}'
+        'plan $hash\ndry run: nothing removed\n',
+    json: {
+      'files': files,
+      'records': [
+        for (final record in plan.records)
+          {'path': record.docPath, 'entries': record.entries},
+      ],
+      'plan': hash,
+    },
     warnings: dangling,
   );
 }
 
-/// Returns the plan hash of a delete unit: its files alone.
+/// Returns the plan hash of a delete: its files, then each record it rewrites.
 ///
 /// It covers each listed path with the hash of its text, as `bases.doc` hashes
-/// a doc, so an edit to a listed file, committed or not, changes it.
-String _planHashOf(_UnitFiles files) => baseHashOf(
+/// a doc, so an edit to a listed file or record, committed or not, changes it.
+String _planHashOf(_DeletePlan plan) => baseHashOf(
   [
-    for (final MapEntry(key: docPath, value: bytes) in files.entries)
+    for (final MapEntry(key: docPath, value: bytes) in plan.files.entries)
       '$docPath ${_textHashOf(bytes)}\n',
+    for (final record in plan.records)
+      '${record.docPath} ${_textHashOf(record.bytes)}\n',
   ].join(),
 );
 
@@ -142,6 +190,12 @@ String _textHashOf(List<int> bytes) {
 
 String _listOf(Iterable<String> docPaths) =>
     docPaths.map((docPath) => '$docPath\n').join();
+
+/// Returns one `rewrites <DocPath>: <entry>, …` line per record of [plan].
+String _rewritesOf(_DeletePlan plan) => [
+  for (final record in plan.records)
+    'rewrites ${record.docPath}: ${record.entries.join(', ')}\n',
+].join();
 
 /// The resolved targets of a delete call, in the order given.
 class _DeleteSet(
@@ -160,16 +214,21 @@ class _DeleteSet(
 ///
 /// A target is untyped when it names one doc, with no doc type, by its DocPath
 /// or another path; every other target goes through [WriteSession.target].
-_DeleteSet _resolveTargets(WriteSession session, List<String> targets) {
+/// [codeTarget] keeps a name to that code target's docs and the shared docs.
+_DeleteSet _resolveTargets(
+  WriteSession session,
+  List<String> targets,
+  String? codeTarget,
+) {
   return _DeleteSet([
     for (final address in targets)
-      switch (_untypedDocAt(session, address)) {
+      switch (_untypedDocAt(session, address, codeTarget)) {
         final untyped? => (
           address: address,
           docPath: untyped.docPath,
           roots: [untyped.docPath],
         ),
-        null => _typedTarget(session, address),
+        null => _typedTarget(session, address, codeTarget),
       },
   ]);
 }
@@ -177,8 +236,9 @@ _DeleteSet _resolveTargets(WriteSession session, List<String> targets) {
 ({String address, String docPath, List<String> roots}) _typedTarget(
   WriteSession session,
   String address,
+  String? codeTarget,
 ) {
-  final doc = session.target(address);
+  final doc = session.target(address, codeTarget: codeTarget);
   return (
     address: address,
     docPath: doc.docPath,
@@ -187,10 +247,14 @@ _DeleteSet _resolveTargets(WriteSession session, List<String> targets) {
 }
 
 /// Returns the one doc with no doc type that [address] names, else null.
-IndexedDoc? _untypedDocAt(WriteSession session, String address) {
+IndexedDoc? _untypedDocAt(
+  WriteSession session,
+  String address,
+  String? codeTarget,
+) {
   final List<IndexedDoc> found;
   try {
-    found = session.index.resolve(address);
+    found = session.index.resolve(address, codeTarget: codeTarget);
   } on Exception {
     // A name no untyped doc carries; WriteSession.target gives the refusal.
     return null;
@@ -208,7 +272,14 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
   final docType =
       session.index.typeOf(target) ??
       (throw StateError('${target.docPath} has no doc type'));
-  final roots = unitRootsOf(set, docType, target.docPath);
+  // A feature's spec folder is read in every target, once there are twins.
+  final twins = session.index.targetNames;
+  final roots = unitRootsOf(
+    set,
+    docType,
+    target.docPath,
+    targetNames: twins.length > 1 ? twins : const [],
+  );
   if (roots != null) return roots;
   throw StateError(
     DocPathShape.ofDoc(docType, set, target.docPath) == null
@@ -360,6 +431,71 @@ Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
   }
 }
 
+/// Reads the files of the unit and the records that lose entries with it.
+_DeletePlan _planOf(WriteSession session, List<String> roots) {
+  final files = _readUnit(session, roots);
+  return (files: files, records: _recordEditsOf(session, files.keys.toSet()));
+}
+
+/// Returns an edit for each record outside [inUnit], the DocPaths of the
+/// unit's files, that holds an entry of a story or FR of the unit, sorted by
+/// DocPath.
+///
+/// A record's entries name the stories and FRs of its feature relative to it,
+/// as [recordItemsOf] gives them; the records of a feature in the unit are in
+/// the unit and leave with it.
+List<_RecordEdit> _recordEditsOf(WriteSession session, Set<String> inUnit) {
+  final index = session.index;
+  final recordType = index.set.recordDocType;
+  if (recordType == null) return const [];
+  final edits = <_RecordEdit>[];
+  for (final record in index.docs) {
+    if (record.docTypeId != recordType.id || inUnit.contains(record.docPath)) {
+      continue;
+    }
+    final feature = index.parentOf(record);
+    if (feature == null) continue;
+    final lost = {
+      for (final MapEntry(:key, :value) in recordItemsOf(
+        feature,
+        index.childrenOf,
+      ).entries)
+        if (inUnit.contains(value.docPath)) key,
+    };
+    if (lost.isEmpty) continue;
+    final edit = _editOf(session, record.docPath, recordType, lost);
+    if (edit != null) edits.add(edit);
+  }
+  return edits..sort((a, b) => a.docPath.compareTo(b.docPath));
+}
+
+/// Returns the edit of the record at [docPath] that drops the items [lost],
+/// or null when the file is gone or holds none of them.
+_RecordEdit? _editOf(
+  WriteSession session,
+  String docPath,
+  MergedDocType recordType,
+  Set<String> lost,
+) {
+  final bytes = session.readDocBytes(docPath);
+  if (bytes == null) return null;
+  final dropped = <String>{};
+  final lfText = rewriteRecordItems(toLf(utf8.decode(bytes)), recordType, (
+    item,
+  ) {
+    if (!lost.contains(item)) return item;
+    dropped.add(item);
+    return null;
+  });
+  if (lfText == null) return null;
+  return (
+    docPath: docPath,
+    bytes: bytes,
+    entries: dropped.toList(),
+    lfText: lfText,
+  );
+}
+
 /// Reads every file of the unit; the keys are sorted by code point.
 ///
 /// A symbolic link is never followed: its bytes are its target text.
@@ -400,6 +536,14 @@ bool _holdsGuardedDoc(_UnitFiles files) {
   return false;
 }
 
+bool _samePlan(_DeletePlan a, _DeletePlan b) =>
+    _sameFiles(a.files, b.files) &&
+    _sameFiles(_recordBytesOf(a), _recordBytesOf(b));
+
+_UnitFiles _recordBytesOf(_DeletePlan plan) => {
+  for (final record in plan.records) record.docPath: record.bytes,
+};
+
 bool _sameFiles(_UnitFiles a, _UnitFiles b) {
   if (a.length != b.length) return false;
   for (final MapEntry(:key, value: bytes) in a.entries) {
@@ -413,13 +557,16 @@ bool _sameFiles(_UnitFiles a, _UnitFiles b) {
 }
 
 /// Returns the journal steps: each file to the trash, then the pruning of
-/// every folder the move may leave empty, the deepest first.
+/// every folder the move may leave empty, the deepest first, then the write
+/// of each record that loses entries.
 List<JournalStep> _stepsFor(
   WriteSession session,
   List<String> roots,
-  Iterable<String> docPaths,
+  _DeletePlan plan,
 ) {
-  final projectPaths = [for (final p in docPaths) session.projectPathOf(p)];
+  final projectPaths = [
+    for (final p in plan.files.keys) session.projectPathOf(p),
+  ];
   final folders = {
     for (final path in projectPaths) path.substring(0, path.lastIndexOf('/')),
     for (final root in roots)
@@ -432,7 +579,27 @@ List<JournalStep> _stepsFor(
     for (final path in projectPaths)
       MoveStep(path, '${MoveJournal.trashPath}/files/$path'),
     for (final folder in folders) PruneStep(folder),
+    for (final record in plan.records) _recordStep(session, record),
   ];
+}
+
+/// Returns the write of [record] as a draft, laid out for its doc type, in the
+/// line ends and byte-order mark it had.
+///
+/// Throws a `RenderFault` `output_not_writable` for a record that is read-only.
+WriteStep _recordStep(WriteSession session, _RecordEdit record) {
+  session.requireWritable(record.docPath);
+  final docType =
+      session.docTypeAt(record.docPath) ??
+      (throw StateError('${record.docPath} is typed but its type is gone'));
+  final raw = utf8.decode(record.bytes);
+  final text = layOutDoc(markDraft(record.lfText, docType), docType);
+  final bom = startsWithUtf8Bom(record.bytes) ? _bom : '';
+  return WriteStep(
+    session.projectPathOf(record.docPath),
+    '$bom${LineEnding.of(raw).apply(text)}',
+    before: textHashOf(raw),
+  );
 }
 
 ReadAnswer _answerFor(

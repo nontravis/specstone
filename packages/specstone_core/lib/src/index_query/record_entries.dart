@@ -1,6 +1,11 @@
+import 'dart:convert';
+
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:yaml/yaml.dart';
 
 /// One entry of a target's `implementation` record: the story or FR it
 /// records, named relative to the record's feature (empty for the feature
@@ -176,3 +181,85 @@ Map<String, IndexedDoc> recordItemsOf(
       },
   };
 }
+
+/// Returns [lfText], the text of a record of [recordType], with the item of
+/// each line of its `record_status` and `item_exact` fields set to what
+/// [rewrite] returns; null when no line changes.
+///
+/// [rewrite] takes a line's item, empty for the feature itself, and returns
+/// the item to write in its place, the same item to leave the line, or null to
+/// drop the line. A line that names no item stays. A field that changes is
+/// written back as a block list, one quoted line each, or removed when no line
+/// is left; every other key, and a field that does not change, stays as
+/// written. It marks no draft.
+String? rewriteRecordItems(
+  String lfText,
+  MergedDocType recordType,
+  String? Function(String item) rewrite,
+) {
+  var text = lfText;
+  for (final field in [
+    recordStatusFieldOf(recordType),
+    recordCodeFieldOf(recordType),
+  ]) {
+    if (field != null) text = _rewriteField(text, field, rewrite);
+  }
+  return text == lfText ? null : text;
+}
+
+String _rewriteField(
+  String lfText,
+  MergedField field,
+  String? Function(String item) rewrite,
+) {
+  final block = (Doc.parse(lfText).frontmatter ?? const <KeyBlock>[])
+      .where((b) => b.name == field.id)
+      .firstOrNull;
+  if (block == null) return lfText;
+  final Object? parsed;
+  try {
+    parsed = loadYaml(block.text);
+  } on YamlException {
+    return lfText;
+  }
+  final value = parsed is YamlMap ? parsed[field.id] : null;
+  final lines = switch (value) {
+    null => const <Object?>[],
+    YamlList() => [...value],
+    _ => [value],
+  };
+  final kept = <Object?>[];
+  var changed = false;
+  for (final line in lines) {
+    final next = line is String ? _rewrittenLine(line, rewrite) : line;
+    if (next != line) changed = true;
+    if (next != null) kept.add(next);
+  }
+  if (!changed) return lfText;
+  final listed = [for (final line in kept) '  - ${_yamlOf(line)}\n'].join();
+  return withKeyBlock(
+    lfText,
+    field.id,
+    kept.isEmpty ? null : '${block.key}:\n$listed',
+  );
+}
+
+/// Returns [line] with its item set by [rewrite], or null to drop it.
+String? _rewrittenLine(String line, String? Function(String item) rewrite) {
+  final split = line.indexOf(':');
+  if (split < 0) return line;
+  final item = rewrite(line.substring(0, split));
+  return item == null ? null : '$item${line.substring(split)}';
+}
+
+/// Returns [value] as one YAML flow or single-quoted scalar, which reads back
+/// as it was.
+String _yamlOf(Object? value) => value is String && !value.contains('\n')
+    ? "'${value.replaceAll("'", "''")}'"
+    : jsonEncode(_plain(value));
+
+Object? _plain(Object? yaml) => switch (yaml) {
+  YamlMap() => {for (final e in yaml.entries) '${e.key}': _plain(e.value)},
+  YamlList() => [for (final e in yaml) _plain(e)],
+  _ => yaml,
+};

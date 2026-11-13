@@ -4,6 +4,7 @@ import 'package:specstone_core/specstone_core.dart';
 /// Deletes one or more docs, each with the docs it owns.
 class DeleteCommand extends WriteCommand {
   new() {
+    addTargetOption();
     argParser
       ..addFlag(
         'dry-run',
@@ -35,7 +36,7 @@ class DeleteCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone delete <target> … '
+      'specstone delete <target> … [--target <name>] '
       '[--dry-run | --yes --plan <hash>] [--json]';
 
   @override
@@ -64,7 +65,8 @@ class DeleteCommand extends WriteCommand {
     );
     if (dryRun) {
       return runWrite(
-        (session) => answerDeleteDryRun(session, rest),
+        (session) =>
+            answerDeleteDryRun(session, rest, codeTarget: targetOf(args)),
         asJson: asJson,
       );
     }
@@ -77,6 +79,7 @@ class DeleteCommand extends WriteCommand {
         readLine: console.readLine,
         prompts: asJson ? runner.err : runner.out,
         planHash: planHash,
+        codeTarget: targetOf(args),
       ),
       asJson: asJson,
     );
