@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart'
+    show fieldTakesItem, recordStatusLineShape;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -455,20 +457,18 @@ void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
   if (field.list) {
     if (value is! YamlList) throw takes('a YAML list, one `- item` line each');
     for (final item in value) {
-      if (!_itemIs(item, field)) throw takes(_typeOf(field));
+      if (!fieldTakesItem(field, item)) throw takes(_typeOf(field));
     }
     return;
   }
   if (value is YamlList) throw takes('one YAML value, not a list');
-  if (!_itemIs(value, field)) throw takes(_typeOf(field));
+  if (!fieldTakesItem(field, value)) throw takes(_typeOf(field));
 }
 
 /// Returns the `<what>` the field's type and `enum` name in a fault.
 String _typeOf(MergedField field) => switch (field.type) {
-  FieldType.string ||
-  FieldType.docRef ||
-  FieldType.outputRef ||
-  FieldType.recordStatus => 'a string',
+  FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+  FieldType.recordStatus => recordStatusLineShape,
   FieldType.integer => 'a whole number',
   FieldType.boolean => 'true or false',
   FieldType.date => 'a date as YYYY-MM-DD',
@@ -476,22 +476,6 @@ String _typeOf(MergedField field) => switch (field.type) {
     field.enumValues == null
         ? 'a string'
         : 'one of ${field.enumValues!.join(', ')}',
-};
-
-/// Whether [value] is one item the field's type accepts.
-bool _itemIs(Object? value, MergedField field) => switch (field.type) {
-  FieldType.string ||
-  FieldType.docRef ||
-  FieldType.outputRef ||
-  FieldType.recordStatus => value is String,
-  FieldType.integer => value is int,
-  FieldType.boolean => value is bool,
-  FieldType.date =>
-    value is String &&
-        RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value) &&
-        DateTime.tryParse(value) != null,
-  FieldType.enumType =>
-    value is String && (field.enumValues?.contains(value) ?? false),
 };
 
 /// Returns [stdin] as the key block text of [fieldId], per PD6.

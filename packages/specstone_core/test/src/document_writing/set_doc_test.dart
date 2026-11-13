@@ -3308,6 +3308,42 @@ void main() {
       expect(readDoc(root, jasprRecord), contains('draft: true'));
     });
 
+    test('document_writing/edit_one_section_or_field/write_one_field E06: a statuses line that check refuses is field_value_invalid, naming the four statuses', () async {
+      final root = await twinWithRecords();
+      final before = readDoc(root, jasprRecord);
+      for (final stdin in [
+        '- email_login/check_password:wip\n',
+        '- email_login/check_password\n',
+      ]) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              jaspr(
+                'implementation:login',
+                fieldBase(root, jasprRecord, 'statuses'),
+                field: 'statuses',
+              ),
+              stdin,
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'statuses takes a line <item>:<status>, the status planned, '
+                      'implemented, deprecated, or skipped',
+                ),
+          ),
+          reason: stdin,
+        );
+      }
+      expect(readDoc(root, jasprRecord), before);
+    });
+
     test('f02/us01/fr03/e05: --target keeps the shared feature writable: status is refused on it and written on a story', () async {
       final root = await writeTwinProject();
       expect(
