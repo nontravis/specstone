@@ -8,6 +8,7 @@ import '../helpers/relative_link.dart';
 import '../helpers/temp_tree.dart';
 
 const _scope = 'document_writing/delete_doc_subtree/finish_interrupted_move';
+const _codeScope = 'index_query/get_task_bundle/bundle_docs_for_code_path';
 
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
@@ -416,6 +417,41 @@ void main() {
         r'C:\proj\.specstone\..\out\x',
       );
       expect(linkTargetPath(r'C:\lnk', 'x', isWindows: true), r'C:\x');
+    });
+  });
+
+  group('$_codeScope: pathInside reads a path under a code root', () {
+    test('a windows path under the root reads /-separated from it', () {
+      expect(
+        pathInside(r'C:\p\ws', r'C:\p\ws\web\lib', isWindows: true),
+        'web/lib',
+      );
+      expect(pathInside(r'C:\', r'C:\ws', isWindows: true), 'ws');
+    });
+
+    test('a posix path under the root reads from it', () {
+      expect(pathInside('/p/ws', '/p/ws/web/lib', isWindows: false), 'web/lib');
+      expect(pathInside('/', '/ws', isWindows: false), 'ws');
+    });
+
+    test('the root itself, a sibling sharing its prefix, and a path outside '
+        'read as null', () {
+      for (final (root, path, windows) in [
+        (r'C:\p\ws', r'C:\p\ws', true),
+        (r'C:\p\ws', r'C:\p\ws\', true),
+        (r'C:\p\ws', r'C:\p\ws2\a', true),
+        (r'C:\p\ws', r'D:\p\ws\a', true),
+        (r'C:\p\ws', 'C:/p/ws/a', true),
+        ('/p/ws', '/p/ws', false),
+        ('/p/ws', '/p/ws2/a', false),
+        ('/p/ws', r'/p/ws\a', false),
+      ]) {
+        expect(
+          pathInside(root, path, isWindows: windows),
+          isNull,
+          reason: '$root, $path',
+        );
+      }
     });
   });
 }

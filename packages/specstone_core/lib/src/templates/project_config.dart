@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -315,8 +314,8 @@ List<CodeTarget> _readTargets(Directory root, YamlMap map) {
 void _refuseOneFolder(Directory root, List<CodeTarget> targets) {
   for (var i = 0; i < targets.length; i++) {
     for (var j = i + 1; j < targets.length; j++) {
-      final first = _resolvedCodeRoot(root, targets[i]);
-      final second = _resolvedCodeRoot(root, targets[j]);
+      final first = codeRootFolderOf(root, targets[i]).path;
+      final second = codeRootFolderOf(root, targets[j]).path;
       if (first == second) {
         throw TemplateFault(
           FaultCode.unknownValue,
@@ -330,9 +329,6 @@ void _refuseOneFolder(Directory root, List<CodeTarget> targets) {
     }
   }
 }
-
-String _resolvedCodeRoot(Directory root, CodeTarget target) =>
-    canonicalPath('${root.path}${Platform.pathSeparator}${target.codeRoot}');
 
 /// Reads a `code_root:` value at [key] of [map], `.` when absent or null.
 ///

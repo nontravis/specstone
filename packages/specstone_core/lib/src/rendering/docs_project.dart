@@ -95,14 +95,9 @@ final class DocsProject {
   /// The named targets, in config order; empty with one unnamed target.
   List<String> get targetNames => targetNamesOf(targets);
 
-  /// Returns [target]'s code root as the project root joined with its
-  /// `code_root`.
-  ///
-  /// Canonical when it exists; otherwise the joined path with its existing
-  /// part canonical and `..` applied, so a docs-only checkout still opens.
-  Directory codeRootOf(CodeTarget target) => Directory(
-    canonicalPath('${projectRoot.path}$_separator${target.codeRoot}'),
-  );
+  /// Returns [target]'s code root as [codeRootFolderOf] reads it.
+  Directory codeRootOf(CodeTarget target) =>
+      codeRootFolderOf(projectRoot, target);
 
   /// Throws `output_not_writable` unless the Owner trusts the roots and a
   /// write to [path] lands inside the project or docs root and below no `.git`

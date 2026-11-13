@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart' show pathInside;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -39,10 +40,9 @@ CodePath resolveCodePath(
   required List<CodeTarget> targets,
   required Directory Function(CodeTarget target) codeRootOf,
 }) {
-  final separator = Platform.pathSeparator;
   final absolute = File(given).isAbsolute
       ? given
-      : '${workingDirectory.path}$separator$given';
+      : '${workingDirectory.path}${Platform.pathSeparator}$given';
   final type = FileSystemEntity.typeSync(absolute);
   if (type == FileSystemEntityType.notFound) {
     throw IndexFault(
@@ -51,18 +51,12 @@ CodePath resolveCodePath(
     );
   }
   final canonical = File(absolute).resolveSymbolicLinksSync();
-  CodeTarget? holder;
-  var root = '';
+  ({CodeTarget target, String root, String path})? holder;
   for (final target in targets) {
-    final candidate = codeRootOf(target).path;
-    final prefix = candidate.endsWith(separator)
-        ? candidate
-        : '$candidate$separator';
-    if (canonical != candidate && !canonical.startsWith(prefix)) continue;
-    if (candidate.length > root.length) {
-      holder = target;
-      root = candidate;
-    }
+    final root = codeRootOf(target).path;
+    final inside = canonical == root ? '.' : pathInside(root, canonical);
+    if (inside == null || root.length <= (holder?.root.length ?? -1)) continue;
+    holder = (target: target, root: root, path: inside);
   }
   if (holder == null) {
     throw IndexFault(
@@ -70,13 +64,10 @@ CodePath resolveCodePath(
       'the code path $given lies outside the code root',
     );
   }
-  final prefix = root.endsWith(separator) ? root : '$root$separator';
   return CodePath(
-    path: canonical == root
-        ? '.'
-        : canonical.substring(prefix.length).split(separator).join('/'),
+    path: holder.path,
     isFolder: type == FileSystemEntityType.directory,
-    target: holder,
+    target: holder.target,
   );
 }
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
+import 'package:specstone_core/src/canonical_path.dart'
+    show canonicalPath, pathInside;
 
 /// One code base the shared PRD drives: its name and its code root.
 ///
@@ -33,13 +34,12 @@ final class CodeTarget {
 
 /// Returns the folder [target]'s code paths are written from, [projectRoot]
 /// joined with its `code_root`, as [canonicalPath] reads it.
+///
+/// The one canonical form of a code root. Canonical when it exists; otherwise
+/// the joined path with its existing part canonical and `..` applied, so a
+/// docs-only checkout still opens.
 Directory codeRootFolderOf(Directory projectRoot, CodeTarget target) =>
-    Directory(
-      canonicalPath(
-        '${projectRoot.path}/'
-        '${target.codeRoot.replaceAll(RegExp(r'[\\/]'), '/')}',
-      ),
-    );
+    Directory(canonicalPath('${projectRoot.path}/${target.codeRoot}'));
 
 /// Returns each of [targets]' code root folders that lie inside [target]'s,
 /// as `/`-separated paths from it; [projectRoot] resolves the roots.
@@ -56,18 +56,16 @@ List<String> nestedRootsOf(
     for (final other in targets)
       if (other != target) codeRootFolderOf(projectRoot, other).path,
   ];
-  return _nestedPathsOf(own, others);
+  return nestedPathsOf(own, others);
 }
 
 /// Returns each of [roots] that lies inside [own], `/`-separated from it.
-List<String> _nestedPathsOf(String own, List<String> roots) {
-  final prefix = own.endsWith('/') ? own : '$own/';
-  return [
-    for (final path in roots)
-      if (path.length > prefix.length && path.startsWith(prefix))
-        path.substring(prefix.length).replaceAll(RegExp(r'[\\/]'), '/'),
-  ];
-}
+///
+/// Every path is canonical, in the platform's separators, as [pathInside]
+/// reads them; [isWindows] picks the style and defaults to the running
+/// platform.
+List<String> nestedPathsOf(String own, List<String> roots, {bool? isWindows}) =>
+    [for (final path in roots) ?pathInside(own, path, isWindows: isWindows)];
 
 /// Returns the named targets of [targets], in order; empty with one unnamed
 /// target.
