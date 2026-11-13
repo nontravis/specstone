@@ -1915,6 +1915,20 @@ void main() {
       expect(jaspr, isNot(contains(flutterArchitecture)));
     });
 
+    test('f02/us03/fr01: a twin doc that tracks no status keeps no status row and no statusByTarget', () async {
+      final root = await twinDrafts();
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['architecture:login']),
+      );
+      expect(answer.text, isNot(contains('| status')));
+      for (final draft in answer.json['drafts']! as List) {
+        final json = draft as Map;
+        expect(json.containsKey('status'), isFalse);
+        expect(json.containsKey('statusByTarget'), isFalse);
+      }
+    });
+
     test('f02/us03/fr01: a walk of a named doc under --target keeps that target twin only', () async {
       final root = await twinDrafts();
       final answer = writeIn(
@@ -2066,10 +2080,10 @@ void main() {
         );
         final draft = (answer.json['drafts']! as List).single as Map;
         expect(draft.containsKey('status'), isFalse);
-        expect(draft['statusByTarget'], {
-          'flutter': 'implemented',
-          'jaspr': 'planned',
-        });
+        final byTarget = draft['statusByTarget']! as Map;
+        expect(byTarget.keys.toList(), ['flutter', 'jaspr']);
+        expect(byTarget['flutter'], 'implemented');
+        expect(byTarget['jaspr'], 'planned');
       },
     );
 

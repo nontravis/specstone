@@ -32,6 +32,7 @@ DraftView _draft({
   ApprovalLookup? lookup,
   String? title = 'FR-01 — T',
   String? status = 'planned',
+  Map<String, String?> statusByTarget = const {},
   String name = 'fr01_t',
   String projectPath = _path,
   String? docPath,
@@ -43,6 +44,7 @@ DraftView _draft({
   mergedType: mergedType,
   title: title,
   status: status,
+  statusByTarget: statusByTarget,
   docPath: docPath ?? projectPath,
   projectPath: projectPath,
   text: text,
@@ -205,6 +207,52 @@ void main() {
       );
       expect(jsonFor('top/a.md'), containsPair('renamedFrom', 'top/a.md'));
       expect(jsonFor('docs/prds/b.md'), isNot(contains('renamedFrom')));
+    });
+  });
+
+  group('the status row under two or more code targets', () {
+    test('each target shows its status in config order, one code span', () {
+      final view = _render(
+        _draft(
+          status: null,
+          statusByTarget: const {'app': 'implemented', 'web': 'planned'},
+        ),
+      );
+      expect(view, contains('| status  | `app implemented · web planned` |'));
+      final json = draftViewJson(
+        _draft(
+          status: null,
+          statusByTarget: const {'app': 'implemented', 'web': 'planned'},
+        ),
+      );
+      expect(
+        json['statusByTarget'],
+        isA<Map<String, Object?>>().having((m) => m.keys.toList(), 'keys', [
+          'app',
+          'web',
+        ]),
+      );
+      expect(json.containsKey('status'), isFalse);
+    });
+
+    test('a target with no status is dropped, and none left shows no row', () {
+      final partlyNull = _render(
+        _draft(
+          status: null,
+          statusByTarget: const {'app': 'implemented', 'web': null},
+        ),
+      );
+      expect(partlyNull, contains('| status  | `app implemented` |'));
+
+      final allNull = _render(
+        _draft(status: null, statusByTarget: const {'app': null, 'web': null}),
+      );
+      expect(allNull, isNot(contains('| status')));
+      final json = draftViewJson(
+        _draft(status: null, statusByTarget: const {'app': null, 'web': null}),
+      );
+      expect(json.containsKey('status'), isFalse);
+      expect(json.containsKey('statusByTarget'), isFalse);
     });
   });
 
