@@ -412,6 +412,19 @@ void main() {
         );
       }
     });
+    test('f10/us03/s2: a project with no record doc type prints each step '
+        'with no code pointer, exit 0 and no error', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['get', 'journey:sign_in', '--code']), 0);
+      expect(
+        out.toString(),
+        endsWith(
+          '1. Open the page — login/email_login S1\n'
+          '  login/email_login (user_story)\n  - none\n',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
     test('f10/us03/fr01: get journey:<slug> --code --json prints one object, exit 0', () async {
       final (:runner, :out, :err) = readRunner(await project());
       expect(
@@ -594,6 +607,96 @@ void main() {
         );
       },
     );
+    group('--code reads the records of each code target', () {
+      const journey =
+          '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+          '### 1. Open the page\nstep: feedback/toast/show S1\n';
+      const story =
+          '# Show toast\n\n## Acceptance Criteria\n\n'
+          '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it\n';
+      const record =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n'
+          '  - id: implements\n'
+          '    type: output_ref\n'
+          '    list: true\n'
+          '    pointer: item_exact\n';
+
+      Future<Directory> project() => writeTargetedProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': record,
+          'docs/prds/journeys/sign_in/JOURNEY.md': journey,
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              story,
+          'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              '---\nstatuses:\n  - show:implemented\n'
+              'implements:\n  - show:lib/toast.dart:Toast\n---\n\n'
+              '# Record\n',
+          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              '---\nstatuses:\n  - show:skipped:no web toast\n---\n\n'
+              '# Record\n',
+        },
+      );
+
+      const stepLines =
+          '1. Open the page — feedback/toast/show S1\n'
+          '  feedback/toast/show (user_story)\n';
+
+      test('f10/us03/s1, f10/us03/fr01/e11: no --target lists each target '
+          'under its name, a skip as <target>: skipped', () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['get', 'sign_in', '--code']), 0);
+        expect(
+          out.toString(),
+          endsWith(
+            '$stepLines  - flutter: lib/toast.dart:Toast\n  - jaspr: skipped\n',
+          ),
+        );
+        expect(err.toString(), isEmpty);
+      });
+
+      test('f10/us03/fr01/e11: --target keeps one target, printed with no '
+          'target name', () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(
+          await runner.run(['get', 'sign_in', '--code', '--target', 'flutter']),
+          0,
+        );
+        expect(
+          out.toString(),
+          endsWith('$stepLines  - implements: lib/toast.dart:Toast\n'),
+        );
+        out.clear();
+        expect(
+          await runner.run(['get', 'sign_in', '--code', '--target', 'jaspr']),
+          0,
+        );
+        expect(out.toString(), endsWith('$stepLines  - skipped\n'));
+      });
+
+      test('f10/us03/fr01/e11: --json holds implementsByTarget with no '
+          '--target', () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['get', 'sign_in', '--code', '--json']), 0);
+        final journeys =
+            (jsonDecode(out.toString()) as Map)['journeys']! as List;
+        final steps = (journeys.single as Map)['steps']! as List;
+        expect((steps.single as Map)['story'], {
+          'name': 'feedback/toast/show',
+          'implementsByTarget': {
+            'flutter': ['lib/toast.dart:Toast'],
+            'jaspr': <String>[],
+          },
+        });
+      });
+    });
     test('E19: --paths with no --target resolves the step in a two-target '
         'project', () async {
       final project = await writeTargetedProject(

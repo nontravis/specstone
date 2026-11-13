@@ -5,9 +5,11 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 
 const _frType = 'fr';
-const _implementsKey = 'implements';
+const _implementsLabel = 'implements';
+const _skippedLabel = 'skipped';
 const _tracedFromKey = 'traced_from';
 const _pathsOption = '--paths';
 const _codeOption = '--code';
@@ -38,11 +40,12 @@ ReadAnswer answerJourneyPaths(
   String? codeTarget,
 }) => _answerJourneys(index, name, _pathsOption, _pathsOf, codeTarget);
 
-/// Returns, per step of every journey [name] addresses, the code its story and
-/// the FRs traced from its scenario implement.
+/// Returns, per step of every journey [name] addresses, the code paths of the
+/// record entries of its story and of the FRs traced from its scenario.
 ///
-/// [codeTarget], when given, keeps [name] to that code target's docs and the
-/// shared docs. Throws an [IndexFault] when [name] resolves to a doc that is
+/// With two or more code targets each path reads under its target's name;
+/// [codeTarget], when given, keeps [name] and the paths to that code target.
+/// Throws an [IndexFault] when [name] resolves to a doc that is
 /// not a journey.
 ReadAnswer answerJourneyCode(
   DocIndex index,
@@ -210,30 +213,78 @@ _JourneyPart _codeOf(
     }
     final frs = _frsTracing(index, story, target!);
     for (final doc in [story, ...frs]) {
-      lines.addAll(_codeLines(doc));
+      lines.addAll(_codeLines(index, doc, codeTarget));
     }
     stepsJson.add({
       ...resolved.baseJson,
-      'story': _codeJson(story),
-      'frs': [for (final fr in frs) _codeJson(fr)],
+      'story': _codeJson(index, story, codeTarget),
+      'frs': [for (final fr in frs) _codeJson(index, fr, codeTarget)],
     });
   }
   return (lines: lines, json: {'steps': stepsJson}, warnings: warnings);
 }
 
-List<String> _codeLines(IndexedDoc doc) {
-  final entries = doc.valuesOf(_implementsKey);
+/// One code target's record paths for a doc, and whether its record skips it.
+typedef _TargetCode = ({String? target, List<String> paths, bool skipped});
+
+/// Returns the code of [doc] per code target: every target in `targets:`
+/// order with two or more and no [codeTarget], else the one.
+List<_TargetCode> _targetCodeOf(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) {
+  final targets = _isGrouped(index, codeTarget)
+      ? index.targetNames
+      : [codeTarget];
+  final hasRecords = index.set.recordDocType != null;
   return [
-    '  ${nameWithType(doc)}',
-    if (entries.isEmpty) '  - none',
-    for (final entry in entries) '  - implements: $entry',
+    for (final target in targets)
+      (
+        target: target,
+        paths:
+            index.recordEntryOf(doc, codeTarget: target)?.codePaths ?? const [],
+        skipped:
+            hasRecords &&
+            index.itemStatus(doc, codeTarget: target) == RecordStatus.skipped,
+      ),
   ];
 }
 
-Map<String, Object> _codeJson(IndexedDoc doc) => {
-  'name': doc.name,
-  'implements': doc.valuesOf(_implementsKey),
-};
+bool _isGrouped(DocIndex index, String? codeTarget) =>
+    codeTarget == null && index.targetNames.length > 1;
+
+List<String> _codeLines(DocIndex index, IndexedDoc doc, String? codeTarget) {
+  final grouped = _isGrouped(index, codeTarget);
+  final entries = [
+    for (final code in _targetCodeOf(index, doc, codeTarget)) ...[
+      if (code.skipped)
+        '  - ${grouped ? '${code.target}: ' : ''}$_skippedLabel'
+      else
+        for (final path in code.paths)
+          '  - ${grouped ? code.target : _implementsLabel}: $path',
+    ],
+  ];
+  return [
+    '  ${nameWithType(doc)}',
+    if (entries.isEmpty) '  - none' else ...entries,
+  ];
+}
+
+Map<String, Object> _codeJson(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) {
+  final code = _targetCodeOf(index, doc, codeTarget);
+  return {
+    'name': doc.name,
+    if (_isGrouped(index, codeTarget))
+      'implementsByTarget': {for (final c in code) c.target!: c.paths}
+    else
+      _implementsLabel: code.single.paths,
+  };
+}
 
 // MARK: - ResolvedStep
 
