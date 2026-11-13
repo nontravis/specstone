@@ -521,6 +521,23 @@ void main() {
       );
     });
 
+    test('cc-INV-47: a shared doc with an empty covers key is no shared_doc_code_path', () async {
+      final report = _run(
+        await _twin(
+          extra: {
+            'docs/$_sharedTopic': _sharedTopic1.replaceFirst(
+              'covers:\n  - lib/src/\n',
+              'covers: []\n',
+            ),
+          },
+        ),
+      );
+      expect(
+        report.findings.where((f) => f.kind == FindingKind.sharedDocCodePath),
+        isEmpty,
+      );
+    });
+
     test(
       'cc-INV-47: a per-target doc with covers is no shared_doc_code_path',
       () async {

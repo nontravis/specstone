@@ -140,7 +140,9 @@ Iterable<Finding> _sharedDocPaths(
   final lines = context.linesOf(doc);
   final line = [
     for (final field in [_coversField, _codeField])
-      if (context.typeHoldsField(type, field)) lines.keyLine(field),
+      if (context.typeHoldsField(type, field) &&
+          lines.entriesOf(field).isNotEmpty)
+        lines.keyLine(field),
   ].nonNulls.firstOrNull;
   if (line == null) return;
   yield context.finding(
