@@ -1726,6 +1726,20 @@ void _agentTests() {
           contains('\n\n**Code target** (two or more'),
         );
       });
+
+      test('fill_check_findings E14, document_writing/edit_one_section_or_'
+          'field/refuse_stale_base: $skill retries a write a parallel batch '
+          'made stale', () {
+        expect(
+          _oneLine(
+            _sectionOf(
+              _pluginText('skills/$skill/references/procedure.md'),
+              '2. One finding at a time',
+            ),
+          ),
+          contains('Exit 75 `base_mismatch`: read again, merge, retry.'),
+        );
+      });
     }
 
     test('sdd-engineer names the bootstrap target source on its Code target '
