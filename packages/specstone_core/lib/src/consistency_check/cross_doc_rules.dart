@@ -80,7 +80,11 @@ Iterable<Finding> _operationFindings(
     return;
   }
   final operations = _operationHeadings(context, api);
-  for (final (:operation, :line) in _traceOperations(context, api)) {
+  final traced = [
+    for (final (:operation, :line) in _traceOperations(context, api))
+      (operation: operation, line: line),
+  ];
+  for (final (:operation, :line) in traced) {
     if (operations.containsKey(operation)) continue;
     yield context.finding(
       api,
@@ -90,10 +94,9 @@ Iterable<Finding> _operationFindings(
       keys: {'operation': operation},
     );
   }
+  final tracedNames = traced.map((row) => row.operation).toSet();
   for (final MapEntry(:key, :value) in operations.entries) {
-    if (_traceOperations(context, api).any((row) => row.operation == key)) {
-      continue;
-    }
+    if (tracedNames.contains(key)) continue;
     yield context.finding(
       api,
       FindingKind.operationUnmatched,
