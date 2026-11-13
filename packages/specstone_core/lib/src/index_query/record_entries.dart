@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -64,15 +65,8 @@ final class RecordEntry {
 /// order; a line that names no item yields none. Invalid YAML frontmatter
 /// holds no values, so it holds no entries.
 List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
-  final statusField = recordType.fields
-      .where((f) => f.type == FieldType.recordStatus)
-      .firstOrNull;
-  final codeField = recordType.fields
-      .where(
-        (f) =>
-            f.type == FieldType.outputRef && f.pointer == PointerKind.itemExact,
-      )
-      .firstOrNull;
+  final statusField = recordStatusFieldOf(recordType);
+  final codeField = recordCodeFieldOf(recordType);
   final byItem = <String, RecordEntry>{};
   RecordEntry baseOf(String item) => byItem[item] ?? RecordEntry(item: item);
   if (statusField != null) {
@@ -148,4 +142,35 @@ List<({String item, String code})> recordCodeLinesOf(
     lines.add(parsed);
   }
   return lines;
+}
+
+/// Returns the `record_status` field of [recordType], found by type (INV-31).
+MergedField? recordStatusFieldOf(MergedDocType recordType) => recordType.fields
+    .where((f) => f.type == FieldType.recordStatus)
+    .firstOrNull;
+
+/// Returns the `item_exact` `output_ref` field of [recordType], found by type.
+MergedField? recordCodeFieldOf(MergedDocType recordType) => recordType.fields
+    .where(
+      (f) =>
+          f.type == FieldType.outputRef && f.pointer == PointerKind.itemExact,
+    )
+    .firstOrNull;
+
+/// Returns the stories under [feature] and the FRs of those stories, each by
+/// its name relative to [feature]: the items a record of it may name besides
+/// the feature itself.
+Map<String, IndexedDoc> recordItemsOf(DocIndex index, IndexedDoc feature) {
+  final prefix = '${feature.name}/';
+  String relative(IndexedDoc doc) => doc.name.startsWith(prefix)
+      ? doc.name.substring(prefix.length)
+      : doc.name;
+  return {
+    for (final story in index.childrenOf(feature))
+      if (story.docTypeId == storyType) ...{
+        relative(story): story,
+        for (final fr in index.childrenOf(story))
+          if (fr.docTypeId == frType) relative(fr): fr,
+      },
+  };
 }

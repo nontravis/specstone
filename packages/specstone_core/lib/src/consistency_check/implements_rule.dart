@@ -14,10 +14,8 @@ const _edge = r'[\p{L}\p{N}_]';
 ///
 /// A path `path[:Symbol]` is resolved from the code root of the record's own
 /// target when its item is neither `planned` nor `skipped`. A line naming no
-/// item is `check_record_entries`'s, never reported here. A path is a finding
-/// when it names no regular file, and a Symbol one when a segment of it occurs
-/// nowhere in that file as a whole word. A code file is read only to resolve a
-/// Symbol (INV-11).
+/// item is `check_record_entries`'s, never reported here. A code file is read
+/// only to resolve a Symbol (INV-11).
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
   final type = context.set.recordDocType;
   if (type == null || doc.docTypeId != type.id) return;
@@ -25,18 +23,12 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
   if (feature == null || feature.docTypeId != featureType) return;
   final lines = context.linesOf(doc);
   if (lines.frontmatterErrorLine != null) return;
-  final fieldId = type.fields
-      .where(
-        (f) =>
-            f.type == FieldType.outputRef && f.pointer == PointerKind.itemExact,
-      )
-      .firstOrNull
-      ?.id;
+  final fieldId = recordCodeFieldOf(type)?.id;
   final target = context.targets
       .where((target) => target.name == doc.target)
       .firstOrNull;
   if (fieldId == null || target == null) return;
-  final items = _itemsOf(context, feature);
+  final items = recordItemsOf(context.index, feature);
   for (final (:value, :line, text: _) in lines.entriesOf(fieldId)) {
     if (value is! String) continue;
     final parsed = recordCodeLineOf(value);
@@ -61,7 +53,7 @@ Iterable<Finding> _resolve(
       doc,
       FindingKind.implementsPathUnresolved,
       line: line,
-      message: '$path is no file',
+      message: path.isEmpty ? 'the code path is empty' : '$path is no file',
       keys: {'entry': code},
     );
     return;
@@ -90,24 +82,6 @@ bool _isResolved(CheckContext context, IndexedDoc item, String? codeTarget) =>
       RecordStatus.implemented || RecordStatus.deprecated => true,
       RecordStatus.planned || RecordStatus.skipped => false,
     };
-
-/// Returns the stories and FRs a record of [feature] may name, each by its
-/// name relative to the feature.
-Map<String, IndexedDoc> _itemsOf(CheckContext context, IndexedDoc feature) {
-  final index = context.index;
-  final prefix = '${feature.name}/';
-  String relative(IndexedDoc doc) => doc.name.startsWith(prefix)
-      ? doc.name.substring(prefix.length)
-      : doc.name;
-  return {
-    for (final story in index.childrenOf(feature))
-      if (story.docTypeId == storyType) ...{
-        relative(story): story,
-        for (final fr in index.childrenOf(story))
-          if (fr.docTypeId == frType) relative(fr): fr,
-      },
-  };
-}
 
 RegExp _wordPattern(String word) =>
     RegExp('(?<!$_edge)${RegExp.escape(word)}(?!$_edge)', unicode: true);

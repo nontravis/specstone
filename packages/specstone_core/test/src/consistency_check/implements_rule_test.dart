@@ -255,6 +255,30 @@ void main() {
     ]);
   });
 
+  test('f04/us02/fr01/e11: a target with no code folder leaves its paths unresolved beside a target that has one', () async {
+    final project = await writeTwinProject(
+      without: {'jaspr_ws/app/lib/login.dart'},
+      extra: {
+        '.specstone/templates/implementation.yaml': _recordLayer,
+        'docs/$_flutterRecord': _record(code: ['$_fr:$login:checkPassword']),
+        'docs/$_jasprRecord': _record(code: ['$_fr:$login:checkPassword']),
+      },
+    );
+
+    expect(_spots(_run(project)), [
+      '$_jasprRecord:${_codeLine(1, 0)}: implements_path_unresolved',
+    ]);
+  });
+
+  test(
+    'f04/us02/fr01/e03: an empty code path is a path finding that says so',
+    () async {
+      final report = _run(await _project(_record(code: ['$_fr:'])));
+
+      expect(_found(report).single.message, 'the code path is empty');
+    },
+  );
+
   test('f04/us02/fr01/e03, f04/us02/fr01/e10: a pointer with a backslash or a name Windows trims '
       'names no file on any OS, though a POSIX disk holds one', () async {
     for (final pointer in [r'app\lib\login.dart', 'app/lib/login.dart.']) {

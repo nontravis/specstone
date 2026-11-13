@@ -37,19 +37,12 @@ final class _RecordWalk {
     this._feature,
     MergedDocType type,
     this._lines,
-  ) : _statusFieldId = _fieldIdOf(
-        type,
-        (f) => f.type == FieldType.recordStatus,
-      ),
-      _codeFieldId = _fieldIdOf(
-        type,
-        (f) =>
-            f.type == FieldType.outputRef && f.pointer == PointerKind.itemExact,
-      ),
+  ) : _statusFieldId = recordStatusFieldOf(type)?.id,
+      _codeFieldId = recordCodeFieldOf(type)?.id,
       _entries = {
         for (final entry in recordEntriesOf(_record, type)) entry.item: entry,
       },
-      _docs = _docsOf(_context, _feature);
+      _docs = {_featureItem: null, ...recordItemsOf(_context.index, _feature)};
 
   final CheckContext _context;
   final IndexedDoc _record;
@@ -172,26 +165,4 @@ final class _RecordWalk {
   /// The name an entry carries: its item, or the feature's name for the
   /// feature itself.
   String _nameOf(String item) => item == _featureItem ? _feature.name : item;
-}
-
-String? _fieldIdOf(MergedDocType type, bool Function(MergedField) test) =>
-    type.fields.where(test).firstOrNull?.id;
-
-/// Returns the items a record of [feature] names: the feature itself, each
-/// story under it, and each FR of those stories, relative to the feature.
-Map<String, IndexedDoc?> _docsOf(CheckContext context, IndexedDoc feature) {
-  final index = context.index;
-  final prefix = '${feature.name}/';
-  String relative(IndexedDoc doc) => doc.name.startsWith(prefix)
-      ? doc.name.substring(prefix.length)
-      : doc.name;
-  return {
-    _featureItem: null,
-    for (final story in index.childrenOf(feature))
-      if (story.docTypeId == storyType) ...{
-        relative(story): story,
-        for (final fr in index.childrenOf(story))
-          if (fr.docTypeId == frType) relative(fr): fr,
-      },
-  };
 }
