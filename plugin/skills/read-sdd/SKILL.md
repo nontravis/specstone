@@ -58,8 +58,8 @@ doc list.
    doc since the plan was made.
 2. **1:** only a call with `--budget` gets it, so you have the `Agent` tool. The bundle is over 20,000 est. tokens,
    so the CLI printed only its size and doc list. Dispatch `specstone:sdd-reader` with the same target IDs, the call's
-   `--target`, the mode, and the task in a sentence or two. Put no doc text in that prompt, and not the printed doc list either. The whole
-   sections it returns, each cited by doc and section, are the task's docs.
+   `--target`, the mode, and the task in a sentence or two. Put no doc text in that prompt, and not the printed doc
+   list either. The whole sections it returns, each cited by doc and section, are the task's docs.
 3. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
    is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
    second command, and neither read nor write a doc.
@@ -68,9 +68,9 @@ doc list.
 That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward, so a run
 from a subfolder goes on as normal.
 
-With or without the tool, one target takes two calls at most: its call, at or under the budget or with no `--budget`,
-plus one `Read` when the host saved its output to a file. When a saved output is too long for one `Read`, read it in
-parts; those part reads are the only calls past the two.
+With or without the tool, one target takes two calls at most, three after an `argument_missing` refusal: its call, at
+or under the budget or with no `--budget`, plus one `Read` when the host saved its output to a file. When a saved
+output is too long for one `Read`, read it in parts; those part reads are the only calls past that bound.
 
 ## Red flags
 

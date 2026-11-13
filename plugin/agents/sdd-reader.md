@@ -37,9 +37,9 @@ and section.
    specstone context <target> --for <mode> [--summary] [--target <name>]
    ```
 
-   Add `--summary` only on the call for a target the dispatch marks with it. Add `--target <name>` in `implement` mode,
-   as the hand-off's `domain:agent_plugin` INV-25 gives, on each call; none in `query` or `design` mode, or when the
-   hand-off passes none. Pass no `--budget`: read the bundle whole.
+   Add `--summary` only on the call for a target the dispatch marks with it. Add `--target <name>` in `implement` mode:
+   the hand-off's `--target`, as `domain:agent_plugin` INV-25 gives, on each call; none in `query` or `design` mode, or
+   when the hand-off passes none. Pass no `--budget`: read the bundle whole.
 2. **Exit status**:
    - **0**: the printed bundle is your only source. A subfolder works: the CLI looks upward for the project.
    - **78 with `project_not_found`**: reply that the project is still on the old format, and that

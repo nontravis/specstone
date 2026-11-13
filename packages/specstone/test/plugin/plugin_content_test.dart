@@ -1250,6 +1250,17 @@ void _agentTests() {
     );
   });
 
+  test('agent_plugin/ground_a_task/ground_through_context E05, E13: read-sdd '
+      'allows one target a third call after an argument_missing refusal', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains(
+        'one target takes two calls at most, three after an '
+        '`argument_missing` refusal',
+      ),
+    );
+  });
+
   test('agent_plugin/ground_a_task/return_whole_sections E06: sdd-reader runs '
       "context with the hand-off's --target in implement mode and cites "
       'INV-25', () {
@@ -1261,8 +1272,8 @@ void _agentTests() {
     expect(
       reader,
       contains(
-        "Add `--target <name>` in `implement` mode, as the hand-off's "
-        '`domain:agent_plugin` INV-25 gives',
+        "Add `--target <name>` in `implement` mode: the hand-off's "
+        '`--target`, as `domain:agent_plugin` INV-25 gives',
       ),
     );
   });
