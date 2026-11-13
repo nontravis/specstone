@@ -851,6 +851,7 @@ try {
             Write-MissingPrerequisites
         } catch {
             # a failed check never turns a finished install into a failure
+            Write-Host "specstone: could not check prerequisites: $(Get-PrintableText $_.Exception.Message)"
         }
     } finally {
         $env:Path = $savedPath
