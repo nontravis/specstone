@@ -100,11 +100,7 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
     }
   }
   if (codeField != null) {
-    for (final line in record.valuesOf(codeField.id)) {
-      final split = line.indexOf(':');
-      if (split < 1) continue;
-      final item = line.substring(0, split);
-      final code = line.substring(split + 1);
+    for (final (:item, :code) in recordCodeLinesOf(record, codeField)) {
       final current = baseOf(item);
       byItem[item] = RecordEntry(
         item: item,
@@ -115,4 +111,22 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
     }
   }
   return [for (final entry in byItem.values) entry];
+}
+
+/// Returns the `item:path[:Symbol]` lines of [record]'s [codeField] as item
+/// and code path, in line order; a line with no item names none.
+List<({String item, String code})> recordCodeLinesOf(
+  IndexedDoc record,
+  MergedField codeField,
+) {
+  final lines = <({String item, String code})>[];
+  for (final line in record.valuesOf(codeField.id)) {
+    final split = line.indexOf(':');
+    if (split < 1) continue;
+    lines.add((
+      item: line.substring(0, split),
+      code: line.substring(split + 1),
+    ));
+  }
+  return lines;
 }

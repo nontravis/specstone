@@ -152,18 +152,17 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
 /// Returns the `output_ref` pointers of [doc], one field after another in
 /// field order, each as written.
 ///
-/// An `item_exact` field belongs to a record: it gives each entry's code
-/// paths with the item left off, as [recordEntriesOf] reads them.
+/// An `item_exact` field belongs to a record: it gives each line's code path
+/// with the item left off, in line order, as [recordCodeLinesOf] reads them.
 List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
   final type = index.typeOf(doc);
   if (type == null) return const [];
-  final entries = recordEntriesOf(doc, type);
   return [
     for (final field in type.fields)
       if (field.type == FieldType.outputRef)
         if (field.pointer == PointerKind.itemExact)
-          for (final entry in entries)
-            for (final path in entry.codePaths) _Ref.toPointer(field.id, path)
+          for (final line in recordCodeLinesOf(doc, field))
+            _Ref.toPointer(field.id, line.code)
         else
           for (final value in doc.valuesOf(field.id))
             _Ref.toPointer(field.id, value),

@@ -599,6 +599,41 @@ void main() {
       ]);
     });
 
+    test('index_query/follow_references/list_doc_references E03: a record lists its code paths in its implements line order, whatever its statuses order', () async {
+      final shuffled = await indexWith({
+        '.specstone/templates/implementation.yaml': recordType,
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n'
+            '  - reset_password:implemented\n'
+            '  - email_login:implemented\n'
+            'implements:\n'
+            '  - email_login:lib/first.dart\n'
+            '  - reset_password:lib/second.dart\n'
+            '  - email_login:lib/third.dart\n---\n\n# Record\n',
+      });
+
+      final doc =
+          (answerRefs(
+                        shuffled,
+                        'specs/flutter/f01_login/IMPLEMENTATION.md',
+                      ).json['docs']!
+                      as List)
+                  .single
+              as Map;
+
+      expect(doc['outbound'], [
+        {'kind': 'implements', 'pointer': 'lib/first.dart'},
+        {'kind': 'implements', 'pointer': 'lib/second.dart'},
+        {'kind': 'implements', 'pointer': 'lib/third.dart'},
+      ]);
+    });
+
     test('index_query/follow_references/list_doc_references E03: a record with no code path prints - none outbound', () async {
       final bare = await indexWith({
         '.specstone/templates/implementation.yaml': recordType,
