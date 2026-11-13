@@ -2014,8 +2014,9 @@ void _agentTests() {
 
   test('agent_plugin/start_from_another_tools_spec/map_source_items '
       'verification; write_design_document input_output; take_in_a_source '
-      'E08: design.md points design mode to source.md, and the runner takes '
-      'both bundles', () {
+      'E02, E03, E08: design.md points design mode to source.md, and the '
+      'runner grounds on the gate bundle plus any narrow bundle or the '
+      "reader's sections", () {
     final design = _pluginText('skills/brainstorming-sdd/references/design.md');
     expect(
       _oneLine(_sectionOf(design, '1. Check the inputs')),
@@ -2023,10 +2024,17 @@ void _agentTests() {
         r'${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md',
       ),
     );
-    expect(
-      _oneLine(_sectionOf(design, '2. Ground each claim')),
-      contains('--no-project'),
-    );
+    final ground = _oneLine(_sectionOf(design, '2. Ground each claim'));
+    for (final point in [
+      "As the skill's runner, run no other call: your ground is what its",
+      "step 1 gave, the bundle or `specstone:sdd-reader`'s sections,",
+      "for a change from a source, the gate call's bundle plus any",
+      "`--no-project` call's or the reader's sections.",
+      'Cite only what your ground holds.',
+    ]) {
+      expect(ground, contains(point), reason: point);
+    }
+    expect(ground, isNot(contains('--for design --no-project')));
     expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('source.md')));
   });
 
