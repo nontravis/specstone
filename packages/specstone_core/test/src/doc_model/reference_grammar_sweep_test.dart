@@ -459,10 +459,12 @@ final _rules = <_Rule>[
     remedy:
         'Read an item through DocContent.itemFacts in '
         'index_query/item_facts.dart.',
-    pattern: RegExp(r'\bitemsOf\('),
+    pattern: RegExp(r'\b(?:itemsOf|topLevelItemsOf)\('),
     exempt: {
       _lib('doc_model/doc_items.dart'),
       _lib('index_query/item_facts.dart'),
+      // The one context accessor every check rule reads top-level items by.
+      _lib('consistency_check/check_context.dart'),
     },
     allowed: [
       // Nested `- **<field>:** <text>` items under a top-level item; the

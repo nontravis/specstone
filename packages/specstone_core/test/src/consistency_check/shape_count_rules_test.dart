@@ -300,4 +300,60 @@ void main() {
       );
     },
   );
+
+  test('a blockquoted item is counted and cut like any other item', () async {
+    final edits = _frWith('> - E01 — Refuse it. Log it.');
+    final found = await _found(
+      _frLayer,
+      _sectionLint('edge_cases', _oneSentence),
+      edits: edits,
+    );
+    expect(found, hasLength(1));
+    expect(found.single.line, _lineOf(loginFr, 'Refuse it.'));
+    expect(found.single.toJson(), containsPair('actual', 2));
+  });
+
+  group('a closed generated block', () {
+    const body =
+        '### Group\n\n1. E01 — one.\n'
+        '<!-- specstone:generated scenario_copy (do not edit) -->\n'
+        '- **Given** a\n- **Given** b\n'
+        '<!-- specstone:generated end -->\n';
+    const perSubsection = '''
+      item_count:
+        max: 1
+        per_subsection: true
+''';
+
+    test('holds no item under a per_subsection count', () async {
+      final found = await _found(
+        _frLayer,
+        'generators: [scenario_copy]\n'
+        '${_sectionLint('edge_cases', perSubsection)}',
+        edits: _frWith(body),
+      );
+      expect(found, isEmpty);
+    });
+
+    test('is read as items when the doc type lists no generator', () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', perSubsection),
+        edits: _frWith(body),
+      );
+      expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
+    });
+  });
+
+  test('a table header that opens like a list item is no item', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('edge_cases', '''
+      item_count:
+        max: 1
+'''),
+      edits: _frWith('- a | b\n- | -\n| x | y |'),
+    );
+    expect(found, isEmpty);
+  });
 }

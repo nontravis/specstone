@@ -1,6 +1,12 @@
 import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show isThematicBreak, itemHeadingMarker, startsTable;
+    show
+        CellRange,
+        isThematicBreak,
+        itemHeadingMarker,
+        startsTable,
+        tableCellRanges,
+        tableHeadCells;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 
 const _lineFeedChars = 1;
@@ -28,14 +34,94 @@ typedef DocItem = ({int line, int chars, String text, bool heading});
 /// header and delimiter rows are no item. A list item ends at a blank line or
 /// a fence, and the text after it is its own item. A line scan, no markdown
 /// parse.
-List<DocItem> itemsOf(List<BodyLine> body) {
-  final lines = [for (final line in body) _Line.of(line)];
-  final items = <DocItem>[];
+List<DocItem> itemsOf(List<BodyLine> body) => [
+  for (final span in _spansOf(body, _linesOf(body))) span.item,
+];
+
+/// What a [TopLevelItem] is.
+enum TopLevelKind { listItem, tableRow, heading }
+
+/// One top-level item of a section: a list item or table row that opens at
+/// the first column (after any `>` marks), or a `###` heading.
+///
+/// `line` is its first file line; `firstLine` its first line after any `>`
+/// marks; `text` its own lines as written, nested items aside. A table row
+/// carries its table's `header` cells and its own `cells`, both trimmed;
+/// every other kind carries null for both.
+typedef TopLevelItem = ({
+  int line,
+  TopLevelKind kind,
+  String firstLine,
+  String text,
+  List<String>? header,
+  List<String>? cells,
+});
+
+/// Returns the top-level items of a section's [body] lines in order, read as
+/// [itemsOf] reads them.
+///
+/// A paragraph and a nested item are none, and a fenced line belongs to no
+/// item. A nested item's lines are no part of its parent's text.
+List<TopLevelItem> topLevelItemsOf(List<BodyLine> body) {
+  final lines = _linesOf(body);
+  final headers = <int, List<String>>{};
+  final items = <TopLevelItem>[];
+  for (final span in _spansOf(body, lines)) {
+    final first = lines[span.start];
+    final kind = switch (span.item.heading) {
+      true => TopLevelKind.heading,
+      false when span.headerAt != null => TopLevelKind.tableRow,
+      false when first.kind == _Kind.list => TopLevelKind.listItem,
+      _ => null,
+    };
+    if (kind == null) continue;
+    if (kind != TopLevelKind.tableRow &&
+        first.inner.startsWith(RegExp(r'\s'))) {
+      continue;
+    }
+    final headerAt = span.headerAt;
+    items.add((
+      line: span.item.line,
+      kind: kind,
+      firstLine: first.inner,
+      text: [for (var k = span.start; k <= span.end; k++) body[k].text]
+          .join('\n'),
+      header: headerAt == null
+          ? null
+          : headers.putIfAbsent(headerAt, () {
+              final head = lines[headerAt].inner;
+              return _cellTexts(
+                head,
+                tableHeadCells(head, lines[headerAt + 1].inner)!,
+              );
+            }),
+      cells: headerAt == null
+          ? null
+          : _cellTexts(first.inner, tableCellRanges(first.inner)),
+    ));
+  }
+  return items;
+}
+
+List<String> _cellTexts(String row, List<CellRange> ranges) => [
+  for (final cell in ranges) row.substring(cell.start, cell.end).trim(),
+];
+
+List<_Line> _linesOf(List<BodyLine> body) => [
+  for (final line in body) _Line.of(line),
+];
+
+/// One item's place in the body lines: its first and last line index, and the
+/// index of its table's header line when it is a table row.
+typedef _Span = ({DocItem item, int start, int end, int? headerAt});
+
+List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
+  final spans = <_Span>[];
   var i = 0;
   while (i < lines.length) {
     final line = lines[i];
     if (_startsTable(lines, i)) {
-      i = _addTableRows(items, body, lines, i);
+      i = _addTableRows(spans, body, lines, i);
     } else if (line.kind == _Kind.blank ||
         line.kind == _Kind.fence ||
         line.kind == _Kind.rule) {
@@ -44,11 +130,16 @@ List<DocItem> itemsOf(List<BodyLine> body) {
       final end = line.kind == _Kind.heading
           ? _headingEnd(lines, i)
           : _paragraphEnd(lines, i);
-      items.add(_itemOf(body, lines, i, end));
+      spans.add((
+        item: _itemOf(body, lines, i, end),
+        start: i,
+        end: end,
+        headerAt: null,
+      ));
       i = end + 1;
     }
   }
-  return items;
+  return spans;
 }
 
 enum _Kind { blank, fence, rule, heading, list, text }
@@ -128,10 +219,10 @@ bool _startsTable(List<_Line> lines, int i) {
       startsTable(line.inner, next.inner);
 }
 
-/// Adds one item per row below the delimiter row of the table at [i] to
-/// [items] and returns the index of the line after the table.
+/// Adds one span per row below the delimiter row of the table at [i] to
+/// [spans] and returns the index of the line after the table.
 int _addTableRows(
-  List<DocItem> items,
+  List<_Span> spans,
   List<BodyLine> body,
   List<_Line> lines,
   int i,
@@ -140,7 +231,12 @@ int _addTableRows(
   while (next < lines.length &&
       lines[next].kind == _Kind.text &&
       lines[next].quote == lines[i].quote) {
-    items.add(_itemOf(body, lines, next, next));
+    spans.add((
+      item: _itemOf(body, lines, next, next),
+      start: next,
+      end: next,
+      headerAt: i,
+    ));
     next++;
   }
   return next;
