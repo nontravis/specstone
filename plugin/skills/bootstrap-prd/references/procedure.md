@@ -2,11 +2,12 @@ Step 1, the gate, already ran in the skill or agent that sent you here.
 As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
 This skill takes `specstone check` findings under `prds/`; those under `specs/`, `architecture_missing`,
-`code_uncovered`, and PROJECT's Tech stack and Naming canonicalization sections go to `specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write; before the first, run
-`specstone guide <type> …` once, naming every type you write; a type met later gets its own call before its first
-write.
-**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new` and `set` of a per-target doc carries
-`--target <name>`, the finding DocPath's code target, else the first listed one.
+`code_uncovered`, and PROJECT's Tech stack and Naming canonicalization sections go to `specstone:bootstrap-spec`.
+Follow `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once, naming every
+type you write; a type met later gets its own call before its first write.
+
+**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new`, `get`, and `set` of a per-target
+doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
 
 ## 2. One finding at a time
 
@@ -49,8 +50,7 @@ proposal named in step 6. Pipe that record's whole new list, as YAML `- item` li
 ## 4. Merge an old file, or split a full one
 
 An `untyped_doc` is an old file the migration left, such as a group's container `FEATURE.md`.
-Merge its content into the doc that takes it, else a new one from `specstone new <type>`
-(`--parent`, `--slug`, as the type takes them). Skip only a sentence that doc holds word for word, and never target
+Merge its content into the doc that takes it, else a new one from `specstone new <type>`. Skip only a sentence that doc holds word for word, and never target
 the untyped file: a write refuses it. Add its path to this run's retire set.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
@@ -65,7 +65,7 @@ its new doc. Name in step 6 each waiver and each mention in a section kept uncha
    referrer.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
    repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). A batch's set holds only
-   files it merged; list each untyped referrer outside it, with its file, for its owner. Leave any
+   files it merged; list each untyped referrer outside it, with the file it names, for its owner to merge. Leave any
    other untyped file as history. Repoint each other link or mention to the doc holding the content,
    or drop one nothing replaces.
 3. Name the set in one `specstone delete` line, quoting each path with a space:

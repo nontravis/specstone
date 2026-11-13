@@ -1608,7 +1608,7 @@ void _agentTests() {
   group('agent_plugin/fill_missing_format', () {
     const procedureTargetLine =
         '**Code target** (two or more `targets:`, `domain:agent_plugin` '
-        'INV-25): each `new` and `set` of a per-target doc carries '
+        'INV-25): each `new`, `get`, and `set` of a per-target doc carries '
         "`--target <name>`, the finding DocPath's code target, else the first "
         'listed one.';
 
@@ -1666,14 +1666,46 @@ void _agentTests() {
       );
     });
 
+    test("R-T33-1: bootstrap-spec takes each target's tech stack code roots "
+        "from that target's code root", () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains(
+          "each code folder under that target's code root in the "
+          "config's `targets:`, or `code_root` for an unnamed one, else the "
+          'project root.',
+        ),
+      );
+    });
+
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      test('retire_old_files E09: $skill lists each untyped referrer outside '
+          'the batch with the file it names', () {
+        expect(
+          text('skills/$skill/references/procedure.md'),
+          contains(
+            'list each untyped referrer outside it, with the file it names, '
+            'for its owner to merge.',
+          ),
+        );
+      });
+
+      test('Code target line of $skill starts its own block', () {
+        expect(
+          _pluginText('skills/$skill/references/procedure.md'),
+          contains('\n\n**Code target** (two or more'),
+        );
+      });
+    }
+
     test('sdd-engineer names the bootstrap target source on its Code target '
         'line', () {
       expect(
         text('agents/sdd-engineer.md'),
         contains(
           "bootstrap takes the finding DocPath's code target on each "
-          'per-target `new` and `set`, else the first listed one for a code '
-          'pointer on a shared doc or an old file whose path names none;',
+          'per-target `new`, `get`, and `set`, else the first listed one for a '
+          'code pointer on a shared doc or an old file whose path names none;',
         ),
       );
     });

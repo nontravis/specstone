@@ -5,8 +5,9 @@ This skill takes `specstone check` findings under `specs/`, plus `architecture_m
 Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
 `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once,
 naming every type you write; a type met later gets its own call before its first write.
-**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new` and `set` of a per-target doc carries
-`--target <name>`, the finding DocPath's code target, else the first listed one.
+
+**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new`, `get`, and `set` of a per-target
+doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
 
 ## 2. One finding at a time
 
@@ -48,7 +49,7 @@ the Owner only when no text bears on a whole section.
 
 ## 4. Merge an old file
 
-An `untyped_doc` under `specs/` is an old file the migration left. Merge it into the doc that takes it, else a new one:
+An `untyped_doc` under `specs/`: merge it into the doc that takes it, else a new one:
 
 - one feature's old-named spec files: their type's doc (`--parent <feature>`);
 - an event or message schema: an internal one to the architecture doc's `## Interaction`, an
@@ -68,7 +69,7 @@ to this run's retire set.
    referrer.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
    repoints it: merge it first (`specstone:bootstrap-prd` takes one under `prds/`). A batch's set holds only
-   files it merged; list each untyped referrer outside it, with its file, for its owner. Leave any
+   files it merged; list each untyped referrer outside it, with the file it names, for its owner to merge. Leave any
    other untyped file as history. Repoint each other link or mention to the doc holding the content, or drop one
    nothing replaces.
 3. Name the set in one `specstone delete` line, quoting each path with a space:
@@ -84,9 +85,9 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 ## 6. Fill the tech stack, then ask for approval
 
 `specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill `tech_stack:tech_stack` per
-the guide you loaded, and `code`, each code folder under `code_root` in `.specstone/config.yaml`, else the project
+the guide you loaded, and `code`, each code folder under that target's code root in the config's `targets:`, or `code_root` for an unnamed one, else the project
 root. Write PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop
-each PRD section. Fill each doc step 3 or 4 made the same way.
+each PRD section.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
