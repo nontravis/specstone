@@ -1442,10 +1442,11 @@ void _agentTests() {
   group('agent_plugin/sync_code_and_docs', () {
     const targetLine =
         '**Code target** (two or more `targets:`, `domain:agent_plugin` '
-        "INV-25): a changed path's target is the one whose code root is the "
-        'longest that holds it, as `context --code` picks it, so ask the Owner '
-        'nothing; each `get`, `set`, and `new` of a per-target doc carries '
-        '`--target <name>`, or addresses the doc by its DocPath.';
+        "INV-25): a changed path's target is the `code target:` line, or the "
+        '`codeTarget` key under `--json`, of its `context --code` call, '
+        "covered or not, and a deleted path's is the finding DocPath's, so "
+        'ask the Owner nothing; each `get`, `set`, and `new` of a per-target '
+        'doc carries `--target <name>`, or addresses the doc by its DocPath.';
     const recordWrite =
         '`specstone set implementation:<feature> --field implements '
         '--target <name> --base <hash>`';
@@ -1469,7 +1470,9 @@ void _agentTests() {
       expect(procedure(), contains(targetLine));
       expect(
         procedure(),
-        contains("takes its path's code target and carries no `--target`"),
+        contains(
+          "takes its path's code target, prints it, and carries no `--target`",
+        ),
       );
     });
 
@@ -1518,7 +1521,8 @@ void _agentTests() {
           'pipe the corrected list to `specstone set implementation:<feature> '
           '--field implements --base <hash>` (or `specstone set <type>:<name> '
           '--field covers --base <hash>`), each with `--target <name>`, the '
-          "changed path's code target, when the project has two or more "
+          'target the report gives for that pointer, when the project has '
+          'two or more '
           '(`domain:agent_plugin` INV-25), the hash from '
           '`bases.fields.implements` (or `bases.fields.covers`) of '
           '`specstone get <doc> --json` for the same doc, with the same '
@@ -1532,8 +1536,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          'and each pointer that waits on an approval, with its doc and its '
-          'code path.',
+          'and each pointer that waits on an approval, with its doc, its code '
+          'target, and its code path.',
         ),
       );
     });

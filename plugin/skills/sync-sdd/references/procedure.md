@@ -4,9 +4,10 @@ As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goe
 `specstone check` tests only that code pointers resolve; it never reads what a function now does. So start from the
 paths the task changed, not from findings. Follow `specstone:expert-sdd` for every doc you write.
 
-**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): a changed path's target is the one whose code
-root is the longest that holds it, as `context --code` picks it, so ask the Owner nothing; each `get`, `set`, and `new`
-of a per-target doc carries `--target <name>`, or addresses the doc by its DocPath.
+**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): a changed path's target is the `code target:`
+line, or the `codeTarget` key under `--json`, of its `context --code` call, covered or not, and a deleted path's is the
+finding DocPath's, so ask the Owner nothing; each `get`, `set`, and `new` of a per-target doc carries `--target <name>`,
+or addresses the doc by its DocPath.
 
 ## 2. Collect the changed paths
 
@@ -24,7 +25,7 @@ For each path, run:
 specstone context --code <path> --for implement
 ```
 
-It takes its path's code target and carries no `--target`.
+It takes its path's code target, prints it, and carries no `--target`.
 
 - **Warning `no doc covers or implements <path>`:** no spec covers it, whatever project docs print beside the
   warning. When `git diff --name-status -M <base>` lists the path as the new side of an `R` (rename) pair, the file
@@ -75,7 +76,7 @@ After your last write, run one `specstone approve --dry-run --json`, the source 
 Your drafts are the docs your own list names, those whose text you wrote: list them with their count and each one's
 dropped and new sentence counts; name each other draft it lists, never counted; one of yours it shows as no draft is a
 finding. Then list each pointer fixed, each behavior handed to `specstone:brainstorming-sdd`, and each pointer that
-waits on an approval, with its doc and its code path.
+waits on an approval, with its doc, its code target, and its code path.
 
 ## Red flags
 

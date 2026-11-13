@@ -398,6 +398,99 @@ void main() {
       },
     );
 
+    test('f01/us05/fr04, domain:agent_plugin INV-25: --code names its code '
+        'target on the first text line, covered or not', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': '', 'jaspr_lib/other/x.dart': ''},
+      );
+      final covered = readRunner(project);
+      expect(
+        await covered.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(
+        covered.out.toString(),
+        startsWith('==> code target: jaspr <==\n'),
+      );
+      final bare = readRunner(project);
+      expect(
+        await bare.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/other/x.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(bare.out.toString(), startsWith('==> code target: jaspr <==\n'));
+      expect(
+        bare.err.toString(),
+        '⚠️ WARNING: no doc covers or implements other/x.dart\n',
+      );
+    });
+
+    test('f01/us05/fr04, domain:agent_plugin INV-25: --json carries codeTarget '
+        'for a covered and an uncovered path', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': '', 'jaspr_lib/other/x.dart': ''},
+      );
+      for (final path in ['lib/toast.dart', 'other/x.dart']) {
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            '--code',
+            'jaspr_lib/$path',
+            '--for',
+            'implement',
+            '--json',
+          ]),
+          0,
+        );
+        final json = jsonDecode(run.out.toString()) as Map<String, Object?>;
+        expect(json.keys.first, 'code', reason: path);
+        expect(json['codeTarget'], 'jaspr', reason: path);
+      }
+    });
+
+    test(
+      'f01/us05/fr04: --code with one target prints no code target',
+      () async {
+        final project = await writeReadProject(
+          extra: {'app/lib/main.dart': ''},
+        );
+        final text = readRunner(project);
+        await text.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'implement',
+        ]);
+        expect(text.out.toString(), isNot(contains('code target')));
+        final json = readRunner(project);
+        await json.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'implement',
+          '--json',
+        ]);
+        expect(
+          (jsonDecode(json.out.toString()) as Map).containsKey('codeTarget'),
+          isFalse,
+        );
+      },
+    );
+
     test('f01/us05/fr04/e15: --code with --target naming another target is argument_conflict, exit 64', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},

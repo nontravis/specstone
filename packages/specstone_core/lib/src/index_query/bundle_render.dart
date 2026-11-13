@@ -19,6 +19,11 @@ String _overBudgetLine(IndexedDoc doc, bool summary, int tokens) =>
 String _listName(IndexedDoc doc, bool summary) =>
     summary ? '${nameWithType(doc)} · summary' : nameWithType(doc);
 
+/// Returns the header line that names the code target a `--code` path lies
+/// in, or '' when there is none to name (one target).
+String _codeTargetLine(String? name) =>
+    name == null ? '' : '==> code target: $name <==\n';
+
 /// Renders [bundle]'s docs as one `context` answer (`index_query/get_task_bundle/trim_and_order_bundle`).
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
@@ -49,6 +54,9 @@ ReadAnswer answerContext(
   ];
   final shown = [...docBlocks, ...mapBlocks, ...namesBlocks].join('\n\n');
   final tokens = tokenSizeOf(shown);
+  final named = byCode && index.targetNames.length > 1
+      ? bundle.codeTarget
+      : null;
   if (budget != null && tokens > budget) {
     return _overBudget(
       ordered,
@@ -59,18 +67,21 @@ ReadAnswer answerContext(
       byCode: byCode,
       budget: budget,
       tokens: tokens,
+      codeTarget: named,
     );
   }
   final list = [
     for (final doc in ordered) '- ${_listName(doc, inSummary(doc))}\n',
   ];
   final text =
+      '${_codeTargetLine(named)}'
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
       '${list.join()}'
       '${summaryOnly.isEmpty ? '' : '$_summaryNextStep\n'}';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
+    'codeTarget': ?named,
     'for': bundle.mode.wire,
     'tokens': tokens,
     'docs': [
@@ -101,6 +112,7 @@ ReadAnswer _overBudget(
   required bool byCode,
   required int budget,
   required int tokens,
+  required String? codeTarget,
 }) {
   final handOver = bundle.summary ? '$label with --summary' : label;
   final next = 'narrow the target, or hand $handOver to specstone:sdd-reader';
@@ -110,6 +122,7 @@ ReadAnswer _overBudget(
       _overBudgetLine(doc, summaryOnly.contains(doc.docPath), sizes[i]),
   ];
   final text =
+      '${_codeTargetLine(codeTarget)}'
       'The bundle holds $tokens est. tokens, over the budget of $budget; '
       'no doc text is printed.\n'
       'Docs it would hold:\n'
@@ -117,6 +130,7 @@ ReadAnswer _overBudget(
       'Next step: $next.\n';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
+    'codeTarget': ?codeTarget,
     'for': bundle.mode.wire,
     'budget': budget,
     'tokens': tokens,
