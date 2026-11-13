@@ -2004,6 +2004,24 @@ void _agentTests() {
     expect(_frontmatter.firstMatch(skill)![0], contains('another tool'));
   });
 
+  test('agent_plugin/start_from_another_tools_spec/map_source_items '
+      'verification; write_design_document input_output; take_in_a_source '
+      'E08: design.md points design mode to source.md, and the runner takes '
+      'both bundles', () {
+    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    expect(
+      _oneLine(_sectionOf(design, '1. Check the inputs')),
+      contains(
+        r'${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(design, '2. Ground each claim')),
+      contains('--no-project'),
+    );
+    expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('source.md')));
+  });
+
   test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
