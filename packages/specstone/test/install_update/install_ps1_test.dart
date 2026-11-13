@@ -2507,12 +2507,17 @@ if ($env:HARNESS_MODE -eq 'iex') {
           ..createSync(recursive: true);
         final junction = Process.runSync('cmd', [
           '/d',
-          '/v:off',
-          '/s',
           '/c',
-          'mklink /j "$linked" "${target.path}"',
+          'mklink',
+          '/J',
+          linked,
+          target.path,
         ]);
-        expect(junction.exitCode, 0, reason: '${junction.stderr}');
+        expect(
+          junction.exitCode,
+          0,
+          reason: '${junction.stdout}${junction.stderr}',
+        );
 
         for (final entry in [
           '${target.path}\\',
@@ -2566,6 +2571,38 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(flat(r.stdout), isNot(contains('another stn')));
+        },
+      );
+
+      pathTest(
+        '$fr E07: a folder holding stn.cmd and specstone.exe is skipped as '
+        'the shim skips it, so a later stn is named and a lone one is not',
+        () async {
+          final sb = await sandboxWithShim();
+          final copy = '${sb.root.path}\\other install';
+          otherStn(copy, 'cmd');
+          File('$copy\\specstone.exe').writeAsStringSync('fake');
+          final later = otherStn('${sb.root.path}\\later', 'exe');
+          final bin = '${sb.home.path}\\.specstone\\bin';
+
+          final alone = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [bin, copy]),
+            },
+          );
+          final withLater = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [bin, copy, '${sb.root.path}\\later']),
+            },
+          );
+
+          expect(alone.exitCode, 0, reason: '${alone.stderr}');
+          expect(flat(alone.stdout), isNot(contains('another stn')));
+          expect(withLater.exitCode, 0, reason: '${withLater.stderr}');
+          expect(flat(withLater.stdout), contains(notice(later)));
+          expect(flat(withLater.stdout), isNot(contains(copy)));
         },
       );
 

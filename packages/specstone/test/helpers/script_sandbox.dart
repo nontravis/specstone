@@ -388,6 +388,7 @@ final class ScriptSandbox {
   }
 }
 
+/// The raw user PATH: the registry value unexpanded, and its kind.
 typedef UserPath = ({String value, String kind});
 
 /// Returns the Windows user PATH as the registry holds it, or null if unset.

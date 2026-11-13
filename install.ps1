@@ -695,15 +695,11 @@ try {
         return $full.TrimEnd('\')
     }
 
-    # Prints one line naming the first `stn` on an absolute PATH entry other
-    # than $BinFolder, which the Owner then types `specstone` in place of. The
-    # walk and the test of a `stn` mirror bin\stn.cmd (run_cli_or_yield E03,
-    # E08, E09, E10): the entries are the already-cut $env:Path, split by
-    # Split-PathText so a quoted entry that holds a ';' stays one; an entry
-    # that Get-FolderIdentity reads as $BinFolder is skipped, case ignored; a
-    # `stn` counts only as a file, never a folder, named stn.exe, stn.cmd,
-    # stn.bat, stn.com, or stn.ps1, tried in that order in each entry. The
-    # notice never changes the run's exit status.
+    # Prints one line naming the first `stn` on the cut $env:Path other than
+    # in $BinFolder, as bin\stn.cmd walks it (run_cli_or_yield E03, E08-E10):
+    # an entry that reads as $BinFolder, or holds stn.cmd and specstone.exe,
+    # is skipped; a `stn` is a file named stn.exe, .cmd, .bat, .com, or .ps1,
+    # tried in that order. The notice never changes the run's exit status.
     function Write-OtherStnNotice([string]$BinFolder) {
         $own = Get-FolderIdentity $BinFolder
         foreach ($entry in @(Split-PathText (Get-EnvText 'Path'))) {
@@ -712,10 +708,17 @@ try {
                     continue
                 }
                 $folder = [IO.Path]::GetFullPath($entry)
+                if ((Test-Path -LiteralPath (Join-Path $folder 'stn.cmd')) -and (Test-Path -LiteralPath (Join-Path $folder 'specstone.exe'))) {
+                    continue
+                }
+                # Name the folder as the PATH spells it: GetFullPath may expand 8.3 names.
+                $shown = $entry
+                if ($shown.EndsWith('\')) {
+                    $shown = $shown.Substring(0, $shown.Length - 1)
+                }
                 foreach ($extension in 'exe', 'cmd', 'bat', 'com', 'ps1') {
-                    $found = [IO.Path]::Combine($folder, "stn.$extension")
-                    if (Test-Path -LiteralPath $found -PathType Leaf) {
-                        Write-Host "specstone: another stn is at $found; type specstone to run the CLI"
+                    if (Test-Path -LiteralPath (Join-Path $folder "stn.$extension") -PathType Leaf) {
+                        Write-Host "specstone: another stn is at $shown\stn.$extension; type specstone to run the CLI"
                         return
                     }
                 }
