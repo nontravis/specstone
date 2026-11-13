@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 
 const _keys = {'name', 'version', 'extends', 'migrations'};
@@ -35,6 +36,25 @@ final class PackManifest {
       migrations: parseMigrations(map.nodes['migrations'], file: file),
       file: file,
     );
+  }
+
+  /// Throws `unknown_value` for the first `move_to_record` step whose `to`
+  /// is outside [docTypeIds].
+  ///
+  /// The key is `migrations[<i>].steps[<j>].move_to_record.to`.
+  void checkRecordTargets(Set<String> docTypeIds) {
+    for (final (i, migration) in migrations.indexed) {
+      for (final (j, step) in migration.steps.indexed) {
+        if (step is! MoveToRecord || docTypeIds.contains(step.to)) continue;
+        throw TemplateFault(
+          FaultCode.unknownValue,
+          'the move_to_record target ${step.to} is not a doc type the pack '
+          'defines',
+          file: file,
+          key: 'migrations[$i].steps[$j].move_to_record.to',
+        );
+      }
+    }
   }
 
   /// The pack name.

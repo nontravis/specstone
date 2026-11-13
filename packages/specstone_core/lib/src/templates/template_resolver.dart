@@ -261,6 +261,7 @@ final class TemplateResolver {
     ];
     final loadIndex = loadIndexOf(loadOrder);
     _checkGeneratorKinds(loadOrder);
+    _checkRecordTargets(packs);
     _checkExtendsInOverride(loadOrder, layerLists);
     final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
     checkMergedSet(
@@ -270,6 +271,21 @@ final class TemplateResolver {
       targetNames: targetNames,
     );
     return MergedSet(docTypes: docTypes.values.toList());
+  }
+
+  /// Throws `unknown_value` for the first `move_to_record` step whose `to`
+  /// names no doc type its pack, or a pack its chain reaches, defines.
+  void _checkRecordTargets(List<ParsedPack> packs) {
+    final extendsOf = extendsMapOf([
+      for (final (:pack, layers: _) in packs) pack,
+    ]);
+    for (final (:pack, layers: _) in packs) {
+      pack.manifest.checkRecordTargets({
+        for (final (pack: other, :layers) in packs)
+          if (other == pack || reaches(pack, other, extendsOf: extendsOf))
+            ...layers.keys,
+      });
+    }
   }
 
   /// Throws `unknown_value` for the first `generators` entry of [loadOrder]
