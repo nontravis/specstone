@@ -180,6 +180,15 @@ void main() {
       expect(targeted.matches('deploy.md'), isFalse);
       expect(targeted.matches('flutter/deploy.md'), isFalse);
     });
+
+    test('doc_model/s03/rule-20: targetFolder is the first folder and the '
+        'target, where forTarget puts it', () {
+      expect(
+        PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md').targetFolder('jaspr'),
+        'specs/jaspr/',
+      );
+      expect(PathPattern('{slug}.md').targetFolder('jaspr'), 'jaspr/');
+    });
   });
 
   group('PathPattern.valuesOf and fill', () {

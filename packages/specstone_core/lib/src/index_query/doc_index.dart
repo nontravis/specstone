@@ -121,8 +121,9 @@ final class DocIndex {
   /// to that target's docs and the shared docs (INV-26); a path names its doc
   /// whatever target.
   ///
-  /// Throws an [IndexFault] `argument_invalid` for a code target [targetNames]
-  /// holds none of, or for such a suffix, a [TemplateFault] for a doc type id
+  /// Throws an [IndexFault] for a code target [targetNames] holds none of
+  /// (`argument_invalid`) or an empty one (`argument_missing`), and
+  /// `argument_invalid` for such a suffix; a [TemplateFault] for a doc type id
   /// the set lacks and an [IndexFault] `doc_not_found` when no doc carries
   /// the name.
   List<IndexedDoc> resolve(String address, {String? codeTarget}) {

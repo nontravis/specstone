@@ -248,15 +248,12 @@ List<String> specFoldersOf(
   return {
     for (final (child, folder) in specChildrenOf(set, docType, shape, values))
       if (child.isPerTarget && targetNames.isNotEmpty)
-        for (final name in targetNames) _targetFolderOf(folder, name)
+        for (final name in targetNames)
+          PathPattern(folder).forTarget(name).source
       else
         folder,
   }.toList()..sort();
 }
-
-// A folder pattern ends in `/`; the target joins it as RULE-20 places it.
-String _targetFolderOf(String folder, String target) =>
-    '${PathPattern(folder.substring(0, folder.length - 1)).forTarget(target).source}/';
 
 /// Returns the paths of the delete unit of the doc at [docPath]: its own
 /// segment, a folder ending in `/` or the file, then the folders of its spec

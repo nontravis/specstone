@@ -1,7 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
-import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
 /// The docs and files one check run reports on (INV-12), and the code targets
@@ -15,12 +14,8 @@ import 'package:specstone_core/src/templates/code_target.dart';
 final class CheckScope {
   /// Returns the scope of the whole project.
   ///
-  /// Throws an `IndexFault` `argument_invalid` for a [codeTarget] the project
-  /// does not name.
-  /// Returns the scope of the whole project.
-  ///
-  /// Throws an `IndexFault` `argument_invalid` for a [codeTarget] the project
-  /// does not name.
+  /// Throws an `IndexFault` for a [codeTarget] the project does not name
+  /// (`argument_invalid`) or an empty one (`argument_missing`).
   new project(CheckContext context, {String? codeTarget})
     : this._(
         context,
@@ -98,9 +93,6 @@ final class CheckScope {
         docs.contains(docPath) ||
         _folders.any(docPath.startsWith);
   }
-
-  /// Whether [doc] is in scope.
-  bool containsDoc(IndexedDoc doc) => contains(doc.docPath);
 }
 
 List<CodeTarget> _targetsOf(CheckContext context, String? codeTarget) {
@@ -128,13 +120,6 @@ List<String> _otherTargetFoldersOf(CheckContext context, String? codeTarget) {
       if (type.isPerTarget)
         for (final path in type.paths)
           for (final name in names)
-            if (name != codeTarget) _targetFolderOf(path, name),
+            if (name != codeTarget) PathPattern(path).targetFolder(name),
   ];
-}
-
-/// Returns the folder of [target] in a per-target [path], up to the target.
-String _targetFolderOf(String path, String target) {
-  final segments = PathPattern(path).forTarget(target).source.split('/');
-  final depth = path.contains('/') ? 1 : 0;
-  return '${segments.take(depth + 1).join('/')}/';
 }

@@ -51,7 +51,7 @@ CheckReport runCheck(
   };
   final findings = <Finding>[];
   for (final doc in index.docs) {
-    if (!scope.containsDoc(doc)) continue;
+    if (!scope.contains(doc.docPath)) continue;
     if (!context.isChecked(doc)) continue;
     findings
       ..addAll(checkTree(context, doc))
