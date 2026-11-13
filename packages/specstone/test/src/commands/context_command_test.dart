@@ -460,6 +460,33 @@ void main() {
       }
     });
 
+    test('f01/us05/fr03, domain:agent_plugin INV-25: the over-budget --code '
+        'reply names its code target in text and JSON', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final args = [
+        'context',
+        '--code',
+        'jaspr_lib/lib/toast.dart',
+        '--for',
+        'implement',
+        '--budget',
+        '1',
+      ];
+      final text = readRunner(project);
+      expect(await text.runner.run(args), 1);
+      expect(
+        text.out.toString(),
+        startsWith('==> code target: jaspr <==\nThe bundle holds'),
+      );
+      final json = readRunner(project);
+      expect(await json.runner.run([...args, '--json']), 1);
+      final answer = jsonDecode(json.out.toString()) as Map<String, Object?>;
+      expect(answer['overBudget'], isTrue);
+      expect(answer['codeTarget'], 'jaspr');
+    });
+
     test(
       'f01/us05/fr04: --code with one target prints no code target',
       () async {
