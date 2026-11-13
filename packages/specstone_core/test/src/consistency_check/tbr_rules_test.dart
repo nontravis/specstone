@@ -317,6 +317,33 @@ void main() {
     expect(found.single.keys, {'form': 'section'});
   });
 
+  test('$_name E09: future code paths in a planned FR record entry give no '
+      'tbr_open', () async {
+    const layer =
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n'
+        '  - id: implements\n'
+        '    type: output_ref\n'
+        '    list: true\n'
+        '    pointer: item_exact\n';
+    final (:found, project: _) = await _run({
+      '.specstone/templates/implementation.yaml': layer,
+      'docs/specs/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login/check_password:planned'\n"
+          "implements:\n  - 'email_login/check_password:app/lib/later.dart:later'\n"
+          '---\n\n# Record\n',
+    });
+
+    expect(found, isEmpty);
+  });
+
   test('$_name E10: an untyped doc gives no tbr_open', () async {
     const untyped = 'prds/features/f01_login/notes.md';
     final project = await writeCheckProject(

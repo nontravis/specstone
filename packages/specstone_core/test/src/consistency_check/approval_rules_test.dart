@@ -143,6 +143,51 @@ void main() {
   });
 
   test(
+    "$_name E03: a write of a record entry's code paths or of covers raises no approval_stale",
+    () async {
+      const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+      const layer =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n'
+          '  - id: implements\n'
+          '    type: output_ref\n'
+          '    list: true\n'
+          '    pointer: item_exact\n';
+      final base = {
+        ...checkProjectFiles(),
+        '.specstone/templates/implementation.yaml': layer,
+        'docs/$recordPath':
+            "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+            "implements:\n  - 'email_login/check_password:app/lib/login.dart:checkPassword'\n"
+            '---\n\n# Record\n',
+      };
+      final approved = withApprovalHashes(base);
+      final record = approved['docs/$recordPath']!;
+      expect(record, contains('approved:'));
+      final report = checkOf(
+        await writeTree({
+          ...approved,
+          'docs/$recordPath': record.replaceFirst(
+            'app/lib/login.dart:checkPassword',
+            'app/lib/login.dart:SignInPage',
+          ),
+          ...editedAfterApproval(loginArchitecture, [
+            ('  - app/lib/\n', '  - app/lib/login.dart\n'),
+          ]),
+        }),
+      );
+      expect(_stales(report), isEmpty);
+    },
+  );
+
+  test(
     '$_name E04: a draft beside an approved: hash its content does not match raises no approval_stale',
     () async {
       final report = checkOf(

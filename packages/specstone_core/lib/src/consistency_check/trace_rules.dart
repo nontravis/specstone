@@ -1,9 +1,17 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/code_rules.dart'
+    show ImplementedWork;
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show RecordStatus;
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -25,9 +33,6 @@ const _whoSeparator = ' who ';
 const _storyVisionKeys = ['vision', 'goals'];
 const _apiType = 'api';
 const _architectureType = 'architecture';
-const _implementsKey = 'implements';
-const _statusKey = 'status';
-const _implemented = 'implemented';
 const _goalsSection = 'goals';
 const _visionIdPrefix = 'PV-';
 const _goalIdPrefix = 'PG-';
@@ -311,17 +316,21 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
 /// Returns the findings of a spec doc read against its PRD (`consistency_check/find_prd_spec_disagreements/check_spec_against_prd`).
 ///
 /// An `api` row must name an FR of its feature as `<feature name>/<cell>`. A
-/// `feature` with code pointers needs an `architecture` doc of its own or of a
-/// feature above it when the merged set holds that type.
+/// `feature` whose record in a target names code needs, for that target, an
+/// `architecture` doc of its own or of a feature above it when the merged set
+/// holds that type.
 Iterable<Finding> checkSpecAgainstPrd(
   CheckContext context,
+  ImplementedWork work,
   IndexedDoc doc,
 ) sync* {
   switch (doc.docTypeId) {
     case _apiType:
       yield* _unresolvedFrRows(context, doc);
     case featureType:
-      if (context.hasArchitecture) yield* _missingArchitecture(context, doc);
+      if (context.hasArchitecture) {
+        yield* _missingArchitecture(context, work, doc);
+      }
   }
 }
 
@@ -345,43 +354,126 @@ Iterable<Finding> _unresolvedFrRows(
 
 Iterable<Finding> _missingArchitecture(
   CheckContext context,
+  ImplementedWork work,
   IndexedDoc feature,
 ) sync* {
+  final recordType = context.set.recordDocType;
+  if (recordType == null) return;
   final index = context.index;
-  final hasCode = index
-      .subtreeOf(feature)
-      .any((doc) => doc.valuesOf(_implementsKey).isNotEmpty);
-  if (!hasCode) return;
-  final hasArchitecture = index
-      .chainOf(feature)
-      .expand(index.childrenOf)
-      .any((doc) => doc.docTypeId == _architectureType);
-  if (hasArchitecture) return;
-  yield context.finding(
-    feature,
-    FindingKind.architectureMissing,
-    line: 1,
-    message: 'code is pointed at but no architecture doc covers the feature',
-  );
+  for (final target in work.targets) {
+    if (!_recordsNameCode(context, work, recordType, feature, target)) continue;
+    final hasArchitecture = index
+        .chainOf(feature)
+        .expand(index.childrenOf)
+        .any(
+          (doc) =>
+              doc.docTypeId == _architectureType &&
+              work.targetOf(doc) == target,
+        );
+    if (hasArchitecture) continue;
+    final shown = _shownTargetName(context, target.name);
+    yield context.finding(
+      feature,
+      FindingKind.architectureMissing,
+      line: 1,
+      message: shown == null
+          ? 'code is pointed at but no architecture doc covers the feature'
+          : 'code is pointed at but no architecture doc of target $shown '
+                'covers the feature',
+      keys: {'target': ?shown},
+    );
+  }
 }
 
-/// Returns `implements_missing` for a doc whose status is `implemented` and
-/// that holds no `implements` entry (`consistency_check/find_prd_spec_disagreements/check_implemented_status`).
+/// Whether a record of [feature] or of a feature below it, in [target], names
+/// a code path for an item the target does not skip.
+bool _recordsNameCode(
+  CheckContext context,
+  ImplementedWork work,
+  MergedDocType recordType,
+  IndexedDoc feature,
+  CodeTarget target,
+) {
+  final index = context.index;
+  for (final member in index.subtreeOf(feature)) {
+    if (member.docTypeId != featureType) continue;
+    final items = recordItemsOf(member, index.childrenOf);
+    for (final record in index.ofTypeNamed(recordType.id, member.name)) {
+      if (work.targetOf(record) != target) continue;
+      for (final entry in recordEntriesOf(record, recordType)) {
+        if (entry.codePaths.isEmpty) continue;
+        if (!_isLeftOut(index, items[entry.item], entry, record)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Whether [entry] of [record] counts no code: its story or FR is skipped in
+// the record's target, the feature entry is skipped, or it names no item.
+bool _isLeftOut(
+  DocIndex index,
+  IndexedDoc? item,
+  RecordEntry entry,
+  IndexedDoc record,
+) => switch (item) {
+  final item? =>
+    index.itemStatus(item, codeTarget: record.target) == RecordStatus.skipped,
+  null => entry.item.isNotEmpty || entry.status == RecordStatus.skipped,
+};
+
+/// Returns the name of a target a finding names, or null when the project
+/// holds one code target, so its output stays as it was.
+String? _shownTargetName(CheckContext context, String? name) =>
+    context.index.targetNames.length > 1 ? name : null;
+
+/// Returns `implements_missing` for each entry of a record [doc] whose status
+/// is `implemented` and that names no code path (`consistency_check/find_prd_spec_disagreements/check_implemented_status`).
 ///
-/// Only a doc type that defines `implements` is read (INV-2).
+/// An entry's status is its status in the record's own target (INV-29); an
+/// entry no story or FR of the feature carries is `check_record_entries`'s.
 Iterable<Finding> checkImplementedStatus(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  if (!context.typeHoldsField(context.typeOf(doc), _implementsKey)) return;
-  if (doc.writtenStatus != _implemented) return;
-  if (doc.valuesOf(_implementsKey).isNotEmpty) return;
-  final line = context.linesOf(doc).keyLine(_statusKey);
-  if (line == null) return;
-  yield context.finding(
-    doc,
-    FindingKind.implementsMissing,
-    line: line,
-    message: 'status is $_implemented but no implements entry points at code',
-  );
+  final type = context.set.recordDocType;
+  if (type == null || doc.docTypeId != type.id) return;
+  final index = context.index;
+  final feature = index.parentOf(doc);
+  final statusField = recordStatusFieldOf(type);
+  final lines = context.linesOf(doc);
+  if (feature == null ||
+      feature.docTypeId != featureType ||
+      statusField == null ||
+      lines.frontmatterErrorLine != null) {
+    return;
+  }
+  final items = recordItemsOf(feature, index.childrenOf);
+  final statusLines = {
+    for (final (:value, :line, text: _) in lines.entriesOf(statusField.id))
+      if (value is String)
+        if (recordStatusLineOf(value) case final parsed?) parsed.item: line,
+  };
+  final inTarget = switch (_shownTargetName(context, doc.target)) {
+    final name? => ' in target $name',
+    null => '',
+  };
+  for (final entry in recordEntriesOf(doc, type)) {
+    final item = items[entry.item];
+    final line = statusLines[entry.item];
+    if (item == null ||
+        line == null ||
+        entry.status != RecordStatus.implemented ||
+        entry.codePaths.isNotEmpty ||
+        index.itemStatus(item, codeTarget: doc.target) !=
+            RecordStatus.implemented) {
+      continue;
+    }
+    yield context.finding(
+      doc,
+      FindingKind.implementsMissing,
+      line: line,
+      message: '${entry.item} is implemented$inTarget and names no code path',
+    );
+  }
 }

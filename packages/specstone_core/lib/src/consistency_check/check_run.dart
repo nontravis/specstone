@@ -69,7 +69,7 @@ CheckReport runCheck(
       findings
         ..addAll(checkTraces(context, doc))
         ..addAll(checkRolesAndGoals(context, doc))
-        ..addAll(checkSpecAgainstPrd(context, doc))
+        ..addAll(checkSpecAgainstPrd(context, work, doc))
         ..addAll(checkImplementedStatus(context, doc))
         ..addAll(checkRecordEntries(context, doc))
         ..addAll(checkTrackedLinks(context, doc))
