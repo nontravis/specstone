@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -36,7 +37,7 @@ Iterable<Finding> checkItemFields(CheckContext context, IndexedDoc doc) sync* {
   for (var i = 0; i < held.length; i++) {
     final template = context.templateSectionAt(doc, i);
     if (template == null || !watched.contains(template.id)) continue;
-    final (:fieldsByItem, :values) = _readSection(context.bodyLinesOf(doc, i));
+    final (:fieldsByItem, :values) = _readSection(context.itemsIn(doc, i));
     valuesBySection[template.id] = values;
     final entries = entriesBySection[template.id];
     if (entries == null) continue;
@@ -97,24 +98,22 @@ Iterable<Finding> _fieldFindings(
   }
 }
 
-/// Reads [body]: the nested field items under each top-level item, keyed by
+/// Reads [items]: the nested field items under each top-level item, keyed by
 /// the item's line, and every field value the section holds, by field.
 ///
 /// A nested item is one whose line opens indented; a field item is a nested
 /// item whose text opens `- **<field>:** <text>`. A `###` heading belongs to
 /// no item, so it closes the one open above it.
 ({Map<int, Map<String, String>> fieldsByItem, Map<String, Set<String>> values})
-_readSection(List<BodyLine> body) {
-  final textByLine = {for (final line in body) line.line: line.text};
+_readSection(List<SectionItem> items) {
   final fieldsByItem = <int, Map<String, String>>{};
   final values = <String, Set<String>>{};
   var itemLine = -1;
-  for (final item in itemsOf(body)) {
-    final raw = textByLine[item.line] ?? '';
-    final match = _fieldItem.firstMatch(item.text);
-    if (item.heading) {
+  for (final item in items) {
+    final match = _fieldItem.firstMatch(item.head);
+    if (item.kind == SectionItemKind.heading) {
       itemLine = -1;
-    } else if (raw.startsWith(' ') || raw.startsWith('\t')) {
+    } else if (item.nested) {
       if (itemLine >= 0 && match != null) {
         final value = match.group(2)!.trim();
         fieldsByItem[itemLine]!.putIfAbsent(match.group(1)!, () => value);

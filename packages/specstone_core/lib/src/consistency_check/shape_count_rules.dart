@@ -39,7 +39,7 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final count = template.itemCount;
     if (limits.isEmpty && count == null) continue;
     final section = _Block(
-      context.sectionItemsOf(doc, i),
+      context.itemsIn(doc, i),
       text: [
         for (final line in context.bodyLinesOf(doc, i))
           if (!line.fenced) line.text,
@@ -166,24 +166,30 @@ Iterable<Finding> _countIn(
 
 /// A section's top-level items, grouped for the rules.
 final class _Block {
-  new(this._all, {this.text = ''});
+  new(List<SectionItem> all, {this.text = ''})
+    : _all = [
+        for (final item in all)
+          if (!item.nested) item,
+      ];
 
-  final List<TopLevelItem> _all;
+  final List<SectionItem> _all;
 
   /// The section's unfenced text, read when no list item or table row holds
   /// it.
   final String text;
 
   /// The list items and table rows.
-  late final List<TopLevelItem> items = [
+  late final List<SectionItem> items = [
     for (final item in _all)
-      if (item.kind != TopLevelKind.heading) item,
+      if (item.kind == SectionItemKind.listItem ||
+          item.kind == SectionItemKind.tableRow)
+        item,
   ];
 
   /// The table rows.
-  late final List<TopLevelItem> rows = [
+  late final List<SectionItem> rows = [
     for (final item in _all)
-      if (item.kind == TopLevelKind.tableRow) item,
+      if (item.kind == SectionItemKind.tableRow) item,
   ];
 
   /// The `###` subsections, each with its heading's file line and the items
@@ -193,10 +199,10 @@ final class _Block {
   );
 }
 
-List<({int line, _Block block})> _subsectionsOf(List<TopLevelItem> all) {
-  final subsections = <({int line, List<TopLevelItem> under})>[];
+List<({int line, _Block block})> _subsectionsOf(List<SectionItem> all) {
+  final subsections = <({int line, List<SectionItem> under})>[];
   for (final item in all) {
-    if (item.kind == TopLevelKind.heading) {
+    if (item.kind == SectionItemKind.heading) {
       subsections.add((line: item.line, under: []));
     } else if (subsections.isNotEmpty) {
       subsections.last.under.add(item);

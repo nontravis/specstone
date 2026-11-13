@@ -162,9 +162,9 @@ final class CheckContext {
     return sectionBodyLines(content.sections, content.lineFacts, index);
   }
 
-  /// Returns the top-level items of the held section at [index] of [doc], as
-  /// the index reads items: a closed generated block holds none.
-  List<TopLevelItem> sectionItemsOf(IndexedDoc doc, int index) {
+  /// Returns the items of the held section at [index] of [doc], as the index
+  /// reads items: a closed generated block holds none.
+  List<SectionItem> itemsIn(IndexedDoc doc, int index) {
     final isGenerated = _generatedLines.putIfAbsent(doc.docPath, () {
       final text = toLf(contentOf(doc).text);
       return generatedLineTest(
@@ -173,7 +173,7 @@ final class CheckContext {
         typeOf(doc)?.listedGenerators.toSet() ?? const {},
       );
     });
-    return topLevelItemsOf(
+    return sectionItemsOf(
       withGeneratedFenced(bodyLinesOf(doc, index), isGenerated),
     );
   }

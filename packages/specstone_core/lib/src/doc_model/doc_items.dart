@@ -38,51 +38,50 @@ List<DocItem> itemsOf(List<BodyLine> body) => [
   for (final span in _spansOf(body, _linesOf(body))) span.item,
 ];
 
-/// What a [TopLevelItem] is.
-enum TopLevelKind { listItem, tableRow, heading }
+/// What a [SectionItem] is.
+enum SectionItemKind { listItem, tableRow, paragraph, heading }
 
-/// One top-level item of a section: a list item or table row that opens at
-/// the first column (after any `>` marks), or a `###` heading.
+/// One item of a section, as [itemsOf] reads it, with what a rule reads.
 ///
-/// `line` is its first file line; `firstLine` its first line after any `>`
-/// marks; `text` its own lines as written, nested items aside. A table row
-/// carries its table's `header` cells and its own `cells`, both trimmed;
-/// every other kind carries null for both.
-typedef TopLevelItem = ({
+/// `line` is its first file line; `head` its first line after any `>` mark,
+/// list marker, or `### `; `firstLine` that line with its marker, after any
+/// `>` marks; `text` its own lines as written, nested items aside. `nested`
+/// is true for an item that opens indented. A table row carries its table's
+/// `header` cells and its own `cells`, both trimmed; every other kind carries
+/// null for both.
+typedef SectionItem = ({
   int line,
-  TopLevelKind kind,
+  SectionItemKind kind,
+  bool nested,
+  String head,
   String firstLine,
   String text,
   List<String>? header,
   List<String>? cells,
 });
 
-/// Returns the top-level items of a section's [body] lines in order, read as
-/// [itemsOf] reads them.
-///
-/// A paragraph and a nested item are none, and a fenced line belongs to no
-/// item. A nested item's lines are no part of its parent's text.
-List<TopLevelItem> topLevelItemsOf(List<BodyLine> body) {
+/// Returns every item of a section's [body] lines in order, read as [itemsOf]
+/// reads them; a fenced line belongs to no item.
+List<SectionItem> sectionItemsOf(List<BodyLine> body) {
   final lines = _linesOf(body);
   final headers = <int, List<String>>{};
-  final items = <TopLevelItem>[];
+  final items = <SectionItem>[];
   for (final span in _spansOf(body, lines)) {
     final first = lines[span.start];
     final kind = switch (span.item.heading) {
-      true => TopLevelKind.heading,
-      false when span.headerAt != null => TopLevelKind.tableRow,
-      false when first.kind == _Kind.list => TopLevelKind.listItem,
-      _ => null,
+      true => SectionItemKind.heading,
+      false when span.headerAt != null => SectionItemKind.tableRow,
+      false when first.kind == _Kind.list => SectionItemKind.listItem,
+      _ => SectionItemKind.paragraph,
     };
-    if (kind == null) continue;
-    if (kind != TopLevelKind.tableRow &&
-        first.inner.startsWith(RegExp(r'\s'))) {
-      continue;
-    }
     final headerAt = span.headerAt;
     items.add((
       line: span.item.line,
       kind: kind,
+      nested:
+          kind != SectionItemKind.tableRow &&
+          first.inner.startsWith(RegExp(r'\s')),
+      head: span.item.text,
       firstLine: first.inner,
       text: [for (var k = span.start; k <= span.end; k++) body[k].text]
           .join('\n'),

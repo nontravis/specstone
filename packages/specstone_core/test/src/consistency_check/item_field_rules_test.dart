@@ -161,4 +161,26 @@ void main() {
       isEmpty,
     );
   });
+
+  group('a closed generated block', () {
+    const body =
+        '$_held\n\n'
+        '<!-- specstone:generated scenario_copy (do not edit) -->\n'
+        '- **R2** Copied.\n'
+        '<!-- specstone:generated end -->';
+
+    test('gives no item-field finding for its bullets', () async {
+      final found = await _found(
+        _withRationale(body),
+        layer: 'generators: [scenario_copy]\n$_layer',
+      );
+      expect(found, isEmpty);
+    });
+
+    test('is read as items when the doc type lists no generator', () async {
+      final found = await _found(_withRationale(body));
+      expect(found, isNotEmpty);
+      expect(found.map((f) => f.kind).toSet(), {FindingKind.itemFieldMissing});
+    });
+  });
 }

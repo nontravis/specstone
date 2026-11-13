@@ -459,22 +459,14 @@ final _rules = <_Rule>[
     remedy:
         'Read an item through DocContent.itemFacts in '
         'index_query/item_facts.dart.',
-    pattern: RegExp(r'\b(?:itemsOf|topLevelItemsOf)\('),
+    pattern: RegExp(r'\b(?:itemsOf|sectionItemsOf)\('),
     exempt: {
       _lib('doc_model/doc_items.dart'),
       _lib('index_query/item_facts.dart'),
-      // The one context accessor every check rule reads top-level items by.
+      // The one context accessor every check rule reads items by.
       _lib('consistency_check/check_context.dart'),
     },
-    allowed: [
-      // Nested `- **<field>:** <text>` items under a top-level item; the
-      // rule needs each item's own nesting, which ItemFact holds no key for.
-      (
-        file: _lib('consistency_check/item_field_rules.dart'),
-        snippet: 'itemsOf(',
-        reason: 'Reads nested field items under a top-level item, no IDs.',
-      ),
-    ],
+    allowed: [],
     appliesTo: _everySource,
   ),
   (
