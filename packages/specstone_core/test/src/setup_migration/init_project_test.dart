@@ -604,7 +604,7 @@ void main() {
       _read(root, 'CLAUDE.md'),
       contains('<!-- BEGIN specstone v$specstoneVersion -->'),
     );
-    expect(lines, contains('  agent files: .specstone/AGENT.md, CLAUDE.md'));
+    expect(lines, contains('  agent files: 2 files'));
   }, skip: hasGit ? null : 'git is not available');
 
   test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "

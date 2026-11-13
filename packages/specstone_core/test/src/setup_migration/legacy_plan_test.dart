@@ -46,8 +46,8 @@ commit 2, rewrites:
   prds/features/f01_login/us01_email_login/USER_STORY.md: title, name
   prds/features/f01_login/us01_email_login/fr01_validate_credentials.md: title, name
   specs/f01_login/ARCHITECTURE.md: title, name, feature_id, Concerns, covers (1 path)
-  number labels: prds/features/f01_login/FEATURE.md
-  format layout: specs/f01_login/DOMAIN.md
+  number labels: 1 rewrites in 1 files; left: 0
+  format layout: 1 docs
   stamps: 8 approval hashes, 0 fingerprints
 commit 2, creates:
 ''';
@@ -154,7 +154,7 @@ void main() {
           r'  \.specstone/\.gitignore\n'
           r'  \.specstone/templates/gnfr\.yaml\n'
           r'  specs/TECH_STACK\.md \(draft\)\n'
-          r'  agent files: \.specstone/AGENT\.md, AGENTS\.md\n'
+          r'  agent files: 2 files\n'
           r'left in place for specstone check:\n'
           r'  specs/INDEX\.md\n'
           r'  specs/f01_login/DOMAIN\.md\n$',
@@ -751,7 +751,8 @@ name: Acme non-functional requirements
     expect(domain.changes, isEmpty);
     expect(domain.text, contains('| Entity | Kind | Identity |\n'));
     final lines = plan.toText().split('\n');
-    expect(lines, contains('  format layout: specs/f01_login/DOMAIN.md'));
+    expect(lines, contains('  format layout: 1 docs'));
+    expect(plan.lists.formatLayout, ['specs/f01_login/DOMAIN.md']);
     expect(lines.where((line) => line.contains('DOMAIN.md:')), isEmpty);
     expect(lines, contains('  prds/PROJECT.md: title, name, vision labels'));
   });
@@ -914,10 +915,8 @@ name: NFR
         agents.rootWrites.last.text,
         contains('<!-- BEGIN specstone v$specstoneVersion -->'),
       );
-      expect(
-        plan.toText(),
-        contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
-      );
+      expect(plan.toText(), contains('  agent files: 2 files\n'));
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
     });
 
     test('setup_migration/migrate_legacy_docs/write_project_files E13: a '
@@ -929,10 +928,8 @@ name: NFR
         'AGENTS.md',
       ]);
       expect(plan.agentFiles!.topWrites, isEmpty);
-      expect(
-        plan.toText(),
-        contains('  agent files: .specstone/AGENT.md, AGENTS.md\n'),
-      );
+      expect(plan.toText(), contains('  agent files: 2 files\n'));
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'AGENTS.md']);
     });
 
     test('setup_migration/set_up_new_project/write_agent_files E08: a '
@@ -973,12 +970,12 @@ name: NFR
       final config = _configCreate(plan).text;
       expect(config, contains('code_root: code\n'));
       expect(config, contains('agent_file_roots:\n  - code\n'));
-      expect(
-        plan.toText(),
-        contains(
-          '  agent files: .specstone/AGENT.md, AGENTS.md, code/AGENTS.md\n',
-        ),
-      );
+      expect(plan.toText(), contains('  agent files: 3 files\n'));
+      expect(plan.lists.agentFiles, [
+        '.specstone/AGENT.md',
+        'AGENTS.md',
+        'code/AGENTS.md',
+      ]);
     });
 
     test('setup_migration/set_up_new_project/write_agent_files E35: a kept '
@@ -1039,13 +1036,7 @@ name: NFR
         expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
         expect('agent_file_roots'.allMatches(rewrite.text), hasLength(1));
         expect('- code\n'.allMatches(rewrite.text), hasLength(1));
-        expect(
-          plan.toText(),
-          contains(
-            '  agent files: .specstone/AGENT.md, AGENTS.md, '
-            'code/AGENTS.md\n',
-          ),
-        );
+        expect(plan.toText(), contains('  agent files: 3 files\n'));
       },
     );
   });
@@ -1410,9 +1401,17 @@ name: NFR
             ),
           );
           expect(
+            plan.lists.numberLabelsLeft,
+            contains('prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01'),
+          );
+          expect(
             plan.toText(),
             contains(
-              '; left: prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01, ',
+              RegExp(
+                r'^  number labels: \d+ rewrites in \d+ files; '
+                r'left: [1-9]\d*$',
+                multiLine: true,
+              ),
             ),
           );
         },
@@ -1433,7 +1432,7 @@ name: NFR
           _rewrite(plan, frPath).text,
           contains('After `login/email_login/lock_account` and not FR-09.'),
         );
-        expect(plan.toText(), contains(', $frPath:7 FR-09'));
+        expect(plan.lists.numberLabelsLeft, contains('$frPath:7 FR-09'));
       });
 
       test(
@@ -1449,11 +1448,16 @@ name: NFR
 
           expect(
             lines.singleWhere((l) => l.startsWith('  number labels: ')),
-            startsWith(
-              '  number labels: prds/d04_glossary.md, '
-              'prds/features/f01_login/FEATURE.md, ',
+            matches(
+              RegExp(
+                r'^  number labels: \d+ rewrites in \d+ files; left: \d+$',
+              ),
             ),
           );
+          expect(plan.lists.numberLabelsRewritten.take(2), [
+            'prds/d04_glossary.md',
+            'prds/features/f01_login/FEATURE.md',
+          ]);
           expect(lines.any((l) => l.contains('format layout:')), isFalse);
           expect(
             _rewrite(plan, 'prds/d04_glossary.md').text,
@@ -1462,10 +1466,12 @@ name: NFR
         },
       );
 
-      test('E19: a tree with no label to keep prints no left list', () async {
+      test('E19: a tree with no label to keep prints a left count of 0 and '
+          'lists none', () async {
         final plan = await _plan(acmeLegacy);
 
-        expect(plan.toText(), isNot(contains('; left:')));
+        expect(plan.toText(), contains('; left: 0\n'));
+        expect(plan.lists.numberLabelsLeft, isEmpty);
       });
     },
   );

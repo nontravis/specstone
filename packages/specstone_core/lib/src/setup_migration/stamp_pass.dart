@@ -126,11 +126,15 @@ final class StampPass {
   /// The `stamps:` plan line, or null when nothing is stamped or skipped.
   String? get planLine =>
       stampsPlanLine(_approvals, _fingerprints, skipped: _skipped);
+
+  /// The DocPath of each doc left unstamped for invalid frontmatter, in code
+  /// point order.
+  List<String> get paths => [..._skipped]..sort(compareCodePoints);
 }
 
 /// The `stamps:` plan line for [approvals] approval hashes and [fingerprints]
-/// `confirmed` fingerprints, then `; skipped: ` and each DocPath of [skipped],
-/// a doc left unstamped for invalid frontmatter; null when all are empty.
+/// `confirmed` fingerprints, then `; skipped: <n>` for the docs of [skipped],
+/// left unstamped for invalid frontmatter; null when all are empty.
 String? stampsPlanLine(
   int approvals,
   int fingerprints, {
@@ -139,9 +143,7 @@ String? stampsPlanLine(
   if (approvals == 0 && fingerprints == 0 && skipped.isEmpty) return null;
   final counts =
       'stamps: $approvals approval hashes, $fingerprints fingerprints';
-  if (skipped.isEmpty) return counts;
-  final paths = [...skipped]..sort(compareCodePoints);
-  return '$counts; skipped: ${paths.join(', ')}';
+  return skipped.isEmpty ? counts : '$counts; skipped: ${skipped.length}';
 }
 
 // MARK: - Confirmed entries

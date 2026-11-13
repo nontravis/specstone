@@ -309,7 +309,7 @@ String _withCoversKey(String lf) {
 ///
 /// A label reads against the place [legacyPath] gives; the lines are those of
 /// [lf].
-({String lf, List<({int line, String label})> kept}) convertLegacyLabels(
+LabelConversion convertLegacyLabels(
   LabelTree tree, {
   required String legacyPath,
   required String lf,

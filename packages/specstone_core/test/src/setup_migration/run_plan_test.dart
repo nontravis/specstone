@@ -492,10 +492,14 @@ void main() {
   );
 
   test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: the layout '
-      'line names the docs in code point order, and is null without one', () {
+      'line prints its doc count, and is null without one', () {
     expect(
       formatLayoutLine(['prds/PROJECT.md', 'prds/GNFR.md']),
-      'format layout: prds/GNFR.md, prds/PROJECT.md',
+      'format layout: 2 docs',
+    );
+    expect(
+      formatLayoutLine(const ['prds/PROJECT.md']),
+      'format layout: 1 docs',
     );
     expect(formatLayoutLine(const []), isNull);
   });

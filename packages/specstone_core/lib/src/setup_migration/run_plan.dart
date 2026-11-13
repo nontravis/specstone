@@ -3,10 +3,11 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/document_writing/stale_mentions.dart'
+    show StaleMention;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _docsPrefix = 'docs/';
 
@@ -38,13 +39,78 @@ bool Function(String projectPath) takenAfterMoves(
 /// before any step.
 const specstoneGitignorePath = '.specstone/.gitignore';
 
-/// Returns the plan line naming the docs the layout pass rewrites, or null
+/// Returns the plan line counting the docs the layout pass rewrites, or null
 /// when [docPaths] is empty.
 ///
-/// [docPaths] are DocPaths, shown in code point order.
+/// [docPaths] are DocPaths.
 String? formatLayoutLine(Iterable<String> docPaths) {
-  final sorted = docPaths.toList()..sort(compareCodePoints);
-  return sorted.isEmpty ? null : 'format layout: ${sorted.join(', ')}';
+  final count = docPaths.length;
+  return count == 0 ? null : 'format layout: $count docs';
+}
+
+/// Returns the plan line counting the mentions in code and agent files that
+/// the run's moves stop resolving, or null when [mentions] is empty.
+String? mentionsLine(List<StaleMention> mentions) =>
+    mentions.isEmpty ? null : 'mentions: ${mentions.length}';
+
+/// One step line of a pack upgrade, `from <version>: <step>: <n> docs`, and
+/// the files it rewrites.
+final class UpgradeStepLine {
+  const new({required this.from, required this.step, required this.paths});
+
+  /// The `from:` version of the migration entry holding the step.
+  final String from;
+
+  /// The step as the line words it, between the version and the count.
+  final String step;
+
+  /// The ProjectPath or DocPath of each file the step rewrites, docs first and
+  /// each project-layer override after them, each group in code point order.
+  final List<String> paths;
+
+  /// The plan line.
+  String get text => 'from $from: $step: ${paths.length} docs';
+}
+
+/// The path lists the plan's count lines print as numbers, each kept whole
+/// for the JSON plan.
+final class PlanLists {
+  const new({
+    this.formatLayout = const [],
+    this.numberLabelsRewritten = const [],
+    this.numberLabelsLeft = const [],
+    this.renumberIds = const [],
+    this.agentFiles = const [],
+    this.stampsSkipped = const [],
+    this.steps = const [],
+    this.mentions = const [],
+  });
+
+  /// The DocPath of each doc the layout pass rewrites, in code point order.
+  final List<String> formatLayout;
+
+  /// Each doc the label pass rewrites, and each operation heading it cuts as
+  /// `<DocPath>:<line> <operation>`.
+  final List<String> numberLabelsRewritten;
+
+  /// Each label the label pass keeps, `<DocPath>:<line> <label>`.
+  final List<String> numberLabelsLeft;
+
+  /// Each renumbering as `<DocPath> <old> -> <new>`, then each doc the pass
+  /// rewrites or cannot fully rewrite.
+  final List<String> renumberIds;
+
+  /// The path from the project root of each agent file the run writes.
+  final List<String> agentFiles;
+
+  /// The DocPath of each doc the stamp pass leaves for its frontmatter.
+  final List<String> stampsSkipped;
+
+  /// One entry per step line.
+  final List<UpgradeStepLine> steps;
+
+  /// Each mention in a code or agent file the run's moves stop resolving.
+  final List<StaleMention> mentions;
 }
 
 /// A doc commit 2 rewrites in place.
@@ -106,6 +172,7 @@ final class RunPlan {
     this.rewriteLines,
     this.closingLine,
     this.agentFiles,
+    this.lists = const PlanLists(),
   });
 
   /// The first line the plan prints.
@@ -150,6 +217,9 @@ final class RunPlan {
   /// line prints once: where [rewriteLines] holds it, else last under
   /// `commit 2, creates:`.
   final AgentWritePlan? agentFiles;
+
+  /// The path lists the count lines of [rewriteLines] print as numbers.
+  final PlanLists lists;
 
   /// Returns the plan as the lines `migrate --dry-run` prints.
   String toText() {

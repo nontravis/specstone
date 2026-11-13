@@ -370,12 +370,16 @@ final class AgentWritePlan {
   /// (R99).
   final List<String> skipped;
 
+  /// The path from the project root of each file the run writes, the root's
+  /// first.
+  List<String> get paths => [
+    for (final write in [...rootWrites, ...topWrites]) write.path,
+  ];
+
   /// The plan's `agent files:` line, empty when no file is written.
   String get line {
-    final paths = [
-      for (final write in [...rootWrites, ...topWrites]) write.path,
-    ];
-    return paths.isEmpty ? '' : '$_agentsLinePrefix${paths.join(', ')}';
+    final count = paths.length;
+    return count == 0 ? '' : '$_agentsLinePrefix$count files';
   }
 
   /// Whether the run writes no file and lists no new top.

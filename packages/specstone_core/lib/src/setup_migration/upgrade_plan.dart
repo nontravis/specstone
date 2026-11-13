@@ -6,6 +6,10 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/document_writing/stale_mentions.dart'
+    show MentionScope, StaleMention, staleMentionsIn;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show IndexedDoc;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -36,6 +40,9 @@ import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:yaml/yaml.dart';
+
+export 'package:specstone_core/src/setup_migration/run_plan.dart'
+    show UpgradeStepLine;
 
 const _docsFolder = 'docs/';
 const _commit1Message = 'move docs to their new pack paths';
@@ -374,11 +381,9 @@ RunPlan _upgradeRunOf(
         : agentFiles.agentFileRoots,
   );
 
-  String shownAt(int index) {
-    final step = steps[index].step;
-    final docs = (step is MoveFile ? movedAt : changedAt)[index];
-    if (step is MoveToRecord && docs != null) return '${docs.length} docs';
-    return _shownPaths(
+  List<String> pathsAt(int index) {
+    final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
+    return _sortedPaths(
       docs: docs ?? const [],
       overrides: [
         for (final file in overrideFiles)
@@ -389,7 +394,11 @@ RunPlan _upgradeRunOf(
 
   final stepLines = [
     for (final (index, (:from, :step)) in steps.indexed)
-      'from $from: ${_describe(step)}: ${shownAt(index)}',
+      UpgradeStepLine(
+        from: '$from',
+        step: _describe(step),
+        paths: pathsAt(index),
+      ),
   ];
   final upgraded = [
     for (final upgrade in upgrades)
@@ -399,6 +408,13 @@ RunPlan _upgradeRunOf(
     for (final upgrade in upgrades) '${upgrade.pack} ${upgrade.target}',
   ];
 
+  final mentions = _staleMentionsOf(
+    root,
+    config,
+    set: finalSet,
+    docPaths: docPaths,
+    moves: moves,
+  );
   final arePinsUnchanged = upgrades.isEmpty;
   final (:header, :commit2Message) = arePinsUnchanged
       ? _pinsUnchangedTitles(
@@ -421,16 +437,62 @@ RunPlan _upgradeRunOf(
     commit2Message: commit2Message,
     inputs: inputs,
     rewriteLines: [
-      ...stepLines,
+      for (final line in stepLines) line.text,
       ...linkLines,
       ?renumber?.planLine,
-      ?labels?.planLineOn(writtenLf),
+      ?labels?.planLine,
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
+      ?mentionsLine(mentions),
       if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
     ],
     agentFiles: agentFiles,
+    lists: PlanLists(
+      formatLayout: [...laidOutPaths]..sort(compareCodePoints),
+      numberLabelsRewritten: labels?.pathsOn(writtenLf) ?? const [],
+      numberLabelsLeft: labels?.leftOn(writtenLf) ?? const [],
+      renumberIds: renumber?.paths ?? const [],
+      agentFiles: agentFiles.paths,
+      stampsSkipped: stamps.paths,
+      steps: stepLines,
+      mentions: mentions,
+    ),
+  );
+}
+
+/// Returns the mentions in code and agent files that [moves] stop resolving.
+///
+/// A pack upgrade keeps every doc's Name, since a move keeps its placeholder
+/// values, so only a path mention can stop resolving. Reads no index, so the
+/// plan writes nothing: the docs are the [docPaths] it read.
+List<StaleMention> _staleMentionsOf(
+  Directory root,
+  ProjectConfig config, {
+  required MergedSet set,
+  required List<String> docPaths,
+  required List<PathMove> moves,
+}) {
+  if (moves.isEmpty) return const [];
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return staleMentionsIn(
+    MentionScope(
+      projectRoot: projectRoot,
+      docsRoot: Directory.fromUri(projectRoot.uri.resolve(_docsFolder)),
+      set: set,
+      targets: config.targets,
+      docs: [
+        for (final docPath in docPaths)
+          IndexedDoc(
+            docPath: docPath,
+            name: docPath,
+            frontmatter: const {},
+            tokens: 0,
+          ),
+      ],
+    ),
+    moves,
+    namesChange: false,
   );
 }
 
@@ -884,17 +946,14 @@ String _describe(MigrationStep step) => switch (step) {
 };
 
 /// Returns the doc paths in code point order, then the override paths in the
-/// same order, or `no doc changes` when both are empty.
-String _shownPaths({
+/// same order.
+List<String> _sortedPaths({
   required List<String> docs,
   required List<String> overrides,
-}) {
-  final shown = [
-    ...[...docs]..sort(compareCodePoints),
-    ...[...overrides]..sort(compareCodePoints),
-  ];
-  return shown.isEmpty ? 'no doc changes' : shown.join(', ');
-}
+}) => [
+  ...[...docs]..sort(compareCodePoints),
+  ...[...overrides]..sort(compareCodePoints),
+];
 
 /// Whether [path], from [docsRoot] and possibly leaving it, names a file or
 /// folder of the tree as it stands before the moves.

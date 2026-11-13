@@ -105,7 +105,8 @@ void main() {
     );
 
     expect(pass.apply(_topic, docs.last.lf), contains('See `f299/s` and'));
-    expect(pass.planLine, contains('left: $_topic:3 F-301 US-01'));
+    expect(pass.planLine, 'number labels: 1 rewrites in 1 files; left: 1');
+    expect(pass.left, ['$_topic:3 F-301 US-01']);
   });
 
   group('$_fr E26 LabelTree.resolve', () {
@@ -352,17 +353,26 @@ void main() {
         pass.apply(_api, 'x\nFR-01 and US-01 FR-01.\n\nF-09 y\n'),
         'x\nFR-01 and `alpha/beta/gamma`.\n\nF-09 y\n',
       );
-      expect(
-        pass.planLine,
-        'number labels: $_api; left: $_api:2 FR-01, $_api:4 F-09',
-      );
+      expect(pass.planLine, 'number labels: 1 rewrites in 1 files; left: 2');
+      expect(pass.paths, [_api]);
+      expect(pass.left, ['$_api:2 FR-01', '$_api:4 F-09']);
     });
 
     test('a partial label in a topic doc stays and is listed', () {
       final pass = _passOf(_topic, 'FR-01\n');
 
       expect(pass.apply(_topic, 'FR-01\n'), 'FR-01\n');
-      expect(pass.planLine, 'number labels: ; left: $_topic:1 FR-01');
+      expect(pass.planLine, 'number labels: 0 rewrites in 0 files; left: 1');
+      expect(pass.paths, isEmpty);
+      expect(pass.left, ['$_topic:1 FR-01']);
+    });
+
+    test('a tree with no label gives no plan line and no path', () {
+      final pass = _passOf(_topic, 'Nothing to convert.\n');
+
+      expect(pass.planLine, isNull);
+      expect(pass.paths, isEmpty);
+      expect(pass.left, isEmpty);
     });
 
     test('a label in a fenced block other than mermaid is no label', () {
@@ -497,13 +507,16 @@ void main() {
         built.apply(_api, api('### `alpha two` — US-02 FR-04\n')),
         api('### `alpha two` — US-02 FR-04\n'),
       );
-      expect(built.planLine, 'number labels: ; left: $_api:15 US-02 FR-04');
+      expect(built.planLine, 'number labels: 0 rewrites in 0 files; left: 1');
+      expect(built.left, ['$_api:15 US-02 FR-04']);
     });
 
-    test('the plan line names each heading the step converts', () {
+    test('the plan line counts each heading the step converts, its paths '
+        'name the doc and the heading', () {
       final built = pass('### `alpha run` — US-01 FR-01\n');
 
-      expect(built.planLine, 'number labels: $_api, $_api:15 `alpha run`');
+      expect(built.planLine, 'number labels: 1 rewrites in 1 files; left: 0');
+      expect(built.paths, [_api, '$_api:15 `alpha run`']);
     });
 
     test('a link to a converted heading takes the new slug, in any doc', () {
@@ -545,7 +558,8 @@ void main() {
       final text = built.apply(_api, api(headings));
 
       expect(text, endsWith('### `alpha two` — US-02 FR-04\n\nBody.\n'));
-      expect(built.planLine, endsWith('; left: $_api:21 US-02 FR-04'));
+      expect(built.planLine, 'number labels: 3 rewrites in 1 files; left: 1');
+      expect(built.left, ['$_api:21 US-02 FR-04']);
     });
 
     test('a bare Concerns see of an architecture doc takes the new slug', () {

@@ -831,10 +831,7 @@ sections:
       claude.readAsStringSync(),
       contains('<!-- BEGIN specstone v$specstoneVersion -->'),
     );
-    expect(
-      out.toString(),
-      contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
-    );
+    expect(out.toString(), contains('  agent files: 2 files\n'));
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
@@ -1438,7 +1435,6 @@ sections:
           final status = _run(project, out, answers: ['y'], warnings: warnings);
 
           expect(status, 0);
-          expect(out.toString(), isNot(contains('agent files: AGENTS.md')));
           expect(warnings, [
             'AGENTS.md reaches outside the project root; left as it is',
           ]);
@@ -1473,7 +1469,6 @@ sections:
           expect(warnings, [
             'CLAUDE.md reaches outside the project root; left as it is',
           ]);
-          expect(out.toString(), isNot(contains('agent files: CLAUDE.md')));
           expect(
             File('${base.path}/shared/CLAUDE.md').readAsStringSync(),
             'Shared\n',

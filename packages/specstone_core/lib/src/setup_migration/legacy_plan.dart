@@ -227,6 +227,12 @@ RunPlan _legacyRunOf(
       ?rewrites.stampsLine,
       if (configRewrite != null) _rewriteLineOf(configRewrite),
     ],
+    lists: PlanLists(
+      formatLayout: [...rewrites.layoutOnly]..sort(compareCodePoints),
+      numberLabelsRewritten: rewrites.labelsRewritten,
+      numberLabelsLeft: rewrites.labelsLeft,
+      agentFiles: agentFiles.paths,
+    ),
     creates: [
       if (existing == null)
         PlannedCreate(
@@ -312,13 +318,16 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 /// is their layout.
 ///
 /// `labelsLine` and `stampsLine` are the upgrade's `number labels:` and
-/// `stamps:` plan lines, null when the run has nothing to say; `records` are
-/// the draft records the run creates, in path order.
+/// `stamps:` plan lines, null when the run has nothing to say, and
+/// `labelsRewritten` and `labelsLeft` the lists the first counts; `records`
+/// are the draft records the run creates, in path order.
 typedef _Rewrites = ({
   List<PlannedRewrite> planned,
   List<String> layoutOnly,
   List<PlannedCreate> records,
   String? labelsLine,
+  List<String> labelsRewritten,
+  List<String> labelsLeft,
   String? stampsLine,
 });
 
@@ -345,6 +354,9 @@ final class _Work {
 
   /// Whether a legacy ID or number label of the doc became a name.
   bool hasNamedLabels = false;
+
+  /// How many legacy IDs and number labels of the doc became a name.
+  int labelRewrites = 0;
   final List<String> changes = [];
   String note = '';
 
@@ -518,6 +530,11 @@ _Rewrites _rewritesOf(
   ];
   final byPath = [...works]
     ..sort((a, b) => compareCodePoints(a.newPath, b.newPath));
+  final labelsRewritten = [
+    for (final work in byPath)
+      if (work.hasNamedLabels) work.newPath,
+  ];
+  final labelsLeft = _keptLabelsOf(tree, byPath);
   return (
     planned: [
       for (final work in written)
@@ -538,12 +555,12 @@ _Rewrites _rewritesOf(
     ],
     records: records,
     labelsLine: numberLabelsPlanLine(
-      converted: [
-        for (final work in byPath)
-          if (work.hasNamedLabels) work.newPath,
-      ],
-      kept: _keptLabelsOf(tree, byPath),
+      rewrites: works.fold(0, (sum, work) => sum + work.labelRewrites),
+      files: labelsRewritten.length,
+      left: labelsLeft.length,
     ),
+    labelsRewritten: labelsRewritten,
+    labelsLeft: labelsLeft,
     stampsLine: stampsPlanLine(
       written
           .where(
@@ -674,19 +691,21 @@ LabelTree _convertLabels(
   final before = [
     for (final work in works) (docPath: work.legacyPath, lf: work.lf),
   ];
+  final conversions = {
+    for (final work in works)
+      work.legacyPath: convertLegacyLabels(
+        tree,
+        legacyPath: work.legacyPath,
+        lf: work.lf,
+      ),
+  };
   final texts = withLabelAnchorsMoved(
     before,
-    {
-      for (final work in works)
-        work.legacyPath: convertLegacyLabels(
-          tree,
-          legacyPath: work.legacyPath,
-          lf: work.lf,
-        ).lf,
-    },
+    {for (final MapEntry(:key, :value) in conversions.entries) key: value.lf},
     {for (final work in works) work.legacyPath: ?typeOf(work)},
   );
   for (final work in works) {
+    work.labelRewrites = conversions[work.legacyPath]!.rewrites;
     final text = texts[work.legacyPath];
     if (text == null) continue;
     work

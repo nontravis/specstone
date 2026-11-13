@@ -8,19 +8,25 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/git_process.dart' show runRealGit;
+import 'package:specstone_core/src/git_process.dart' show RunGit, runRealGit;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show projectPathOfCodeFile;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show byteOrderMark;
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show codeFilesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart' show CodeTarget;
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
 const _separator = '/';
+
+/// The docs root as a ProjectPath begins.
+const _docsPrefix = 'docs/';
 
 /// The `to` of a [PathMove] that removes the doc at its `from`.
 const removedPath = '';
@@ -29,6 +35,60 @@ const removedPath = '';
 /// the file's path from the project root, the 1-based line, and the mention
 /// as written.
 typedef StaleMention = ({String path, int line, String mention});
+
+/// What a mention scan reads of a project: its docs, and the roots of the
+/// code files and agent files it scans.
+///
+/// A write command takes it from its session ([MentionScope.of]); a plan that
+/// opens no index builds it from the docs it read.
+final class MentionScope {
+  const new({
+    required this.projectRoot,
+    required this.docsRoot,
+    required this.set,
+    required this.targets,
+    required this.docs,
+    this.hasTwins = false,
+    this.runGit = runRealGit,
+  });
+
+  /// The scope of the project [session] writes.
+  factory of(WriteSession session) => MentionScope(
+    projectRoot: session.project.projectRoot,
+    docsRoot: session.project.docsRoot,
+    set: session.project.set,
+    targets: session.project.targets,
+    docs: session.index.docs,
+    hasTwins: session.index.hasTwins,
+  );
+
+  /// The canonical project root.
+  final Directory projectRoot;
+
+  /// The canonical docs root.
+  final Directory docsRoot;
+
+  /// The merged doc types of the project.
+  final MergedSet set;
+
+  /// The config's code targets, in config order.
+  final List<CodeTarget> targets;
+
+  /// Every doc, as the mentions read them.
+  final List<IndexedDoc> docs;
+
+  /// Whether the project holds two or more named code targets.
+  final bool hasTwins;
+
+  /// Starts the `git` that lists the agent files.
+  final RunGit runGit;
+
+  /// Returns [projectPath] as a doc is listed: a doc by its DocPath, any
+  /// other file by its project path.
+  String listedPathOf(String projectPath) => projectPath.startsWith(_docsPrefix)
+      ? projectPath.substring(_docsPrefix.length)
+      : projectPath;
+}
 
 /// Returns the mentions in code files and agent files that the change
 /// described by [moves] stops resolving, by file path, then line.
@@ -43,14 +103,25 @@ List<StaleMention> staleMentions(
   WriteSession session,
   List<PathMove> moves, {
   required bool namesChange,
+}) =>
+    staleMentionsIn(MentionScope.of(session), moves, namesChange: namesChange);
+
+/// Returns the mentions [staleMentions] returns for the project [scope]
+/// describes.
+///
+/// Each file read is recorded as a plan input when a plan collects.
+List<StaleMention> staleMentionsIn(
+  MentionScope scope,
+  List<PathMove> moves, {
+  required bool namesChange,
 }) {
   if (moves.isEmpty) return const [];
   final stopsResolving = _stopsResolvingTest(
-    session,
+    scope,
     moves,
     namesChange: namesChange,
   );
-  final files = _filesToRead(session);
+  final files = _filesToRead(scope);
   final stale = <StaleMention>[];
   for (final projectPath in files.keys.toList()..sort(compareCodePoints)) {
     final lf = _lfTextOf(files[projectPath]!);
@@ -83,12 +154,19 @@ List<Map<String, Object>> mentionsJsonOf(List<StaleMention> mentions) => [
 Map<(String, String), String> renamedNamesOf(
   WriteSession session,
   List<PathMove> moves,
+) => renamedNamesIn(MentionScope.of(session), moves);
+
+/// Returns the names that change under [moves] in the project [scope]
+/// describes, as [renamedNamesOf] does.
+Map<(String, String), String> renamedNamesIn(
+  MentionScope scope,
+  List<PathMove> moves,
 ) {
-  final inTargetFolder = session.index.hasTwins;
+  final inTargetFolder = scope.hasTwins;
   final renamed = <(String, String), String>{};
-  for (final doc in session.index.docs) {
+  for (final doc in scope.docs) {
     final typeId = doc.docTypeId;
-    final docType = typeId == null ? null : session.index.set.lookup(typeId);
+    final docType = typeId == null ? null : scope.set.lookup(typeId);
     final newPath = movedPath(doc.docPath, moves);
     if (docType == null || newPath == doc.docPath || newPath == removedPath) {
       continue;
@@ -105,15 +183,16 @@ Map<(String, String), String> renamedNamesOf(
 /// Returns the test that says whether a mention names a doc now and no doc
 /// after [moves].
 bool Function(NameMention mention) _stopsResolvingTest(
-  WriteSession session,
+  MentionScope scope,
   List<PathMove> moves, {
   required bool namesChange,
 }) {
-  final renamed = renamedNamesOf(session, moves);
+  final renamed = renamedNamesIn(scope, moves);
+  final docPathsBefore = {for (final doc in scope.docs) doc.docPath};
   final docPathsAfter = <String>{};
   final namesBefore = _NameSet();
   final namesAfter = _NameSet();
-  for (final doc in session.index.docs) {
+  for (final doc in scope.docs) {
     final newPath = movedPath(doc.docPath, moves);
     if (newPath != removedPath) docPathsAfter.add(newPath);
     final typeId = doc.docTypeId;
@@ -125,8 +204,8 @@ bool Function(NameMention mention) _stopsResolvingTest(
   }
 
   String? docPathNamedBy(String path) {
-    for (final candidate in {path, session.listedPathOf(path)}) {
-      if (session.index.at(candidate) != null) return candidate;
+    for (final candidate in {path, scope.listedPathOf(path)}) {
+      if (docPathsBefore.contains(candidate)) return candidate;
     }
     return null;
   }
@@ -163,29 +242,28 @@ final class _NameSet {
 
 /// Returns the files to read, by their path from the project root: the code
 /// files outside the docs root, then the agent files of the walk.
-Map<String, File> _filesToRead(WriteSession session) {
-  final project = session.project;
+Map<String, File> _filesToRead(MentionScope scope) {
   final files = <String, File>{};
   for (final (root: codeRoot, path: codePath) in codeFilesOf(
-    project.projectRoot,
-    project.set,
-    targets: project.targets,
+    scope.projectRoot,
+    scope.set,
+    targets: scope.targets,
   )) {
     if (!readsNameMentions(_extensionOf(codePath))) continue;
     final projectPath = projectPathOfCodeFile(
       codePath,
-      projectRoot: project.projectRoot,
-      docsRoot: project.docsRoot,
+      projectRoot: scope.projectRoot,
+      docsRoot: scope.docsRoot,
       codeRoot: codeRoot,
     );
     if (projectPath == null) continue;
     files[projectPath] = _fileIn(codeRoot, codePath);
   }
-  final config = ProjectConfig.read(project.projectRoot);
-  for (final path in agentFilesOf(project.projectRoot, config, runRealGit)) {
+  final config = ProjectConfig.read(scope.projectRoot);
+  for (final path in agentFilesOf(scope.projectRoot, config, scope.runGit)) {
     if (!readsNameMentions(_extensionOf(path))) continue;
-    if (session.listedPathOf(path) != path) continue;
-    files.putIfAbsent(path, () => _fileIn(project.projectRoot, path));
+    if (scope.listedPathOf(path) != path) continue;
+    files.putIfAbsent(path, () => _fileIn(scope.projectRoot, path));
   }
   return files;
 }
@@ -199,7 +277,7 @@ File _fileIn(Directory folder, String path) => File(
 /// null when it cannot be read or is not UTF-8.
 String? _lfTextOf(File file) {
   try {
-    final text = utf8.decode(file.readAsBytesSync());
+    final text = utf8.decode(readPlanInput(file));
     return toLf(text.startsWith(byteOrderMark) ? text.substring(1) : text);
   } on FormatException {
     return null;

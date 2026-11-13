@@ -185,8 +185,24 @@ void main() {
       expect(run.applied, docs);
       expect(
         run.pass.planLine,
-        'stamps: 0 approval hashes, 0 fingerprints; skipped: $_storyPath, '
-        '$_frPath',
+        'stamps: 0 approval hashes, 0 fingerprints; skipped: 2',
+      );
+      expect(run.pass.paths, [_storyPath, _frPath]);
+    });
+
+    test('the skipped paths of a plan with none are empty, and the line '
+        'ends after the two counts', () {
+      final run = _runUnchanged({_storyPath: _story(_one)});
+
+      expect(run.pass.paths, isEmpty);
+      expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+
+    test('no line prints when both counts are zero and no doc was skipped', () {
+      expect(stampsPlanLine(0, 0), isNull);
+      expect(
+        stampsPlanLine(0, 0, skipped: const ['a.md']),
+        'stamps: 0 approval hashes, 0 fingerprints; skipped: 1',
       );
     });
 

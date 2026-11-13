@@ -678,12 +678,20 @@ sections:
       plan.toText(),
       'pack upgrade: acme 1.0.0 -> 1.2.0\n'
       'commit 2, rewrites:\n'
-      '  from 1.0.0: rename_section runbook steps -> procedure: '
-      'prds/runbooks/deploy/RUNBOOK.md, .specstone/templates/runbook.yaml\n'
-      '  from 1.1.0: rename_field runbook owner -> on_call: '
-      'prds/runbooks/deploy/RUNBOOK.md\n'
+      '  from 1.0.0: rename_section runbook steps -> procedure: 2 docs\n'
+      '  from 1.1.0: rename_field runbook owner -> on_call: 1 docs\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
+    final steps = plan.lists.steps;
+    expect(steps.map((line) => line.from), ['1.0.0', '1.1.0']);
+    expect(steps.map((line) => line.step), [
+      'rename_section runbook steps -> procedure',
+      'rename_field runbook owner -> on_call',
+    ]);
+    expect(steps.map((line) => line.paths), [
+      ['prds/runbooks/deploy/RUNBOOK.md', '.specstone/templates/runbook.yaml'],
+      ['prds/runbooks/deploy/RUNBOOK.md'],
+    ]);
     expect(plan.moves, isEmpty);
     expect(plan.commit1Message, 'move docs to their new pack paths');
     expect(plan.commit2Message, 'upgrade pack pins');
@@ -753,10 +761,7 @@ sections:
     );
     expect(
       plan.toText(),
-      contains(
-        'from 1.1.0: rename_field runbook owner -> on_call: '
-        'prds/runbooks/deploy/RUNBOOK.md, .specstone/templates/runbook.yaml\n',
-      ),
+      contains('from 1.1.0: rename_field runbook owner -> on_call: 2 docs\n'),
     );
   });
 
@@ -870,7 +875,7 @@ sections:
       ]);
       expect(
         plan.toText(),
-        contains('rename_section runbook steps -> procedure: no doc changes\n'),
+        contains('rename_section runbook steps -> procedure: 0 docs\n'),
       );
     },
   );
@@ -958,10 +963,161 @@ sections:
       '  prds/runbooks/deploy/RUNBOOK.md -> ops/runbooks/deploy/RUNBOOK.md\n'
       'commit 2, rewrites:\n'
       '  from 1.0.0: move_file runbook prds/runbooks/{slug}/RUNBOOK.md -> '
-      'ops/runbooks/{slug}/RUNBOOK.md: ops/runbooks/deploy/RUNBOOK.md\n'
+      'ops/runbooks/{slug}/RUNBOOK.md: 1 docs\n'
       '  prds/notes.md: 1 link, 1 mention\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
+  });
+
+  group('mentions line', () {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "ops/runbooks/{slug}/RUNBOOK.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: ops/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    const techStack = '---\ncode:\n  - lib/\n---\n# Tech stack\n';
+    const docs = {
+      'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+      'prds/notes.md': '# Notes\n',
+      'specs/TECH_STACK.md': techStack,
+    };
+
+    Future<({Directory project, Directory home})> fixtureWith(
+      Map<String, String> files,
+    ) => _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      docs: docs,
+      overrides: files,
+    );
+
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a path '
+        'mention in an agent file and one in a code file that a move stops '
+        'resolving print one count line after the agent files line, and the '
+        'files stay as they are', () async {
+      const claude = 'Read prds/runbooks/deploy/RUNBOOK.md first.\n';
+      const code = 'void f() {}\n// See prds/runbooks/deploy/RUNBOOK.md\n';
+      final fixture = await fixtureWith({
+        'CLAUDE.md': claude,
+        'lib/a.dart': code,
+      });
+
+      final plan = _plan(fixture);
+
+      expect(
+        plan.toText(),
+        endsWith('  mentions: 2\n  .specstone/config.yaml: acme 1.2.0\n'),
+      );
+      expect(plan.lists.mentions, [
+        (
+          path: 'CLAUDE.md',
+          line: 1,
+          mention: 'prds/runbooks/deploy/RUNBOOK.md',
+        ),
+        (
+          path: 'lib/a.dart',
+          line: 2,
+          mention: 'prds/runbooks/deploy/RUNBOOK.md',
+        ),
+      ]);
+      expect(
+        File('${fixture.project.path}/CLAUDE.md').readAsStringSync(),
+        claude,
+      );
+      expect(
+        File('${fixture.project.path}/lib/a.dart').readAsStringSync(),
+        code,
+      );
+      expect(plan.inputs.lines, contains('lib/a.dart '));
+    });
+
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a mention '
+        'of a doc no move touches prints no count line', () async {
+      final fixture = await fixtureWith({
+        'CLAUDE.md': 'Read prds/notes.md first.\n',
+        'lib/a.dart': '// See prds/notes.md\n',
+      });
+
+      final plan = _plan(fixture);
+
+      expect(plan.toText(), isNot(contains('mentions:')));
+      expect(plan.lists.mentions, isEmpty);
+    });
+
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a run '
+        'with no move reads no code file and prints no count line', () async {
+      final plan = _plan(
+        await _fixture(
+          overrides: const {
+            'CLAUDE.md': 'Read prds/runbooks/deploy/RUNBOOK.md first.\n',
+          },
+        ),
+      );
+
+      expect(plan.moves, isEmpty);
+      expect(plan.toText(), isNot(contains('mentions:')));
+      expect(plan.lists.mentions, isEmpty);
+    });
+
+    test('INV-4: the plan hash changes when a code file mention changes, '
+        'though the printed count stays', () async {
+      final first = _plan(
+        await fixtureWith({
+          'lib/a.dart': '// See prds/runbooks/deploy/RUNBOOK.md\n',
+        }),
+      );
+      final second = _plan(
+        await fixtureWith({
+          'lib/a.dart': '// Read prds/runbooks/deploy/RUNBOOK.md\n',
+        }),
+      );
+
+      expect(first.toText(), second.toText());
+      expect(
+        planHashOf(first.toText(), first.inputs),
+        isNot(planHashOf(second.toText(), second.inputs)),
+      );
+    });
+  });
+
+  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins verification: '
+      'no plan line joins several paths', () async {
+    final plan = _planAt(await _belowSinceTree(_e18Docs()));
+
+    final counted = RegExp(
+      r'^  (format layout: \d+ docs'
+      r'|number labels: \d+ rewrites in \d+ files; left: \d+'
+      r'|renumber ids: \d+ IDs in \d+ docs(; not fully rewritten: \d+)?'
+      r'|stamps: \d+ approval hashes, \d+ fingerprints(; skipped: \d+)?'
+      r'|agent files: \d+ files'
+      r'|mentions: \d+'
+      r'|from \S+: .+: \d+ docs)$',
+    );
+    final passLines = plan
+        .toText()
+        .split('\n')
+        .where(
+          (line) => RegExp(
+            '^  (format layout:|number labels:|renumber ids:|stamps:'
+            '|agent files:|mentions:|from )',
+          ).hasMatch(line),
+        );
+
+    expect(passLines, isNotEmpty);
+    for (final line in passLines) {
+      expect(line, matches(counted));
+    }
   });
 
   test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: pins equal '
@@ -983,8 +1139,9 @@ sections:
       plan.toText(),
       'pack upgrade: pins unchanged, layout only\n'
       'commit 2, rewrites:\n'
-      '  format layout: prds/GNFR.md, prds/PROJECT.md\n',
+      '  format layout: 2 docs\n',
     );
+    expect(plan.lists.formatLayout, ['prds/GNFR.md', 'prds/PROJECT.md']);
     expect(plan.commit2Message, 'lay docs out as format writes them');
     expect(plan.moves, isEmpty);
     expect(plan.rewrites.map((rewrite) => rewrite.path), [
@@ -1032,8 +1189,7 @@ sections:
     expect(
       plan.toText(),
       contains(
-        '  format layout: prds/features/f01_a/FEATURE.md, '
-        'prds/runbooks/deploy/RUNBOOK.md\n'
+        '  format layout: 2 docs\n'
         '  .specstone/config.yaml: acme 1.2.0\n',
       ),
     );
@@ -1057,9 +1213,10 @@ sections:
       plan.toText(),
       'pack upgrade: acme 1.0.0 -> 1.2.0\n'
       'commit 2, rewrites:\n'
-      '  format layout: prds/features/f01_a/FEATURE.md\n'
+      '  format layout: 1 docs\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
+    expect(plan.lists.formatLayout, ['prds/features/f01_a/FEATURE.md']);
     expect(plan.commit2Message, 'upgrade pack pins');
   });
 }
@@ -1096,10 +1253,8 @@ void _agentFilesTests() {
       ]);
       expect(agents.rootWrites.last.text, startsWith('# Owner rules\n'));
       expect(agents.rootWrites.last.text, contains(_begin));
-      expect(
-        plan.toText(),
-        contains('agent files: .specstone/AGENT.md, CLAUDE.md'),
-      );
+      expect(plan.toText(), contains('agent files: 2 files\n'));
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
     });
 
     test('$_fr E14: software-tech moving up from 1.3.0 with prd-core already '
@@ -1167,7 +1322,7 @@ void _agentFilesTests() {
 
       final text = plan.toText();
       final stepAt = text.indexOf('from 1.1.0: rename_field');
-      final agentsAt = text.indexOf('agent files: code/AGENTS.md');
+      final agentsAt = text.indexOf('agent files: 1 files');
       final pinAt = text.indexOf('.specstone/config.yaml: acme 1.2.0');
       expect(stepAt, greaterThan(0), reason: 'the steps print');
       expect(agentsAt, greaterThan(stepAt), reason: 'agent files after steps');
@@ -1188,8 +1343,9 @@ void _agentFilesTests() {
         plan.toText(),
         'pack upgrade: pins unchanged, agent files only\n'
         'commit 2, rewrites:\n'
-        '  agent files: CLAUDE.md\n',
+        '  agent files: 1 files\n',
       );
+      expect(plan.lists.agentFiles, ['CLAUDE.md']);
       expect(plan.commit2Message, 'refresh the Specstone agent files');
       expect(plan.rewrites, isEmpty);
       expect(plan.moves, isEmpty);
@@ -1210,8 +1366,8 @@ void _agentFilesTests() {
         plan.toText(),
         'pack upgrade: pins unchanged, layout and agent files\n'
         'commit 2, rewrites:\n'
-        '  format layout: prds/GNFR.md\n'
-        '  agent files: CLAUDE.md\n',
+        '  format layout: 1 docs\n'
+        '  agent files: 1 files\n',
       );
       expect(
         plan.commit2Message,
@@ -1234,7 +1390,8 @@ void _agentFilesTests() {
       final agents = plan.agentFiles!;
       expect(agents.topWrites.map((write) => write.path), ['code/AGENTS.md']);
       expect(agents.addedRoots, ['code']);
-      expect(plan.toText(), contains('  agent files: code/AGENTS.md\n'));
+      expect(plan.toText(), contains('  agent files: 1 files\n'));
+      expect(plan.lists.agentFiles, ['code/AGENTS.md']);
       expect(
         _rewriteAt(plan, '.specstone/config.yaml').text,
         '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
@@ -1408,12 +1565,17 @@ void _renumberTests() {
       final plan = _planAt(await _belowSinceTree(_e18Docs()));
 
       final text = plan.toText();
-      const line =
-          '  renumber ids: $_storyPath Scenario 6a -> Scenario 9, '
-          '$_topicPath RULE-7a -> RULE-31; references: '
-          'prds/features/f01_a/us01_b/fr01_c.md, '
-          'prds/features/f01_a/us01_b/fr02_g.md, specs/f01_a/DOMAIN.md\n';
+      const line = '  renumber ids: 2 IDs in 5 docs\n';
       expect(text, contains(line));
+      expect(plan.lists.renumberIds, [
+        '$_storyPath Scenario 6a -> Scenario 9',
+        '$_topicPath RULE-7a -> RULE-31',
+        _storyPath,
+        'prds/features/f01_a/us01_b/fr01_c.md',
+        'prds/features/f01_a/us01_b/fr02_g.md',
+        'specs/f01_a/DOMAIN.md',
+        _topicPath,
+      ]);
       expect(text.indexOf(line), lessThan(text.indexOf('  format layout: ')));
       expect(text.indexOf(line), lessThan(text.indexOf('  agent files: ')));
       expect(
@@ -1455,10 +1617,8 @@ void _renumberTests() {
         _docText(plan, notesPath),
         '# Notes\n\n${link}9--edge-lettered).\n',
       );
-      expect(
-        plan.toText(),
-        contains('fr02_g.md, $notesPath, specs/f01_a/DOMAIN.md\n'),
-      );
+      expect(plan.toText(), contains('  renumber ids: 2 IDs in 6 docs\n'));
+      expect(plan.lists.renumberIds, contains(notesPath));
     });
 
     test('$_fr E18: a confirmed entry already suspect keeps its fingerprint '
@@ -1508,13 +1668,12 @@ void _renumberTests() {
 
       final plan = _planAt(await _belowSinceTree({_storyPath: story}));
 
-      expect(
-        plan.toText(),
-        contains(
-          '  renumber ids: $_storyPath Scenario 6a -> Scenario 8, '
-          '$_storyPath Scenario 6b -> Scenario 9\n',
-        ),
-      );
+      expect(plan.toText(), contains('  renumber ids: 2 IDs in 1 docs\n'));
+      expect(plan.lists.renumberIds, [
+        '$_storyPath Scenario 6a -> Scenario 8',
+        '$_storyPath Scenario 6b -> Scenario 9',
+        _storyPath,
+      ]);
       expect(
         _docText(plan, _storyPath),
         allOf(
@@ -1563,10 +1722,11 @@ migrations:
         homeDirectory: home,
       );
 
-      expect(
-        plan.toText(),
-        contains('  renumber ids: $_storyPath Scenario 1a -> Scenario 2\n'),
-      );
+      expect(plan.toText(), contains('  renumber ids: 1 IDs in 1 docs\n'));
+      expect(plan.lists.renumberIds, [
+        '$_storyPath Scenario 1a -> Scenario 2',
+        _storyPath,
+      ]);
       expect(
         _docText(plan, _storyPath),
         contains(
@@ -1684,11 +1844,9 @@ void _labelTests() {
       final labels = lines.indexWhere((l) => l.startsWith('  number labels:'));
       expect(renumber, isNonNegative);
       expect(labels, greaterThan(renumber));
-      expect(
-        lines[labels],
-        '  number labels: specs/topics/labelled.md; left: '
-        'specs/topics/labelled.md:9 FR-09',
-      );
+      expect(lines[labels], '  number labels: 1 rewrites in 1 files; left: 1');
+      expect(plan.lists.numberLabelsRewritten, ['specs/topics/labelled.md']);
+      expect(plan.lists.numberLabelsLeft, ['specs/topics/labelled.md:9 FR-09']);
       expect(lines[labels + 1], startsWith('  '));
       expect(
         lines.indexWhere((l) => l.startsWith('  .specstone/config.yaml:')),
@@ -1759,7 +1917,7 @@ void _labelTests() {
           written.split('\n').indexWhere((l) => l.contains('FR-07')) + 1;
       expect(written, contains('approved: "'));
       expect(line, greaterThan(6));
-      expect(plan.toText(), contains('specs/topics/t.md:$line FR-07'));
+      expect(plan.lists.numberLabelsLeft, ['specs/topics/t.md:$line FR-07']);
     });
   });
 }
@@ -1798,6 +1956,22 @@ void _stampTests() {
       );
 
       expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('$_fr E74: a doc left unstamped for its frontmatter is counted after '
+        'skipped and listed in code point order', () async {
+      final plan = _planAt(
+        await _belowSinceTree({
+          _storyPath: '---\ndraft: true\n: bad: [\n---\n# B\n',
+          frPath: '---\ndraft: true\n: bad: [\n---\n# C\n',
+        }),
+      );
+
+      expect(
+        plan.toText(),
+        contains('  stamps: 0 approval hashes, 0 fingerprints; skipped: 2\n'),
+      );
+      expect(plan.lists.stampsSkipped, [_storyPath, frPath]);
     });
 
     test('$_fr E30: no later upgrade stamps', () async {
@@ -2057,7 +2231,7 @@ void _moveToRecordTests() {
       );
 
       expect(plan.creates, isEmpty);
-      expect(plan.toText(), contains('-> implementation: no doc changes\n'));
+      expect(plan.toText(), contains('-> implementation: 0 docs\n'));
     });
 
     test('$_fr E34: a record that holds the story with the same values keeps '

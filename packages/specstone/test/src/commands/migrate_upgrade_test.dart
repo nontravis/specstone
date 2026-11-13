@@ -363,7 +363,7 @@ void main() {
         startsWith(
           'pack upgrade: pins unchanged, layout only\n'
           'commit 2, rewrites:\n'
-          '  format layout: prds/runbooks/deploy/RUNBOOK.md\n',
+          '  format layout: 1 docs\n',
         ),
       );
       expect(
@@ -770,7 +770,7 @@ void main() {
           startsWith(
             'pack upgrade: pins unchanged, agent files only\n'
             'commit 2, rewrites:\n'
-            '  agent files: CLAUDE.md\n'
+            '  agent files: 1 files\n'
             'apply? [y/N] ',
           ),
         );
@@ -805,10 +805,7 @@ void main() {
           final result = await _run(root, home, ['migrate'], console: _owner());
 
           expect(result.status, 0, reason: result.err);
-          expect(
-            result.out,
-            contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
-          );
+          expect(result.out, contains('  agent files: 2 files\n'));
           expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
           expect(_read(root, 'CLAUDE.md'), contains(begin));
         },
@@ -825,10 +822,7 @@ void main() {
         final first = await _run(root, home, ['migrate'], console: _owner());
 
         expect(first.status, 0);
-        expect(
-          first.out,
-          contains('  agent files: .specstone/AGENT.md, CLAUDE.md\n'),
-        );
+        expect(first.out, contains('  agent files: 2 files\n'));
         expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
         expect(_read(root, 'CLAUDE.md'), contains(begin));
         expect(_read(root, '.specstone/AGENT.md'), agentMdText);
@@ -864,7 +858,7 @@ void main() {
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0);
-        expect(result.out, contains('  agent files: code/AGENTS.md\n'));
+        expect(result.out, contains('  agent files: 1 files\n'));
         expect(File('${root.path}/code/AGENTS.md').existsSync(), isTrue);
         expect(
           _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
@@ -964,15 +958,7 @@ void main() {
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0, reason: result.err);
-        expect(
-          result.out,
-          contains(
-            '  renumber ids: prds/features/f01_a/us01_b/USER_STORY.md '
-            'Scenario 6a -> Scenario 9, specs/topics/doc_model.md RULE-7a -> '
-            'RULE-31; references: prds/features/f01_a/us01_b/fr01_c.md, '
-            'prds/features/f01_a/us01_b/fr02_g.md\n',
-          ),
-        );
+        expect(result.out, contains('  renumber ids: 2 IDs in 4 docs\n'));
         // The renumber pass renames labels only; the stamp pass re-stamps
         // the two entries, so their docs are on its line, not the references.
         expect(
@@ -1155,10 +1141,7 @@ void main() {
         expect(result.status, 0, reason: result.err);
         expect(
           result.out,
-          contains(
-            '  number labels: specs/topics/labelled.md; left: '
-            'specs/topics/labelled.md:9 FR-09\n',
-          ),
+          contains('  number labels: 1 rewrites in 1 files; left: 1\n'),
         );
         expect(
           _read(root, 'docs/specs/topics/labelled.md'),

@@ -55,8 +55,21 @@ typedef _LineEdit = ({int line, int column, int length, String text});
 typedef _Converted = ({List<_LineEdit> edits, List<_Kept> kept});
 
 /// A doc after the heading step and the label conversion, the operation
-/// headings it converted, and the labels it keeps.
-typedef _DocResult = ({String lf, List<_Kept> headings, List<_Kept> kept});
+/// headings it converted, the labels it replaced, and the labels it keeps.
+typedef _DocResult = ({
+  String lf,
+  List<_Kept> headings,
+  int labels,
+  List<_Kept> kept,
+});
+
+/// A doc text with its labels converted, how many it replaced, and the
+/// labels it keeps.
+typedef LabelConversion = ({
+  String lf,
+  int rewrites,
+  List<({int line, String label})> kept,
+});
 
 enum _DocKind { feature, story, fr, spec }
 
@@ -599,6 +612,7 @@ final class LabelPass {
           path: docPath,
           converted: docTexts.containsKey(docPath),
           headings: results[docPath]!.headings,
+          labels: results[docPath]!.labels,
           kept: results[docPath]!.kept,
         ),
     ];
@@ -613,30 +627,43 @@ final class LabelPass {
   /// when it has none to convert.
   String apply(String path, String lf) => _docTexts[path] ?? lf;
 
-  /// The `number labels:` plan line: each doc the pass rewrites, then
-  /// after `; left:` each label it keeps as `<path>:<line> <label>`; null for
-  /// a tree with no label.
-  String? get planLine => planLineOn(const {});
+  /// The `number labels:` plan line, `<n> rewrites in <m> files; left: <k>`,
+  /// or null for a tree with no label.
+  ///
+  /// `<n>` counts the labels the pass replaces and the operation headings it
+  /// cuts, `<m>` the files it rewrites, `<k>` the labels it keeps.
+  String? get planLine => numberLabelsPlanLine(
+    rewrites: _files.fold(
+      0,
+      (sum, file) => sum + file.labels + file.headings.length,
+    ),
+    files: _files.where((file) => file.converted).length,
+    left: _files.fold(0, (sum, file) => sum + file.kept.length),
+  );
 
-  /// The [planLine] with the lines of each doc in [written], its LF text as
+  /// Each file the pass rewrites, then, in the file's place, each operation
+  /// heading it cuts as `<path>:<line> <operation>`, in tree order.
+  List<String> get paths => pathsOn(const {});
+
+  /// The [paths] with the lines of each doc in [written], its LF text as
   /// the run writes it after every later step, counted on that text, so each
   /// cited line is the line of the file `check` reads.
-  String? planLineOn(Map<String, String> written) {
-    final files = [for (final file in _files) _onWritten(file, written)];
-    return numberLabelsPlanLine(
-      converted: [
-        for (final file in files) ...[
-          if (file.converted) file.path,
-          for (final (:line, :label) in file.headings)
-            '${file.path}:$line $label',
-        ],
-      ],
-      kept: [
-        for (final file in files)
-          for (final (:line, :label) in file.kept) '${file.path}:$line $label',
-      ],
-    );
-  }
+  List<String> pathsOn(Map<String, String> written) => [
+    for (final file in _files.map((file) => _onWritten(file, written))) ...[
+      if (file.converted) file.path,
+      for (final (:line, :label) in file.headings) '${file.path}:$line $label',
+    ],
+  ];
+
+  /// Each label the pass keeps as `<path>:<line> <label>`, in tree order.
+  List<String> get left => leftOn(const {});
+
+  /// The [left] with the lines of each doc in [written], as [pathsOn] counts
+  /// them.
+  List<String> leftOn(Map<String, String> written) => [
+    for (final file in _files.map((file) => _onWritten(file, written)))
+      for (final (:line, :label) in file.kept) '${file.path}:$line $label',
+  ];
 
   /// Returns [file] with its lines counted on its [written] text.
   ///
@@ -658,6 +685,7 @@ final class LabelPass {
             label: heading.label,
           ),
       ],
+      labels: file.labels,
       kept: _convertDoc(_tree, file.path, text).kept,
     );
   }
@@ -678,23 +706,25 @@ int _sameLineIn(List<String> from, List<String> to, int line) {
   return line;
 }
 
-/// The `number labels:` plan line: the [converted] entries, then after
-/// `; left:` the [kept] ones; null when both are empty.
+/// The `number labels:` plan line for [rewrites] replaced labels and cut
+/// headings in [files] files, with [left] labels kept; null when all three
+/// are zero.
 String? numberLabelsPlanLine({
-  required Iterable<String> converted,
-  required Iterable<String> kept,
+  required int rewrites,
+  required int files,
+  required int left,
 }) {
-  if (converted.isEmpty && kept.isEmpty) return null;
-  return '$_planLabel${converted.join(', ')}'
-      '${kept.isEmpty ? '' : '$_leftLabel${kept.join(', ')}'}';
+  if (rewrites == 0 && files == 0 && left == 0) return null;
+  return '$_planLabel$rewrites rewrites in $files files$_leftLabel$left';
 }
 
 /// A doc the pass read, whether it changed it, the operation headings it
-/// converted, and the labels it kept.
+/// converted, how many labels it replaced, and the labels it kept.
 typedef _FileResult = ({
   String path,
   bool converted,
   List<_Kept> headings,
+  int labels,
   List<_Kept> kept,
 });
 
@@ -730,6 +760,7 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
       for (final (:line, :operation) in step.converted)
         (line: line, label: operation),
     ],
+    labels: converted.rewrites,
     kept: converted.kept,
   );
 }
@@ -790,24 +821,24 @@ Map<String, String> _slugMovesOf(String before, String after) {
 // MARK: - Markdown
 
 /// Returns [lf], a doc or a markdown file, with the labels [resolve] names
-/// converted, and the labels it keeps.
+/// converted, how many it converted, and the labels it keeps.
 ///
 /// [resolve] gives the name of the one doc a label names, or null; its second
 /// argument is the label that puts one just before in a list.
 /// With [legacyIds] the legacy IDs of a pre-`f<nn>` tree read as labels.
-({String lf, List<({int line, String label})> kept}) convertLabelsIn(
+LabelConversion convertLabelsIn(
   String lf,
   String? Function(NumberLabel label, NumberLabel? before) resolve, {
   bool legacyIds = false,
 }) => _convertMarkdown(lf, resolve, legacyIds: legacyIds);
 
-({String lf, List<_Kept> kept}) _convertMarkdown(
+LabelConversion _convertMarkdown(
   String lf,
   _Resolve resolve, {
   bool legacyIds = false,
 }) {
   final (:edits, :kept) = _markdownEdits(lf, resolve, legacyIds: legacyIds);
-  return (lf: _applyLineEdits(lf, edits), kept: kept);
+  return (lf: _applyLineEdits(lf, edits), rewrites: edits.length, kept: kept);
 }
 
 /// Returns the edits that convert the labels [resolve] names in [lf], a doc or

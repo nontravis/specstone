@@ -160,12 +160,13 @@ void main() {
     expect(applied, contains('- **BR-04** — Lettered.\n'));
     expect(applied, contains('### Scenario 8 — [edge] a\n'));
     expect(applied, contains('### Scenario 9 — [error] b (BR-04)\n'));
-    expect(
-      pass.planLine,
-      'renumber ids: $_storyPath BR-2a -> BR-04, '
-      '$_storyPath Scenario 6a -> Scenario 8, '
+    expect(pass.planLine, 'renumber ids: 3 IDs in 1 docs');
+    expect(pass.paths, [
+      '$_storyPath BR-2a -> BR-04',
+      '$_storyPath Scenario 6a -> Scenario 8',
       '$_storyPath Scenario 6b -> Scenario 9',
-    );
+      _storyPath,
+    ]);
   });
 
   test('$_fr E18: a digit after the letter run is unreadable, so the pass '
@@ -292,8 +293,9 @@ RULE-7a on a line that cites no doc
     );
   });
 
-  test('$_fr E18: the plan line lists each renumbering in tree order, then '
-      'each other doc it rewrites for them after ; references:', () {
+  test('$_fr E18, E50: the plan line counts the renumberings and the docs '
+      'the pass rewrites, and its paths list each renumbering in tree order, '
+      'then each such doc', () {
     final pass = _planOf({
       _topicPath: _topic,
       _otherTopicPath: _otherTopic,
@@ -301,11 +303,14 @@ RULE-7a on a line that cites no doc
       _frPath: _frDoc('000000000000'),
     });
 
-    expect(
-      pass.planLine,
-      'renumber ids: $_storyPath Scenario 6a -> Scenario 9, '
-      '$_topicPath RULE-7a -> RULE-31; references: $_frPath',
-    );
+    expect(pass.planLine, 'renumber ids: 2 IDs in 3 docs');
+    expect(pass.paths, [
+      '$_storyPath Scenario 6a -> Scenario 9',
+      '$_topicPath RULE-7a -> RULE-31',
+      _storyPath,
+      _frPath,
+      _topicPath,
+    ]);
   });
 
   test('$_fr E18: a confirmed entry takes the new label and keeps its '
@@ -559,7 +564,8 @@ confirmed:
     final pass = _planOf({'prds/PROJECT.md': project, _nfPath: nf});
 
     expect(pass.apply(_nfPath, nf), nf.replaceFirst('PG-2a', 'PG-02'));
-    expect(pass.planLine, endsWith('; references: $_nfPath'));
+    expect(pass.planLine, 'renumber ids: 1 IDs in 2 docs');
+    expect(pass.paths, contains(_nfPath));
   });
 
   test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
@@ -665,11 +671,13 @@ confirmed:
     );
     expect(pass.apply(_frPath, fr), fr.replaceFirst(anchor, moved));
     expect(pass.apply(_domainPath, domain), domain.replaceAll(anchor, moved));
-    expect(
-      pass.planLine,
-      'renumber ids: $_storyPath Scenario 6a -> Scenario 9; '
-      'references: $_frPath, $_domainPath',
-    );
+    expect(pass.planLine, 'renumber ids: 1 IDs in 3 docs');
+    expect(pass.paths, [
+      '$_storyPath Scenario 6a -> Scenario 9',
+      _storyPath,
+      _frPath,
+      _domainPath,
+    ]);
   });
 
   test('$_fr E18 (W3): a link whose destination escapes or encodes a path '
@@ -734,10 +742,16 @@ confirmed:
     expect(pass.apply(_frPath, fr), fr);
     expect(
       pass.planLine,
-      'renumber ids: $_storyPath Scenario 6a -> Scenario 9, '
-      '$_topicPath RULE-7a -> RULE-31; '
-      'not fully rewritten: $_frPath, $_domainPath',
+      'renumber ids: 2 IDs in 2 docs; not fully rewritten: 2',
     );
+    expect(pass.paths, [
+      '$_storyPath Scenario 6a -> Scenario 9',
+      '$_topicPath RULE-7a -> RULE-31',
+      _storyPath,
+      _topicPath,
+      _frPath,
+      _domainPath,
+    ]);
   });
 
   test('$_fr E18 (LP2, R74): a doc markdown fails on whose links the pass '
@@ -747,7 +761,8 @@ confirmed:
       _otherTopicPath: '$_otherTopic\n[x](doc_model.md)\n\n[a]:<b\\',
     });
 
-    expect(pass.planLine, 'renumber ids: $_topicPath RULE-7a -> RULE-31');
+    expect(pass.planLine, 'renumber ids: 1 IDs in 1 docs');
+    expect(pass.paths, ['$_topicPath RULE-7a -> RULE-31', _topicPath]);
   });
 
   test('$_fr E18 (W3, R63): a Concerns see target, bare or in backticks, '

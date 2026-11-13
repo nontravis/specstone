@@ -539,7 +539,18 @@ void main() {
       expect(_writeAt(plan, 'AGENTS.md').isAtTop, isFalse);
       expect(plan.topWrites, isEmpty);
       expect(plan.agentFileRoots, isEmpty);
-      expect(plan.line, 'agent files: .specstone/AGENT.md, AGENTS.md');
+      expect(plan.line, 'agent files: 2 files');
+      expect(plan.paths, [_agentMd, 'AGENTS.md']);
+    });
+
+    test('$_write E08: a plan with no write prints no line and lists no '
+        'path', () async {
+      final base = await _base({'proj/.keep': ''});
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.line, isEmpty);
+      expect(plan.paths, isEmpty);
     });
 
     test('$_write E02: a block is appended and the Owner text stays', () async {
