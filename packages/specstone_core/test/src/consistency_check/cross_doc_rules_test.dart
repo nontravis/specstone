@@ -177,6 +177,62 @@ void main() {
     });
     expect(found, isEmpty);
   });
+
+  test('a doc type holding the ids under other names still fires', () async {
+    final found = await _found({
+      '.specstone/templates/sysmap.yaml':
+          'id: sysmap\n'
+          'description: Map.\npath: ops/map.md\n'
+          'sections:\n  - id: systems\n    header: Systems\n',
+      '.specstone/templates/unit.yaml':
+          'id: unit\n'
+          'description: Unit.\npath: ops/units/{slug}.md\n'
+          'fields:\n  - id: system\n    type: string\n',
+      '.specstone/templates/ruleset.yaml':
+          'id: ruleset\n'
+          'description: Rules.\npath: ops/sets/{slug}.md\n'
+          'fields:\n  - id: covers\n    type: output_ref\n'
+          '    list: true\n    pointer: prefix\n'
+          'sections:\n  - id: scope\n    header: Scope\n',
+      'docs/ops/map.md': _featuresSystemsTable,
+      'docs/ops/units/a.md': '---\nsystem: Watch app\n---\n\n# A\n',
+      'docs/ops/sets/b.md':
+          '---\ncovers:\n  - lib/a/\n---\n\n# B\n\n'
+          '## Scope\n\nGoverns `lib/b/`.\n',
+    });
+    expect(
+      found.map((f) => f.kind),
+      unorderedEquals([
+        FindingKind.systemUnresolved,
+        FindingKind.scopePathUncovered,
+      ]),
+    );
+  });
+
+  test('a scope code span that is no path is not read as one', () async {
+    final found = await _found({
+      'docs/$_topicDoc': _topicDocText(
+        covers: '  - lib/src/\n',
+        scope: 'The `Renderer` class governs `lib/src/rendering/`.',
+      ),
+    });
+    expect(found, isEmpty);
+  });
+
+  test(
+    'an api without its operations section leaves auth scopes unchecked',
+    () async {
+      final found = await _found({
+        '.specstone/templates/api.yaml':
+            'sections:\n  - id: operations\n    disabled: true\n',
+        'docs/$_authDoc': _authDocText(requiredFor: 'deleteAccount'),
+      });
+      expect(
+        found.where((f) => f.kind == FindingKind.scopeOperationUnresolved),
+        isEmpty,
+      );
+    },
+  );
 }
 
 String featureWith(String line) =>

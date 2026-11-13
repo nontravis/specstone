@@ -7,17 +7,16 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show isPortableCodeEntry;
 
-const _featuresType = 'features';
 const _systemsSection = 'systems';
 const _systemField = 'system';
-const _apiType = 'api';
 const _frTraceSection = 'fr_trace';
 const _operationsSection = 'operations';
-const _authType = 'auth';
 const _scopesSection = 'scopes';
 const _requiredForColumn = 'Required for';
-const _topicType = 'topic';
 const _scopeSection = 'scope';
 const _coversField = 'covers';
 
@@ -37,24 +36,31 @@ Iterable<Finding> checkCrossDocGuideRules(
   IndexedDoc doc,
 ) sync* {
   if (!context.isChecked(doc)) return;
-  switch (doc.docTypeId) {
-    case featureType:
-      yield* _systemFindings(context, doc);
-    case _apiType:
-      yield* _operationFindings(context, doc);
-    case _authType:
-      yield* _scopeOperationFindings(context, doc);
-    case _topicType:
-      yield* _scopePathFindings(context, doc);
+  final type = context.typeOf(doc);
+  if (type == null) return;
+  if (_holdsField(type, _systemField)) yield* _systemFindings(context, doc);
+  if (_holdsSection(type, _frTraceSection) &&
+      _holdsSection(type, _operationsSection)) {
+    yield* _operationFindings(context, doc);
+  }
+  if (_holdsSection(type, _scopesSection)) {
+    yield* _scopeOperationFindings(context, doc);
+  }
+  if (_holdsSection(type, _scopeSection) && _holdsField(type, _coversField)) {
+    yield* _scopePathFindings(context, doc);
   }
 }
 
+bool _holdsField(MergedDocType? type, String id) =>
+    type != null && type.fields.any((field) => field.id == id);
+
+bool _holdsSection(MergedDocType? type, String id) =>
+    type != null && type.sections.any((section) => section.id == id);
+
 Iterable<Finding> _systemFindings(CheckContext context, IndexedDoc doc) sync* {
-  if (!context.typeHoldsField(context.typeOf(doc), _systemField)) return;
-  if (!context.typeHoldsSection(_featuresType, _systemsSection)) return;
   final rows = {
     for (final features in context.index.docs)
-      if (features.docTypeId == _featuresType)
+      if (_holdsSection(context.typeOf(features), _systemsSection))
         for (final name in _firstCellsOf(context, features, _systemsSection))
           name,
   };
@@ -75,10 +81,6 @@ Iterable<Finding> _operationFindings(
   CheckContext context,
   IndexedDoc api,
 ) sync* {
-  if (!context.typeHoldsSection(_apiType, _frTraceSection) ||
-      !context.typeHoldsSection(_apiType, _operationsSection)) {
-    return;
-  }
   final operations = _operationHeadings(context, api);
   final traced = [
     for (final (:operation, :line) in _traceOperations(context, api))
@@ -162,7 +164,6 @@ Iterable<Finding> _scopeOperationFindings(
   CheckContext context,
   IndexedDoc auth,
 ) sync* {
-  if (!context.typeHoldsSection(_authType, _scopesSection)) return;
   final api = _apiOf(context, auth);
   if (api == null) return;
   final operations = _operationHeadings(context, api).keys.toSet();
@@ -189,7 +190,12 @@ IndexedDoc? _apiOf(CheckContext context, IndexedDoc doc) {
   if (feature == null) return null;
   IndexedDoc? found;
   for (final child in context.index.childrenOf(feature)) {
-    if (child.docTypeId != _apiType || child.target != doc.target) continue;
+    final type = context.typeOf(child);
+    if (child.target != doc.target ||
+        !_holdsSection(type, _frTraceSection) ||
+        !_holdsSection(type, _operationsSection)) {
+      continue;
+    }
     found ??= child;
   }
   return found;
@@ -214,10 +220,6 @@ Iterable<Finding> _scopePathFindings(
   CheckContext context,
   IndexedDoc topic,
 ) sync* {
-  if (!context.typeHoldsSection(_topicType, _scopeSection) ||
-      !context.typeHoldsField(context.typeOf(topic), _coversField)) {
-    return;
-  }
   final covers = [
     for (final (:value, line: _, text: _)
         in context.linesOf(topic).entriesOf(_coversField))
@@ -229,7 +231,7 @@ Iterable<Finding> _scopePathFindings(
     if (line.fenced) continue;
     for (final (:start, :end, :ticks) in codeSpansOf(line.text)) {
       final path = line.text.substring(start + ticks, end - ticks).trim();
-      if (path.isEmpty) continue;
+      if (!path.contains('/') || !isPortableCodeEntry(path)) continue;
       if (covers.any((entry) => _reaches(entry, path))) continue;
       yield context.finding(
         topic,
