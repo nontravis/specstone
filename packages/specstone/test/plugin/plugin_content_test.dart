@@ -1317,6 +1317,14 @@ void _agentTests() {
     );
     expect(author, contains('names only, no `--target`'));
     expect(
+      author,
+      contains('hit in a doc the design changes, as step 2 writes.'),
+    );
+    expect(
+      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      contains('each write leaves a draft; never clear its flag'),
+    );
+    expect(
       _oneLine(_pluginText('agents/sdd-engineer.md')),
       contains(
         '**Code target** (two or more `targets:`, `domain:agent_plugin` '
@@ -1344,25 +1352,21 @@ void _agentTests() {
     );
   });
 
-  group('agent_plugin/write_prd_and_spec/follow_cross_doc_rules', () {
-    const rule =
+  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E02, E06, E09: '
+      'expert-sdd gives set (a confirmed write included), structure, and refs '
+      'the target of its loader, with no Owner question, and approve and '
+      'delete none', () {
+    final skill = _oneLine(_pluginText('skills/expert-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
         '**Code target.** With two or more code targets, `new`, `get`, `set` '
         '(a `confirmed` write included), `structure <doc>`, and '
         '`refs <owner>` take the `--target` of the surface that loads this '
         'skill, never an Owner question; `approve` and `delete` take none '
-        '(`domain:agent_plugin` INV-25).';
-
-    for (final (edge, command) in [
-      ('E02', '`set` (a `confirmed` write included)'),
-      ('E06', '`structure <doc>`'),
-      ('E09', '`refs <owner>`'),
-    ]) {
-      test('$edge: expert-sdd gives $command the target of its loader', () {
-        final skill = _oneLine(_pluginText('skills/expert-sdd/SKILL.md'));
-        expect(skill, contains(rule));
-        expect(skill, contains(command));
-      });
-    }
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
   });
 
   test('agent_plugin/write_prd_and_spec/write_design_document E17: design '

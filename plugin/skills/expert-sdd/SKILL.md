@@ -79,5 +79,4 @@ the Owner to run `specstone trust` in their own terminal (Claude Code's `!` pref
 | Thought | Do instead |
 |---|---|
 | "I read this type's guide in an earlier task." | Run `specstone guide <type>` again. |
-| "Removing `draft: true` clears the finding." | Leave it; the Owner approves. |
 | "A direct file edit is faster." | Use `specstone set`. |

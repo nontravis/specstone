@@ -69,8 +69,7 @@ Before the Docs to change table closes, search each decision's dependents:
   terms and adds its rows and searched terms before the author writes it.
 
 Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or list of
-an entity's fields. Name the decision and let the doc hold the content: "three stories, split by payout state", not
-three drafted stories.
+an entity's fields. Name the decision; the doc holds the content.
 
 When you amend, sweep each ruling: search the document for the text the ruling supersedes, and edit every place
 that still states it. Your report lists each section you touched.

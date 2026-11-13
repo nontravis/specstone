@@ -101,7 +101,7 @@ finding.
 
 **DO:**
 
-- Write docs with `specstone new` and `specstone set` alone; never clear a draft flag.
+- Write docs with `specstone new` and `specstone set` alone: each write leaves a draft; never clear its flag.
 - **Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): author passes `--target <name>`, the code
   target its design document's row names, or the doc's DocPath, on each per-target `new`, `get`, and `set`; sync
   takes the `--code` path's code target, or the finding DocPath's, on each per-target `get`, `set`, and `new`, and writes

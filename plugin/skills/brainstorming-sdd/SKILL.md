@@ -92,6 +92,5 @@ fresh reader's, since you saw the drafts made: tell the Owner so.
 | Thought                                         | Do instead                                               |
 |-------------------------------------------------|----------------------------------------------------------|
 | "The design is clear; draft the docs now."      | No `mode: author` before the document's approval.        |
-| "I'll write the design document myself."        | Step 3: you hold the answers; the agent holds the docs.  |
 | "The coverage table is clean; skip the audit."  | A fresh reader finds what the author's own table cannot. |
 | "The brainstorm hands off to a plan skill now." | Invoke nothing; step 4 first, then `specstone:plan-sdd`. |

@@ -4,7 +4,7 @@ nothing: each gap goes in your report.
 
 ## 1. Read
 
-- **Design document**: the approved document's path. Read it whole; list each decision, ruling, and Docs to
+- **Design document**: read it whole; list each decision, ruling, and Docs to
   change row by ID or label.
 - **Drafts** (each pass after the first: a fix round, or the pass after an amend): the drafts list, the first
   author report's drafts plus each doc a fix round or pass added; in a fix round, the audit's `Findings:` lines too.
@@ -50,12 +50,11 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
 ## 3. Sweep each ruling
 
 For each dated ruling that names text it supersedes, run `specstone search "<superseded wording>"`. Rewrite each
-hit in a doc the design changes. List each hit in any other doc under `Findings:`, leaving it.
+hit in a doc the design changes, as step 2 writes. List each hit in any other doc under `Findings:`, leaving it.
 
 ## 4. Check
 
-Run a bare `specstone check` before your first write (as the agent, the gate's run is that baseline) and again
-after your last. For each finding the second run adds:
+Run a bare `specstone check` before your first write and again after your last. For each finding the second run adds:
 
 - **In one of your drafts:** fix it there.
 - **A `suspect` link in a doc you did not write:** confirm it again per `specstone:expert-sdd`; that doc joins your
@@ -82,8 +81,8 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Rows**: one per decision; in a fix round, one per finding.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, the drafts list less each name step 1
-  dropped, plus each doc this pass added. Audit mode and `specstone:plan-sdd` take it as is: names only, no `--target`. Name each
-  draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
+  dropped, plus each doc this pass added. Audit mode and `specstone:plan-sdd` take it as is: names only, no
+  `--target`. Name each draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
 - **Counts**: on the `Counts:` line, take every count, of drafts and of sentences dropped and new, from one
   `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
   list names; the output names a moved one, while its `Move:` line is unrun, by its name before the move; once the
