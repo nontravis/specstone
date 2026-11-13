@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show NameMention, nameMentionsInFile, readsNameMentions;
+    show NameMention, docMentionsInFile, readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
@@ -12,6 +12,8 @@ import 'package:specstone_core/src/git_process.dart' show runRealGit;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show projectPathOfCodeFile;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show byteOrderMark;
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show codeFilesOf;
@@ -19,7 +21,6 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
 const _separator = '/';
-const _byteOrderMark = '﻿';
 
 /// The `to` of a [PathMove] that removes the doc at its `from`.
 const removedPath = '';
@@ -54,7 +55,7 @@ List<StaleMention> staleMentions(
   for (final projectPath in files.keys.toList()..sort(compareCodePoints)) {
     final lf = _lfTextOf(files[projectPath]!);
     if (lf == null) continue;
-    for (final mention in nameMentionsInFile(lf, _extensionOf(projectPath))) {
+    for (final mention in docMentionsInFile(lf, _extensionOf(projectPath))) {
       if (!stopsResolving(mention)) continue;
       stale.add((path: projectPath, line: mention.line, mention: mention.text));
     }
@@ -199,7 +200,7 @@ File _fileIn(Directory folder, String path) => File(
 String? _lfTextOf(File file) {
   try {
     final text = utf8.decode(file.readAsBytesSync());
-    return toLf(text.startsWith(_byteOrderMark) ? text.substring(1) : text);
+    return toLf(text.startsWith(byteOrderMark) ? text.substring(1) : text);
   } on FormatException {
     return null;
   } on FileSystemException {

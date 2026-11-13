@@ -99,6 +99,18 @@ void main() {
       expect(staleAfter(root, moveNf), isEmpty);
     });
 
+    test('a bare one-slug name of the sole doc that carries it is listed when that doc is removed', () async {
+      final root = await writeCheckProject(
+        extra: {'CLAUDE.md': 'Read `login` and `doc_model`.\n'},
+      );
+      const removedFeature = <PathMove>[
+        (from: 'prds/features/f01_login/', to: ''),
+        (from: 'specs/f01_login/', to: ''),
+      ];
+
+      expect(staleAfter(root, removedFeature), [at('CLAUDE.md', 1, 'login')]);
+    });
+
     test('is not listed when the names do not change', () async {
       final root = await writeCheckProject(
         extra: {'app/lib/doc.dart': '// `login/email_login`\n'},

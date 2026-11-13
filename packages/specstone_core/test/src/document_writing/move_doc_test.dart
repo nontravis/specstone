@@ -1672,6 +1672,7 @@ void main() {
           'line': 3,
           'mention': 'user_story:login/email_login#acceptance_criteria',
         },
+        {'path': 'app/lib/doc.dart', 'line': 3, 'mention': 'login'},
       ]);
       expect(answer.json['rewritten'], isNot(contains('app/lib/doc.dart')));
       expect(
@@ -1679,7 +1680,8 @@ void main() {
         endsWith(
           'mentions app/lib/doc.dart:1 login/email_login\n'
           'mentions app/lib/doc.dart:3 '
-          'user_story:login/email_login#acceptance_criteria\n',
+          'user_story:login/email_login#acceptance_criteria\n'
+          'mentions app/lib/doc.dart:3 login\n',
         ),
       );
     });
