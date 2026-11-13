@@ -41,7 +41,7 @@ ReadAnswer answerContext(
   ];
   final mapBlocks = [
     for (final top in _byTreeOrder(index, bundle.mapTops))
-      _mapBlock(index, index.at(top)!),
+      _mapBlock(index, index.at(top)!, bundle.codeTarget),
   ];
   final namesBlocks = [
     for (final top in _byTreeOrder(index, bundle.nameListTops))
@@ -84,7 +84,7 @@ ReadAnswer answerContext(
           if (inSummary(ordered[doc])) 'summary': true,
         },
     ],
-    ..._mapJson(index, bundle.mapTops),
+    ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
     ..._namesJson(index, bundle.nameListTops),
   };
   return ReadAnswer(text: text, json: json, warnings: [...bundle.warnings]);
@@ -335,10 +335,14 @@ String _cleaned(String text) => _removeComments(text).trim();
 
 /// Returns the map block of [top]: its subtree, one line per doc with its
 /// name, doc type, and token size, indented two spaces per depth below [top]
-/// (Plan decision 13).
-String _mapBlock(DocIndex index, IndexedDoc top) {
+/// (Plan decision 13); [codeTarget] keeps that target's per-target docs alone.
+String _mapBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
-    for (final member in index.subtreeOf(top)) _mapLine(index, top, member),
+    for (final member in index.subtreeOf(top))
+      if (codeTarget == null ||
+          member.target == null ||
+          member.target == codeTarget)
+        _mapLine(index, top, member),
   ];
   return '==> map: ${nameWithType(top)} <==\n${lines.join('\n')}';
 }
@@ -381,21 +385,33 @@ List<String> _byTreeOrder(DocIndex index, Set<String> paths) => [
 String _blockBody(String block) =>
     block.substring(block.indexOf('\n') + 1).trim();
 
-Map<String, Object> _mapJson(DocIndex index, Set<String> tops) => {
+Map<String, Object> _mapJson(
+  DocIndex index,
+  Set<String> tops,
+  String? codeTarget,
+) => {
   if (tops.isNotEmpty)
     'map': [
       for (final top in _byTreeOrder(index, tops))
-        _docJson(index, index.at(top)!),
+        _docJson(index, index.at(top)!, codeTarget),
     ],
 };
 
-Map<String, Object> _docJson(DocIndex index, IndexedDoc doc) => {
+Map<String, Object> _docJson(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) => {
   'name': doc.name,
   'docType': ?doc.docTypeId,
   'path': doc.docPath,
   'tokens': doc.tokens,
   'children': [
-    for (final child in index.childrenOf(doc)) _docJson(index, child),
+    for (final child in index.childrenOf(doc))
+      if (codeTarget == null ||
+          child.target == null ||
+          child.target == codeTarget)
+        _docJson(index, child, codeTarget),
   ],
 };
 

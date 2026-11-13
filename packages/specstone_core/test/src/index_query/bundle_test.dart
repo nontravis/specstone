@@ -687,6 +687,27 @@ void main() {
         2,
         reason: 'the map holds each target spec doc',
       );
+      final queryTargeted = answerContext(
+        index,
+        pickBundle(
+          index,
+          'feedback/toast/show',
+          BundleMode.query,
+          noProject: false,
+          codeTarget: 'jaspr',
+        ),
+        label: 'feedback/toast/show',
+        byCode: false,
+      );
+      expect(
+        queryTargeted.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)'))
+            .length,
+        1,
+        reason: 'the map holds the named target spec doc alone',
+      );
+      expect(queryTargeted.text, isNot(contains('flutter')));
       final withTarget = pickBundle(
         index,
         'feedback/toast',
@@ -697,6 +718,39 @@ void main() {
       expect(withTarget.docPaths, contains(jasprArch));
       expect(withTarget.docPaths, isNot(contains(flutterArch)));
     });
+
+    test(
+      'f01/us05/fr01/e24: a per-target chain doc of another target stays out',
+      () async {
+        final session = openSession(
+          await writeTree({
+            ...projectFiles,
+            '.specstone/templates/feature.yaml': 'per_target: true\n',
+            'docs/prds/features/f02_feedback/FEATURE.md': '',
+            'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '',
+            'docs/prds/flutter/features/f02_feedback/FEATURE.md':
+                '# Feedback\n',
+            'docs/prds/flutter/features/f02_feedback/f04_pay/FEATURE.md':
+                '# Pay\n',
+            'docs/prds/features/f02_feedback/f04_pay/us01_card/USER_STORY.md':
+                '# Agent pays by card\n',
+          }),
+        );
+        addTearDown(session.close);
+        final b = pickBundle(
+          session.index,
+          'feedback/pay/card',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(
+          b.docPaths.where((p) => p.contains('prds/flutter/')),
+          isEmpty,
+          reason: 'the chain walk keeps the named target alone',
+        );
+      },
+    );
 
     test('f01/us05/fr01/e26: one named target takes its spec docs with no --target in every mode', () async {
       final session = openSession(

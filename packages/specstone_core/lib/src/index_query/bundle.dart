@@ -85,9 +85,7 @@ final class Bundle {
     final top = _topDocOf(index, effective);
     switch (mode) {
       case BundleMode.query:
-        for (final doc in index.chainOf(effective)) {
-          docPaths.add(doc.docPath);
-        }
+        _addAll(docPaths, index.chainOf(effective));
         mapTops.add(top.docPath);
       case BundleMode.design:
         _addDesign(index, effective, top);
@@ -121,6 +119,7 @@ final class Bundle {
     final topAt = chain.indexOf(designTop);
     _addDesignSubtree(index, designTop, topAt == 0 ? null : chain[topAt - 1]);
     for (final ancestor in chain.skip(topAt + 1)) {
+      if (!_keepsTarget(ancestor)) continue;
       docPaths.add(ancestor.docPath);
       for (final child in index.childrenOf(ancestor)) {
         if (!index.isChainDoc(child)) {
@@ -140,7 +139,7 @@ final class Bundle {
       _addAll(docPaths, index.subtreeOf(designTop));
       return;
     }
-    docPaths.add(designTop.docPath);
+    if (_keepsTarget(designTop)) docPaths.add(designTop.docPath);
     for (final child in index.childrenOf(designTop)) {
       if (!index.isChainDoc(child) || child.docPath == unit?.docPath) {
         _addAll(docPaths, index.subtreeOf(child));
@@ -162,9 +161,7 @@ final class Bundle {
       return;
     }
     final chain = index.chainOf(target);
-    for (final doc in chain) {
-      docPaths.add(doc.docPath);
-    }
+    _addAll(docPaths, chain);
     for (final doc in index.subtreeOf(target)) {
       if (_keepsTarget(doc)) docPaths.add(doc.docPath);
     }
