@@ -102,6 +102,9 @@ finding.
 **DO:**
 
 - Write docs with `specstone new` and `specstone set` alone; never clear a draft flag.
+- **Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): author passes `--target <name>`, the code
+  target its design document's row names, or the doc's DocPath, on each per-target `new`, `get`, and `set`; design
+  writes a code target on each per-target spec doc row; design and audit pass no `--target` on `context --for design`.
 - Beyond the `report:` file, `Write` or `Edit` only the one file a design dispatch names, at the host brainstorm
   skill's own path for a design document, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`, outside the
   CheckedFolders, and a batch file: made by `specstone get … > <file>`, `<file>` outside the repository, the one shell

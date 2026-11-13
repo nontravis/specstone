@@ -2,12 +2,10 @@
 `specstone:brainstorming-sdd` when it has no `Agent` tool or the dispatch failed. As the agent, ask the Owner
 nothing: each gap goes in your report.
 
-Write every doc through the CLI, per `specstone:expert-sdd`: each write leaves a draft.
-
 ## 1. Read
 
-- **Design document**: the Owner-approved document's path. Read it whole; list each decision, ruling, and Docs to
-  change row by its ID or label.
+- **Design document**: the approved document's path. Read it whole; list each decision, ruling, and Docs to
+  change row by ID or label.
 - **Drafts** (each pass after the first: a fix round, or the pass after an amend): the drafts list, the first
   author report's drafts plus each doc a fix round or pass added; in a fix round, the audit's `Findings:` lines too.
   Before your first write, re-read the drafts in one `specstone get <drafts list>` call. When it refuses with
@@ -22,6 +20,9 @@ Place each decision in a doc, noting its section. A decision no doc can take is 
 force it. Write each Docs to change row that holds no decision too, such as a `design_references` link.
 
 - **Guide**: before your first write, run `specstone guide <type> …` once, naming every type you write.
+- **Code target** (two or more `targets:`): pass `--target <name>`, the one its design document's row names, on each
+  `new`, `get`, and `set` of a per-target spec doc, or address an existing doc by its DocPath
+  (`domain:agent_plugin` INV-25).
 - **New doc**: pipe its text to `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes
   them), parents first.
 - **Section**: base from the naming line of `specstone get <type>:<name>#<key>`; pipe the body to
@@ -49,7 +50,7 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
 ## 3. Sweep each ruling
 
 For each dated ruling that names text it supersedes, run `specstone search "<superseded wording>"`. Rewrite each
-hit in a doc the design changes, as step 2 writes. List each hit in any other doc under `Findings:`, leaving it.
+hit in a doc the design changes. List each hit in any other doc under `Findings:`, leaving it.
 
 ## 4. Check
 
@@ -57,8 +58,8 @@ Run a bare `specstone check` before your first write (as the agent, the gate's r
 after your last. For each finding the second run adds:
 
 - **In one of your drafts:** fix it there.
-- **A `suspect` link in a doc you did not write:** your write moved its upstream. Confirm it again per
-  `specstone:expert-sdd`; that doc joins your drafts. When you cannot, list it under `Findings:`.
+- **A `suspect` link in a doc you did not write:** confirm it again per `specstone:expert-sdd`; that doc joins your
+  drafts. When you cannot, list it under `Findings:`.
 - **A finding whose `waitsFor` is `owner`**, its line ending `(waits for the Owner)`: leave it, never write
   around it; list it.
 
@@ -79,9 +80,9 @@ Move: specstone move <story> … --under <other feature>
 Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
 ```
 
-- **Rows**: one per decision; in a fix round, one per finding. `Not landed:` lines come first, read before approval.
+- **Rows**: one per decision; in a fix round, one per finding.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, the drafts list less each name step 1
-  dropped, plus each doc this pass added. Audit mode and `specstone:plan-sdd` take it as is: names only. Name each
+  dropped, plus each doc this pass added. Audit mode and `specstone:plan-sdd` take it as is: names only, no `--target`. Name each
   draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
 - **Counts**: on the `Counts:` line, take every count, of drafts and of sentences dropped and new, from one
   `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
@@ -89,4 +90,4 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
   runner runs it, by its name after. Name each other draft it lists under `Other drafts:`, never counted; one of
   yours it shows as no draft goes under `Findings:`.
 - **Move**: only when the design moves stories, one line per target feature; copy each into the relay block. Run no
-  `move`: the runner runs each line's command before the audit.
+  `move`; the runner does.

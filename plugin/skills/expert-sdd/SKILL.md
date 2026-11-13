@@ -5,7 +5,7 @@ description: Use when about to write, edit, or confirm a PRD or spec doc in a Sp
 
 # Specstone cross-doc rules
 
-Shared rules for any skill that writes or confirms a Specstone doc.
+Rules for any skill that writes or confirms a doc.
 
 ## First call: the project gate
 
@@ -15,8 +15,8 @@ Shared rules for any skill that writes or confirms a Specstone doc.
 3. Exit 0 or 1: the project is on the new format, even from a subfolder. Keep any findings as the baseline and go on.
 4. Any other non-zero exit: report the CLI's error to the Owner and stop.
 
-That call is the gate. Never look for `.specstone/` first with `ls`, a file read, or any other step: a look at the
-working directory alone misses a project root above it.
+That call is the gate. Never look for `.specstone/` first: a look at the working directory
+alone misses a project root above it.
 
 ## Rules
 
@@ -43,6 +43,9 @@ working directory alone misses a project root above it.
    `<type>:<name>#<section>` and the item ID inside it (`domain:document_writing#invariants` INV-9), and states
    nothing of the rule. `specstone refs <owner>` lists each citing doc, but a citation pins no hash: it never turns
    `suspect` when the owner changes.
+8. **Code target.** With two or more code targets, `new`, `get`, `set` (a `confirmed` write included),
+   `structure <doc>`, and `refs <owner>` take the `--target` of the surface that loads this skill, never an Owner
+   question; `approve` and `delete` take none (`domain:agent_plugin` INV-25).
 
 ## Owner confirmation
 
@@ -78,5 +81,3 @@ the Owner to run `specstone trust` in their own terminal (Claude Code's `!` pref
 | "I read this type's guide in an earlier task." | Run `specstone guide <type>` again. |
 | "Removing `draft: true` clears the finding." | Leave it; the Owner approves. |
 | "A direct file edit is faster." | Use `specstone set`. |
-| "Check for `.specstone/` before the first call." | The first `specstone check` is the check. |
-| "The code works; the spec can follow." | Draft the spec first. |

@@ -1275,6 +1275,155 @@ void _agentTests() {
     );
   });
 
+  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E17: the '
+      'first design call passes no --budget without the Agent tool and no '
+      '--target', () {
+    final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
+    expect(skill, contains('Without the `Agent` tool, pass no `--budget`'));
+    expect(
+      skill,
+      contains(
+        'Pass no `--target`: a design read spans every code target '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E13: '
+      'author takes a per-target doc from the design row, or its DocPath, and '
+      'keeps the drafts list free of --target', () {
+    final author = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/author.md'),
+    );
+    expect(
+      author,
+      contains(
+        '**Code target** (two or more `targets:`): pass `--target <name>`, '
+        "the one its design document's row names, on each `new`, `get`, and "
+        '`set` of a per-target spec doc, or address an existing doc by its '
+        'DocPath (`domain:agent_plugin` INV-25).',
+      ),
+    );
+    expect(author, contains('names only, no `--target`'));
+    expect(
+      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      contains(
+        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+        'INV-25): author passes `--target <name>`, the code target its '
+        "design document's row names, or the doc's DocPath, on each "
+        'per-target `new`, `get`, and `set`;',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/take_small_edit_to_draft E07: '
+      'update-sdd asks which code target for a name in two or more, then '
+      "reads and writes on the doc's DocPath", () {
+    final skill = _oneLine(_pluginText('skills/update-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        'A name that matches docs in two or more code targets: ask the Owner '
+        'which one, as `specstone:plan-sdd` does, then run `get` and `set` '
+        "on that doc's DocPath, the one `get`'s doc header prints, such as "
+        '`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md` '
+        '(`domain:agent_plugin` INV-25). A name that matches one doc asks '
+        'nothing.',
+      ),
+    );
+  });
+
+  group('agent_plugin/write_prd_and_spec/follow_cross_doc_rules', () {
+    const rule =
+        '**Code target.** With two or more code targets, `new`, `get`, `set` '
+        '(a `confirmed` write included), `structure <doc>`, and '
+        '`refs <owner>` take the `--target` of the surface that loads this '
+        'skill, never an Owner question; `approve` and `delete` take none '
+        '(`domain:agent_plugin` INV-25).';
+
+    for (final (edge, command) in [
+      ('E02', '`set` (a `confirmed` write included)'),
+      ('E06', '`structure <doc>`'),
+      ('E09', '`refs <owner>`'),
+    ]) {
+      test('$edge: expert-sdd gives $command the target of its loader', () {
+        final skill = _oneLine(_pluginText('skills/expert-sdd/SKILL.md'));
+        expect(skill, contains(rule));
+        expect(skill, contains(command));
+      });
+    }
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_design_document E17: design '
+      'mode runs refs on a per-target owner by its DocPath', () {
+    expect(
+      _oneLine(_pluginText('skills/brainstorming-sdd/references/design.md')),
+      contains('A per-target owner goes to `refs` by its DocPath.'),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_design_document E20: design '
+      'mode grounds with no --target and names a code target on each '
+      'per-target row', () {
+    final design = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/design.md'),
+    );
+    expect(
+      design,
+      contains(
+        'Pass no `--target`: a design read spans every code target '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+    expect(
+      design,
+      contains(
+        "With two or more `targets:`, a per-target spec doc's row also names "
+        'its code target, a row with none an open question '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/audit_drafts_by_reading E16: audit '
+      'mode passes no --target on its design bundles or its drafts get', () {
+    final audit = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+    );
+    expect(
+      audit,
+      contains(
+        "Pass no `--target`: the bundle takes every code target's spec docs "
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+    expect(
+      audit,
+      contains(
+        "The drafts list's names need no `--target` (`domain:agent_plugin` "
+        'INV-25).',
+      ),
+    );
+    expect(
+      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      contains(
+        'design writes a code target on each per-target spec doc row; design '
+        'and audit pass no `--target` on `context --for design`.',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E13: the '
+      're-audit get of the drafts list needs no --target', () {
+    expect(
+      _oneLine(_pluginText('skills/brainstorming-sdd/references/rounds.md')),
+      contains(
+        "The drafts list's names need no `--target` (`domain:agent_plugin` "
+        'INV-25).',
+      ),
+    );
+  });
+
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
       'doc and adds a story with --summary', () {
     final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
