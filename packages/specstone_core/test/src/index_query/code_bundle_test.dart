@@ -352,5 +352,35 @@ void main() {
       expect(resolve('packages/web/lib/main.dart').path, 'lib/main.dart');
       expect(resolve('lib/main.dart').target.name, 'app');
     });
+
+    test('f01/us05/fr04 traced docs: a stale implements line with no record entry traces nothing', () async {
+      final (session, root) = await writeFeedbackProject(
+        extra: {
+          'jaspr_lib/lib/toast.dart': '',
+          'docs/prds/features/f02_feedback/f03_toast/us02_hide/USER_STORY.md':
+              '---\nimplements:\n'
+              '  - lib/toast.dart:hideToast\n---\n\n# Agent hides a toast\n',
+        },
+      );
+      final bundle = pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          'jaspr_lib/lib/toast.dart',
+          workingDirectory: root,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(
+        bundle.docPaths,
+        isNot(
+          contains(
+            'prds/features/f02_feedback/f03_toast/us02_hide/USER_STORY.md',
+          ),
+        ),
+      );
+    });
   });
 }

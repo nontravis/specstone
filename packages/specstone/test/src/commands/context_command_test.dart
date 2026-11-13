@@ -436,6 +436,49 @@ void main() {
       expect(same.err.toString(), isEmpty);
     });
 
+    test('s04/inv26: --code with an unheld or premature --target is argument_invalid, exit 64', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final unheld = readRunner(project);
+      expect(
+        await unheld.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+          '--target',
+          'ci',
+        ]),
+        64,
+      );
+      expect(
+        unheld.err.toString(),
+        '--target ci: the code targets are flutter, jaspr\n',
+      );
+
+      final unnamed = readRunner(
+        await writeReadProject(extra: {'app/lib/main.dart': ''}),
+      );
+      expect(
+        await unnamed.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'implement',
+          '--target',
+          'ci',
+        ]),
+        64,
+      );
+      expect(
+        unnamed.err.toString(),
+        '--target ci: this project names no code target\n',
+      );
+    });
+
     test('f01/us05/fr04/e14, review focus 2: nested code roots pick the longest that holds the path', () async {
       final project = await writeReadProject(
         extra: {
