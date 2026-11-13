@@ -4,3 +4,4 @@ packages/specstone_core/test/fixtures/packs/** -text
 packages/specstone_core/assets/mermaid/** -text
 packages/specstone_core/assets/agent/** -text
 *.sh text eol=lf
+packages/specstone/bin/stn text eol=lf
