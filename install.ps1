@@ -712,10 +712,7 @@ try {
                     continue
                 }
                 # Name the folder as the PATH spells it: GetFullPath may expand 8.3 names.
-                $shown = $entry
-                if ($shown.EndsWith('\')) {
-                    $shown = $shown.Substring(0, $shown.Length - 1)
-                }
+                $shown = $entry.TrimEnd('\', '/')
                 foreach ($extension in 'exe', 'cmd', 'bat', 'com', 'ps1') {
                     if (Test-Path -LiteralPath (Join-Path $folder "stn.$extension") -PathType Leaf) {
                         Write-Host "specstone: another stn is at $shown\stn.$extension; type specstone to run the CLI"
