@@ -127,21 +127,17 @@ void main() {
   test('run_cli_or_yield E02: relative, dot, empty, and tilde entries are '
       'skipped even when each holds a stn', () async {
     final sb = await createShimSandbox();
-    final relative = dir('${sb.root.path}/rel tools');
-    sb.otherStn(relative.path);
-    // A stn in the current folder for the empty and dot entries.
+    // A stn in `rel`, found only if the walk ran a relative entry from the
+    // working folder; a stn in the working folder itself for the empty and
+    // dot entries; a stn in HOME, found only if the walk expanded `~`
+    // (runStn sets HOME to the sandbox home).
+    sb.otherStn(dir('${sb.root.path}/rel').path);
     sb.otherStn(sb.root.path);
-    // Link the other stn under the sandbox root as a stn found by `~` would
-    // be found only if `~` were expanded, which the walk never does.
-    Process.runSync('ln', [
-      '-s',
-      '${relative.path}/stn',
-      'tilde-stn',
-    ], workingDirectory: sb.root.path);
+    sb.otherStn(sb.home.path);
 
     final r = await sb.runStn([
       'check',
-    ], path: '${relative.path}/nested:rel:.::~:${sb.bin.path}:$systemEntries');
+    ], path: 'rel:.::~::${sb.bin.path}:$systemEntries');
 
     expect(r.exitCode, 0);
     expect(sb.logOf('other'), isEmpty);
@@ -194,7 +190,6 @@ void main() {
     expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
     expect(viaLink.exitCode, 9);
     expect(sb.logOf('other').sublist(0, 2), ['argv', 'check']);
-    expect(viaLink.exitCode, isNot(0));
   });
 
   test('run_cli_or_yield E11 analogue: two runs in a row from one parent '
