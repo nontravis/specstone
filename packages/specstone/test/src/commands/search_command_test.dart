@@ -104,15 +104,15 @@ void main() {
       'docs/prds/features/f01_toast/FEATURE.md':
           '# Toast\n\n## Problem\nWarm toast.\n',
       'docs/specs/flutter/f01_toast/ARCHITECTURE.md':
-          '# Toast architecture\n\n## Purpose\n.\n',
+          '# Toast architecture\n\n## Purpose\nWarm toast on flutter.\n',
       'docs/specs/jaspr/f01_toast/ARCHITECTURE.md':
-          '# Toast architecture\n\n## Purpose\n.\n',
+          '# Toast architecture\n\n## Purpose\nWarm toast on jaspr.\n',
     });
     final scoped = readRunner(project);
     expect(
       await scoped.runner.run([
         'search',
-        'toast',
+        'Warm toast',
         '--under',
         'toast',
         '--target',
@@ -120,7 +120,14 @@ void main() {
       ]),
       0,
     );
-    expect(scoped.out.toString(), isNot(contains('flutter')));
+    expect(scoped.out.toString(), contains('Warm toast on jaspr.'));
+    expect(
+      scoped.out.toString(),
+      isNot(contains('on flutter')),
+      reason:
+          'the flutter twin would print its own marker text; the twins '
+          'share one name, so only their text tells them apart',
+    );
     final unknown = readRunner(project);
     expect(
       await unknown.runner.run(['search', 'toast', '--target', 'web']),

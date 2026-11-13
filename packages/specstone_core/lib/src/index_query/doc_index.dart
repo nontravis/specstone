@@ -238,11 +238,17 @@ final class DocIndex {
   /// Returns the subtrees of every doc [name] addresses, each doc once.
   ///
   /// [codeTarget], when given, keeps [name] to that target's docs and the
-  /// shared docs, as [resolve] does.
+  /// shared docs, as [resolve] does; a subtree member of another target
+  /// stays out, since a resolved shared doc's subtree holds one tree per
+  /// target.
   List<IndexedDoc> under(String name, {String? codeTarget}) {
     final paths = {
       for (final doc in resolve(name, codeTarget: codeTarget))
-        for (final member in subtreeOf(doc)) member.docPath,
+        for (final member in subtreeOf(doc))
+          if (codeTarget == null ||
+              member.target == null ||
+              member.target == codeTarget)
+            member.docPath,
     };
     return [
       for (final doc in docs)

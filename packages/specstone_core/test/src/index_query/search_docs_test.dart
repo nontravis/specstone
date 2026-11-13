@@ -198,20 +198,25 @@ void main() {
         'flutter_lib/.keep': '',
         'jaspr_lib/.keep': '',
         'docs/$feature': '# Toast\n\n## Problem\nWarm toast.\n',
-        'docs/$flutterArch': '# Toast architecture\n\n## Purpose\n.\n',
-        'docs/$jasprArch': '# Toast architecture\n\n## Purpose\n.\n',
+        'docs/$flutterArch':
+            '# Toast architecture\n\n## Purpose\nWarm toast on flutter.\n',
+        'docs/$jasprArch':
+            '# Toast architecture\n\n## Purpose\nWarm toast on jaspr.\n',
       }),
     );
     addTearDown(session.close);
     final scoped = answerSearch(
       session.index,
-      'Toast',
+      'Warm toast',
       const SearchOptions(under: 'toast', codeTarget: 'jaspr'),
     );
+    expect(scoped.text, contains('Warm toast on jaspr.'));
     expect(
-      [for (final hit in scoped.json['hits']! as List) (hit as Map)['name']],
-      everyElement(isNot('toast (architecture)')),
-      reason: "jaspr's name keeps only its own architecture doc",
+      scoped.text,
+      isNot(contains('on flutter')),
+      reason:
+          "jaspr's name keeps only its own architecture doc; the flutter "
+          'twin would print its own marker text',
     );
     expect(
       () => answerSearch(
