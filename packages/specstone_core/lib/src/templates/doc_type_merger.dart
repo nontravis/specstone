@@ -44,11 +44,10 @@ final class DocTypeMerger {
   /// `override_id_not_found` for a removed pattern id the base lacks,
   /// `reference_title_not_found` for a removed title the base lacks,
   /// `bundle_mode_not_found` for a removed mode the base lacks, and
-  /// `unknown_value` for a removed generator kind the base lacks or a
-  /// `required_when` that names no section of the result.
+  /// `unknown_value` for a removed generator kind the base lacks.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
-    final merged = base.copyWith(
+    return base.copyWith(
       description: layer.description,
       parent: parent,
       extendsId: layer.extendsId,
@@ -77,23 +76,6 @@ final class DocTypeMerger {
       reference: _mergeReference(base.reference, layer),
       files: List.unmodifiable([...base.files, layer.file]),
     );
-    _checkRequiredWhenSections(merged, layer);
-    return merged;
-  }
-
-  /// Throws `unknown_value` for a `required_when` that names no section.
-  void _checkRequiredWhenSections(MergedDocType merged, DocTypeLayer layer) {
-    final ids = {for (final section in merged.sections) section.id};
-    for (final section in merged.sections) {
-      final rule = section.requiredWhen;
-      if (rule == null || ids.contains(rule.section)) continue;
-      throw TemplateFault(
-        FaultCode.unknownValue,
-        'the key section names no section of the doc type: ${rule.section}',
-        file: layer.file,
-        key: 'sections.${section.id}.lint.required_when.section',
-      );
-    }
   }
 
   String? _mergeParent(MergedDocType base, DocTypeLayer layer) {

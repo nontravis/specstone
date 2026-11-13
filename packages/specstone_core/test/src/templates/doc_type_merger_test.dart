@@ -1305,34 +1305,6 @@ lint: {title_no_number: true}
         );
       }
     });
-
-    test('a required_when that names no section of the merged doc type is '
-        'unknown_value', () {
-      expect(
-        () => over(
-          '{required_when: {section: nowhere, field: Kind, value: api}}',
-        ),
-        throwsA(
-          fault(
-            FaultCode.unknownValue,
-            'sections.invariants.lint.required_when.section',
-          ),
-        ),
-      );
-    });
-
-    test('a layer that disables the section a required_when names is '
-        'unknown_value', () {
-      expect(
-        () => project(base(), 'sections: [{id: scope, disabled: true}]'),
-        throwsA(
-          fault(
-            FaultCode.unknownValue,
-            'sections.invariants.lint.required_when.section',
-          ),
-        ),
-      );
-    });
   });
 
   group('DocTypeMerger.apply section lint', () {
