@@ -55,7 +55,10 @@ Future<_Walk> _walk([List<String> files = _tree]) async {
     workingDirectory: root,
     homeDirectory: null,
   );
-  final matcher = DocTypeMatcher(await fixtureDocTypes());
+  final matcher = DocTypeMatcher(
+    await fixtureDocTypes(),
+    targetNames: const [],
+  );
   return (
     project: project,
     root: root,

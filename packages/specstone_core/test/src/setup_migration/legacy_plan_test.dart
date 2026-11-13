@@ -74,7 +74,7 @@ MergedSet _carriedSet() => TemplateResolver().resolveCarried(
 /// The merged type of the doc at [docPath] in the carried packs, or null.
 MergedDocType? _typeOf(String docPath) {
   final set = _carriedSet();
-  final match = DocTypeMatcher(set).match(docPath);
+  final match = DocTypeMatcher(set, targetNames: const []).match(docPath);
   return match is MatchedDocType ? match.docType : null;
 }
 

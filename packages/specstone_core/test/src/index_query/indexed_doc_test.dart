@@ -31,7 +31,10 @@ void main() {
   late DocTypeMatcher matcher;
 
   setUpAll(() async {
-    matcher = DocTypeMatcher(await resolveSoftwareTech());
+    matcher = DocTypeMatcher(
+      await resolveSoftwareTech(),
+      targetNames: const [],
+    );
   });
 
   ParsedDoc parse(String path, String text) => parseIndexedDoc(
@@ -349,6 +352,7 @@ void main() {
             ),
           ],
         ),
+        targetNames: const [],
       );
 
       String nameOf(String path) => parseIndexedDoc(

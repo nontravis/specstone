@@ -342,6 +342,7 @@ void main() {
     () async {
       final matcher = DocTypeMatcher(
         openProject(await writeWriteProject()).set,
+        targetNames: const [],
       );
       final texts = <String, String>{
         for (final MapEntry(:key, :value) in writeProject.entries)

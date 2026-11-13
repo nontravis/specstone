@@ -26,7 +26,10 @@ void main() {
   group('DocTypeMatcher.match', () {
     test('f05/us01/fr02, doc_model/s03/inv3: a doc path with one matching '
         'doc type is that doc type', () async {
-      final matcher = DocTypeMatcher(await fixtureDocTypes());
+      final matcher = DocTypeMatcher(
+        await fixtureDocTypes(),
+        targetNames: const [],
+      );
 
       final match = matcher.match('prds/features/f05_rendering/FEATURE.md');
 
@@ -36,7 +39,10 @@ void main() {
 
     test('f05/us01/fr02/e02, doc_model/s03/inv3: a doc path no doc type '
         'matches is NoDocType', () async {
-      final matcher = DocTypeMatcher(await fixtureDocTypes());
+      final matcher = DocTypeMatcher(
+        await fixtureDocTypes(),
+        targetNames: const [],
+      );
 
       expect(
         matcher.match('prds/features/f05_rendering/notes.md'),
@@ -48,6 +54,7 @@ void main() {
         'match is ambiguous, ids in code point order', () async {
       final matcher = DocTypeMatcher(
         await fixtureDocTypes(extra: {'zeta.yaml': _zeta}),
+        targetNames: const [],
       );
 
       final match = matcher.match('prds/features/f05_rendering/FEATURE.md');
@@ -70,6 +77,7 @@ void main() {
             ),
           ],
         ),
+        targetNames: const [],
       );
 
       expect(matcher.match('pathless'), isA<NoDocType>());
@@ -188,6 +196,7 @@ void main() {
             perTarget: true,
           ),
         ]),
+        targetNames: const [],
       );
 
       final match = matcher.match('specs/f01_login/ARCHITECTURE.md');
@@ -199,7 +208,10 @@ void main() {
     test(
       'returns the first number any doc type reads from the segments',
       () async {
-        final matcher = DocTypeMatcher(await fixtureDocTypes());
+        final matcher = DocTypeMatcher(
+          await fixtureDocTypes(),
+          targetNames: const [],
+        );
 
         expect(matcher.entryNumber(['prds', 'features', 'f05_rendering']), 5);
         expect(matcher.entryNumber(['prds', 'd01_context.md']), 1);
@@ -219,7 +231,10 @@ void main() {
     test(
       'is null, without throwing, when the digits overflow an int',
       () async {
-        final matcher = DocTypeMatcher(await fixtureDocTypes());
+        final matcher = DocTypeMatcher(
+          await fixtureDocTypes(),
+          targetNames: const [],
+        );
 
         expect(
           matcher.entryNumber(['prds', 'features', 'f99999999999999999999_x']),
@@ -251,6 +266,7 @@ void main() {
           ),
         ],
       ),
+      targetNames: const [],
     );
 
     test('doc_model/s03/inv10: depth 3 matches feature and depth 4 matches '
@@ -276,7 +292,10 @@ void main() {
     });
 
     test('depthPastLimit is null for a set with no nesting type', () async {
-      final matcher = DocTypeMatcher(await fixtureDocTypes());
+      final matcher = DocTypeMatcher(
+        await fixtureDocTypes(),
+        targetNames: const [],
+      );
 
       expect(
         matcher.depthPastLimit('prds/features/f01_a/f01_b/FEATURE.md'),

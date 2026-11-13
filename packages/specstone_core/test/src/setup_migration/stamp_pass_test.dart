@@ -40,7 +40,7 @@ String _tracing(String entries) =>
 late MergedSet _set;
 
 MergedDocType? _typeAt(String docPath) =>
-    switch (DocTypeMatcher(_set).match(docPath)) {
+    switch (DocTypeMatcher(_set, targetNames: const []).match(docPath)) {
       MatchedDocType(:final docType) => docType,
       _ => null,
     };

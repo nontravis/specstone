@@ -34,7 +34,7 @@ final class AmbiguousDocType extends DocTypeMatch {
 
 /// Finds the doc type of a DocPath from the path patterns of a [MergedSet].
 final class DocTypeMatcher {
-  new(MergedSet set, {List<String> targetNames = const []})
+  new(MergedSet set, {required List<String> targetNames})
     : _targetNames = targetNames,
       _candidates = [
         for (final docType in set.docTypes)

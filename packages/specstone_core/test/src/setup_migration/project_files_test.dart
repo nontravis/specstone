@@ -19,7 +19,7 @@ DocTypeMatcher _matcherWith(Map<String, String> overrides) {
     homeDirectory: null,
     projectLayers: parseOverrides(overrides),
   );
-  return DocTypeMatcher(set);
+  return DocTypeMatcher(set, targetNames: const []);
 }
 
 String? _matchedId(DocTypeMatcher matcher, String docPath) =>

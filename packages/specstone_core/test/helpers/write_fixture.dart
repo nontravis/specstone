@@ -112,6 +112,7 @@ Map<String, String> _withApprovalHashes(Map<String, String> files) {
         workingDirectory: scratch,
         homeDirectory: null,
       ),
+      targetNames: const [],
     );
     return {
       for (final MapEntry(:key, :value) in files.entries)

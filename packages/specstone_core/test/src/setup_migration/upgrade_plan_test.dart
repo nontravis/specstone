@@ -562,7 +562,10 @@ sections:
       homeDirectory: draftFixture.home,
     );
     const path = 'prds/runbooks/deploy/RUNBOOK.md';
-    final type = switch (DocTypeMatcher(set).match(path)) {
+    final type = switch (DocTypeMatcher(
+      set,
+      targetNames: const [],
+    ).match(path)) {
       MatchedDocType(:final docType) => docType,
       _ => null,
     };

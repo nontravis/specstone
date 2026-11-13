@@ -190,6 +190,7 @@ DocTypeMatcher docTypeMatcherOf(Map<String, String> files) {
         workingDirectory: scratch,
         homeDirectory: null,
       ),
+      targetNames: const [],
     );
   } finally {
     scratch.deleteSync(recursive: true);
