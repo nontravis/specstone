@@ -19,7 +19,7 @@ const _agentMd =
     '`specstone get <name>`; never open doc files directly.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
     '- Change docs only with `specstone set`, `new`, `move`, or `rename`; '
-    'agent drafts wait for `specstone approve`.\n'
+    'agent drafts stay drafts until the Owner runs `specstone approve`.\n'
     "- Before writing a doc, read its type's guide with "
     '`specstone guide <type>`; write each item in its shape,\n'
     '  once, short, complete.\n'
@@ -332,7 +332,7 @@ void main() {
       expect(upsertBlock('', _inlineBlock()), _inlineBlock());
     });
 
-    test('$_fr E02: a CRLF file takes the blank line in CRLF', () {
+    test('a CRLF file takes the blank line in CRLF', () {
       const owner = '# Mine\nText.\n';
 
       expect(
@@ -347,17 +347,17 @@ void main() {
       expect(upsertBlock(owner, _importBlock()), '$owner\n${_importBlock()}');
     });
 
-    test('$_fr E02: no final line feed takes one before the blank line', () {
+    test('no final line feed takes one before the blank line', () {
       const owner = '# My project\n\nOwner text.';
 
       expect(upsertBlock(owner, _importBlock()), '$owner\n\n${_importBlock()}');
     });
 
-    test('$_fr E02: an empty file takes the block with no blank line', () {
+    test('an empty file takes the block with no blank line', () {
       expect(upsertBlock('', _importBlock()), _importBlock());
     });
 
-    test('$_fr E02: a blank last line adds no second blank line', () {
+    test('a blank last line adds no second blank line', () {
       const owner = '# My project\n\nOwner text.\n\n';
 
       expect(upsertBlock(owner, _importBlock()), '$owner${_importBlock()}');
@@ -484,12 +484,18 @@ void main() {
       },
     );
 
-    test('$_fr: one clause names the no-doc rule for code and tests', () {
-      final firstRule = _rules(agentMdText)
-          .singleWhere((rule) => rule.startsWith('- code ⊆ spec'));
+    test(
+      'the first rule says code and tests name no doc, path, or item ID',
+      () {
+        final firstRule = _rules(agentMdText)
+            .singleWhere((rule) => rule.startsWith('- code ⊆ spec'));
 
-      expect(firstRule, contains('Code and tests name no doc, path, or item'));
-      expect(firstRule, contains('ID.'));
-    });
+        expect(
+          firstRule,
+          contains('Code and tests name no doc, path, or item'),
+        );
+        expect(firstRule, contains('ID.'));
+      },
+    );
   });
 }
