@@ -1989,8 +1989,9 @@ void _agentTests() {
   });
 
   test('agent_plugin/start_from_another_tools_spec/take_in_a_source E04, '
-      'verification; run_brainstorm_to_design E26: step 1 makes the gate '
-      'call, with no budget, before it points to source.md', () {
+      'verification; agent_plugin/write_prd_and_spec/run_brainstorm_to_design '
+      'E26: step 1 makes the gate call, with no budget, opens no link or '
+      'issue before it exits 0, and then points to source.md', () {
     final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
     final step = _oneLine(_sectionOf(skill, '1. Ground: the first call'));
     const gate = 'specstone context project --for design';
@@ -2000,6 +2001,13 @@ void _agentTests() {
     expect(step, contains(pointer));
     expect(step.indexOf(gate), lessThan(step.indexOf(pointer)));
     expect(step, contains('before any other command or file read'));
+    expect(
+      step,
+      contains(
+        'Read or open the source, a link or an issue included, only after it '
+        'exits 0',
+      ),
+    );
     expect(_oneLine(skill), isNot(contains('$gate --budget')));
     expect(_frontmatter.firstMatch(skill)![0], contains('another tool'));
   });
