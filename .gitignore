@@ -75,6 +75,7 @@ AGENTS.md
 .mcp.local.json
 .superpowers/
 .playwright-mcp/
+/.config/
 /docs
 
 # ---------------------------------------------------------------------------
