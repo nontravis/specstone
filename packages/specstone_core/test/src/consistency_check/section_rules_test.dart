@@ -78,7 +78,7 @@ void main() {
     );
     expect(spots(report, FindingKind.requiredSectionMissing), isEmpty);
     expect(spots(report, FindingKind.sectionUndeclared), [
-      '$loginStory:12: section_undeclared',
+      '$loginStory:9: section_undeclared',
     ]);
     expect(
       report.findings
@@ -93,7 +93,7 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/$loginFr':
-              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 383}',
+              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 386}',
         },
       ),
     );
@@ -121,7 +121,7 @@ void main() {
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
-    expect(finding.line, 15);
+    expect(finding.line, 12);
     expect(
       finding.toJson(),
       allOf(
@@ -149,7 +149,7 @@ void main() {
       final report = checkOf(
         await writeCheckProject(
           extra: edit(loginFr, [
-            ('status: implemented\n', 'status: "implemented\n'),
+            ('verify_method: test\n', 'verify_method: "test\n'),
             ('## Statement\n\n$checkPasswordStatement\n\n', ''),
           ]),
         ),

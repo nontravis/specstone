@@ -32,6 +32,9 @@ const loginFeature = 'prds/features/f01_login/FEATURE.md';
 /// The DocPath of the login story.
 const loginStory = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 
+/// The DocPath of the login record, the story's and the FR's status and code.
+const loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
+
 /// The DocPath of the login functional requirement.
 const loginFr =
     'prds/features/f01_login/us01_email_login/fr01_check_password.md';
@@ -98,17 +101,21 @@ Map<String, String> checkProjectFiles() => {
       '## Success measures\n\nResets per week.\n\n## Current alternatives\n\nEmail links.\n\n'
       '## Feature flow\n\nSign in, then work.\n\n## Out-of-scope\n\n- Social sign-in — not planned\n',
   'docs/$loginStory':
-      '---\nstatus: implemented\ngoals:\n  - PG-01\nimplements:\n'
-      '  - app/lib/login.dart:SignInPage\n---\n\n# Agent signs in with email\n\n## Use Case\n\n'
+      '---\ngoals:\n  - PG-01\n---\n\n# Agent signs in with email\n\n## Use Case\n\n'
       '- **As a** Agent who signs in\n- **I want to** sign in with an email\n- **so that** I reach my work\n\n'
       '## Acceptance Criteria\n\n$loginScenario1\n\n$loginScenario2\n',
   'docs/$loginFr':
-      '---\nstatus: implemented\ntraced_from:\n  - S2\nverify_method: test\n'
-      'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n'
-      'implements:\n  - app/lib/login.dart:checkPassword\n---\n\n'
+      '---\ntraced_from:\n  - S2\nverify_method: test\n'
+      'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n---\n\n'
       '# Check the password\n\n## Statement\n\n$checkPasswordStatement\n\n'
       '## Edge cases\n\n1. E01 — An empty password → refused.\n\n## Rationale\n\nA wrong password must not sign in.\n\n'
       '## Verification\n\nTest: a wrong password is refused.\n',
+  'docs/$loginRecord':
+      "---\nstatuses:\n  - 'email_login:implemented'\n"
+      "  - 'email_login/check_password:implemented'\nimplements:\n"
+      "  - 'email_login:app/lib/login.dart:SignInPage'\n"
+      "  - 'email_login/check_password:app/lib/login.dart:checkPassword'\n"
+      '---\n\n# Login implementation\n',
   'docs/$loginNf':
       '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\nconfirmed:\n'
       '  - NFR-P01 ${fingerprintFor(loginNfrStatement)}\n---\n\n# Sign-in time\n\n'
@@ -183,6 +190,7 @@ DocTypeMatcher docTypeMatcherOf(Map<String, String> files) {
         workingDirectory: scratch,
         homeDirectory: null,
       ),
+      targetNames: const [],
     );
   } finally {
     scratch.deleteSync(recursive: true);

@@ -4,14 +4,31 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/target_fixture.dart';
+
+const _brokenRecord = 'specs/f01_login/IMPLEMENTATION.md';
+
+/// Returns the files that plant a code path to nothing in the login record.
+Map<String, String> _brokenRecordFiles() => {
+  'docs/$_brokenRecord':
+      "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+      "implements:\n  - 'email_login/check_password:app/lib/gone.dart:X'\n"
+      '---\n\n# Record\n',
+};
 
 void main() {
   test(
@@ -230,7 +247,7 @@ void main() {
         checkOf(project, target: 'fr:login/email_login/check_password'),
         FindingKind.fieldUndeclared,
       ),
-      ['$loginFr:6: field_undeclared'],
+      ['$loginFr:5: field_undeclared'],
     );
   });
 
@@ -287,12 +304,13 @@ void main() {
   test("f08/us06/fr02, f08/us06/s3, f08/us06/fr02/e06: a doc check gives that doc's findings only", () async {
     final project = await writeCheckProject(
       extra: {
-        ...doc(
-          loginStory,
-          'I reach my work',
-          'I reach my work, see [gone](gone/USER_STORY.md)',
-        ),
-        ...fr('app/lib/login.dart:checkPassword', 'app/lib/gone.dart:X'),
+        ..._brokenRecordFiles(),
+        ...edit(loginStory, [
+          (
+            'I reach my work',
+            'I reach my work, see [gone](gone/USER_STORY.md)',
+          ),
+        ]),
       },
     );
     final story = checkOf(project, docPath: loginStory);
@@ -302,7 +320,7 @@ void main() {
       story.findings.map((f) => f.kind),
       contains(FindingKind.linkUnresolved),
     );
-    final requirement = checkOf(project, docPath: loginFr);
+    final requirement = checkOf(project, docPath: _brokenRecord);
     expect(requirement.findings, isNotEmpty);
     expect(requirement.findings.where((f) => f.path == loginStory), isEmpty);
   });
@@ -327,16 +345,14 @@ void main() {
   test(
     'f08/us06/fr02: a feature doc check leaves out the docs under it',
     () async {
-      final project = await writeCheckProject(
-        extra: fr('app/lib/login.dart:checkPassword', 'app/lib/gone.dart:X'),
-      );
+      final project = await writeCheckProject(extra: _brokenRecordFiles());
       expect(
         checkOf(project, target: 'feature:login').findings.map((f) => f.path),
-        contains(loginFr),
+        contains(_brokenRecord),
       );
       expect(
         checkOf(project, docPath: loginFeature).findings.map((f) => f.path),
-        isNot(contains(loginFr)),
+        isNot(contains(_brokenRecord)),
       );
     },
   );
@@ -464,6 +480,202 @@ void main() {
     expect(
       spots(checkOf(project, target: 'feature:signup'), FindingKind.tbrOpen),
       isEmpty,
+    );
+  });
+
+  group('consistency_check/find_template_breaks/check_target, code targets', () {
+    const flutter = CodeTarget('flutter', codeRoot: 'flutter_ws');
+    const jaspr = CodeTarget('jaspr', codeRoot: 'jaspr_ws');
+    const flutterArch = flutterArchitecture;
+    const jasprArch = jasprArchitecture;
+
+    CheckReport runTwin(
+      Directory project, {
+      String? target,
+      String? codeTarget,
+    }) {
+      final session = openSession(project);
+      addTearDown(session.close);
+      return runCheck(session, target: target, codeTarget: codeTarget);
+    }
+
+    Set<String> pathsOf(CheckReport report) => {
+      for (final finding in report.findings) finding.path,
+    };
+
+    test('the two-target fixture reads each doc once: only the planted links are findings', () async {
+      final report = runTwin(await writeTwinProject());
+      expect(pathsOf(report), {loginFeature, loginApi, flutterArch, jasprArch});
+      expect(spots(report).length, 4, reason: spots(report).join('\n'));
+    });
+
+    // `login` names the feature and each twin; `feature:login` names the
+    // feature alone, so the spec folders come from its unit.
+    for (final name in ['login', 'feature:login']) {
+      test(
+        'E20: check $name with two targets reports the feature folder and each target spec folder',
+        () async {
+          final project = await writeTwinProject();
+          expect(pathsOf(runTwin(project, target: name)), {
+            loginFeature,
+            loginApi,
+            flutterArch,
+            jasprArch,
+          });
+        },
+      );
+
+      test(
+        'E20: check $name --target jaspr keeps the PRD files, the shared docs, and that target spec folder',
+        () async {
+          final project = await writeTwinProject();
+          expect(pathsOf(runTwin(project, target: name, codeTarget: 'jaspr')), {
+            loginFeature,
+            loginApi,
+            jasprArch,
+          });
+          expect(
+            pathsOf(runTwin(project, target: name, codeTarget: 'flutter')),
+            {loginFeature, loginApi, flutterArch},
+          );
+        },
+      );
+    }
+
+    test('E21: check with no target reports every target, each finding at the DocPath of its target', () async {
+      final project = await writeTwinProject(
+        extra: {'.specstone/AGENT.md': 'hand edit\n'},
+      );
+      final report = runTwin(project);
+      expect(pathsOf(report), containsAll([flutterArch, jasprArch]));
+      expect(spots(report, FindingKind.agentBlockStale), [
+        '.specstone/AGENT.md:1: agent_block_stale',
+      ]);
+    });
+
+    test('E21: check --target jaspr keeps the shared docs and jaspr, the project-level findings too', () async {
+      final project = await writeTwinProject(
+        extra: {'.specstone/AGENT.md': 'hand edit\n'},
+      );
+      final report = runTwin(project, codeTarget: 'jaspr');
+      expect(pathsOf(report), containsAll([loginFeature, loginApi, jasprArch]));
+      expect(pathsOf(report), isNot(contains(flutterArch)));
+      expect(spots(report, FindingKind.agentBlockStale), [
+        '.specstone/AGENT.md:1: agent_block_stale',
+      ]);
+    });
+
+    test('E22: a --target name targets: lacks is argument_invalid naming the targets, alone or beside a doc target', () async {
+      final project = await writeTwinProject();
+      for (final target in [null, 'login']) {
+        expect(
+          () => runTwin(project, target: target, codeTarget: 'web'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--target web: the code targets are flutter, jaspr',
+                ),
+          ),
+          reason: 'target: $target',
+        );
+      }
+    });
+
+    test(
+      'E22: an empty --target is argument_missing naming the targets',
+      () async {
+        final project = await writeTwinProject();
+        expect(
+          () => runTwin(project, codeTarget: ''),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--target needs a code target name: the code targets are flutter, jaspr',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('E21: an untyped file under another target spec folder stays out of --target, and in without it', () async {
+      const notes = 'specs/flutter/f01_login/notes.md';
+      final project = await writeTwinProject(
+        extra: {'docs/$notes': '# Notes\n'},
+      );
+      expect(pathsOf(runTwin(project)), contains(notes));
+      expect(
+        pathsOf(runTwin(project, codeTarget: 'jaspr')),
+        isNot(contains(notes)),
+      );
+      expect(pathsOf(runTwin(project, codeTarget: 'flutter')), contains(notes));
+    });
+
+    test('E22: a --target name on a project with one unnamed target is argument_invalid', () async {
+      final project = await writeCheckProject();
+      expect(
+        () => runTwin(project, codeTarget: 'web'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            '--target web: this project names no code target',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'INV-32: CheckScope.targets holds every target, or the one named',
+      () async {
+        final session = openSession(await writeTwinProject());
+        addTearDown(session.close);
+        final context = CheckContext(session);
+        expect(CheckScope.project(context).targets, [flutter, jaspr]);
+        expect(CheckScope.project(context, codeTarget: 'jaspr').targets, [
+          jaspr,
+        ]);
+        expect(CheckScope.of(context, 'login').targets, [flutter, jaspr]);
+        expect(CheckScope.of(context, 'login', codeTarget: 'flutter').targets, [
+          flutter,
+        ]);
+        expect(CheckScope.doc(context, loginFr).targets, [flutter, jaspr]);
+        final plain = openSession(await writeCheckProject());
+        addTearDown(plain.close);
+        expect(CheckScope.project(CheckContext(plain)).targets, [
+          const CodeTarget(null, codeRoot: '.'),
+        ]);
+      },
+    );
+
+    test(
+      'INV-32: the context reads each target code root and code text apart',
+      () async {
+        final session = openSession(await writeTwinProject());
+        addTearDown(session.close);
+        final context = CheckContext(session);
+        expect(context.codeRootOf(flutter).path, endsWith('flutter_ws'));
+        expect(context.codeRootOf(jaspr).path, endsWith('jaspr_ws'));
+        expect(
+          context.codeTextOf(flutter, 'app/lib/login.dart'),
+          contains('FlutterSignIn'),
+        );
+        expect(
+          context.codeTextOf(jaspr, 'app/lib/login.dart'),
+          contains('JasprSignIn'),
+        );
+        expect(context.codeFilesRead, 2);
+        expect(context.codeTextOf(jaspr, 'app/lib/gone.dart'), isNull);
+        const warning =
+            'app/lib/gone.dart: cannot read the file in target jaspr; '
+            'implements Symbols in it are not checked';
+        expect(context.unstatedWarnings, [warning]);
+      },
     );
   });
 }

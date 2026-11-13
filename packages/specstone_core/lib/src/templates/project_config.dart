@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -14,7 +15,11 @@ const _specstoneFolder = '.specstone';
 
 const _coreName = 'prd-core';
 const _codeRootKey = 'code_root';
+const _targetsKey = 'targets';
 const _agentFileRootsKey = 'agent_file_roots';
+
+/// One slug of lowercase letters, digits, and underscores.
+final _targetNamePattern = RegExp(r'^[a-z][a-z0-9_]*$');
 
 /// Lowercase letters and digits in hyphen-separated groups.
 final _kebabCase = RegExp(r'^[a-z0-9]+(-[a-z0-9]+)*$');
@@ -101,13 +106,13 @@ Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
           File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
     );
 
-/// The project config: the pack version each pack is pinned to, the folder
-/// code paths are written from, and the repository tops already offered agent
-/// files.
+/// The project config: the pack version each pack is pinned to, the code
+/// targets code paths are written from, and the repository tops already
+/// offered agent files.
 final class ProjectConfig {
   new _({
     required this.pins,
-    required this.codeRoot,
+    required this.targets,
     required this.hasCodeRoot,
     required this.agentFileRoots,
   });
@@ -116,12 +121,14 @@ final class ProjectConfig {
   ///
   /// Throws `unknown_value` first when `.specstone` is a link or a file, since
   /// no byte is read through it, then `unknown_key` for a key other than
-  /// `packs`, `code_root`, and `agent_file_roots` or a `packs` key that is not
-  /// kebab-case, `missing_key` when `packs` is absent, `pack_version_invalid`
-  /// for a bad pin, `prd_core_missing` when `packs` pins no `prd-core`, and
-  /// `unknown_value` for a `code_root` that is not a string, is empty, is
-  /// absolute, or holds a backslash, and for an `agent_file_roots` that is not
-  /// a list of such strings.
+  /// `packs`, `code_root`, `targets`, and `agent_file_roots` or a `packs` key
+  /// that is not kebab-case, `missing_key` when `packs` is absent,
+  /// `pack_version_invalid` for a bad pin, `prd_core_missing` when `packs`
+  /// pins no `prd-core`, and `unknown_value` for a `code_root` that is not a
+  /// string, is empty, is absolute, or holds a backslash, for an
+  /// `agent_file_roots` that is not a list of such strings, and for a
+  /// `targets` that is empty, sits beside `code_root:`, or holds two targets
+  /// on one code folder.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -134,7 +141,7 @@ final class ProjectConfig {
     final map = readYamlMap(text, file: projectConfigPath);
     checkKeys(
       map,
-      {'packs', _codeRootKey, _agentFileRootsKey},
+      {'packs', _codeRootKey, _targetsKey, _agentFileRootsKey},
       file: projectConfigPath,
       format: 'config',
     );
@@ -164,9 +171,10 @@ final class ProjectConfig {
         key: 'packs',
       );
     }
+    final targets = _readTargets(root, map);
     return ProjectConfig._(
       pins: Map.unmodifiable(pins),
-      codeRoot: _readCodeRoot(map),
+      targets: List.unmodifiable(targets),
       hasCodeRoot: map.containsKey(_codeRootKey),
       agentFileRoots: _readAgentFileRoots(map),
     );
@@ -175,14 +183,23 @@ final class ProjectConfig {
   /// The pinned version of each pack, in file order.
   final Map<String, PackVersion> pins;
 
-  /// The folder code paths are written from, relative to the project root.
+  /// The code targets, in config order; with no `targets:` one unnamed target
+  /// whose code root is `code_root:`'s.
+  final List<CodeTarget> targets;
+
+  /// The named targets, in config order; empty with one unnamed target.
+  List<String> get targetNames => targetNamesOf(targets);
+
+  /// The folder code paths are written from, relative to the project root:
+  /// the first [targets] entry's code root.
   ///
   /// `/`-separated and possibly outside the project root (`../code`); `.` when
   /// the config has no `code_root`.
-  final String codeRoot;
+  String get codeRoot => targets.first.codeRoot;
 
   /// Whether the file holds a `code_root:` key; [codeRoot] reads `.` for an
-  /// absent key and for `code_root: .` alike.
+  /// absent key and for `code_root: .` alike. A `targets:` config has none,
+  /// since each target holds its own `code_root:`.
   final bool hasCodeRoot;
 
   /// The repository tops already offered agent files, each as written.
@@ -216,20 +233,121 @@ void requireSpecstoneFolder(Directory root) {
   );
 }
 
-String _readCodeRoot(YamlMap map) {
+/// Reads the targets of the config [map]: its `targets:` entries in file
+/// order, or one unnamed target at `code_root:` when the key is absent.
+///
+/// [root] joins each code root for the one-folder comparison.
+List<CodeTarget> _readTargets(Directory root, YamlMap map) {
+  final hasTargets = map.containsKey(_targetsKey);
+  final hasCodeRoot = map.containsKey(_codeRootKey);
+  if (!hasTargets) {
+    return [CodeTarget(null, codeRoot: _readCodeRootAt(map, '', _codeRootKey))];
+  }
+  if (hasCodeRoot) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'each target holds its own code_root; drop the code_root key beside '
+      'targets',
+      file: projectConfigPath,
+      key: _codeRootKey,
+    );
+  }
+  final targetsMap = optionalValue<YamlMap>(
+    map,
+    _targetsKey,
+    file: projectConfigPath,
+  );
+  if (targetsMap == null || targetsMap.isEmpty) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $_targetsKey must be a non-empty mapping of target name to '
+      'its code_root',
+      file: projectConfigPath,
+      key: _targetsKey,
+    );
+  }
+  final targets = <CodeTarget>[];
+  for (final MapEntry(:key) in targetsMap.nodes.entries) {
+    final name = '${(key as YamlNode).value}';
+    if (!_targetNamePattern.hasMatch(name)) {
+      throw TemplateFault(
+        FaultCode.unknownKey,
+        'a target name is one slug of lowercase letters, digits, and '
+        'underscores',
+        file: projectConfigPath,
+        key: '$_targetsKey.$name',
+      );
+    }
+    final entry =
+        optionalValue<YamlMap>(
+          targetsMap,
+          name,
+          file: projectConfigPath,
+          prefix: '$_targetsKey.',
+        ) ??
+        (throw TemplateFault(
+          FaultCode.unknownValue,
+          'the target $name must be a mapping holding its code_root',
+          file: projectConfigPath,
+          key: '$_targetsKey.$name',
+        ));
+    checkKeys(
+      entry,
+      {_codeRootKey},
+      file: projectConfigPath,
+      format: 'config',
+      prefix: '$_targetsKey.$name.',
+    );
+    targets.add(
+      CodeTarget(
+        name,
+        codeRoot: _readCodeRootAt(entry, '$_targetsKey.$name.', _codeRootKey),
+      ),
+    );
+  }
+  _refuseOneFolder(root, targets);
+  return targets;
+}
+
+/// Throws `unknown_value` when two of [targets] name one code folder, naming
+/// both, since a code path picks its target by its longest code root.
+void _refuseOneFolder(Directory root, List<CodeTarget> targets) {
+  for (var i = 0; i < targets.length; i++) {
+    for (var j = i + 1; j < targets.length; j++) {
+      final first = codeRootFolderOf(root, targets[i]).path;
+      final second = codeRootFolderOf(root, targets[j]).path;
+      if (first == second) {
+        throw TemplateFault(
+          FaultCode.unknownValue,
+          'the targets ${targets[i].name} and ${targets[j].name} name one '
+          'code folder, and a code path picks its target by its longest code '
+          'root',
+          file: projectConfigPath,
+          key: _targetsKey,
+        );
+      }
+    }
+  }
+}
+
+/// Reads a `code_root:` value at [key] of [map], `.` when absent or null.
+///
+/// [prefix] builds the fault key, `'targets.<name>.'` inside a target.
+String _readCodeRootAt(YamlMap map, String prefix, String key) {
   final value = optionalValue<String>(
     map,
-    _codeRootKey,
+    key,
     file: projectConfigPath,
+    prefix: prefix,
   );
   if (value == null) return '.';
   if (!isPortableCodeEntry(value)) {
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key $_codeRootKey must be a non-empty relative path with / '
-      'separators and no name ending in a space or a dot',
+      'the key $key must be a non-empty relative path with / separators and '
+      'no name ending in a space or a dot',
       file: projectConfigPath,
-      key: _codeRootKey,
+      key: '$prefix$key',
     );
   }
   return value;

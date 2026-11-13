@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:test/test.dart';
 
@@ -77,6 +78,32 @@ migrations:
       ['rename_field', 'rename_field'],
     );
     expect(_froms(upgrades.single), ['1.0.0', '1.0.0']);
+  });
+
+  test('f06/us02/fr01/e10: a pin at or below the from of a move_to_record '
+      'entry selects its step; a pin above it selects none', () {
+    PackManifest pack() => PackManifest.parse('''
+name: acme
+version: 1.5.0
+migrations:
+  - from: 1.4.0
+    steps:
+      - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
+''', file: _file);
+
+    for (final pin in ['1.3.0', '1.4.0']) {
+      final selected = selectUpgrades(
+        {'acme': _v(pin)},
+        {'acme': pack()},
+      ).single.steps;
+      expect(selected, hasLength(1), reason: 'pin $pin');
+      expect(selected.single.from.toString(), '1.4.0');
+      expect(selected.single.step, isA<MoveToRecord>());
+    }
+    expect(
+      selectUpgrades({'acme': _v('1.4.1')}, {'acme': pack()}).single.steps,
+      isEmpty,
+    );
   });
 
   test('f06/us02/fr01/e01, f06/us02/s1: no entry in range changes the pin '

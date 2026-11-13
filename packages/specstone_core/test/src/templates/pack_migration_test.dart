@@ -228,4 +228,82 @@ void main() {
       throwsA(_fault(FaultCode.unknownValue, key: 'migrations[0].steps[0]')),
     );
   });
+
+  test('f06/us02/fr01: a move_to_record step parses into its doc types, '
+      'fields, and record doc type', () {
+    final step = parseMigrationsOf('''
+- from: 1.4.0
+  steps:
+    - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
+''').single.steps.single;
+
+    expect(step, isA<MoveToRecord>());
+    final move = step as MoveToRecord;
+    expect(move.kind, 'move_to_record');
+    expect(move.docTypes, ['user_story', 'fr']);
+    expect(move.fields, ['status', 'implements']);
+    expect(move.to, 'implementation');
+    expect(move.touches('fr'), isTrue);
+    expect(move.touches('architecture'), isFalse);
+  });
+
+  test('f06/us02/fr01/e06: a move_to_record step missing a key is '
+      'missing_key', () {
+    for (final key in ['doc_types', 'fields', 'to']) {
+      final keys = {
+        'doc_types': '[fr]',
+        'fields': '[status]',
+        'to': 'implementation',
+      }..remove(key);
+      final body = keys.entries.map((e) => '${e.key}: ${e.value}').join(', ');
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.4.0\n  steps:\n    - move_to_record: {$body}\n',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.missingKey,
+            key: 'migrations[0].steps[0].move_to_record.$key',
+          ),
+        ),
+        reason: 'key $key',
+      );
+    }
+  });
+
+  test('f06/us02/fr01/e06: a move_to_record step with an unknown key is '
+      'unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.4.0\n'
+        '  steps:\n'
+        '    - move_to_record: {doc_types: [fr], fields: [status],'
+        ' to: implementation, note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].move_to_record.note',
+        ),
+      ),
+    );
+  });
+
+  test('f06/us02/fr01/e06: a move_to_record list that holds a non-string is '
+      'unknown_value', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.4.0\n'
+        '  steps:\n'
+        '    - move_to_record: {doc_types: [fr], fields: [1],'
+        ' to: implementation}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownValue,
+          key: 'migrations[0].steps[0].move_to_record.fields',
+        ),
+      ),
+    );
+  });
 }

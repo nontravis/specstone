@@ -12,7 +12,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom, utf8Bom;
+    show bomOf, startsWithUtf8Bom, utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -142,14 +142,15 @@ final class WriteSession {
   /// Returns the one typed doc [address] names.
   ///
   /// [address] is `<doc type>:<name>`, a bare name, or a path to the doc, as
-  /// [DocIndex.resolve] reads it.
+  /// [DocIndex.resolve] reads it; [codeTarget], when given, keeps a name to
+  /// that code target's docs and the shared docs, as it does there.
   /// Throws [IndexFault] `untyped_target` for a doc with no doc type, before
   /// any doc-type test, `argument_invalid` for an address that names 2 or
   /// more docs, listing each as `<doc type>:<name>` or, when that names 2
   /// docs, its DocPath, and `doc_not_found` when it names none; a
   /// `TemplateFault` for an unknown doc type id passes through.
-  IndexedDoc target(String address) {
-    final found = index.resolve(address);
+  IndexedDoc target(String address, {String? codeTarget}) {
+    final found = index.resolve(address, codeTarget: codeTarget);
     final typed = [
       for (final doc in found)
         if (doc.docTypeId != null) doc,
@@ -174,16 +175,20 @@ final class WriteSession {
   /// Returns the one doc of [parentTypeId] among the docs [value] names.
   ///
   /// [value] is read as any target, as [target] reads it, and only the docs of
-  /// [parentTypeId] count.
+  /// [parentTypeId] count; [codeTarget] narrows it as it does there.
   /// Throws [IndexFault] `doc_not_found` naming [value] when none counts and
   /// `argument_invalid` listing each as `<doc type>:<name>` or, when that names
   /// 2 docs, its DocPath, when 2 or more count; a `TemplateFault` for a doc
   /// type id the set lacks and `argument_invalid` for a `#` or `@` suffix pass
   /// through from [DocIndex.resolve].
-  IndexedDoc parentTarget(String value, String parentTypeId) {
+  IndexedDoc parentTarget(
+    String value,
+    String parentTypeId, {
+    String? codeTarget,
+  }) {
     final List<IndexedDoc> named;
     try {
-      named = index.resolve(value);
+      named = index.resolve(value, codeTarget: codeTarget);
     } on IndexFault catch (fault) {
       if (fault.code != IndexFaultCode.docNotFound) rethrow;
       throw _noParent(parentTypeId, value);
@@ -244,6 +249,20 @@ final class WriteSession {
     }
     startsWithUtf8Bom(bytes) ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
     return bytes;
+  }
+
+  /// Returns the step that writes [lfText] to [docPath] over the file read as
+  /// [bytes], in the line ends and byte-order mark that file had.
+  ///
+  /// [lfText] is laid out already; the step writes only while the file still
+  /// holds the text [bytes] hold.
+  WriteStep docWriteStep(String docPath, String lfText, List<int> bytes) {
+    final raw = utf8.decode(bytes);
+    return WriteStep(
+      projectPathOf(docPath),
+      '${bomOf(bytes)}${LineEnding.of(raw).apply(lfText)}',
+      before: textHashOf(raw),
+    );
   }
 
   /// Refuses a write to [docPath] when the file leads outside the project or

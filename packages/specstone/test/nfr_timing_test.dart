@@ -178,6 +178,22 @@ void main() {
       code,
       hasLength(1042),
     ); // one file per FR, 52 x 5 x 4, and one per topic
+    final records = Directory('${project.path}/docs/specs')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('IMPLEMENTATION.md'))
+        .toList();
+    expect(records, hasLength(52)); // one record per feature
+    final entry = RegExp(r"^  - '[^']+:implemented'$", multiLine: true);
+    final path = RegExp(
+      r"^  - '[^']+:src/feature_\d+/story_\d/req_\d\.dart:Req\d'$",
+      multiLine: true,
+    );
+    for (final record in records) {
+      final text = record.readAsStringSync();
+      expect(entry.allMatches(text), hasLength(20), reason: record.path);
+      expect(path.allMatches(text), hasLength(20), reason: record.path);
+    }
     final first = Process.runSync(
       exe,
       call,
@@ -185,9 +201,16 @@ void main() {
     ); // warm-up: the index is current after it
     expect(first.exitCode, anyOf(0, 1), reason: '${first.stderr}');
     final out = first.stdout.toString();
-    expect(out, isNot(contains('implements_path_unresolved')));
-    expect(out, isNot(contains('implements_symbol_unresolved')));
-    expect(out, isNot(contains('code_uncovered')));
+    for (final kind in const [
+      'implements_path_unresolved',
+      'implements_symbol_unresolved',
+      'implements_missing',
+      'record_entry_unresolved',
+      'record_entry_duplicate',
+      'code_uncovered',
+    ]) {
+      expect(out, isNot(contains(kind)), reason: kind);
+    }
     expect(
       bestOf(
         timingRuns,
@@ -195,6 +218,31 @@ void main() {
         label: 'check calls',
       ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
+  test('NFR-P03: a broken code path in a record shows in the check, so the '
+      'timed runs read the records', () {
+    final record = File(
+      '${project.path}/docs/specs/f01_feature_1/IMPLEMENTATION.md',
+    );
+    final original = record.readAsStringSync();
+    addTearDown(() => record.writeAsStringSync(original));
+    record.writeAsStringSync(
+      original.replaceFirst(
+        'src/feature_1/story_1/req_1.dart:Req1',
+        'src/feature_1/story_1/gone.dart:Req1',
+      ),
+    );
+    final run = Process.runSync(exe, ['check'], workingDirectory: project.path);
+    expect(
+      run.stdout.toString(),
+      matches(
+        RegExp(
+          r'specs/f01_feature_1/IMPLEMENTATION\.md:\d+: '
+          'implements_path_unresolved',
+        ),
+      ),
     );
   });
 

@@ -1,7 +1,6 @@
-// dart:mirrors lets one wrapper forward every member it does not override;
-// it exists in the VM that runs tests, which is the only place this is used.
 import 'dart:io';
-import 'dart:mirrors';
+
+import 'forwarding_entities.dart';
 
 /// Makes `renameSync` throw for the one file or folder whose path ends with
 /// the path given, as a disk that refuses that one move does.
@@ -27,30 +26,18 @@ final class FailingRenameHook extends IOOverrides {
       : super.createDirectory(path);
 }
 
-final class _FailingRenameFile implements File {
-  const new(this._inner);
-
-  final File _inner;
+final class _FailingRenameFile extends ForwardingFile {
+  const new(super.inner);
 
   @override
   File renameSync(String newPath) =>
-      throw FileSystemException('Permission denied', _inner.path);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      reflect(_inner).delegate(invocation);
+      throw FileSystemException('Permission denied', path);
 }
 
-final class _FailingRenameDirectory implements Directory {
-  const new(this._inner);
-
-  final Directory _inner;
+final class _FailingRenameDirectory extends ForwardingDirectory {
+  const new(super.inner);
 
   @override
   Directory renameSync(String newPath) =>
-      throw FileSystemException('Permission denied', _inner.path);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      reflect(_inner).delegate(invocation);
+      throw FileSystemException('Permission denied', path);
 }

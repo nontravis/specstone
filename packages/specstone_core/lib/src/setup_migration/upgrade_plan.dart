@@ -11,7 +11,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show codeRootFiles, projectPathOfCodeFile;
+    show projectPathOfCodeFile;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
@@ -25,10 +25,13 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
+import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -51,10 +54,12 @@ const _layoutAndAgentHeader =
     'pack upgrade: pins unchanged, layout and agent files';
 const _layoutAndAgentCommit2Message =
     'lay docs out and refresh the Specstone agent files';
+const _treeMoveCommit2Message = 'point links at the moved spec docs';
 const _agentFileRootsKey = 'agent_file_roots';
 const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
+const _recordChange = 'add record entries';
 
 /// The byte-order mark as the one character a written text starts with.
 const _bom = '\uFEFF';
@@ -64,19 +69,24 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// Plans the pack upgrade of the project at [root].
 ///
 /// Selects every pinned pack's steps, refuses an override the new versions
-/// leave dangling, then plans the moves, the section and field renames in the
-/// docs and the overrides, the link rewrites, the renumber pass, the label
-/// pass, each typed doc laid out as `format` lays it out, the agent files
-/// step, and the new pins. With every pin equal the plan holds the layout pass
-/// and the agent files step alone. Writes nothing. Throws `MigrateFault`
-/// `override_dangling`, `MigrateFault` `upgrade_collision` listing every move
-/// and rename collision at once, `agent_block_malformed`, and a
-/// `TemplateFault` before it returns, so a refused run prints nothing. When
-/// [runsOneTimePasses] holds, the renumber and label passes run and the agent
-/// files step is the full upsert; otherwise the step refreshes what exists.
-/// [homeDirectory] is the personal pack home, or null. [runGit] lists the
-/// files the project's git tracks, which the label pass reads under the
-/// `code:` roots. The plan's `inputs` hold every file it read and that listing.
+/// leave dangling, then plans the tree move under the first code target when
+/// two or more are listed, the pack's moves, the section and field renames in
+/// the docs and the overrides, the link and path mention rewrites, the
+/// renumber pass, the label pass, the values a `move_to_record` step moves
+/// into the records it adds to or creates, each typed doc laid out as
+/// `format` lays it out, the agent files step, and the new pins. With every
+/// pin equal the plan holds the layout pass, the agent files step, and the
+/// tree move alone. Writes nothing. Throws `MigrateFault` `override_dangling`,
+/// `MigrateFault` `upgrade_collision` listing every move and rename collision
+/// at once, `value_unplaced` listing every value no record takes at once, or
+/// else every create onto a taken path ([RunPlan.refuseTakenCreates]),
+/// `agent_block_malformed`, and a `TemplateFault` before it returns, so a
+/// refused run prints nothing. When [runsOneTimePasses] holds, the renumber
+/// and label passes run and the agent files step is the full upsert;
+/// otherwise the step refreshes what exists. [homeDirectory] is the personal
+/// pack home, or null. [runGit] lists the files the project's git tracks,
+/// which the label pass reads under the `code:` roots. The plan's `inputs`
+/// hold every file it read and that listing.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
@@ -92,7 +102,7 @@ RunPlan planUpgradeRun(
       runGit: runGit,
       inputs: inputs,
     ),
-  );
+  )..refuseTakenCreates(root);
 }
 
 /// Plans the upgrade of [root] while [inputs] records each file read.
@@ -111,12 +121,13 @@ RunPlan _upgradeRunOf(
   );
   final upgrades = selectUpgrades(pins, available);
   final overrides = loadProjectTemplates(root);
+  final targetSet = templates.resolveCarried(
+    packNames: pins.keys,
+    homeDirectory: homeDirectory,
+  );
   refuseDanglingOverrides(
     overrides,
-    target: templates.resolveCarried(
-      packNames: pins.keys,
-      homeDirectory: homeDirectory,
-    ),
+    target: targetSet,
     targetVersions: {
       for (final entry in available.entries) entry.key: entry.value.version,
     },
@@ -124,30 +135,59 @@ RunPlan _upgradeRunOf(
   );
 
   final steps = [for (final upgrade in upgrades) ...upgrade.steps];
+  final stepKinds = [for (final entry in steps) entry.step];
   final overrideFiles = _renamedOverrides(root, overrides, steps);
+  final overrideCreates = [
+    if (recordPathOverrideOf(stepKinds, overrides: overrides, target: targetSet)
+        case RecordPathOverride(:final file, path: final path?))
+      PlannedCreate(path: file, text: 'path: $path\n'),
+  ];
   final finalSet = templates.resolveCarried(
     packNames: pins.keys,
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides({
       for (final file in overrideFiles) file.path: file.lf,
+      for (final create in overrideCreates) create.path: create.text,
     }),
   );
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
-  final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
-  final (:planned, :movedAt, :movedBy) = _plannedPaths(docPaths, steps);
+  final docPaths = docPathsOf(docsRoot)..sort(compareCodePoints);
+  // With two or more code targets the per-target docs sit in a target folder,
+  // the first target's for a doc the run moves or creates.
+  final firstTarget = twinNamesOf(config.targetNames).firstOrNull;
+  final treeMoves = treeMovesOf(
+    docPaths,
+    finalSet,
+    targetNames: config.targetNames,
+    olderPatterns: [
+      for (final (:step, from: _) in steps)
+        if (step is MoveFile && _isPerTargetStep(step, finalSet, firstTarget))
+          step.from,
+    ],
+  );
+  final (:planned, :movedAt, :movedBy, :treeMoved) = _plannedPaths(
+    docPaths,
+    steps,
+    treeMoves: treeMoves,
+    set: finalSet,
+    targetNames: config.targetNames,
+  );
   final moveCollisions = _moveCollisions(
     docPaths,
     planned: planned,
     movedBy: movedBy,
+    treeMoved: treeMoved,
     steps: steps,
+    firstTarget: firstTarget,
   );
   final moves = orderedMoves([
     for (final path in docPaths)
       if (planned[path] != path) (from: path, to: planned[path]!),
   ]);
 
-  final matcher = DocTypeMatcher(finalSet);
+  final matcher = DocTypeMatcher(finalSet, targetNames: config.targetNames);
+  final recordMoves = RecordMoves();
   final works = <_DocWork>[];
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
@@ -157,11 +197,12 @@ RunPlan _upgradeRunOf(
     final original = readDocFile(docFileOf(docsRoot, path), docPath: path);
     if (original == null) continue;
     final match = matcher.match(plannedPath);
-    final docTypeId = match is MatchedDocType ? match.docType.id : null;
+    final docType = match is MatchedDocType ? match.docType : null;
+    final target = match is MatchedDocType ? match.target : null;
     var lf = original.lf;
     final changes = <String>[];
     for (final (index, (:step, from: _)) in steps.indexed) {
-      if (step.docType != docTypeId) continue;
+      if (docType == null || !step.touches(docType.id)) continue;
       final renamed = switch (step) {
         RenameSection() => withHeaderRenamed(
           lf,
@@ -170,6 +211,13 @@ RunPlan _upgradeRunOf(
         ),
         RenameField() => _withKeyRenamed(lf, step.from, step.to),
         MoveFile() => lf,
+        MoveToRecord() => recordMoves.take(
+          docPath: path,
+          plannedPath: plannedPath,
+          type: docType,
+          step: step,
+          lf: lf,
+        ),
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -182,6 +230,7 @@ RunPlan _upgradeRunOf(
             Doc.parse(lf).frontmatter?.any((block) => block.name == step.to) ??
                 false,
           MoveFile() => false,
+          MoveToRecord() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -194,6 +243,7 @@ RunPlan _upgradeRunOf(
                   '${step.to}, which the doc already holds; '
                   '$_resolveCollision',
             MoveFile() => '',
+            MoveToRecord() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -211,24 +261,46 @@ RunPlan _upgradeRunOf(
     }
     if (moves.isNotEmpty) {
       final links = rewriteLinks(lf, docPath: path, moves: moves);
-      lf = links.lf;
-      final label = links.label;
-      if (label != null) {
-        changes.add(label);
-        linkLines.add('$plannedPath: $label');
+      final mentions = rewriteMentions(
+        links.lf,
+        docPath: path,
+        moves: moves,
+        exists: (docPath) => _existsIn(docsRoot, docPath),
+      );
+      lf = mentions.lf;
+      final labels = [?links.label, ?mentions.label];
+      if (labels.isNotEmpty) {
+        changes.addAll(labels);
+        linkLines.add('$plannedPath: ${labels.join(', ')}');
       }
     }
-    works.add(
-      _DocWork(
-        plannedPath,
-        original,
-        match is MatchedDocType ? match.docType : null,
-        lf,
-        changes,
-      ),
-    );
+    works.add(_DocWork(plannedPath, original, docType, target, lf, changes));
   }
-  _throwCollisions([...moveCollisions, ...renameCollisions]);
+  throwFaultsPerDoc([...moveCollisions, ...renameCollisions]);
+  final taken = takenAfterMoves(root, moves);
+  final placement = recordMoves.place(
+    set: finalSet,
+    recordType: finalSet.recordDocType,
+    firstTarget: firstTarget,
+    isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    docs: [
+      for (final work in works)
+        (
+          plannedPath: work.plannedPath,
+          type: work.docType,
+          target: work.target,
+          lf: work.lf,
+        ),
+    ],
+  );
+  throwFaultsPerDoc(placement.unplaced);
+  for (final work in works) {
+    if (placement.edits[work.plannedPath] case final edited?) {
+      work.lf = edited;
+      work.changes.add(_recordChange);
+    }
+  }
+  final recordCreates = recordCreatesOf(placement);
 
   // The passes read every doc's text after the steps and link rewrites (P5).
   final isOneTime = runsOneTimePasses(upgrades);
@@ -267,7 +339,14 @@ RunPlan _upgradeRunOf(
   final stamps = StampPass.plan(
     [
       for (final work in works)
-        (docPath: work.plannedPath, lf: work.original.lf, type: work.docType),
+        (
+          docPath: work.plannedPath,
+          lf: work.original.lf,
+          type: switch (work.docType) {
+            final type? => typeBeforeMoves(type, stepKinds),
+            null => null,
+          },
+        ),
     ],
     [
       for (final (index, work) in works.indexed)
@@ -315,7 +394,9 @@ RunPlan _upgradeRunOf(
   );
 
   String shownAt(int index) {
-    final docs = (steps[index].step is MoveFile ? movedAt : changedAt)[index];
+    final step = steps[index].step;
+    final docs = (step is MoveFile ? movedAt : changedAt)[index];
+    if (step is MoveToRecord && docs != null) return '${docs.length} docs';
     return _shownPaths(
       docs: docs ?? const [],
       overrides: [
@@ -342,6 +423,7 @@ RunPlan _upgradeRunOf(
       ? _pinsUnchangedTitles(
           laysOut: laidOutPaths.isNotEmpty,
           writesAgentFiles: !agentFiles.isEmpty,
+          treeMovesTo: treeMoves.isEmpty ? null : firstTarget,
         )
       : (
           header: 'pack upgrade: ${upgraded.join(', ')}',
@@ -357,7 +439,7 @@ RunPlan _upgradeRunOf(
       ...overrideRewrites,
       ?configRewrite,
     ],
-    creates: const [],
+    creates: [...overrideCreates, ...recordCreates],
     left: const [],
     commit1Message: _commit1Message,
     commit2Message: commit2Message,
@@ -378,12 +460,18 @@ RunPlan _upgradeRunOf(
 
 /// Returns the plan header and commit 2 message of a run that moves no pin.
 ///
-/// A run with neither the layout pass nor an agent file write is titled as
-/// layout only.
+/// A run that moves the spec tree to [treeMovesTo] is titled by that move,
+/// whatever else it writes; a run with neither the layout pass nor an agent
+/// file write is titled as layout only.
 ({String header, String commit2Message}) _pinsUnchangedTitles({
   required bool laysOut,
   required bool writesAgentFiles,
+  required String? treeMovesTo,
 }) => switch ((laysOut, writesAgentFiles)) {
+  _ when treeMovesTo != null => (
+    header: 'pack upgrade: pins unchanged, spec tree to $treeMovesTo',
+    commit2Message: _treeMoveCommit2Message,
+  ),
   (true, true) => (
     header: _layoutAndAgentHeader,
     commit2Message: _layoutAndAgentCommit2Message,
@@ -432,7 +520,7 @@ List<_OverrideFile> _renamedOverrides(
       readDocText(readPlanInput(File.fromUri(root.uri.resolve(layer.file)))),
     );
     for (final (index, (:step, from: _)) in steps.indexed) {
-      if (step.docType != layer.docTypeId) continue;
+      if (!step.touches(layer.docTypeId)) continue;
       final renamed = switch (step) {
         RenameSection() => _withScalarsRenamed(
           file.lf,
@@ -449,6 +537,7 @@ List<_OverrideFile> _renamedOverrides(
           to: step.to,
         ),
         MoveFile() => file.lf,
+        MoveToRecord() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -513,20 +602,17 @@ AgentWritePlan _agentFilesOf(
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeFoldersOf(
-        projectRoot,
-        set,
-        codeRoot: config.codeRoot,
-      ),
+      codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
       agentFileRoots: config.agentFileRoots,
     ),
     full: runsOneTimePasses(upgrades),
   );
 }
 
-/// Whether [upgrades] move a prd-core or software-tech pin up from below the
-/// version this binary carries: the one trigger of every one-time pass
-/// (apply_steps_and_pins E14, E18); group 3's D18 pass reads it too (R54).
+/// Whether [upgrades] move a prd-core or software-tech pin up from below its
+/// fixed `agentFilesSince` version, not the version this binary carries: the
+/// one trigger of every one-time pass (apply_steps_and_pins E14, E18, E39);
+/// group 3's D18 pass reads it too (R54).
 bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
   final since = agentFilesSince[upgrade.pack];
   return since != null && upgrade.pin.compareTo(since) < 0;
@@ -568,11 +654,6 @@ _LabelPlan _planLabelPass(
   required Map<String, MergedDocType> docTypes,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
-  final codeRoot = codeRootFolders(
-    projectRoot,
-    codeRoot: config.codeRoot,
-    codeEntries: const [],
-  ).first;
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   final agentByFile = {
     for (final write in [...agentWrites.rootWrites, ...agentWrites.topWrites])
@@ -583,9 +664,10 @@ _LabelPlan _planLabelPass(
   };
   final agentAt = <String, AgentWrite>{};
   final labelled = <String, _CodeFile>{};
-  for (final codePath in codeRootFiles(
-    codeRoot,
-    codeEntriesOnDisk(projectRoot, set),
+  for (final (root: codeRoot, path: codePath) in codeFilesOf(
+    projectRoot,
+    set,
+    targets: config.targets,
   )) {
     final projectPath = projectPathOfCodeFile(
       codePath,
@@ -722,7 +804,14 @@ Set<String> _trackedPaths(Directory projectRoot, RunGit runGit) {
 
 /// One doc of the run, with its text after the steps and link rewrites.
 final class _DocWork {
-  new(this.plannedPath, this.original, this.docType, this.lf, this.changes);
+  new(
+    this.plannedPath,
+    this.original,
+    this.docType,
+    this.target,
+    this.lf,
+    this.changes,
+  );
 
   /// The DocPath after the moves.
   final String plannedPath;
@@ -732,8 +821,13 @@ final class _DocWork {
 
   final MergedDocType? docType;
 
-  /// The LF text after the steps and link rewrites.
-  final String lf;
+  /// The code target whose pattern set matched [plannedPath]; null for a doc
+  /// of a shared doc type or of no doc type.
+  final String? target;
+
+  /// The LF text after the steps and link rewrites, and any record entries
+  /// the `move_to_record` step adds to a record doc.
+  String lf;
 
   /// The labels of the changes made so far, in the order they apply.
   final List<String> changes;
@@ -799,111 +893,132 @@ String _withAgentFileRoots(String text, List<String> roots) {
   );
 }
 
+/// Whether [step] moves docs of a per-target doc type of [set] while the
+/// project holds two or more targets, [firstTarget] set.
+bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
+    firstTarget != null && (set.lookup(step.docType)?.isPerTarget ?? false);
+
 /// Returns the final path of each doc of [docPaths], the final paths each
-/// move step's docs end at, and the last move step that touched each doc.
+/// move step's docs end at, the last move step that touched each doc, and the
+/// docs the tree move moved.
 ///
-/// Each `move_file` step, in step order, matches every doc at its CURRENT
-/// path, the result of the earlier steps, so moves chain: a doc at `A` under
-/// `A` → `B` then `B` → `C` ends at `C` (F6-D22, INV-10).
+/// The [treeMoves] come first. Each `move_file` step, in step order, then
+/// matches every doc at its CURRENT path, the result of the earlier moves, so
+/// moves chain: a doc at `A` under `A` → `B` then `B` → `C` ends at `C`
+/// (F6-D22, INV-10). With two or more [targetNames], a step of a per-target
+/// doc type moves the docs of each target's folder by that target's patterns.
 ({
   Map<String, String> planned,
   Map<int, List<String>> movedAt,
   Map<String, int> movedBy,
+  Set<String> treeMoved,
 })
-_plannedPaths(List<String> docPaths, List<_Step> steps) {
+_plannedPaths(
+  List<String> docPaths,
+  List<_Step> steps, {
+  required List<PathMove> treeMoves,
+  required MergedSet set,
+  required List<String> targetNames,
+}) {
   final planned = {for (final path in docPaths) path: path};
   final movedAt = <int, List<String>>{};
   final movedBy = <String, int>{};
+  final treeMoved = <String>{};
+  for (final (:from, :to) in treeMoves) {
+    planned[from] = to;
+    treeMoved.add(from);
+  }
+  final firstTarget = twinNamesOf(targetNames).firstOrNull;
   for (final (index, (:step, from: _)) in steps.indexed) {
     if (step is! MoveFile) continue;
-    final from = PathPattern(step.from);
-    final to = PathPattern(step.to);
-    for (final entry in planned.entries.toList()) {
-      final values = from.valuesOf(entry.value);
-      if (values == null) continue;
-      final moved = to.fill(values);
-      if (moved == entry.value) continue;
-      final touched = movedAt[index] ??= [];
-      if (!touched.contains(moved)) touched.add(moved);
-      planned[entry.key] = moved;
-      movedBy[entry.key] = index;
+    final patterns = [
+      for (final target
+          in _isPerTargetStep(step, set, firstTarget)
+              ? targetNames
+              : const <String?>[null])
+        (from: _patternIn(step.from, target), to: _patternIn(step.to, target)),
+    ];
+    for (final (:from, :to) in patterns) {
+      for (final entry in planned.entries.toList()) {
+        final values = from.valuesOf(entry.value);
+        if (values == null) continue;
+        final moved = to.fill(values);
+        if (moved == entry.value) continue;
+        final touched = movedAt[index] ??= [];
+        if (!touched.contains(moved)) touched.add(moved);
+        planned[entry.key] = moved;
+        movedBy[entry.key] = index;
+      }
     }
   }
-  return (planned: planned, movedAt: movedAt, movedBy: movedBy);
+  return (
+    planned: planned,
+    movedAt: movedAt,
+    movedBy: movedBy,
+    treeMoved: treeMoved,
+  );
 }
+
+PathPattern _patternIn(String pattern, String? target) => target == null
+    ? PathPattern(pattern)
+    : PathPattern(pattern).forTarget(target);
 
 const _resolveCollision =
     'move, rename, or merge each listed doc or entry so the step no longer '
     'lands on it, then run specstone migrate again';
 
-/// Throws `upgrade_collision` for the first of [faults] on each doc, the
-/// first as the fault and the rest chained through `more`.
-///
-/// A doc can collide once per rival and once per step; it is listed once
-/// (INV-16).
-void _throwCollisions(List<MigrateFault> faults) {
-  final seen = <String?>{};
-  final perDoc = [
-    for (final fault in faults)
-      if (seen.add(fault.file)) fault,
-  ];
-  if (perDoc.isEmpty) return;
-  final first = perDoc.first;
-  throw MigrateFault(
-    first.code,
-    first.message,
-    file: first.file,
-    key: first.key,
-    more: perDoc.sublist(1),
-  );
-}
-
-/// Returns an `upgrade_collision` fault for each `move_file` step that lands on
-/// a path the Owner still holds: a doc no step moves, or a second doc of the
-/// same move.
+/// Returns an `upgrade_collision` fault for each move, the tree move or a
+/// `move_file` step, that lands on a path the Owner still holds: a doc no move
+/// touches, or a second doc of the same move.
 ///
 /// Two docs moved onto one path each fault on their own line. A move onto
 /// another moved doc's old path is fine: [orderedMoves] orders those.
+/// [firstTarget] names the tree move's target.
 List<MigrateFault> _moveCollisions(
   List<String> docPaths, {
   required Map<String, String> planned,
   required Map<String, int> movedBy,
+  required Set<String> treeMoved,
   required List<_Step> steps,
+  required String? firstTarget,
 }) {
+  bool isMoved(String path) =>
+      movedBy.containsKey(path) || treeMoved.contains(path);
   final faults = <MigrateFault>[];
   for (final source in docPaths) {
     final destination = planned[source]!;
     if (destination == source) continue;
-    final step = steps[movedBy[source]!].step;
-    if (step is! MoveFile) continue;
+    final String what;
+    if (movedBy[source] case final index?) {
+      final step = steps[index].step;
+      if (step is! MoveFile) continue;
+      what = 'move_file of ${step.docType} moves ${step.from} to ${step.to}';
+    } else {
+      what = 'the spec tree move to $firstTarget moves $source to $destination';
+    }
     // A stayer holds its ground: the mover's destination is its own path.
     final stayer = docPaths.any(
-      (path) => path == destination && movedBy[path] == null,
+      (path) => path == destination && !isMoved(path),
     );
     // Another mover with the same final path: each fault names the other. A
     // stayer never counts; it is the stayer fault below.
     final rivals = docPaths.where(
-      (path) =>
-          path != source &&
-          movedBy[path] != null &&
-          planned[path] == destination,
+      (path) => path != source && isMoved(path) && planned[path] == destination,
     );
     if (stayer) {
-      faults.add(_collisionFault(step, source, 'the doc already there holds'));
+      faults.add(_collisionFault(what, source, 'the doc already there holds'));
     }
     for (final rival in rivals) {
-      faults.add(_collisionFault(step, source, '$rival also moves to'));
+      faults.add(_collisionFault(what, source, '$rival also moves to'));
     }
   }
   return faults;
 }
 
-MigrateFault _collisionFault(MoveFile step, String source, String holder) =>
+MigrateFault _collisionFault(String what, String source, String holder) =>
     MigrateFault(
       MigrateFaultCode.upgradeCollision,
-      'move_file of ${step.docType} moves ${step.from} to ${step.to}, '
-      'which $holder; '
-      '$_resolveCollision',
+      '$what, which $holder; $_resolveCollision',
       file: source,
     );
 
@@ -959,6 +1074,9 @@ String _describe(MigrationStep step) => switch (step) {
     '${step.kind} ${step.docType} ${step.fromId} -> ${step.toId}',
   RenameField() => '${step.kind} ${step.docType} ${step.from} -> ${step.to}',
   MoveFile() => '${step.kind} ${step.docType} ${step.from} -> ${step.to}',
+  MoveToRecord() =>
+    '${step.kind} ${step.docTypes.join(', ')} ${step.fields.join(', ')} '
+        '-> ${step.to}',
 };
 
 /// Returns the doc paths in code point order, then the override paths in the
@@ -974,14 +1092,8 @@ String _shownPaths({
   return shown.isEmpty ? 'no doc changes' : shown.join(', ');
 }
 
-/// Returns the DocPath of every Markdown file under [docsRoot].
-List<String> _docPathsOf(Directory docsRoot) {
-  if (!docsRoot.existsSync()) return [];
-  // A file URI path always uses `/`, so no platform separator is split on.
-  final prefixLength = docsRoot.uri.path.length;
-  return [
-    for (final entity in docsRoot.listSync(recursive: true, followLinks: false))
-      if (entity is File && entity.path.endsWith('.md'))
-        Uri.decodeComponent(entity.uri.path.substring(prefixLength)),
-  ];
-}
+/// Whether [path], from [docsRoot] and possibly leaving it, names a file or
+/// folder of the tree as it stands before the moves.
+bool _existsIn(Directory docsRoot, String path) =>
+    FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
+    FileSystemEntityType.notFound;

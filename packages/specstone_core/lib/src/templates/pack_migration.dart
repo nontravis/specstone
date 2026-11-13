@@ -21,8 +21,8 @@ final class PackMigration {
 sealed class MigrationStep {
   const new();
 
-  /// The id of the doc type this step touches.
-  String get docType;
+  /// Whether this step reaches docs of the doc type [docTypeId].
+  bool touches(String docTypeId);
 
   /// The YAML key that names this step's kind.
   String get kind;
@@ -38,7 +38,7 @@ final class RenameSection extends MigrationStep {
     required this.toHeader,
   });
 
-  @override
+  /// The id of the doc type this step touches.
   final String docType;
 
   /// The section id before this step.
@@ -54,6 +54,9 @@ final class RenameSection extends MigrationStep {
   final String toHeader;
 
   @override
+  bool touches(String docTypeId) => docTypeId == docType;
+
+  @override
   String get kind => 'rename_section';
 }
 
@@ -61,7 +64,7 @@ final class RenameSection extends MigrationStep {
 final class RenameField extends MigrationStep {
   const new({required this.docType, required this.from, required this.to});
 
-  @override
+  /// The id of the doc type this step touches.
   final String docType;
 
   /// The field name before this step.
@@ -71,6 +74,9 @@ final class RenameField extends MigrationStep {
   final String to;
 
   @override
+  bool touches(String docTypeId) => docTypeId == docType;
+
+  @override
   String get kind => 'rename_field';
 }
 
@@ -78,7 +84,7 @@ final class RenameField extends MigrationStep {
 final class MoveFile extends MigrationStep {
   const new({required this.docType, required this.from, required this.to});
 
-  @override
+  /// The id of the doc type this step touches.
   final String docType;
 
   /// The path pattern before this step, as written.
@@ -88,7 +94,31 @@ final class MoveFile extends MigrationStep {
   final String to;
 
   @override
+  bool touches(String docTypeId) => docTypeId == docType;
+
+  @override
   String get kind => 'move_file';
+}
+
+/// A `move_to_record` step: the [fields] of the docs of [docTypes] move into
+/// their entries of the record doc type [to].
+final class MoveToRecord extends MigrationStep {
+  const new({required this.docTypes, required this.fields, required this.to});
+
+  /// The ids of the doc types whose values move.
+  final List<String> docTypes;
+
+  /// The ids of the fields that move.
+  final List<String> fields;
+
+  /// The id of the record doc type that receives the values.
+  final String to;
+
+  @override
+  bool touches(String docTypeId) => docTypes.contains(docTypeId);
+
+  @override
+  String get kind => 'move_to_record';
 }
 
 /// Parses a `migrations:` [node] of a `pack.yaml` read from [file].
@@ -185,6 +215,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'move_file' => _parseMoveFile(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'move_to_record' => _parseMoveToRecord(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -295,6 +331,33 @@ MoveFile _parseMoveFile(YamlMap map, int i, int j, {required String file}) {
     docType: requireValue<String>(map, 'doc_type', file: file, prefix: prefix),
     from: from,
     to: to,
+  );
+}
+
+MoveToRecord _parseMoveToRecord(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  final prefix = 'migrations[$i].steps[$j].move_to_record.';
+  checkKeys(
+    map,
+    const {'doc_types', 'fields', 'to'},
+    file: file,
+    format: 'move_to_record step',
+    prefix: prefix,
+  );
+  List<String> listOf(String key) => stringsOf(
+    requireValue<YamlList>(map, key, file: file, prefix: prefix),
+    key,
+    file: file,
+    prefix: prefix,
+  );
+  return MoveToRecord(
+    docTypes: listOf('doc_types'),
+    fields: listOf('fields'),
+    to: requireValue<String>(map, 'to', file: file, prefix: prefix),
   );
 }
 

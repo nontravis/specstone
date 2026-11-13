@@ -201,29 +201,69 @@ String _pathOf(String head) {
 ///
 /// It is the name with its doc type, ` — <title>` when there is one, then
 /// ` · ` and its status, `draft`, and size in tokens, each when it applies.
-String docLine(DocIndex index, IndexedDoc doc) {
+String docLine(DocIndex index, IndexedDoc doc) =>
+    docLineWithStatus(doc, statusPartOf(index, doc, null));
+
+/// Returns [doc]'s line as [docLine] prints it, with [status] in its status
+/// part: the one status, or each code target's `<target>: <status>` joined
+/// by `, `.
+String docLineWithStatus(IndexedDoc doc, String? status) {
   final title = doc.title;
-  final status = index.statusOf(doc);
   final parts = [?status, if (doc.isDraft) 'draft', '${doc.tokens} tokens'];
   return '${nameWithType(doc)}${title == null ? '' : ' — $title'}'
       ' · ${parts.join(' · ')}';
 }
 
-/// Returns the JSON object describing [doc], leaving out each absent key.
-Map<String, Object> docJson(DocIndex index, IndexedDoc doc) {
-  final typeId = doc.docTypeId;
-  final title = doc.title;
-  final status = index.statusOf(doc);
+/// Returns the status part of [doc]'s line: each code target's status,
+/// `<target>: <status>` joined by `, ` in [DocIndex.targetNames] order, or
+/// the one status alone with one target or a picked [codeTarget].
+String? statusPartOf(DocIndex index, IndexedDoc doc, String? codeTarget) {
+  if (!index.hasTwins || codeTarget != null) {
+    return index.statusOf(doc, codeTarget: codeTarget);
+  }
+  if (!isStatusTracked(doc)) return doc.writtenStatus;
+  return [
+    for (final name in index.targetNames)
+      '$name: ${index.statusOf(doc, codeTarget: name)}',
+  ].join(', ');
+}
+
+/// Whether [doc] holds a status per code target: a feature, story, or FR.
+bool isStatusTracked(IndexedDoc doc) => switch (doc.docTypeId) {
+  featureType || storyType || frType => true,
+  _ => false,
+};
+
+/// Returns [doc]'s JSON object, its status per code target under `statuses`
+/// where [index] names two or more and no target is picked, else its one
+/// `status`.
+Map<String, Object> docJsonWithStatuses(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) {
+  final withStatuses =
+      index.hasTwins && codeTarget == null && isStatusTracked(doc);
   return {
     'name': doc.name,
-    'docType': ?typeId,
+    'docType': ?doc.docTypeId,
     'path': doc.docPath,
-    'title': ?title,
-    'status': ?status,
+    'title': ?doc.title,
+    if (withStatuses)
+      'statuses': {
+        for (final name in index.targetNames)
+          name: ?index.statusOf(doc, codeTarget: name),
+      }
+    else
+      'status': ?index.statusOf(doc, codeTarget: codeTarget),
     'draft': doc.isDraft,
     'tokens': doc.tokens,
   };
 }
+
+/// Returns the JSON object describing [doc], leaving out each absent key.
+Map<String, Object> docJson(DocIndex index, IndexedDoc doc) =>
+    docJsonWithStatuses(index, doc, null);
 
 /// Returns the fault for a command given no [what].
 ///

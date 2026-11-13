@@ -19,12 +19,18 @@ String _overBudgetLine(IndexedDoc doc, bool summary, int tokens) =>
 String _listName(IndexedDoc doc, bool summary) =>
     summary ? '${nameWithType(doc)} · summary' : nameWithType(doc);
 
+/// Returns the header line that names the code target a `--code` path lies
+/// in, or '' when there is none to name (one target).
+String _codeTargetLine(String? name) =>
+    name == null ? '' : '==> code target: $name <==\n';
+
 /// Renders [bundle]'s docs as one `context` answer (`index_query/get_task_bundle/trim_and_order_bundle`).
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
-/// prints it under the JSON key `code` instead of `target`. A bundle larger
-/// than [budget] prints its sizes and the next step instead of doc text, with
-/// exit status 1 (`index_query/get_task_bundle/refuse_bundle_over_budget`); a bundle equal to it prints whole.
+/// prints it under the JSON key `code` instead of `target`, with the picked
+/// `codeTarget` when the project has two or more. A bundle larger than [budget]
+/// prints its sizes and the next step instead of doc text, with exit status 1
+/// (`index_query/get_task_bundle/refuse_bundle_over_budget`); an equal one prints whole.
 ReadAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -41,14 +47,15 @@ ReadAnswer answerContext(
   ];
   final mapBlocks = [
     for (final top in _byTreeOrder(index, bundle.mapTops))
-      _mapBlock(index, index.at(top)!),
+      _mapBlock(index, index.at(top)!, bundle.codeTarget),
   ];
   final namesBlocks = [
     for (final top in _byTreeOrder(index, bundle.nameListTops))
-      _namesBlock(index, index.at(top)!),
+      _namesBlock(index, index.at(top)!, bundle.codeTarget),
   ];
   final shown = [...docBlocks, ...mapBlocks, ...namesBlocks].join('\n\n');
   final tokens = tokenSizeOf(shown);
+  final named = byCode && index.hasTwins ? bundle.codeTarget : null;
   if (budget != null && tokens > budget) {
     return _overBudget(
       ordered,
@@ -59,18 +66,21 @@ ReadAnswer answerContext(
       byCode: byCode,
       budget: budget,
       tokens: tokens,
+      codeTarget: named,
     );
   }
   final list = [
     for (final doc in ordered) '- ${_listName(doc, inSummary(doc))}\n',
   ];
   final text =
+      '${_codeTargetLine(named)}'
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
       '${list.join()}'
       '${summaryOnly.isEmpty ? '' : '$_summaryNextStep\n'}';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
+    'codeTarget': ?named,
     'for': bundle.mode.wire,
     'tokens': tokens,
     'docs': [
@@ -84,8 +94,8 @@ ReadAnswer answerContext(
           if (inSummary(ordered[doc])) 'summary': true,
         },
     ],
-    ..._mapJson(index, bundle.mapTops),
-    ..._namesJson(index, bundle.nameListTops),
+    ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
+    ..._namesJson(index, bundle.nameListTops, bundle.codeTarget),
   };
   return ReadAnswer(text: text, json: json, warnings: [...bundle.warnings]);
 }
@@ -101,6 +111,7 @@ ReadAnswer _overBudget(
   required bool byCode,
   required int budget,
   required int tokens,
+  required String? codeTarget,
 }) {
   final handOver = bundle.summary ? '$label with --summary' : label;
   final next = 'narrow the target, or hand $handOver to specstone:sdd-reader';
@@ -110,6 +121,7 @@ ReadAnswer _overBudget(
       _overBudgetLine(doc, summaryOnly.contains(doc.docPath), sizes[i]),
   ];
   final text =
+      '${_codeTargetLine(codeTarget)}'
       'The bundle holds $tokens est. tokens, over the budget of $budget; '
       'no doc text is printed.\n'
       'Docs it would hold:\n'
@@ -117,6 +129,7 @@ ReadAnswer _overBudget(
       'Next step: $next.\n';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
+    'codeTarget': ?codeTarget,
     'for': bundle.mode.wire,
     'budget': budget,
     'tokens': tokens,
@@ -335,10 +348,11 @@ String _cleaned(String text) => _removeComments(text).trim();
 
 /// Returns the map block of [top]: its subtree, one line per doc with its
 /// name, doc type, and token size, indented two spaces per depth below [top]
-/// (Plan decision 13).
-String _mapBlock(DocIndex index, IndexedDoc top) {
+/// (Plan decision 13); [codeTarget] keeps that target's per-target docs alone.
+String _mapBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
-    for (final member in index.subtreeOf(top)) _mapLine(index, top, member),
+    for (final member in index.subtreeOf(top))
+      if (member.inTarget(codeTarget)) _mapLine(index, top, member),
   ];
   return '==> map: ${nameWithType(top)} <==\n${lines.join('\n')}';
 }
@@ -348,11 +362,12 @@ String _mapLine(DocIndex index, IndexedDoc top, IndexedDoc member) =>
     '- ${nameWithType(member)} · ${member.tokens} tokens';
 
 /// Returns the names block of [top]: one `- <name> (<doc type>) · <n> tokens`
-/// line per ChainType child of [top] (Plan decision 13).
-String _namesBlock(DocIndex index, IndexedDoc top) {
+/// line per ChainType child of [top] (Plan decision 13); [codeTarget] keeps
+/// that target's per-target children alone.
+String _namesBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
     for (final child in index.childrenOf(top))
-      if (index.isChainDoc(child))
+      if (index.isChainDoc(child) && (child.inTarget(codeTarget)))
         '- ${nameWithType(child)} · ${child.tokens} tokens',
   ];
   return '==> names: ${nameWithType(top)} <==\n${lines.join('\n')}';
@@ -381,30 +396,43 @@ List<String> _byTreeOrder(DocIndex index, Set<String> paths) => [
 String _blockBody(String block) =>
     block.substring(block.indexOf('\n') + 1).trim();
 
-Map<String, Object> _mapJson(DocIndex index, Set<String> tops) => {
+Map<String, Object> _mapJson(
+  DocIndex index,
+  Set<String> tops,
+  String? codeTarget,
+) => {
   if (tops.isNotEmpty)
     'map': [
       for (final top in _byTreeOrder(index, tops))
-        _docJson(index, index.at(top)!),
+        _docJson(index, index.at(top)!, codeTarget),
     ],
 };
 
-Map<String, Object> _docJson(DocIndex index, IndexedDoc doc) => {
+Map<String, Object> _docJson(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) => {
   'name': doc.name,
   'docType': ?doc.docTypeId,
   'path': doc.docPath,
   'tokens': doc.tokens,
   'children': [
-    for (final child in index.childrenOf(doc)) _docJson(index, child),
+    for (final child in index.childrenOf(doc))
+      if (child.inTarget(codeTarget)) _docJson(index, child, codeTarget),
   ],
 };
 
-Map<String, Object> _namesJson(DocIndex index, Set<String> tops) => {
+Map<String, Object> _namesJson(
+  DocIndex index,
+  Set<String> tops,
+  String? codeTarget,
+) => {
   if (tops.isNotEmpty)
     'names': [
       for (final top in _byTreeOrder(index, tops))
         for (final child in index.childrenOf(index.at(top)!))
-          if (index.isChainDoc(child))
+          if (index.isChainDoc(child) && (child.inTarget(codeTarget)))
             {
               'name': child.name,
               'docType': ?child.docTypeId,

@@ -20,6 +20,7 @@ import '../../helpers/check_fixture.dart'
 import '../../helpers/failing_rename.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -293,19 +294,16 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e05, f02/us05/fr02/e06: reorder leaves doc_ref values and implements pointers as written', () async {
+  test('f02/us05/fr02/e05, f02/us05/fr02/e06: reorder leaves doc_ref values and covers pointers as written', () async {
     final root = await writeWriteProject();
     final personaBefore = readDoc(root, persona);
     final storyBefore = readDoc(root, story1);
+    final archBefore = readDoc(root, loginArch);
     reorder(root, 'user_story:login/reset_password', '1');
     expect(readDoc(root, persona), personaBefore);
     expect(readDoc(root, '$f/us02_email_login/USER_STORY.md'), storyBefore);
-    expect(
-      readDoc(root, '$f/us02_email_login/fr01_validate_credentials.md'),
-      contains(
-        '  - app/lib/src/login/credential_validator.dart:CredentialValidator\n',
-      ),
-    );
+    expect(readDoc(root, loginArch), archBefore);
+    expect(readDoc(root, loginArch), contains('  - app/lib/src/login/\n'));
   });
 
   test('f02/us05/fr02/e10, f01/us07/fr01: refs and the reorder rewrite read the same mention lines, a link form in a code span and a stray ]( included', () async {
@@ -2041,6 +2039,611 @@ void main() {
           },
         );
       }
+    });
+  });
+
+  group('with two code targets', () {
+    const flutterLogin = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprLogin = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterSignup = 'specs/flutter/f02_signup/IMPLEMENTATION.md';
+    const jasprSignup = 'specs/jaspr/f02_signup/IMPLEMENTATION.md';
+
+    final loginRecord = recordText(
+      statuses: [
+        'email_login:implemented',
+        'reset_password:implemented',
+        'reset_password/send_reset_link:planned',
+        'reset_password/expire_reset_link:planned',
+        ':skipped:no tablet',
+      ],
+      code: [
+        'email_login:app/lib/login.dart:SignIn',
+        'reset_password:app/lib/reset.dart:ResetPage',
+        'reset_password/send_reset_link:app/lib/reset.dart:Send',
+      ],
+    );
+
+    Future<Directory> twinProject({
+      Map<String, String> extra = const {},
+      Set<String> without = const {},
+    }) => writeWriteProject(
+      without: without,
+      extra: {
+        for (final MapEntry(:key, :value) in {
+          '.specstone/config.yaml': twinConfig(),
+          // The shared architecture docs of the fixture stay shared: a layer
+          // takes them back from the shipped per-target pack.
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          'flutter_ws/app/lib/login.dart': 'class SignIn {}\n',
+          'jaspr_ws/app/lib/login.dart': 'class SignIn {}\n',
+          'docs/$flutterLogin': loginRecord,
+          'docs/$jasprLogin': loginRecord,
+          'docs/$flutterSignup': recordText(statuses: ['ghost:planned']),
+          'docs/$jasprSignup': recordText(statuses: ['ghost:planned']),
+          ...extra,
+        }.entries)
+          if (!without.contains(key)) key: value,
+      },
+    );
+
+    List<String> movedPairs(ReadAnswer answer) => [
+      for (final move in answer.json['moved']! as List)
+        '${(move as Map)['from']} ${move['to']}',
+    ];
+
+    test('document_writing/reorder_doc/renumber_siblings E12: a feature reorder moves its spec folder in every target, each record with it and every entry as written', () async {
+      final root = await twinProject();
+      final signupBefore = readDoc(root, flutterSignup);
+      final loginBefore = readDoc(root, jasprLogin);
+      final answer = reorder(root, 'feature:signup', '1');
+      expect(movedPairs(answer), [
+        'prds/features/f02_signup/ prds/features/f01_signup/',
+        'specs/f02_signup/ specs/f01_signup/',
+        'specs/flutter/f02_signup/ specs/flutter/f01_signup/',
+        'specs/jaspr/f02_signup/ specs/jaspr/f01_signup/',
+        'prds/features/f01_login/ prds/features/f02_login/',
+        'specs/f01_login/ specs/f02_login/',
+        'specs/flutter/f01_login/ specs/flutter/f02_login/',
+        'specs/jaspr/f01_login/ specs/jaspr/f02_login/',
+      ]);
+      expect(
+        readDoc(root, 'specs/flutter/f01_signup/IMPLEMENTATION.md'),
+        signupBefore,
+      );
+      expect(
+        readDoc(root, 'specs/jaspr/f02_login/IMPLEMENTATION.md'),
+        loginBefore,
+      );
+      expect(hasDoc(root, flutterSignup), isFalse);
+    });
+
+    test('document_writing/reorder_doc/renumber_siblings E12: a reorder that moves a story leaves every record byte for byte and out of the rewritten list', () async {
+      final root = await twinProject();
+      final answer = reorder(root, 'user_story:login/reset_password', '1');
+      expect(readDoc(root, flutterLogin), loginRecord);
+      expect(readDoc(root, jasprLogin), loginRecord);
+      expect(
+        answer.json['rewritten'],
+        isNot(contains(anyOf(flutterLogin, jasprLogin))),
+      );
+    });
+
+    test('document_writing/reorder_doc/rewrite_links_to_moved_docs E06: a record code path that spells a moved doc path keeps its bytes', () async {
+      final spelled = recordText(
+        statuses: ['reset_password:implemented'],
+        code: ['reset_password:$f/us03_reset_password/USER_STORY.md:Page'],
+      );
+      final root = await twinProject(extra: {'docs/$flutterLogin': spelled});
+      reorder(root, 'user_story:login/reset_password', '1');
+      expect(readDoc(root, flutterLogin), spelled);
+    });
+
+    test('document_writing/rename_doc/rename_doc_segment E12: a feature rename moves its spec folder in every target', () async {
+      final root = await twinProject();
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(movedPairs(answer), [
+        'prds/features/f01_login/ prds/features/f01_signin/',
+        'specs/f01_login/ specs/f01_signin/',
+        'specs/flutter/f01_login/ specs/flutter/f01_signin/',
+        'specs/jaspr/f01_login/ specs/jaspr/f01_signin/',
+      ]);
+      expect(hasDoc(root, 'specs/jaspr/f01_signin/IMPLEMENTATION.md'), isTrue);
+    });
+
+    test('document_writing/rename_doc/rename_doc_segment E12: a target with no spec folder for the feature gets none', () async {
+      final root = await twinProject(without: {'docs/$jasprLogin'});
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(movedPairs(answer), [
+        'prds/features/f01_login/ prds/features/f01_signin/',
+        'specs/f01_login/ specs/f01_signin/',
+        'specs/flutter/f01_login/ specs/flutter/f01_signin/',
+      ]);
+      expect(
+        Directory('${root.path}/docs/specs/jaspr/f01_signin').existsSync(),
+        isFalse,
+      );
+    });
+
+    group('with per-target architecture docs', () {
+      const flutterArch = 'specs/flutter/f01_login/ARCHITECTURE.md';
+      const jasprArch = 'specs/jaspr/f01_login/ARCHITECTURE.md';
+
+      Future<Directory> archTwins() => twinProject(
+        without: {'docs/specs/f01_login/ARCHITECTURE.md'},
+        extra: {
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          'docs/$flutterArch': '# Login architecture\n',
+          'docs/$jasprArch': '# Login architecture\n',
+          'docs/notes.md': 'See `architecture:login` and `login`.\n',
+        },
+      );
+
+      test('document_writing/rename_doc/rename_doc_segment E06, E12: a per-target doc names its feature to rename, read in the shape of its own target', () async {
+        final root = await archTwins();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerRename(
+              s,
+              'architecture:login',
+              slug: 'signin',
+              codeTarget: 'flutter',
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  contains('rename feature:login instead'),
+                ),
+          ),
+        );
+      });
+
+      test('document_writing/rename_doc/rewrite_name_references E03: a mention of a per-target doc takes the feature name the twins share', () async {
+        final root = await archTwins();
+        rename(root, 'feature:login', 'signin');
+        expect(
+          readDoc(root, 'notes.md'),
+          'See `architecture:signin` and `login`.\n',
+        );
+        expect(
+          hasDoc(root, 'specs/flutter/f01_signin/ARCHITECTURE.md'),
+          isTrue,
+        );
+        expect(hasDoc(root, 'specs/jaspr/f01_signin/ARCHITECTURE.md'), isTrue);
+      });
+    });
+
+    group('record entries on a rename', () {
+      String approvedValue(Directory root, String docPath) => RegExp(
+        r'^approved: "([^"]+)"$',
+        multiLine: true,
+      ).firstMatch(readDoc(root, docPath))!.group(1)!;
+
+      test('document_writing/rename_doc/rewrite_name_references E11: a story rename rewrites its entry and its FRs entries in each target, status and code paths kept, every other line as written', () async {
+        final root = await twinProject();
+        final answer = rename(
+          root,
+          'user_story:login/reset_password',
+          'recover',
+        );
+        for (final path in [flutterLogin, jasprLogin]) {
+          final record = readDoc(root, path);
+          expect(record, contains("'recover:implemented'"));
+          expect(record, contains("'recover/send_reset_link:planned'"));
+          expect(record, contains("'recover/expire_reset_link:planned'"));
+          expect(record, contains("'recover:app/lib/reset.dart:ResetPage'"));
+          expect(
+            record,
+            contains("'recover/send_reset_link:app/lib/reset.dart:Send'"),
+          );
+          expect(record, contains("'email_login:implemented'"));
+          expect(record, contains("':skipped:no tablet'"));
+          expect(record, contains("'email_login:app/lib/login.dart:SignIn'"));
+          expect(record, isNot(contains('reset_password')));
+        }
+        expect(
+          answer.json['rewritten'],
+          containsAll([flutterLogin, jasprLogin]),
+        );
+      });
+
+      test('document_writing/rename_doc/rewrite_name_references E11: an FR rename rewrites only its own entry', () async {
+        final root = await twinProject();
+        rename(root, 'fr:login/reset_password/send_reset_link', 'send_link');
+        final record = readDoc(root, flutterLogin);
+        expect(record, contains("'reset_password/send_link:planned'"));
+        expect(
+          record,
+          contains("'reset_password/send_link:app/lib/reset.dart:Send'"),
+        );
+        expect(record, contains("'reset_password/expire_reset_link:planned'"));
+        expect(record, contains("'reset_password:implemented'"));
+        expect(record, isNot(contains('reset_password/send_reset_link')));
+      });
+
+      test('document_writing/rename_doc/rewrite_name_references E11: a feature rename leaves each entry, the record moving with the spec folder', () async {
+        final root = await twinProject();
+        rename(root, 'feature:login', 'signin');
+        expect(
+          readDoc(root, 'specs/flutter/f01_signin/IMPLEMENTATION.md'),
+          loginRecord,
+        );
+        expect(
+          readDoc(root, 'specs/jaspr/f01_signin/IMPLEMENTATION.md'),
+          loginRecord,
+        );
+      });
+
+      test('document_writing/rename_doc/rewrite_name_references E05, E11: a record whose approval held is stamped again, a draft and a stale record keep theirs, and none gains draft', () async {
+        final root = await twinProject();
+        stampApproved(root, flutterLogin);
+        stampApproved(root, jasprLogin);
+        docFile(
+          root,
+          jasprLogin,
+        ).writeAsStringSync('\nLate note.\n', mode: FileMode.append);
+        final staleHash = approvedValue(root, jasprLogin);
+        final before = approvedValue(root, flutterLogin);
+        rename(root, 'user_story:login/reset_password', 'recover');
+        expect(holdsApproval(root, flutterLogin), isTrue);
+        expect(approvedValue(root, flutterLogin), isNot(before));
+        expect(approvedValue(root, jasprLogin), staleHash);
+        expect(holdsApproval(root, jasprLogin), isFalse);
+        expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
+        expect(readDoc(root, jasprLogin), isNot(contains('draft: true')));
+      });
+    });
+  });
+
+  group('with one unnamed code target', () {
+    const record = 'specs/f01_login/IMPLEMENTATION.md';
+
+    test('document_writing/rename_doc/rewrite_name_references E11: a story rename rewrites its entries in the one record', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$record': recordText(
+            statuses: ['reset_password:implemented', 'sign_out:planned'],
+          ),
+        },
+      );
+      rename(root, 'user_story:login/reset_password', 'recover');
+      final text = readDoc(root, record);
+      expect(text, contains("'recover:implemented'"));
+      expect(text, contains("'sign_out:planned'"));
+      expect(text, isNot(contains('reset_password')));
+    });
+  });
+
+  group('with one named code target', () {
+    test('document_writing/rename_doc/rewrite_name_references E03: a per-target doc outside a target folder keeps the feature name its mention takes', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  web:\n    code_root: web_ws\n',
+          '.specstone/templates/implementation.yaml': recordLayer,
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          'web_ws/app/lib/login.dart': 'class SignIn {}\n',
+          'docs/notes.md': 'See `architecture:login`.\n',
+        },
+      );
+      rename(root, 'feature:login', 'signin');
+      expect(readDoc(root, 'notes.md'), 'See `architecture:signin`.\n');
+    });
+  });
+
+  group('move with record entries', () {
+    const cartFlutter = 'specs/flutter/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const cartJaspr = 'specs/jaspr/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payFlutter = 'specs/flutter/f02_shop/f02_pay/IMPLEMENTATION.md';
+    const payJaspr = 'specs/jaspr/f02_shop/f02_pay/IMPLEMENTATION.md';
+    const addItem = 'user_story:shop/cart/add_item';
+
+    final flutterCart = recordText(
+      statuses: [
+        'add_item:implemented',
+        'add_item/check_stock:implemented',
+        'drop_item:planned',
+      ],
+      code: [
+        'add_item:app/lib/shop.dart:Shop',
+        'add_item/check_stock:app/lib/shop.dart:Shop',
+      ],
+    );
+    final jasprCart = recordText(
+      statuses: [
+        ':skipped:no web cart',
+        'add_item:implemented',
+        'drop_item:planned',
+      ],
+    );
+    final jasprPay = recordText(statuses: ['card:implemented']);
+
+    Future<Directory> shopTwins({
+      Map<String, String> extra = const {},
+      Set<String> without = const {},
+    }) => writeNestedProject(
+      without: without,
+      extra: {
+        '.specstone/config.yaml': twinConfig(),
+        '.specstone/templates/implementation.yaml': recordLayer,
+        'docs/$cartFlutter': flutterCart,
+        'docs/$cartJaspr': jasprCart,
+        'docs/$payJaspr': jasprPay,
+        ...extra,
+      },
+    );
+
+    ReadAnswer moveAddItem(Directory root) =>
+        writeIn(root, (s) => answerMove(s, [addItem], under: 'shop/pay'));
+
+    test('document_writing/move_story/move_story_folder E19, E20, E21: each target carries the story and FR entries to its pay record, creating a missing one as a draft, and its skip of cart stays on cart', () async {
+      final root = await shopTwins();
+      stampApproved(root, cartFlutter);
+      stampApproved(root, cartJaspr);
+      stampApproved(root, payJaspr);
+      final answer = moveAddItem(root);
+
+      final flutterCartAfter = readDoc(root, cartFlutter);
+      expect(flutterCartAfter, contains("'drop_item:planned'"));
+      expect(flutterCartAfter, isNot(contains('add_item')));
+      expect(flutterCartAfter, isNot(contains('implements:')));
+      expect(holdsApproval(root, cartFlutter), isTrue);
+
+      final jasprCartAfter = readDoc(root, cartJaspr);
+      expect(jasprCartAfter, contains("':skipped:no web cart'"));
+      expect(jasprCartAfter, contains("'drop_item:planned'"));
+      expect(jasprCartAfter, isNot(contains('add_item')));
+      expect(holdsApproval(root, cartJaspr), isTrue);
+
+      final created = readDoc(root, payFlutter);
+      expect(created, contains('draft: true'));
+      expect(created, contains("'add_item:implemented'"));
+      expect(created, contains("'add_item/check_stock:implemented'"));
+      expect(created, contains("'add_item:app/lib/shop.dart:Shop'"));
+      expect(
+        created,
+        contains("'add_item/check_stock:app/lib/shop.dart:Shop'"),
+      );
+      expect(created, isNot(contains('skipped')));
+      expect(holdsApproval(root, payFlutter), isFalse);
+
+      final payJasprAfter = readDoc(root, payJaspr);
+      expect(payJasprAfter, contains("'card:implemented'"));
+      expect(payJasprAfter, contains("'add_item:implemented'"));
+      expect(payJasprAfter, isNot(contains('skipped')));
+      expect(holdsApproval(root, payJaspr), isTrue);
+
+      expect(
+        answer.json['rewritten'],
+        containsAll([cartFlutter, cartJaspr, payFlutter, payJaspr]),
+      );
+    });
+
+    test('document_writing/move_story/rewrite_moved_story_references E10: the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
+      final root = await shopTwins();
+      moveAddItem(root);
+      expect(spots(checkOf(root), FindingKind.recordEntryUnresolved), isEmpty);
+    });
+
+    test('document_writing/move_story/move_story_folder E20: a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
+      final bare = recordText(statuses: ['drop_item:planned']);
+      final root = await shopTwins(
+        extra: {'docs/$cartJaspr': bare},
+        without: {'docs/$payJaspr'},
+      );
+      moveAddItem(root);
+      expect(readDoc(root, cartJaspr), bare);
+      expect(hasDoc(root, payJaspr), isFalse);
+      expect(hasDoc(root, payFlutter), isTrue);
+    });
+
+    test('document_writing/move_story/move_story_folder E20: a target with no cart record changes nothing', () async {
+      final root = await shopTwins(
+        without: {'docs/$cartJaspr', 'docs/$payJaspr'},
+      );
+      moveAddItem(root);
+      expect(hasDoc(root, cartJaspr), isFalse);
+      expect(hasDoc(root, payJaspr), isFalse);
+    });
+
+    test('document_writing/move_story/rewrite_moved_story_references E07: a record whose hash did not match keeps its hash and gains no draft mark', () async {
+      final root = await shopTwins();
+      stampApproved(root, cartJaspr);
+      docFile(
+        root,
+        cartJaspr,
+      ).writeAsStringSync('\nLate note.\n', mode: FileMode.append);
+      final before = RegExp(
+        r'^approved: "([^"]+)"$',
+        multiLine: true,
+      ).firstMatch(readDoc(root, cartJaspr))!.group(1);
+      moveAddItem(root);
+      final after = readDoc(root, cartJaspr);
+      expect(after, contains('approved: "$before"'));
+      expect(after, isNot(contains('draft: true')));
+      expect(after, isNot(contains('add_item')));
+    });
+
+    test('document_writing/move_story/move_story_folder E19: two stories moved in one call keep the order of the record, whatever order the call names them', () async {
+      final root = await shopTwins(
+        extra: {
+          'docs/$cartFlutter': recordText(
+            statuses: ['add_item:implemented', 'drop_item:planned'],
+          ),
+        },
+      );
+      writeIn(
+        root,
+        (s) => answerMove(s, [
+          'user_story:shop/cart/drop_item',
+          addItem,
+        ], under: 'shop/pay'),
+      );
+      final created = readDoc(root, payFlutter);
+      expect(
+        created.indexOf("'add_item:implemented'"),
+        lessThan(created.indexOf("'drop_item:planned'")),
+      );
+      expect(readDoc(root, cartFlutter), isNot(contains('statuses')));
+    });
+
+    test('document_writing/move_story/move_story_folder E19, E20: a record doc type with no path of its own for the feature refuses argument_invalid, and the old record keeps its lines', () async {
+      const slugged =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPL_{slug}.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n';
+      final record = recordText(statuses: ['reset_password:implemented']);
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': slugged,
+          'docs/specs/f01_login/IMPL_login.md': record,
+        },
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:login/reset_password',
+          ], under: 'signup'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('has no path to create a record at for signup'),
+              ),
+        ),
+      );
+      expect(readDoc(root, 'specs/f01_login/IMPL_login.md'), record);
+      expect(hasDoc(root, story3), isTrue);
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a pay record written after the session opened takes the entries beside its own', () async {
+      final root = await shopTwins();
+      writeIn(root, (s) {
+        docFile(root, payFlutter)
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(recordText(statuses: ['card:planned']));
+        return answerMove(s, [addItem], under: 'shop/pay');
+      });
+
+      final pay = readDoc(root, payFlutter);
+      expect(pay, contains("'card:planned'"));
+      expect(pay, contains("'add_item:implemented'"));
+      expect(pay, contains("'add_item/check_stock:implemented'"));
+      expect(pay, contains("'add_item:app/lib/shop.dart:Shop'"));
+      expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a file at the pay record path that is no UTF-8 text refuses before any change', () async {
+      final root = await shopTwins();
+      expect(
+        () => writeIn(root, (s) {
+          docFile(root, payFlutter)
+            ..parent.createSync(recursive: true)
+            ..writeAsBytesSync([0xff, 0xfe, 0x00]);
+          return answerMove(s, [addItem], under: 'shop/pay');
+        }),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $payFlutter: not UTF-8 text',
+              ),
+        ),
+      );
+      expect(readDoc(root, cartFlutter), flutterCart);
+      expect(docFile(root, payFlutter).readAsBytesSync(), [0xff, 0xfe, 0x00]);
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a pay record whose implements block is not valid YAML refuses before any change, its lines kept', () async {
+      const broken =
+          "---\nstatuses:\n  - 'card:implemented'\n"
+          "implements:\n  - 'card:web/lib/card.dart\n  - card:web/lib/pay.dart\n"
+          '---\n\n# Record\n';
+      final root = await shopTwins(
+        extra: {
+          'docs/$cartJaspr': recordText(
+            statuses: ['add_item:implemented', 'drop_item:planned'],
+            code: ['add_item:web/lib/shop.dart'],
+          ),
+          'docs/$payJaspr': broken,
+        },
+      );
+      expect(
+        () => moveAddItem(root),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $payJaspr: its implements block is not valid '
+                    'YAML',
+              ),
+        ),
+      );
+      expect(readDoc(root, payJaspr), broken);
+      expect(readDoc(root, cartJaspr), contains("'add_item:implemented'"));
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a cart record whose implements block is not valid YAML refuses, the moved entries kept there', () async {
+      const broken =
+          "---\nstatuses:\n  - 'add_item:implemented'\n"
+          "implements:\n  - 'add_item:web/lib/shop.dart\n"
+          '---\n\n# Record\n';
+      final root = await shopTwins(extra: {'docs/$cartJaspr': broken});
+      expect(
+        () => moveAddItem(root),
+        throwsA(
+          isA<RenderFault>().having(
+            (f) => f.message,
+            'message',
+            'cannot write $cartJaspr: its implements block is not valid YAML',
+          ),
+        ),
+      );
+      expect(readDoc(root, cartJaspr), broken);
+    });
+
+    test('document_writing/move_story/move_story_folder E19, E20: one unnamed code target carries its entries too', () async {
+      final root = await writeNestedProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/specs/f02_shop/f01_cart/IMPLEMENTATION.md': flutterCart,
+        },
+      );
+      moveAddItem(root);
+      final created = readDoc(root, 'specs/f02_shop/f02_pay/IMPLEMENTATION.md');
+      expect(created, contains('draft: true'));
+      expect(created, contains("'add_item/check_stock:implemented'"));
+      expect(
+        readDoc(root, 'specs/f02_shop/f01_cart/IMPLEMENTATION.md'),
+        isNot(contains('add_item')),
+      );
     });
   });
 }

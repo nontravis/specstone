@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
     show writeCheckProject;
+import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -101,7 +102,7 @@ void main() {
         contains(
           'Expected one target, got 2.\n\n'
           'Usage: specstone rename <doc address> --to <slug> '
-          '[--json]\n',
+          '[--target <name>] [--json]\n',
         ),
       );
     },
@@ -219,5 +220,86 @@ void main() {
       (jsonDecode(out.toString()) as Map)['rewritten'],
       contains('app/lib/doc.dart'),
     );
+  });
+
+  group('with two code targets', () {
+    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+
+    Future<Directory> twins() => writeWriteProject(
+      extra: {
+        '.specstone/config.yaml': twinConfig(),
+        '.specstone/templates/implementation.yaml': recordLayer,
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        'docs/$flutterRecord': recordText(
+          statuses: ['reset_password:implemented'],
+        ),
+        'docs/$jasprRecord': recordText(statuses: ['reset_password:planned']),
+        'docs/specs/flutter/f01_login/ARCHITECTURE.md':
+            '# Login architecture\n',
+        'docs/specs/jaspr/f01_login/ARCHITECTURE.md': '# Login architecture\n',
+      },
+      without: {'docs/specs/f01_login/ARCHITECTURE.md'},
+    );
+
+    test('document_writing/rename_doc/rewrite_name_references E11: rename prints each record it rewrites, one per target', () async {
+      final root = await twins();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), contains('rewrote $flutterRecord\n'));
+      expect(out.toString(), contains('rewrote $jasprRecord\n'));
+      expect(readDoc(root, flutterRecord), contains("'recover:implemented'"));
+      expect(readDoc(root, jasprRecord), contains("'recover:planned'"));
+    });
+
+    test('document_writing/rename_doc/rename_doc_segment E06: rename --target reads a per-target doc and names its feature', () async {
+      final (:runner, :out, :err) = writeRunner(await twins());
+      expect(
+        await runner.run([
+          'rename',
+          'architecture:login',
+          '--to',
+          'signin',
+          '--target',
+          'flutter',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'architecture:login takes its name from its feature; '
+        'rename feature:login instead\n',
+      );
+    });
+
+    test('document_writing/rename_doc/rename_doc_segment E12: rename --target a project lacks exits 64', () async {
+      final (:runner, :out, :err) = writeRunner(await twins());
+      expect(
+        await runner.run([
+          'rename',
+          'feature:login',
+          '--to',
+          'signin',
+          '--target',
+          'dart',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--target dart: the code targets are flutter, jaspr\n',
+      );
+    });
   });
 }

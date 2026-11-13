@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -78,5 +79,63 @@ void main() {
       extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
     );
     expect(await readRunner(pinned).runner.run(['search', 'login']), 78);
+  });
+
+  test('s03/inv26, api:index_query operations: search --under --target keeps one target, an unknown name is refused', () async {
+    final project = await writeTree({
+      '.specstone/templates/architecture.yaml':
+          'id: architecture\nper_target: true\n',
+      '.specstone/templates/implementation.yaml':
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n',
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f01_toast/FEATURE.md':
+          '# Toast\n\n## Problem\nWarm toast.\n',
+      'docs/specs/flutter/f01_toast/ARCHITECTURE.md':
+          '# Toast architecture\n\n## Purpose\nWarm toast on flutter.\n',
+      'docs/specs/jaspr/f01_toast/ARCHITECTURE.md':
+          '# Toast architecture\n\n## Purpose\nWarm toast on jaspr.\n',
+    });
+    final scoped = readRunner(project);
+    expect(
+      await scoped.runner.run([
+        'search',
+        'Warm toast',
+        '--under',
+        'toast',
+        '--target',
+        'jaspr',
+      ]),
+      0,
+    );
+    expect(scoped.out.toString(), contains('Warm toast on jaspr.'));
+    expect(
+      scoped.out.toString(),
+      isNot(contains('on flutter')),
+      reason:
+          'the flutter twin would print its own marker text; the twins '
+          'share one name, so only their text tells them apart',
+    );
+    final unknown = readRunner(project);
+    expect(
+      await unknown.runner.run(['search', 'toast', '--target', 'web']),
+      64,
+    );
+    expect(
+      unknown.err.toString(),
+      '--target web: the code targets are flutter, jaspr\n',
+    );
   });
 }

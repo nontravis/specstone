@@ -44,7 +44,8 @@ section 3 says.
 
 ## 3. Re-audit only what changed
 
-1. Run one `specstone get <drafts list> --json` and keep each draft's `bases.doc`.
+1. Run one `specstone get <drafts list> --json` and keep each draft's `bases.doc`. The drafts list's names need no
+   `--target` (`domain:agent_plugin` INV-25).
 2. When it refuses with `doc_not_found`, update the drafts list for each name it names: a doc moved between rounds
    takes the new name `move` printed (`moved <from> to <to>`), and a doc deleted, or listed and never created,
    drops out. Run the call again on that list.

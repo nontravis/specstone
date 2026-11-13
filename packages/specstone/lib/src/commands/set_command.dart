@@ -25,10 +25,11 @@ class SetCommand extends WriteCommand {
         'batch',
         help:
             'A file of `get` text output, edited; writes every changed '
-            'block, or none. Takes no doc address, --base, --field, or '
-            '--title; reads no stdin.',
+            'block, or none. Takes no doc address, --base, --field, --title, '
+            'or --target; reads no stdin.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -42,7 +43,8 @@ class SetCommand extends WriteCommand {
   @override
   String get invocation =>
       'specstone set <doc address>(#<section key> | '
-      '--field <field id> | --title) --base <hash> [--json]\n'
+      '--field <field id> | --title) --base <hash> [--target <name>] '
+      '[--json]\n'
       '       specstone set --batch <file> [--json]';
 
   @override
@@ -71,6 +73,7 @@ class SetCommand extends WriteCommand {
           title: args.flag('title'),
           base: args.option('base'),
           index: session.index,
+          codeTarget: targetOf(args),
         ),
         text,
       ),
@@ -101,19 +104,20 @@ class SetCommand extends WriteCommand {
   }
 
   /// Throws [IndexFault] `argument_conflict` when a doc address, `--base`,
-  /// `--field`, or `--title` goes beside `--batch`, the file being the only
-  /// target.
+  /// `--field`, `--title`, or `--target` goes beside `--batch`, the file being
+  /// the only target.
   void _requireBatchAlone() {
     final args = argResults!;
     if (args.rest.isEmpty &&
         args.option('base') == null &&
         args.option('field') == null &&
+        args.option('target') == null &&
         !args.flag('title')) {
       return;
     }
     throw IndexFault(
       IndexFaultCode.argumentConflict,
-      '--batch takes no doc address, --base, --field, or --title',
+      '--batch takes no doc address, --base, --field, --title, or --target',
     );
   }
 }

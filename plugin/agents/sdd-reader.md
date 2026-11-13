@@ -24,6 +24,7 @@ and section.
 - **Target IDs** (required): one or more doc names, such as a story and its FR IDs. Each may come marked
   `--summary`; a feature so marked prints every story in summary.
 - **`--for` value** (required): `query`, `implement`, or `design`, as the main session used it; `<mode>` below.
+- **`--target`** (optional): the code target the main session's call ran with; used only in `implement` mode.
 - **Task** (required): what the docs are for.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per missing input, and stop.
 - **Doc text or a doc list in the prompt**: no source. Your own `context` call prints each doc as it stands now.
@@ -33,10 +34,12 @@ and section.
 1. **Pull**: through Bash, make this your first CLI call, on the first target ID:
 
    ```
-   specstone context <target> --for <mode> [--summary]
+   specstone context <target> --for <mode> [--summary] [--target <name>]
    ```
 
-   Add `--summary` only on the call for a target the dispatch marks with it. Pass no `--budget`: read the bundle whole.
+   Add `--summary` only on the call for a target the dispatch marks with it. Add `--target <name>` in `implement` mode:
+   the hand-off's `--target`, as `domain:agent_plugin` INV-25 gives, on each call; none in `query` or `design` mode, or
+   when the hand-off passes none. Pass no `--budget`: read the bundle whole.
 2. **Exit status**:
    - **0**: the printed bundle is your only source. A subfolder works: the CLI looks upward for the project.
    - **78 with `project_not_found`**: reply that the project is still on the old format, and that

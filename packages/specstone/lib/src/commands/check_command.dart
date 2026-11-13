@@ -14,6 +14,7 @@ class CheckCommand extends SpecstoneCommand {
       negatable: false,
       help: 'Print JSON instead of text.',
     );
+    addTargetOption();
   }
 
   @override
@@ -24,7 +25,8 @@ class CheckCommand extends SpecstoneCommand {
       'Check every doc, or a target and the docs under it.';
 
   @override
-  String get invocation => 'specstone check [<target>] [--json]';
+  String get invocation =>
+      'specstone check [<target>] [--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -40,7 +42,11 @@ class CheckCommand extends SpecstoneCommand {
       report = ReadSession.run(
         (session) {
           sessionWarnings = session.warnings;
-          return runCheck(session, target: args.rest.firstOrNull);
+          return runCheck(
+            session,
+            target: args.rest.firstOrNull,
+            codeTarget: targetOf(args),
+          );
         },
         templates: runner.templates,
         workingDirectory: runner.workingDirectory,

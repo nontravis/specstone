@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
@@ -27,7 +28,7 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
-  final Map<String, String?> _codeTexts = {};
+  final Map<(CodeTarget, String), String?> _codeTexts = {};
   final List<String> _codeWarnings = [];
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -40,8 +41,12 @@ final class CheckContext {
   /// The project root folder.
   Directory get projectRoot => _session.project.projectRoot;
 
-  /// The folder code paths are written from, `code_root` of the config.
-  Directory get codeRoot => _session.project.codeRoot;
+  /// The code targets of the project, in config order.
+  List<CodeTarget> get targets => _session.project.targets;
+
+  /// Returns the folder [target]'s code paths are written from.
+  Directory codeRootOf(CodeTarget target) =>
+      _session.project.codeRootOf(target);
 
   /// Whether the config pins a pack at or above the approval stamps.
   bool get stampsHaveRun => _session.project.stampsHaveRun;
@@ -67,23 +72,27 @@ final class CheckContext {
   DocLines linesOf(IndexedDoc doc) =>
       _lines.putIfAbsent(doc.docPath, () => DocLines.from(contentOf(doc)));
 
-  /// Returns the text of the code file at [path], read once per run.
+  /// Returns the text of the code file at [path] in [target], read once per
+  /// run.
   ///
-  /// [path] is relative to the code root. Malformed UTF-8 bytes decode to
-  /// U+FFFD instead of failing. Returns null for a file that cannot be read,
-  /// and adds one warning for it.
-  String? codeTextOf(String path) {
-    if (_codeTexts.containsKey(path)) return _codeTexts[path];
+  /// [path] is relative to [target]'s code root. Malformed UTF-8 bytes decode
+  /// to U+FFFD instead of failing. Returns null for a file that cannot be
+  /// read, and adds one warning for it.
+  String? codeTextOf(CodeTarget target, String path) {
+    final key = (target, path);
+    if (_codeTexts.containsKey(key)) return _codeTexts[key];
     String? text;
     try {
       text = const Utf8Decoder(allowMalformed: true)
-          .convert(File('${codeRoot.path}/$path').readAsBytesSync());
+          .convert(File('${codeRootOf(target).path}/$path').readAsBytesSync());
     } on FileSystemException {
+      final inTarget = target.name == null ? '' : ' in target ${target.name}';
       _codeWarnings.add(
-        '$path: cannot read the file; implements Symbols in it are not checked',
+        '$path: cannot read the file$inTarget; '
+        'implements Symbols in it are not checked',
       );
     }
-    return _codeTexts[path] = text;
+    return _codeTexts[key] = text;
   }
 
   /// Adds [warning], which no finding states.

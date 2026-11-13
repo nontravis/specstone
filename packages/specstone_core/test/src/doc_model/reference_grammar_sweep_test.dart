@@ -73,11 +73,6 @@ final _allowed = <_Allowed>[
   ),
   // Frontmatter key block: the key line, not a reference.
   _core(
-    'document_writing/set_doc.dart',
-    r"""RegExp(r'^\d{4}-\d{2}-\d{2}$'""",
-    'ISO date value of a `date` field, no reference.',
-  ),
-  _core(
     'document_writing/key_block_values.dart',
     """.indexOf(':'""",
     'Finds the colon after the key name; values go to the grammar.',
@@ -109,6 +104,12 @@ final _allowed = <_Allowed>[
     'index_query/code_bundle.dart',
     """.indexOf(':'""",
     'Cuts the `path:line` of an `implements` entry, a code path.',
+  ),
+  // A record entry line, not a doc reference.
+  _core(
+    'index_query/record_entries.dart',
+    """.indexOf(':'""",
+    'Cuts a record entry line at its `:` marks, no reference.',
   ),
   _core(
     'index_query/link_blocks.dart',

@@ -101,7 +101,7 @@ void main() {
         ),
       );
       expect(spots(edited, FindingKind.approvalStale), [
-        '$loginStory:3: approval_stale',
+        '$loginStory:2: approval_stale',
       ]);
       final finding = _stales(edited).single;
       expect(finding.message, _stale);
@@ -131,16 +131,35 @@ void main() {
     },
   );
 
-  test('$_name E03: a write of implements raises no approval_stale', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: editedAfterApproval(loginStory, [
-          ('app/lib/login.dart:SignInPage', 'app/lib/login.dart:checkPassword'),
-        ]),
-      ),
-    );
-    expect(_stales(report), isEmpty);
-  });
+  test(
+    "$_name E03: a write of a record entry's code paths or of covers raises no approval_stale",
+    () async {
+      const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+      final base = {
+        ...checkProjectFiles(),
+        'docs/$recordPath':
+            "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+            "implements:\n  - 'email_login/check_password:app/lib/login.dart:checkPassword'\n"
+            '---\n\n# Record\n',
+      };
+      final approved = withApprovalHashes(base);
+      final record = approved['docs/$recordPath']!;
+      expect(record, contains('approved:'));
+      final report = checkOf(
+        await writeTree({
+          ...approved,
+          'docs/$recordPath': record.replaceFirst(
+            'app/lib/login.dart:checkPassword',
+            'app/lib/login.dart:SignInPage',
+          ),
+          ...editedAfterApproval(loginArchitecture, [
+            ('  - app/lib/\n', '  - app/lib/login.dart\n'),
+          ]),
+        }),
+      );
+      expect(_stales(report), isEmpty);
+    },
+  );
 
   test(
     '$_name E04: a draft beside an approved: hash its content does not match raises no approval_stale',
@@ -148,7 +167,7 @@ void main() {
       final report = checkOf(
         await writeCheckProject(
           extra: editedAfterApproval(loginStory, [
-            ('status: implemented\n', 'status: implemented\ndraft: true\n'),
+            ('goals:\n', 'draft: true\ngoals:\n'),
             ('Sign in', 'Sign in again'),
           ]),
         ),
@@ -181,8 +200,8 @@ void main() {
         await writeCheckProject(
           extra: {
             'docs/$loginFr': plain.replaceFirst(
-              'status: implemented\n',
-              'status: implemented\ndraft: true\n',
+              'traced_from:\n',
+              'draft: true\ntraced_from:\n',
             ),
           },
         ),
@@ -194,12 +213,9 @@ void main() {
   test(
     '$_name E06: approved: true is one approval_stale on its line with value true once the pins reach the stamps, and no other finding; below them it counts as approved',
     () async {
-      final marked = fr(
-        'status: implemented\n',
-        'status: implemented\napproved: true\n',
-      );
+      final marked = fr('traced_from:\n', 'approved: true\ntraced_from:\n');
       final report = checkOf(await writeCheckProject(extra: marked));
-      expect(spots(report), ['$loginFr:3: approval_stale']);
+      expect(spots(report), ['$loginFr:2: approval_stale']);
       expect(report.findings.single.keys, {'value': 'true'});
       expect(report.findings.single.message, _stale);
 
@@ -244,27 +260,27 @@ void main() {
         await writeCheckProject(
           extra: {
             'docs/$loginFr': digitsText.replaceFirst(
-              'status: implemented\n',
-              'status: implemented\napproved: $digits\n',
+              'traced_from:\n',
+              'approved: $digits\ntraced_from:\n',
             ),
           },
         ),
       );
       expect(spots(bare, FindingKind.approvalStale), [
-        '$loginFr:3: approval_stale',
+        '$loginFr:2: approval_stale',
       ]);
       expect(_stales(bare).single.keys, {'value': digits});
 
       final (exponentText, exponent) = _frHashing(RegExp(r'^\d+e\d+$'));
       String withValue(String value) => exponentText.replaceFirst(
-        'status: implemented\n',
-        'status: implemented\napproved: $value\n',
+        'traced_from:\n',
+        'approved: $value\ntraced_from:\n',
       );
       final unquoted = checkOf(
         await writeCheckProject(extra: {'docs/$loginFr': withValue(exponent)}),
       );
       expect(spots(unquoted, FindingKind.approvalStale), [
-        '$loginFr:3: approval_stale',
+        '$loginFr:2: approval_stale',
       ]);
       expect(_stales(unquoted).single.keys, {'value': exponent});
 
@@ -280,14 +296,11 @@ void main() {
   test('$_name E09: a literal overflowing exponent reads as written', () async {
     final report = checkOf(
       await writeCheckProject(
-        extra: fr(
-          'status: implemented\n',
-          'status: implemented\napproved: 123e45678901\n',
-        ),
+        extra: fr('traced_from:\n', 'approved: 123e45678901\ntraced_from:\n'),
       ),
     );
     expect(spots(report, FindingKind.approvalStale), [
-      '$loginFr:3: approval_stale',
+      '$loginFr:2: approval_stale',
     ]);
     expect(_stales(report).single.keys, {'value': '123e45678901'});
   });
@@ -297,15 +310,12 @@ void main() {
     () async {
       final report = checkOf(
         await writeCheckProject(
-          extra: fr(
-            'status: implemented\n',
-            'status: implemented\napproved:\n',
-          ),
+          extra: fr('traced_from:\n', 'approved:\ntraced_from:\n'),
           unstamped: {'docs/$loginFr'},
         ),
       );
       expect(spots(report, FindingKind.approvalStale), [
-        '$loginFr:3: approval_stale',
+        '$loginFr:2: approval_stale',
       ]);
       final finding = _stales(report).single;
       expect(finding.message, _unapproved);
@@ -323,11 +333,11 @@ void main() {
       ]) {
         final report = checkOf(
           await writeCheckProject(
-            extra: fr('status: implemented', 'status: implemented\n$written'),
+            extra: fr('traced_from:', '$written\ntraced_from:'),
           ),
         );
         expect(spots(report, FindingKind.approvalStale), [
-          '$loginFr:3: approval_stale',
+          '$loginFr:2: approval_stale',
         ], reason: written);
         expect(_stales(report).single.keys, {'value': value}, reason: written);
       }
@@ -339,8 +349,8 @@ void main() {
     () async {
       final report = await _checkBelowPins({
         'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
-          'status: implemented\n',
-          'status: implemented\napproved: true\n',
+          'traced_from:\n',
+          'approved: true\ntraced_from:\n',
         ),
         'docs/$loginStory': checkProjectFiles()['docs/$loginStory']!,
       });

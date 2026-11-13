@@ -19,6 +19,24 @@ final class PathPattern {
   final RegExp _slugs;
   final RegExp _values;
 
+  /// Returns this pattern with [target] as a literal folder right after its
+  /// first segment (RULE-20): a pattern with no folder takes the target as
+  /// its folder.
+  PathPattern forTarget(String target) {
+    final (:head, :rest) = _splitAtFirstFolder();
+    return PathPattern('$head$target/$rest');
+  }
+
+  /// Returns the folder, ending in `/`, that holds [target]'s docs of this
+  /// pattern: its first folder, then the target folder (RULE-20).
+  String targetFolder(String target) => '${_splitAtFirstFolder().head}$target/';
+
+  // The text up to and including the first `/`, and the rest.
+  ({String head, String rest}) _splitAtFirstFolder() {
+    final cut = source.indexOf('/') + 1;
+    return (head: source.substring(0, cut), rest: source.substring(cut));
+  }
+
   /// Returns whether the pattern matches all of [docPath].
   bool matches(String docPath) => _whole.hasMatch(docPath);
 

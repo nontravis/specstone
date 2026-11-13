@@ -313,6 +313,7 @@ final class MergedDocType {
     this.extendsId,
     this.path,
     this.maxDepth,
+    this.isPerTarget = false,
     this.nestedPaths,
     this.bundle,
     this.generators,
@@ -338,6 +339,9 @@ final class MergedDocType {
   /// How many more times the doc type's own folder segment may repeat; null
   /// when no layer sets it.
   final int? maxDepth;
+
+  /// Whether the doc type reads its patterns once per target (INV-30).
+  final bool isPerTarget;
 
   /// Whether the doc type's own folder segment may repeat.
   bool get nests => (maxDepth ?? 0) > 0;
@@ -388,6 +392,7 @@ final class MergedDocType {
     String? extendsId,
     String? path,
     int? maxDepth,
+    bool? isPerTarget,
     List<String>? nestedPaths,
     List<String>? bundle,
     List<String>? generators,
@@ -404,6 +409,7 @@ final class MergedDocType {
     extendsId: extendsId ?? this.extendsId,
     path: path ?? this.path,
     maxDepth: maxDepth ?? this.maxDepth,
+    isPerTarget: isPerTarget ?? this.isPerTarget,
     nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
     generators: generators ?? this.generators,
@@ -428,6 +434,7 @@ final class MergedDocType {
       'extends': ?extendsId,
       'path': ?path,
       'maxDepth': ?maxDepth,
+      if (isPerTarget) 'perTarget': true,
       'bundle': ?bundle,
       'fields': [for (final field in fields) field.toJson()],
       'sections': [for (final section in sections) section.toJson()],

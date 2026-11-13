@@ -39,16 +39,23 @@ String normalCodeEntry(String entry) {
 /// a dot and links are skipped, and no file is read. A missing root yields
 /// none. A folder that exists but cannot be listed is passed to
 /// [onUnlistable], as a path from [codeRoot], and its files are left out.
+///
+/// A file in a folder of [skipFolders], paths from [codeRoot] in
+/// [normalCodeEntry]'s form, is left out: the code root of another target
+/// nested in this one owns it.
 List<String> filesUnderCodeRoot(
   Directory codeRoot,
   String entry, {
   void Function(String folder)? onUnlistable,
+  List<String> skipFolders = const [],
 }) {
   if (!isPortableCodeEntry(entry) || _passesLink(codeRoot, entry)) {
     return const [];
   }
   final root = normalCodeEntry(entry);
-  if (root == _parentSegment || root.startsWith('$_parentSegment/')) {
+  if (root == _parentSegment ||
+      root.startsWith('$_parentSegment/') ||
+      _isUnder(skipFolders, root)) {
     return const [];
   }
   final kind = FileSystemEntity.typeSync(
@@ -57,15 +64,20 @@ List<String> filesUnderCodeRoot(
   );
   if (kind == FileSystemEntityType.file) return [root];
   final files = <String>[];
-  _collect(codeRoot, root, files, onUnlistable);
+  _collect(codeRoot, root, files, onUnlistable, skipFolders);
   return files..sort(compareCodePoints);
 }
 
 /// Returns the files under every one of [entries], each once, sorted by code
-/// point (see [filesUnderCodeRoot]).
-List<String> codeRootFiles(Directory codeRoot, Iterable<String> entries) {
+/// point (see [filesUnderCodeRoot], which takes [skipFolders]).
+List<String> codeRootFiles(
+  Directory codeRoot,
+  Iterable<String> entries, {
+  List<String> skipFolders = const [],
+}) {
   final files = <String>{
-    for (final entry in entries) ...filesUnderCodeRoot(codeRoot, entry),
+    for (final entry in entries)
+      ...filesUnderCodeRoot(codeRoot, entry, skipFolders: skipFolders),
   };
   return files.toList()..sort(compareCodePoints);
 }
@@ -137,11 +149,17 @@ bool _passesLink(Directory codeRoot, String entry) {
   return false;
 }
 
+/// Whether [path] is one of [folders] or lies below one.
+bool _isUnder(List<String> folders, String path) => folders.any(
+  (folder) => path == folder || path.startsWith('$folder$_separator'),
+);
+
 void _collect(
   Directory codeRoot,
   String folderPath,
   List<String> files,
   void Function(String folder)? onUnlistable,
+  List<String> skipFolders,
 ) {
   final folder = Directory('${codeRoot.path}$_separator$folderPath');
   final List<FileSystemEntity> entities;
@@ -159,7 +177,9 @@ void _collect(
       case File():
         files.add(path);
       case Directory():
-        _collect(codeRoot, path, files, onUnlistable);
+        if (!_isUnder(skipFolders, path)) {
+          _collect(codeRoot, path, files, onUnlistable, skipFolders);
+        }
       case _:
     }
   }

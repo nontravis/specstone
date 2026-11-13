@@ -42,6 +42,9 @@ final class StampPass {
   /// Plans the pass over the docs of the run as they were [before] it and as
   /// they stand [after] its last step, both at the planned DocPath.
   ///
+  /// A [before] doc carries the type it had before the run, so its hash is the
+  /// one it was approved with even when a step dropped a field of that type.
+  ///
   /// An entry is paired with the one at its position in the doc before the
   /// run; a doc whose `confirmed` entries changed in number keeps them.
   ///
@@ -69,7 +72,7 @@ final class StampPass {
       final type = doc.type;
       final old = beforeAt[doc.docPath];
       if (type == null || old == null) continue;
-      final beforeHash = comparedApprovalHash(old.lf, type);
+      final beforeHash = comparedApprovalHash(old.lf, old.type);
       if (beforeHash == null || comparedApprovalHash(doc.lf, type) == null) {
         skipped.add(doc.docPath);
         continue;

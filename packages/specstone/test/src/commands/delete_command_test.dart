@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
@@ -405,7 +407,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone delete <target> … '
+        'Usage: specstone delete <target> … [--target <name>] '
         '[--dry-run | --yes --plan <hash>] [--json]',
       ),
     );
@@ -440,6 +442,132 @@ void main() {
       '$story3: docs outside user_story:login/reset_password link into it; also $journey\n',
     );
     expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+  });
+
+  group('record entries', () {
+    const record = 'specs/f01_login/IMPLEMENTATION.md';
+    const resetStory = 'user_story:login/reset_password';
+    final removed = [story3, fr31, fr32];
+
+    Future<Directory> recordProject() => writeWriteProject(
+      extra: {
+        // fr12 loses its link into story3, so the unit is free
+        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\nThe system shall lock the account.\n',
+        '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        'docs/$record':
+            "---\nstatuses:\n  - 'email_login:implemented'\n"
+            "  - 'reset_password:implemented'\n---\n\n# Record\n",
+      },
+    );
+
+    test('document_writing/delete_doc_subtree/delete_after_the_owners_ok_in_the_chat E11: --dry-run lists the record it rewrites before the plan line', () async {
+      final root = await recordProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['delete', resetStory, '--dry-run']), 0);
+      expect(
+        out.toString(),
+        matches(
+          RegExp(
+            '^${removed.map(RegExp.escape).join(r'\n')}\n'
+            'rewrites ${RegExp.escape(record)}: reset_password\n'
+            'plan [0-9a-f]{12}\ndry run: nothing removed\n\$',
+          ),
+        ),
+      );
+    });
+
+    test('document_writing/delete_doc_subtree/delete_after_the_owners_ok_in_the_chat E11: --dry-run --json prints each record with its path and entries', () async {
+      final root = await recordProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', resetStory, '--dry-run', '--json']),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer['files'], removed);
+      expect(answer['records'], [
+        {
+          'path': record,
+          'entries': ['reset_password'],
+        },
+      ]);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: --yes --plan removes the story and rewrites the record as a draft', () async {
+      final root = await recordProject();
+      final hash = await _dryRunPlanHash(root, resetStory);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', resetStory, '--yes', '--plan', hash]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), '${removed.join('\n')}\n');
+      final text = File('${root.path}/docs/$record').readAsStringSync();
+      expect(text, contains("'email_login:implemented'"));
+      expect(text, isNot(contains('reset_password')));
+      expect(text, contains('draft: true'));
+    });
+
+    test('document_writing/delete_doc_subtree/delete_after_the_owners_ok_in_the_chat E11: a record edited after the dry run is plan_mismatch, exit 75, and nothing changes', () async {
+      final root = await recordProject();
+      final hash = await _dryRunPlanHash(root, resetStory);
+      final file = File('${root.path}/docs/$record');
+      file.writeAsStringSync('${file.readAsStringSync()}More.\n');
+      final edited = file.readAsStringSync();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', resetStory, '--yes', '--plan', hash]),
+        75,
+      );
+      expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+      expect(file.readAsStringSync(), edited);
+    });
+  });
+
+  group('with two code targets', () {
+    test('document_writing/delete_doc_subtree/delete_doc_subtree: --target keeps the names to one target; a target the project lacks exits 64', () async {
+      final root = await writeTwinProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'delete',
+          'user_story:login/email_login',
+          '--target',
+          'flutter',
+          '--dry-run',
+          '--json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect((jsonDecode(out.toString()) as Map)['files'], hasLength(3));
+
+      final (runner: second, out: _, err: secondErr) = writeRunner(root);
+      expect(
+        await second.run([
+          'delete',
+          'user_story:login/email_login',
+          '--target',
+          'dart',
+        ]),
+        64,
+      );
+      expect(
+        secondErr.toString(),
+        '--target dart: the code targets are flutter, jaspr\n',
+      );
+    });
   });
 
   group('through the built CLI', () {

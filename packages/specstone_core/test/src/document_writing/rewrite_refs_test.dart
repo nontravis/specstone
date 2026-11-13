@@ -17,6 +17,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/record_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -653,6 +655,39 @@ void main() {
     );
   });
 
+  test('document_writing/move_story/rewrite_moved_story_references E10, E07: a record edit is a rewrite of its doc, which joins the link rewrites of one step and makes a record with no link a candidate', () async {
+    const linked = 'specs/f01_login/IMPLEMENTATION.md';
+    const alone = 'specs/f02_signup/IMPLEMENTATION.md';
+    root = await writeWriteProject(
+      extra: {
+        '.specstone/templates/implementation.yaml': recordLayer,
+        'docs/$linked': recordText(
+          statuses: ['a:planned'],
+        ).replaceFirst('# Record\n', '# Record\n\nSee [it](../../$story3).\n'),
+        'docs/$alone': recordText(statuses: ['a:planned']),
+      },
+    );
+    String? rename(String text) => text.contains('a:planned')
+        ? text.replaceFirst('a:planned', 'b:planned')
+        : null;
+    final steps = writeIn(
+      root,
+      (s) => planRewrites(
+        s,
+        reorderMoves,
+        recordEdits: {linked: rename, alone: rename},
+      ),
+    );
+    final byPath = {for (final step in steps) step.path: step.text};
+    expect(byPath['docs/$linked'], contains("'b:planned'"));
+    expect(
+      byPath['docs/$linked'],
+      contains('../../prds/features/f01_login/us01_reset_password/'),
+    );
+    expect(byPath['docs/$alone'], contains("'b:planned'"));
+    expect(steps.where((step) => step.path == 'docs/$linked'), hasLength(1));
+  });
+
   test('f02/us05/fr02/e09, M2: planRewrites reaches a doc that links only to a moved non-doc file', () async {
     root = await writeWriteProject(
       extra: {
@@ -1033,6 +1068,43 @@ void main() {
         renamed: rename,
       ).singleWhere((s) => s.path == entry);
       expect(step.text, '// `signin/email_login`\n');
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: with two targets each code root is walked, and a file under a nested target root gets one step', () async {
+      const mention = '// `login/email_login`\n';
+      const techStack =
+          '---\ncode:\n  - ./\n---\n\n# Tech stack\n\n## Stack\n\n'
+          '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+          '## Naming\n\n- snake_case file names\n';
+      root = await writeWriteProject(
+        without: {'docs/$loginArch', 'docs/$signupArch'},
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  outer:\n    code_root: ws\n'
+              '  inner:\n    code_root: ws/inner\n'
+              '  apart:\n    code_root: other\n',
+          'docs/specs/outer/TECH_STACK.md': techStack,
+          'docs/specs/inner/TECH_STACK.md': techStack,
+          'docs/specs/apart/TECH_STACK.md': techStack,
+          'ws/a.dart': mention,
+          'ws/inner/b.dart': mention,
+          'other/c.dart': mention,
+        },
+      );
+
+      final steps = plan(noMoves, renamed: rename);
+
+      expect(
+        steps
+            .where((s) => s.path.endsWith('.dart'))
+            .map((s) => (s.path, s.text)),
+        [
+          ('other/c.dart', '// `signin/email_login`\n'),
+          ('ws/a.dart', '// `signin/email_login`\n'),
+          ('ws/inner/b.dart', '// `signin/email_login`\n'),
+        ],
+      );
     });
 
     test('document_writing/rename_doc/rewrite_name_references E04: a code file with no mention of a renamed doc gets no step, and no rename reads no code file', () async {

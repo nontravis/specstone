@@ -1184,6 +1184,576 @@ void _agentTests() {
     );
   });
 
+  test(
+    'agent_plugin/ground_a_task/ground_through_context E14: read-sdd runs a '
+    "plan task's read line with its --target as written and cites INV-25",
+    () {
+      final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+      expect(
+        skill,
+        contains('specstone context <story> --for implement --target <name>'),
+      );
+      expect(skill, contains("a plan task's read line's, as written"));
+      expect(skill, contains('`domain:agent_plugin` INV-25'));
+    },
+  );
+
+  test('agent_plugin/ground_a_task/ground_through_context E15: read-sdd gives '
+      'a task no plan wrote no --target in query or design mode', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains('none in `query` or `design`'),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E16: read-sdd has a '
+      'main session ask the Owner after argument_missing and rerun with '
+      '--target', () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        'In `implement` with no plan target and no `--code` path, an '
+        '`argument_missing` refusal names the targets: a main session asks '
+        'the Owner and reruns with `--target <name>`',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E17: read-sdd has a '
+      'Subagent stop and report the missing target to its dispatcher', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains(
+        'a Subagent runs no further call and reports the missing target, '
+        'naming them, to its dispatcher',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E18: read-sdd '
+      "hands the call's --target to sdd-reader on exit 1", () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        'Dispatch `specstone:sdd-reader` with the same target IDs, '
+        "the call's `--target`, the mode, and the task",
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        "`--summary` beside each ID whose call used it, the call's "
+        '`--target`, and no doc text',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/ground_through_context E05, E13: read-sdd '
+      'allows one target a third call after an argument_missing refusal', () {
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains(
+        'one target takes two calls at most, three after an '
+        '`argument_missing` refusal',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/return_whole_sections E06: sdd-reader runs '
+      "context with the hand-off's --target in implement mode and cites "
+      'INV-25', () {
+    final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
+    expect(
+      reader,
+      contains('specstone context <target> --for <mode> [--summary] '),
+    );
+    expect(
+      reader,
+      contains(
+        "Add `--target <name>` in `implement` mode: the hand-off's "
+        '`--target`, as `domain:agent_plugin` INV-25 gives',
+      ),
+    );
+  });
+
+  test('agent_plugin/ground_a_task/return_whole_sections E07: sdd-reader '
+      'passes no --target in query or design mode', () {
+    expect(
+      _oneLine(_pluginText('agents/sdd-reader.md')),
+      contains('none in `query` or `design` mode'),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E17: the '
+      'first design call passes no --budget without the Agent tool and no '
+      '--target', () {
+    final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
+    expect(skill, contains('Without the `Agent` tool, pass no `--budget`'));
+    expect(
+      skill,
+      contains(
+        'Pass no `--target`: a design read spans every code target '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E13: '
+      'author takes a per-target doc from the design row, or its DocPath, and '
+      'keeps the drafts list free of --target', () {
+    final author = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/author.md'),
+    );
+    expect(
+      author,
+      contains(
+        '**Code target** (two or more `targets:`): pass `--target <name>`, '
+        "the one its design document's row names, on each `new`, `get`, and "
+        '`set` of a per-target spec doc, or address an existing doc by its '
+        'DocPath (`domain:agent_plugin` INV-25).',
+      ),
+    );
+    expect(author, contains('names only, no `--target`'));
+    expect(
+      author,
+      contains('hit in a doc the design changes, as step 2 writes.'),
+    );
+    expect(
+      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      contains('each write leaves a draft; never clear its flag'),
+    );
+    expect(
+      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      contains(
+        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+        'INV-25): author passes `--target <name>`, the code target its '
+        "design document's row names, or the doc's DocPath, on each "
+        'per-target `new`, `get`, and `set`;',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/take_small_edit_to_draft E07: '
+      'update-sdd asks which code target for a name in two or more, then '
+      "reads and writes on the doc's DocPath", () {
+    final skill = _oneLine(_pluginText('skills/update-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        'A name that matches docs in two or more code targets: ask the Owner '
+        'which one, as `specstone:plan-sdd` does, then run `get` and `set` '
+        "on that doc's DocPath, the one `get`'s doc header prints, such as "
+        '`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md` '
+        '(`domain:agent_plugin` INV-25). A name that matches one doc asks '
+        'nothing.',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E02, E06, E09: '
+      'expert-sdd gives set (a confirmed write included), structure, and refs '
+      'the target of its loader, with no Owner question, and approve and '
+      'delete none', () {
+    final skill = _oneLine(_pluginText('skills/expert-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains(
+        '**Code target.** With two or more code targets, `new`, `get`, `set` '
+        '(a `confirmed` write included), `structure <doc>`, and '
+        '`refs <owner>` take the `--target` of the surface that loads this '
+        'skill, never an Owner question; `approve` and `delete` take none '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_design_document E17: design '
+      'mode runs refs on a per-target owner by its DocPath', () {
+    expect(
+      _oneLine(_pluginText('skills/brainstorming-sdd/references/design.md')),
+      contains('A per-target owner goes to `refs` by its DocPath.'),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/write_design_document E20: design '
+      'mode grounds with no --target and names a code target on each '
+      'per-target row', () {
+    final design = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/design.md'),
+    );
+    expect(
+      design,
+      contains(
+        'Pass no `--target`: a design read spans every code target '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+    expect(
+      design,
+      contains(
+        "With two or more `targets:`, a per-target spec doc's row also names "
+        'its code target, a row with none an open question '
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/audit_drafts_by_reading E16: audit '
+      'mode passes no --target on its design bundles or its drafts get', () {
+    final audit = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+    );
+    expect(
+      audit,
+      contains(
+        "Pass no `--target`: the bundle takes every code target's spec docs "
+        '(`domain:agent_plugin` INV-25).',
+      ),
+    );
+    expect(
+      audit,
+      contains(
+        "The drafts list's names need no `--target` (`domain:agent_plugin` "
+        'INV-25).',
+      ),
+    );
+    expect(
+      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      contains(
+        'design writes a code target on each per-target spec doc row; design '
+        'and audit pass no `--target` on `context --for design`.',
+      ),
+    );
+  });
+
+  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E13: the '
+      're-audit get of the drafts list needs no --target', () {
+    expect(
+      _oneLine(_pluginText('skills/brainstorming-sdd/references/rounds.md')),
+      contains(
+        "The drafts list's names need no `--target` (`domain:agent_plugin` "
+        'INV-25).',
+      ),
+    );
+  });
+
+  group('agent_plugin/sync_code_and_docs', () {
+    const targetLine =
+        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+        "INV-25): a changed path's target is the `code target:` line, or the "
+        '`codeTarget` key under `--json`, of its `context --code` call, '
+        "covered or not, and a deleted path's is the finding DocPath's, so "
+        'ask the Owner nothing; each `get`, `set`, and `new` of a per-target '
+        'doc carries `--target <name>`, or addresses the doc by its DocPath.';
+    const recordWrite =
+        '`specstone set implementation:<feature> --field implements '
+        '--target <name> --base <hash>`';
+
+    String procedure() =>
+        _oneLine(_pluginText('skills/sync-sdd/references/procedure.md'));
+
+    test('find_specs_for_changed_code E02: a deleted file shows as a record '
+        'entry in check, fixed in step 4.3', () {
+      expect(
+        procedure(),
+        contains(
+          '`specstone check` lists the record entries that still name it; '
+          'step 4.3 fixes them.',
+        ),
+      );
+    });
+
+    test("domain:agent_plugin INV-25: the sync procedure takes the path's "
+        'target by the longest code root and asks the Owner nothing', () {
+      expect(procedure(), contains(targetLine));
+      expect(
+        procedure(),
+        contains(
+          "takes its path's code target, prints it, and carries no `--target`",
+        ),
+      );
+    });
+
+    test('update_covering_docs E01: a moved file takes the new path in its '
+        "target's record, and the stories and FRs stay as they are", () {
+      final text = procedure();
+      expect(text, contains(recordWrite));
+      expect(
+        text,
+        contains(
+          'moved file: point each record entry that names it at the new side '
+          "of its rename pair, relative to that target's code root; the "
+          'stories and FRs, which name no code, stay as they are;',
+        ),
+      );
+    });
+
+    test('update_covering_docs E03: a record code-path write leaves the '
+        'draft flag untouched', () {
+      expect(
+        procedure(),
+        contains(
+          'A record code-path or `covers:` write leaves the draft flag '
+          'untouched: an approved doc keeps its approval.',
+        ),
+      );
+    });
+
+    test('update_covering_docs E05: a path in one target compares and fixes '
+        "that target's record and covers entries alone", () {
+      expect(
+        procedure(),
+        contains(
+          "A changed path's target alone: compare and fix its record and "
+          "`covers:` entries, never another target's.",
+        ),
+      );
+    });
+
+    test("update_covering_docs pointers row: the skill's waiting pointer "
+        'goes to the target record, each form with its base and --target', () {
+      final skill = _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
+      expect(
+        skill,
+        contains(
+          'pipe the corrected list to `specstone set implementation:<feature> '
+          '--field implements --base <hash>` (or `specstone set <type>:<name> '
+          '--field covers --base <hash>`), each with `--target <name>`, the '
+          'target the report gives for that pointer, when the project has '
+          'two or more '
+          '(`domain:agent_plugin` INV-25), the hash from '
+          '`bases.fields.implements` (or `bases.fields.covers`) of '
+          '`specstone get <doc> --json` for the same doc, with the same '
+          '`--target`.',
+        ),
+      );
+    });
+
+    test('update_covering_docs pointers row: the report lists each waiting '
+        'pointer with its doc and its code path', () {
+      expect(
+        procedure(),
+        contains(
+          'and each pointer that waits on an approval, with its doc, its code '
+          'target, and its code path.',
+        ),
+      );
+    });
+
+    test('draft_spec_for_uncovered_code E03: a new or set draft carries the '
+        "--code path's target, one target none", () {
+      expect(
+        procedure(),
+        contains(
+          '`specstone new <type>` (`--parent <name>`, `--slug <slug>`, '
+          "`--target <name>`, the path's code target, as the type takes them)",
+        ),
+      );
+    });
+
+    test('draft_spec_for_uncovered_code E02: no record code path names the '
+        'new code before approval; the pointer goes to the target record '
+        'after it', () {
+      expect(
+        procedure(),
+        contains(
+          'Write no record code path or `covers:` entry that names this code '
+          'until the Owner approves the draft. Then add the entry at once '
+          "with the step 4.3 `specstone set --field` write, on the path's "
+          "target's record:",
+        ),
+      );
+    });
+
+    test('sdd-engineer names the sync target source and the record entry '
+        'write on its Code target line', () {
+      expect(
+        _oneLine(_pluginText('agents/sdd-engineer.md')),
+        contains(
+          "sync takes the `--code` path's code target, or the finding "
+          "DocPath's, on each per-target `get`, `set`, and `new`, and writes "
+          "code paths to that target's record entry, never to an FR;",
+        ),
+      );
+    });
+  });
+
+  group('agent_plugin/set_up_new_project', () {
+    String init() => _oneLine(_pluginText('skills/init/SKILL.md'));
+
+    test('set_up_and_fill_drafts E04: a code root with no folder draws no '
+        'finding until a record entry is implemented', () {
+      expect(
+        init(),
+        contains(
+          'A listed folder that does not exist yet draws no finding while no '
+          'record entry of its code target is `implemented`, and '
+          '`code_root_missing` once one is and the folder is still missing; '
+          'keep the entry either way.',
+        ),
+      );
+      expect(init(), isNot(contains('that is expected in a new project')));
+    });
+
+    test('domain:agent_plugin INV-25: init passes no --target, a new '
+        'project having one code target', () {
+      expect(
+        init(),
+        contains(
+          'A new project has one code target, so no `set` here carries '
+          '`--target` (`domain:agent_plugin` INV-25).',
+        ),
+      );
+    });
+  });
+
+  group('agent_plugin/fill_missing_format', () {
+    const procedureTargetLine =
+        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+        'INV-25): each `new`, `get`, and `set` of a per-target doc carries '
+        "`--target <name>`, the finding DocPath's code target, else the first "
+        'listed one.';
+
+    String text(String file) => _oneLine(_pluginText(file));
+
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      test('fill_check_findings and merge_old_files, INV-25: the $skill '
+          "procedure takes each write's target from the finding DocPath, else "
+          'the first listed', () {
+        expect(
+          text('skills/$skill/references/procedure.md'),
+          contains(procedureTargetLine),
+        );
+      });
+
+      test('fill_check_findings, INV-25: $skill names the batch target '
+          'source, so a bootstrap batch never asks the Owner', () {
+        expect(
+          text('skills/$skill/SKILL.md'),
+          contains(
+            '**Code target** (two or more `targets:`, `domain:agent_plugin` '
+            "INV-25): a finding's code target is its DocPath's, and an old "
+            'file whose path names none merges into the first listed one, so '
+            'a batch never asks the Owner.',
+          ),
+        );
+      });
+    }
+
+    test('fill_check_findings E01 and E08: a feature code pointer goes to '
+        "the first target's record entry, and is not written again when the "
+        'entry holds it', () {
+      expect(
+        text('skills/bootstrap-prd/references/procedure.md'),
+        contains(
+          'Give each `implements:` entry of a `FEATURE.md` to the record '
+          'entry of the story or FR whose behavior that code does, in the '
+          'first listed code target, unless it holds it already;',
+        ),
+      );
+      expect(
+        text('skills/bootstrap-prd/references/procedure.md'),
+        contains(
+          'to `specstone set implementation:<feature> --field implements '
+          '--base <hash>`.',
+        ),
+      );
+    });
+
+    test('fill_check_findings: a spec doc implements pointer goes to the '
+        'record entry of its story or FR', () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains('move each entry to the record entry of the story or FR'),
+      );
+    });
+
+    test("R-T33-1: bootstrap-spec fills each target's tech stack doc, its "
+        'rest batch naming each', () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains(
+          "fill each target's `tech_stack:tech_stack` per the guide you "
+          'loaded, and its `code`,',
+        ),
+      );
+      expect(
+        text('skills/bootstrap-spec/SKILL.md'),
+        contains("names each target's `tech_stack:tech_stack`"),
+      );
+    });
+
+    test('fill_check_findings: a spec doc implements pointer is written with '
+        'the record command', () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains(
+          'with `specstone set implementation:<feature> --field implements '
+          '--base <hash>`, then drop the key.',
+        ),
+      );
+    });
+
+    test("R-T33-1: bootstrap-spec takes each target's tech stack code roots "
+        "from that target's code root", () {
+      expect(
+        text('skills/bootstrap-spec/references/procedure.md'),
+        contains(
+          "each code folder under that target's code root in the "
+          "config's `targets:`, or `code_root` for an unnamed one, else the "
+          'project root.',
+        ),
+      );
+    });
+
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      test('retire_old_files E09: $skill lists each untyped referrer outside '
+          'the batch with the file it names', () {
+        expect(
+          text('skills/$skill/references/procedure.md'),
+          contains(
+            'list each untyped referrer outside it, with the file it names, '
+            'for its owner to merge.',
+          ),
+        );
+      });
+
+      test('Code target line of $skill starts its own block', () {
+        expect(
+          _pluginText('skills/$skill/references/procedure.md'),
+          contains('\n\n**Code target** (two or more'),
+        );
+      });
+
+      test('fill_check_findings E14, refuse_stale_base: $skill retries a '
+          'write a parallel batch made stale', () {
+        expect(
+          _oneLine(
+            _sectionOf(
+              _pluginText('skills/$skill/references/procedure.md'),
+              '2. One finding at a time',
+            ),
+          ),
+          contains('Exit 75 `base_mismatch`: read again, merge, retry.'),
+        );
+      });
+    }
+
+    test('sdd-engineer names the bootstrap target source on its Code target '
+        'line', () {
+      expect(
+        text('agents/sdd-engineer.md'),
+        contains(
+          "bootstrap takes the finding DocPath's code target on each "
+          'per-target `new`, `get`, and `set`, else the first listed one for a '
+          'code pointer on a shared doc or an old file whose path names none;',
+        ),
+      );
+    });
+  });
+
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
       'doc and adds a story with --summary', () {
     final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
@@ -2111,6 +2681,127 @@ void _planTests() {
     final scope = _oneLine(_sectionOf(agent, 'Scope Boundaries'));
     expect(scope, contains('`report:`'));
     expect(scope, contains('the one plan file'));
+  });
+
+  test('$_runPlanSkill E17, S4, domain:agent_plugin INV-25: plan-sdd runs the '
+      'planned-story list after the gate, given targets or not and with no '
+      '--target, and learns it must ask from its argument_missing refusal', () {
+    final skill = _oneLine(_pluginText(_planSkill));
+    expect(
+      skill,
+      contains(
+        'Run this next, given targets or not, with no `--target`: ``` '
+        'specstone list user_story --status planned --json ```',
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        '**Code target** (`domain:agent_plugin` INV-25): when the list '
+        'refuses `argument_missing` naming two or more code targets, ask the '
+        'Owner which code target the plan is for, given target names and a '
+        'drafts list alike',
+      ),
+    );
+    expect(skill, contains('never from `.specstone/config.yaml`'));
+  });
+
+  test('$_runPlanSkill E17: a one-target project asks nothing and passes no '
+      'code target', () {
+    expect(
+      _oneLine(_pluginText(_planSkill)),
+      contains(
+        "A one-target project's list refuses nothing: ask nothing, pass none.",
+      ),
+    );
+  });
+
+  test('$_runPlanSkill E02, S6: after the ask the list runs again with the '
+      "Owner's --target, and the answer is the dispatch's code target", () {
+    final skill = _oneLine(_pluginText(_planSkill));
+    expect(
+      skill,
+      contains(
+        'the answer is `code target:` in step 3, and `--target <name>` on a '
+        'rerun of this list when no target is given',
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        'Offer the Owner each story of the list, rerun with `--target '
+        '<name>` after the ask, whose `draft` is `false`',
+      ),
+    );
+  });
+
+  test('$_runPlanSkill E07, dispatch row: the dispatch carries `code target:` '
+      'when one was asked, and an answers round writes it out again', () {
+    final skill = _oneLine(_pluginText(_planSkill));
+    expect(
+      skill,
+      contains(
+        "`code target:` the Owner's answer; leave the line out when none was "
+        'asked',
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        "with step 3's inputs written out again, `targets:` whole and `code "
+        'target:`, never "unchanged"',
+      ),
+    );
+  });
+
+  test('$_writePlan E29, domain:agent_plugin INV-25: plan-engineer takes the '
+      'code target as an input and carries it as --target on every Ground '
+      "call and each task's read line, none when no target is given", () {
+    final agent = _pluginText(_planAgent);
+    expect(
+      _oneLine(_sectionOf(agent, 'Input Contract')),
+      contains(
+        "**`code target`** (optional): `specstone:plan-sdd`'s answer, given "
+        'when the project has two or more code targets',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Ground')).trimRight(),
+      endsWith(
+        '**Code target** (`domain:agent_plugin` INV-25): with one given, '
+        "every Ground `context` call and each task's read line adds "
+        "`--target <code target>`, and the plan holds that target's tasks "
+        'alone. With none given, add no `--target`.',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Workflow')),
+      contains(
+        '`specstone context <target> --for implement`, with `--target <code '
+        "target>` when one is given, the FR's story as `<target>` for an FR",
+      ),
+    );
+  });
+
+  test('$_writePlan E30: plan-engineer gives a doc the code target skips no '
+      'task and a NOT PLANNED row naming the skip, read from the bundle', () {
+    final agent = _pluginText(_planAgent);
+    expect(
+      _oneLine(_sectionOf(agent, 'Workflow')),
+      contains(
+        '**A doc the plan would build that the code target skips**, by its own '
+        'record entry or one above it, read from its bundle: no task, and a '
+        '`NOT PLANNED` row naming the skip and its reason; a skipped doc the '
+        'plan only reads gets no row.',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Output Format')),
+      contains(
+        'NOT PLANNED: <draft, approval_stale, skip, spec gap, conflict, or '
+        'CLI error>',
+      ),
+    );
   });
 
   test('$_runPlanSkill, $_writePlan: neither plan-sdd nor plan-engineer names '

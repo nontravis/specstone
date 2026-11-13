@@ -35,13 +35,17 @@ enum BundleMode {
 
 /// The docs one `context` call prints, picked by [BundleMode].
 final class Bundle {
-  new(this.mode, {this.summary = false});
+  new(this.mode, {this.summary = false, this.codeTarget});
 
   /// The mode the docs are picked for.
   final BundleMode mode;
 
   /// Whether `--summary` asked for the feature's stories in summary.
   final bool summary;
+
+  /// The code target whose per-target docs alone this bundle keeps; null keeps
+  /// every target's (E24, E25).
+  final String? codeTarget;
 
   /// The docs the chain rule picks, by DocPath.
   final Set<String> docPaths = {};
@@ -66,6 +70,12 @@ final class Bundle {
   /// The warnings the picking raised.
   final List<String> warnings = [];
 
+  /// Whether [doc] belongs to [codeTarget]: it is shared, or of that target.
+  ///
+  /// Public so the code-path bundle's spec-folder walk keeps to the picked
+  /// target's docs.
+  bool keepsTarget(IndexedDoc doc) => doc.inTarget(codeTarget);
+
   /// Adds [target] and its chain docs by [mode]'s rule (INV-11, INV-12).
   void addTarget(DocIndex index, IndexedDoc target) {
     final typeId = target.docTypeId;
@@ -77,9 +87,7 @@ final class Bundle {
     final top = _topDocOf(index, effective);
     switch (mode) {
       case BundleMode.query:
-        for (final doc in index.chainOf(effective)) {
-          docPaths.add(doc.docPath);
-        }
+        _addAll(docPaths, index.chainOf(effective));
         mapTops.add(top.docPath);
       case BundleMode.design:
         _addDesign(index, effective, top);
@@ -96,6 +104,7 @@ final class Bundle {
       final bundle = index.typeOf(doc)?.bundle;
       if (bundle != null &&
           bundle.contains(mode.wire) &&
+          keepsTarget(doc) &&
           !docPaths.contains(doc.docPath)) {
         joinedPaths.add(doc.docPath);
       }
@@ -112,6 +121,7 @@ final class Bundle {
     final topAt = chain.indexOf(designTop);
     _addDesignSubtree(index, designTop, topAt == 0 ? null : chain[topAt - 1]);
     for (final ancestor in chain.skip(topAt + 1)) {
+      if (!keepsTarget(ancestor)) continue;
       docPaths.add(ancestor.docPath);
       for (final child in index.childrenOf(ancestor)) {
         if (!index.isChainDoc(child)) {
@@ -131,7 +141,7 @@ final class Bundle {
       _addAll(docPaths, index.subtreeOf(designTop));
       return;
     }
-    docPaths.add(designTop.docPath);
+    if (keepsTarget(designTop)) docPaths.add(designTop.docPath);
     for (final child in index.childrenOf(designTop)) {
       if (!index.isChainDoc(child) || child.docPath == unit?.docPath) {
         _addAll(docPaths, index.subtreeOf(child));
@@ -143,7 +153,7 @@ final class Bundle {
 
   void _addAll(Set<String> paths, Iterable<IndexedDoc> docs) {
     for (final doc in docs) {
-      paths.add(doc.docPath);
+      if (keepsTarget(doc)) paths.add(doc.docPath);
     }
   }
 
@@ -153,17 +163,15 @@ final class Bundle {
       return;
     }
     final chain = index.chainOf(target);
-    for (final doc in chain) {
-      docPaths.add(doc.docPath);
-    }
+    _addAll(docPaths, chain);
     for (final doc in index.subtreeOf(target)) {
-      docPaths.add(doc.docPath);
+      if (keepsTarget(doc)) docPaths.add(doc.docPath);
     }
     for (var i = 1; i < chain.length; i++) {
       final ancestor = chain[i];
       final nextBelow = chain[i - 1];
       for (final child in index.childrenOf(ancestor)) {
-        if (child.docTypeId != nextBelow.docTypeId) {
+        if (child.docTypeId != nextBelow.docTypeId && keepsTarget(child)) {
           docPaths.add(child.docPath);
         }
       }
@@ -173,7 +181,7 @@ final class Bundle {
   void _addTopWithChildren(DocIndex index, IndexedDoc top) {
     docPaths.add(top.docPath);
     for (final child in index.childrenOf(top)) {
-      if (!index.isChainDoc(child)) {
+      if (!index.isChainDoc(child) && keepsTarget(child)) {
         docPaths.add(child.docPath);
       }
     }
@@ -207,13 +215,16 @@ final class Bundle {
 ///
 /// `--no-project` drops the docs that join through `bundle:` lists. [summary]
 /// prints a top doc's ChainType children in summary and throws
-/// `argument_conflict` outside `BundleMode.design`.
+/// `argument_conflict` outside `BundleMode.design`. [codeTarget] keeps the
+/// per-target docs of that code target alone and is required for
+/// `BundleMode.implement` with two or more targets (E23).
 Bundle pickBundle(
   DocIndex index,
   String target,
   BundleMode mode, {
   required bool noProject,
   bool summary = false,
+  String? codeTarget,
 }) {
   if (summary && mode != BundleMode.design) {
     throw IndexFault(
@@ -221,7 +232,12 @@ Bundle pickBundle(
       '--summary works only with --for design',
     );
   }
-  final resolved = index.resolve(target);
+  if (mode == BundleMode.implement && codeTarget == null) {
+    _refuseAmbiguousTarget(index);
+  } else {
+    index.checkCodeTarget(codeTarget);
+  }
+  final resolved = index.resolve(target, codeTarget: codeTarget);
   final untyped = resolved.where((doc) => doc.docTypeId == null).toList();
   if (untyped.isNotEmpty) {
     final docPath = untyped.first.docPath;
@@ -249,10 +265,21 @@ Bundle pickBundle(
       }
     }
   }
-  final bundle = Bundle(mode, summary: summary);
+  final bundle = Bundle(mode, summary: summary, codeTarget: codeTarget);
   for (final doc in picked) {
     bundle.addTarget(index, doc);
   }
   bundle.join(index, noProject: noProject);
   return bundle;
+}
+
+/// Throws `argument_missing` for an implement bundle over two or more code
+/// targets with none picked (E23).
+void _refuseAmbiguousTarget(DocIndex index) {
+  if (!index.hasTwins) return;
+  throw IndexFault(
+    IndexFaultCode.argumentMissing,
+    '--for implement needs --target with two or more code targets; '
+    'the targets are ${index.targetNames.join(', ')}',
+  );
 }

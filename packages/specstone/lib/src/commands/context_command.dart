@@ -30,6 +30,7 @@ class ContextCommand extends SpecstoneCommand {
         help: 'Leave out the docs that join through `bundle:` lists.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -41,7 +42,7 @@ class ContextCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone context [<target> | --code <path>] --for <mode> [--budget N] '
-      '[--summary] [--no-project] [--json]';
+      '[--summary] [--no-project] [--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -99,11 +100,21 @@ class ContextCommand extends SpecstoneCommand {
     final noProject = args.flag('no-project');
     if (code != null) {
       return runRead((session) {
+        final given = targetOf(args);
+        session.index.checkCodeTarget(given);
         final codePath = resolveCodePath(
           code,
           workingDirectory: specstoneRunner.workingDirectory,
-          codeRoot: session.project.codeRoot,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
         );
+        if (given != null && given != codePath.target.name) {
+          throw IndexFault(
+            IndexFaultCode.argumentConflict,
+            'the code path $code lies in the code target '
+            '${codePath.target.name}, not $given',
+          );
+        }
         return answerContext(
           session.index,
           pickCodeBundle(session.index, codePath, mode, noProject: noProject),
@@ -123,6 +134,7 @@ class ContextCommand extends SpecstoneCommand {
           mode,
           noProject: noProject,
           summary: summary,
+          codeTarget: targetOf(args),
         ),
         label: target,
         byCode: false,

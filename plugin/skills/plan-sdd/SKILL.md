@@ -23,22 +23,26 @@ specstone check
   the host saved them to: `specstone:plan-engineer`'s own `check` is the baseline.
 - **Any other exit:** report the CLI's error and stop.
 
-Never look for `.specstone/` yourself first: a look at the working directory misses a project root above it, and
-costs a call the gate already makes.
+## 2. List the stories, ask the code target, pick the targets
 
-## 2. Pick the targets
+Run this next, given targets or not, with no `--target`:
+
+```
+specstone list user_story --status planned --json
+```
+
+**Code target** (`domain:agent_plugin` INV-25): when the list refuses `argument_missing` naming two or more code
+targets, ask the Owner which code target the plan is for, given target names and a drafts list alike; the answer is
+`code target:` in step 3, and `--target <name>` on a rerun of this list when no target is given. A one-target project's list refuses nothing: ask
+nothing, pass none. Learn it from the refusal, never from `.specstone/config.yaml`.
 
 - **From `specstone:brainstorming-sdd`:** its last step invokes this skill with the approved drafts list and the
   design document's path. Take the list whole and filter out no doc type, a `project` or `feature` doc included:
   which docs a task builds is `specstone:plan-engineer`'s call alone.
 - **Target names given:** each an approved story, FR, NFR, or spec doc. Take them as named.
-- **No target, outside a brainstorm:** run the call below. Offer the Owner each story whose `draft` is `false`, by
-  name and title, and leave out every draft. When none is left, say so and ask the
+- **No target, outside a brainstorm:** Offer the Owner each story of the list, rerun with `--target <name>` after the
+  ask, whose `draft` is `false`, by name and title; leave out every draft. When none is left, say so and ask the
   Owner for target names. Dispatch nothing before the Owner picks or names targets.
-
-```
-specstone list user_story --status planned --json
-```
 
 A target that already has a plan gets a new one at the Owner's word: search for no earlier plan.
 
@@ -47,6 +51,7 @@ A target that already has a plan gets a new one at the Owner's word: search for 
 With the `Agent` tool, dispatch one `specstone:plan-engineer` with these inputs, and no doc text:
 
 - `targets:` the target names, or the approved drafts list whole;
+- `code target:` the Owner's answer; leave the line out when none was asked;
 - `design document:` its path, when a brainstorm passed one;
 - `report:` a file `mktemp` makes outside the repository.
 
@@ -63,9 +68,10 @@ Amend no other file, since another session wrote it; with no match, pick a new p
    own notes.
 2. Ask the Owner once about each `NOT PLANNED` row, spec gap, conflict, and open question the block holds that no
    earlier round asked. Send the round's answers once to the same agent while it is live, else dispatch a new one,
-   with step 3's inputs written out again, `targets:` whole, never "unchanged", plus `answers:`, and `plan path:`
-   when there is one: the plan the `Plan:` line named, which it amends in place, or the Owner's new path. With a new
-   path, `answers:` names any plan already written, which the agent leaves in place and names under `Findings:`.
+   with step 3's inputs written out again, `targets:` whole and `code target:`, never "unchanged", plus `answers:`,
+   and `plan path:` when there is one: the plan the `Plan:` line named, which it amends in place, or the Owner's new
+   path. With a new path, `answers:` names any plan already written, which the agent leaves in place and names under
+   `Findings:`.
    `Plan: none` names no plan, so it gives no `plan path:`.
 3. Relay each amended reply as item 1 says; an item the Owner answered that stays unchanged shows in it and is never
    asked again. Go on to step 5 when a reply holds no item not yet asked, or the Owner has no more answers to send.
@@ -85,14 +91,3 @@ any file of this plugin holds.
 - **None qualifies, or the Owner picks none:** say the plan is ready to run, and name its path.
 
 Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names.
-
-## Red flags
-
-| Thought                                            | Do instead                                   |
-|----------------------------------------------------|----------------------------------------------|
-| "This story may have a plan already; look first."  | Search for none; dispatch for a new plan.    |
-| "Paste the story so the agent saves a call."       | Send names only.                             |
-| "No task builds the `project` doc; drop it."       | Pass the drafts list whole.                  |
-| "Summarize the relay block for the Owner."         | Show it word for word.                       |
-| "Two run skills fit; offer the better one."        | Offer every one.                             |
-| "The Owner picked; I'll start task 1."             | Load the pick with `Skill`; run no task.     |

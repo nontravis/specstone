@@ -46,7 +46,10 @@ final class RefreshResult {
 /// deleted, a hash or a stat key changed, a file read in the racy window has
 /// aged out of it, or the stamp differs.
 RefreshResult refreshIndex(IndexStore store, DocsProject project) {
-  final stamp = IndexStamp.of(project.set);
+  final stamp = IndexStamp.of(project.set, targetNames: project.targetNames);
+  final singleTarget = project.targets.length == 1
+      ? project.targets.single.name
+      : null;
   final current = store.readStamp() == stamp;
   final stored = current ? _Stored.of(store) : _Stored.none;
   final listing = _Listing(DateTime.now().microsecondsSinceEpoch)
@@ -83,6 +86,7 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
             docPath: docPath,
             bytes: content.bytes,
             match: project.matcher.match(docPath),
+            codeTarget: singleTarget,
           ),
         );
         reindexed++;

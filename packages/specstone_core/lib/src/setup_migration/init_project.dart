@@ -20,6 +20,7 @@ import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -178,7 +179,11 @@ AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeFoldersOf(projectRoot, set, codeRoot: '.'),
+      codeRootFolders: codeFoldersOf(
+        projectRoot,
+        set,
+        targets: const [CodeTarget(null, codeRoot: '.')],
+      ),
       agentFileRoots: const [],
     ),
     full: true,

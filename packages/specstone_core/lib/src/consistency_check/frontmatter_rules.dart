@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -34,6 +34,9 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
     for (final MapEntry(:key, :value) in doc.frontmatter.entries) key: ?value,
   };
   final fieldsById = {for (final field in type.fields) field.id: field};
+  final recordHoldsStatus =
+      context.set.recordDocType != null &&
+      (doc.docTypeId == storyType || doc.docTypeId == frType);
   for (final field in type.fields) {
     if (field.required && !values.containsKey(field.id)) {
       yield context.finding(
@@ -67,6 +70,13 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         line: lineOf(),
         message: 'a FEATURE takes its status from its stories; remove status',
       );
+    } else if (key == _statusKey && recordHoldsStatus) {
+      yield context.finding(
+        doc,
+        FindingKind.requirementStatusWritten,
+        line: lineOf(),
+        message: 'each target record holds the status; remove status',
+      );
     } else if (field == null) {
       yield context.finding(
         doc,
@@ -88,13 +98,19 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
 }
 
 bool _fits(MergedField field, Object value) {
-  if (!field.list) return value is! List && _itemFits(field, value);
-  return value is List &&
-      value.every((item) => item is Object && _itemFits(field, item));
+  if (!field.list) return value is! List && fieldTakesItem(field, value);
+  return value is List && value.every((item) => fieldTakesItem(field, item));
 }
 
-bool _itemFits(MergedField field, Object item) => switch (field.type) {
+/// Whether [item] is one value [field]'s type and `enum` take, a
+/// `record_status` line naming one of the four statuses.
+///
+/// The one value rule: `check` reports a value it refuses, and `set` refuses
+/// to write one.
+bool fieldTakesItem(MergedField field, Object? item) => switch (field.type) {
   FieldType.string || FieldType.docRef || FieldType.outputRef => item is String,
+  FieldType.recordStatus =>
+    item is String && recordStatusLineOf(item)?.status != null,
   FieldType.integer => item is int,
   FieldType.boolean => item is bool,
   FieldType.date => item is String && _isRealDate(item),
@@ -115,9 +131,15 @@ bool _isRealDate(String text) {
 String _written(Object value) =>
     value is List ? '[${value.join(', ')}]' : '$value';
 
+/// What one `record_status` line takes, as a refusal of a value names it.
+final String recordStatusLineShape =
+    'a line <item>:<status>, the status '
+    '${_orList([for (final s in RecordStatus.values) s.wire])}';
+
 String _takes(MergedField field) {
   final one = switch (field.type) {
     FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+    FieldType.recordStatus => recordStatusLineShape,
     FieldType.integer => 'an integer',
     FieldType.boolean => 'true or false',
     FieldType.date => 'a date written YYYY-MM-DD',

@@ -23,22 +23,21 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
-import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/doc_reader.dart' show bomOf;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
     show RenderFault, RenderFaultCode;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    show codeEntriesOnDisk;
+    show codeFilesOf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/document_writing/moved_paths.dart'
     show PathMove, movedPath, relativeHref;
 
-/// The byte-order mark as the one character a journal step's text carries.
-const _bom = '\uFEFF';
+/// Rewrites the LF text of a doc; null when nothing changes.
+typedef TextEdit = String? Function(String lfText);
 
 const _backslash = 0x5C;
 const _openParen = 0x28;
@@ -231,12 +230,17 @@ String? rewriteDocRefs(
 /// A code file whose path leaves the project root is never written (R99):
 /// when it holds a mention to rewrite, its path from the project root goes to
 /// [onSkipped] as the warning line, and no step is planned for it.
+///
+/// [recordEdits] maps the DocPath of a record to the edit of its entries; the
+/// record is a candidate, indexed or not, and the edit joins the other
+/// rewrites of its step.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
   Map<(String, String), String> renamed = const {},
+  Map<String, TextEdit> recordEdits = const {},
   void Function(String line)? onSkipped,
 }) {
   final index = session.index;
@@ -258,9 +262,15 @@ List<WriteStep> planRewrites(
       candidates[doc.docPath] = doc;
     }
   }
+  for (final docPath in recordEdits.keys) {
+    candidates.putIfAbsent(
+      docPath,
+      () => index.at(docPath) ?? _unindexedDoc(session, docPath),
+    );
+  }
   final steps = [
     for (final doc in candidates.values)
-      ?_stepFor(session, doc, moves, renamed),
+      ?_stepFor(session, doc, moves, renamed, recordEdits[doc.docPath]),
     ..._codeFileSteps(session, renamed, onSkipped),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
@@ -278,34 +288,35 @@ List<WriteStep> _codeFileSteps(
   void Function(String line)? onSkipped,
 ) {
   if (renamed.isEmpty) return const [];
-  final project = session.project;
-  final paths = codeRootFiles(
-    project.codeRoot,
-    codeEntriesOnDisk(project.projectRoot, project.set),
-  );
   return [
-    for (final path in paths) ?_codeFileStep(session, path, renamed, onSkipped),
+    for (final file in codeFilesOf(
+      session.project.projectRoot,
+      session.project.set,
+      targets: session.project.targets,
+    ))
+      ?_codeFileStep(session, file, renamed, onSkipped),
   ];
 }
 
 WriteStep? _codeFileStep(
   WriteSession session,
-  String codePath,
+  ({Directory root, String path}) codeFile,
   Map<(String, String), String> renamed,
   void Function(String line)? onSkipped,
 ) {
+  final codePath = codeFile.path;
   final extension = _extensionOf(codePath);
   if (!readsNameMentions(extension)) return null;
   final project = session.project;
   final file = File(
-    '${project.codeRoot.path}${Platform.pathSeparator}'
+    '${codeFile.root.path}${Platform.pathSeparator}'
     '${codePath.split('/').join(Platform.pathSeparator)}',
   );
   final projectPath = projectPathOfCodeFile(
     codePath,
     projectRoot: project.projectRoot,
     docsRoot: project.docsRoot,
-    codeRoot: project.codeRoot,
+    codeRoot: codeFile.root,
   );
   if (projectPath == null) return null;
   final String raw;
@@ -330,8 +341,11 @@ WriteStep? _codeFileStep(
       'cannot write $projectPath: read-only',
     );
   }
-  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
-  return WriteStep(projectPath, '$bom$text', before: textHashOf(raw));
+  return WriteStep(
+    projectPath,
+    '${bomOf(bytes)}$text',
+    before: textHashOf(raw),
+  );
 }
 
 /// Whether the ProjectPath [path] leaves the project root.
@@ -392,11 +406,22 @@ bool _existsBeforeMoves(WriteSession session, String path) =>
     FileSystemEntity.typeSync(session.fileOf(path).path) !=
         FileSystemEntityType.notFound;
 
+/// Returns the doc at [docPath], on disk but not in the session's snapshot, as
+/// a step reads it: typed by the matcher, with no parent indexed.
+IndexedDoc _unindexedDoc(WriteSession session, String docPath) => IndexedDoc(
+  docPath: docPath,
+  docTypeId: session.docTypeAt(docPath)?.id,
+  name: docPath,
+  frontmatter: const {},
+  tokens: 0,
+);
+
 WriteStep? _stepFor(
   WriteSession session,
   IndexedDoc doc,
   List<PathMove> moves,
   Map<(String, String), String> renamed,
+  TextEdit? recordEdit,
 ) {
   final bytes = session.readDocBytes(doc.docPath);
   if (bytes == null) return null;
@@ -426,20 +451,16 @@ WriteStep? _stepFor(
         renamed: renamed,
       ) ??
       named;
-  if (text == null) return null;
+  final entries = recordEdit?.call(text ?? lfText) ?? text;
+  if (entries == null) return null;
   session.requireWritable(doc.docPath);
-  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
   final writtenPath = movedPath(doc.docPath, moves);
   final writtenType = session.docTypeAt(writtenPath);
-  final laidOut = layOutDoc(text, writtenType);
+  final laidOut = layOutDoc(entries, writtenType);
   final stamped = _wasApproved(lfText, session.docTypeAt(doc.docPath))
       ? withApprovalHash(laidOut, writtenType)
       : laidOut;
-  return WriteStep(
-    session.projectPathOf(writtenPath),
-    '$bom${LineEnding.of(raw).apply(stamped)}',
-    before: textHashOf(raw),
-  );
+  return session.docWriteStep(writtenPath, stamped, bytes);
 }
 
 /// Whether [lfText], the doc as the step reads it under the lock, is no draft

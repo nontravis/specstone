@@ -141,7 +141,7 @@ LegacyMoves planLegacyMoves(
       if (placed[path] case final placement? when placement.to != path)
         (from: path, to: placement.to),
   ];
-  _refuseCollisions(sorted, moves);
+  refuseCollisions(sorted, moves);
 
   return LegacyMoves(
     moves: orderedMoves(moves, keyOf: caseBlindPath),
@@ -449,7 +449,7 @@ Map<String, _Placement> _placeUnderOldNames(List<_FeatureSpecFile> sameName) {
 ///
 /// A target is the case-blind path; the fault line names its first spelling in
 /// code point order. [sorted] holds every input path.
-void _refuseCollisions(List<String> sorted, List<PathMove> moves) {
+void refuseCollisions(List<String> sorted, List<PathMove> moves) {
   final faults = _collisionFaults(sorted, moves);
   for (final move in movesOnCycles(moves)) {
     faults.putIfAbsent(caseBlindPath(move.to), () => _cycleFault(move));

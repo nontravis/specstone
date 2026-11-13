@@ -4,6 +4,7 @@ import 'package:specstone_core/specstone_core.dart';
 /// Gives a doc a new slug and rewrites every reference to it.
 class RenameCommand extends WriteCommand {
   new() {
+    addTargetOption();
     argParser
       ..addOption('to', help: 'The new slug.')
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
@@ -17,7 +18,7 @@ class RenameCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone rename <doc address> --to <slug> [--json]';
+      'specstone rename <doc address> --to <slug> [--target <name>] [--json]';
 
   @override
   Future<int> run() {
@@ -25,8 +26,12 @@ class RenameCommand extends WriteCommand {
     return runWriteOnTarget(
       'specstone rename user_story:login/reset_password '
       '--to recover_account',
-      (session, target) =>
-          answerRename(session, target, slug: args.option('to')),
+      (session, target) => answerRename(
+        session,
+        target,
+        slug: args.option('to'),
+        codeTarget: targetOf(args),
+      ),
     );
   }
 }

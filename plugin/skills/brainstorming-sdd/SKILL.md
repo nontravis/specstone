@@ -14,7 +14,8 @@ only rewrites one section or field of an existing doc, and adds no story or FR, 
 Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
 change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
 with `--summary` to add a story, and `project` to add a feature. Without the `Agent` tool, pass no `--budget`; `Read`
-a saved output once, in parts if too long.
+a saved output once, in parts if too long. Pass no `--target`: a design read spans every code target
+(`domain:agent_plugin` INV-25).
 
 ```
 specstone context <target> --for design --budget 20000
@@ -28,8 +29,7 @@ specstone context <target> --for design --budget 20000
   or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
-That call is the gate. Never look for `.specstone/` first: the CLI searches upward; a look at the working directory
-misses a root above it.
+That call is the gate. Never look for `.specstone/` first: the CLI searches upward.
 
 For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
 questions, and show the Owner each answer; go on only after their yes.
@@ -66,8 +66,7 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 
 ## 4. Write the drafts, then audit them
 
-1. After the approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt:
-   the path is the hand-off.
+1. After the approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
    list as its targets.
 3. Run fix rounds on its `Findings:` lines per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
@@ -93,6 +92,5 @@ fresh reader's, since you saw the drafts made: tell the Owner so.
 | Thought                                         | Do instead                                               |
 |-------------------------------------------------|----------------------------------------------------------|
 | "The design is clear; draft the docs now."      | No `mode: author` before the document's approval.        |
-| "I'll write the design document myself."        | Step 3: you hold the answers; the agent holds the docs.  |
 | "The coverage table is clean; skip the audit."  | A fresh reader finds what the author's own table cannot. |
 | "The brainstorm hands off to a plan skill now." | Invoke nothing; step 4 first, then `specstone:plan-sdd`. |

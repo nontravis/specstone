@@ -48,7 +48,8 @@ final MergedSet _set = TemplateResolver().resolveCarried(
 /// The shipped doc type of each of [paths] that has one.
 Map<String, MergedDocType> _typesOf(Iterable<String> paths) => {
   for (final path in paths)
-    if (DocTypeMatcher(_set).match(path) case MatchedDocType(:final docType))
+    if (DocTypeMatcher(_set, targetNames: const []).match(path)
+        case MatchedDocType(:final docType))
       path: docType,
 };
 
@@ -587,7 +588,10 @@ void main() {
         homeDirectory: null,
       );
       const path = 'specs/f01_alpha/ARCHITECTURE.md';
-      final type = switch (DocTypeMatcher(set).match(path)) {
+      final type = switch (DocTypeMatcher(
+        set,
+        targetNames: const [],
+      ).match(path)) {
         MatchedDocType(:final docType) => docType,
         _ => throw StateError('no doc type'),
       };

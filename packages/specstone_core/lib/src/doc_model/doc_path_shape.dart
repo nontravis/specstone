@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
@@ -50,17 +51,23 @@ final class DocPathShape {
   ///
   /// The parent count at [depth] is the placeholders in the parent type's
   /// pattern for the same depth; the nesting type above depth 0 counts its
-  /// own pattern one depth up.
+  /// own pattern one depth up. [target], when given, reads the pattern with
+  /// that code target's folder in it (RULE-20), as a per-target doc type's
+  /// docs sit in it with two or more targets.
   static DocPathShape? of(
     MergedDocType docType,
     MergedSet set, {
     int depth = 0,
+    String? target,
   }) {
     final paths = docType.paths;
     if (depth < 0 || depth >= paths.length) return null;
     final parentCount = _parentCountAt(docType, set, depth);
     if (parentCount == null) return null;
-    final segments = paths[depth].split('/');
+    final path = target == null
+        ? paths[depth]
+        : PathPattern(paths[depth]).forTarget(target).source;
+    final segments = path.split('/');
     final patterns = [for (final s in segments) _Segment(s)];
     var running = 0;
     var ownIndex = segments.length - 1;
@@ -76,14 +83,21 @@ final class DocPathShape {
 
   /// Returns the shape of the depth whose pattern [docPath] matches, or null
   /// when none does.
+  ///
+  /// [target] is the code target of a per-target doc: its pattern, with the
+  /// target folder in it, is tried first, then the plain one, as a doc sits
+  /// outside the folder when the project names one target.
   static DocPathShape? ofDoc(
     MergedDocType docType,
     MergedSet set,
-    String docPath,
-  ) {
+    String docPath, {
+    String? target,
+  }) {
     for (var depth = 0; depth < docType.paths.length; depth++) {
-      final shape = of(docType, set, depth: depth);
-      if (shape?.valuesOf(docPath) != null) return shape;
+      for (final folder in [?target, null]) {
+        final shape = of(docType, set, depth: depth, target: folder);
+        if (shape?.valuesOf(docPath) != null) return shape;
+      }
     }
     return null;
   }
@@ -205,23 +219,35 @@ bool isSpecDocShape(DocPathShape shape) =>
     shape.ownIsFile && !shape.numbered && !shape.slugged;
 
 /// Returns the child doc types of [docType] whose docs sit in a folder
-/// outside [docType]'s own segment, with that folder for [values].
+/// outside [docType]'s own segment, with that folder for [values] and the
+/// code target it is read in.
 ///
 /// A child counts when its own segment is its last segment and holds no
-/// placeholder (a feature's spec docs).
-Iterable<(MergedDocType, String)> specChildrenOf(
+/// placeholder (a feature's spec docs). A per-target child's folder is read
+/// once per name of [targetNames], with the target folder where RULE-20 puts
+/// it, and each carries its target; empty [targetNames] leaves it as the plain
+/// pattern gives it, with no target.
+Iterable<(MergedDocType, String, String?)> specChildrenOf(
   MergedSet set,
   MergedDocType docType,
   DocPathShape shape,
-  List<String> values,
-) sync* {
+  List<String> values, {
+  List<String> targetNames = const [],
+}) sync* {
   final own = shape.ownPathOf(shape.build(values));
   for (final child in set.docTypes) {
     if (child.parent != docType.id) continue;
     final childShape = DocPathShape.of(child, set, depth: shape.depth);
     if (childShape == null || !isSpecDocShape(childShape)) continue;
     final folder = childShape.containerOf(values);
-    if (folder.isNotEmpty && !folder.startsWith(own)) yield (child, folder);
+    if (folder.isEmpty || folder.startsWith(own)) continue;
+    if (child.isPerTarget && targetNames.isNotEmpty) {
+      for (final name in targetNames) {
+        yield (child, PathPattern(folder).forTarget(name).source, name);
+      }
+    } else {
+      yield (child, folder, null);
+    }
   }
 }
 
@@ -231,16 +257,27 @@ Iterable<(MergedDocType, String)> specChildrenOf(
 /// These are the folders of the child doc types whose own segment is their
 /// last segment and holds no placeholder (a feature's spec docs), each once,
 /// sorted. [depth] is the nesting depth of the doc.
+///
+/// A per-target child's folder is read once per name of [targetNames], with
+/// the target folder where RULE-20 puts it; empty [targetNames] leaves it as
+/// the plain pattern gives it.
 List<String> specFoldersOf(
   MergedSet set,
   MergedDocType docType,
   List<String> values, {
   int depth = 0,
+  List<String> targetNames = const [],
 }) {
   final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
   return {
-    for (final (_, folder) in specChildrenOf(set, docType, shape, values))
+    for (final (_, folder, _) in specChildrenOf(
+      set,
+      docType,
+      shape,
+      values,
+      targetNames: targetNames,
+    ))
       folder,
   }.toList()..sort();
 }
@@ -248,16 +285,28 @@ List<String> specFoldersOf(
 /// Returns the paths of the delete unit of the doc at [docPath]: its own
 /// segment, a folder ending in `/` or the file, then the folders of its spec
 /// docs; null when [docType] has no `path:` or [docPath] does not match it.
+///
+/// [targetNames] are the code targets a per-target spec doc type's folder is
+/// read in, as [specFoldersOf] takes them; [target] is the code target of the
+/// doc itself, as [DocPathShape.ofDoc] takes it.
 List<String>? unitRootsOf(
   MergedSet set,
   MergedDocType docType,
-  String docPath,
-) {
-  final shape = DocPathShape.ofDoc(docType, set, docPath);
+  String docPath, {
+  List<String> targetNames = const [],
+  String? target,
+}) {
+  final shape = DocPathShape.ofDoc(docType, set, docPath, target: target);
   final values = shape?.valuesOf(docPath);
   if (shape == null || values == null) return null;
   return [
     shape.ownPathOf(docPath),
-    ...specFoldersOf(set, docType, values, depth: shape.depth),
+    ...specFoldersOf(
+      set,
+      docType,
+      values,
+      depth: shape.depth,
+      targetNames: targetNames,
+    ),
   ];
 }

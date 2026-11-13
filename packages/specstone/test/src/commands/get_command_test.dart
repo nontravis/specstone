@@ -1,10 +1,70 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:test/test.dart';
 
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
+
+/// The config text pinning both shipped packs with the targets [targets].
+String targetedConfig(Map<String, String> targets) {
+  final versions = shippedPackVersions();
+  final pins = [
+    for (final pack in ['prd-core', 'software-tech'])
+      '  $pack: ${versions[pack]}\n',
+  ];
+  final entries = [
+    for (final e in targets.entries) '  ${e.key}:\n    code_root: ${e.value}\n',
+  ];
+  return 'packs:\n${pins.join()}targets:\n${entries.join()}';
+}
+
+/// Writes a two-target fixture: the feature `feedback/toast`, its
+/// architecture doc in both targets, the domain doc in flutter alone.
+///
+/// A key in [extra] replaces or adds a file.
+Future<Directory> writeTargetedProject({Map<String, String> extra = const {}}) {
+  const base = <String, String>{
+    '.specstone/templates/architecture.yaml':
+        'id: architecture\nper_target: true\n',
+    '.specstone/templates/domain.yaml': 'id: domain\nper_target: true\n',
+    '.specstone/templates/implementation.yaml':
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n',
+    '.specstone/templates/feature.yaml': 'max_depth: 1\n',
+    '.specstone/config.yaml': '',
+    'flutter_lib/.keep': '',
+    'jaspr_lib/.keep': '',
+    'docs/prds/features/f02_feedback/f03_toast/FEATURE.md':
+        '---\nvision:\n  - PV-01\n---\n\n# Toast\n\n## Problem\nBurnt toast.\n',
+    'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+        '# Toast architecture\n',
+    'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+        '# Toast architecture\n',
+    'docs/specs/flutter/f02_feedback/f03_toast/DOMAIN.md': '# Toast domain\n',
+    'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+    'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+  };
+  return writeReadProject(
+    extra: {
+      ...base,
+      '.specstone/config.yaml': targetedConfig({
+        'flutter': 'flutter_lib',
+        'jaspr': 'jaspr_lib',
+      }),
+      ...extra,
+    },
+  );
+}
 
 void main() {
   test('f01/us04/s1, f01/us04/fr02: get login prints the feature and its spec doc and exits 0', () async {
@@ -352,6 +412,19 @@ void main() {
         );
       }
     });
+    test('f10/us03/s2: a project with no record doc type prints each step '
+        'with no code pointer, exit 0 and no error', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(await runner.run(['get', 'journey:sign_in', '--code']), 0);
+      expect(
+        out.toString(),
+        endsWith(
+          '1. Open the page — login/email_login S1\n'
+          '  login/email_login (user_story)\n  - none\n',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
     test('f10/us03/fr01: get journey:<slug> --code --json prints one object, exit 0', () async {
       final (:runner, :out, :err) = readRunner(await project());
       expect(
@@ -363,6 +436,296 @@ void main() {
       expect(
         ((printed['journeys'] as List).single as Map)['steps'],
         hasLength(1),
+      );
+    });
+  });
+
+  group('index_query/read_doc_section/resolve_doc_name, --target', () {
+    test("E19 to E21: --target jaspr keeps the name to jaspr's docs and the "
+        'shared docs, a path whatever the target', () async {
+      final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+      expect(
+        await runner.run([
+          'get',
+          'architecture:feedback/toast',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        startsWith(
+          '==> feedback/toast (architecture) · '
+          'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md · base ',
+        ),
+      );
+      out.clear();
+      expect(
+        await runner.run([
+          'get',
+          'feedback/toast',
+          '--target',
+          'jaspr',
+          '--json',
+        ]),
+        0,
+      );
+      expect(
+        [
+          for (final doc
+              in (jsonDecode(out.toString()) as Map)['docs']! as List)
+            (doc as Map)['path'],
+        ],
+        [
+          'prds/features/f02_feedback/f03_toast/FEATURE.md',
+          'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
+        ],
+      );
+      out.clear();
+      expect(
+        await runner.run([
+          'get',
+          'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains(
+          'specs/flutter/f02_feedback/f03_toast/'
+          'DOMAIN.md',
+        ),
+      );
+    });
+    test(
+      'E20: a name only another target holds is doc_not_found, exit 64',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+        expect(
+          await runner.run([
+            'get',
+            'domain:feedback/toast',
+            '--target',
+            'jaspr',
+            '--json',
+          ]),
+          64,
+        );
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'doc_not_found',
+          'message': 'no domain doc carries the name feedback/toast',
+        });
+      },
+    );
+    test(
+      'E22: a target targets: holds none of is argument_invalid, exit 64',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+        expect(
+          await runner.run([
+            'get',
+            'feedback/toast',
+            '--target',
+            'web',
+            '--json',
+          ]),
+          64,
+        );
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'argument_invalid',
+          'message': '--target web: the code targets are flutter, jaspr',
+        });
+      },
+    );
+    test('E22: --paths and --code refuse a target targets: holds none of, '
+        'argument_invalid, exit 64', () async {
+      for (final option in ['--paths', '--code']) {
+        final (:runner, :out, :err) = readRunner(
+          await writeTargetedProject(
+            extra: {
+              'docs/prds/journeys/sign_in/JOURNEY.md':
+                  '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+                  '### 1. Open the page\nstep: feedback/toast S1\n',
+            },
+          ),
+        );
+        expect(
+          await runner.run([
+            'get',
+            'sign_in',
+            option,
+            '--target',
+            'web',
+            '--json',
+          ]),
+          64,
+          reason: option,
+        );
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'argument_invalid',
+          'message': '--target web: the code targets are flutter, jaspr',
+        }, reason: option);
+      }
+    });
+    test(
+      'E19 to E21: --paths resolves its address under the given target',
+      () async {
+        final project = await writeTargetedProject(
+          extra: {
+            '.specstone/templates/user_story.yaml':
+                'id: user_story\nper_target: true\n'
+                'path: specs/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md\n',
+            'docs/prds/journeys/sign_in/JOURNEY.md':
+                '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+                '### 1. Open the page\nstep: feedback/toast/show S1\n',
+            'docs/specs/flutter/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+                '# Show toast\n\n## Acceptance Criteria\n'
+                '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+                'on flutter\n',
+            'docs/specs/jaspr/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+                '# Show toast\n\n## Acceptance Criteria\n'
+                '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+                'on jaspr\n',
+          },
+        );
+        final (:runner, :out, :err) = readRunner(project);
+        expect(
+          await runner.run(['get', 'sign_in', '--paths', '--target', 'jaspr']),
+          0,
+        );
+        expect(err.toString(), isEmpty);
+        expect(
+          out.toString(),
+          allOf(
+            contains('1. Open the page — feedback/toast/show S1'),
+            contains('- **Then** the Agent sees it on jaspr'),
+            isNot(contains('on flutter')),
+          ),
+        );
+      },
+    );
+    group('--code reads the records of each code target', () {
+      const journey =
+          '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+          '### 1. Open the page\nstep: feedback/toast/show S1\n';
+      const story =
+          '# Show toast\n\n## Acceptance Criteria\n\n'
+          '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it\n';
+      const record =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n'
+          '  - id: implements\n'
+          '    type: output_ref\n'
+          '    list: true\n'
+          '    pointer: item_exact\n';
+
+      Future<Directory> project() => writeTargetedProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': record,
+          'docs/prds/journeys/sign_in/JOURNEY.md': journey,
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              story,
+          'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              '---\nstatuses:\n  - show:implemented\n'
+              'implements:\n  - show:lib/toast.dart:Toast\n---\n\n'
+              '# Record\n',
+          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              '---\nstatuses:\n  - show:skipped:no web toast\n---\n\n'
+              '# Record\n',
+        },
+      );
+
+      const stepLines =
+          '1. Open the page — feedback/toast/show S1\n'
+          '  feedback/toast/show (user_story)\n';
+
+      test('f10/us03/s1, f10/us03/fr01/e11: no --target lists each target '
+          'under its name, a skip as <target>: skipped', () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['get', 'sign_in', '--code']), 0);
+        expect(
+          out.toString(),
+          endsWith(
+            '$stepLines  - flutter: lib/toast.dart:Toast\n  - jaspr: skipped\n',
+          ),
+        );
+        expect(err.toString(), isEmpty);
+      });
+
+      test('f10/us03/fr01/e11: --target keeps one target, printed with no '
+          'target name', () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(
+          await runner.run(['get', 'sign_in', '--code', '--target', 'flutter']),
+          0,
+        );
+        expect(
+          out.toString(),
+          endsWith('$stepLines  - implements: lib/toast.dart:Toast\n'),
+        );
+        out.clear();
+        expect(
+          await runner.run(['get', 'sign_in', '--code', '--target', 'jaspr']),
+          0,
+        );
+        expect(out.toString(), endsWith('$stepLines  - skipped\n'));
+      });
+
+      test('f10/us03/fr01/e11: --json holds implementsByTarget with no '
+          '--target', () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['get', 'sign_in', '--code', '--json']), 0);
+        final journeys =
+            (jsonDecode(out.toString()) as Map)['journeys']! as List;
+        final steps = (journeys.single as Map)['steps']! as List;
+        expect((steps.single as Map)['story'], {
+          'name': 'feedback/toast/show',
+          'implementsByTarget': {
+            'flutter': ['lib/toast.dart:Toast'],
+            'jaspr': <String>[],
+          },
+        });
+      });
+    });
+    test('E19: --paths with no --target resolves the step in a two-target '
+        'project', () async {
+      final project = await writeTargetedProject(
+        extra: {
+          '.specstone/templates/user_story.yaml':
+              'id: user_story\nper_target: true\n'
+              'path: specs/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md\n',
+          'docs/prds/journeys/sign_in/JOURNEY.md':
+              '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+              '### 1. Open the page\nstep: feedback/toast/show S1\n',
+          'docs/specs/flutter/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              '# Show toast\n\n## Acceptance Criteria\n'
+              '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+              'on flutter\n',
+          'docs/specs/jaspr/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              '# Show toast\n\n## Acceptance Criteria\n'
+              '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it '
+              'on jaspr\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(await runner.run(['get', 'sign_in', '--paths']), 0);
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        allOf(
+          contains('1. Open the page — feedback/toast/show S1'),
+          contains('- **Then** the Agent sees it on flutter'),
+        ),
       );
     });
   });

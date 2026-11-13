@@ -29,6 +29,7 @@ const _storiesPerFeature = 5;
 const _frsPerStory = 4;
 const _topicCount = 2;
 const _stride = 7;
+const _recordType = 'implementation';
 
 const _padWords = [
   'amber', 'birch', 'cedar', 'delta', 'ember', 'fjord', 'grove', 'haven', //
@@ -39,12 +40,14 @@ const _padWords = [
 /// root.
 ///
 /// The project pins the shipped `prd-core` and `software-tech` and holds
-/// [baselineBuckets]' 1,826 docs in a fixed order; the doc at position `k`
-/// gets the size at index `(k * 7) % 1826` of the ascending size list. Each of
-/// the 1,040 FRs implements one class in its own `src/` file, and each of the two
-/// topics holds one `src/` file, so 1,042 code files sit under the tech stack's
-/// `code:` root and every one is reached by a `covers:` prefix. The folder is
-/// deleted by `addTearDown`.
+/// [baselineBuckets]' 1,826 docs in a fixed order. Each feature's record, the
+/// 52 `implementation` docs, takes one size of the middle of the ascending size
+/// list, so it fits its entries; each other doc takes the rest in generation
+/// order, stepping 7 sizes at a time through the 1,774 left. Each of the 1,040
+/// FRs has an `implemented` entry in its feature's record that names one class
+/// in its own `src/` file, and each of the two topics holds one `src/` file, so
+/// 1,042 code files sit under the tech stack's `code:` root and every one is
+/// reached by a `covers:` prefix. The folder is deleted by `addTearDown`.
 Future<Directory> writeBaselineTree() async {
   final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
@@ -52,14 +55,25 @@ Future<Directory> writeBaselineTree() async {
     homeDirectory: null,
   );
   final specs = _docSpecs();
-  final sizes = _ascendingSizes();
-  assert(specs.length == sizes.length, 'one size for each doc');
-  final padding = _padding(sizes.last);
-  for (final (k, spec) in specs.indexed) {
-    final size = sizes[(k * _stride) % sizes.length];
+  final all = _ascendingSizes();
+  assert(specs.length == all.length, 'one size for each doc');
+  final padding = _padding(all.last);
+  final middle = all.length ~/ 2;
+  final recordSizes = all.sublist(middle, middle + _featureCount).iterator;
+  final sizes = [...all.take(middle), ...all.skip(middle + _featureCount)];
+  var other = 0;
+  for (final spec in specs) {
+    final isRecord = spec.type == _recordType;
+    if (isRecord) recordSizes.moveNext();
+    final size = isRecord
+        ? recordSizes.current
+        : sizes[(other++ * _stride) % sizes.length];
     final file = File.fromUri(root.uri.resolve('docs/${spec.path}'));
     await file.parent.create(recursive: true);
-    await file.writeAsString(_render(templates, spec, size, padding));
+    final text = isRecord
+        ? _renderRecord(spec, size, padding)
+        : _render(templates, spec, size, padding);
+    await file.writeAsString(text);
   }
   await _writeCode(root);
   return root;
@@ -135,21 +149,24 @@ List<_DocSpec> _featureSpecs(int f) {
     ),
     _spec('domain', 'specs/$key/DOMAIN.md', 'Domain $f'),
     _spec('api', 'specs/$key/API.md', 'Api $f'),
-    _spec('error', 'specs/$key/ERROR.md', 'Error $f'),
+    _spec(
+      _recordType,
+      'specs/$key/IMPLEMENTATION.md',
+      'Feature $f implementation',
+      _recordFrontmatter(f),
+    ),
     for (var s = 1; s <= _storiesPerFeature; s++) ...[
       _spec(
         'user_story',
         'prds/features/$key/us${_two(s)}_story_$s/USER_STORY.md',
         'Story $s',
-        'status: planned\n',
       ),
       for (var r = 1; r <= _frsPerStory; r++)
         _spec(
           'fr',
           'prds/features/$key/us${_two(s)}_story_$s/fr${_two(r)}_req_$r.md',
           'Requirement $r',
-          'status: planned\ntraced_from:\n  - S1\nverify_method: test\n'
-              'implements:\n  - ${_codePath(f, s, r)}:Req$r\n',
+          'traced_from:\n  - S1\nverify_method: test\n',
         ),
       _spec(
         'nf',
@@ -159,6 +176,23 @@ List<_DocSpec> _featureSpecs(int f) {
       ),
     ],
   ];
+}
+
+/// Returns the frontmatter of feature [f]'s record: each FR `implemented`, with
+/// the one class its `src/` file holds.
+String _recordFrontmatter(int f) {
+  final items = [
+    for (var s = 1; s <= _storiesPerFeature; s++)
+      for (var r = 1; r <= _frsPerStory; r++) (s, r),
+  ];
+  String lines(String key, String Function(int s, int r) line) =>
+      '$key:\n${[for (final (s, r) in items) "  - '${line(s, r)}'\n"].join()}';
+  String item(int s, int r) => 'story_$s/req_$r';
+  return lines('statuses', (s, r) => '${item(s, r)}:implemented') +
+      lines(
+        'implements',
+        (s, r) => '${item(s, r)}:${_codePath(f, s, r)}:Req$r',
+      );
 }
 
 /// Expands [baselineBuckets] to one size per file, smallest first.
@@ -191,6 +225,19 @@ String _render(MergedSet templates, _DocSpec spec, int size, String padding) {
     head.write('## $header\nBaseline text.\n\n');
   }
   head.write('## ${headers.last}\nBaseline text. ');
+  return _fill(spec, '$head', size, padding);
+}
+
+/// Returns a record of exactly [size] bytes: frontmatter, a title, and padding
+/// words.
+String _renderRecord(_DocSpec spec, int size, String padding) {
+  final head = '---\n${spec.frontmatter}---\n\n# ${spec.title}\n\n';
+  return _fill(spec, head, size, padding);
+}
+
+/// Returns [head] closed with padding words so the doc is exactly [size]
+/// bytes.
+String _fill(_DocSpec spec, String head, int size, String padding) {
   final padLength = size - head.length - 1;
   if (padLength < 0) {
     throw StateError('${spec.path} needs ${head.length + 1} bytes, not $size');

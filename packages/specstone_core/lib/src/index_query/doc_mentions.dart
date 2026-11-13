@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show markdownExtension;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -66,6 +68,83 @@ Map<String, List<Mention>> mentionsOfEach(
     for (final target in targets)
       target.docPath: _mentionsIn(index, target, readOf),
   };
+}
+
+/// A path written in a doc's text and the doc it names: the 1-based file line,
+/// the path as written, less any `#anchor` or closing sentence mark, and the
+/// doc.
+typedef WrittenPath = ({int line, String written, IndexedDoc named});
+
+/// The docs of an index by file name, each with the segments of its DocPath;
+/// one read per index, since an index is one read snapshot.
+final _namesakesOf = Expando<Map<String, Map<String, List<String>>>>();
+
+Map<String, Map<String, List<String>>> _namesakesIn(DocIndex index) =>
+    _namesakesOf[index] ??= _readNamesakes(index);
+
+Map<String, Map<String, List<String>>> _readNamesakes(DocIndex index) {
+  final byFileName = <String, Map<String, List<String>>>{};
+  for (final doc in index.docs) {
+    final segments = _segmentsOf(doc.docPath);
+    if (segments.isEmpty) continue;
+    (byFileName[segments.last] ??= {})[doc.docPath] = segments;
+  }
+  return byFileName;
+}
+
+/// Returns the paths [doc]'s text writes that name a doc, in text order,
+/// fenced code and link destinations left out, and so is a path naming a doc
+/// that a link on its line already points to.
+///
+/// A path names the doc it reaches from [doc], as a link would, else the one
+/// doc of its file name it aligns with deepest, as [mentionsOf] reads it.
+List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
+  final content = index.contentOf(doc);
+  final lines = lfLinesOf(_withoutDestinations(toLf(content.text)));
+  final namesakes = _namesakesIn(index);
+  final linked = {
+    for (final link in content.lineFacts.links) (link.line, link.target),
+  };
+  return [
+    for (final (i, text) in lines.indexed)
+      if (!content.lineFacts.isFenced(i + 1))
+        for (final (:written, :named) in _pathsOnLine(
+          index,
+          doc,
+          text,
+          namesakes,
+        ))
+          if (!linked.contains((i + 1, named.docPath)))
+            (line: i + 1, written: written, named: named),
+  ];
+}
+
+Iterable<({String written, IndexedDoc named})> _pathsOnLine(
+  DocIndex index,
+  IndexedDoc from,
+  String line,
+  Map<String, Map<String, List<String>>> namesakes,
+) sync* {
+  for (
+    var at = line.indexOf(markdownExtension);
+    at >= 0;
+    at = line.indexOf(markdownExtension, at + 1)
+  ) {
+    final end = at + markdownExtension.length;
+    if (!_closesName(line, end)) continue;
+    var start = at;
+    while (start > 0 && !pathBreak.hasMatch(line[start - 1])) {
+      start--;
+    }
+    final written = line.substring(start, end);
+    final fileName = written.substring(written.lastIndexOf('/') + 1);
+    final candidates = namesakes[fileName];
+    if (candidates == null) continue;
+    final docPath = _docNamedBy(written, from.docPath, candidates);
+    if (index.at(docPath ?? '') case final named?) {
+      yield (written: written, named: named);
+    }
+  }
 }
 
 /// A doc's line facts and, on first use, its LF lines with link destinations

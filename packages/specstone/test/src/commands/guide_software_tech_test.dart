@@ -13,16 +13,17 @@ const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 final String _bothPacks = shippedPinsConfig();
 final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
 final String _softwareTechOnly = shippedPinsConfig(['software-tech']);
-const _nineteenIds =
+const _twentyIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
-    'fr\ngnfr\nintegration\njourney\nnf\npersona\nproject\nreference\n'
-    'tech_stack\ntopic\nuser_story\n';
+    'fr\ngnfr\nimplementation\nintegration\njourney\nnf\npersona\nproject\n'
+    'reference\ntech_stack\ntopic\nuser_story\n';
 const _softwareTechIds = <String>[
   'api',
   'architecture',
   'auth',
   'domain',
   'error',
+  'implementation',
   'integration',
   'tech_stack',
   'topic',
@@ -57,15 +58,15 @@ void main() {
         runnerIn(await writeTree({_configPath: packs}));
 
     test('f03/us07/s1, f03/us07/fr01/e01: guide lists the eleven prd-core and '
-        'the eight software-tech doc types and no other', () async {
+        'the nine software-tech doc types and no other', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide']), 0);
-      expect(out.toString(), _nineteenIds);
+      expect(out.toString(), _twentyIds);
       expect(err.toString(), isEmpty);
     });
 
     test('f03/us07/s1, f03/us07/fr02: guide --json names software-tech as '
-        'the pack of the eight, each with a one-line summary', () async {
+        'the pack of the nine, each with a one-line summary', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', '--json']), 0);
       final entries = (jsonDecode(out.toString()) as List<Object?>)
@@ -165,8 +166,8 @@ void main() {
       ]);
     });
 
-    test('f03/us07/s4, f03/us01/fr03: guide fr --json adds one optional '
-        'exact implements field to the prd-core fields', () async {
+    test('f03/us07/s4, f03/us07/fr01/e08: guide fr --json holds the prd-core '
+        'fields and no field that points at code', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', 'fr', '--json']), 0);
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
@@ -181,13 +182,11 @@ void main() {
         'verify_method',
         'owner',
         'confirmed',
-        'implements',
       ]);
-      final implements = fields.last! as Map<String, Object?>;
-      expect(implements.keys, ['id', 'type', 'list', 'pointer', 'description']);
-      expect(implements['type'], 'output_ref');
-      expect(implements['list'], isTrue);
-      expect(implements['pointer'], 'exact');
+      for (final field in fields.cast<Map<String, Object?>>()) {
+        expect(field['type'], isNot('output_ref'), reason: '${field['id']}');
+        expect(field.containsKey('pointer'), isFalse, reason: '${field['id']}');
+      }
       expect(_idsOf(json['sections']), [
         'statement',
         'input_output',
@@ -197,6 +196,209 @@ void main() {
         'verification',
         'tbr',
       ]);
+    });
+
+    test('f03/us07/s4, f03/us07/fr01/e07: guide implementation --json gives '
+        'the path, the parent feature, and the two record fields, each code '
+        'entry an exact pointer', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'implementation', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['path'], 'specs/f{nn}_{slug}/IMPLEMENTATION.md');
+      expect(json['parent'], 'feature');
+      expect(json['perTarget'], isTrue);
+      final fields = (json['fields']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(_idsOf(fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'statuses',
+        'implements',
+      ]);
+      final statuses = fields.singleWhere((f) => f['id'] == 'statuses');
+      expect(statuses['type'], 'record_status');
+      expect(statuses['list'], isTrue);
+      expect(statuses.containsKey('required'), isFalse);
+      final implements = fields.singleWhere((f) => f['id'] == 'implements');
+      expect(implements['type'], 'output_ref');
+      expect(implements['list'], isTrue);
+      expect(implements['pointer'], 'item_exact');
+      expect(
+        implements['description'],
+        contains(
+          "relative to the code root of the doc's target "
+          '(`.specstone/config.yaml`, else the project root)',
+        ),
+      );
+      expect(json['sections'], isEmpty);
+    });
+
+    test('f03/us07/fr02/e01, e02: each spec guide titles its doc with the '
+        'feature name and no number, the tech stack and a topic by their own '
+        'forms', () async {
+      const titles = {
+        'architecture': '`# <Feature name> architecture`',
+        'domain': '`# <Feature name> domain`',
+        'api': '`# <Feature name> API`',
+        'integration': '`# <Feature name> integrations`',
+        'error': '`# <Feature name> errors`',
+        'auth': '`# <Feature name> auth`',
+        'implementation': '`# <Feature name> implementation`',
+        'topic': '`# <Topic name>`',
+        'tech_stack': '`# Tech stack`',
+      };
+      final runner = await runnerFor(_bothPacks);
+      for (final MapEntry(key: id, value: title) in titles.entries) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains(title), reason: id);
+        expect(out.toString(), contains('no number'), reason: id);
+      }
+      expect(err.toString(), isEmpty);
+    });
+
+    test('f03/us07/fr02/e03: each spec guide says a spec doc never writes '
+        "status:, and names the target's record as the home of whether code "
+        'exists', () async {
+      final runner = await runnerFor(_bothPacks);
+      for (final id in _softwareTechIds) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains('Never write `status:`'), reason: id);
+        expect(
+          out.toString(),
+          contains(
+            "lives in that target's record, its `implementation` docs, only",
+          ),
+          reason: id,
+        );
+        expect(out.toString(), isNot(contains('FR `status`')), reason: id);
+      }
+      expect(err.toString(), isEmpty);
+    });
+
+    test('f03/us07/fr02/e04: each guide states its line target, and the '
+        "record's is one line per entry under the 400-line cap", () async {
+      const targets = {
+        'tech_stack': 'about 80 lines',
+        'architecture': 'under 150 lines',
+        'domain': 'about 150 to 200 lines',
+        'api': 'about 150 to 200 lines',
+        'integration': 'about 150 to 200 lines',
+        'error': 'about 150 to 200 lines',
+        'auth': 'about 150 to 200 lines',
+        'topic': 'about 150 to 200 lines',
+        'implementation':
+            'one line per entry in `statuses` and one per code path in '
+            '`implements`, under the 400-line cap',
+      };
+      final runner = await runnerFor(_bothPacks);
+      for (final MapEntry(key: id, value: target) in targets.entries) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains(target), reason: id);
+      }
+    });
+
+    test('f03/us07/fr02/e11: each guide states its item shape, one rule per '
+        'ID', () async {
+      const shapes = {
+        'tech_stack': 'one Stack row per slot',
+        'architecture': 'one Components row per component',
+        'domain': 'one bullet per invariant',
+        'api': 'one `###` per operation',
+        'integration': 'one `###` per system',
+        'error': 'one catalog row per code',
+        'auth': 'one matrix row per resource and operation',
+        'topic': 'one bullet per rule',
+        'implementation': 'one entry per story and FR',
+      };
+      final runner = await runnerFor(_bothPacks);
+      for (final MapEntry(key: id, value: shape) in shapes.entries) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains('Write one rule per ID: $shape'));
+      }
+    });
+
+    test('f03/us07/fr02/e14: the implementation guide names the record as '
+        'the one home of status and code paths, a missing line as planned, '
+        'and a skip with a reason and no code path', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'implementation']), 0);
+      final guide = out.toString();
+      expect(
+        guide,
+        contains(
+          "The record is the one home of each story's and FR's status and "
+          'code paths in its target',
+        ),
+      );
+      expect(
+        guide,
+        contains(
+          'an item with no `statuses` line, outside every skip, is `planned`, '
+          'code paths or not',
+        ),
+      );
+      expect(
+        guide,
+        contains(
+          'A `skipped` entry carries a one-line reason and no code path; a '
+          'skip on the feature or on a story covers everything below it',
+        ),
+      );
+      expect(guide, isNot(contains('## ')));
+    });
+
+    test('f03/us07/fr02/e15: the architecture and tech stack guides name '
+        "the target's record as the holder of status and code paths, and "
+        "covers and code as the target's own code", () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'architecture']), 0);
+      expect(
+        out.toString(),
+        contains(
+          "The target's record holds each story's and FR's status and code "
+          "paths; `covers` names the target's own code only.",
+        ),
+      );
+      out.clear();
+      expect(await runner.run(['guide', 'tech_stack']), 0);
+      expect(
+        out.toString(),
+        contains(
+          "The target's record holds each story's and FR's status and code "
+          "paths; `code` names the target's own code only.",
+        ),
+      );
+    });
+
+    test('f03/us07/fr03 E04, f03/us07/fr03: guide implementation ends with '
+        'its four sources, and carries the 400-line cap and no banned '
+        'word', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'implementation', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final lint = json['lint']! as Map<String, Object?>;
+      expect(lint['maxLines'], 400);
+      expect(lint.containsKey('maxItemChars'), isFalse);
+      expect(lint.containsKey('bannedWords'), isFalse);
+      final reference = (json['reference']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(_idsOf(reference, 'title'), [
+        'OpenFastTrace, Terminology',
+        'Sphinx-CodeLinks, Source tracing directive',
+        'Doorstop, Item reference',
+        'MDN browser-compat-data, Compat data schema',
+      ]);
+      for (final entry in reference) {
+        expect(entry['url'], isNotEmpty);
+        expect(entry['locator'], isNotEmpty);
+      }
     });
 
     test('f03/us07/s5, f03/us07/fr01/e02: with only prd-core, guide fr '

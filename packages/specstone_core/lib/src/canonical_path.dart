@@ -30,6 +30,19 @@ String parentOf(String path, {bool? isWindows}) {
   return windows && _isBareDrive(parent) ? '$parent$separator' : parent;
 }
 
+/// Returns [path] from [root], `/`-separated, when it lies inside [root] and
+/// is not [root] itself; else null.
+///
+/// Both are canonical paths in the platform's separators: `\` on Windows, `/`
+/// elsewhere, where `\` is an ordinary name character. [isWindows] picks the
+/// style; it defaults to the running platform.
+String? pathInside(String root, String path, {bool? isWindows}) {
+  final separator = (isWindows ?? Platform.isWindows) ? r'\' : '/';
+  final prefix = root.endsWith(separator) ? root : '$root$separator';
+  if (path.length <= prefix.length || !path.startsWith(prefix)) return null;
+  return path.substring(prefix.length).split(separator).join('/');
+}
+
 bool _isBareDrive(String path) => path.length == 2 && _hasDrive(path);
 
 bool _hasDrive(String path) =>

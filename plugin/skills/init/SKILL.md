@@ -32,7 +32,8 @@ Take the drafts one at a time, in this order: `project:project`, `features:featu
 
 1. Run `specstone guide <type>` for its title and sections, and `specstone guide <type> --json` for its fields.
 2. Ask the Owner for the title, each section, and each field the guide describes, such as `owner` on `project` and
-   `code` on `tech_stack`; or propose a value and let them correct it. Write only what they gave or agreed to.
+   `code` on `tech_stack`; or propose a value and let them correct it. Write only what they gave or agreed to. A new
+   project has one code target, so no `set` here carries `--target` (`domain:agent_plugin` INV-25).
 3. Read every base at once with `specstone get <type>:<name> --json`: `bases.title`, `bases.sections.<key>`,
    `bases.fields.<id>`.
 4. Pipe each value in through the matching call:
@@ -47,8 +48,9 @@ Exit 75, `base_mismatch`: read the target again and merge before you retry. Any 
 stop.
 
 The tech stack's `code` field lists the folders the code will live in, relative to the root. Fill it before you ask
-for approval: while it is empty, `specstone check` reports no uncovered code at all. Until a listed folder exists,
-`specstone check` reports `code_root_missing` for it; that is expected in a new project, so keep the entry.
+for approval: while it is empty, `specstone check` reports no uncovered code at all. A listed folder that does not
+exist yet draws no finding while no record entry of its code target is `implemented`, and `code_root_missing` once one
+is and the folder is still missing; keep the entry either way.
 
 ## 3. Get the drafts approved
 

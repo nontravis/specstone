@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/record_fixture.dart' show recordLayer;
 import '../../helpers/temp_tree.dart';
 
 const _packs = ['prd-core', 'software-tech', 'acme'];
@@ -64,14 +65,32 @@ class _Case {
   }
 }
 
-Future<_Case> _case(Map<String, String> overrides) async {
+Future<_Case> _case(
+  Map<String, String> overrides, {
+  Map<String, String> packFiles = _packFiles,
+}) async {
   final project = await writeTree({
     for (final entry in overrides.entries)
       '.specstone/templates/${entry.key}.yaml': entry.value,
   });
-  final home = await writeTree(_packFiles);
+  final home = await writeTree(packFiles);
   return _Case(project, home);
 }
+
+const Map<String, String> _recordPackFiles = {
+  '.specstone/packs/acme/pack.yaml': '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
+''',
+  '.specstone/packs/acme/implementation.yaml': recordLayer,
+};
+
+const _slugNamedArchitecture = 'path: specs/{slug}/f{nn}_{slug}.md\n';
 
 MigrateFault _refusal(_Case fixture) {
   try {
@@ -188,5 +207,70 @@ void main() {
     });
 
     expect(fixture.run, returnsNormally);
+  });
+
+  group('move_to_record record override', () {
+    const file = '.specstone/templates/implementation.yaml';
+
+    test('f06/us02/fr03/e06: no layer sets the record path and architecture '
+        'names its file by the feature slug, so the run refuses and lists '
+        'the override to write', () async {
+      final fault = _refusal(
+        await _case({
+          'architecture': _slugNamedArchitecture,
+        }, packFiles: _recordPackFiles),
+      );
+
+      expect(fault.code, MigrateFaultCode.overrideDangling);
+      expect(fault.exitStatus, 78);
+      expect(fault.file, file);
+      expect(fault.key, 'path');
+      expect(fault.toText(), startsWith('$file: path: '));
+      expect(fault.more, isEmpty);
+    });
+
+    test('f06/us02/fr03/e06: the entry joins the other dangling entries, '
+        'after them', () async {
+      final fault = _refusal(
+        await _case({
+          'architecture': _slugNamedArchitecture,
+          'user_story': 'fields: [{id: owner_team, required: true}]',
+        }, packFiles: _recordPackFiles),
+      );
+
+      expect(fault.file, '.specstone/templates/user_story.yaml');
+      expect(fault.more.map((more) => more.file), [file]);
+    });
+
+    test('f06/us02/fr03/e06: once the record override sets path, the plan '
+        'prints', () async {
+      final fixture = await _case({
+        'architecture': _slugNamedArchitecture,
+        'implementation': 'path: specs/{slug}/f{nn}_{slug}.md\n',
+      }, packFiles: _recordPackFiles);
+
+      expect(fixture.run, returnsNormally);
+    });
+
+    test('f06/us02/fr03/e06: an architecture path the pack gives, or one '
+        'whose file has no slug, does not refuse', () async {
+      expect(
+        (await _case(const {}, packFiles: _recordPackFiles)).run,
+        returnsNormally,
+      );
+      expect(
+        (await _case({
+          'architecture': 'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+        }, packFiles: _recordPackFiles)).run,
+        returnsNormally,
+      );
+    });
+
+    test('f06/us02/fr03/e06: a run with no move_to_record step does not '
+        'refuse', () async {
+      final fixture = await _case({'architecture': _slugNamedArchitecture});
+
+      expect(fixture.run, returnsNormally);
+    });
   });
 }

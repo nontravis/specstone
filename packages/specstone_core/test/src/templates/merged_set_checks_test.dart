@@ -2,6 +2,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -392,6 +393,214 @@ void main() {
                 'doc types feature and grid share the path $nestedPath',
               ),
         ),
+      );
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file E31, INV-31: two '
+        'doc types holding a record_status field are unknown_value naming '
+        'each holder', () {
+      const recordField =
+          'fields:\n'
+          '  - id: owner\n'
+          '    type: string\n'
+          '  - id: entries\n'
+          '    type: record_status\n';
+      final layers = {
+        'runbook': [layerOf('runbook', recordField)],
+        'playbook': [layerOf('playbook', recordField, file: _playbookFile)],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(
+            fields: [
+              const MergedField(id: 'owner', type: FieldType.string),
+              const MergedField(id: 'entries', type: FieldType.recordStatus),
+            ],
+          ),
+          builtIn('playbook').copyWith(
+            fields: [
+              const MergedField(id: 'owner', type: FieldType.string),
+              const MergedField(id: 'entries', type: FieldType.recordStatus),
+            ],
+          ),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'fields[${1}].type')
+              .having(
+                (f) => f.message,
+                'message',
+                'only one doc type holds a record_status field: '
+                    'playbook and runbook do',
+              )
+              .having((f) => f.file, 'file', _playbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_runbookFile]),
+        ),
+      );
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file E33, INV-31: the '
+        'record doc type with a merged per_target that is not true is '
+        'unknown_value', () {
+      const noKey =
+          'fields:\n'
+          '  - id: entries\n'
+          '    type: record_status\n';
+      const falseKey =
+          'fields:\n'
+          '  - id: entries\n'
+          '    type: record_status\n'
+          'per_target: false\n';
+      expect(
+        () => check(
+          [
+            builtIn('runbook').copyWith(
+              fields: [
+                const MergedField(id: 'entries', type: FieldType.recordStatus),
+              ],
+            ),
+          ],
+          {
+            'runbook': [layerOf('runbook', noKey)],
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'per_target')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+      expect(
+        () => check(
+          [
+            builtIn('runbook').copyWith(
+              isPerTarget: false,
+              fields: [
+                const MergedField(id: 'entries', type: FieldType.recordStatus),
+              ],
+            ),
+          ],
+          {
+            'runbook': [layerOf('runbook', falseKey)],
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'per_target')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file E33, INV-31: the '
+        'record doc type with per_target: true passes, and one holder names '
+        'the record doc type', () {
+      const layer =
+          'fields:\n'
+          '  - id: entries\n'
+          '    type: record_status\n'
+          'per_target: true\n';
+      final docTypes = [
+        builtIn('runbook').copyWith(
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+        ),
+      ];
+      expect(
+        () => check(docTypes, {
+          'runbook': [layerOf('runbook', layer)],
+        }),
+        returnsNormally,
+      );
+      expect(MergedSet(docTypes: docTypes).recordDocType?.id, 'runbook');
+      expect(MergedSet(docTypes: [builtIn('feature')]).recordDocType, isNull);
+    });
+  });
+
+  group('checkMergedSet targets', () {
+    test('template_packs/pin_pack_versions/read_project_config E30, '
+        'INV-29: a targets config in a merged set with no record doc type is '
+        'unknown_value', () {
+      expect(
+        () => checkMergedSet(
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+          loadIndex: const {},
+          targetNames: const ['flutter', 'jaspr'],
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'targets')
+              .having((f) => f.file, 'file', '.specstone/config.yaml'),
+        ),
+      );
+    });
+
+    test('template_packs/pin_pack_versions/read_project_config E30: one '
+        'target and no targets both need a record doc type; one unnamed '
+        'target does not', () {
+      const recordLayer =
+          'fields:\n'
+          '  - id: entries\n'
+          '    type: record_status\n'
+          'per_target: true\n';
+      final withRecord = [
+        builtIn('implementation').copyWith(
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+        ),
+      ];
+
+      // A `targets:` config with one name still needs the record doc type.
+      expect(
+        () => checkMergedSet(
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+          loadIndex: const {},
+          targetNames: const ['only'],
+        ),
+        throwsA(isA<TemplateFault>()),
+      );
+
+      // With the record doc type the same configs pass.
+      expect(
+        () => checkMergedSet(
+          [...withRecord, builtIn('feature').copyWith(path: 'f.md')],
+          {
+            'implementation': [
+              layerOf('implementation', recordLayer, file: _runbookFile),
+            ],
+            'feature': [layerOf('feature', 'path: f.md\n')],
+          },
+          loadIndex: const {},
+          targetNames: const ['flutter', 'jaspr'],
+        ),
+        returnsNormally,
+      );
+
+      // A config with no `targets:` key needs no record doc type.
+      expect(
+        () => checkMergedSet(
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+          loadIndex: const {},
+          targetNames: const [],
+        ),
+        returnsNormally,
       );
     });
   });

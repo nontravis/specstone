@@ -1,0 +1,42 @@
+id: implementation
+description: |-
+  The record of one feature in one code target: the status and the code paths of each story and FR of the feature.
+  Title it `# <Feature name> implementation`, such as `# Rendering implementation`, with no number.
+  Aim for one line per entry in `statuses` and one per code path in `implements`, under the 400-line cap.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
+  The record is the one home of each story's and FR's status and code paths in its target; an item with no `statuses` line, outside every skip, is `planned`, code paths or not.
+  A `skipped` entry carries a one-line reason and no code path; a skip on the feature or on a story covers everything below it.
+  Write one rule per ID: one entry per story and FR, each rule one sentence.
+path: specs/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
+    description: |-
+      Lists one line per entry: `<item>:<status>`, or `<item>:skipped:<reason>`; the item is a story or an FR named relative to the feature, such as `email_login` or `email_login/validate_credentials`.
+      The status is `planned`, `implemented`, `deprecated`, or `skipped`; write a leading `:` for the feature itself, and only to skip it.
+      An item with no line takes the status `planned`.
+  - id: implements
+    type: output_ref
+    list: true
+    pointer: item_exact
+    description: |-
+      Lists one line per code path: `<item>:path[:Symbol]`, the item named as in `statuses`, such as `show_toast:lib/toast.dart:showToast`.
+      Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
+lint:
+  max_lines: 400
+reference:
+  - title: OpenFastTrace, Terminology
+    url: https://github.com/itsallcode/openfasttrace/blob/main/doc/terminology.md
+    locator: Specification Item
+  - title: Sphinx-CodeLinks, Source tracing directive
+    url: https://codelinks.useblocks.com/en/stable/components/directive.html
+    locator: Directive
+  - title: Doorstop, Item reference
+    url: https://doorstop.readthedocs.io/en/latest/reference/item.html
+    locator: references (new array behavior)
+  - title: MDN browser-compat-data, Compat data schema
+    url: https://github.com/mdn/browser-compat-data/blob/main/schemas/compat-data-schema.md
+    locator: Status information

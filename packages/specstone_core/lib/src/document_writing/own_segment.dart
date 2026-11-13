@@ -97,27 +97,33 @@ List<SiblingEntry> siblingsOnDisk(
 /// [oldValues] to [newValues], each folder paired with the one the same child
 /// doc type holds after the move, sorted by old folder; a folder that does
 /// not change is left out. [depth] is the nesting depth of the doc.
+///
+/// A per-target child's folder moves once per name of [targetNames], as
+/// [specFoldersOf] reads it.
 List<PathMove> specFolderMovesOf(
   MergedSet set,
   MergedDocType docType,
   List<String> oldValues,
   List<String> newValues, {
   int depth = 0,
+  List<String> targetNames = const [],
 }) {
   final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
-  final newFolders = {
-    for (final (child, folder) in specChildrenOf(
+  Map<(String, String?), String> foldersAt(List<String> values) => {
+    for (final (child, folder, target) in specChildrenOf(
       set,
       docType,
       shape,
-      newValues,
+      values,
+      targetNames: targetNames,
     ))
-      child.id: folder,
+      (child.id, target): folder,
   };
+  final newFolders = foldersAt(newValues);
   final moves = <String, PathMove>{};
-  for (final (child, from) in specChildrenOf(set, docType, shape, oldValues)) {
-    final to = newFolders[child.id];
+  for (final MapEntry(:key, value: from) in foldersAt(oldValues).entries) {
+    final to = newFolders[key];
     if (to == null || to == from) continue;
     moves[from] = (from: from, to: to);
   }

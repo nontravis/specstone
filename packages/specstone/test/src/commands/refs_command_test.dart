@@ -1,9 +1,11 @@
 // The test titles and literals are plan values kept as written.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -105,6 +107,78 @@ void main() {
       {'path': 'prds/d01_notes.md', 'line': 3},
     ]);
   });
+  group('two targets', () {
+    Future<Directory> twoTargets() => writeReadProject(
+      extra: {
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n'
+            '  - id: implements\n'
+            '    type: output_ref\n'
+            '    list: true\n'
+            '    pointer: item_exact\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+            '---\nimplements:\n  - email_login:lib/sign_in_page.dart\n---\n\n'
+            '# Record\n',
+        'docs/specs/jaspr/f01_login/IMPLEMENTATION.md':
+            '---\nimplements:\n  - email_login:lib/web_page.dart\n---\n\n'
+            '# Record\n',
+      },
+    );
+
+    test('f01/us07/s2, f01/us07/fr01/e03: refs on a record prints its code paths outbound', () async {
+      final (:runner, :out, :err) = readRunner(await twoTargets());
+
+      expect(
+        await runner.run(['refs', 'specs/flutter/f01_login/IMPLEMENTATION.md']),
+        0,
+      );
+
+      expect(
+        out.toString(),
+        contains('Outbound\n- implements: lib/sign_in_page.dart\nInbound\n'),
+      );
+    });
+
+    test('f01/us07/fr01: refs --target jaspr keeps the jaspr record of a shared name', () async {
+      final (:runner, :out, :err) = readRunner(await twoTargets());
+
+      expect(
+        await runner.run(['refs', 'implementation:login', '--target', 'jaspr']),
+        0,
+      );
+
+      expect(out.toString(), contains('- implements: lib/web_page.dart\n'));
+      expect(out.toString(), isNot(contains('sign_in_page')));
+    });
+
+    test('index_query/read_doc_section/resolve_doc_name E22: refs --target web is argument_invalid, exit 64', () async {
+      final (:runner, :out, :err) = readRunner(await twoTargets());
+
+      expect(
+        await runner.run(['refs', 'implementation:login', '--target', 'web']),
+        64,
+      );
+
+      expect(
+        err.toString(),
+        '--target web: the code targets are flutter, jaspr\n',
+      );
+    });
+  });
   test('f01/us04/fr01/e09: two names are a usage error whose usage line takes a name or a path, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['refs', 'a', 'b']), 64);
@@ -113,7 +187,7 @@ void main() {
       err.toString(),
       contains(
         'Expected one name, got 2.\n\n'
-        'Usage: specstone refs <name | path> [--json]\n',
+        'Usage: specstone refs <name | path> [--target <name>] [--json]\n',
       ),
     );
   });

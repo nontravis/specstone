@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -16,10 +18,14 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check show checkOf, loginApi;
 import '../../helpers/failing_rename.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -42,6 +48,36 @@ const Map<String, String> approvedSignOut = {
       '---\napproved: true\n---\n\n# End session\n',
   'docs/$_signOut/fr02_clear_cookies.md':
       '---\napproved: true\n---\n\n# Clear cookies\n',
+};
+
+const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
+const _signupRecord = 'specs/f02_signup/IMPLEMENTATION.md';
+const _cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
+
+/// The `login` record of the write project: the statuses and code paths of
+/// [story1] and of [story3] with its two FRs.
+final String _loginRecordText = recordText(
+  front: 'approved: true\n',
+  statuses: [
+    'email_login:implemented',
+    'reset_password:implemented',
+    'reset_password/send_reset_link:planned',
+    'reset_password/expire_reset_link:planned',
+  ],
+  code: [
+    'email_login:app/lib/login.dart:SignIn',
+    'reset_password:app/lib/reset.dart:ResetPage',
+  ],
+);
+
+/// A record layer, one code root, and a record for `login` and for `signup`,
+/// on top of [freeStory3].
+Map<String, String> _withRecords({String? login}) => {
+  ...withoutLink,
+  '.specstone/templates/implementation.yaml': recordLayer,
+  '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
+  'docs/$_loginRecord': login ?? _loginRecordText,
+  'docs/$_signupRecord': recordText(statuses: ['ghost:planned']),
 };
 
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -73,6 +109,7 @@ void main() {
     List<String?> answers = const [],
     StringBuffer? prompts,
     String? planHash,
+    String? codeTarget,
   }) {
     final queue = [...answers];
     return writeIn(
@@ -82,6 +119,7 @@ void main() {
         targets,
         confirmation: confirmation,
         planHash: planHash,
+        codeTarget: codeTarget,
         readLine: () => queue.isEmpty ? null : queue.removeAt(0),
         prompts: prompts ?? StringBuffer(),
       ),
@@ -221,7 +259,11 @@ void main() {
         .join();
     final hash = baseHashOf(hashed);
     expect(answer.text, '${list}plan $hash\ndry run: nothing removed\n');
-    expect(answer.json, {'files': signOutUnit, 'plan': hash});
+    expect(answer.json, {
+      'files': signOutUnit,
+      'records': isEmpty,
+      'plan': hash,
+    });
     expect(hasDoc(root, story2), isTrue);
   });
 
@@ -1594,5 +1636,470 @@ void main() {
       isTrue,
     );
     expect(hasDoc(root, cartDomain), isTrue);
+  });
+
+  group('record entries', () {
+    final removedStory3 = [story3, fr31, fr32];
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16, E17: a story delete drops the entries of the story and of its FRs from the record, marks it draft, and lists only the removed files', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      final signupBefore = readDoc(root, _signupRecord);
+      final answer = del(root, ['user_story:login/reset_password']);
+      expect(answer.json, {'removed': removedStory3});
+      expect(answer.text, '${removedStory3.join('\n')}\n');
+      expect(
+        readDoc(root, _loginRecord),
+        '---\n'
+        'draft: true\n'
+        'approved: true\n'
+        'statuses:\n'
+        "  - 'email_login:implemented'\n"
+        'implements:\n'
+        "  - 'email_login:app/lib/login.dart:SignIn'\n"
+        '---\n\n# Record\n',
+      );
+      expect(readDoc(root, _signupRecord), signupBefore);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: an FR delete drops the entry of that FR alone', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      del(root, ['fr:login/reset_password/expire_reset_link']);
+      final record = readDoc(root, _loginRecord);
+      expect(record, isNot(contains('expire_reset_link')));
+      for (final kept in [
+        'email_login:implemented',
+        'reset_password:implemented',
+        'reset_password/send_reset_link:planned',
+        'reset_password:app/lib/reset.dart:ResetPage',
+      ]) {
+        expect(record, contains("'$kept'"));
+      }
+      expect(record, contains('draft: true'));
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record left with no entry stays', () async {
+      final root = await writeWriteProject(
+        extra: _withRecords(
+          login: recordText(
+            statuses: ['reset_password:implemented'],
+            code: ['reset_password:app/lib/reset.dart:ResetPage'],
+          ),
+        ),
+      );
+      del(root, ['user_story:login/reset_password']);
+      expect(
+        readDoc(root, _loginRecord),
+        '---\ndraft: true\n---\n\n# Record\n',
+      );
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record that holds no entry of the unit is not written', () async {
+      final root = await writeWriteProject(
+        extra: _withRecords(
+          login: recordText(statuses: ['email_login:planned']),
+        ),
+      );
+      final before = readDoc(root, _loginRecord);
+      del(root, ['user_story:login/reset_password']);
+      expect(readDoc(root, _loginRecord), before);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a nested feature record names its items relative to it, and a record of another feature is left', () async {
+      final root = await writeNestedProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$_cartRecord': recordText(
+            statuses: [
+              'add_item:implemented',
+              'add_item/check_stock:implemented',
+              'drop_item:planned',
+            ],
+          ),
+          'docs/specs/f02_shop/IMPLEMENTATION.md': recordText(
+            statuses: ['drop_item:planned'],
+          ),
+        },
+      );
+      del(
+        root,
+        ['user_story:shop/cart/drop_item'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      expect(
+        readDoc(root, _cartRecord),
+        contains("'add_item/check_stock:implemented'"),
+      );
+      expect(readDoc(root, _cartRecord), isNot(contains('drop_item')));
+      expect(
+        readDoc(root, 'specs/f02_shop/IMPLEMENTATION.md'),
+        contains("'drop_item:planned'"),
+      );
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a read-only record refuses output_not_writable in the dry run as in the run, and nothing is removed', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      final record = docFile(root, _loginRecord);
+      expect(Process.runSync('chmod', ['444', record.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', record.path]));
+      Matcher refusesRecord() => throwsA(
+        isA<RenderFault>().having(
+          (f) => f.message,
+          'message',
+          contains(_loginRecord),
+        ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        ),
+        refusesRecord(),
+      );
+      expect(
+        () => del(root, ['user_story:login/reset_password']),
+        refusesRecord(),
+      );
+      expect(hasDoc(root, story3), isTrue);
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record whose implements block is not valid YAML refuses in the dry run as in the run, and nothing is removed', () async {
+      const broken =
+          "---\nstatuses:\n  - 'reset_password:implemented'\n"
+          "implements:\n  - 'reset_password:app/lib/reset.dart\n"
+          '---\n\n# Record\n';
+      final root = await writeWriteProject(extra: _withRecords(login: broken));
+      final refusesRecord = throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $_loginRecord: its implements block is not valid '
+                  'YAML',
+            ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        ),
+        refusesRecord,
+      );
+      expect(
+        () => del(root, ['user_story:login/reset_password']),
+        refusesRecord,
+      );
+      expect(hasDoc(root, story3), isTrue);
+      expect(readDoc(root, _loginRecord), broken);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record with CRLF line ends and a byte-order mark keeps both', () async {
+      final record = recordText(
+        statuses: ['email_login:implemented', 'reset_password:implemented'],
+      ).replaceAll('\n', '\r\n');
+      final root = await writeWriteProject(
+        extra: _withRecords(login: '\uFEFF$record'),
+      );
+      del(root, ['user_story:login/reset_password']);
+      final bytes = docFile(root, _loginRecord).readAsBytesSync();
+      expect(bytes.take(3), [0xEF, 0xBB, 0xBF]);
+      final text = utf8.decode(bytes);
+      expect(text, isNot(contains('reset_password')));
+      expect(text, contains('draft: true'));
+      expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E17: a feature delete removes no entry, its record leaving with the spec folder', () async {
+      final root = await writeNestedProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$_cartRecord': recordText(statuses: ['add_item:implemented']),
+          // no doc links into the sub-feature once the API doc is freed
+          'docs/$shopApi': '# Shop API\n',
+          'docs/$cartDomain': recordText(),
+        },
+      );
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['feature:shop/cart']),
+      );
+      expect(answer.json['records'], isEmpty);
+      expect(answer.json['files'], contains(_cartRecord));
+      expect(answer.text, isNot(contains('rewrites')));
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E17: an interrupted delete finishes the record rewrite with its file moves', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      final before = readDoc(root, _loginRecord);
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => del(root, ['user_story:login/reset_password']),
+          FailingRenameHook('docs/$fr31'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+      expect(readDoc(root, _loginRecord), before);
+      writeIn(root, (s) => s.index.docs.length);
+      expect(readDoc(root, _loginRecord), isNot(contains('reset_password')));
+      expect(readDoc(root, _loginRecord), contains('draft: true'));
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    const recordEntries =
+        'rewrites $_loginRecord: reset_password, '
+        'reset_password/send_reset_link, reset_password/expire_reset_link';
+
+    test('document_writing/delete_doc_subtree/delete_after_the_owners_ok_in_the_chat E11: a dry run lists each record it rewrites after the files, and its plan hash covers the text of the record', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+      );
+      final hashed = [
+        for (final path in removedStory3)
+          '$path ${baseHashOf(toLf(readDoc(root, path)))}\n',
+        '$_loginRecord ${baseHashOf(toLf(readDoc(root, _loginRecord)))}\n',
+      ].join();
+      final hash = baseHashOf(hashed);
+      expect(
+        answer.text,
+        '${removedStory3.join('\n')}\n$recordEntries\n'
+        'plan $hash\ndry run: nothing removed\n',
+      );
+      expect(answer.json, {
+        'files': removedStory3,
+        'records': [
+          {
+            'path': _loginRecord,
+            'entries': [
+              'reset_password',
+              'reset_password/send_reset_link',
+              'reset_password/expire_reset_link',
+            ],
+          },
+        ],
+        'plan': hash,
+      });
+      expect(readDoc(root, _loginRecord), _loginRecordText);
+      expect(hasDoc(root, story3), isTrue);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_after_the_owners_ok_in_the_chat E11: --yes --plan deletes and rewrites the record while it is as the dry run saw it, and refuses plan_mismatch once it is edited', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      String planOf() =>
+          writeIn(
+                root,
+                (s) =>
+                    answerDeleteDryRun(s, ['user_story:login/reset_password']),
+              ).json['plan']!
+              as String;
+      final hash = planOf();
+      final record = docFile(root, _loginRecord)
+        ..writeAsStringSync(
+          _loginRecordText.replaceFirst('# Record', '# Record\n\nEdited.'),
+        );
+      final edited = readDoc(root, _loginRecord);
+      expect(
+        () => del(
+          root,
+          ['user_story:login/reset_password'],
+          confirmation: OwnerConfirmation.given,
+          planHash: hash,
+        ),
+        refusesWith(WriteFaultCode.planMismatch),
+      );
+      expect(hasDoc(root, story3), isTrue);
+      expect(readDoc(root, _loginRecord), edited);
+
+      record.writeAsStringSync(_loginRecordText);
+      final answer = del(
+        root,
+        ['user_story:login/reset_password'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      );
+      expect(answer.json, {'removed': removedStory3});
+      expect(hasDoc(root, story3), isFalse);
+      expect(readDoc(root, _loginRecord), isNot(contains('reset_password')));
+    });
+
+    test('document_writing/delete_doc_subtree/gate_approved_delete E10: the Owner prompt lists each record with its entries and counts the files of the unit alone; a record edited while it waits shows the list again, and nothing is written', () async {
+      final root = await writeWriteProject(
+        extra: {
+          ...approvedSignOut,
+          ..._withRecords(
+            login: recordText(statuses: ['sign_out:implemented']),
+          ),
+        },
+      );
+      final prompts = StringBuffer();
+      var asked = 0;
+      final unchanged = readDoc(root, _loginRecord);
+      final answer = writeIn(
+        root,
+        (s) => answerDelete(
+          s,
+          ['user_story:login/sign_out'],
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () {
+            asked++;
+            if (asked == 1) {
+              docFile(
+                root,
+                _loginRecord,
+              ).writeAsStringSync('$unchanged\nMore.\n');
+              return 'y';
+            }
+            return 'n';
+          },
+          prompts: prompts,
+        ),
+      );
+      const list =
+          '$story2\nprds/features/f01_login/us02_sign_out/fr01_end_session.md\n'
+          'prds/features/f01_login/us02_sign_out/fr02_clear_cookies.md\n'
+          'rewrites $_loginRecord: sign_out\ndelete 3 files? [y/N] ';
+      expect(prompts.toString(), '$list$list');
+      expect(answer.json['removed'], isEmpty);
+      expect(hasDoc(root, story2), isTrue);
+      expect(readDoc(root, _loginRecord), '$unchanged\nMore.\n');
+    });
+  });
+
+  group('with two code targets', () {
+    final twinStatuses = [
+      'email_login:implemented',
+      'email_login/check_password:implemented',
+    ];
+    const twinItems = ['email_login', 'email_login/check_password'];
+    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+
+    Future<Directory> twins() => writeTwinProject(
+      extra: {
+        'docs/$flutterRecord': recordText(statuses: twinStatuses),
+        'docs/$jasprRecord': recordText(statuses: twinStatuses),
+        // the API doc names the story's FR in its trace; free it of the link
+        'docs/${check.loginApi}': '# Login API\n',
+      },
+    );
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E15: a feature delete removes its folder and the spec folder of each target, each record among them', () async {
+      final root = await twins();
+      final answer = del(
+        root,
+        ['feature:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      final removed = (answer.json['removed']! as List).cast<String>();
+      expect(
+        removed,
+        containsAll([
+          flutterArchitecture,
+          jasprArchitecture,
+          flutterRecord,
+          jasprRecord,
+        ]),
+      );
+      for (final folder in [
+        'prds/features/f01_login',
+        'specs/flutter/f01_login',
+        'specs/jaspr/f01_login',
+      ]) {
+        expect(Directory('${root.path}/docs/$folder').existsSync(), isFalse);
+      }
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a story delete drops its entries from the record of every target, and check reports no unresolved entry it made', () async {
+      final root = await twins();
+      del(
+        root,
+        ['user_story:login/email_login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      for (final path in [flutterRecord, jasprRecord]) {
+        expect(
+          readDoc(root, path),
+          '---\ndraft: true\n---\n\n# Record\n',
+          reason: path,
+        );
+      }
+      final report = check.checkOf(root);
+      expect([
+        for (final f in report.findings)
+          if (f.kind == FindingKind.recordEntryUnresolved) f.path,
+      ], isEmpty);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree: --target names one twin of a per-target doc, and the delete takes that file alone', () async {
+      final root = await twins();
+      expect(
+        () =>
+            writeIn(root, (s) => answerDeleteDryRun(s, ['architecture:login'])),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+      final dry = writeIn(
+        root,
+        (s) =>
+            answerDeleteDryRun(s, ['architecture:login'], codeTarget: 'jaspr'),
+      );
+      expect(dry.json['files'], [jasprArchitecture]);
+      final answer = del(
+        root,
+        ['architecture:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        codeTarget: 'jaspr',
+      );
+      expect(answer.json['removed'], [jasprArchitecture]);
+      expect(hasDoc(root, flutterArchitecture), isTrue);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree: a code target keeps the names of one target, and a target the project lacks is argument_invalid', () async {
+      final root = await twins();
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, [
+          'user_story:login/email_login',
+        ], codeTarget: 'jaspr'),
+      );
+      expect(answer.json['files'], hasLength(3));
+      expect(answer.json['records'], [
+        {'path': flutterRecord, 'entries': twinItems},
+        {'path': jasprRecord, 'entries': twinItems},
+      ]);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, [
+            'user_story:login/email_login',
+          ], codeTarget: 'dart'),
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+    });
   });
 }

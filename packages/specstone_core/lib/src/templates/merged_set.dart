@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 
@@ -14,6 +15,17 @@ final class MergedSet {
 
   /// The doc type that writes `max_depth`, 0 included; null when none does.
   MergedDocType? get nestingType => nestingTypeOf(docTypes);
+
+  /// The doc type holding a `record_status` field, found by that field alone
+  /// (INV-31); null when none does.
+  MergedDocType? get recordDocType {
+    for (final docType in docTypes) {
+      if (docType.fields.any((f) => f.type == FieldType.recordStatus)) {
+        return docType;
+      }
+    }
+    return null;
+  }
 
   /// Returns the doc type [id], or null when the set holds none.
   MergedDocType? lookup(String id) {

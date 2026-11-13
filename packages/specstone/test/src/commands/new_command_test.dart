@@ -9,6 +9,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -258,7 +259,7 @@ void main() {
       contains(
         'Expected one doc type, got 2.\n\n'
         'Usage: specstone new <doc type> [--parent <doc address>] '
-        '[--slug <slug>] [--json]\n',
+        '[--slug <slug>] [--target <name>] [--json]\n',
       ),
     );
     expect(
@@ -400,6 +401,79 @@ void main() {
       final answer = jsonDecode(out.toString()) as Map<String, Object?>;
       final bases = answer['bases']! as Map<String, Object?>;
       expect((bases['sections']! as Map)['flow'], baseHashOf(flow));
+    });
+  });
+
+  group('with two code targets', () {
+    Future<Directory> twinWithoutDocs() => writeTwinProject(
+      without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
+    );
+
+    test('document_writing/create_doc_from_template/place_new_doc E24: new architecture --target jaspr prints the naming line of the jaspr doc, exit 0', () async {
+      final root = await twinWithoutDocs();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(
+        await runner.run([
+          'new',
+          'architecture',
+          '--parent',
+          'login',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        out.toString(),
+        '==> login (architecture) · $jasprArchitecture <==\n',
+      );
+      expect(hasDoc(root, jasprArchitecture), isTrue);
+      expect(hasDoc(root, flutterArchitecture), isFalse);
+    });
+
+    test('document_writing/create_doc_from_template/place_new_doc E25: no --target exits 64 naming the flag and both targets, and creates no file', () async {
+      final root = await twinWithoutDocs();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(
+        await runner.run(['new', 'architecture', '--parent', 'login']),
+        64,
+      );
+      expect(
+        err.toString(),
+        'architecture needs --target: the code targets are flutter, jaspr\n',
+      );
+      expect(hasDoc(root, jasprArchitecture), isFalse);
+      expect(hasDoc(root, flutterArchitecture), isFalse);
+    });
+
+    test('document_writing/create_doc_from_template/place_new_doc E25: a --target the project lacks exits 64', () async {
+      final root = await twinWithoutDocs();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(
+        await runner.run([
+          'new',
+          'architecture',
+          '--parent',
+          'login',
+          '--target',
+          'dart',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--target dart: the code targets are flutter, jaspr\n',
+      );
     });
   });
 }

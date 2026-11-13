@@ -17,8 +17,6 @@ import 'package:specstone_core/src/index_query/get_docs.dart'
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
-import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
@@ -30,9 +28,6 @@ const _wholeDocKey = 'doc';
 
 /// The `key` of a refused title block.
 const _titleKey = 'title';
-
-/// A byte-order mark as the one character a step's text may begin with.
-const _byteOrderMark = '\uFEFF';
 
 // MARK: - Public
 
@@ -624,14 +619,8 @@ _Write _writeOf(WriteSession session, _DocCheck check) {
     marksDraft ? markDraft(lfText, check.docType) : lfText,
     session.docTypeAt(docPath),
   );
-  final raw = check.disk.parsed.content.text;
-  final bom = startsWithUtf8Bom(check.disk.bytes) ? _byteOrderMark : '';
   return (
-    step: WriteStep(
-      session.projectPathOf(docPath),
-      '$bom${LineEnding.of(raw).apply(laidOut)}',
-      before: textHashOf(raw),
-    ),
+    step: session.docWriteStep(docPath, laidOut, check.disk.bytes),
     lfText: laidOut,
   );
 }

@@ -90,7 +90,7 @@ void main() {
     );
     expect(
       a.text,
-      isNot(contains('status: planned\n---\n\n# Agent resets a password')),
+      isNot(contains('slug:\n  - reset\n---\n\n# Agent resets a password')),
     );
     expect(
       a.text,
@@ -218,7 +218,7 @@ void main() {
     expect(text, isNot(contains('## Rationale')));
     expect(text, isNot(contains('## Performance')));
     expect(text, contains('## Security\n- Store no password in plain text.'));
-    expect(text, contains('---\nstatus: planned\ndraft: true\n'));
+    expect(text, contains('---\ndraft: true\ngoals:\n'));
   });
   group(
     'index_query/get_task_bundle/trim_and_order_bundle comments in code',

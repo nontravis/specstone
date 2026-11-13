@@ -21,7 +21,12 @@ work from text a plan or brief quotes.
   the next call only while the calls so far, plus that call and its possible `Read`, stay within three. With the
   `Agent` tool, when the task cites more than three stories, NFRs, and spec docs in all, the next call would pass
   three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites, `--summary` beside each ID whose
-  call used it, and no doc text.
+  call used it, the call's `--target`, and no doc text.
+- **Code target:** the `--target` `domain:agent_plugin` INV-25 gives: a plan task's read line's, as written
+  (`specstone context <story> --for implement --target <name>`); none in `query` or `design`. In `implement` with no
+  plan target and no `--code` path, an `argument_missing` refusal names the targets: a main session asks the Owner and
+  reruns with `--target <name>`; a Subagent runs no further call and reports the missing target, naming them, to its
+  dispatcher.
 - **Budget:** pass `--budget 20000` only when you have the `Agent` tool. Without it, as in an implementer Subagent,
   make the same calls, the first included, with no `--budget`, and `Read` each saved output once. The CLI then prints
   each whole bundle and exits 0, so nothing goes to `specstone:sdd-reader`, and these calls may pass three. All of
@@ -52,23 +57,20 @@ doc list.
    or other command on it. When a plan words a requirement differently, the bundle wins: someone may have edited the
    doc since the plan was made.
 2. **1:** only a call with `--budget` gets it, so you have the `Agent` tool. The bundle is over 20,000 est. tokens,
-   so the CLI printed only its size and doc list. Dispatch `specstone:sdd-reader` with the same target IDs, the mode,
-   and the task in a sentence or two. Put no doc text in that prompt, and not the printed doc list either. The whole
-   sections it returns, each cited by doc and section, are the task's docs.
+   so the CLI printed only its size and doc list. Dispatch `specstone:sdd-reader` with the same target IDs, the call's
+   `--target`, the mode, and the task in a sentence or two. Put no doc text in that prompt, and not the printed doc
+   list either. The whole sections it returns, each cited by doc and section, are the task's docs.
 3. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
    is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
    second command, and neither read nor write a doc.
 4. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
-That call is also the project gate. Never look for `.specstone/` first with `ls`, a file read, or any other step. The
-CLI searches each folder upward, so a run from a subfolder of a project goes on as normal; a look at the working
-directory alone would stop there by mistake and cost a tool call.
+That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward, so a run
+from a subfolder goes on as normal.
 
-With the `Agent` tool, the bundle is in hand within three tool calls of the first CLI call.
-
-With or without the tool, one target takes two calls at most: its call, at or under the budget or with no `--budget`,
-plus one `Read` when the host saved its output to a file. When a saved output is too long for one `Read`, read it in
-parts; those part reads are the only calls past the two.
+With or without the tool, one target takes two calls at most, three after an `argument_missing` refusal: its call, at
+or under the budget or with no `--budget`, plus one `Read` when the host saved its output to a file. When a saved
+output is too long for one `Read`, read it in parts; those part reads are the only calls past that bound.
 
 ## Red flags
 
@@ -79,4 +81,3 @@ parts; those part reads are the only calls past the two.
 | "Over budget: rerun with a bigger or no budget."   | With `Agent`: keep `--budget 20000`, dispatch the reader. |
 | "Paste the doc list so the reader saves a call."   | Hand over target IDs only.                                |
 | "Open the doc files to be sure."                   | The bundle is the docs, as printed.                       |
-| "Tail the saved output for the exit status."       | Take the host's status; `Read` the file once.             |

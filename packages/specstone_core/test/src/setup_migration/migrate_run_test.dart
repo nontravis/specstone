@@ -2452,6 +2452,55 @@ sections:
       }
     });
   });
+
+  group('R-FW-1: a planned create onto a path that holds an entry', () {
+    final skipGit = hasGit ? null : 'git is not available';
+    Matcher refusedAt(String path) => throwsA(
+      isA<MigrateFault>()
+          .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
+          .having((f) => f.file, 'file', path),
+    );
+
+    test('write_project_files E03: a legacy tree that holds the override file '
+        'the run creates refuses in the dry run, nothing written', () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        '.specstone/templates/gnfr.yaml': 'id: gnfr\n',
+      });
+      final before = _bytesUnder(root);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        refusedAt('.specstone/templates/gnfr.yaml'),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(_bytesUnder(root), before);
+    }, skip: skipGit);
+
+    test('write_project_files E09: a draft path the volume reads as the name '
+        'of a file there refuses in the dry run, nothing written', () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        'docs/specs/tech_stack.md': '# Stack\n',
+      });
+      if (!File('${root.path}/docs/specs/TECH_STACK.md').existsSync()) {
+        markTestSkipped('the volume tells names apart by case');
+        return;
+      }
+      final before = _bytesUnder(root);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        refusedAt('docs/specs/TECH_STACK.md'),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(_bytesUnder(root), before);
+    }, skip: skipGit);
+  });
 }
 
 /// Writes a pending F-02 journal, one write step and no commit, at [root].

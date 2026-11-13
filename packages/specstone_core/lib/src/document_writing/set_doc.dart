@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart'
+    show fieldTakesItem, recordStatusLineShape;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -54,14 +56,20 @@ final class TitleTarget extends SetTarget {
 
 /// The checked arguments of one `set` call.
 final class SetRequest {
-  const new({required this.address, required this.target, required this.base});
+  const new({
+    required this.address,
+    required this.target,
+    required this.base,
+    this.codeTarget,
+  });
 
   /// Reads the arguments of `set`.
   ///
   /// [target] is `<type>:<name>[#<key>]`; [field] and [title] are the other
   /// two targets, and exactly one of the three must be given.
   /// With an [index], a [target] that names a doc as a path has no section
-  /// key, even when it holds `#`.
+  /// key, even when it holds `#`. [codeTarget] keeps the doc's name to that
+  /// code target's docs and the shared docs.
   /// Throws [IndexFault] `argument_missing` for a missing target, section
   /// key, or [base], and `argument_conflict` for two targets at once.
   static SetRequest parse(
@@ -70,6 +78,7 @@ final class SetRequest {
     bool title = false,
     String? base,
     DocIndex? index,
+    String? codeTarget,
   }) {
     final (target: written, base: checkedBase) = requireShape(target, base);
     final (:docPart, sectionKey: key) = index == null
@@ -99,7 +108,12 @@ final class SetRequest {
         _targetExample,
       );
     }
-    return SetRequest(address: docPart, target: chosen, base: checkedBase);
+    return SetRequest(
+      address: docPart,
+      target: chosen,
+      base: checkedBase,
+      codeTarget: codeTarget,
+    );
   }
 
   /// Returns [target] and [base] when both are given; throws [IndexFault]
@@ -130,6 +144,9 @@ final class SetRequest {
 
   /// The base hash of [target] the caller last read.
   final String base;
+
+  /// The code target [address] is kept to; null keeps every target.
+  final String? codeTarget;
 }
 
 /// Returns [lfText] as a draft: unchanged when it is one, else with
@@ -161,7 +178,7 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
 /// `required_target`, or a refused field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
-  final doc = session.target(request.address);
+  final doc = session.target(request.address, codeTarget: request.codeTarget);
   final docType =
       session.index.typeOf(doc) ??
       (throw StateError('${doc.docPath} is typed but its type is gone'));
@@ -440,17 +457,18 @@ void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
   if (field.list) {
     if (value is! YamlList) throw takes('a YAML list, one `- item` line each');
     for (final item in value) {
-      if (!_itemIs(item, field)) throw takes(_typeOf(field));
+      if (!fieldTakesItem(field, item)) throw takes(_typeOf(field));
     }
     return;
   }
   if (value is YamlList) throw takes('one YAML value, not a list');
-  if (!_itemIs(value, field)) throw takes(_typeOf(field));
+  if (!fieldTakesItem(field, value)) throw takes(_typeOf(field));
 }
 
 /// Returns the `<what>` the field's type and `enum` name in a fault.
 String _typeOf(MergedField field) => switch (field.type) {
   FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+  FieldType.recordStatus => recordStatusLineShape,
   FieldType.integer => 'a whole number',
   FieldType.boolean => 'true or false',
   FieldType.date => 'a date as YYYY-MM-DD',
@@ -458,21 +476,6 @@ String _typeOf(MergedField field) => switch (field.type) {
     field.enumValues == null
         ? 'a string'
         : 'one of ${field.enumValues!.join(', ')}',
-};
-
-/// Whether [value] is one item the field's type accepts.
-bool _itemIs(Object? value, MergedField field) => switch (field.type) {
-  FieldType.string ||
-  FieldType.docRef ||
-  FieldType.outputRef => value is String,
-  FieldType.integer => value is int,
-  FieldType.boolean => value is bool,
-  FieldType.date =>
-    value is String &&
-        RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value) &&
-        DateTime.tryParse(value) != null,
-  FieldType.enumType =>
-    value is String && (field.enumValues?.contains(value) ?? false),
 };
 
 /// Returns [stdin] as the key block text of [fieldId], per PD6.

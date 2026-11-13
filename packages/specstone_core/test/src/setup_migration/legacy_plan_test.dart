@@ -5,12 +5,15 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/rewrite_records.dart'
+    show newRecordOf;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -18,6 +21,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 /// The `specstone migrate --dry-run` example of `api:setup_migration`, up to
@@ -61,13 +66,15 @@ PlannedRewrite _rewrite(RunPlan plan, String docPath) =>
 
 Iterable<String> _createdPaths(RunPlan plan) => plan.creates.map((c) => c.path);
 
+MergedSet _carriedSet() => TemplateResolver().resolveCarried(
+  packNames: carriedPacks,
+  homeDirectory: null,
+);
+
 /// The merged type of the doc at [docPath] in the carried packs, or null.
 MergedDocType? _typeOf(String docPath) {
-  final set = TemplateResolver().resolveCarried(
-    packNames: carriedPacks,
-    homeDirectory: null,
-  );
-  final match = DocTypeMatcher(set).match(docPath);
+  final set = _carriedSet();
+  final match = DocTypeMatcher(set, targetNames: const []).match(docPath);
   return match is MatchedDocType ? match.docType : null;
 }
 
@@ -92,6 +99,8 @@ The story is F-01 US-01 and the feature F-01.
 };
 
 const _legacySpec = 'docs/specs/shared/s01_architecture.md';
+
+const _storyKeys = 'status: implemented\nimplements:\n  - lib/a.dart:A\n';
 
 /// Plans [linkedAcme] of [files] from link folder `ws/code`.
 Future<RunPlan> _linkedPlan(Map<String, String> files) async =>
@@ -972,6 +981,26 @@ name: NFR
       );
     });
 
+    test('setup_migration/set_up_new_project/write_agent_files E35: a kept '
+        'targets: config takes the files at each target repository top, and '
+        'lists both', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\ntargets:\n  flutter:\n'
+            '    code_root: flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n',
+        'flutter_ws/.git/HEAD': 'ref: refs/heads/main\n',
+        'jaspr_ws/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final agents = plan.agentFiles!;
+      expect(agents.topWrites.map((w) => w.path), [
+        'flutter_ws/AGENTS.md',
+        'jaspr_ws/AGENTS.md',
+      ]);
+      expect(agents.agentFileRoots, ['flutter_ws', 'jaspr_ws']);
+    });
+
     test('an existing config keeps its keys and lists the new top', () async {
       final plan = await _linkedPlan({
         '.specstone/config.yaml':
@@ -1079,7 +1108,7 @@ name: NFR
 
     test('skips implements items that are not strings', () async {
       final plan = await _linkedPlan({
-        legacyFrPath: implementingDoc('Validate credentials', [
+        _legacySpec: implementingDoc('Shared architecture', [
           '42',
           '{a: b}',
           'lib/a.dart',
@@ -1541,5 +1570,269 @@ name: Login API
         );
       },
     );
+  });
+  group('setup_migration/migrate_legacy_docs/write_project_files E14, E15', () {
+    const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const frPath =
+        'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+    const config = 'packs:\n  prd-core: 0.0.1\n';
+    const twin =
+        '${config}targets:\n  flutter:\n    code_root: flutter_ws\n'
+        '  jaspr:\n    code_root: jaspr_ws\n';
+
+    String story(String keys) =>
+        '---\nname: Email login\n$keys---\n\n# US-01 — Email login\n';
+    String fr(String keys) =>
+        '---\nname: Validate credentials\n$keys---\n\n# FR-01 — Validate '
+        'credentials\n\n## Statement\n\nThe system checks the credentials.\n';
+    Map<String, String> recorded({String storyKeys = _storyKeys}) => {
+      ...acmeLegacy,
+      'docs/$storyPath': story(storyKeys),
+      legacyFrPath: fr('status: planned\n'),
+    };
+    List<String> keysOf(PlannedRewrite rewrite) => [
+      for (final block in Doc.parse(rewrite.text).frontmatter ?? <KeyBlock>[])
+        block.name,
+    ];
+
+    test('E14: a story and an FR with a status and code paths move into the '
+        "feature's draft record, byte for byte as the one record builder "
+        'writes it', () async {
+      final plan = await _plan(recorded());
+
+      final record = plan.creates.singleWhere(
+        (c) => c.path == 'docs/$recordPath',
+      );
+      final set = _carriedSet();
+      final expected = newRecordOf(
+        set,
+        set.recordDocType!,
+        featureType: set.lookup('feature')!,
+        featureDocPath: 'prds/features/f01_login/FEATURE.md',
+        featureName: 'login',
+        lines: (
+          statuses: [
+            'email_login:implemented',
+            'email_login/validate_credentials:planned',
+          ],
+          code: ['email_login:lib/a.dart:A'],
+        ),
+      )!;
+      expect(record.text, expected.text);
+      expect(record.text, contains('draft: true\n'));
+      expect(record.note, ' (draft)');
+      expect(plan.toText(), contains('  $recordPath (draft)\n'));
+    });
+
+    test('E14: the story and the FR lose both keys, and the run still '
+        'approves them', () async {
+      final plan = await _plan(recorded());
+
+      final storyRewrite = _rewrite(plan, storyPath);
+      final frRewrite = _rewrite(plan, frPath);
+
+      for (final rewrite in [storyRewrite, frRewrite]) {
+        expect(keysOf(rewrite), isNot(contains('status')));
+        expect(keysOf(rewrite), isNot(contains('implements')));
+        expect(keysOf(rewrite), contains('approved'));
+        expect(keysOf(rewrite), isNot(contains('draft')));
+      }
+      expect(storyRewrite.changes, contains('status, implements to record'));
+      expect(frRewrite.changes, contains('status to record'));
+    });
+
+    test(
+      'E14: a tree with no status and no code path writes no record',
+      () async {
+        final plan = await _plan({...acmeLegacy, legacyFrPath: fr('')});
+
+        expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
+      },
+    );
+
+    test(
+      'E14: a value with no place refuses the run with value_unplaced',
+      () async {
+        await expectLater(
+          _plan(recorded(storyKeys: 'status: wip\n')),
+          throwsA(
+            isA<MigrateFault>()
+                .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
+                .having((f) => f.file, 'file', storyPath)
+                .having((f) => f.key, 'key', 'status'),
+          ),
+        );
+      },
+    );
+
+    test('E14: a file at the record path the run cannot read as a record '
+        'refuses with value_unplaced instead of losing the values', () async {
+      final root = await writeTree(recorded());
+      File('${root.path}/docs/$recordPath')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([0xff, 0xfe, 0x00]);
+
+      expect(
+        () => planLegacyRun(
+          Directory(root.resolveSymbolicLinksSync()),
+          templates: TemplateResolver(),
+          homeDirectory: null,
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
+              .having((f) => f.file, 'file', storyPath)
+              .having((f) => f.message, 'message', contains(recordPath)),
+        ),
+      );
+    });
+
+    test('E14: a record the tree already holds gains the entry as an edit, '
+        'never a second create', () async {
+      final plan = await _plan({
+        ...recorded(),
+        'docs/$recordPath': recordText(statuses: ['email_login:implemented']),
+      });
+
+      expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
+      final record = _rewrite(plan, recordPath);
+      expect(
+        record.text,
+        contains("  - 'email_login/validate_credentials:planned'\n"),
+      );
+    });
+
+    test('E14, E03: a grouped tree writes the record beside its feature in '
+        'the group folder, by the implementation path override', () async {
+      final plan = await _plan({
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+        'docs/prds/features/ai_module/ai05_chat/FEATURE.md': '# F-05 — Chat\n',
+        'docs/prds/features/ai_module/ai05_chat/us01_talk/USER_STORY.md': story(
+          'status: planned\n',
+        ),
+      });
+
+      expect(
+        _createdPaths(plan),
+        containsAll([
+          '.specstone/templates/implementation.yaml',
+          'docs/specs/ai_module/f05_chat/IMPLEMENTATION.md',
+        ]),
+      );
+    });
+
+    test('E15: a config that holds targets: keeps the map, infers no '
+        'code_root, and the first target takes the record', () async {
+      final plan = await _plan({
+        ...recorded(),
+        '.specstone/config.yaml':
+            '${config}targets:\n  flutter:\n    code_root: flutter_ws\n'
+            '  jaspr:\n    code_root: jaspr_ws\n',
+      });
+
+      expect(
+        _rewritesOf(plan, '.specstone/config.yaml').single.text,
+        '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: '
+        'flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n',
+      );
+      expect(plan.rewriteLines, contains('.specstone/config.yaml: pins'));
+      expect(
+        _createdPaths(plan),
+        contains('docs/specs/flutter/f01_login/IMPLEMENTATION.md'),
+      );
+      expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
+    });
+
+    test('E15: with two targets the spec docs the run places sit in the '
+        "first target's folder, typed and approved, and a missing "
+        'per-target singular doc is created there', () async {
+      final plan = await _plan({...recorded(), '.specstone/config.yaml': twin});
+
+      final matcher = DocTypeMatcher(
+        _carriedSet(),
+        targetNames: const ['flutter', 'jaspr'],
+      );
+      final moved = {for (final m in plan.moves) m.from: m.to};
+      expect(
+        moved['specs/api/auth/s01_architecture.md'],
+        'specs/flutter/f01_login/ARCHITECTURE.md',
+      );
+      expect(
+        moved['specs/f01_login/DOMAIN.md'],
+        'specs/flutter/f01_login/DOMAIN.md',
+      );
+      expect(plan.left, isNot(contains('specs/f01_login/DOMAIN.md')));
+      for (final path in [
+        'specs/flutter/f01_login/ARCHITECTURE.md',
+        'specs/flutter/f01_login/DOMAIN.md',
+      ]) {
+        expect(matcher.match(path), isA<MatchedDocType>(), reason: path);
+        expect(_rewrite(plan, path).text, contains('approved: "'));
+      }
+      expect(_createdPaths(plan), contains('docs/specs/flutter/TECH_STACK.md'));
+      expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
+    });
+
+    test('E15: with two targets a doc that already holds the first target '
+        'path refuses legacy_collision, and nothing is lost', () async {
+      await expectLater(
+        _plan({
+          ...recorded(),
+          '.specstone/config.yaml': twin,
+          'docs/specs/flutter/f01_login/ARCHITECTURE.md': '# Held\n',
+        }),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.legacyCollision,
+          ),
+        ),
+      );
+    });
+
+    test('E15: with two targets the first fingerprints still find the FRs of '
+        'an API doc placed in the first target folder', () async {
+      final plan = await _plan(
+        {
+          ...recorded(),
+          '.specstone/config.yaml': twin,
+          'docs/specs/api/auth/s02_api_login.md': '''
+---
+name: Login API
+---
+
+# S-02 — Login API
+
+## FR trace
+
+| FR id | Method |
+|-------|--------|
+| `us01_email_login/fr01_validate_credentials` | CLI |
+''',
+        }..remove('docs/specs/api/auth/s02_api_session.md'),
+      );
+
+      final api = _rewrite(plan, 'specs/flutter/f01_login/API.md');
+
+      expect(api.text, contains('confirmed:\n  - email_login/'));
+    });
+
+    test('E15: one named target keeps its map and its record stays in the '
+        'spec folder', () async {
+      final plan = await _plan({
+        ...recorded(),
+        '.specstone/config.yaml':
+            '${config}targets:\n  flutter:\n    code_root: flutter_ws\n',
+      });
+
+      expect(
+        _rewritesOf(plan, '.specstone/config.yaml').single.text,
+        '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: '
+        'flutter_ws\n',
+      );
+      expect(_createdPaths(plan), contains('docs/$recordPath'));
+    });
   });
 }

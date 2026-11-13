@@ -126,7 +126,6 @@ name: Email login
   legacyFrPath: '''
 ---
 name: Validate credentials
-status: planned
 ---
 
 # FR-01 — Validate credentials

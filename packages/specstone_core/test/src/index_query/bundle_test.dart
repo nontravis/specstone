@@ -2,6 +2,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -9,6 +10,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 void main() {
   late DocIndex index;
@@ -541,5 +544,362 @@ void main() {
   );
   test('preflight F12 c: BundleMode wires match bundleModeWires', () {
     expect(BundleMode.values.map((m) => m.wire).toSet(), bundleModeWires);
+  });
+
+  group('index_query/get_task_bundle/pick_bundle_docs, per code target', () {
+    const archToast = 'f02_feedback/f03_toast/ARCHITECTURE.md';
+    const flutterArch = 'specs/flutter/$archToast';
+    const jasprArch = 'specs/jaspr/$archToast';
+    const showStory =
+        'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md';
+    final projectFiles = <String, String>{
+      '.specstone/templates/architecture.yaml':
+          'id: architecture\nper_target: true\n',
+      '.specstone/templates/implementation.yaml':
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n',
+      '.specstone/templates/tech_stack.yaml':
+          'id: tech_stack\nper_target: true\n',
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+      'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '# Toast\n',
+      'docs/$showStory': '# Agent sees a toast\n',
+      'docs/$flutterArch': '# Toast architecture\n',
+      'docs/$jasprArch': '# Toast architecture\n',
+      'docs/specs/flutter/TECH_STACK.md': '# Flutter stack\n',
+      'docs/specs/jaspr/TECH_STACK.md': '# Jaspr stack\n',
+      'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+      'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+    };
+
+    /// Returns the index of the two-target toast fixture.
+    Future<DocIndex> toastIndex([Map<String, String> extra = const {}]) async {
+      final session = openSession(await writeTree({...projectFiles, ...extra}));
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('f01/us05/fr01/e01: one target needs no --target in implement', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
+          'docs/$flutterArch': '',
+          'docs/$jasprArch': '',
+          'docs/specs/$archToast': '# Toast architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+      final b = pickBundle(
+        session.index,
+        'feedback/toast/show',
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, contains('specs/$archToast'));
+    });
+
+    test('f01/us05/fr01/e23: implement with two targets and no --target is argument_missing', () async {
+      final index = await toastIndex();
+      expect(
+        () => pickBundle(
+          index,
+          'feedback/toast/show',
+          BundleMode.implement,
+          noProject: false,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                '--for implement needs --target with two or more code targets; '
+                    'the targets are flutter, jaspr',
+              ),
+        ),
+      );
+    });
+
+    test(
+      'f01/us05/fr01/e24: --target jaspr keeps jaspr docs alone in implement',
+      () async {
+        final b = pickBundle(
+          await toastIndex(),
+          'feedback/toast/show',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(b.docPaths, {
+          'prds/features/f02_feedback/FEATURE.md',
+          'prds/features/f02_feedback/f03_toast/FEATURE.md',
+          showStory,
+          jasprArch,
+          'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+        });
+        expect(b.docPaths, isNot(contains(flutterArch)));
+        expect(b.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
+      },
+    );
+
+    test('f01/us05/fr01/e25: design and query with no --target take every target doc', () async {
+      final index = await toastIndex();
+      final design = pickBundle(
+        index,
+        'feedback/toast/show',
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(design.docPaths, contains(flutterArch));
+      expect(design.docPaths, contains(jasprArch));
+      final query = pickBundle(
+        index,
+        'feedback/toast/show',
+        BundleMode.query,
+        noProject: false,
+      );
+      expect(query.mapTops, {'prds/features/f02_feedback/FEATURE.md'});
+      final queryAnswer = answerContext(
+        index,
+        query,
+        label: 'feedback/toast/show',
+        byCode: false,
+      );
+      expect(
+        queryAnswer.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)'))
+            .length,
+        2,
+        reason: 'the map holds each target spec doc',
+      );
+      final queryTargeted = answerContext(
+        index,
+        pickBundle(
+          index,
+          'feedback/toast/show',
+          BundleMode.query,
+          noProject: false,
+          codeTarget: 'jaspr',
+        ),
+        label: 'feedback/toast/show',
+        byCode: false,
+      );
+      expect(
+        queryTargeted.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)'))
+            .length,
+        1,
+        reason: 'the map holds the named target spec doc alone',
+      );
+      expect(queryTargeted.text, isNot(contains('flutter')));
+      final withTarget = pickBundle(
+        index,
+        'feedback/toast',
+        BundleMode.design,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      expect(withTarget.docPaths, contains(jasprArch));
+      expect(withTarget.docPaths, isNot(contains(flutterArch)));
+    });
+
+    test(
+      'f01/us05/fr01/e24: a per-target chain doc of another target stays out',
+      () async {
+        final session = openSession(
+          await writeTree({
+            ...projectFiles,
+            '.specstone/templates/feature.yaml': 'per_target: true\n',
+            'docs/prds/features/f02_feedback/FEATURE.md': '',
+            'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '',
+            'docs/prds/flutter/features/f02_feedback/FEATURE.md':
+                '# Feedback\n',
+            'docs/prds/flutter/features/f02_feedback/f04_pay/FEATURE.md':
+                '# Pay\n',
+            'docs/prds/features/f02_feedback/f04_pay/us01_card/USER_STORY.md':
+                '# Agent pays by card\n',
+          }),
+        );
+        addTearDown(session.close);
+        final b = pickBundle(
+          session.index,
+          'feedback/pay/card',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(
+          b.docPaths.where((p) => p.contains('prds/flutter/')),
+          isEmpty,
+          reason: 'the chain walk keeps the named target alone',
+        );
+      },
+    );
+
+    test(
+      'f01/us05/fr01/e24: the names list holds no other-target chain doc',
+      () async {
+        final session = openSession(
+          await writeTree(
+            {
+              ...projectFiles,
+              '.specstone/templates/user_story.yaml':
+                  'id: user_story\nper_target: true\n',
+              'docs/prds/flutter/features/f02_feedback/us01_show/USER_STORY.md':
+                  '# Agent sees a toast\n',
+              'docs/prds/jaspr/features/f02_feedback/us01_show/USER_STORY.md':
+                  '# Agent sees a toast\n',
+            }..remove('docs/$showStory'),
+          ),
+        );
+        addTearDown(session.close);
+        final index = session.index;
+        final b = pickBundle(
+          index,
+          'feedback',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(b.nameListTops, {'prds/features/f02_feedback/FEATURE.md'});
+        final answer = answerContext(
+          index,
+          b,
+          label: 'feedback',
+          byCode: false,
+        );
+        expect(
+          answer.text
+              .split('\n')
+              .where((l) => l.contains('feedback/show (user_story)'))
+              .length,
+          1,
+          reason: 'the names list names the target story alone',
+        );
+      },
+    );
+
+    test('f01/us05/fr01/e26: one named target takes its spec docs with no --target in every mode', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
+          'docs/$flutterArch': '',
+          'docs/$jasprArch': '',
+          'docs/specs/$archToast': '# Toast architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+      for (final mode in BundleMode.values) {
+        final b = pickBundle(
+          session.index,
+          'feedback/toast/show',
+          mode,
+          noProject: false,
+        );
+        if (mode == BundleMode.query) {
+          expect(b.mapTops, {
+            'prds/features/f02_feedback/FEATURE.md',
+          }, reason: '$mode');
+        } else {
+          expect(b.docPaths, contains('specs/$archToast'), reason: '$mode');
+        }
+      }
+    });
+
+    test('f01/us05/fr02: two targets change no trim order in implement', () async {
+      final index = await toastIndex();
+      final b = pickBundle(
+        index,
+        'feedback/toast/show',
+        BundleMode.implement,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      final answer = answerContext(
+        index,
+        b,
+        label: 'feedback/toast/show',
+        byCode: false,
+      );
+      expect(
+        answer.text
+            .split('\n')
+            .where((l) => l.startsWith('==> ') && !l.contains('bundle: '))
+            .toList(),
+        [
+          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==',
+          '==> feedback (feature) · prds/features/f02_feedback/FEATURE.md <==',
+          '==> feedback/toast (feature) · prds/features/f02_feedback/f03_toast/FEATURE.md <==',
+          '==> feedback/toast/show (user_story) · $showStory <==',
+          '==> feedback/toast (architecture) · $jasprArch <==',
+          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==',
+        ],
+      );
+    });
+
+    test('f01/us05/fr03: the budget counts only the docs that print under --target', () async {
+      final index = await toastIndex();
+      final flutterAnswer = answerContext(
+        index,
+        pickBundle(
+          index,
+          'feedback/toast/show',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'flutter',
+        ),
+        label: 'feedback/toast/show',
+        byCode: false,
+        budget: 1,
+      );
+      final jasprAnswer = answerContext(
+        index,
+        pickBundle(
+          index,
+          'feedback/toast/show',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        ),
+        label: 'feedback/toast/show',
+        byCode: false,
+        budget: 1,
+      );
+      expect(flutterAnswer.exitStatus, 1);
+      expect(jasprAnswer.exitStatus, 1);
+      for (final (name, answer) in [
+        ('flutter', flutterAnswer),
+        ('jaspr', jasprAnswer),
+      ]) {
+        expect(
+          answer.text.split('\n').where((l) => l.startsWith('- ')).length,
+          6,
+          reason: '$name lists only the docs that print',
+        );
+        expect(
+          answer.text,
+          isNot(contains('specs/${name == 'flutter' ? 'jaspr' : 'flutter'}')),
+          reason: '$name holds no other-target doc',
+        );
+      }
+    });
   });
 }

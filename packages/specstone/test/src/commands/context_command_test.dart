@@ -4,6 +4,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
@@ -239,5 +241,450 @@ void main() {
         RegExp(r'^- shop/pay \(feature\) · \d+ tokens$', multiLine: true),
       ),
     );
+  });
+
+  group('f01/us05/fr01, per code target', () {
+    /// Writes the two-target fixture of pick_bundle_docs E23: the feature
+    /// `feedback/toast`, its story `show`, and its architecture doc in both
+    /// targets.
+    Future<Directory> writeToastProject({
+      Map<String, String> extra = const {},
+    }) => writeReadProject(
+      extra: {
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n'
+            '  - id: implements\n'
+            '    type: output_ref\n'
+            '    list: true\n'
+            '    pointer: item_exact\n',
+        '.specstone/templates/tech_stack.yaml':
+            'id: tech_stack\nper_target: true\n',
+        '.specstone/config.yaml':
+            'packs:\n'
+            '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+            'targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+        'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '# Toast\n',
+        'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+            '# Agent sees a toast\n',
+        'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+            '---\ncovers:\n  - lib/\n---\n\n# Toast architecture\n',
+        'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+            '---\ncovers:\n  - lib/\n---\n\n# Toast architecture\n',
+        'docs/specs/flutter/TECH_STACK.md': '# Toast stack\n',
+        'docs/specs/jaspr/TECH_STACK.md': '# Toast stack\n',
+        'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md':
+            '---\nstatuses:\n'
+            '  - toast/show:implemented\n'
+            'implements:\n'
+            '  - toast/show:lib/toast.dart:showToast\n'
+            '---\n\n# Record\n',
+        'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md':
+            '---\nstatuses:\n'
+            '  - toast/show:implemented\n'
+            'implements:\n'
+            '  - toast/show:lib/toast.dart:showToast\n'
+            '---\n\n# Record\n',
+        ...extra,
+      },
+    );
+
+    test('f01/us05/fr01/e23: implement with two targets and no --target exits 64 naming them', () async {
+      final (:runner, :out, :err) = readRunner(await writeToastProject());
+      expect(
+        await runner.run([
+          'context',
+          'feedback/toast/show',
+          '--for',
+          'implement',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--for implement needs --target with two or more code targets; '
+        'the targets are flutter, jaspr\n',
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('f01/us05/fr01/e24: --target jaspr prints jaspr spec docs and no flutter doc', () async {
+      final (:runner, :out, :err) = readRunner(await writeToastProject());
+      expect(
+        await runner.run([
+          'context',
+          'feedback/toast/show',
+          '--for',
+          'implement',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
+        ),
+      );
+      expect(out.toString(), isNot(contains('flutter')));
+      expect(err.toString(), isEmpty);
+    });
+
+    test(
+      'f01/us05/fr04/e13: --code under one root takes that target alone',
+      () async {
+        final project = await writeToastProject(
+          extra: {'jaspr_lib/lib/toast.dart': ''},
+        );
+        final (:runner, :out, :err) = readRunner(project);
+        expect(
+          await runner.run([
+            'context',
+            '--code',
+            'jaspr_lib/lib/toast.dart',
+            '--for',
+            'implement',
+          ]),
+          0,
+        );
+        expect(
+          out.toString(),
+          contains(
+            '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
+          ),
+        );
+        expect(
+          out.toString(),
+          contains(
+            '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
+          ),
+        );
+        expect(
+          out.toString(),
+          contains(
+            '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
+          ),
+        );
+        expect(out.toString(), isNot(contains('flutter')));
+        expect(err.toString(), isEmpty);
+      },
+    );
+
+    test('f01/us05/fr04, domain:agent_plugin INV-25: --code names its code '
+        'target on the first text line, covered or not', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': '', 'jaspr_lib/other/x.dart': ''},
+      );
+      final covered = readRunner(project);
+      expect(
+        await covered.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(
+        covered.out.toString(),
+        startsWith('==> code target: jaspr <==\n'),
+      );
+      final bare = readRunner(project);
+      expect(
+        await bare.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/other/x.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(bare.out.toString(), startsWith('==> code target: jaspr <==\n'));
+      expect(
+        bare.err.toString(),
+        '⚠️ WARNING: no doc covers or implements other/x.dart\n',
+      );
+    });
+
+    test('f01/us05/fr04, domain:agent_plugin INV-25: --json carries codeTarget '
+        'for a covered and an uncovered path', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': '', 'jaspr_lib/other/x.dart': ''},
+      );
+      for (final path in ['lib/toast.dart', 'other/x.dart']) {
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            '--code',
+            'jaspr_lib/$path',
+            '--for',
+            'implement',
+            '--json',
+          ]),
+          0,
+        );
+        final json = jsonDecode(run.out.toString()) as Map<String, Object?>;
+        expect(json.keys.first, 'code', reason: path);
+        expect(json['codeTarget'], 'jaspr', reason: path);
+      }
+    });
+
+    test('f01/us05/fr03, domain:agent_plugin INV-25: the over-budget --code '
+        'reply names its code target in text and JSON', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final args = [
+        'context',
+        '--code',
+        'jaspr_lib/lib/toast.dart',
+        '--for',
+        'implement',
+        '--budget',
+        '1',
+      ];
+      final text = readRunner(project);
+      expect(await text.runner.run(args), 1);
+      expect(
+        text.out.toString(),
+        startsWith('==> code target: jaspr <==\nThe bundle holds'),
+      );
+      final json = readRunner(project);
+      expect(await json.runner.run([...args, '--json']), 1);
+      final answer = jsonDecode(json.out.toString()) as Map<String, Object?>;
+      expect(answer['overBudget'], isTrue);
+      expect(answer['codeTarget'], 'jaspr');
+    });
+
+    test(
+      'f01/us05/fr04: --code with one target prints no code target',
+      () async {
+        final project = await writeReadProject(
+          extra: {'app/lib/main.dart': ''},
+        );
+        final text = readRunner(project);
+        await text.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'implement',
+        ]);
+        expect(text.out.toString(), isNot(contains('code target')));
+        final json = readRunner(project);
+        await json.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'implement',
+          '--json',
+        ]);
+        expect(
+          (jsonDecode(json.out.toString()) as Map).containsKey('codeTarget'),
+          isFalse,
+        );
+      },
+    );
+
+    test('f01/us05/fr04/e15: --code with --target naming another target is argument_conflict, exit 64', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+          '--target',
+          'flutter',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        'the code path jaspr_lib/lib/toast.dart lies in the code target '
+        'jaspr, not flutter\n',
+      );
+      final same = readRunner(project);
+      expect(
+        await same.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(same.err.toString(), isEmpty);
+    });
+
+    test('s04/inv26: --code with an unheld or premature --target is argument_invalid, exit 64', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final unheld = readRunner(project);
+      expect(
+        await unheld.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+          '--target',
+          'ci',
+        ]),
+        64,
+      );
+      expect(
+        unheld.err.toString(),
+        '--target ci: the code targets are flutter, jaspr\n',
+      );
+
+      final unnamed = readRunner(
+        await writeReadProject(extra: {'app/lib/main.dart': ''}),
+      );
+      expect(
+        await unnamed.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'implement',
+          '--target',
+          'ci',
+        ]),
+        64,
+      );
+      expect(
+        unnamed.err.toString(),
+        '--target ci: this project names no code target\n',
+      );
+    });
+
+    test('s04/inv26: --code naming a missing path with an unheld --target is argument_invalid first, as every other command checks the target first', () async {
+      final (:runner, :out, :err) = readRunner(await writeToastProject());
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/gone.dart',
+          '--for',
+          'implement',
+          '--target',
+          'ci',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--target ci: the code targets are flutter, jaspr\n',
+      );
+    });
+
+    test('f01/us05/fr04/e14, review focus 2: nested code roots pick the longest that holds the path', () async {
+      final project = await writeReadProject(
+        extra: {
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/templates/tech_stack.yaml':
+              'id: tech_stack\nper_target: true\n',
+          '.specstone/config.yaml':
+              'packs:\n'
+              '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+              'targets:\n'
+              '  app:\n    code_root: .\n'
+              '  web:\n    code_root: packages/web\n',
+          'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+          'docs/specs/app/TECH_STACK.md': '# Stack\n',
+          'docs/specs/web/TECH_STACK.md': '# Stack\n',
+          'docs/specs/app/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+          'docs/specs/web/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+          'lib/main.dart': '',
+          'packages/web/lib/main.dart': '',
+        },
+      );
+      final nested = readRunner(project);
+      expect(
+        await nested.runner.run([
+          'context',
+          '--code',
+          'packages/web/lib/main.dart',
+          '--for',
+          'implement',
+          '--target',
+          'app',
+        ]),
+        64,
+      );
+      expect(
+        nested.err.toString(),
+        'the code path packages/web/lib/main.dart lies in the code target '
+        'web, not app\n',
+      );
+      final top = readRunner(project);
+      expect(
+        await top.runner.run([
+          'context',
+          '--code',
+          'lib/main.dart',
+          '--for',
+          'implement',
+          '--target',
+          'web',
+        ]),
+        64,
+      );
+      expect(
+        top.err.toString(),
+        'the code path lib/main.dart lies in the code target app, not web\n',
+      );
+    });
   });
 }

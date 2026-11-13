@@ -12,6 +12,7 @@ class StructureCommand extends SpecstoneCommand {
       negatable: false,
       help: 'Print JSON instead of text.',
     );
+    addTargetOption();
   }
 
   @override
@@ -21,17 +22,23 @@ class StructureCommand extends SpecstoneCommand {
   String get description => 'Print the docs tree with each doc size.';
 
   @override
-  String get invocation => 'specstone structure [<target>] [--json]';
+  String get invocation =>
+      'specstone structure [<target>] [--target <name>] [--json]';
 
   @override
   Future<int> run() {
-    final rest = argResults!.rest;
+    final args = argResults!;
+    final rest = args.rest;
     if (rest.length > 1) {
       usageException('Expected at most one target, got ${rest.length}.');
     }
     return runRead(
-      (session) => answerStructure(session.index, target: rest.firstOrNull),
-      asJson: argResults!.flag('json'),
+      (session) => answerStructure(
+        session.index,
+        target: rest.firstOrNull,
+        codeTarget: targetOf(args),
+      ),
+      asJson: args.flag('json'),
     );
   }
 }

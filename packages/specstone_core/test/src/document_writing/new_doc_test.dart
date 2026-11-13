@@ -15,6 +15,9 @@ import 'package:test/test.dart';
 
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
+import '../../helpers/target_fixture.dart'
+    show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/write_fixture.dart';
 
 Matcher indexFault(IndexFaultCode code, String message) => isA<IndexFault>()
@@ -898,5 +901,165 @@ void main() {
       readDoc(root, 'prds/features/f01_login/us04_quoted/USER_STORY.md'),
       contains('```text\n$naming\n```\n\n    $naming\n'),
     );
+  });
+
+  group('document_writing/create_doc_from_template/place_new_doc with code targets', () {
+    const feedback = 'prds/features/f02_feedback/FEATURE.md';
+    const toast = 'prds/features/f02_feedback/f03_toast/FEATURE.md';
+
+    Future<Directory> twinWithToast({Set<String> without = const {}}) =>
+        writeTwinProject(
+          without: without,
+          extra: {
+            '.specstone/templates/feature.yaml': 'max_depth: 3\n',
+            'docs/$feedback': '---\ndraft: true\n---\n\n# Feedback\n',
+            'docs/$toast': '---\ndraft: true\n---\n\n# Toast\n',
+          },
+        );
+
+    List<String> docFiles(Directory root) => [
+      for (final entity in Directory(
+        '${root.path}/docs',
+      ).listSync(recursive: true))
+        if (entity is File) entity.path,
+    ]..sort();
+
+    test('document_writing/create_doc_from_template/place_new_doc E24: --target jaspr places the doc in the jaspr spec folder under the shared feature', () async {
+      final root = await twinWithToast(
+        without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
+      );
+      const path = 'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md';
+      final answer = writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'architecture',
+          parent: 'feedback/toast',
+          codeTarget: 'jaspr',
+        ),
+      );
+      expect(answer.text, '==> feedback/toast (architecture) · $path <==\n');
+      expect(answer.json['path'], path);
+      expect(hasDoc(root, path), isTrue);
+      expect(
+        hasDoc(root, 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'),
+        isFalse,
+      );
+    });
+
+    test('document_writing/create_doc_from_template/place_new_doc E25: a per-target doc type with two targets and no --target is argument_missing naming the targets, and creates nothing', () async {
+      final root = await twinWithToast();
+      final before = docFiles(root);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'implementation',
+            parent: 'feedback/toast',
+          ),
+        ),
+        throwsA(
+          indexFault(
+            IndexFaultCode.argumentMissing,
+            'implementation needs --target: the code targets are flutter, jaspr',
+          ),
+        ),
+      );
+      expect(docFiles(root), before);
+    });
+
+    test('document_writing/create_doc_from_template/place_new_doc E25: a --target the project does not name is argument_invalid, and creates nothing', () async {
+      final root = await twinWithToast();
+      final before = docFiles(root);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'implementation',
+            parent: 'feedback/toast',
+            codeTarget: 'dart',
+          ),
+        ),
+        throwsA(
+          indexFault(
+            IndexFaultCode.argumentInvalid,
+            '--target dart: the code targets are flutter, jaspr',
+          ),
+        ),
+      );
+      expect(docFiles(root), before);
+    });
+
+    for (final codeTarget in <String?>[null, 'flutter']) {
+      test(
+        'document_writing/create_doc_from_template/place_new_doc E26: one target, ${codeTarget == null ? 'unnamed on the command line' : 'named'}, places a per-target doc at its one-target path',
+        () async {
+          final root = await writeTwinProject(
+            without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
+            extra: {
+              '.specstone/config.yaml':
+                  '${shippedPinsConfig()}targets:\n'
+                  '  flutter:\n    code_root: flutter_ws\n',
+            },
+          );
+          const path = 'specs/f01_login/ARCHITECTURE.md';
+          final answer = writeIn(
+            root,
+            (s) => answerNew(
+              s,
+              docTypeId: 'architecture',
+              parent: 'login',
+              codeTarget: codeTarget,
+            ),
+          );
+          expect(answer.json['path'], path);
+          expect(hasDoc(root, path), isTrue);
+        },
+      );
+    }
+
+    test('document_writing/create_doc_from_template/place_new_doc E24: the same --parent places the flutter doc in the flutter spec folder', () async {
+      final root = await twinWithToast();
+      writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'architecture',
+          parent: 'feedback/toast',
+          codeTarget: 'flutter',
+        ),
+      );
+      expect(
+        hasDoc(root, 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'),
+        isTrue,
+      );
+    });
+
+    test('document_writing/create_doc_from_template/place_new_doc E24: a twin already there is doc_exists naming the doc, not its target folder', () async {
+      final root = await writeTwinProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'architecture',
+            parent: 'login',
+            codeTarget: 'jaspr',
+          ),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having(
+                (f) => f.message,
+                'message',
+                'a architecture named login exists',
+              )
+              .having((f) => f.file, 'file', jasprArchitecture),
+        ),
+      );
+    });
   });
 }

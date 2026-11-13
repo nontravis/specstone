@@ -139,7 +139,10 @@ final class ReadSession {
     void Function()? afterRefresh,
   }) {
     try {
-      final stamp = IndexStamp.of(project.set);
+      final stamp = IndexStamp.of(
+        project.set,
+        targetNames: project.targetNames,
+      );
       for (var attempt = 1; ; attempt++) {
         final refreshed = refreshIndex(store, project);
         afterRefresh?.call();
@@ -195,6 +198,7 @@ final class ReadSession {
     docs,
     store,
     (path) => project.docPathAt(path, workingDirectory: workingDirectory),
+    targetNames: project.targetNames,
   );
 
   /// Ends the snapshot and closes the index.

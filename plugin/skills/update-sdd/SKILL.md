@@ -57,6 +57,11 @@ specstone get <type>:<name> --json
 
 The text between the title and the first `##` section is `#_lead`.
 
+A name that matches docs in two or more code targets: ask the Owner which one, as `specstone:plan-sdd` does, then run
+`get` and `set` on that doc's DocPath, the one `get`'s doc header prints, such as
+`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md` (`domain:agent_plugin` INV-25). A name that matches one doc asks
+nothing.
+
 If the text shows the change reaches past this one target, go to step 1's hand-over with nothing written. A non-zero
 exit: report the CLI's error and stop.
 

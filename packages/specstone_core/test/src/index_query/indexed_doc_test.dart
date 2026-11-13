@@ -31,7 +31,10 @@ void main() {
   late DocTypeMatcher matcher;
 
   setUpAll(() async {
-    matcher = DocTypeMatcher(await resolveSoftwareTech());
+    matcher = DocTypeMatcher(
+      await resolveSoftwareTech(),
+      targetNames: const [],
+    );
   });
 
   ParsedDoc parse(String path, String text) => parseIndexedDoc(
@@ -349,6 +352,7 @@ void main() {
             ),
           ],
         ),
+        targetNames: const [],
       );
 
       String nameOf(String path) => parseIndexedDoc(
@@ -361,6 +365,139 @@ void main() {
       expect(nameOf(domainPath), 'shop/cart');
     },
   );
+
+  test('index_query/read_current_docs/index_each_doc E22: both target twins '
+      'index with their own target and one target-free name', () {
+    final targeted = DocTypeMatcher(
+      MergedSet(
+        docTypes: [
+          nestedType(
+            'architecture',
+            'specs/f{nn}_{slug}/f{nn}_{slug}/ARCHITECTURE.md',
+          ).copyWith(isPerTarget: true),
+        ],
+      ),
+      targetNames: const ['flutter', 'jaspr'],
+    );
+
+    (String?, String) indexed(String path) {
+      final doc = parseIndexedDoc(
+        docPath: path,
+        bytes: utf8.encode('# T\n'),
+        match: targeted.match(path),
+      ).doc;
+      return (doc.target, doc.name);
+    }
+
+    expect(indexed('specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md'), (
+      'jaspr',
+      'feedback/toast',
+    ));
+    expect(indexed('specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'), (
+      'flutter',
+      'feedback/toast',
+    ));
+  });
+
+  test('index_query/read_current_docs/index_each_doc E23: with two targets a '
+      'target-free spec path and an unknown target folder index untyped', () {
+    final targeted = DocTypeMatcher(
+      MergedSet(
+        docTypes: [
+          nestedType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+          ).copyWith(isPerTarget: true),
+        ],
+      ),
+      targetNames: const ['flutter', 'jaspr'],
+    );
+
+    for (final path in [
+      'specs/f02_feedback/ARCHITECTURE.md',
+      'specs/web/f02_feedback/ARCHITECTURE.md',
+    ]) {
+      final doc = parseIndexedDoc(
+        docPath: path,
+        bytes: utf8.encode('# T\n'),
+        match: targeted.match(path),
+      ).doc;
+      expect((doc.isTyped, doc.target), (false, null), reason: path);
+      expect(doc.name, path);
+    }
+  });
+
+  test('index_query/read_current_docs/index_each_doc E24: one target, named '
+      'or not, gives a per-target doc that target and a PRD doc none', () {
+    final oneNamed = DocTypeMatcher(
+      MergedSet(
+        docTypes: [
+          nestedType('feature', 'prds/features/f{nn}_{slug}/FEATURE.md'),
+          nestedType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+          ).copyWith(isPerTarget: true),
+        ],
+      ),
+      targetNames: const ['flutter'],
+    );
+
+    (bool, String?) indexed(String path, {String? codeTarget}) {
+      final doc = parseIndexedDoc(
+        docPath: path,
+        bytes: utf8.encode('# T\n'),
+        match: oneNamed.match(path),
+        codeTarget: codeTarget,
+      ).doc;
+      return (doc.isTyped, doc.target);
+    }
+
+    expect(indexed('specs/f01_login/ARCHITECTURE.md', codeTarget: 'flutter'), (
+      true,
+      'flutter',
+    ));
+    // One unnamed target (`code_root:` alone or no code root): the doc takes
+    // that target, which has no name to store.
+    expect(indexed('specs/f01_login/ARCHITECTURE.md'), (true, null));
+    expect(
+      indexed('prds/features/f01_login/FEATURE.md', codeTarget: 'flutter'),
+      (true, null),
+      reason: 'every PRD doc is shared',
+    );
+  });
+
+  test('doc_model/s03/rule-21, s03/inv5: both target twins take the same '
+      'target-free name', () {
+    final targeted = DocTypeMatcher(
+      MergedSet(
+        docTypes: [
+          nestedType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+          ).copyWith(isPerTarget: true),
+        ],
+      ),
+      targetNames: const ['flutter', 'jaspr'],
+    );
+
+    String nameOf(String path) => parseIndexedDoc(
+      docPath: path,
+      bytes: utf8.encode('# T\n'),
+      match: targeted.match(path),
+    ).doc.name;
+
+    expect(nameOf('specs/flutter/f01_login/ARCHITECTURE.md'), 'login');
+    expect(nameOf('specs/jaspr/f01_login/ARCHITECTURE.md'), 'login');
+  });
+
+  test('doc_model RULE-21: a per-target doc of a pattern with no folder drops '
+      'its target folder at the front, so twins share the name', () {
+    final notes = nestedType('note', '{slug}.md').copyWith(isPerTarget: true);
+
+    expect(docNameOf('flutter/notes.md', notes, target: 'flutter'), 'notes');
+    expect(docNameOf('jaspr/notes.md', notes, target: 'jaspr'), 'notes');
+    expect(docNameOf('notes.md', notes), 'notes');
+  });
 
   group('formatted and laid-out counts', () {
     const featurePath = 'prds/features/f01_login/FEATURE.md';

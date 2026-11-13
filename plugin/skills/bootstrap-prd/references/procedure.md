@@ -1,11 +1,13 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
 As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-This skill takes `specstone check` findings under `prds/`. Findings under `specs/`, `architecture_missing`,
-`code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
-`specstone:bootstrap-spec`. Follow `specstone:expert-sdd` for every write; before the first, run
-`specstone guide <type> …` once, naming every type you write; a type met later gets its own call before its first
-write.
+This skill takes `specstone check` findings under `prds/`; those under `specs/`, `architecture_missing`,
+`code_uncovered`, and PROJECT's Tech stack and Naming canonicalization sections go to `specstone:bootstrap-spec`.
+Follow `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once, naming every
+type you write; a type met later gets its own call before its first write.
+
+**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new`, `get`, and `set` of a per-target
+doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
 
 ## 2. One finding at a time
 
@@ -40,17 +42,16 @@ whole section.
 
 ## 3. Move a feature's code pointers
 
-Give each `implements:` entry of a `FEATURE.md` to the story or FR whose behavior that code does, unless it holds it
-already; drop an entry no one doc takes, such as a whole folder, as a proposal named in step 6. Pipe that doc's whole
-new list, as YAML `- item` lines, to `specstone set <type>:<name> --field implements`. Then drop the feature's
-`implements` key.
+Give each `implements:` entry of a `FEATURE.md` to the record entry of the story or FR whose behavior that code does, in
+the first listed code target, unless it holds it already; drop an entry no one doc takes, such as a whole folder, as a
+proposal named in step 6. Pipe that record's whole new list, as YAML `- item` lines, to
+`specstone set implementation:<feature> --field implements --base <hash>`. Then drop the feature's `implements` key.
 
 ## 4. Merge an old file, or split a full one
 
 An `untyped_doc` is an old file the migration left, such as a group's container `FEATURE.md`.
-Merge its content into the doc that takes it, else a new one from `specstone new <type>`
-(`--parent`, `--slug`, as the type takes them). Skip only a sentence that doc holds word for word, and never target
-the untyped file: a write refuses it. Add its path to the retire set, a list for this run only.
+Merge its content into the doc that takes it, else a new one from `specstone new <type>`. Skip only a sentence that
+doc holds word for word, and never target the untyped file: a write refuses it. Add its path to this run's retire set.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
 Keep the first; put each other in its own `specstone new <type>` doc under the same parent, named from its heading.
@@ -63,10 +64,10 @@ its new doc. Name in step 6 each waiver and each mention in a section kept uncha
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
 2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
-   repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). On a batch, the set holds only
-   files the batch merged: list an untyped referrer outside the batch, with the file it names, for its owner to merge.
-   Leave any other untyped file (a plan, a ledger) as history. Repoint each other link or mention to the doc holding
-   the content, or drop a mention nothing replaces.
+   repoints it; merge it first (`specstone:bootstrap-spec` takes one under `specs/`). A batch's set holds only
+   files it merged; list each untyped referrer outside it, with the file it names, for its owner to merge. Leave any
+   other untyped file as history. Repoint each other link or mention to the doc holding the content,
+   or drop one nothing replaces.
 3. Name the set in one `specstone delete` line, quoting each path with a space:
 
 ```
@@ -86,10 +87,3 @@ Last, take every count from one `specstone approve --dry-run --json` after your 
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
 Name per draft each change, proposal, moved pointer, dropped key, and finding that clears with no write; then get
 each approved as step 5's Owner confirmation says.
-
-## Red flags
-
-| Thought | Do instead |
-|---|---|
-| "Merged, so I'll delete the old files." | Delete only as step 5 says. |
-| "Several items fit in one doc for now." | Split them as step 4 says. |

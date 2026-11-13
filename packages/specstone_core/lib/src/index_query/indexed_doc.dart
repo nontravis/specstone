@@ -17,6 +17,15 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
 
+/// The id of the `feature` doc type.
+const featureType = 'feature';
+
+/// The id of the `user_story` doc type.
+const storyType = 'user_story';
+
+/// The id of the `fr` doc type.
+const frType = 'fr';
+
 /// Returns the SHA-256 of [bytes] as lowercase hex.
 String contentHashOf(List<int> bytes) => sha256.convert(bytes).toString();
 
@@ -47,11 +56,17 @@ String sectionKeyOf(String headerText) => headerText
 /// Returns the name a doc answers to in a query.
 ///
 /// The `{slug}` values of the doc type path that matches joined with `/`; the
-/// doc type id when that path has none; [docPath] when [docType] is null.
-String docNameOf(String docPath, MergedDocType? docType) {
+/// doc type id when that path has none; [docPath] when [docType] is null. A
+/// doc matched through [target]'s pattern set is read with that set's
+/// patterns, as the matcher expands them, so its target folder names no slug
+/// and twins of two targets share the name (RULE-21).
+String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
   if (docType == null) return docPath;
   for (final path in docType.paths) {
-    final slugs = PathPattern(path).slugValues(docPath);
+    final pattern = target == null
+        ? PathPattern(path)
+        : PathPattern(path).forTarget(target);
+    final slugs = pattern.slugValues(docPath);
     if (slugs != null) return slugs.isEmpty ? docType.id : slugs.join('/');
   }
   return docType.id;
@@ -89,6 +104,7 @@ final class IndexedDoc {
     required this.docPath,
     this.docTypeId,
     required this.name,
+    this.target,
     this.parentPath,
     this.title,
     required this.frontmatter,
@@ -107,6 +123,18 @@ final class IndexedDoc {
 
   /// The name the doc answers to in a query.
   final String name;
+
+  /// The code target a per-target doc belongs to: the one whose pattern set
+  /// matched with two or more targets, else the single target when named.
+  ///
+  /// Null for a shared doc, a doc of a doc type that is not per-target, and
+  /// an untyped doc (INV-26).
+  final String? target;
+
+  /// Whether the doc shows under [codeTarget]: always with none, else only
+  /// when the doc is shared or belongs to that target (INV-26).
+  bool inTarget(String? codeTarget) =>
+      codeTarget == null || target == null || target == codeTarget;
 
   /// The docPath of the doc this one nests under; null for a root doc.
   final String? parentPath;
@@ -141,6 +169,9 @@ final class IndexedDoc {
   bool get isTyped => docTypeId != null;
 
   /// The `status` the doc writes, or null when it writes none.
+  ///
+  /// A story or FR takes its status from its record entry instead
+  /// (`DocIndex.statusOf`); this is the raw written value.
   String? get writtenStatus => switch (frontmatter['status']) {
     final String status => status,
     _ => null,
@@ -231,21 +262,29 @@ final class ParsedDoc {
 
 /// Parses the file [bytes] at [docPath] into its index entry and content.
 ///
-/// Invalid UTF-8 decodes with replacement characters, and invalid frontmatter
-/// YAML leaves no values; each adds a warning instead of failing. A doc that is
-/// not UTF-8, which format skips, is not laid out and has no `formatted` value.
+/// [codeTarget] names the project's one target when it has exactly one and it
+/// is named, so a per-target doc stores it (E24); null leaves a per-target
+/// doc's target unset, as a project with one unnamed target or no code root
+/// stores no name. Invalid UTF-8 decodes with replacement characters, and
+/// invalid frontmatter YAML leaves no values; each adds a warning instead of
+/// failing. A doc that is not UTF-8, which format skips, is not laid out and
+/// has no `formatted` value.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
+  String? codeTarget,
 }) {
   final warnings = <String>[];
   final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
-  final docType = switch (match) {
-    MatchedDocType(:final docType) => docType,
-    _ => null,
+  final (:docType, :target) = switch (match) {
+    MatchedDocType(:final docType, :final target) => (
+      docType: docType,
+      target: target,
+    ),
+    _ => (docType: null, target: null),
   };
   if (match case AmbiguousDocType(:final docTypeIds)) {
     warnings.add(
@@ -300,7 +339,10 @@ ParsedDoc parseIndexedDoc({
   final indexed = IndexedDoc(
     docPath: docPath,
     docTypeId: docType?.id,
-    name: docNameOf(docPath, docType),
+    name: docNameOf(docPath, docType, target: target),
+    target: docType != null && docType.isPerTarget
+        ? (target ?? codeTarget)
+        : null,
     title: doc.title,
     frontmatter: frontmatter,
     tokens: tokenSizeOf(text),

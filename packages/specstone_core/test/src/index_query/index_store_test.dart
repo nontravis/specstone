@@ -18,6 +18,10 @@ import '../../helpers/posix_modes.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
+/// The layout the current build writes; a test that rebuilds the meta row by
+/// hand uses it, so a layout bump moves with the code.
+const _layoutVersionForTest = 14;
+
 void main() {
   Future<Directory> root() => writeTree({'.specstone/config.yaml': ''});
   ParsedDoc parsed(String path, String text) => parseIndexedDoc(
@@ -279,7 +283,7 @@ void main() {
         expect(index.readAsBytesSync(), before);
       },
     );
-    test('s03/inv2: a stamp round-trips, and another merged set gives another stamp', () async {
+    test('s03/inv2, domain:index_query INV-2: a stamp round-trips, and another merged set gives another stamp', () async {
       MergedSet setWith(String description) => MergedSet(
         docTypes: [
           MergedDocType(
@@ -299,6 +303,100 @@ void main() {
       expect(store.readStamp(), stamp);
       expect(IndexStamp.of(setWith('Another feature')), isNot(stamp));
       expect(stamp.binaryVersion, specstoneVersion);
+      expect(stamp.targetNames, isEmpty);
+    });
+    test('index_query/read_current_docs/refresh_index_before_answering E02, domain:index_query INV-2: a template edit that only flips per_target gives another stamp, so the index rebuilds', () {
+      MergedSet setWith({required bool isPerTarget}) => MergedSet(
+        docTypes: [
+          MergedDocType(
+            id: 'topic',
+            isPerTarget: isPerTarget,
+            fields: const [],
+            sections: const [],
+            lint: const MergedLint(),
+            files: const [],
+          ),
+        ],
+      );
+      expect(
+        IndexStamp.of(setWith(isPerTarget: false)),
+        isNot(IndexStamp.of(setWith(isPerTarget: true))),
+      );
+    });
+    test('domain:index_query INV-2: a stamp holds the target names in config '
+        'order, and other names give another stamp', () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      const stamp = IndexStamp(
+        binaryVersion: specstoneVersion,
+        docTypes: 'x',
+        targetNames: ['flutter', 'jaspr'],
+      );
+      store.write(() => store.reset(stamp));
+      expect(store.readStamp(), stamp);
+      expect(store.readStamp()?.targetNames, ['flutter', 'jaspr']);
+      expect(
+        const IndexStamp(
+          binaryVersion: specstoneVersion,
+          docTypes: 'x',
+          targetNames: ['jaspr', 'flutter'],
+        ),
+        isNot(stamp),
+        reason: 'the names read in targets order, so a rename rebuilds',
+      );
+      expect(
+        const IndexStamp(
+          binaryVersion: specstoneVersion,
+          docTypes: 'x',
+          targetNames: ['flutter'],
+        ),
+        isNot(stamp),
+        reason: 'a removed target rebuilds',
+      );
+    });
+    test('domain:index_query INV-2: a meta row with no target_names column '
+        'reads with no column error and no stamp', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(
+        binaryVersion: specstoneVersion,
+        docTypes: 'x',
+        targetNames: ['flutter'],
+      );
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw
+        ..execute('DROP TABLE meta')
+        ..execute(
+          'CREATE TABLE meta (binary_version TEXT NOT NULL, '
+          'doc_types TEXT NOT NULL, layout INTEGER NOT NULL)',
+        )
+        ..execute('INSERT INTO meta VALUES (?, ?, ?)', [
+          specstoneVersion,
+          'x',
+          _layoutVersionForTest,
+        ]);
+      expect(store.readStamp(), isNull);
+    });
+    test('domain:index_query INV-77: a meta row whose target_names holds no '
+        'JSON array of strings has no stamp, so it rebuilds', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(
+        binaryVersion: specstoneVersion,
+        docTypes: 'x',
+        targetNames: ['flutter'],
+      );
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      for (final value in ['not json', '[1, 2]', '"flutter"']) {
+        raw.execute('UPDATE meta SET target_names = ?', [value]);
+        expect(store.readStamp(), isNull, reason: value);
+      }
     });
     test('f04/nfr-p03, s03/inv2: a stored doc loads back with its line facts and section counts', () async {
       const text =
@@ -647,6 +745,52 @@ void main() {
       addTearDown(raw.close);
       raw.execute('UPDATE meta SET layout = 12');
       expect(store.readStamp(), isNull);
+    });
+    test('domain:index_query INV-2: an index of layout 13, with no target '
+        'column, has no stamp, so it is rebuilt with it', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw
+        ..execute('ALTER TABLE docs DROP COLUMN target')
+        ..execute('UPDATE meta SET layout = 13');
+      expect(store.readStamp(), isNull);
+    });
+    test('index_query/read_current_docs/index_each_doc: a doc with a target '
+        'round-trips through the docs table', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const type = MergedDocType(
+        id: 'architecture',
+        path: 'specs/f{nn}_{slug}/ARCHITECTURE.md',
+        isPerTarget: true,
+        fields: [],
+        sections: [],
+        lint: MergedLint(),
+        files: [],
+      );
+      final targeted = parseIndexedDoc(
+        docPath: 'specs/jaspr/f01_login/ARCHITECTURE.md',
+        bytes: utf8.encode('# A\n'),
+        match: MatchedDocType(type, target: 'jaspr'),
+      );
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(targeted)
+          ..putDoc(parsed('README.md', '# R\n'));
+      });
+      expect(
+        {for (final d in store.loadDocs()) d.docPath: d.target},
+        {'specs/jaspr/f01_login/ARCHITECTURE.md': 'jaspr', 'README.md': null},
+      );
     });
   });
 }

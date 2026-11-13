@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 
 const _slug = 'first_project_to_html';
 const _journeyPath = 'docs/prds/journeys/$_slug/JOURNEY.md';
@@ -23,11 +24,8 @@ String _lines(int n) => switch (n) {
 };
 
 // The login story with scenarios 1 to 5; 1 and 2 are the fixture's own.
-String _storyText({String implements = '  - app/lib/login.dart:SignInPage\n'}) {
-  final base = checkProjectFiles()['docs/$loginStory']!.replaceFirst(
-    'implements:\n  - app/lib/login.dart:SignInPage\n',
-    implements.isEmpty ? '' : 'implements:\n$implements',
-  );
+String _storyText() {
+  final base = checkProjectFiles()['docs/$loginStory']!;
   return '$base\n${[for (var n = 3; n <= 5; n++) _scenario(n)].join('\n\n')}\n';
 }
 
@@ -80,8 +78,78 @@ Future<ReadAnswer> _paths(
 Future<ReadAnswer> _code(
   List<String> steps, {
   String name = 'journey:$_slug',
+  String? codeTarget,
   Map<String, String> extra = const {},
-}) => _answer(steps, answer: answerJourneyCode, name: name, extra: extra);
+}) => _answer(
+  steps,
+  answer: (index, name) =>
+      answerJourneyCode(index, name, codeTarget: codeTarget),
+  name: name,
+  extra: extra,
+);
+
+const _recordLayer =
+    'id: implementation\n'
+    'description: One feature record per target.\n'
+    'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+    'parent: feature\n'
+    'per_target: true\n'
+    'fields:\n'
+    '  - id: statuses\n'
+    '    type: record_status\n'
+    '    list: true\n'
+    '  - id: implements\n'
+    '    type: output_ref\n'
+    '    list: true\n'
+    '    pointer: item_exact\n';
+
+String _record({
+  List<String> statuses = const [],
+  List<String> code = const [],
+}) {
+  String list(String key, List<String> lines) => lines.isEmpty
+      ? ''
+      : '$key:\n${[for (final l in lines) '  - $l\n'].join()}';
+  return '---\n${list('statuses', statuses)}${list('implements', code)}---\n\n'
+      '# Record\n';
+}
+
+/// A project of one unnamed code target, its record holding [code].
+Map<String, String> _oneTarget(
+  List<String> code, {
+  List<String> statuses = const [],
+}) => {
+  '.specstone/templates/implementation.yaml': _recordLayer,
+  '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
+  'docs/specs/f01_login/IMPLEMENTATION.md': _record(
+    statuses: statuses,
+    code: code,
+  ),
+};
+
+/// A project of the code targets `flutter` and `jaspr`, with the records of
+/// each.
+Map<String, String> _twoTargets({
+  List<String> flutter = const [],
+  List<String> flutterStatuses = const [],
+  List<String> jaspr = const [],
+  List<String> jasprStatuses = const [],
+}) => {
+  '.specstone/templates/implementation.yaml': _recordLayer,
+  '.specstone/config.yaml':
+      '${shippedPinsConfig()}targets:\n'
+      '  flutter:\n    code_root: app\n'
+      '  jaspr:\n    code_root: jaspr_lib\n',
+  'jaspr_lib/.keep': '',
+  'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _record(
+    statuses: flutterStatuses,
+    code: flutter,
+  ),
+  'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': _record(
+    statuses: jasprStatuses,
+    code: jaspr,
+  ),
+};
 
 Matcher _refused(IndexFaultCode code, String message) => throwsA(
   isA<IndexFault>()
@@ -280,14 +348,18 @@ void main() {
   });
 
   group('answerJourneyCode', () {
+    const storyCode = 'email_login:app/lib/login.dart:SignInPage';
+    const frCode =
+        'email_login/check_password:app/lib/login.dart:checkPassword';
     const storyEntry =
         '  $_story (user_story)\n'
         '  - implements: app/lib/login.dart:SignInPage\n';
     const frName = 'login/email_login/check_password';
+    final single = _oneTarget([storyCode, frCode]);
 
     test('f10/us03/s1, f10/us03/fr01/e01: a step naming S2 lists the '
         "story's entries and the FR traced from S2 only", () async {
-      final answer = await _code([_step('1', 1), _step('2', 2)]);
+      final answer = await _code([_step('1', 1), _step('2', 2)], extra: single);
 
       expect(
         answer.text,
@@ -300,24 +372,24 @@ void main() {
       expect(answer.warnings, isEmpty);
     });
 
-    test('f10/us03/s2, f10/us03/fr01/e02: with prd-core alone each step '
-        'prints its FRs and - none', () async {
-      final answer = await _code(
-        [_step('1', 1)],
-        extra: {
-          'docs/$loginStory': _storyText(implements: ''),
-          'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
-            'traced_from:\n  - S2\n',
-            'traced_from:\n  - S5\n',
-          ),
-        },
-      );
+    test(
+      'f10/us03/s2, f10/us03/fr01/e02: with no record doc type each step '
+      'prints its FRs and - none, whatever the docs hold in implements',
+      () async {
+        final answer = await _code(
+          [_step('1', 1)],
+          extra: {
+            '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          },
+        );
 
-      expect(
-        answer.text,
-        endsWith('${_stepLine('1', 1)}\n  $_story (user_story)\n  - none\n'),
-      );
-    });
+        expect(
+          answer.text,
+          endsWith('${_stepLine('1', 1)}\n  $_story (user_story)\n  - none\n'),
+        );
+        expect(answer.warnings, isEmpty);
+      },
+    );
 
     test('f10/us03/fr01/e03: an FR traced from S2 and S4 is listed under '
         'each step naming either', () async {
@@ -339,8 +411,7 @@ void main() {
       "tracing the step are listed after the story's own, in tree order",
       () async {
         String fr(String title, String entry) =>
-            '---\ntraced_from:\n  - S1\n  - $entry\nimplements:\n'
-            '  - app/lib/$title.dart:$title\n---\n\n# $title\n\n'
+            '---\ntraced_from:\n  - S1\n  - $entry\n---\n\n# $title\n\n'
             '## Statement\nThe system shall.\n';
         const sibling = 'docs/prds/features/f01_login/us02_reset_password';
         const other = 'docs/prds/features/f02_billing/us01_invoice';
@@ -364,16 +435,11 @@ void main() {
       },
     );
 
-    test('f10/us03/fr01/e04: an implements entry naming a missing file '
+    test('f10/us03/fr01/e04: a record code path naming a missing file '
         'prints as written', () async {
-      final answer = await _code(
-        [_step('1', 1)],
-        extra: {
-          'docs/$loginStory': _storyText(
-            implements: '  - app/lib/missing.dart:Ghost\n',
-          ),
-        },
-      );
+      final answer = await _code([
+        _step('1', 1),
+      ], extra: _oneTarget(['email_login:app/lib/missing.dart:Ghost']));
 
       expect(
         answer.text,
@@ -417,7 +483,7 @@ void main() {
     test(
       'f10/us03/fr01: --json holds journeys with steps, story, and frs',
       () async {
-        final answer = await _code([_step('2', 2)]);
+        final answer = await _code([_step('2', 2)], extra: single);
 
         expect(answer.json, {
           'journeys': [
@@ -446,5 +512,183 @@ void main() {
         });
       },
     );
+
+    group('skips and a single named target', () {
+      test('f10/us03/fr01/e11: a skipped item holding paths prints skipped '
+          'and gives [] in JSON', () async {
+        final answer = await _code(
+          [_step('1', 1)],
+          extra: _twoTargets(
+            flutter: [storyCode],
+            flutterStatuses: ['email_login:skipped:no flutter'],
+          ),
+        );
+
+        expect(
+          answer.text,
+          endsWith('  $_story (user_story)\n  - flutter: skipped\n'),
+        );
+        final step =
+            (((answer.json['journeys']! as List).single as Map)['steps']!
+                        as List)
+                    .single
+                as Map;
+        expect((step['story']! as Map)['implementsByTarget'], {
+          'flutter': <String>[],
+          'jaspr': <String>[],
+        });
+      });
+
+      test('f10/us03/fr01/e11: a skip of the whole feature skips its story '
+          'and FRs in that target', () async {
+        final answer = await _code(
+          [_step('2', 2)],
+          extra: _twoTargets(
+            jaspr: [storyCode],
+            jasprStatuses: [':skipped:no web'],
+          ),
+        );
+
+        expect(
+          answer.text,
+          endsWith(
+            '  $_story (user_story)\n  - jaspr: skipped\n'
+            '  $frName (fr)\n  - jaspr: skipped\n',
+          ),
+        );
+      });
+
+      test('f10/us03/fr01/e11: one named target prints with no target '
+          'name, a skip as - skipped', () async {
+        Map<String, String> one(List<String> statuses) => {
+          '.specstone/templates/implementation.yaml': _recordLayer,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: app\n',
+          'docs/specs/f01_login/IMPLEMENTATION.md': _record(
+            statuses: statuses,
+            code: [storyCode],
+          ),
+        };
+
+        final plain = await _code([_step('1', 1)], extra: one([]));
+        final skipped = await _code([
+          _step('1', 1),
+        ], extra: one(['email_login:skipped:no app']));
+
+        expect(
+          plain.text,
+          endsWith('  - implements: app/lib/login.dart:SignInPage\n'),
+        );
+        expect(skipped.text, endsWith('  $_story (user_story)\n  - skipped\n'));
+      });
+    });
+
+    group('two code targets', () {
+      final twin = _twoTargets(
+        flutter: [storyCode, frCode],
+        jaspr: ['email_login:jaspr_lib/web_login.dart:WebLogin'],
+        jasprStatuses: ['email_login/check_password:skipped:no web check'],
+      );
+
+      test(
+        'f10/us03/fr01/e11: each story and FR lists its flutter code '
+        'paths, then its jaspr ones; a skip reads <target>: skipped',
+        () async {
+          final answer = await _code([_step('2', 2)], extra: twin);
+
+          expect(
+            answer.text,
+            endsWith(
+              '${_stepLine('2', 2)}\n'
+              '  $_story (user_story)\n'
+              '  - flutter: app/lib/login.dart:SignInPage\n'
+              '  - jaspr: jaspr_lib/web_login.dart:WebLogin\n'
+              '  $frName (fr)\n'
+              '  - flutter: app/lib/login.dart:checkPassword\n'
+              '  - jaspr: skipped\n',
+            ),
+          );
+        },
+      );
+
+      test('f10/us03/fr01/e11: --target jaspr keeps the one target, printed '
+          'with no target name', () async {
+        final answer = await _code(
+          [_step('2', 2)],
+          extra: twin,
+          codeTarget: 'jaspr',
+        );
+
+        expect(
+          answer.text,
+          endsWith(
+            '${_stepLine('2', 2)}\n'
+            '  $_story (user_story)\n'
+            '  - implements: jaspr_lib/web_login.dart:WebLogin\n'
+            '  $frName (fr)\n'
+            '  - skipped\n',
+          ),
+        );
+      });
+
+      test('f10/us03/fr01/e11: a target whose record holds no path prints '
+          'nothing, and - none when no target holds one', () async {
+        final answer = await _code([
+          _step('1', 1),
+        ], extra: _twoTargets(flutter: [storyCode]));
+        final bare = await _code([_step('1', 1)], extra: _twoTargets());
+
+        expect(
+          answer.text,
+          endsWith(
+            '  $_story (user_story)\n  - flutter: app/lib/login.dart:SignInPage\n',
+          ),
+        );
+        expect(bare.text, endsWith('  $_story (user_story)\n  - none\n'));
+      });
+
+      test(
+        'f10/us03/fr01/e11: --json holds implementsByTarget in targets: '
+        'order in place of implements; --target brings implements back',
+        () async {
+          final both = await _code([_step('2', 2)], extra: twin);
+          final jaspr = await _code(
+            [_step('2', 2)],
+            extra: twin,
+            codeTarget: 'jaspr',
+          );
+
+          final step =
+              (((both.json['journeys']! as List).single as Map)['steps']!
+                          as List)
+                      .single
+                  as Map;
+          expect(step['story'], {
+            'name': _story,
+            'implementsByTarget': {
+              'flutter': ['app/lib/login.dart:SignInPage'],
+              'jaspr': ['jaspr_lib/web_login.dart:WebLogin'],
+            },
+          });
+          expect((step['frs']! as List).single, {
+            'name': frName,
+            'implementsByTarget': {
+              'flutter': ['app/lib/login.dart:checkPassword'],
+              'jaspr': <String>[],
+            },
+          });
+          final one =
+              (((jaspr.json['journeys']! as List).single as Map)['steps']!
+                          as List)
+                      .single
+                  as Map;
+          expect(one['story'], {
+            'name': _story,
+            'implements': ['jaspr_lib/web_login.dart:WebLogin'],
+          });
+        },
+      );
+    });
   });
 }

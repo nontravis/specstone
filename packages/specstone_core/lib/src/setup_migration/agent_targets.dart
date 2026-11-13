@@ -7,6 +7,8 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show codeRootFiles;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -14,7 +16,10 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
+import 'package:specstone_core/src/setup_migration/tree_move.dart'
+    show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
@@ -94,36 +99,111 @@ List<Directory> codeRootFolders(
   return folders.values.toList();
 }
 
-/// Returns the folders of the code roots for the project at [projectRoot]:
-/// [codeRoot], then every `code:` entry the docs hold under the merged [set].
+/// Returns the folders of the code roots: each of [targets]' code roots, then
+/// each `code:` entry of that target's docs under [set], each folder once.
 ///
-/// The one source of code roots for `check`, `chooseRun`, `init`, and the
-/// upgrade plan, so they agree on which repository tops exist.
+/// A shared doc's entries count for no target when [targets] holds two or more.
+/// The one source of code roots for `check`, `chooseRun`, `init`, and upgrade.
 List<Directory> codeFoldersOf(
   Directory projectRoot,
   MergedSet set, {
-  required String codeRoot,
-}) => codeRootFolders(
-  projectRoot,
-  codeRoot: codeRoot,
-  codeEntries: codeEntriesOnDisk(projectRoot, set),
-);
+  required List<CodeTarget> targets,
+}) {
+  final entriesOf = _entriesByTarget(projectRoot, set, targets);
+  final folders = <String, Directory>{};
+  for (final target in targets) {
+    for (final folder in codeRootFolders(
+      projectRoot,
+      codeRoot: target.codeRoot,
+      codeEntries: entriesOf[target] ?? const {},
+    )) {
+      folders.putIfAbsent(folder.path, () => folder);
+    }
+  }
+  return folders.values.toList();
+}
 
-/// Returns the `code:` entries of every doc under `docs/` whose type holds the
-/// `code` field, each once, in doc path order.
-List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {
+/// Returns the code files of [targets], each as its path from the code root
+/// of the target that lists it.
+///
+/// A target lists the files under the `code:` entries of its own docs, read
+/// from its own root; a file under the root of another target nested in its
+/// own belongs to that target. A shared doc's entries count for no target when
+/// [targets] holds two or more. Roots and entries are read as
+/// `filesUnderCodeRoot` reads them.
+List<({Directory root, String path})> codeFilesOf(
+  Directory projectRoot,
+  MergedSet set, {
+  required List<CodeTarget> targets,
+}) {
+  final entriesOf = _entriesByTarget(projectRoot, set, targets);
+  return [
+    for (final target in targets)
+      for (final path in codeRootFiles(
+        codeRootFolderOf(projectRoot, target),
+        entriesOf[target] ?? const {},
+        skipFolders: nestedRootsOf(projectRoot, target, targets),
+      ))
+        (root: codeRootFolderOf(projectRoot, target), path: path),
+  ];
+}
+
+/// Returns the `code:` entries of each target's docs; a shared doc's entries
+/// go to the one target of a single-target project.
+Map<CodeTarget, Set<String>> _entriesByTarget(
+  Directory projectRoot,
+  MergedSet set,
+  List<CodeTarget> targets,
+) {
+  final entriesOf = <CodeTarget, Set<String>>{};
+  for (final (:target, :entry) in _codeEntriesOf(
+    projectRoot,
+    set,
+    targetNames: targetNamesOf(targets),
+  )) {
+    final owner = _ownerOf(targets, target);
+    if (owner != null) entriesOf.putIfAbsent(owner, () => {}).add(entry);
+  }
+  return entriesOf;
+}
+
+/// Returns the target the doc named [name] belongs to; a shared doc (null
+/// [name]) belongs to the one target of a single-target project, else to none.
+CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
+  if (name == null) {
+    return twinNamesOf(targetNamesOf(targets)).isEmpty ? targets.first : null;
+  }
+  return targets.where((target) => target.name == name).firstOrNull;
+}
+
+/// Returns the `code:` entries of each doc whose type holds the `code` field,
+/// in doc path order, with the target the doc's path names; null for a shared
+/// doc.
+///
+/// A per-target doc still at its one-target path is read where the tree move
+/// puts it ([treeMovesOf]), so the run that moves it already counts its
+/// entries for the first target.
+Iterable<({String? target, String entry})> _codeEntriesOf(
+  Directory projectRoot,
+  MergedSet set, {
+  required List<String> targetNames,
+}) sync* {
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
-  if (!docsRoot.existsSync()) return [];
-  final matcher = DocTypeMatcher(set);
+  if (!docsRoot.existsSync()) return;
+  final matcher = DocTypeMatcher(set, targetNames: targetNames);
   final prefixLength = docsRoot.uri.path.length;
   final docs = <String, File>{
     for (final entity in docsRoot.listSync(recursive: true, followLinks: false))
       if (entity is File && entity.path.endsWith('.md'))
         Uri.decodeComponent(entity.uri.path.substring(prefixLength)): entity,
   };
-  final entries = <String>{};
-  for (final docPath in docs.keys.toList()..sort(compareCodePoints)) {
-    final match = matcher.match(docPath);
+  final docPaths = docs.keys.toList()..sort(compareCodePoints);
+  final landing = {
+    for (final move in treeMovesOf(docPaths, set, targetNames: targetNames))
+      move.from: move.to,
+  };
+  for (final docPath in docPaths) {
+    final match = matcher.match(landing[docPath] ?? docPath);
     if (match is! MatchedDocType) continue;
     if (!match.docType.fields.any((field) => field.id == _codeField)) continue;
     final text = _decode(readPlanInput(docs[docPath]!));
@@ -131,10 +211,9 @@ List<String> codeEntriesOnDisk(Directory projectRoot, MergedSet set) {
     for (final (:value, line: _, text: _) in DocLines.of(
       toLf(text),
     ).entriesOf(_codeField)) {
-      if (value is String) entries.add(value);
+      if (value is String) yield (target: match.target, entry: value);
     }
   }
-  return entries.toList();
 }
 
 /// What `init`, `migrate`, and `check` need to find the agent files.

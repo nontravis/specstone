@@ -15,6 +15,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 const _frKey =
     'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
@@ -24,8 +26,7 @@ const _storyKey = 'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
 String _padded(String start, int length) => start.padRight(length, '.');
 
 final _e09Fr =
-    '---\nstatus: implemented\ntraced_from:\n  - S1\n  - S2\n'
-    'implements:\n  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n'
+    '---\ntraced_from:\n  - S1\n  - S2\n---\n\n'
     '# Validate credentials\n\n## Statement\n'
     '${_padded('The system shall check the email and the password.', 165)}\n\n'
     '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
@@ -46,7 +47,7 @@ List<Map<String, Object?>> _jsonSections(DocIndex index, String target) =>
 
 void main() {
   late DocIndex index;
-  setUpAll(() async => index = await indexWith());
+  setUpAll(() async => index = await indexWith(loginRecords));
   int tokensOf(String key) => tokenSizeOf(loginProject[key]!);
 
   test('f01/us02/s1, f01/us02/fr01/e01: the whole tree, tops in tree order, children two spaces deeper', () async {
@@ -83,7 +84,7 @@ void main() {
       index,
       target: 'login',
     ).text.trim().split('\n');
-    expect(lines, hasLength(11));
+    expect(lines, hasLength(12));
     expect(lines.first, startsWith('login (feature)'));
   });
   test(
@@ -193,14 +194,16 @@ void main() {
 
   group('index_query/view_docs_tree/print_docs_tree', () {
     late DocIndex e09;
-    setUpAll(() async => e09 = await indexWith({_frKey: _e09Fr}));
+    setUpAll(
+      () async => e09 = await indexWith({...loginRecords, _frKey: _e09Fr}),
+    );
 
     test('E09: a typed doc target prints each section and item with its characters', () async {
       expect(
         answerStructure(e09, target: _frTarget).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_e09Fr)} tokens\n'
         '  statement · 179 chars\n'
-        '    line 14 · 165 chars\n'
+        '    line 11 · 165 chars\n'
         '  edge_cases · 243 chars\n'
         '    E01 · 106 chars\n'
         '    E02 · 121 chars\n',
@@ -229,15 +232,15 @@ void main() {
             'key': 'statement',
             'chars': 179,
             'items': [
-              {'line': 14, 'chars': 165},
+              {'line': 11, 'chars': 165},
             ],
           },
           {
             'key': 'edge_cases',
             'chars': 243,
             'items': [
-              {'id': 'E01', 'line': 18, 'chars': 106},
-              {'id': 'E02', 'line': 19, 'chars': 121},
+              {'id': 'E01', 'line': 15, 'chars': 106},
+              {'id': 'E02', 'line': 16, 'chars': 121},
             ],
           },
         ]);
@@ -245,14 +248,14 @@ void main() {
     );
 
     test('E11: a lead prints first as _lead with its items, as text', () async {
-      final index = await indexWith({_frKey: _leadFr});
+      final index = await indexWith({...loginRecords, _frKey: _leadFr});
       expect(
         answerStructure(index, target: _frTarget).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_leadFr)} tokens\n'
         '  _lead · 681 chars\n'
-        '    line 12 · 681 chars\n'
+        '    line 9 · 681 chars\n'
         '  statement · 179 chars\n'
-        '    line 16 · 165 chars\n'
+        '    line 13 · 165 chars\n'
         '  edge_cases · 243 chars\n'
         '    E01 · 106 chars\n'
         '    E02 · 121 chars\n',
@@ -262,14 +265,14 @@ void main() {
     test(
       'E11: a lead gives the first sections entry key _lead under --json',
       () async {
-        final index = await indexWith({_frKey: _leadFr});
+        final index = await indexWith({...loginRecords, _frKey: _leadFr});
         final sections = _jsonSections(index, _frTarget);
 
         expect(sections.first, {
           'key': '_lead',
           'chars': 681,
           'items': [
-            {'line': 12, 'chars': 681},
+            {'line': 9, 'chars': 681},
           ],
         });
         expect(
@@ -297,7 +300,7 @@ void main() {
         '# Validate credentials\n\n',
         '# Validate credentials\n\n   \n\n',
       );
-      final index = await indexWith({_frKey: blank});
+      final index = await indexWith({...loginRecords, _frKey: blank});
 
       expect(
         answerStructure(index, target: _frTarget).text,
@@ -309,29 +312,29 @@ void main() {
       'E11: a doc with no title line takes its whole head as the lead',
       () async {
         final untitled = _leadFr.replaceFirst('# Validate credentials\n\n', '');
-        final index = await indexWith({_frKey: untitled});
+        final index = await indexWith({...loginRecords, _frKey: untitled});
 
         expect(_jsonSections(index, _frTarget), [
           {
             'key': '_lead',
             'chars': 681,
             'items': [
-              {'line': 10, 'chars': 681},
+              {'line': 7, 'chars': 681},
             ],
           },
           {
             'key': 'statement',
             'chars': 179,
             'items': [
-              {'line': 14, 'chars': 165},
+              {'line': 11, 'chars': 165},
             ],
           },
           {
             'key': 'edge_cases',
             'chars': 243,
             'items': [
-              {'id': 'E01', 'line': 18, 'chars': 106},
-              {'id': 'E02', 'line': 19, 'chars': 121},
+              {'id': 'E01', 'line': 15, 'chars': 106},
+              {'id': 'E02', 'line': 16, 'chars': 121},
             ],
           },
         ]);
@@ -345,22 +348,22 @@ void main() {
         '${_padded('2. E02 — An unknown email → refused', 121)}\n\n'
         '## Statement\n${_padded('The system shall check the email and the password.', 165)}\n',
       );
-      final index = await indexWith({_frKey: shuffled});
+      final index = await indexWith({...loginRecords, _frKey: shuffled});
 
       expect(_jsonSections(index, _frTarget), [
         {
           'key': 'edge_cases',
           'chars': 243,
           'items': [
-            {'id': 'E01', 'line': 18, 'chars': 106},
-            {'id': 'E02', 'line': 19, 'chars': 121},
+            {'id': 'E01', 'line': 15, 'chars': 106},
+            {'id': 'E02', 'line': 16, 'chars': 121},
           ],
         },
         {
           'key': 'statement',
           'chars': 179,
           'items': [
-            {'line': 14, 'chars': 165},
+            {'line': 11, 'chars': 165},
           ],
         },
       ]);
@@ -371,29 +374,29 @@ void main() {
         '## Edge cases',
         '## Statement\nsecond\n\n## Edge cases',
       );
-      final index = await indexWith({_frKey: repeated});
+      final index = await indexWith({...loginRecords, _frKey: repeated});
 
       expect(_jsonSections(index, _frTarget), [
         {
           'key': 'statement',
           'chars': 178,
           'items': [
-            {'line': 13, 'chars': 165},
+            {'line': 10, 'chars': 165},
           ],
         },
         {
           'key': 'statement',
           'chars': 19,
           'items': [
-            {'line': 16, 'chars': 6},
+            {'line': 13, 'chars': 6},
           ],
         },
         {
           'key': 'edge_cases',
           'chars': 242,
           'items': [
-            {'id': 'E01', 'line': 19, 'chars': 106},
-            {'id': 'E02', 'line': 20, 'chars': 121},
+            {'id': 'E01', 'line': 16, 'chars': 106},
+            {'id': 'E02', 'line': 17, 'chars': 121},
           ],
         },
       ]);
@@ -401,11 +404,11 @@ void main() {
 
     test('E09: a lettered item ID prints as a line, never as an ID', () async {
       final lettered = _e09Fr.replaceFirst('2. E02 —', '2. E02a —');
-      final index = await indexWith({_frKey: lettered});
+      final index = await indexWith({...loginRecords, _frKey: lettered});
       final lines = answerStructure(index, target: _frTarget).text.split('\n');
 
       expect(lines, contains('    E01 · 106 chars'));
-      expect(lines, contains(matches(RegExp(r'^    line 19 · \d+ chars$'))));
+      expect(lines, contains(matches(RegExp(r'^    line 16 · \d+ chars$'))));
       expect(lines.where((l) => l.contains('E02a')), isEmpty);
     });
 
@@ -432,7 +435,7 @@ void main() {
       expect(lines.where((l) => l.contains('(user_story)')), hasLength(2));
       expect(
         lines.where((l) => l.contains(' (') && l.contains(' tokens')),
-        hasLength(11),
+        hasLength(12),
       );
     });
 
@@ -597,5 +600,283 @@ void main() {
         expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
       },
     );
+  });
+
+  group('index_query/view_docs_tree/print_docs_tree, status per code target', () {
+    const featureText =
+        '---\nstatus: implemented\n---\n\n# Toast\n\n## Problem\nBurnt '
+        'toast.\n';
+    const showText =
+        '---\nstatus: implemented\n---\n\n# Agent sees a toast\n\n## Use '
+        'Case\nUse it.\n';
+    const swipeText =
+        '---\nstatus: implemented\n---\n\n# Agent swipes a toast away\n\n'
+        '## Use Case\nUse it.\n';
+    const archText = '# Toast architecture\n';
+
+    String record(String lines) => lines.isEmpty
+        ? '# Record\n'
+        : '---\nstatuses:\n$lines---\n\n# Record\n';
+
+    /// Returns the index of the two-target fixture: `feedback/toast`, its two
+    /// stories, its architecture doc in both targets, and each target's record.
+    Future<DocIndex> toastIndex({
+      String flutterStatuses = '',
+      String jasprStatuses = '',
+    }) async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              showText,
+          'docs/prds/features/f02_feedback/f03_toast/us02_swipe/USER_STORY.md':
+              swipeText,
+          'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
+          'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
+          'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+            flutterStatuses,
+          ),
+          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+            jasprStatuses,
+          ),
+        }),
+      );
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('E15: each line holds each target status in targets order, a skipped story skipped', () async {
+      const flutter = '  - show:implemented\n  - swipe:implemented\n';
+      const jaspr = '  - show:planned\n  - swipe:skipped:no jaspr\n';
+      final index = await toastIndex(
+        flutterStatuses: flutter,
+        jasprStatuses: jaspr,
+      );
+
+      expect(
+        answerStructure(index, target: 'feedback/toast').text,
+        'feedback/toast (feature) — Toast · flutter: implemented, jaspr: '
+        'planned · ${tokenSizeOf(featureText)} tokens\n'
+        '  feedback/toast/show (user_story) — Agent sees a toast · flutter: '
+        'implemented, jaspr: planned · ${tokenSizeOf(showText)} tokens\n'
+        '  feedback/toast/swipe (user_story) — Agent swipes a toast away · '
+        'flutter: implemented, jaspr: skipped · '
+        '${tokenSizeOf(swipeText)} tokens\n'
+        '  feedback/toast (architecture) — Toast architecture · '
+        '${tokenSizeOf(archText)} tokens\n'
+        '  feedback/toast (implementation) — Record · '
+        '${tokenSizeOf(record(flutter))} tokens\n'
+        '  feedback/toast (architecture) — Toast architecture · '
+        '${tokenSizeOf(archText)} tokens\n'
+        '  feedback/toast (implementation) — Record · '
+        '${tokenSizeOf(record(jaspr))} tokens\n',
+      );
+    });
+
+    test(
+      'E15: --json holds statuses, target name to status, in targets order',
+      () async {
+        final index = await toastIndex(
+          flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
+          jasprStatuses: '  - show:planned\n  - swipe:skipped:no jaspr\n',
+        );
+
+        final doc =
+            (answerStructure(index, target: 'feedback/toast').json['docs']!
+                    as List)
+                .cast<Map<String, Object?>>()
+                .single;
+        expect(doc.keys.toList(), [
+          'name',
+          'docType',
+          'path',
+          'title',
+          'statuses',
+          'draft',
+          'tokens',
+          'children',
+        ]);
+        expect(doc['statuses'], {'flutter': 'implemented', 'jaspr': 'planned'});
+        final swipe = (doc['children']! as List)
+            .cast<Map<String, Object?>>()
+            .singleWhere((c) => c['name'] == 'feedback/toast/swipe');
+        expect(swipe['statuses'], {
+          'flutter': 'implemented',
+          'jaspr': 'skipped',
+        });
+      },
+    );
+
+    test(
+      'E16: --target jaspr prints jaspr statuses alone and no flutter spec doc',
+      () async {
+        final index = await toastIndex(
+          flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
+          jasprStatuses: '  - show:planned\n  - swipe:skipped:no jaspr\n',
+        );
+
+        final lines = answerStructure(
+          index,
+          target: 'feedback/toast',
+          codeTarget: 'jaspr',
+        ).text.split('\n');
+        expect(
+          lines.where((l) => l.contains('flutter')),
+          isEmpty,
+          reason: 'no flutter status and no flutter spec doc',
+        );
+        expect(lines.first, contains(' · planned · '));
+        expect(
+          lines.where((l) => l.contains('(user_story)')).last,
+          contains(' · skipped · '),
+        );
+      },
+    );
+
+    test(
+      'E17: one target, named or not, shows its one status with no name',
+      () async {
+        final single = await toastIndex(
+          flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
+        );
+        final plain = await indexWith();
+
+        expect(
+          answerStructure(
+            single,
+            target: 'feedback/toast',
+            codeTarget: 'flutter',
+          ).text.split('\n').first,
+          startsWith('feedback/toast (feature) — Toast · implemented · '),
+        );
+        expect(
+          answerStructure(plain, target: 'login').text.split('\n').first,
+          startsWith('login (feature) — Login · planned · '),
+        );
+      },
+    );
+
+    test('E17: a project that names one target reads its records with no flag, '
+        'one status with no name', () async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n',
+          'flutter_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
+              showText,
+          'docs/specs/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+            '  - show:implemented\n',
+          ),
+        }),
+      );
+      addTearDown(session.close);
+      final index = session.index;
+      expect(index.targetNames, ['flutter']);
+
+      final featureLine =
+          'feedback/toast (feature) — Toast · implemented · '
+          '${tokenSizeOf(featureText)} tokens';
+      final storyLine =
+          '  feedback/toast/show (user_story) — Agent sees a toast · '
+          'implemented · ${tokenSizeOf(showText)} tokens';
+      expect(
+        answerStructure(index, target: 'feature:feedback/toast').text,
+        '$featureLine\n'
+        '  problem · 24 chars\n'
+        '    line 9 · 12 chars\n'
+        '$storyLine\n'
+        '  feedback/toast (implementation) — Record · '
+        '${tokenSizeOf(record('  - show:implemented\n'))} tokens\n',
+      );
+    });
+
+    test(
+      'resolve_doc_name E22: an unknown code target is argument_invalid with '
+      'no positional target too',
+      () async {
+        final index = await toastIndex();
+        expect(
+          () => answerStructure(index, codeTarget: 'web'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--target web: the code targets are flutter, jaspr',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('api:index_query: a parentless doc of another target is left out with '
+        '--target', () async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+          'docs/specs/flutter/f99_gone/ARCHITECTURE.md':
+              '# Feedback architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+
+      expect(
+        answerStructure(session.index, codeTarget: 'jaspr').text,
+        'feedback (feature) — Toast · planned · '
+        '${tokenSizeOf(featureText)} tokens\n',
+      );
+    });
   });
 }

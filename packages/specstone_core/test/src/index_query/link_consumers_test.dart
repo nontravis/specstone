@@ -183,7 +183,7 @@ const _readForms = <_Form>[
 late MergedSet _set;
 
 MergedDocType _typeAt(String docPath) =>
-    switch (DocTypeMatcher(_set).match(docPath)) {
+    switch (DocTypeMatcher(_set, targetNames: const []).match(docPath)) {
       MatchedDocType(:final docType) => docType,
       _ => throw StateError('no doc type at $docPath'),
     };

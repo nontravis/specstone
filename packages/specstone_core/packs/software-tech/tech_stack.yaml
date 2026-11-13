@@ -3,18 +3,20 @@ description: |-
   The project's technology stack: one small set of tables that an Agent loads on most calls.
   Title it `# Tech stack`, with no number.
   Aim for about 80 lines; keep one fact per table cell and write rows that a reader can check.
-  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
+  The target's record holds each story's and FR's status and code paths; `code` names the target's own code only.
   Hold no secret in any row.
   Leave performance and scale to the project-wide and per-story non-functional requirements.
   Write one rule per ID: one Stack row per slot, each rule one sentence.
 path: specs/TECH_STACK.md
+per_target: true
 bundle: [implement, design]
 fields:
   - id: code
     type: string
     list: true
     description: |-
-      Lists each folder or file of the project's code, relative to the code root (`code_root` in `.specstone/config.yaml`, else the project root), such as `packages/app/lib/`.
+      Lists each folder or file of the project's code, relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root), such as `packages/app/lib/`.
       `specstone check` reports each file under it that no `covers` entry reaches.
 sections:
   - id: stack

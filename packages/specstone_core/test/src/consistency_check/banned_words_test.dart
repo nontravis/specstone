@@ -27,7 +27,7 @@ void main() {
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.bannedWord,
     );
-    expect(finding.line, 17);
+    expect(finding.line, 14);
     expect(
       finding.toJson(),
       allOf(containsPair('word', 'fast'), containsPair('section', 'statement')),
@@ -100,7 +100,7 @@ void main() {
       ),
     );
     expect(spots(oneSection, FindingKind.bannedWord), [
-      '$loginFr:25: banned_word',
+      '$loginFr:22: banned_word',
     ]);
   });
 

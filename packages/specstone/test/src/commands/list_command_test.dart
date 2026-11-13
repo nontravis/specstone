@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -119,7 +120,7 @@ void main() {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: edit(loginFr, [
-          ('status: implemented\n', 'status: implemented\ndraft: true\n'),
+          ('traced_from:\n', 'draft: true\ntraced_from:\n'),
           ('  - S2 ${fingerprintFor(loginScenario2)}', '  - S2 000000000000'),
         ]),
       ),
@@ -193,5 +194,147 @@ void main() {
       0,
     );
     expect(err.toString(), isEmpty);
+  });
+
+  group('per code target', () {
+    /// Writes a two-target project: the feature `login` with two stories and
+    /// their FRs, and each target's record; `flutter` names code for both
+    /// FRs, `jaspr` for `show/open` alone.
+    Future<Directory> twoTargets() => writeTree({
+      '.specstone/templates/implementation.yaml':
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n'
+          '  - id: implements\n'
+          '    type: output_ref\n'
+          '    list: true\n'
+          '    pointer: item_exact\n',
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.\n',
+      'docs/prds/features/f01_login/us01_show/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
+      'docs/prds/features/f01_login/us01_show/fr01_open.md':
+          '---\nstatus: implemented\n---\n\n# Open it\n',
+      'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
+      'docs/prds/features/f01_login/us02_hide/fr01_close.md':
+          '---\nstatus: implemented\n---\n\n# Close it\n',
+      'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+          '---\nimplements:\n'
+          '  - show/open:flutter/lib/open.dart\n'
+          '  - show:flutter/lib/show.dart\n'
+          '  - hide/close:flutter/lib/close.dart\n'
+          '  - hide:flutter/lib/hide.dart\n---\n\n# Record\n',
+      'docs/specs/jaspr/f01_login/IMPLEMENTATION.md':
+          '---\nimplements:\n  - show/open:jaspr/lib/open.dart\n---\n\n'
+          '# Record\n',
+    });
+
+    test('f01/us03/fr02/e09: list fr --no-implements --target jaspr keeps the FR with no code in jaspr', () async {
+      final (:runner, :out, :err) = readRunner(await twoTargets());
+      expect(
+        await runner.run([
+          'list',
+          'fr',
+          '--no-implements',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(
+        out.toString().split('\n').where((l) => l.isNotEmpty),
+        hasLength(1),
+      );
+      expect(out.toString(), startsWith('login/hide/close (fr) — Close it'));
+      expect(out.toString(), contains(' · planned · '));
+    });
+
+    test('f01/us03/fr02/e10: --status or --no-implements with two targets and no --target is argument_missing, exit 64', () async {
+      for (final args in [
+        ['list', 'user_story', '--status', 'planned'],
+        ['list', 'fr', '--no-implements'],
+      ]) {
+        final (:runner, :out, :err) = readRunner(await twoTargets());
+        expect(await runner.run(args), 64);
+        expect(
+          err.toString(),
+          '--status and --no-implements need --target with two or more code '
+          'targets; the targets are flutter, jaspr\n',
+        );
+        expect(out.toString(), isEmpty);
+      }
+    });
+
+    test('f01/us03/fr02/e11: list user_story --status skipped --target jaspr keeps the skipped story', () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeTree({
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/prds/features/f01_login/FEATURE.md':
+              '# Login\n\n## Problem\n.\n',
+          'docs/prds/features/f01_login/us01_show/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
+          'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': '---\nstatuses:\n  - show:implemented\n  - hide:implemented\n---\n\n# Record\n',
+          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': '---\nstatuses:\n  - hide:skipped:no hide on the web\n---\n\n# Record\n',
+        }),
+      );
+      expect(
+        await runner.run([
+          'list',
+          'user_story',
+          '--status',
+          'skipped',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(out.toString().split('\n').where((l) => l.isNotEmpty), [
+        startsWith('login/hide (user_story) — Agent hides it · skipped · '),
+      ]);
+    });
+
+    test(
+      'f01/us03/fr02/e12: one target judges its status with no --target',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeReadProject());
+        expect(
+          await runner.run(['list', 'user_story', '--status', 'planned']),
+          0,
+        );
+        expect(
+          out
+              .toString()
+              .split('\n')
+              .where((l) => l.isNotEmpty)
+              .map((l) => l.split(' (').first),
+          ['login/email_login'],
+        );
+      },
+    );
   });
 }

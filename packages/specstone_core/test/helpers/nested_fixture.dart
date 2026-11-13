@@ -34,6 +34,29 @@ const payCard = 'prds/features/f02_shop/f02_pay/us01_card/USER_STORY.md';
 /// The DocPath of the story `shop/pay/refund`.
 const payRefund = 'prds/features/f02_shop/f02_pay/us02_refund/USER_STORY.md';
 
+/// The DocPath of the record of the sub-feature `shop/cart`.
+const cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
+
+/// The DocPath of the record of the sub-feature `shop/pay`.
+const payRecord = 'specs/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+/// The records of `shop/cart` and `shop/pay`, keyed by path from the project
+/// root: every story `implemented` but `refund`, which is [refund].
+///
+/// A test adds them as `extra`; the nested project holds no record itself.
+Map<String, String> nestedRecords({String refund = 'planned'}) => {
+  'docs/$cartRecord':
+      "---\nstatuses:\n  - 'add_item:implemented'\n"
+      "  - 'add_item/check_stock:implemented'\n  - 'drop_item:implemented'\n"
+      "implements:\n  - 'add_item:app/lib/shop.dart:Shop'\n"
+      "  - 'add_item/check_stock:app/lib/shop.dart:Shop'\n"
+      '---\n\n# Cart implementation\n',
+  'docs/$payRecord':
+      "---\nstatuses:\n  - 'card:implemented'\n  - 'refund:$refund'\n"
+      "implements:\n  - 'card:app/lib/shop.dart:Shop'\n"
+      '---\n\n# Pay implementation\n',
+};
+
 /// The DocPath of the domain doc of `shop`.
 const shopDomain = 'specs/f02_shop/DOMAIN.md';
 
@@ -60,9 +83,8 @@ String _feature(String title) =>
     '## Success measures\nOrders per week.\n\n## Current alternatives\nPhone orders.\n\n'
     '## Feature flow\nBrowse, then buy.\n\n## Out-of-scope\n- Gift cards — not planned\n';
 
-String _story(String title, String status, String scenario) =>
-    '---\nstatus: $status\ngoals:\n  - PG-01\nimplements:\n'
-    '  - app/lib/shop.dart:Shop\n---\n\n# $title\n\n## Use Case\n'
+String _story(String title, String scenario) =>
+    '---\ngoals:\n  - PG-01\n---\n\n# $title\n\n## Use Case\n'
     '- **As a** Agent who shops\n- **I want to** act\n- **so that** I finish an order\n\n'
     '## Acceptance Criteria\n\n${_scenario(scenario)}\n';
 
@@ -74,28 +96,24 @@ String _domain(String title) =>
 /// Returns the docs of the nested project, keyed by path from the project root.
 ///
 /// Holds `shop` with the sub-features `cart` and `pay`, two stories each, and
-/// the layer that sets `max_depth: 3` on `feature`. `payRefund` is `planned`;
-/// the other stories are `implemented`.
+/// the layer that sets `max_depth: 3` on `feature`. The stories carry no status;
+/// [nestedRecords] holds it.
 Map<String, String> nestedFiles() => {
   '.specstone/templates/feature.yaml': 'max_depth: 3\n',
   'app/lib/shop.dart': 'class Shop {}\n',
   'docs/$shopFeature': _feature('Shop'),
   'docs/$cartFeature': _feature('Cart'),
   'docs/$payFeature': _feature('Pay'),
-  'docs/$cartAdd': _story('Agent adds an item', 'implemented', 'Add an item'),
+  'docs/$cartAdd': _story('Agent adds an item', 'Add an item'),
   'docs/$cartAddFr':
-      '---\nstatus: implemented\ntraced_from:\n  - S1\nverify_method: test\nimplements:\n'
-      '  - app/lib/shop.dart:Shop\nconfirmed:\n  - S1 ${fingerprintFor(_scenario('Add an item'))}\n---\n\n'
+      '---\ntraced_from:\n  - S1\nverify_method: test\n'
+      'confirmed:\n  - S1 ${fingerprintFor(_scenario('Add an item'))}\n---\n\n'
       '# Check the stock\n\n## Statement\n$checkStockStatement\n\n'
       '## Edge cases\n1. E01 — A sold-out item → refused.\n\n## Rationale\nStock is finite.\n\n'
       '## Verification\nTest: a sold-out item is refused.\n',
-  'docs/$cartDrop': _story(
-    'Agent drops an item',
-    'implemented',
-    'Drop an item',
-  ),
-  'docs/$payCard': _story('Agent pays by card', 'implemented', 'Pay by card'),
-  'docs/$payRefund': _story('Agent asks a refund', 'planned', 'Ask a refund'),
+  'docs/$cartDrop': _story('Agent drops an item', 'Drop an item'),
+  'docs/$payCard': _story('Agent pays by card', 'Pay by card'),
+  'docs/$payRefund': _story('Agent asks a refund', 'Ask a refund'),
   'docs/$shopDomain': _domain('Shop'),
   'docs/$cartDomain': _domain('Cart'),
   'docs/$shopArchitecture':

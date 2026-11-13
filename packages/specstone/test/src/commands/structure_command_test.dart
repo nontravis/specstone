@@ -4,8 +4,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
+
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -41,11 +45,152 @@ String frWithLead() => frWithSizes().replaceFirst(
 Map<String, Object?> errorOf(StringBuffer err) =>
     (jsonDecode(err.toString()) as Map)['error'] as Map<String, Object?>;
 
+/// Writes the two-target fixture of `index_query/view_docs_tree/print_docs_tree`
+/// E15: the feature `feedback/toast`, its two stories, its architecture doc in
+/// both targets, and each target's record.
+Future<Directory> writeTargetedTree() {
+  const feature =
+      '---\nstatus: implemented\n---\n\n# Toast\n\n## Problem\nBurnt toast.\n';
+  const show =
+      '---\nstatus: implemented\n---\n\n# Agent sees a toast\n\n## Use Case\n'
+      'Use it.\n';
+  const swipe =
+      '---\nstatus: implemented\n---\n\n# Agent swipes a toast away\n\n'
+      '## Use Case\nUse it.\n';
+  String record(String statuses) => statuses.isEmpty
+      ? '# Record\n'
+      : '---\nstatuses:\n$statuses---\n\n# Record\n';
+  return writeReadProject(
+    extra: {
+      '.specstone/templates/architecture.yaml':
+          'id: architecture\nper_target: true\n',
+      '.specstone/templates/implementation.yaml':
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n',
+      '.specstone/config.yaml':
+          'packs:\n'
+          '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+          '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+          'targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': feature,
+      'docs/prds/features/f02_feedback/FEATURE.md': feature,
+      'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md': show,
+      'docs/prds/features/f02_feedback/f03_toast/us02_swipe/USER_STORY.md':
+          swipe,
+      'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+          '# Toast architecture\n',
+      'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+          '# Toast architecture\n',
+      'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+        '  - show:implemented\n  - swipe:implemented\n',
+      ),
+      'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+        '  - show:planned\n  - swipe:skipped:no jaspr\n',
+      ),
+    },
+  );
+}
+
 void main() {
   test('f01/us02/s1, f01/us02/fr01: structure prints the tree on stdout and exits 0', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['structure']), 0);
     expect(out.toString(), contains('login (feature) — Login · planned · '));
+    expect(err.toString(), isEmpty);
+  });
+  test('index_query/view_docs_tree s8, fr01/e15: structure names each target status, a skipped story skipped', () async {
+    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
+    expect(await runner.run(['structure', 'feedback/toast']), 0);
+    expect(out.toString().split('\n').take(3), [
+      startsWith(
+        'feedback/toast (feature) — Toast · '
+        'flutter: implemented, jaspr: planned · ',
+      ),
+      isA<String>().having(
+        (l) => l.trim().split(' · ').take(2).join(' · '),
+        'statuses',
+        'feedback/toast/show (user_story) — Agent sees a toast · '
+            'flutter: implemented, jaspr: planned',
+      ),
+      isA<String>().having(
+        (l) => l.trim().split(' · ').take(2).join(' · '),
+        'statuses',
+        'feedback/toast/swipe (user_story) — Agent swipes a toast away · '
+            'flutter: implemented, jaspr: skipped',
+      ),
+    ]);
+    expect(err.toString(), isEmpty);
+  });
+  test('index_query/view_docs_tree fr01/e16: structure --target jaspr prints jaspr alone, no flutter spec doc', () async {
+    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
+    expect(
+      await runner.run(['structure', 'feedback/toast', '--target', 'jaspr']),
+      0,
+    );
+    final lines = out.toString().split('\n');
+    expect(lines.first, contains(' · planned · '));
+    expect(
+      lines.where((l) => l.contains('(user_story)')).last,
+      contains(' · skipped · '),
+    );
+    expect(
+      lines.where((l) => l.contains('flutter')),
+      isEmpty,
+      reason: 'no flutter status and no flutter spec doc',
+    );
+    expect(err.toString(), isEmpty);
+  });
+  test('read_doc_section/resolve_doc_name E22: an unknown --target with no '
+      'positional target exits 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
+    expect(await runner.run(['structure', '--target', 'web']), 64);
+    expect(
+      err.toString(),
+      '--target web: the code targets are flutter, jaspr\n',
+    );
+    expect(out.toString(), isEmpty);
+  });
+  test('f01/us02/fr01/e17: one named target reads its records with no --target '
+      'through list', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeTree({
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n',
+        'flutter_lib/.keep': '',
+        'docs/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.\n',
+        'docs/prds/features/f01_login/us01_show/USER_STORY.md':
+            '---\nstatus: planned\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
+        'docs/specs/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n  - show:implemented\n---\n\n# Record\n',
+      }),
+    );
+    expect(
+      await runner.run(['list', 'user_story', '--status', 'implemented']),
+      0,
+    );
+    expect(out.toString(), startsWith('login/show (user_story)'));
     expect(err.toString(), isEmpty);
   });
   test('f01/us02/fr01/e06: --json prints one object; a warning goes only to its warnings array', () async {

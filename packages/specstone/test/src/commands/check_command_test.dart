@@ -4,6 +4,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -11,6 +14,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
 import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
@@ -40,7 +44,7 @@ void main() {
     expect(await runner.run(['check']), 1);
     expect(
       out.toString(),
-      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
+      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
       'demonstration\n1 finding\n',
     );
   });
@@ -112,7 +116,7 @@ void main() {
       'kind': 'field_value_mismatch',
       'docPath': loginFr,
       'name': 'login/email_login/check_password',
-      'line': 6,
+      'line': 5,
       'message': 'verify_method is maybe; it takes test, analysis, inspection, or demonstration',
       'waitsFor': 'agent',
       'field': 'verify_method',
@@ -168,7 +172,7 @@ void main() {
       expect(lines.last, '2 findings');
       final tagged = lines.where((l) => l.endsWith(' (waits for the Owner)'));
       expect(tagged, hasLength(1));
-      expect(tagged.single, startsWith('$loginStory:3: approval_stale: '));
+      expect(tagged.single, startsWith('$loginStory:2: approval_stale: '));
     });
   });
 
@@ -266,7 +270,7 @@ void main() {
       expect(await runner.run(['check']), 1);
       expect(
         out.toString(),
-        '$loginFr:8: suspect: S2 changed after it was confirmed, recorded ${fingerprintFor(loginScenario2)}; '
+        '$loginFr:7: suspect: S2 changed after it was confirmed, recorded ${fingerprintFor(loginScenario2)}; '
         'read Scenario 2 of $loginStory below, then record S2 with the fingerprint after it\n'
         '${block.split('\n').map((l) => '    $l\n').join()}'
         '    fingerprint $fingerprint\n'
@@ -498,7 +502,7 @@ void main() {
     expect(await stale.runner.run(['check']), 1);
     expect(
       stale.out.toString(),
-      "$loginStory:3: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve (waits for the Owner)\n"
+      "$loginStory:2: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve (waits for the Owner)\n"
       '$loginApi:1: format_drift: the file differs from what `specstone format` writes; run '
       '`specstone format docs/$loginApi`\n'
       '2 findings\n',
@@ -652,5 +656,343 @@ void main() {
       run,
       'us01/fr02_x',
     ]);
+  });
+
+  group('consistency_check/find_template_breaks/check_target, --target', () {
+    const flutterArch = flutterArchitecture;
+    const jasprArch = jasprArchitecture;
+    // The shared API doc stays out, so only the feature and the twins speak.
+    Future<Directory> twinProject() =>
+        writeTwinProject(without: {'docs/$loginApi'});
+
+    test('E20: check feature:login lists the feature and each target spec folder; --target jaspr drops the flutter folder', () async {
+      final project = await twinProject();
+      final both = readRunner(project);
+      expect(await both.runner.run(['check', 'feature:login']), 1);
+      expect(
+        both.out.toString(),
+        allOf(
+          contains(loginFeature),
+          contains(flutterArch),
+          contains(jasprArch),
+        ),
+      );
+      final one = readRunner(project);
+      expect(
+        await one.runner.run(['check', 'feature:login', '--target', 'jaspr']),
+        1,
+      );
+      expect(
+        one.out.toString(),
+        allOf(
+          contains(loginFeature),
+          contains(jasprArch),
+          isNot(contains(flutterArch)),
+        ),
+      );
+      expect(one.out.toString(), endsWith('2 findings\n'));
+    });
+
+    test(
+      'E21: check --target jaspr keeps the shared docs and jaspr, --json too',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(['check', '--target', 'jaspr', '--json']), 1);
+        final findings =
+            (jsonDecode(out.toString()) as Map<String, Object?>)['findings']!
+                as List;
+        expect(
+          {for (final f in findings) (f as Map<String, Object?>)['docPath']},
+          {loginFeature, jasprArch},
+        );
+        expect(err.toString(), isEmpty);
+      },
+    );
+
+    test('E22: a --target name targets: lacks is argument_invalid, exit 64, no finding', () async {
+      final (:runner, :out, :err) = readRunner(await twinProject());
+      expect(await runner.run(['check', '--target', 'web']), 64);
+      expect(
+        err.toString(),
+        '--target web: the code targets are flutter, jaspr\n',
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    const missing =
+        '--target needs a code target name: the code targets are flutter, jaspr';
+
+    test('E22: --target with no value is argument_missing naming the targets, exit 64, no finding', () async {
+      for (final args in [
+        ['check', '--target'],
+        ['check', '--target', '--json'],
+      ]) {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(args), 64, reason: '$args');
+        expect(out.toString(), isEmpty, reason: '$args');
+        if (args.contains('--json')) {
+          expect((jsonDecode(err.toString()) as Map)['error'], {
+            'code': 'argument_missing',
+            'message': missing,
+          });
+        } else {
+          expect(err.toString(), '$missing\n');
+        }
+      }
+    });
+
+    test(
+      'E22: another command with --target and no value answers the same',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(['structure', '--target']), 64);
+        expect(err.toString(), '$missing\n');
+        expect(out.toString(), isEmpty);
+      },
+    );
+  });
+
+  group('consistency_check/find_prd_spec_disagreements, two targets', () {
+    const layer =
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n'
+        '  - id: implements\n'
+        '    type: output_ref\n'
+        '    list: true\n'
+        '    pointer: item_exact\n';
+    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const item = 'email_login/check_password';
+    const story = 'email_login';
+    const code = '$item:app/lib/login.dart:checkPassword';
+
+    String record(List<String> statuses, [List<String> paths = const []]) =>
+        '---\nstatuses:\n${[for (final s in statuses) "  - '$s'\n"].join()}'
+        '${paths.isEmpty ? '' : 'implements:\n${[for (final p in paths) "  - '$p'\n"].join()}'}'
+        '---\n\n# Record\n';
+
+    /// The login architecture doc with [covers] as its covers entry and
+    /// [sentence] after its box, carrying its approval hash.
+    String architecture({String covers = 'app/lib/', String sentence = ''}) =>
+        withApprovalHash(
+          toLf(
+            checkProjectFiles()['docs/$loginArchitecture']!
+                .replaceFirst('  - app/lib/\n', '  - $covers\n')
+                .replaceFirst('One box.', 'One box. $sentence'),
+          ),
+          fixtureDocTypeOf(loginArchitecture),
+        );
+
+    /// Writes the twin project with the two records; no jaspr record when
+    /// [jaspr] is null.
+    Future<Directory> project({
+      required String flutter,
+      String? jaspr,
+      Map<String, String> extra = const {},
+    }) => writeTwinProject(
+      extra: {
+        '.specstone/templates/implementation.yaml': layer,
+        'docs/$flutterRecord': flutter,
+        'docs/$jasprRecord': ?jaspr,
+        ...extra,
+      },
+    );
+
+    /// Runs `check --json` and returns the findings of [kinds].
+    Future<List<Map<String, Object?>>> checked(
+      Directory dir,
+      Set<String> kinds,
+    ) async {
+      final (:runner, :out, :err) = readRunner(dir);
+      await runner.run(['check', '--json']);
+      final all =
+          (jsonDecode(out.toString()) as Map<String, Object?>)['findings']!
+              as List;
+      return [
+        for (final f in all)
+          if (kinds.contains((f as Map<String, Object?>)['kind'])) f,
+      ];
+    }
+
+    final flutterDone = record(['$item:implemented'], [code]);
+
+    test('user_story:consistency_check/find_prd_spec_disagreements S8: work implemented in jaspr with no code is one finding naming jaspr', () async {
+      final findings = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:implemented']),
+        ),
+        {'implements_missing'},
+      );
+
+      expect(findings, hasLength(1));
+      expect(findings.single['docPath'], jasprRecord);
+      expect(
+        findings.single['message'],
+        contains('implemented in target jaspr'),
+      );
+      expect(findings.single['message'], contains('names no code path'));
+    });
+
+    test('user_story:consistency_check/find_prd_spec_disagreements S9: a record entry for work the feature lacks names the record and the entry', () async {
+      final findings = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:planned', '$story/pin_toast:planned']),
+        ),
+        {'record_entry_unresolved'},
+      );
+
+      expect(findings, hasLength(1));
+      expect(findings.single['docPath'], jasprRecord);
+      expect(findings.single['entry'], '$story/pin_toast');
+    });
+
+    test('user_story:consistency_check/find_prd_spec_disagreements S10: a story a target skips with a reason has no finding, and the tree shows it skipped', () async {
+      final dir = await project(
+        flutter: flutterDone,
+        jaspr: record(['$story:skipped:no jaspr sign-in']),
+      );
+      final findings = await checked(dir, {
+        'implements_missing',
+        'record_entry_unresolved',
+        'record_entry_duplicate',
+        'skip_reason_missing',
+        'skip_with_code',
+        'entry_under_skip',
+        'feature_status_written',
+        'architecture_missing',
+      });
+      expect(findings, isEmpty);
+
+      final (:runner, :out, :err) = readRunner(dir);
+      expect(await runner.run(['structure', 'login', '--target', 'jaspr']), 0);
+      final storyLine = out
+          .toString()
+          .split('\n')
+          .singleWhere((l) => l.contains('(user_story)'));
+      expect(storyLine, contains(' · skipped · '));
+      expect(storyLine, isNot(contains('planned')));
+    });
+
+    test('user_story:consistency_check/find_prd_spec_disagreements S11: a skip with no reason, or with code, is a finding naming the entry', () async {
+      final noReason = await checked(
+        await project(flutter: flutterDone, jaspr: record(['$item:skipped'])),
+        {'skip_reason_missing'},
+      );
+      expect(noReason, hasLength(1));
+      expect(noReason.single['docPath'], jasprRecord);
+      expect(noReason.single['entry'], item);
+
+      final withCode = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:skipped:no jaspr'], [code]),
+        ),
+        {'skip_with_code'},
+      );
+      expect(withCode, hasLength(1));
+      expect(withCode.single['docPath'], jasprRecord);
+      expect(withCode.single['entry'], item);
+    });
+
+    test('user_story:consistency_check/find_broken_pointers S16: a planned requirement naming code not written yet has no pointer finding, and an implemented one does', () async {
+      const later = '$item:app/lib/later.dart:later';
+      const kinds = {
+        'implements_path_unresolved',
+        'implements_symbol_unresolved',
+      };
+      final planned = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:planned'], [later]),
+        ),
+        kinds,
+      );
+      expect(planned, isEmpty);
+
+      final implemented = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:implemented'], [later]),
+        ),
+        kinds,
+      );
+      expect(implemented, hasLength(1));
+      expect(implemented.single['docPath'], jasprRecord);
+      expect(implemented.single['kind'], 'implements_path_unresolved');
+    });
+
+    test("user_story:consistency_check/find_broken_pointers S17: a target's coverage path that does not exist gives no finding until the target implements work of the feature", () async {
+      final missing = {
+        'docs/$jasprArchitecture': architecture(covers: 'app/lib/web/'),
+      };
+      final before = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:planned']),
+          extra: missing,
+        ),
+        {'covers_path_missing'},
+      );
+      expect(before, isEmpty);
+
+      final after = await checked(
+        await project(
+          flutter: flutterDone,
+          jaspr: record(['$item:implemented'], [code]),
+          extra: missing,
+        ),
+        {'covers_path_missing'},
+      );
+      expect(after, hasLength(1));
+      expect(after.single['docPath'], jasprArchitecture);
+    });
+
+    test('user_story:consistency_check/find_broken_pointers S18: a spec doc of one target naming a doc only the other target holds is doc_name_unresolved at its line', () async {
+      final dir = await project(
+        flutter: flutterDone,
+        extra: {
+          'docs/$jasprArchitecture': architecture(
+            sentence: 'See `implementation:login`.',
+          ),
+        },
+      );
+      final findings = await checked(dir, {'doc_name_unresolved'});
+
+      expect(findings, hasLength(1));
+      expect(findings.single['docPath'], jasprArchitecture);
+      expect(findings.single['message'], contains('implementation:login'));
+      final line =
+          File('${dir.path}/docs/$jasprArchitecture')
+              .readAsLinesSync()
+              .indexWhere((l) => l.contains('implementation:login')) +
+          1;
+      expect(findings.single['line'], line);
+    });
+
+    test('user_story:consistency_check/find_broken_pointers S19: a requirement naming a spec doc of one target is per_target_reference', () async {
+      final dir = await project(
+        flutter: flutterDone,
+        jaspr: record(['$item:planned']),
+        extra: doc(
+          loginNf,
+          'Users wait.',
+          'Users wait. See `architecture:login`.',
+        ),
+      );
+      final findings = await checked(dir, {'per_target_reference'});
+
+      expect(findings, hasLength(1));
+      expect(findings.single['docPath'], loginNf);
+      expect(findings.single['reference'], 'architecture:login');
+    });
   });
 }

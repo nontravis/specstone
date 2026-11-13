@@ -939,6 +939,47 @@ path: prds/notes/{slug}/NOTE.md
       expect(merged.lookup('memo')!.listedGenerators, isEmpty);
     });
 
+    test('f06/us02/fr01/e06: a move_to_record whose to names no doc type the '
+        'pack defines is unknown_value', () async {
+      String manifest(String to) =>
+          'name: software-tech\nversion: 1.1.0\nmigrations:\n'
+          '  - from: 1.0.0\n    steps:\n'
+          '      - move_to_record: {doc_types: [feature], fields: [status],'
+          ' to: $to}\n';
+      final home = await writeTree({});
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
+      });
+      TemplateResolver resolverTo(String to) => TemplateResolver(
+        shippedFiles: {
+          ...shipped(),
+          'software-tech/pack.yaml': _bytes(manifest(to)),
+        },
+      );
+
+      expect(
+        () =>
+            resolverTo('archtecture')
+                .resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', 'packs/software-tech/pack.yaml')
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].move_to_record.to',
+              ),
+        ),
+      );
+      expect(
+        resolverTo('architecture')
+            .resolve(workingDirectory: project, homeDirectory: home)
+            .lookup('architecture'),
+        isNotNull,
+      );
+    });
+
     test("f03/us03/fr01: an extends doc type keeps its target's "
         'generators', () async {
       final home = await writeTree({});
@@ -1120,6 +1161,35 @@ path: adr/{slug}.md
       expect(adr.path, 'adr/{slug}.md');
       expect(adr.extendsId, 'feature');
       expect(adr.pack, isNull);
+    });
+
+    test('template_packs/add_doc_type/read_doc_type_file Input per_target, '
+        's03/inv12, tpl-s03/inv30: an extending doc type inherits the '
+        'per_target of its target', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': '''
+id: feature
+description: A feature
+path: features/{slug}/FEATURE.md
+per_target: true
+''',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature')!.isPerTarget, isTrue);
+      expect(merged.lookup('adr')!.isPerTarget, isTrue);
     });
 
     test('f03/us03/fr04/e05: an extending doc type writes its own parent and '

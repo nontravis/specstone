@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -26,6 +27,18 @@ DocsProject _open(Directory workingDirectory) => DocsProject.open(
   workingDirectory: workingDirectory,
   homeDirectory: null,
 );
+
+/// The fixture record doc type a `targets:` config needs
+/// (`template_packs/pin_pack_versions/read_project_config` E30).
+const _recordDocType = '''
+id: implementation
+description: One feature's record of its items per target.
+path: specs/{slug}/IMPLEMENTATION.md
+per_target: true
+fields:
+  - id: entries
+    type: record_status
+''';
 
 Directory _dir(Directory base, String relative) =>
     Directory.fromUri(base.uri.resolve(relative));
@@ -70,7 +83,7 @@ void main() {
       );
     });
 
-    test('codeRoot joins code_root to the project root', () async {
+    test('codeRootOf joins code_root to the project root', () async {
       final workspace = await writeTree({
         'project/.specstone/config.yaml':
             'packs:\n  prd-core: 1.1.0\ncode_root: ../code/example\n',
@@ -82,16 +95,21 @@ void main() {
       final project = _open(root);
 
       expect(
-        project.codeRoot.path,
+        project.codeRootOf(project.targets.single).path,
         _dir(workspace, 'code/example').resolveSymbolicLinksSync(),
       );
       expect(project.projectRoot.path, root.resolveSymbolicLinksSync());
     });
 
-    test('codeRoot is the project root when code_root is absent', () async {
+    test('codeRootOf is the project root when code_root is absent', () async {
       final root = await fixtureProject({});
 
-      expect(_open(root).codeRoot.path, root.resolveSymbolicLinksSync());
+      final project = _open(root);
+
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        root.resolveSymbolicLinksSync(),
+      );
     });
 
     test('a missing code folder still opens', () async {
@@ -103,7 +121,7 @@ void main() {
       final project = _open(root);
 
       expect(
-        project.codeRoot.path,
+        project.codeRootOf(project.targets.single).path,
         '${root.resolveSymbolicLinksSync()}${Platform.pathSeparator}gone',
       );
     });
@@ -118,7 +136,7 @@ void main() {
       final project = _open(root);
 
       expect(
-        project.codeRoot.path,
+        project.codeRootOf(project.targets.single).path,
         '${root.parent.resolveSymbolicLinksSync()}${Platform.pathSeparator}x',
       );
     });
@@ -138,6 +156,63 @@ void main() {
             78,
           ),
         ),
+      );
+    });
+
+    test(
+      'template_packs/pin_pack_versions/read_project_config E23: a two-target '
+      'config opens with two CodeTargets in config order',
+      () async {
+        final root = await fixtureProject({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.1.0\n'
+              'targets:\n  flutter:\n    code_root: stratum_ui\n'
+              '  jaspr:\n    code_root: jaspr-stratum-ui\n',
+          'stratum_ui/lib/a.dart': '',
+          'jaspr-stratum-ui/lib/b.dart': '',
+          'specs/implementation/IMPLEMENTATION.md': '',
+        });
+        final project = DocsProject.open(
+          templates: TemplateResolver(
+            shippedFiles: fixturePackFiles(
+              extra: {'implementation.yaml': _recordDocType},
+            ),
+          ),
+          workingDirectory: root,
+          homeDirectory: null,
+        );
+
+        expect(project.targets, [
+          const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+          const CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
+        ]);
+        expect(project.targetNames, ['flutter', 'jaspr']);
+        expect(
+          project.codeRootOf(project.targets.first).path,
+          _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
+        );
+        expect(
+          project.codeRootOf(project.targets.last).path,
+          _dir(root, 'jaspr-stratum-ui').resolveSymbolicLinksSync(),
+        );
+      },
+    );
+
+    test('template_packs/pin_pack_versions/read_project_config: a code_root '
+        'config opens with one unnamed target', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: stratum_ui\n',
+        'stratum_ui/lib/a.dart': '',
+      });
+
+      final project = _open(root);
+
+      expect(project.targets, [const CodeTarget(null, codeRoot: 'stratum_ui')]);
+      expect(project.targetNames, isEmpty);
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
       );
     });
 

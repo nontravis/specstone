@@ -10,6 +10,8 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 void main() {
   const colonSkip = 'Windows forbids : in file names, so no such doc exists';
@@ -269,28 +271,38 @@ void main() {
   });
   group('feature status', () {
     const written = '---\nstatus: implemented\n---\n\n# F\n';
-    String story(String status) => '---\nstatus: $status\n---\n\n# S\n';
+    const story = '# S\n';
+    String record(List<String> statuses) =>
+        '---\nstatuses:\n${[for (final s in statuses) "  - '$s'\n"].join()}'
+        '---\n\n# Record\n';
     late DocIndex statuses;
     String? statusOf(String folder) =>
         statuses.statusOf(statuses.at('prds/features/$folder/FEATURE.md')!);
     setUpAll(
       () async => statuses = await indexWith({
+        ...loginRecords,
         'docs/prds/features/f03_empty/FEATURE.md': '# Empty\n',
         'docs/prds/features/f04_old/FEATURE.md': written,
-        'docs/prds/features/f04_old/us01_a/USER_STORY.md': story('deprecated'),
-        'docs/prds/features/f04_old/us02_b/USER_STORY.md': story('deprecated'),
+        'docs/prds/features/f04_old/us01_a/USER_STORY.md': story,
+        'docs/prds/features/f04_old/us02_b/USER_STORY.md': story,
+        'docs/specs/f04_old/IMPLEMENTATION.md': record([
+          'a:deprecated',
+          'b:deprecated',
+        ]),
         'docs/prds/features/f05_mixed/FEATURE.md': written,
-        'docs/prds/features/f05_mixed/us01_a/USER_STORY.md': story(
-          'implemented',
-        ),
-        'docs/prds/features/f05_mixed/us02_b/USER_STORY.md': story(
-          'deprecated',
-        ),
+        'docs/prds/features/f05_mixed/us01_a/USER_STORY.md': story,
+        'docs/prds/features/f05_mixed/us02_b/USER_STORY.md': story,
+        'docs/specs/f05_mixed/IMPLEMENTATION.md': record([
+          'a:implemented',
+          'b:deprecated',
+        ]),
         'docs/prds/features/f06_half/FEATURE.md': written,
-        'docs/prds/features/f06_half/us01_a/USER_STORY.md': story(
-          'implemented',
-        ),
-        'docs/prds/features/f06_half/us02_b/USER_STORY.md': story('planned'),
+        'docs/prds/features/f06_half/us01_a/USER_STORY.md': story,
+        'docs/prds/features/f06_half/us02_b/USER_STORY.md': story,
+        'docs/specs/f06_half/IMPLEMENTATION.md': record([
+          'a:implemented',
+          'b:planned',
+        ]),
       }),
     );
     test('f01/us02/fr02, f01/us02/fr02/e01, s03/inv17: a feature with no story is planned', () {
@@ -342,17 +354,329 @@ void main() {
   });
   group('nested feature status', () {
     test('f01/us02/fr02/e06, sf-c3: shop is planned while pay/refund is, and implemented once all four stories are', () async {
-      final half = await nestedIndexWith();
+      final half = await nestedIndexWith(nestedRecords());
       expect(half.statusOf(half.at(shopFeature)!), 'planned');
       expect(half.statusOf(half.at(cartFeature)!), 'implemented');
       expect(half.statusOf(half.at(payFeature)!), 'planned');
-      final done = await nestedIndexWith({
-        'docs/$payRefund': nestedFiles()['docs/$payRefund']!.replaceFirst(
-          'status: planned',
-          'status: implemented',
-        ),
-      });
+      final done = await nestedIndexWith(nestedRecords(refund: 'implemented'));
       expect(done.statusOf(done.at(shopFeature)!), 'implemented');
+    });
+  });
+  group('target-scoped names', () {
+    const featurePath = 'prds/features/f02_feedback/f03_toast/FEATURE.md';
+    const flutterArch = 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md';
+    const jasprArch = 'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md';
+
+    /// Returns the index of a two-target fixture: the feature `feedback/toast`,
+    /// its architecture doc in both targets, its domain doc in flutter alone.
+    Future<DocIndex> nameTargets() async {
+      final root = await writeTree({
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/templates/domain.yaml': 'id: domain\nper_target: true\n',
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        '.specstone/templates/feature.yaml': 'max_depth: 1\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/$featurePath': '# Toast\n\n## Problem\nBurnt toast.\n',
+        'docs/$flutterArch': '# Toast architecture\n',
+        'docs/$jasprArch': '# Toast architecture\n',
+        'docs/specs/flutter/f02_feedback/f03_toast/DOMAIN.md':
+            '# Toast domain\n',
+        'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+        'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+      });
+      final session = openSession(root);
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('index_query/read_doc_section/resolve_doc_name E19: a typed name two targets twin resolves to both, in tree order', () async {
+      final twins = await nameTargets();
+      expect(paths(twins.resolve('architecture:feedback/toast')), [
+        flutterArch,
+        jasprArch,
+      ]);
+    });
+    test("index_query/read_doc_section/resolve_doc_name E20: a name stays in its target, a bare name gives the feature and that target's spec docs", () async {
+      final scoped = await nameTargets();
+      expect(
+        paths(
+          scoped.resolve('architecture:feedback/toast', codeTarget: 'jaspr'),
+        ),
+        [jasprArch],
+      );
+      expect(
+        () => scoped.resolve('domain:feedback/toast', codeTarget: 'jaspr'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no domain doc carries the name feedback/toast',
+              ),
+        ),
+      );
+      expect(paths(scoped.resolve('feedback/toast', codeTarget: 'jaspr')), [
+        featurePath,
+        jasprArch,
+      ]);
+    });
+    test('index_query/read_doc_section/resolve_doc_name E21: a DocPath names its doc whatever target the flag names', () async {
+      final cross = await nameTargets();
+      expect(
+        paths(
+          cross.resolve(
+            'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
+            codeTarget: 'jaspr',
+          ),
+        ),
+        ['specs/flutter/f02_feedback/f03_toast/DOMAIN.md'],
+      );
+    });
+    test('index_query/read_doc_section/resolve_doc_name E22: a target targets: holds none of, or any target where it names none, is argument_invalid', () async {
+      final named = await nameTargets();
+      expect(
+        () => named.resolve('architecture:feedback/toast', codeTarget: 'web'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target web: the code targets are flutter, jaspr',
+              ),
+        ),
+      );
+      expect(
+        () => index.resolve('login', codeTarget: 'flutter'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target flutter: this project names no code target',
+              ),
+        ),
+      );
+    });
+  });
+  group('status per code target', () {
+    // The fixture writes `status: implemented` on every doc, so the tests
+    // prove the per-target record reads replace it (INV-29), and the no-record
+    // project keeps the written status (E12).
+    const shopPath = 'prds/features/f01_shop/FEATURE.md';
+    const cartPath = 'prds/features/f01_shop/f01_cart/FEATURE.md';
+    const storyPath = 'prds/features/f01_shop/f01_cart/us01_add/USER_STORY.md';
+    const frPath = 'prds/features/f01_shop/f01_cart/us01_add/fr01_check.md';
+    const topStory = 'prds/features/f01_shop/us01_greet/USER_STORY.md';
+
+    String feature(String title) =>
+        '---\nstatus: implemented\n---\n\n# $title\n\n## Problem\nNeed it.\n';
+    String story(String title) =>
+        '---\nstatus: implemented\n---\n\n# $title\n\n## Use Case\nUse it.\n';
+    String fr(String title) => '---\nstatus: implemented\n---\n\n# $title\n';
+    String record(String lines) => lines.isEmpty
+        ? '# Record\n'
+        : '---\nstatuses:\n$lines---\n\n# Record\n';
+
+    /// The record doc type `domain:index_query` INV-31 gives: found by its
+    /// `record_status` field, per-target, its Name the feature's.
+    const recordLayerPath = '.specstone/templates/implementation.yaml';
+    const recordLayer =
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n';
+    const nestingLayer = '.specstone/templates/feature.yaml';
+
+    /// Returns the index of a two-target fixture whose docs and records
+    /// [records] write, keyed by file path under the project root.
+    ///
+    /// [noRecordType] drops the record layer and reads a `prd-core`-only,
+    /// `code_root:`-only config, whose unnamed target holds no record (E12).
+    Future<DocIndex> targeted({
+      Map<String, String> records = const {},
+      Map<String, String> extra = const {},
+      bool noRecordType = false,
+    }) async {
+      final root = await writeTree({
+        if (!noRecordType) recordLayerPath: recordLayer,
+        if (!noRecordType) nestingLayer: 'max_depth: 1\n',
+        '.specstone/config.yaml': noRecordType
+            ? '${shippedPinsConfig(['prd-core'])}code_root: app\n'
+            : '${shippedPinsConfig()}targets:\n'
+                  '  flutter:\n    code_root: flutter_lib\n'
+                  '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/prds/features/f01_shop/FEATURE.md': feature('Shop'),
+        'docs/$topStory': story('Agent greets'),
+        'docs/prds/features/f01_shop/f01_cart/FEATURE.md': feature('Cart'),
+        'docs/$storyPath': story('Agent adds an item'),
+        'docs/$frPath': fr('Check the stock'),
+        ...records,
+        ...extra,
+      });
+      final session = openSession(root);
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('f01/us02/fr02/e12: a merged set with no record doc type computes each status from the written status, with no target', () async {
+      final plain = await targeted(noRecordType: true);
+      expect(plain.set.recordDocType, isNull);
+      expect(plain.statusOf(plain.at(shopPath)!), 'implemented');
+      expect(plain.statusOf(plain.at(storyPath)!), 'implemented');
+    });
+    test("f01/us02/fr02/e07: a target's record skips the feature and each of its stories there, while the other target computes from its own records", () async {
+      final skipped = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - ":skipped:no shop on the web"\n',
+          ),
+          'docs/specs/jaspr/f01_shop/IMPLEMENTATION.md': record(''),
+        },
+      );
+      final shop = skipped.at(shopPath)!;
+      expect(skipped.statusOf(shop, codeTarget: 'flutter'), 'skipped');
+      expect(
+        skipped.statusOf(skipped.at(storyPath)!, codeTarget: 'flutter'),
+        'skipped',
+      );
+      expect(skipped.statusOf(shop, codeTarget: 'jaspr'), 'planned');
+    });
+    test('f01/us02/fr02/e13: a skip on an ancestor record skips the nested feature itself, which holds no record of its own there', () async {
+      final skipped = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - ":skipped:no shop on the web"\n',
+          ),
+        },
+      );
+      final cart = skipped.at(cartPath)!;
+      expect(cart.docTypeId, 'feature');
+      expect(skipped.statusOf(cart, codeTarget: 'flutter'), 'skipped');
+      expect(
+        skipped.statusOf(skipped.at(storyPath)!, codeTarget: 'flutter'),
+        'skipped',
+        reason: 'a skip above a feature skips each of its stories too',
+      );
+    });
+    test('f01/us02/fr02/e08: every story skipped with no feature entry gives skipped there', () async {
+      final allSkipped = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - greet:skipped\n  - cart:skipped\n'
+            '  - cart/add:skipped\n  - cart/add/check:skipped\n',
+          ),
+        },
+      );
+      expect(
+        allSkipped.statusOf(allSkipped.at(shopPath)!, codeTarget: 'flutter'),
+        'skipped',
+      );
+    });
+    test(
+      'f01/us02/fr02/e09: one skipped story counts toward no other status',
+      () async {
+        final oneSkipped = await targeted(
+          records: {
+            'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+              '  - greet:skipped\n',
+            ),
+            'docs/specs/flutter/f01_shop/f01_cart/IMPLEMENTATION.md': record(
+              '  - add:implemented\n  - add/check:implemented\n',
+            ),
+          },
+        );
+        expect(
+          oneSkipped.statusOf(oneSkipped.at(shopPath)!, codeTarget: 'flutter'),
+          'implemented',
+        );
+      },
+    );
+    test('f01/us02/fr02/e10: no record for the feature and no skip above gives planned per story entry, planned everywhere with none', () async {
+      final bare = await targeted(
+        records: {
+          'docs/specs/jaspr/f01_shop/IMPLEMENTATION.md': record(
+            '  - greet:planned\n  - cart/add:planned\n',
+          ),
+        },
+      );
+      expect(
+        bare.statusOf(bare.at(storyPath)!, codeTarget: 'jaspr'),
+        'planned',
+      );
+      final fresh = await targeted(
+        records: {'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record('')},
+      );
+      expect(
+        fresh.statusOf(fresh.at(shopPath)!, codeTarget: 'flutter'),
+        'planned',
+      );
+    });
+    test('f01/us02/fr02/e11: one sub-feature skipped, the other implemented, gives implemented there', () async {
+      final nested = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - cart:skipped\n  - greet:implemented\n',
+          ),
+        },
+      );
+      expect(
+        nested.statusOf(nested.at(cartPath)!, codeTarget: 'flutter'),
+        'skipped',
+      );
+      expect(
+        nested.statusOf(nested.at(shopPath)!, codeTarget: 'flutter'),
+        'implemented',
+      );
+    });
+    test("domain:index_query INV-29, consistency_check/find_prd_spec_disagreements/check_record_entries: an entry an ancestor record writes for a nested feature's story gives it no status and no entry, as check resolves it nowhere", () async {
+      final misplaced = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - cart/add:implemented\n',
+          ),
+        },
+      );
+      final add = misplaced.at(storyPath)!;
+      expect(misplaced.statusOf(add, codeTarget: 'flutter'), 'planned');
+      expect(misplaced.recordEntryOf(add, codeTarget: 'flutter'), isNull);
+    });
+    test('f01/us02/fr02/e01: a feature with no story is planned outside every skip and skipped under one, with no story or no record of its own too', () async {
+      final empty = await targeted(
+        extra: {'docs/prds/features/f02_none/FEATURE.md': feature('None')},
+        records: {
+          'docs/specs/flutter/f02_none/IMPLEMENTATION.md': record(
+            '  - ":skipped:no web view on the web"\n',
+          ),
+        },
+      );
+      final none = empty.at('prds/features/f02_none/FEATURE.md')!;
+      expect(empty.statusOf(none, codeTarget: 'flutter'), 'skipped');
+      expect(empty.statusOf(none, codeTarget: 'jaspr'), 'planned');
     });
   });
 }

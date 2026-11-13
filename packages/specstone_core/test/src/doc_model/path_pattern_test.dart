@@ -140,6 +140,57 @@ void main() {
     });
   });
 
+  group('PathPattern.forTarget', () {
+    final pattern = PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md');
+
+    test('doc_model/s03/rule-20: inserts the target folder after the first '
+        'segment and matches and fills with it', () {
+      final targeted = pattern.forTarget('jaspr');
+
+      expect(targeted.source, 'specs/jaspr/f{nn}_{slug}/ARCHITECTURE.md');
+      expect(targeted.matches('specs/jaspr/f01_login/ARCHITECTURE.md'), isTrue);
+      expect(
+        targeted.matches('specs/flutter/f01_login/ARCHITECTURE.md'),
+        isFalse,
+      );
+      expect(targeted.valuesOf('specs/jaspr/f01_login/ARCHITECTURE.md'), [
+        '01',
+        'login',
+      ]);
+      expect(
+        targeted.fill(['01', 'login']),
+        'specs/jaspr/f01_login/ARCHITECTURE.md',
+      );
+    });
+
+    test('doc_model/s03/rule-20: a two-segment pattern takes the target as a '
+        'folder of its own', () {
+      expect(
+        PathPattern('specs/TECH_STACK.md').forTarget('jaspr').source,
+        'specs/jaspr/TECH_STACK.md',
+      );
+    });
+
+    test('doc_model/s03/rule-20: a pattern with no folder inserts the target '
+        'folder beside it, so each target matches its own doc', () {
+      final targeted = PathPattern('{slug}.md').forTarget('jaspr');
+
+      expect(targeted.source, 'jaspr/{slug}.md');
+      expect(targeted.matches('jaspr/deploy.md'), isTrue);
+      expect(targeted.matches('deploy.md'), isFalse);
+      expect(targeted.matches('flutter/deploy.md'), isFalse);
+    });
+
+    test('doc_model/s03/rule-20: targetFolder is the first folder and the '
+        'target, where forTarget puts it', () {
+      expect(
+        PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md').targetFolder('jaspr'),
+        'specs/jaspr/',
+      );
+      expect(PathPattern('{slug}.md').targetFolder('jaspr'), 'jaspr/');
+    });
+  });
+
   group('PathPattern.valuesOf and fill', () {
     test('f06/us02/fr02/e04: valuesOf and fill keep the placeholder values '
         'in order', () {

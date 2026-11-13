@@ -11,9 +11,14 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _storyType = 'user_story';
 
 /// Returns the first `user_story` doc in tree order whose Name is [identity],
-/// or null.
-IndexedDoc? storyNamed(DocIndex index, String identity) =>
-    index.ofTypeNamed(_storyType, identity).firstOrNull;
+/// or null; among [codeTarget]'s docs and the shared docs when [codeTarget]
+/// is given, among every target's docs without it (INV-26).
+IndexedDoc? storyNamed(DocIndex index, String identity, {String? codeTarget}) {
+  final docs = index
+      .ofTypeNamed(_storyType, identity)
+      .where((doc) => doc.inTarget(codeTarget));
+  return docs.firstOrNull;
+}
 
 /// Returns the story an `fr` under [ownStory] traces through [ref].
 ///
@@ -37,9 +42,14 @@ IndexedDoc? tracedStoryOf(
 /// Returns the scenario block [target] names, heading line included.
 ///
 /// Null when no story carries the identity or the story holds no such
-/// scenario.
-String? scenarioBlockOf(DocIndex index, StepTarget target) {
-  final story = storyNamed(index, target.identity);
+/// scenario; the story is sought among [codeTarget]'s docs and the shared
+/// docs when given.
+String? scenarioBlockOf(
+  DocIndex index,
+  StepTarget target, {
+  String? codeTarget,
+}) {
+  final story = storyNamed(index, target.identity, codeTarget: codeTarget);
   if (story == null) return null;
   return storyScenarioBlocks(index, story)[target.scenarioLabel];
 }

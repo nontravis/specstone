@@ -20,7 +20,10 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check show edit, loginStory;
 import '../../helpers/git_repo.dart';
+import '../../helpers/target_fixture.dart'
+    show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -1884,6 +1887,156 @@ void main() {
         ),
       );
       expect(out.toString(), isEmpty);
+    });
+  });
+
+  group('approve with two code targets', () {
+    const draft = '---\ndraft: true\n---\n\n# Login architecture\n';
+
+    Future<Directory> twinDrafts() => writeTwinProject(
+      extra: {
+        'docs/$flutterArchitecture': draft,
+        'docs/$jasprArchitecture': draft,
+      },
+    );
+
+    String walked(Directory root, {String? codeTarget}) =>
+        writeIn(root, (s) => approveDryRun(s, codeTarget: codeTarget).text);
+
+    test('f02/us03/fr01: a walk keeps both twins without --target and the shared docs and one target with it', () async {
+      final root = await twinDrafts();
+      final all = walked(root);
+      expect(all, contains('`docs/$flutterArchitecture`'));
+      expect(all, contains('`docs/$jasprArchitecture`'));
+      final jaspr = walked(root, codeTarget: 'jaspr');
+      expect(jaspr, contains('`docs/$jasprArchitecture`'));
+      expect(jaspr, isNot(contains(flutterArchitecture)));
+    });
+
+    test('f02/us03/fr01: a walk of a named doc under --target keeps that target twin only', () async {
+      final root = await twinDrafts();
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(
+          s,
+          names: ['architecture:login'],
+          codeTarget: 'flutter',
+        ),
+      );
+      expect(answer.text, contains('`docs/$flutterArchitecture`'));
+      expect(answer.text, isNot(contains(jasprArchitecture)));
+      expect(answer.json['count'], 1);
+    });
+
+    test('f02/us03/fr03, f02/us03/fr03/e01: y on the jaspr twin approves it and leaves the flutter twin a draft', () async {
+      final root = await twinDrafts();
+      final out = StringBuffer();
+      writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          names: ['architecture:login'],
+          codeTarget: 'jaspr',
+          readLine: answers(['y']),
+          out: out,
+        ),
+      );
+      expect(readDoc(root, jasprArchitecture), isNot(contains('draft: true')));
+      expect(
+        readDoc(root, jasprArchitecture),
+        matches(RegExp('approved: "[0-9a-f]{12}"')),
+      );
+      expect(readDoc(root, flutterArchitecture), contains('draft: true'));
+    });
+
+    test('f02/us03/fr04: --yes with --target approves the named twin by its hash only', () async {
+      final root = await twinDrafts();
+      final hash =
+          (getDoc(root, jasprArchitecture)['bases']! as Map)['doc']! as String;
+      final answer = writeIn(
+        root,
+        (s) => approveNamed(s, [
+          (name: 'architecture:login', hash: hash),
+        ], codeTarget: 'jaspr'),
+      );
+      expect(answer.text, 'approved architecture:login\n');
+      expect(readDoc(root, jasprArchitecture), isNot(contains('draft: true')));
+      expect(readDoc(root, flutterArchitecture), contains('draft: true'));
+    });
+
+    test('f02/us03/fr04/e06: --yes on a name two targets share, with no --target, is argument_invalid listing both docs and approves nothing', () async {
+      final root = await twinDrafts();
+      final before = [
+        readDoc(root, flutterArchitecture),
+        readDoc(root, jasprArchitecture),
+      ];
+      expect(
+        () => writeIn(
+          root,
+          (s) => approveNamed(s, [(name: 'architecture:login', hash: 'x')]),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'architecture:login names 2 docs: '
+                    '$flutterArchitecture, $jasprArchitecture',
+              ),
+        ),
+      );
+      expect([
+        readDoc(root, flutterArchitecture),
+        readDoc(root, jasprArchitecture),
+      ], before);
+    });
+
+    test(
+      'f02/us03/fr01: a --target the project does not name is argument_invalid',
+      () async {
+        final root = await twinDrafts();
+        expect(
+          () => walked(root, codeTarget: 'dart'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
+          ),
+        );
+      },
+    );
+
+    test('f02/us03/fr01: the status row of a story draft reads its record in the --target given', () async {
+      String record(String status) =>
+          '---\nstatuses:\n  - email_login:$status\n---\n\n# Record\n';
+      final root = await writeTwinProject(
+        extra: {
+          ...check.edit(check.loginStory, [
+            ('goals:\n', 'draft: true\ngoals:\n'),
+          ]),
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
+            'implemented',
+          ),
+          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': record('planned'),
+        },
+      );
+      Object? statusUnder(String target) {
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(
+            s,
+            names: ['user_story:login/email_login'],
+            codeTarget: target,
+          ),
+        );
+        return ((answer.json['drafts']! as List).single as Map)['status'];
+      }
+
+      expect(statusUnder('flutter'), 'implemented');
+      expect(statusUnder('jaspr'), 'planned');
     });
   });
 }

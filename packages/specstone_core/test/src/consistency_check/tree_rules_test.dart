@@ -175,6 +175,7 @@ void main() {
       '$loginStory:1: parent_ambiguous',
       '$loginApi:1: parent_ambiguous',
       '$loginArchitecture:1: parent_ambiguous',
+      '$loginRecord:1: parent_ambiguous',
     ]);
     expect(report.warnings, isEmpty);
   });

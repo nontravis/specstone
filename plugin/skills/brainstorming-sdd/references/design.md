@@ -2,9 +2,6 @@
 `specstone:brainstorming-sdd` when it has no `Agent` tool or the dispatch failed. As the agent, ask the Owner
 nothing: each gap goes into your report as an open question.
 
-The design document is the Owner's approval surface, not a draft of the docs: it records what was decided and why,
-and the PRD and spec docs carry the content once the Owner approves it.
-
 ## 1. Check the inputs
 
 - **Brief**: the Owner's approved answers: the decisions, the rulings in the Owner's own words, the approach picked,
@@ -15,7 +12,8 @@ and the PRD and spec docs carry the content once the Owner approves it.
 
 Run `specstone context <target> --for design` on the smallest doc that holds the brief's whole change: the story
 for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story, and
-`project` to add a feature. As the skill's runner, its step 1 bundle is your ground: run no second call.
+`project` to add a feature. Pass no `--target`: a design read spans every code target (`domain:agent_plugin` INV-25).
+As the skill's runner, its step 1 bundle is your ground: run no second call.
 
 - **0:** the printed bundle is the ground. Cite only what it printed.
 - **Any other exit:** report the CLI's error and stop.
@@ -51,13 +49,16 @@ Sections, in this order:
    it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. A
    ruling that supersedes doc text gets a row for each doc that states it. Each feature the change reaches that
    has an `architecture` doc gets a row for its `design_references` section, a link to this document; when that
-   section already holds three links, ask under Open questions which one this replaces.
+   section already holds three links, ask under Open questions which one this replaces. With two or more `targets:`, a
+   per-target spec doc's row also names its code target, a row with none an open question (`domain:agent_plugin`
+   INV-25).
 7. **Open questions**: each gap that neither the brief nor any doc bears on.
 
 Before the Docs to change table closes, search each decision's dependents:
 
 - Name the owner doc of the decision's rule (`specstone:expert-sdd` rule 7). Run `specstone refs <owner>` for the
-  docs that cite it, and `specstone search` on the decision's terms and on the wording it supersedes.
+  docs that cite it, and `specstone search` on the decision's terms and on the wording it supersedes. A per-target owner
+  goes to `refs` by its DocPath.
 - Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change cites the
   owner by name, or rewrites the doc when that doc owns a rule that reads the decision's rule.
 - When `refs` lists no typed citer, as in a tree that still cites by number labels, the search carries the decision,
@@ -68,8 +69,7 @@ Before the Docs to change table closes, search each decision's dependents:
   terms and adds its rows and searched terms before the author writes it.
 
 Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or list of
-an entity's fields. Name the decision and let the doc hold the content: "three stories, split by payout state", not
-three drafted stories. Restate nothing the bundle says; cite it.
+an entity's fields. Name the decision; the doc holds the content.
 
 When you amend, sweep each ruling: search the document for the text the ruling supersedes, and edit every place
 that still states it. Your report lists each section you touched.
@@ -81,7 +81,6 @@ Write the file with `Write`, or the change with `Edit` when it exists. Write no 
 - No placeholder, no `TBD`, and no empty section but Open questions.
 - No section contradicts another, and no decision contradicts a ruling.
 - Each decision is specific enough that two builders would build the same thing.
-- Each claim about the project cites a doc the bundle printed.
 
 ## 5. Report
 

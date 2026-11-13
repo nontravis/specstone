@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -30,13 +31,23 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
+import 'package:specstone_core/src/setup_migration/tree_move.dart'
+    show treeMovesOf;
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
+    show orderedMoves;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_manifest.dart'
+    show PackManifest;
+import 'package:specstone_core/src/templates/pack_migration.dart'
+    show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -48,6 +59,8 @@ final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
 const _appliesToField = 'applies_to';
 const _coversField = 'covers';
+const _toRecord = 'to record';
+const _recordEdit = 'add record entries';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -62,9 +75,11 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// Plans the legacy migration of the project at [root].
 ///
 /// Reads the files under `docs/prds` and `docs/specs`, the carried packs, and
-/// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`
-/// or `legacy_collision` and a `TemplateFault` before it returns, so a refused
-/// run prints nothing. The plan's `inputs` hold every file it read.
+/// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`,
+/// `legacy_collision`, or `value_unplaced` (every value no record takes, or
+/// else every create onto a taken path, [RunPlan.refuseTakenCreates]) and a
+/// `TemplateFault` before it returns, so a refused run prints nothing. The
+/// plan's `inputs` hold every file it read.
 /// A created config, or a rewritten one with no `code_root:` key, names the
 /// folder from which the most cited code paths exist as its `code_root`
 /// (`write_project_files` E11).
@@ -87,7 +102,7 @@ RunPlan planLegacyRun(
       linkFolder: linkFolder,
       inputs: inputs,
     ),
-  );
+  )..refuseTakenCreates(root);
 }
 
 /// Plans the legacy run of [root] while [inputs] records each file read.
@@ -103,7 +118,7 @@ RunPlan _legacyRunOf(
   final specMap = _specMapOf(docsRoot, docPaths);
   final features = scanLegacyFeatures(docPaths);
   refuseDuplicateGroups(features);
-  final legacy = planLegacyMoves(
+  final placed = planLegacyMoves(
     docPaths,
     specMap: specMap,
     features: features,
@@ -126,7 +141,7 @@ RunPlan _legacyRunOf(
   final originals = _originalsOf(docsRoot, docPaths);
   final titled = _titledWorksOf(
     originals,
-    legacy: legacy,
+    legacy: placed,
     specMap: specMap,
     carriedGnfr: carriedGnfr,
   );
@@ -136,17 +151,39 @@ RunPlan _legacyRunOf(
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides(overrides),
   );
+  final config = File.fromUri(root.uri.resolve(projectConfigPath));
+  final existing = config.existsSync() ? ProjectConfig.read(root) : null;
+  // A config that holds its roots, `code_root:` or `targets:`, keeps them
+  // (`write_project_files` E10, E15).
+  final keepsCodeRoots =
+      existing != null &&
+      (existing.hasCodeRoot || existing.targetNames.isNotEmpty);
+  final targetNames = existing?.targetNames ?? const <String>[];
+  final treeMoves = treeMovesOf(
+    [...placed.fromOf.keys, ...placed.left],
+    projectSet,
+    targetNames: targetNames,
+  );
+  final (:moves, :left) = _inFirstTarget(placed, treeMoves, docPaths: docPaths);
+  final landing = {for (final move in treeMoves) move.from: move.to};
+  for (final work in titled.works) {
+    work.newPath = landing[work.newPath] ?? work.newPath;
+  }
+  final taken = takenAfterMoves(root, moves);
   final rewrites = _rewritesOf(
     titled.works,
     projectSet: projectSet,
-    legacy: legacy,
+    moves: moves,
     features: features,
+    targetNames: targetNames,
+    recordSteps: _recordStepsOf(
+      templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
+    ),
     exists: (path) => _existsIn(docsRoot, path),
+    isTaken: (docPath) => taken('$_docsFolder$docPath'),
   );
 
-  final config = File.fromUri(root.uri.resolve(projectConfigPath));
-  final existing = config.existsSync() ? ProjectConfig.read(root) : null;
-  final inferred = existing?.hasCodeRoot ?? false
+  final inferred = keepsCodeRoots
       ? null
       : inferCodeRoot(
           root,
@@ -161,7 +198,9 @@ RunPlan _legacyRunOf(
   final codeRootNote = _codeRootNoteOf(inferred);
   final agentFiles = _agentFilesOf(
     root,
-    codeRoot: codeRoot,
+    targets: inferred == null && existing != null
+        ? existing.targets
+        : [CodeTarget(null, codeRoot: codeRoot)],
     agentFileRoots: existing?.agentFileRoots ?? const [],
   );
   final configRewrite = existing == null
@@ -177,8 +216,8 @@ RunPlan _legacyRunOf(
 
   return RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
-    moves: legacy.moves,
-    prunes: prunesOf(legacy.moves),
+    moves: moves,
+    prunes: prunesOf(moves),
     rewrites: [...rewrites.planned, ?configRewrite],
     rewriteLines: [
       for (final rewrite in rewrites.planned)
@@ -203,9 +242,10 @@ RunPlan _legacyRunOf(
         PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
       for (final path in overrides.keys.toList()..sort(compareCodePoints))
         PlannedCreate(path: path, text: overrides[path]!),
-      ..._draftsOf(projectSet, docPaths, legacy.moves),
+      ..._draftsOf(projectSet, docPaths, moves, targetNames),
+      ...rewrites.records,
     ],
-    left: legacy.left,
+    left: left,
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
     inputs: inputs,
@@ -217,11 +257,11 @@ RunPlan _legacyRunOf(
 /// Plans the agent files of the legacy run: the full upsert at the root and at
 /// each unlisted repository top inside the project root.
 ///
-/// The legacy tree holds no `code:` entry, so the code roots are the config's
-/// `code_root` alone.
+/// The legacy tree holds no `code:` entry, so the code roots are those of
+/// [targets] alone.
 AgentWritePlan _agentFilesOf(
   Directory root, {
-  required String codeRoot,
+  required List<CodeTarget> targets,
   required List<String> agentFileRoots,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
@@ -229,11 +269,14 @@ AgentWritePlan _agentFilesOf(
     AgentFileInputs(
       projectRoot: projectRoot,
       cliVersion: specstoneVersion,
-      codeRootFolders: codeRootFolders(
-        projectRoot,
-        codeRoot: codeRoot,
-        codeEntries: const [],
-      ),
+      codeRootFolders: [
+        for (final target in targets)
+          ...codeRootFolders(
+            projectRoot,
+            codeRoot: target.codeRoot,
+            codeEntries: const [],
+          ),
+      ],
       agentFileRoots: agentFileRoots,
     ),
     full: true,
@@ -269,21 +312,30 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 /// is their layout.
 ///
 /// `labelsLine` and `stampsLine` are the upgrade's `number labels:` and
-/// `stamps:` plan lines, null when the run has nothing to say.
+/// `stamps:` plan lines, null when the run has nothing to say; `records` are
+/// the draft records the run creates, in path order.
 typedef _Rewrites = ({
   List<PlannedRewrite> planned,
   List<String> layoutOnly,
+  List<PlannedCreate> records,
   String? labelsLine,
   String? stampsLine,
 });
 
 /// One markdown doc on its way to commit 2.
 final class _Work {
-  new(this.legacyPath, this.newPath, this.kind, this.original)
-    : lf = original.lf;
+  new(this.legacyPath, String placed, this.kind, this.original)
+    : placedPath = placed,
+      newPath = placed,
+      lf = original.lf;
 
   final String legacyPath;
-  final String newPath;
+
+  /// The path the legacy moves give the doc, before the first target's folder.
+  final String placedPath;
+
+  /// The path the run writes the doc at.
+  String newPath;
   final LegacyKind? kind;
   final DocText original;
   String lf;
@@ -304,8 +356,8 @@ final class _Work {
   /// need the rewritten FR texts.
   bool get awaitsFingerprints =>
       kind == LegacyKind.api &&
-      legacyPath != newPath &&
-      newPath.endsWith('/API.md');
+      legacyPath != placedPath &&
+      placedPath.endsWith('/API.md');
 }
 
 /// Returns the text of every `.md` doc of [docPaths] that is UTF-8, by
@@ -396,24 +448,31 @@ _Titled _titledWorksOf(
   return (works: works, gnfrSections: gnfrSections);
 }
 
-/// Plans the link rewrites, first fingerprints, and layout of [works].
+/// Plans the record writes, link rewrites, first fingerprints, and layout of
+/// [works].
 ///
 /// A doc left in place gets the link rewrite and the layout. The first
 /// fingerprints hash each FR as the run writes it, laid out, so the FR docs
-/// are rewritten first.
+/// are rewritten first. [targetNames] are the config's named targets;
+/// [recordSteps] are the carried packs' `move_to_record` steps; [isTaken]
+/// tells whether a record's DocPath holds an entry once [moves] ran.
 _Rewrites _rewritesOf(
   List<_Work> works, {
   required MergedSet projectSet,
-  required LegacyMoves legacy,
+  required List<PathMove> moves,
   required LegacyFeatures features,
+  required List<String> targetNames,
+  required List<MoveToRecord> recordSteps,
   required bool Function(String path) exists,
+  required bool Function(String docPath) isTaken,
 }) {
-  final matcher = DocTypeMatcher(projectSet);
+  final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
   var fingerprintEntries = 0;
-  MergedDocType? typeOf(_Work work) => switch (matcher.match(work.newPath)) {
-    MatchedDocType(:final docType) => docType,
+  MatchedDocType? matchOf(_Work work) => switch (matcher.match(work.newPath)) {
+    final MatchedDocType matched => matched,
     _ => null,
   };
+  MergedDocType? typeOf(_Work work) => matchOf(work)?.docType;
   // The stamp is the last write of a doc, so the hash covers its final text
   // (`show_plan_and_apply_on_yes` E07).
   void layOut(_Work work) {
@@ -426,22 +485,30 @@ _Rewrites _rewritesOf(
   }
 
   final tree = _convertLabels(works, typeOf, features);
+  final records = _moveToRecords(
+    works,
+    matchOf,
+    set: projectSet,
+    steps: recordSteps,
+    firstTarget: twinNamesOf(targetNames).firstOrNull,
+    isTaken: isTaken,
+  );
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
-    _rewriteRefs(work, legacy.moves, exists);
+    _rewriteRefs(work, moves, exists);
     layOut(work);
   }
   for (final work in works.where((work) => work.awaitsFingerprints)) {
     final fingerprints = writeFirstFingerprints(
       work.lf,
-      featureFrs: _featureFrsOf(features, work.newPath, rewritten: textOf),
+      featureFrs: _featureFrsOf(features, work.placedPath, rewritten: textOf),
     );
     work.lf = fingerprints.lf;
     fingerprintEntries += fingerprints.entries;
     final label = fingerprints.label;
     if (label != null) work.changes.add(label);
-    _rewriteRefs(work, legacy.moves, exists);
+    _rewriteRefs(work, moves, exists);
     layOut(work);
   }
 
@@ -469,6 +536,7 @@ _Rewrites _rewritesOf(
             work.laidOut != work.original.lf)
           work.newPath,
     ],
+    records: records,
     labelsLine: numberLabelsPlanLine(
       converted: [
         for (final work in byPath)
@@ -495,6 +563,91 @@ String _approvedBlockOf(String lf) => [
   for (final block in Doc.parse(lf).frontmatter ?? const <KeyBlock>[])
     if (block.name == 'approved') block.text,
 ].join();
+
+/// Moves the status and code paths of each story and FR of [works] into the
+/// draft record of its feature (`write_project_files` E14), and returns the
+/// records the run creates, in path order.
+///
+/// It is the upgrade's `move_to_record` step, placed by the same builder, so
+/// both paths write the same record. A record the tree already holds gains
+/// the entries in its own work. [firstTarget] is the target a record lands
+/// in, null for a project with fewer than two targets; [isTaken] is as
+/// [RecordMoves.place] reads it. Throws `MigrateFault` `value_unplaced` when a
+/// value has no place.
+List<PlannedCreate> _moveToRecords(
+  List<_Work> works,
+  MatchedDocType? Function(_Work work) matchOf, {
+  required MergedSet set,
+  required List<MoveToRecord> steps,
+  required String? firstTarget,
+  required bool Function(String docPath) isTaken,
+}) {
+  final recordType = set.recordDocType;
+  if (recordType == null) return const [];
+  final matches = [for (final work in works) matchOf(work)];
+  final moves = RecordMoves();
+  for (final step in steps) {
+    for (final (index, work) in works.indexed) {
+      final type = matches[index]?.docType;
+      if (type == null || !step.touches(type.id)) continue;
+      final taken = moves.take(
+        docPath: work.legacyPath,
+        plannedPath: work.newPath,
+        type: type,
+        step: step,
+        lf: work.lf,
+      );
+      if (taken == work.lf) continue;
+      work.changes.add('${_keysLost(work.lf, taken)} $_toRecord');
+      work.lf = taken;
+    }
+  }
+  final placement = moves.place(
+    set: set,
+    recordType: recordType,
+    firstTarget: firstTarget,
+    isTaken: isTaken,
+    docs: [
+      for (final (index, work) in works.indexed)
+        (
+          plannedPath: work.newPath,
+          type: matches[index]?.docType,
+          target: matches[index]?.target,
+          lf: work.lf,
+        ),
+    ],
+  );
+  throwFaultsPerDoc(placement.unplaced);
+  for (final work in works) {
+    final edited = placement.edits[work.newPath];
+    if (edited == null) continue;
+    work.lf = edited;
+    work.changes.add(_recordEdit);
+  }
+  return recordCreatesOf(placement);
+}
+
+/// Returns the `move_to_record` steps of the carried packs' migrations, the
+/// ones the upgrade runs, so both runs move one field set.
+List<MoveToRecord> _recordStepsOf(Map<String, PackManifest> manifests) => [
+  for (final manifest in manifests.values)
+    for (final migration in manifest.migrations)
+      ...migration.steps.whereType<MoveToRecord>(),
+];
+
+/// Returns the frontmatter keys of [before] that [after] no longer holds,
+/// joined in file order.
+String _keysLost(String before, String after) {
+  Set<String> keysOf(String lf) => {
+    for (final block in Doc.parse(lf).frontmatter ?? const <KeyBlock>[])
+      block.name,
+  };
+  final kept = keysOf(after);
+  return [
+    for (final key in keysOf(before))
+      if (!kept.contains(key)) key,
+  ].join(', ');
+}
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
 /// doc to its name (`rewrite_titles_keys_and_links` E18, E19), and moves the
@@ -586,13 +739,13 @@ bool _existsIn(Directory docsRoot, String path) =>
     FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and the [codeRoot]
-/// and keeps every other pin of the [existing] config, or null when the text
-/// stays.
+/// and keeps every other pin and the `targets:` map of the [existing] config,
+/// or null when the text stays.
 ///
 /// [codeRoot] is the config's own value, or the one inferred for a config with
-/// no key; a config that holds the key keeps its line, `.` included. [note]
-/// ends the plan line. [agentFileRoots] is the full list the run
-/// leaves in the config.
+/// no key; a config that holds the key keeps its line, `.` included, and one
+/// that holds `targets:` has no such line. [note] ends the plan line.
+/// [agentFileRoots] is the full list the run leaves in the config.
 PlannedRewrite? _configRewriteOf(
   File config,
   ProjectConfig existing,
@@ -601,10 +754,15 @@ PlannedRewrite? _configRewriteOf(
   required String note,
   required List<String> agentFileRoots,
 }) {
+  final targets = [
+    for (final target in existing.targets)
+      if (target.name != null) target,
+  ];
   final text = configText(
     {...existing.pins, ...pins},
-    codeRoot: codeRoot,
+    codeRoot: targets.isEmpty ? codeRoot : '.',
     keepCodeRootKey: existing.hasCodeRoot,
+    targets: targets,
     agentFileRoots: agentFileRoots,
   );
   final current = utf8.decode(readPlanInput(config));
@@ -654,6 +812,37 @@ Map<String, String> _featureFrsOf(
   };
 }
 
+/// Returns the renames and the files left in place once [treeMoves] are
+/// folded into [placed]: a doc the legacy moves place lands in the first
+/// target's folder, and a doc they keep or leave moves there from its own
+/// path.
+///
+/// Throws `legacy_collision` when a folded move lands on another doc;
+/// [docPaths] are every file the run reads.
+({List<PathMove> moves, List<String> left}) _inFirstTarget(
+  LegacyMoves placed,
+  List<PathMove> treeMoves, {
+  required List<String> docPaths,
+}) {
+  if (treeMoves.isEmpty) return (moves: placed.moves, left: placed.left);
+  final landing = {for (final move in treeMoves) move.from: move.to};
+  final placedAt = {for (final move in placed.moves) move.to};
+  final moves = [
+    for (final move in placed.moves)
+      (from: move.from, to: landing[move.to] ?? move.to),
+    for (final move in treeMoves)
+      if (!placedAt.contains(move.from)) move,
+  ];
+  refuseCollisions(docPaths, moves);
+  return (
+    moves: orderedMoves(moves, keyOf: caseBlindPath),
+    left: [
+      for (final path in placed.left)
+        if (!landing.containsKey(path)) path,
+    ],
+  );
+}
+
 /// Returns the project-layer files the moved tree needs, by ProjectPath.
 Map<String, String> _overridesOf(
   LegacyFeatures features,
@@ -675,22 +864,34 @@ List<String> prunesOf(List<PathMove> moves) => {
 
 /// Returns a draft for each singular doc type whose path the moved tree
 /// lacks.
+///
+/// With two or more [targetNames] a per-target doc type's path is read in the
+/// first target's folder.
 List<PlannedCreate> _draftsOf(
   MergedSet set,
   List<String> docPaths,
   List<PathMove> moves,
+  List<String> targetNames,
 ) {
   final moved = {for (final move in moves) move.from: move.to};
   final present = {for (final path in docPaths) moved[path] ?? path};
   return [
     for (final docType in singularDocTypes(set))
-      if (!present.contains(docType.path))
+      if (_draftPathOf(docType, targetNames) case final path?
+          when !present.contains(path))
         PlannedCreate(
-          path: '$_docsFolder${docType.path}',
+          path: '$_docsFolder$path',
           text: skeletonOf(docType, docType.id),
-          note: ' (draft)',
+          note: draftNote,
         ),
   ];
+}
+
+String? _draftPathOf(MergedDocType docType, List<String> targetNames) {
+  final path = docType.path;
+  final first = twinNamesOf(targetNames).firstOrNull;
+  if (path == null || !docType.isPerTarget || first == null) return path;
+  return PathPattern(path).forTarget(first).source;
 }
 
 String _pinList(Map<String, PackVersion> pins) => [

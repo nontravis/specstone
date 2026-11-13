@@ -2,6 +2,8 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show FieldType, PointerKind;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -38,7 +40,7 @@ String _tracing(String entries) =>
 late MergedSet _set;
 
 MergedDocType? _typeAt(String docPath) =>
-    switch (DocTypeMatcher(_set).match(docPath)) {
+    switch (DocTypeMatcher(_set, targetNames: const []).match(docPath)) {
       MatchedDocType(:final docType) => docType,
       _ => null,
     };
@@ -359,6 +361,43 @@ void main() {
       final run = _runUnchanged(docs);
 
       expect(run.applied[_frPath], contains('  - S4 ${fingerprintOf(_one)}\n'));
+    });
+  });
+
+  group('$_fr E38', () {
+    test('a doc is judged by the type it had before the run: a field the '
+        'final type dropped still stays out of its hash', () {
+      final dropped = _typeAt(_storyPath)!;
+      expect(dropped.fields.map((f) => f.id), isNot(contains('implements')));
+      final held = dropped.copyWith(
+        fields: [
+          ...dropped.fields,
+          const MergedField(
+            id: 'implements',
+            type: FieldType.outputRef,
+            list: true,
+            pointer: PointerKind.exact,
+          ),
+        ],
+      );
+      const written = '---\nimplements:\n  - app/a.dart\n---\n# B\n';
+      const moved = '---\n---\n# B\n';
+      final approved = withApprovalHash(written, held);
+
+      final pass = StampPass.plan(
+        [(docPath: _storyPath, lf: approved, type: held)],
+        [(docPath: _storyPath, lf: moved, type: dropped)],
+        pins: _belowBoth,
+        restampsFingerprints: false,
+      );
+
+      final stamped = pass.apply(_storyPath, moved);
+      expect(stamped, matches(_approvedHash));
+      expect(
+        stamped,
+        contains('approved: "${approvalHashOf(stamped, dropped)}"'),
+      );
+      expect(pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
     });
   });
 }
