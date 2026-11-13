@@ -22,10 +22,9 @@ const _agentMd =
     '  Owner runs `specstone approve`.\n'
     "- Before writing a doc, read its type's guide with "
     '`specstone guide <type>`; write each item in the shape it gives,\n'
-    '  and say each thing once, short enough that a person reads it in one '
-    'pass, with nothing left out.\n'
-    '- Before writing any plan, ground it with '
-    '`specstone context <story> --for implement`.\n'
+    '  each thing said once, short enough for one pass, nothing left out.\n'
+    '- Before writing a plan, tickets, or tests for a story, ground them '
+    'with `specstone context <story> --for implement`.\n'
     '- Cite a doc by its name (`<feature>/<story>`), never by a number label '
     '(`F-<nn> US-<nn>`).\n'
     '- Before reporting work done, run `specstone check <doc>` on each doc you '
@@ -37,8 +36,17 @@ const _agentMdWordBound = 200;
 const _targetClauseWordBound = 9;
 const _targetFlag = '--target <code target>';
 
-/// The words of [text] as `wc -w` counts them: runs of non-whitespace.
-int _wordsOf(String text) => RegExp(r'\S+').allMatches(text).length;
+final _asciiSpace = RegExp(r'[ \t\n\r\f\v]+');
+
+/// The words of [text] as `wc -w` counts them: ASCII-whitespace separated.
+int _wordsOf(String text) =>
+    text.split(_asciiSpace).where((word) => word.isNotEmpty).length;
+
+/// The `## Rules` bullets of [text], each folded onto one line.
+List<String> _rules(String text) => text
+    .split(RegExp(r'\n(?=- )'))
+    .map((rule) => rule.replaceAll(_asciiSpace, ' '))
+    .toList();
 
 const _projectRule = '- Run `specstone get project` before any task.';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
@@ -89,6 +97,24 @@ void main() {
       expect(agentMdText, isNot(contains('says it waits')));
       expect(_inlineBlock(), contains('`(waits for the Owner)`'));
       expect(_inlineBlock(), contains('`waitsFor`'));
+    });
+
+    test('agent_plugin/ground_other_plugins_work/ground_the_story_first '
+        'verification: one rule names the implement grounding for a plan, '
+        'tickets, and tests, in AGENT.md and in the inline block', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rules = _rules(text).where((r) => r.contains('--for implement'));
+        expect(rules, hasLength(1));
+        expect(
+          rules.single,
+          allOf(
+            contains('`specstone context <story> --for implement`'),
+            contains('plan'),
+            contains('tickets'),
+            contains('tests'),
+          ),
+        );
+      }
     });
 
     test(

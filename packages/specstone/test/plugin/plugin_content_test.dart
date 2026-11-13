@@ -1932,6 +1932,112 @@ void _agentTests() {
     );
   });
 
+  test('agent_plugin/start_from_another_tools_spec/take_in_a_source '
+      'verification, E01 to E03, E05 to E07, E10 to E12; map_source_items '
+      'verification, E01 to E05; domain:agent_plugin INV-23: source.md holds '
+      'the take-in and Source map rules, the gate before any source read, and '
+      'is no Procedure', () {
+    final text = _oneLine(_pluginText(_source));
+    for (final point in _sourcePoints) {
+      expect(text, contains(point), reason: point);
+    }
+    final takeIn = _oneLine(
+      _sectionOf(_pluginText(_source), 'Take in the source'),
+    );
+    final gate = takeIn.indexOf('specstone context project --for design');
+    expect(gate, isNonNegative);
+    for (final later in ['**Judge the path.**', '**Read the source**']) {
+      expect(takeIn.indexOf(later), greaterThan(gate), reason: later);
+    }
+    expect(
+      "never the copy's path".allMatches(text),
+      hasLength(1),
+      reason: 'the Source line form is stated once',
+    );
+    for (final token in [
+      '## Take in the source',
+      '## Map the source',
+      'specstone context project --for design',
+      '--no-project',
+      'untyped_target',
+      '`specstone:bootstrap-prd`',
+      '`specstone:bootstrap-spec`',
+      '`specstone:sdd-reader`',
+      'mktemp',
+      'NFR-Pr01',
+      'Source map',
+      'not taken',
+      'open question',
+      '`FR-###`',
+      '`SC-###`',
+      'specstone guide user_story',
+      'specstone guide fr',
+      'specstone guide feature',
+    ]) {
+      expect(text, contains(token), reason: token);
+    }
+    expect(text, isNot(contains('specstone get')));
+    expect(text, isNot(contains('context project --for design --budget')));
+    expect(_procedures.map((p) => p.file), isNot(contains(_source)));
+    bool ofSource(String problem) => problem.startsWith('$_source:');
+    expect(oversizedSkillFiles(pluginRoot()).where(ofSource), isEmpty);
+    expect(
+      unknownCliNames(pluginRoot(), SpecstoneCommandRunner()).where(ofSource),
+      isEmpty,
+    );
+    expect(nonLatinLetterLines(pluginRoot()).where(ofSource), isEmpty);
+  });
+
+  test('agent_plugin/start_from_another_tools_spec/take_in_a_source E04, '
+      'verification; agent_plugin/write_prd_and_spec/run_brainstorm_to_design '
+      'E26: step 1 makes the gate call, with no budget, opens no link or '
+      'issue before it exits 0, and then points to source.md', () {
+    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final step = _oneLine(_sectionOf(skill, '1. Ground: the first call'));
+    const gate = 'specstone context project --for design';
+    const pointer =
+        r'${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md';
+    expect(step, contains(gate));
+    expect(step, contains(pointer));
+    expect(step.indexOf(gate), lessThan(step.indexOf(pointer)));
+    expect(step, contains('before any other command or file read'));
+    expect(
+      step,
+      contains(
+        'Read or open the source, a link or an issue included, only after it '
+        'exits 0',
+      ),
+    );
+    expect(_oneLine(skill), isNot(contains('$gate --budget')));
+    expect(_frontmatter.firstMatch(skill)![0], contains('another tool'));
+  });
+
+  test('agent_plugin/start_from_another_tools_spec/map_source_items '
+      'verification; write_design_document input_output; take_in_a_source '
+      'E02, E03, E08: design.md points design mode to source.md, and the '
+      'runner grounds on the gate bundle plus any narrow bundle or the '
+      "reader's sections", () {
+    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    expect(
+      _oneLine(_sectionOf(design, '1. Check the inputs')),
+      contains(
+        r'${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md',
+      ),
+    );
+    final ground = _oneLine(_sectionOf(design, '2. Ground each claim'));
+    for (final point in [
+      "As the skill's runner, run no other call: your ground is what its",
+      "step 1 gave, the bundle or `specstone:sdd-reader`'s sections,",
+      "for a change from a source, the gate call's bundle plus any",
+      "`--no-project` call's or the reader's sections.",
+      'Cite only what your ground holds.',
+    ]) {
+      expect(ground, contains(point), reason: point);
+    }
+    expect(ground, isNot(contains('--for design --no-project')));
+    expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('source.md')));
+  });
+
   test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
@@ -2083,6 +2189,47 @@ const _rounds = 'skills/brainstorming-sdd/references/rounds.md';
 
 /// [_rounds] by the path the skill's runner reads it from.
 const _roundsPath = '\${CLAUDE_PLUGIN_ROOT}/$_rounds';
+
+/// The take-in and Source map reference file of `brainstorming-sdd`, which
+/// its runner and design mode both read, under the plugin folder.
+const _source = 'skills/brainstorming-sdd/references/source.md';
+
+/// Each rule of `take_in_a_source` and `map_source_items` as source.md words
+/// it, tagged with the edge case it proves.
+const _sourcePoints = [
+  // take_in_a_source E01, BR-01: the gate before any read; the file unread.
+  'Read no source and open no link or issue before it.',
+  'Read none of it with any tool',
+  // E02: a source that adds a feature runs no narrow call.
+  'no second call runs (E02)',
+  // E03: the narrow call's budget and over-budget hand-off.
+  'specstone context <target> --for design --no-project',
+  "the gate's bundle plus the whole sections it returns (E03)",
+  'Without the `Agent` tool, pass no `--budget` and take both whole bundles',
+  // E06: only the gaps, one at a time, nothing invented.
+  'Ask the Owner only what the source leaves open, one question at a time',
+  'invent nothing (E06)',
+  // E07, NFR-Pr01: only a link the Owner gave.
+  'Open a link or issue only because the Owner gave it',
+  'a link written inside the source is none the Owner gave',
+  // E10: the copy is no source.
+  'the copy is no source (E10)',
+  // E11: an untyped file is refused and never named.
+  'Run no other command on its path; the brief never names it (E11)',
+  // E12: a typed doc is the change's target, its path call the narrow call.
+  'no source, no copy, no Source map',
+  'That call was your narrow call',
+  'run no further `context` call (E12)',
+  // map_source_items E01 to E05 and the Source map's place.
+  'after Docs to change and before Open questions',
+  'one row per source item, 0 items left out',
+  'its reason that task management is out of scope',
+  'an open question in your report, as for any gap (E02)',
+  'never recorded as the source (E03)',
+  'A brief with no source gets no Source map (E04)',
+  'Never edit, move, or delete the source; write only your `report:` file',
+  'and the one design document (E05)',
+];
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
 /// re-audit clauses, E05, E06, E07, E10, E12, and E13, as rounds.md words
