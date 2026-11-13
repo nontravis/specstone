@@ -542,7 +542,7 @@ absolute_path_only() {
 # E02, E08, E09, named by name_other_stn_at_install). Always returns 0: the
 # notice never changes the run's exit status.
 name_other_stn() {
-  other_stn_dir=$(cd "${install_dir:?}/bin" 2>/dev/null && pwd -P) ||
+  other_stn_dir=$(cd "$install_dir/bin" 2>/dev/null && pwd -P) ||
     other_stn_dir=''
   [ -n "$other_stn_dir" ] || return 0
   rest=${PATH:-}:
@@ -556,7 +556,7 @@ name_other_stn() {
     resolved=$(cd "$entry" 2>/dev/null && pwd -P) || continue
     if [ "$resolved" != "$other_stn_dir" ] &&
       [ -f "$entry/stn" ] && [ -x "$entry/stn" ]; then
-      printf 'specstone: another stn is at %s/stn; type specstone to run the CLI\n' "$entry"
+      printf 'specstone: another stn is at %s/stn; type specstone to run the CLI\n' "${entry%/}"
       return 0
     fi
   done

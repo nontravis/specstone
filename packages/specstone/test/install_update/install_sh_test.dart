@@ -2363,10 +2363,6 @@ esac''');
         return folder;
       }
 
-      // The sandbox PATH plus [entries], the sandbox stubs first.
-      String pathWith(ScriptSandbox sb, List<String> entries) =>
-          entries.join(':');
-
       test('$fr S2, E04: another stn on a later absolute entry prints one '
           'notice line; bin/stn is installed and executable; exit 0', () async {
         final sb = await sandboxWith();
@@ -2377,12 +2373,12 @@ esac''');
           'install.sh',
           extra: {
             ...archiveEnv(sb),
-            'PATH': pathWith(sb, [
+            'PATH': [
               '${sb.home.path}/.specstone/bin',
               tools.path,
               sb.stubs.path,
               '/usr/bin:/bin',
-            ]),
+            ].join(':'),
           },
         );
 
@@ -2392,7 +2388,15 @@ esac''');
         expect(occurrences, 1);
         final shim = File('${sb.home.path}/.specstone/bin/stn');
         expect(shim.existsSync(), isTrue);
-        expect(Process.runSync(shim.path, ['--version']).exitCode, 0);
+        // The run keeps the runner's PATH out, so the shim beside the fake
+        // specstone is the program that runs, not a stn on this machine.
+        final run = Process.runSync(
+          shim.path,
+          ['--version'],
+          environment: const {'PATH': '/usr/bin:/bin'},
+          includeParentEnvironment: false,
+        );
+        expect(run.exitCode, 0, reason: '${run.stderr}');
         expect(sb.logOf('other'), isEmpty);
       });
 
@@ -2405,13 +2409,13 @@ esac''');
           'install.sh',
           extra: {
             ...archiveEnv(sb),
-            'PATH': pathWith(sb, [
+            'PATH': [
               '${sb.home.path}/.specstone/bin',
               first,
               second,
               sb.stubs.path,
               '/usr/bin:/bin',
-            ]),
+            ].join(':'),
           },
         );
 
@@ -2427,11 +2431,11 @@ esac''');
           'install.sh',
           extra: {
             ...archiveEnv(sb),
-            'PATH': pathWith(sb, [
+            'PATH': [
               '${sb.home.path}/.specstone/bin',
               sb.stubs.path,
               '/usr/bin:/bin',
-            ]),
+            ].join(':'),
           },
         );
 
@@ -2449,7 +2453,7 @@ esac''');
             'install.sh',
             extra: {
               ...archiveEnv(sb),
-              'PATH': pathWith(sb, ['rel:.::', sb.stubs.path, '/usr/bin:/bin']),
+              'PATH': ['rel:.::', sb.stubs.path, '/usr/bin:/bin'].join(':'),
             },
           );
 
@@ -2469,7 +2473,7 @@ esac''');
             'install.sh',
             extra: {
               ...archiveEnv(sb),
-              'PATH': pathWith(sb, [entry, sb.stubs.path, '/usr/bin:/bin']),
+              'PATH': [entry, sb.stubs.path, '/usr/bin:/bin'].join(':'),
             },
           );
 
@@ -2486,12 +2490,12 @@ esac''');
           'install.sh',
           extra: {
             ...archiveEnv(sb),
-            'PATH': pathWith(sb, [
+            'PATH': [
               '${sb.home.path}/.specstone/bin',
               '${sb.root.path}/tools',
               sb.stubs.path,
               '/usr/bin:/bin',
-            ]),
+            ].join(':'),
           },
         );
 
@@ -2511,12 +2515,12 @@ esac''');
             'install.sh',
             extra: {
               ...archiveEnv(sb),
-              'PATH': pathWith(sb, [
+              'PATH': [
                 '${sb.home.path}/.specstone/bin',
                 '${sb.root.path}/tools',
                 sb.stubs.path,
                 '/usr/bin:/bin',
-              ]),
+              ].join(':'),
             },
           );
 
@@ -2534,17 +2538,17 @@ esac''');
           'install.sh',
           extra: {
             ...archiveEnv(sb),
-            'PATH': pathWith(sb, [
+            'PATH': [
               '${sb.home.path}/.specstone/bin',
               missing,
               sb.stubs.path,
               '/usr/bin:/bin',
-            ]),
+            ].join(':'),
           },
         );
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(r.stderr, isNot(contains('stn')));
+        expect(r.stderr, isEmpty, reason: '${r.stderr}');
         expect(r.stdout, isNot(contains('another stn')));
       });
 
@@ -2559,12 +2563,12 @@ esac''');
           'install.sh',
           extra: {
             ...archiveEnv(sb),
-            'PATH': pathWith(sb, [
+            'PATH': [
               '${sb.home.path}/.specstone/bin',
               tools.path,
               sb.stubs.path,
               '/usr/bin:/bin',
-            ]),
+            ].join(':'),
           },
         );
 
