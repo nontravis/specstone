@@ -336,6 +336,40 @@ void main() {
       expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
     });
 
+    test('lists a Name mention in a code file and keeps the file', () async {
+      const code = '// Adds `user_story:login/reset_password#use_case`.\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n'
+              '## Stack\n\n| Slot | Choice |\n|---|---|\n'
+              '| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',
+          'app/lib/reset.dart': code,
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        endsWith(
+          'mentions app/lib/reset.dart:1 '
+          'user_story:login/reset_password#use_case\n'
+          'dry run: nothing moved\n',
+        ),
+      );
+      expect(File('${root.path}/app/lib/reset.dart').readAsStringSync(), code);
+    });
+
     test('--json prints moved, rewritten, mentions, and dryRun true', () async {
       final (:runner, :out, :err) = writeRunner(await writeWriteProject());
       expect(

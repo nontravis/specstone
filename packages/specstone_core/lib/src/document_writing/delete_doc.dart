@@ -482,7 +482,7 @@ _UnitFiles _readUnit(WriteSession session, List<String> roots) {
   return files;
 }
 
-/// The `.md` files of [files] that are guarded (INV-7), sorted by DocPath.
+/// The `.md` files of [files] that are guarded, sorted by DocPath.
 ///
 /// Bytes that are not UTF-8 cannot show a draft, so they count as guarded.
 List<String> _guardedDocsOf(_UnitFiles files) {
