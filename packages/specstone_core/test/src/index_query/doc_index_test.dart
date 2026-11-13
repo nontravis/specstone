@@ -653,7 +653,7 @@ void main() {
         'implemented',
       );
     });
-    test('domain:index_query INV-29, consistency_check/find_prd_spec_disagreements/check_record_entries: an entry an ancestor record writes for a nested feature\'s story gives it no status and no entry, as check resolves it nowhere', () async {
+    test("domain:index_query INV-29, consistency_check/find_prd_spec_disagreements/check_record_entries: an entry an ancestor record writes for a nested feature's story gives it no status and no entry, as check resolves it nowhere", () async {
       final misplaced = await targeted(
         records: {
           'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
