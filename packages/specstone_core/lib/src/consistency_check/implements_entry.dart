@@ -23,6 +23,15 @@ extension type const ImplementsEntry(String text) {
     return split < 0 ? '' : text.substring(split + 1);
   }
 
+  /// The test name of an `item_test` entry `path[:name]`: the text after the
+  /// first `:`; null when there is none.
+  ///
+  /// The name keeps its colons and spaces whole.
+  String? get testName {
+    final split = text.indexOf(_symbolMark);
+    return split < 0 ? null : text.substring(split + 1);
+  }
+
   /// Whether [path] names a regular file from [base].
   bool namesFileFrom(Directory base) =>
       isPortablePath(path) &&

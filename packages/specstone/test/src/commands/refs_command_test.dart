@@ -153,6 +153,70 @@ void main() {
       );
     });
 
+    test('f01/us07/fr01: refs on a record prints its tests lines outbound, the kind tests, in JSON too', () async {
+      final project = await writeReadProject(
+        extra: {
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n'
+              '  - id: implements\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: item_exact\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+              '---\nimplements:\n  - email_login:lib/sign_in_page.dart\n'
+              'tests:\n  - "email_login:test/sign_in_test.dart:locks: after 5"\n'
+              '---\n\n# Record\n',
+        },
+      );
+      final text = readRunner(project);
+      expect(
+        await text.runner.run([
+          'refs',
+          'specs/flutter/f01_login/IMPLEMENTATION.md',
+        ]),
+        0,
+      );
+      expect(
+        text.out.toString(),
+        contains(
+          'Outbound\n'
+          '- implements: lib/sign_in_page.dart\n'
+          '- tests: test/sign_in_test.dart\n'
+          'Inbound\n',
+        ),
+      );
+      final json = readRunner(project);
+      expect(
+        await json.runner.run([
+          'refs',
+          'specs/flutter/f01_login/IMPLEMENTATION.md',
+          '--json',
+        ]),
+        0,
+      );
+      final doc =
+          ((jsonDecode(json.out.toString()) as Map)['docs']! as List).single
+              as Map;
+      expect(doc['outbound'], [
+        {'kind': 'implements', 'pointer': 'lib/sign_in_page.dart'},
+        {'kind': 'tests', 'pointer': 'test/sign_in_test.dart'},
+      ]);
+    });
+
     test('f01/us07/fr01: refs --target jaspr keeps the jaspr record of a shared name', () async {
       final (:runner, :out, :err) = readRunner(await twoTargets());
 

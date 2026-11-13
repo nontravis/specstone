@@ -9,13 +9,14 @@ import 'package:yaml/yaml.dart';
 
 /// One entry of a target's `implementation` record: the story or FR it
 /// records, named relative to the record's feature (empty for the feature
-/// itself), its status, and its code paths.
+/// itself), its status, its code paths, and its test paths.
 final class RecordEntry {
   const new({
     required this.item,
     this.status,
     this.reason,
     this.codePaths = const [],
+    this.testPaths = const [],
   });
 
   /// The item's name relative to the record's feature; empty for the feature
@@ -32,6 +33,10 @@ final class RecordEntry {
   /// The `path[:Symbol]` text of each of the item's `implements` lines, in
   /// file order.
   final List<String> codePaths;
+
+  /// The path part of each of the item's `tests` lines, in file order; a
+  /// line's test name stays out, since only `check` reads names.
+  final List<String> testPaths;
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
@@ -51,19 +56,24 @@ final class RecordEntry {
     for (final (i, path) in codePaths.indexed) {
       if (other.codePaths[i] != path) return false;
     }
+    if (testPaths.length != other.testPaths.length) return false;
+    for (final (i, path) in testPaths.indexed) {
+      if (other.testPaths[i] != path) return false;
+    }
     return true;
   }
 
   @override
   String toString() =>
       'RecordEntry(item: $item, status: $status, reason: $reason, '
-      'codePaths: $codePaths)';
+      'codePaths: $codePaths, testPaths: $testPaths)';
 }
 
 /// Returns the entries of [record], its fields found on [recordType] by type
 /// (INV-31): the `record_status` field's lines give each item, its status,
 /// and, for `skipped`, its reason; the `item_exact` `output_ref` field's lines
-/// give each item's code paths.
+/// give each item's code paths; the `tests` field's lines give each item's
+/// test paths, their path part alone.
 ///
 /// An entry appears for every item either field names, in the `statuses`
 /// order; a line that names no item yields none. Invalid YAML frontmatter
@@ -83,6 +93,7 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
         status: parsed.status,
         reason: parsed.reason,
         codePaths: byItem[parsed.item]?.codePaths ?? const [],
+        testPaths: byItem[parsed.item]?.testPaths ?? const [],
       );
     }
   }
@@ -94,8 +105,19 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
         status: current.status,
         reason: current.reason,
         codePaths: [...current.codePaths, code],
+        testPaths: current.testPaths,
       );
     }
+  }
+  for (final (:item, :path) in recordTestLinesOf(record)) {
+    final current = baseOf(item);
+    byItem[item] = RecordEntry(
+      item: item,
+      status: current.status,
+      reason: current.reason,
+      codePaths: current.codePaths,
+      testPaths: [...current.testPaths, path],
+    );
   }
   return [for (final entry in byItem.values) entry];
 }
@@ -160,6 +182,39 @@ MergedField? recordCodeFieldOf(MergedDocType recordType) => recordType.fields
           f.type == FieldType.outputRef && f.pointer == PointerKind.itemExact,
     )
     .firstOrNull;
+
+/// The frontmatter key of a record's `tests` lines, read whether or not the
+/// doc type declares a field for it.
+const recordTestsKey = 'tests';
+
+/// Returns the item and path of an `item:<test path>[:<test name>]` line of a
+/// `tests` field; null when the line holds no `:`.
+///
+/// The path stops at the first `:`, so a test name keeps its colons; the
+/// index keeps the path alone, since only `check` reads names.
+({String item, String path})? recordTestLineOf(String line) {
+  final split = line.indexOf(':');
+  if (split < 0) return null;
+  return (item: line.substring(0, split), path: _pathOf(line, split));
+}
+
+String _pathOf(String line, int itemSplit) {
+  final rest = line.substring(itemSplit + 1);
+  final nameMark = rest.indexOf(':');
+  return nameMark < 0 ? rest : rest.substring(0, nameMark);
+}
+
+/// Returns the `item:<test path>` lines of [record]'s `tests` key as item and
+/// path, in line order; a line with no item names none.
+List<({String item, String path})> recordTestLinesOf(IndexedDoc record) {
+  final lines = <({String item, String path})>[];
+  for (final line in record.valuesOf(recordTestsKey)) {
+    final parsed = recordTestLineOf(line);
+    if (parsed == null || parsed.item.isEmpty) continue;
+    lines.add(parsed);
+  }
+  return lines;
+}
 
 /// Returns the stories under [feature] and the FRs of those stories, each by
 /// its name relative to [feature]: the items a record of it may name besides

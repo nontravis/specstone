@@ -63,19 +63,69 @@ void main() {
       },
     );
   });
-  test(
-    'f01/us05/fr04/e02: a folder matches every implements entry under it',
-    () async {
-      final b = code('app/lib/src/login', BundleMode.implement);
-      expect(
-        b.docPaths,
-        containsAll([
-          '$f/us01_email_login/fr01_validate_credentials.md',
-          '$f/us01_email_login/USER_STORY.md',
-        ]),
-      );
-    },
-  );
+  test('f01/us05/fr04/e02: a folder a tests path under it matches the item it proves', () async {
+    final b = code('app/lib/src/login', BundleMode.implement);
+    expect(
+      b.docPaths,
+      containsAll([
+        '$f/us01_email_login/fr01_validate_credentials.md',
+        '$f/us01_email_login/USER_STORY.md',
+      ]),
+    );
+  });
+  test('f01/us05/fr04/e02, f01/us05/fr04/e10, f01/us05/fr04/e17: a tests path '
+      'matches as a pointer value, its name aside, and the file is never read', () async {
+    final project = await writeLoginProject(
+      extra: {
+        'app/lib/schema.dbml': '',
+        'app/test/auth_test.dart': '',
+        'docs/specs/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n'
+            "  - 'email_login/validate_credentials:implemented'\n"
+            "  - 'email_login/lock_after_failures:planned'\n"
+            'implements:\n'
+            "  - 'email_login:app/lib/src/login/sign_in_page.dart:SignInPage'\n"
+            'tests:\n'
+            "  - 'email_login/validate_credentials:app/lib/schema.dbml:rejects'\n"
+            "  - 'email_login/lock_after_failures:app/test/auth_test.dart:locks: after 5'\n"
+            '---\n\n# Login implementation\n',
+      },
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    Bundle at(String p) => pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        p,
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      ),
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(at('app/lib/schema.dbml').docPaths, {
+      '$f/FEATURE.md',
+      ...specs,
+      '$f/us01_email_login/USER_STORY.md',
+      '$f/us01_email_login/fr01_validate_credentials.md',
+      '$f/us01_email_login/nf01_login_latency.md',
+    });
+    expect(at('app/test/auth_test.dart').docPaths, {
+      '$f/us01_email_login/USER_STORY.md',
+      '$f/us01_email_login/fr02_lock_after_failures.md',
+      '$f/us01_email_login/nf01_login_latency.md',
+      '$f/FEATURE.md',
+      ...specs,
+    });
+    expect(at('app/test').docPaths, {
+      '$f/us01_email_login/USER_STORY.md',
+      '$f/us01_email_login/fr02_lock_after_failures.md',
+      '$f/us01_email_login/nf01_login_latency.md',
+      '$f/FEATURE.md',
+      ...specs,
+    });
+  });
   test('f01/us05/fr04/e03: a topic covers match with no trace gives the topic and the joined docs', () async {
     final b = code('app/lib/src/tokens/token_store.dart', BundleMode.implement);
     expect(b.docPaths, {'specs/topics/auth_tokens.md'});

@@ -541,6 +541,46 @@ void main() {
       },
     );
 
+    test('f01/us05/fr04/e17: --code on a test file bundles the story and FR its tests line names', () async {
+      final project = await writeToastProject(
+        extra: {
+          'jaspr_lib/test/toast_test.dart': '',
+          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              '---\nstatuses:\n'
+              '  - show:implemented\n'
+              'implements:\n'
+              '  - show:lib/toast.dart:showToast\n'
+              'tests:\n'
+              '  - "show:test/toast_test.dart:queue: a toast #1"\n'
+              '---\n\n# Record\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/test/toast_test.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback/toast/show (user_story) · prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback/toast (implementation) · specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md <==\n',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('f01/us05/fr04/e15: --code with --target naming another target is argument_conflict, exit 64', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},

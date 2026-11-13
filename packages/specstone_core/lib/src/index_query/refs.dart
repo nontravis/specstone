@@ -154,6 +154,8 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
 ///
 /// An `item_exact` field belongs to a record: it gives each line's code path
 /// with the item left off, in line order, as [recordCodeLinesOf] reads them.
+/// A record's `tests` lines follow, kind `tests`, their path part alone, as
+/// [recordTestLinesOf] reads them.
 List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
   final type = index.typeOf(doc);
   if (type == null) return const [];
@@ -163,9 +165,12 @@ List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
         if (field.pointer == PointerKind.itemExact)
           for (final line in recordCodeLinesOf(doc, field))
             _Ref.toPointer(field.id, line.code)
-        else
+        else if (field.id != recordTestsKey)
           for (final value in doc.valuesOf(field.id))
             _Ref.toPointer(field.id, value),
+    if (type.id == index.set.recordDocType?.id)
+      for (final line in recordTestLinesOf(doc))
+        _Ref.toPointer(recordTestsKey, line.path),
   ];
 }
 
