@@ -21,7 +21,7 @@ irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex
 The script installs the CLI in `~/.specstone/bin` and adds that folder to your PATH. When Claude Code's `claude`
 command is on your PATH, it also installs the Specstone plugin; otherwise it prints the two commands to run later.
 
-Typing `stn` runs the CLI with fewer keystrokes, unless another tool's `stn` is first on your PATH, where you type
+Typing `stn` runs the CLI with fewer keystrokes, unless another tool's `stn` is on your PATH, where you type
 `specstone`.
 
 To upgrade the CLI and the plugin, run `specstone upgrade`, then restart Claude Code.
