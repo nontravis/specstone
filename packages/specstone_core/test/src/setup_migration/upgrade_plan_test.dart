@@ -322,6 +322,83 @@ sections:
     },
   );
 
+  test('f06/us02/fr02/e08: two docs whose new paths differ only in letter case '
+      'collide', () async {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/BOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/book.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/BOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/ops/deploy/RUNBOOK.md': '# Live\n\n## Steps\n\ny\n',
+      },
+    );
+
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.upgradeCollision)
+            .having((f) => f.more, 'more', hasLength(1)),
+      ),
+    );
+  });
+
+  test('f06/us02/fr02/e08: a move onto a staying doc that differs only in '
+      'letter case collides', () async {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/Book.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/Book.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/runbooks/deploy/book.md': '# Kept\n\n## Steps\n\ny\n',
+      },
+    );
+
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.upgradeCollision)
+            .having((f) => f.more, 'more', hasLength(0)),
+      ),
+    );
+  });
+
   test('f06/us02/fr02/e05: a chained move_file path ends at the last step, '
       'one move from the original path', () async {
     const packYaml = '''

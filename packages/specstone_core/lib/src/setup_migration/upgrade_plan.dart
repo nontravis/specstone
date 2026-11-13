@@ -19,6 +19,8 @@ import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
+import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
+    show caseBlindPath;
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
@@ -973,7 +975,9 @@ const _resolveCollision =
 ///
 /// Two docs moved onto one path each fault on their own line. A move onto
 /// another moved doc's old path is fine: [orderedMoves] orders those.
-/// [firstTarget] names the tree move's target.
+/// [firstTarget] names the tree move's target. Destinations are compared
+/// case-blind, as the legacy run's collisions are, so two docs whose new paths
+/// differ only in letter case collide.
 List<MigrateFault> _moveCollisions(
   List<String> docPaths, {
   required Map<String, String> planned,
@@ -996,14 +1000,18 @@ List<MigrateFault> _moveCollisions(
     } else {
       what = 'the spec tree move to $firstTarget moves $source to $destination';
     }
+    final at = caseBlindPath(destination);
     // A stayer holds its ground: the mover's destination is its own path.
     final stayer = docPaths.any(
-      (path) => path == destination && !isMoved(path),
+      (path) => caseBlindPath(path) == at && !isMoved(path),
     );
     // Another mover with the same final path: each fault names the other. A
     // stayer never counts; it is the stayer fault below.
     final rivals = docPaths.where(
-      (path) => path != source && isMoved(path) && planned[path] == destination,
+      (path) =>
+          path != source &&
+          isMoved(path) &&
+          caseBlindPath(planned[path]!) == at,
     );
     if (stayer) {
       faults.add(_collisionFault(what, source, 'the doc already there holds'));

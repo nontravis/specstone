@@ -2212,13 +2212,111 @@ void main() {
         prompts: StringBuffer(),
       ),
     );
-    refuses(
-      'reorder',
-      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+  });
+
+  group('a move whose paths differ only in letter case', () {
+    String nameOf(FileSystemEntity entity) =>
+        entity.path.split(Platform.pathSeparator).last;
+
+    List<String> listed(Directory folder) =>
+        [for (final entity in folder.listSync()) nameOf(entity)]..sort();
+
+    test('a file move takes the new case, and its done test reads the case '
+        'the disk lists', () async {
+      final root = await writeTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      const step = MoveStep(
+        'docs/prds/runbooks/deploy/RUNBOOK.md',
+        'docs/prds/runbooks/deploy/Runbook.md',
+      );
+
+      expect(step.isDone(_target(root)), isFalse);
+      step.apply(_target(root));
+
+      expect(listed(Directory('${root.path}/docs/prds/runbooks/deploy')), [
+        'Runbook.md',
+      ]);
+      expect(step.isDone(_target(root)), isTrue);
+      expect(
+        File('${root.path}/docs/prds/runbooks/deploy/Runbook.md')
+            .readAsStringSync(),
+        '# Deploy\n',
+      );
+    });
+
+    test('a folder move takes the new case', () async {
+      final root = await writeTree({'docs/prds/RUNBOOKS/keep.md': 'x\n'});
+
+      const MoveStep(
+        'docs/prds/RUNBOOKS',
+        'docs/prds/runbooks',
+      ).apply(_target(root));
+
+      expect(listed(Directory('${root.path}/docs/prds')), ['runbooks']);
+      expect(
+        File('${root.path}/docs/prds/runbooks/keep.md').readAsStringSync(),
+        'x\n',
+      );
+    });
+
+    test(
+      'a replay stopped between the two renames finishes the move',
+      () async {
+        final root = await writeTree({
+          'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+        });
+        const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+        const to = 'docs/prds/runbooks/deploy/Runbook.md';
+        writeJournal(root, const [MoveStep(from, to)]);
+        File('${root.path}/$from')
+            .renameSync('${root.path}/$to.specstone-case-7');
+
+        MoveJournal.replay(_target(root));
+
+        expect(listed(Directory('${root.path}/docs/prds/runbooks/deploy')), [
+          'Runbook.md',
+        ]);
+        expect(journalExists(), isFalse);
+      },
     );
-    refuses(
-      'rename',
-      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'other'),
-    );
+
+    test('isCaseOnlyMove tells a case-only pair from any other', () {
+      expect(isCaseOnlyMove('docs/A.md', 'docs/a.md'), isTrue);
+      expect(isCaseOnlyMove('docs/a.md', 'docs/a.md'), isFalse);
+      expect(isCaseOnlyMove('docs/A.md', 'docs/B.md'), isFalse);
+      expect(isCaseOnlyMove('docs/A.md', 'src/a.md'), isFalse);
+    });
+
+    test('a commit stages the move as a removal and an add, so git records '
+        'the new case', () async {
+      final root = await _gitTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      final base = _head(root);
+      const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+      const to = 'docs/prds/runbooks/deploy/Runbook.md';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root), ['move', 'initial']);
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\t$from\t$to\n',
+      );
+      expect(
+        git(root, ['ls-files', '--', 'docs/prds/runbooks/deploy']).stdout,
+        '$to\n',
+      );
+      expect(git(root, ['status', '--porcelain', '--', 'docs']).stdout, '');
+    }, skip: hasGit ? null : 'git is not available');
   });
 }

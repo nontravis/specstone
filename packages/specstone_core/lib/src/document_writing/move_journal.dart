@@ -198,12 +198,19 @@ List<({String from, String to})> _movesOf(Object? json) => switch (json) {
   _ => throw FormatException('not a list of commit moves', json),
 };
 
+/// Whether [from] and [to] name one path in two letter cases, so a case-blind
+/// disk takes the new case only through a temporary name.
+bool isCaseOnlyMove(String from, String to) =>
+    from != to && from.toLowerCase() == to.toLowerCase();
+
 /// Moves a file, a folder, or a symbolic link as itself, creating the parent
 /// folders of the target.
 ///
 /// Skipped when [from] is gone, because an earlier run already moved it, and
 /// when [to] is a stage slot that is taken, so a replay never lands on what
-/// another move staged there.
+/// another move staged there. A path pair that differs only in letter case
+/// renames through a temporary sibling name, so a case-blind disk takes the
+/// new case, and a replay stopped between the two renames finishes them.
 final class MoveStep extends JournalStep {
   const new(this.from, this.to);
 
@@ -225,9 +232,18 @@ final class MoveStep extends JournalStep {
   List<String> get _paths => [from, to];
 
   @override
-  bool isDone(JournalTarget target) =>
-      FileSystemEntity.typeSync(_absolute(target, from), followLinks: false) ==
-      FileSystemEntityType.notFound;
+  bool isDone(JournalTarget target) {
+    final source = _absolute(target, from);
+    if (!isCaseOnlyMove(from, to)) {
+      return FileSystemEntity.typeSync(source, followLinks: false) ==
+          FileSystemEntityType.notFound;
+    }
+    // A case-blind disk still lists the old spelling, and a stop between the
+    // two renames lists the temporary name, so the case as the disk lists it
+    // tells whether the step ran.
+    final listed = _listedNameOf(source);
+    return listed == null || listed == _lastSegmentOf(to);
+  }
 
   @override
   void apply(JournalTarget target) {
@@ -238,7 +254,47 @@ final class MoveStep extends JournalStep {
             FileSystemEntityType.notFound) {
       return;
     }
+    if (isCaseOnlyMove(from, to)) {
+      _moveCaseOnly(_absolute(target, from), destination);
+      return;
+    }
     _moveEntity(_absolute(target, from), destination);
+  }
+
+  /// Renames the entry at [source] to [target] through a temporary sibling
+  /// name, so a case-blind disk ends with [target]'s case.
+  ///
+  /// A stop between the two renames leaves the temporary name; the next run
+  /// renames it to [target] in one hop.
+  void _moveCaseOnly(String source, String target) {
+    final listed = _listedNameOf(source);
+    if (listed == null) return;
+    final atOldSpelling =
+        listed.toLowerCase() == _lastSegmentOf(source).toLowerCase();
+    try {
+      var entry = source;
+      if (atOldSpelling) {
+        var attempt = 0;
+        String tempOf() {
+          final nonce = DateTime.now().millisecondsSinceEpoch % 9973;
+          return '$target$_tempCaseSuffix-$nonce-$attempt';
+        }
+
+        var temp = tempOf();
+        while (FileSystemEntity.typeSync(temp, followLinks: false) !=
+            FileSystemEntityType.notFound) {
+          attempt++;
+          temp = tempOf();
+        }
+        renameSyncRetrying(_entityAt(source), temp);
+        entry = temp;
+      } else {
+        entry = _join(File(source).parent.path, listed);
+      }
+      renameSyncRetrying(_entityAt(entry), target);
+    } on FileSystemException catch (error) {
+      throw _notWritable('move', from, error);
+    }
   }
 
   void _moveEntity(String source, String target) {
@@ -249,6 +305,28 @@ final class MoveStep extends JournalStep {
       throw _notWritable('move', from, error);
     }
   }
+}
+
+/// The marker of a [MoveStep]'s temporary name in a case-only move.
+const _tempCaseSuffix = '.specstone-case';
+
+String _lastSegmentOf(String path) => path.split(Platform.pathSeparator).last;
+
+/// Returns the name the disk lists for [path]'s segment, matched without
+/// letter case, a leftover temporary name included, or null when no entry is
+/// there.
+String? _listedNameOf(String path) {
+  final wanted = _lastSegmentOf(path).toLowerCase();
+  final folder = Directory(File(path).parent.path);
+  if (!folder.existsSync()) return null;
+  for (final entity in folder.listSync(followLinks: false)) {
+    final name = _lastSegmentOf(entity.path);
+    final folded = name.toLowerCase();
+    if (folded == wanted || folded.startsWith('$wanted$_tempCaseSuffix')) {
+      return name;
+    }
+  }
+  return null;
 }
 
 /// Removes an empty folder, then each empty parent below the docs root.
@@ -501,7 +579,9 @@ final class CommitStep extends JournalStep {
   /// attempt already staged its deletion. A path HEAD holds stays committable,
   /// so the commit records its staged deletion. No commit runs when none of
   /// them is staged, as when a hook that rewrote the subject hid an earlier
-  /// commit from [isDone].
+  /// commit from [isDone]. A [moves] pair that differs only in letter case
+  /// stages its old path as an index removal before the add, since `git add`
+  /// alone is a no-op on a case-blind index.
   @override
   void apply(JournalTarget target) {
     if (isDone(target)) return;
@@ -542,11 +622,27 @@ final class CommitStep extends JournalStep {
             (_onDisk(target, path) || indexed.contains(path)))
           path,
     };
+    final caseOnlyFrom = {
+      for (final move in moves)
+        if (isCaseOnlyMove(move.from, move.to) &&
+            head.contains(move.from) &&
+            stageable.contains(move.to))
+          move.from,
+    };
+    if (caseOnlyFrom.isNotEmpty) {
+      _runWrite(target, 'rm', [
+        'rm',
+        '-q',
+        '--cached',
+        '--ignore-unmatch',
+        ..._pathspecFile(target, caseOnlyFrom),
+      ], environment: _literalPathspecs);
+    }
     if (stageable.isNotEmpty) {
       _runWrite(target, 'add', [
         'add',
         '-A',
-        ..._pathspecFile(target, stageable),
+        ..._pathspecFile(target, stageable.difference(caseOnlyFrom)),
       ], environment: _literalPathspecs);
     }
     if (forced.isNotEmpty) {
@@ -556,11 +652,15 @@ final class CommitStep extends JournalStep {
         ..._pathspecFile(target, forced),
       ], environment: _literalPathspecs);
     }
+    // The old spelling of a case-only move stays out of the commit's
+    // pathspec: git would re-add its case-blind work-tree alias, refusing the
+    // commit as a duplicate index entry.
     final committable = [
       for (final path in paths)
-        if (stageable.contains(path) ||
-            forced.contains(path) ||
-            head.contains(path))
+        if (!caseOnlyFrom.contains(path) &&
+            (stageable.contains(path) ||
+                forced.contains(path) ||
+                head.contains(path)))
           path,
     ];
     final staged = _listed(target, [
@@ -574,13 +674,23 @@ final class CommitStep extends JournalStep {
       ...scope,
     ]);
     if (!committable.any(staged.contains)) return;
-    _runWrite(target, 'commit', [
+    // A partial commit rebuilds its index from HEAD for its pathspec, where
+    // the old spelling of a case-only move still lives, so any pathspec
+    // naming the new spelling fails as a duplicate alias. The whole staged
+    // index is this step's own staging, so it commits as is.
+    _runWrite(
+      target,
       'commit',
-      '-q',
-      '-m',
-      message,
-      ..._pathspecFile(target, committable.map(_literalPathspec)),
-    ]);
+      caseOnlyFrom.isEmpty
+          ? [
+              'commit',
+              '-q',
+              '-m',
+              message,
+              ..._pathspecFile(target, committable.map(_literalPathspec)),
+            ]
+          : ['commit', '-q', '-m', message],
+    );
   }
 
   bool _onDisk(JournalTarget target, String path) =>
